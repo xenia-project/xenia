@@ -56,9 +56,8 @@ class D3D12PrimitiveProcessor final : public PrimitiveProcessor {
   }
 
  protected:
-  bool InitializeBuiltin16BitIndexBuffer(
-      uint32_t index_count,
-      std::function<void(uint16_t*)> fill_callback) override;
+  bool InitializeBuiltinIndexBuffer(
+      size_t size_bytes, std::function<void(void*)> fill_callback) override;
 
   void* RequestHostConvertedIndexBufferForCurrentFrame(
       xenos::IndexFormat format, uint32_t index_count, bool coalign_for_simd,

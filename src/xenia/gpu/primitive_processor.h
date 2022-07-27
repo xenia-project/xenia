@@ -10,6 +10,7 @@
 #ifndef XENIA_GPU_PRIMITIVE_PROCESSOR_H_
 #define XENIA_GPU_PRIMITIVE_PROCESSOR_H_
 
+#include <algorithm>
 #include <climits>
 #include <cstddef>
 #include <cstdint>
@@ -110,13 +111,16 @@ class PrimitiveProcessor {
     // For 32-bit, indirection is needed if the host only supports 24-bit
     // indices (even for non-endian-swapped, as the GPU should be ignoring the
     // upper 8 bits completely, rather than exhibiting undefined behavior.
-    kGuest,
+    kGuestDMA,
     // Converted and stored in the primitive converter for the current draw
     // command. For 32-bit indices, if the host doesn't support all 32 bits,
     // this kind of an index buffer will always be pre-masked and pre-swapped.
     kHostConverted,
     // Auto-indexed on the guest, but with an adapter index buffer on the host.
-    kHostBuiltin,
+    kHostBuiltinForAuto,
+    // Adapter index buffer on the host for indirect loading of indices via DMA
+    // (from the shared memory).
+    kHostBuiltinForDMA,
   };
 
   struct ProcessingResult {
@@ -136,13 +140,14 @@ class PrimitiveProcessor {
     ProcessedIndexBufferType index_buffer_type;
     uint32_t guest_index_base;
     xenos::IndexFormat host_index_format;
-    xenos::Endian host_index_endian;
+    xenos::Endian host_shader_index_endian;
     // The reset index, if enabled, is always 0xFFFF for host_index_format
     // kInt16 and 0xFFFFFFFF for kInt32. Never enabled for "list" primitive
     // types, thus safe for direct usage on Vulkan.
     bool host_primitive_reset_enabled;
     // Backend-specific handle for the index buffer valid for the current draw,
-    // only valid for index_buffer_type kHostConverted and kHostBuiltin.
+    // only valid for index_buffer_type kHostConverted, kHostBuiltinForAuto and
+    // kHostBuiltinForDMA.
     size_t host_index_buffer_handle;
     bool IsTessellated() const {
       return Shader::IsHostVertexShaderTypeDomain(host_vertex_shader_type);
@@ -164,6 +169,12 @@ class PrimitiveProcessor {
   // shader, but geometry shaders must be supported for this.
   bool IsConvertingQuadListsToTriangleLists() const {
     return convert_quad_lists_to_triangle_lists_;
+  }
+  bool IsExpandingPointSpritesInVS() const {
+    return expand_point_sprites_in_vs_;
+  }
+  bool IsExpandingRectangleListsInVS() const {
+    return expand_rectangle_lists_in_vs_;
   }
 
   // Submission must be open to call (may request the index buffer in the shared
@@ -217,8 +228,8 @@ class PrimitiveProcessor {
   //       if indirection may be needed.
   //     - When full 32-bit indices are not supported, the host must be using
   //       auto-indexed draws for 32-bit indices of ProcessedIndexBufferType
-  //       kGuest, while fetching the index data manually from the shared memory
-  //       buffer and endian-swapping it.
+  //       kGuestDMA, while fetching the index data manually from the shared
+  //       memory buffer and endian-swapping it.
   //     - Indirection, however, precludes primitive reset usage - so if
   //       primitive reset is needed, the primitive processor will pre-swap and
   //       pre-mask the index buffer so there are only host-endian 0x00###### or
@@ -235,19 +246,26 @@ class PrimitiveProcessor {
   //     those guest primitive types directly or through geometry shader
   //     emulation. Debug overriding will be resolved in the common code if
   //     needed.
+  // - point_sprites_supported_without_vs_expansion,
+  //   rectangle_lists_supported_without_vs_expansion:
+  //   - Pass true or false depending on whether the host actually supports
+  //     those guest primitive types directly or through geometry shader
+  //     emulation. Overrides do not apply to these as hosts are not required to
+  //     support the fallback paths since they require different vertex shader
+  //     structure (for the fallback HostVertexShaderTypes).
   bool InitializeCommon(bool full_32bit_vertex_indices_supported,
                         bool triangle_fans_supported, bool line_loops_supported,
-                        bool quad_lists_supported);
+                        bool quad_lists_supported,
+                        bool point_sprites_supported_without_vs_expansion,
+                        bool rectangle_lists_supported_without_vs_expansion);
   // If any primitive type conversion is needed for auto-indexed draws, called
   // from InitializeCommon (thus only once in the primitive processor's
   // lifetime) to set up the backend's index buffer containing indices for
-  // primitive type remapping. The backend must allocate a `sizeof(uint16_t) *
-  // index_count` buffer and call fill_callback for its mapping if creation is
-  // successful. 16-bit indices are enough even if the backend has primitive
-  // reset enabled all the time (Metal) as auto-indexed draws are limited to
-  // UINT16_MAX vertices, not UINT16_MAX + 1.
-  virtual bool InitializeBuiltin16BitIndexBuffer(
-      uint32_t index_count, std::function<void(uint16_t*)> fill_callback) = 0;
+  // primitive type remapping. The backend must allocate a 4-byte-aligned buffer
+  // with `size_bytes` and call fill_callback for its mapping if creation has
+  // been successful.
+  virtual bool InitializeBuiltinIndexBuffer(
+      size_t size_bytes, std::function<void(void*)> fill_callback) = 0;
   // Call last in implementation-specific shutdown, also callable from the
   // destructor.
   void ShutdownCommon();
@@ -509,6 +527,12 @@ class PrimitiveProcessor {
     }
   };
 
+  static constexpr uint32_t GetTwoTriangleStripIndexCount(
+      uint32_t strip_count) {
+    // 4 vertices per strip, and primitive restarts between strips.
+    return 4 * strip_count + (std::max(strip_count, UINT32_C(1)) - 1);
+  }
+
   // Triangle fan test cases:
   // - 4D5307E6 - main menu - game logo, developer logo, backgrounds of the menu
   //   item list (the whole menu and individual items) - no index buffer.
@@ -675,8 +699,11 @@ class PrimitiveProcessor {
   bool convert_triangle_fans_to_lists_ = false;
   bool convert_line_loops_to_strips_ = false;
   bool convert_quad_lists_to_triangle_lists_ = false;
+  bool expand_point_sprites_in_vs_ = false;
+  bool expand_rectangle_lists_in_vs_ = false;
 
   // Byte offsets used, for simplicity, directly as handles.
+  size_t builtin_ib_offset_two_triangle_strips_ = SIZE_MAX;
   size_t builtin_ib_offset_triangle_fans_to_lists_ = SIZE_MAX;
   size_t builtin_ib_offset_quad_lists_to_triangle_lists_ = SIZE_MAX;
 
@@ -745,7 +772,7 @@ class PrimitiveProcessor {
     uint32_t host_draw_vertex_count;
     ProcessedIndexBufferType index_buffer_type;
     xenos::IndexFormat host_index_format;
-    xenos::Endian host_index_endian;
+    xenos::Endian host_shader_index_endian;
     bool host_primitive_reset_enabled;
     size_t host_index_buffer_handle;
   };

@@ -964,8 +964,6 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
 
   // Check if the shader returns XY/W rather than XY, and if it does, revert
   // that.
-  // TODO(Triang3l): Check if having XY or Z pre-divided by W should result in
-  // affine interpolation.
   a_.OpAnd(temp_x_dest, flags_src, dxbc::Src::LU(kSysFlag_XYDividedByW));
   a_.OpIf(true, temp_x_src);
   a_.OpMul(dxbc::Dest::R(system_temp_position_, 0b0011),
@@ -974,8 +972,6 @@ void DxbcShaderTranslator::CompleteVertexOrDomainShader() {
   a_.OpEndIf();
 
   // Check if the shader returns Z/W rather than Z, and if it does, revert that.
-  // TODO(Triang3l): Check if having XY or Z pre-divided by W should result in
-  // affine interpolation.
   a_.OpAnd(temp_x_dest, flags_src, dxbc::Src::LU(kSysFlag_ZDividedByW));
   a_.OpIf(true, temp_x_src);
   a_.OpMul(dxbc::Dest::R(system_temp_position_, 0b0100),

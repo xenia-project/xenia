@@ -436,8 +436,8 @@ class VulkanCommandProcessor : public CommandProcessor {
   void UpdateSystemConstantValues(
       bool primitive_polygonal,
       const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
-      const draw_util::ViewportInfo& viewport_info, uint32_t used_texture_mask,
-      bool& vertex_shader_index_load_out);
+      bool shader_32bit_index_dma, const draw_util::ViewportInfo& viewport_info,
+      uint32_t used_texture_mask);
   bool UpdateBindings(const VulkanShader* vertex_shader,
                       const VulkanShader* pixel_shader);
   // Allocates a descriptor set and fills one or two VkWriteDescriptorSet

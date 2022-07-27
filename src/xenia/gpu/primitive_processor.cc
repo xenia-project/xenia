@@ -9,6 +9,7 @@
 
 #include "xenia/gpu/primitive_processor.h"
 
+#include <algorithm>
 #include <cstring>
 #include <functional>
 #include <utility>
@@ -106,7 +107,9 @@ PrimitiveProcessor::~PrimitiveProcessor() { ShutdownCommon(); }
 
 bool PrimitiveProcessor::InitializeCommon(
     bool full_32bit_vertex_indices_supported, bool triangle_fans_supported,
-    bool line_loops_supported, bool quad_lists_supported) {
+    bool line_loops_supported, bool quad_lists_supported,
+    bool point_sprites_supported_without_vs_expansion,
+    bool rectangle_lists_supported_without_vs_expansion) {
   full_32bit_vertex_indices_used_ = full_32bit_vertex_indices_supported;
   convert_triangle_fans_to_lists_ =
       !triangle_fans_supported || cvars::force_convert_triangle_fans_to_lists;
@@ -115,33 +118,94 @@ bool PrimitiveProcessor::InitializeCommon(
   convert_quad_lists_to_triangle_lists_ =
       !quad_lists_supported ||
       cvars::force_convert_quad_lists_to_triangle_lists;
+  // No override cvars as hosts are not required to support the fallback paths
+  // since they require different vertex shader structure (for the fallback
+  // HostVertexShaderTypes).
+  expand_point_sprites_in_vs_ = !point_sprites_supported_without_vs_expansion;
+  expand_rectangle_lists_in_vs_ =
+      !rectangle_lists_supported_without_vs_expansion;
 
   // Initialize the index buffer for conversion of auto-indexed primitive types.
-  uint32_t builtin_index_count = 0;
+  size_t builtin_index_buffer_size = 0;
+  // 32-bit, before 16-bit due to alignment (for primitive expansion - when the
+  // indices encode not only the guest vertex index, but also a part needed for
+  // host expansion, thus may contain values above UINT16_MAX, such as up to
+  // (UINT16_MAX - 1) * 4 + 3 for point sprites).
+  // Using an index buffer for point sprite and rectangle list expansion instead
+  // of instancing as how instancing is implemented may vary wildly between
+  // GPUs, potentially slowly (like no different instances in the same
+  // wavefront) with small vertex counts per instance. Also using triangle
+  // strips with primitive restart, not triangle lists, so the vertex shader may
+  // be invoked once for the inner edge vertices, which is important for memory
+  // export in guest shaders, not to write to the same location from two
+  // invocations.
+  uint32_t builtin_ib_two_triangle_strip_count = 0;
+  if (expand_point_sprites_in_vs_) {
+    builtin_ib_two_triangle_strip_count =
+        std::max(uint32_t(UINT16_MAX), builtin_ib_two_triangle_strip_count);
+  }
+  if (expand_rectangle_lists_in_vs_) {
+    builtin_ib_two_triangle_strip_count =
+        std::max(uint32_t(UINT16_MAX / 3), builtin_ib_two_triangle_strip_count);
+  }
+  if (builtin_ib_two_triangle_strip_count) {
+    builtin_ib_offset_two_triangle_strips_ = builtin_index_buffer_size;
+    builtin_index_buffer_size +=
+        sizeof(uint32_t) *
+        GetTwoTriangleStripIndexCount(builtin_ib_two_triangle_strip_count);
+  } else {
+    builtin_ib_offset_two_triangle_strips_ = SIZE_MAX;
+  }
+  // 16-bit (for indirection on top of single auto-indexed vertices) - enough
+  // even if the backend has primitive reset enabled all the time (Metal) as
+  // auto-indexed draws are limited to UINT16_MAX vertices, not UINT16_MAX + 1.
   if (convert_triangle_fans_to_lists_) {
-    builtin_ib_offset_triangle_fans_to_lists_ =
-        sizeof(uint16_t) * builtin_index_count;
-    builtin_index_count += GetTriangleFanListIndexCount(UINT16_MAX);
+    builtin_ib_offset_triangle_fans_to_lists_ = builtin_index_buffer_size;
+    builtin_index_buffer_size +=
+        sizeof(uint16_t) * GetTriangleFanListIndexCount(UINT16_MAX);
   } else {
     builtin_ib_offset_triangle_fans_to_lists_ = SIZE_MAX;
   }
   if (convert_quad_lists_to_triangle_lists_) {
-    builtin_ib_offset_quad_lists_to_triangle_lists_ =
-        sizeof(uint16_t) * builtin_index_count;
-    builtin_index_count += GetQuadListTriangleListIndexCount(UINT16_MAX);
+    builtin_ib_offset_quad_lists_to_triangle_lists_ = builtin_index_buffer_size;
+    builtin_index_buffer_size +=
+        sizeof(uint16_t) * GetQuadListTriangleListIndexCount(UINT16_MAX);
   } else {
     builtin_ib_offset_quad_lists_to_triangle_lists_ = SIZE_MAX;
   }
-  if (builtin_index_count) {
-    if (!InitializeBuiltin16BitIndexBuffer(
-            builtin_index_count, [this](uint16_t* mapping) {
+  if (builtin_index_buffer_size) {
+    if (!InitializeBuiltinIndexBuffer(
+            builtin_index_buffer_size,
+            [this, builtin_ib_two_triangle_strip_count](void* mapping) {
+              uint32_t* mapping_32bit = reinterpret_cast<uint32_t*>(mapping);
+              if (builtin_ib_offset_two_triangle_strips_ != SIZE_MAX) {
+                // Two-triangle strips.
+                uint32_t* two_triangle_strip_ptr =
+                    mapping_32bit +
+                    builtin_ib_offset_two_triangle_strips_ / sizeof(uint32_t);
+                for (uint32_t i = 0; i < builtin_ib_two_triangle_strip_count;
+                     ++i) {
+                  if (i) {
+                    // Primitive restart.
+                    *(two_triangle_strip_ptr++) = UINT32_MAX;
+                  }
+                  // Host vertex index within the pair in the lower 2 bits,
+                  // guest primitive index in the rest.
+                  uint32_t two_triangle_strip_first_index = i << 2;
+                  for (uint32_t j = 0; j < 4; ++j) {
+                    *(two_triangle_strip_ptr++) =
+                        two_triangle_strip_first_index + j;
+                  }
+                }
+              }
+              uint16_t* mapping_16bit = reinterpret_cast<uint16_t*>(mapping);
               if (builtin_ib_offset_triangle_fans_to_lists_ != SIZE_MAX) {
                 // Triangle fans as triangle lists.
                 // Ordered as (v1, v2, v0), (v2, v3, v0) in Direct3D.
                 // https://docs.microsoft.com/en-us/windows/desktop/direct3d9/triangle-fans
                 uint16_t* triangle_list_ptr =
-                    mapping + builtin_ib_offset_triangle_fans_to_lists_ /
-                                  sizeof(uint16_t);
+                    mapping_16bit + builtin_ib_offset_triangle_fans_to_lists_ /
+                                        sizeof(uint16_t);
                 for (uint32_t i = 2; i < UINT16_MAX; ++i) {
                   *(triangle_list_ptr++) = uint16_t(i - 1);
                   *(triangle_list_ptr++) = uint16_t(i);
@@ -150,8 +214,9 @@ bool PrimitiveProcessor::InitializeCommon(
               }
               if (builtin_ib_offset_quad_lists_to_triangle_lists_ != SIZE_MAX) {
                 uint16_t* triangle_list_ptr =
-                    mapping + builtin_ib_offset_quad_lists_to_triangle_lists_ /
-                                  sizeof(uint16_t);
+                    mapping_16bit +
+                    builtin_ib_offset_quad_lists_to_triangle_lists_ /
+                        sizeof(uint16_t);
                 // TODO(Triang3l): SIMD for faster initialization?
                 for (uint32_t i = 0; i < UINT16_MAX / 4; ++i) {
                   uint16_t quad_first_index = uint16_t(i * 4);
@@ -309,15 +374,27 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
       return false;
     }
   } else {
+    host_vertex_shader_type = Shader::HostVertexShaderType::kVertex;
     switch (guest_primitive_type) {
       case xenos::PrimitiveType::kPointList:
+        if (expand_point_sprites_in_vs_) {
+          host_primitive_type = xenos::PrimitiveType::kTriangleStrip;
+          host_vertex_shader_type =
+              Shader::HostVertexShaderType::kPointListAsTriangleStrip;
+        }
+        break;
       case xenos::PrimitiveType::kLineList:
       case xenos::PrimitiveType::kLineStrip:
       case xenos::PrimitiveType::kTriangleList:
       case xenos::PrimitiveType::kTriangleStrip:
+        // Supported natively on all backends.
+        break;
       case xenos::PrimitiveType::kRectangleList:
-        // Supported natively or through geometry or compute shaders on all
-        // backends.
+        if (expand_rectangle_lists_in_vs_) {
+          host_primitive_type = xenos::PrimitiveType::kTriangleStrip;
+          host_vertex_shader_type =
+              Shader::HostVertexShaderType::kRectangleListAsTriangleStrip;
+        }
         break;
       case xenos::PrimitiveType::kTriangleFan:
         if (convert_triangle_fans_to_lists_) {
@@ -342,7 +419,6 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
         assert_always();
         return false;
     }
-    host_vertex_shader_type = Shader::HostVertexShaderType::kVertex;
   }
 
   // Process the indices.
@@ -359,12 +435,86 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
     guest_draw_vertex_count = vgt_dma_size.num_words;
   }
   uint32_t line_loop_closing_index = 0;
-  uint32_t guest_index_base;
+  uint32_t guest_index_base = 0, guest_index_buffer_needed_bytes = 0;
   CachedResult cacheable;
   cacheable.host_draw_vertex_count = guest_draw_vertex_count;
   cacheable.host_primitive_reset_enabled = false;
   cacheable.host_index_buffer_handle = SIZE_MAX;
-  if (vgt_draw_initiator.source_select == xenos::SourceSelect::kAutoIndex) {
+  if (host_vertex_shader_type ==
+          Shader::HostVertexShaderType::kPointListAsTriangleStrip ||
+      host_vertex_shader_type ==
+          Shader::HostVertexShaderType::kRectangleListAsTriangleStrip) {
+    // As two-triangle strips, with guest indices being either autogenerated or
+    // fetched via DMA.
+    uint32_t primitive_count = guest_draw_vertex_count;
+    if (host_vertex_shader_type ==
+        Shader::HostVertexShaderType::kRectangleListAsTriangleStrip) {
+      primitive_count /= 3;
+    }
+    cacheable.host_draw_vertex_count =
+        GetTwoTriangleStripIndexCount(primitive_count);
+    cacheable.host_index_format = xenos::IndexFormat::kInt32;
+    cacheable.host_primitive_reset_enabled = true;
+    assert_true(builtin_ib_offset_two_triangle_strips_ != SIZE_MAX);
+    cacheable.host_index_buffer_handle = builtin_ib_offset_two_triangle_strips_;
+    if (vgt_draw_initiator.source_select == xenos::SourceSelect::kAutoIndex) {
+      cacheable.index_buffer_type =
+          ProcessedIndexBufferType::kHostBuiltinForAuto;
+      cacheable.host_shader_index_endian = xenos::Endian::kNone;
+    } else {
+      // There is an index buffer.
+      assert_true(vgt_draw_initiator.source_select ==
+                  xenos::SourceSelect::kDMA);
+      if (vgt_draw_initiator.source_select != xenos::SourceSelect::kDMA) {
+        // TODO(Triang3l): Support immediate-indexed vertices.
+        XELOGE(
+            "Primitive processor: Unsupported vertex index source {}. Report "
+            "the game to Xenia developers!",
+            uint32_t(vgt_draw_initiator.source_select));
+        return false;
+      }
+      xenos::IndexFormat guest_index_format = vgt_draw_initiator.index_size;
+      // Normalize the endian.
+      cacheable.index_buffer_type =
+          ProcessedIndexBufferType::kHostBuiltinForDMA;
+      xenos::Endian guest_index_endian = vgt_dma_size.swap_mode;
+      if (guest_index_format == xenos::IndexFormat::kInt16 &&
+          (guest_index_endian != xenos::Endian::kNone &&
+           guest_index_endian != xenos::Endian::k8in16)) {
+        XELOGW(
+            "Primitive processor: 32-bit endian swap mode {} is used for "
+            "16-bit indices. This shouldn't normally be happening, but report "
+            "the game to Xenia developers for investigation of the intended "
+            "behavior (ignore or actually swap across adjacent indices)! "
+            "Currently disabling the swap for 16-and-32 and replacing 8-in-32 "
+            "with 8-in-16.",
+            uint32_t(guest_index_endian));
+        guest_index_endian = guest_index_endian == xenos::Endian::k8in32
+                                 ? xenos::Endian::k8in16
+                                 : xenos::Endian::kNone;
+      }
+      cacheable.host_shader_index_endian = guest_index_endian;
+      // Get the index buffer memory range.
+      uint32_t index_size_log2 =
+          guest_index_format == xenos::IndexFormat::kInt16 ? 1 : 2;
+      // The base should already be aligned, but aligning here too for safety.
+      guest_index_base = regs[XE_GPU_REG_VGT_DMA_BASE].u32 &
+                         ~uint32_t((1 << index_size_log2) - 1);
+      guest_index_buffer_needed_bytes = guest_draw_vertex_count
+                                        << index_size_log2;
+      if (guest_index_base > SharedMemory::kBufferSize ||
+          SharedMemory::kBufferSize - guest_index_base <
+              guest_index_buffer_needed_bytes) {
+        XELOGE(
+            "Primitive processor: Index buffer at 0x{:08X}, 0x{:X} bytes "
+            "required, is out of the physical memory bounds",
+            guest_index_base, guest_index_buffer_needed_bytes);
+        assert_always();
+        return false;
+      }
+    }
+  } else if (vgt_draw_initiator.source_select ==
+             xenos::SourceSelect::kAutoIndex) {
     // Auto-indexed - use a remapping index buffer if needed to change the
     // primitive type.
     if (tessellation_enabled &&
@@ -376,9 +526,8 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
       assert_always();
       return false;
     }
-    guest_index_base = 0;
     cacheable.host_index_format = xenos::IndexFormat::kInt16;
-    cacheable.host_index_endian = xenos::Endian::kNone;
+    cacheable.host_shader_index_endian = xenos::Endian::kNone;
     cacheable.host_primitive_reset_enabled = false;
     cacheable.index_buffer_type = ProcessedIndexBufferType::kNone;
     if (host_primitive_type != guest_primitive_type) {
@@ -388,7 +537,8 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
                       xenos::PrimitiveType::kTriangleList);
           cacheable.host_draw_vertex_count =
               GetTriangleFanListIndexCount(cacheable.host_draw_vertex_count);
-          cacheable.index_buffer_type = ProcessedIndexBufferType::kHostBuiltin;
+          cacheable.index_buffer_type =
+              ProcessedIndexBufferType::kHostBuiltinForAuto;
           assert_true(builtin_ib_offset_triangle_fans_to_lists_ != SIZE_MAX);
           cacheable.host_index_buffer_handle =
               builtin_ib_offset_triangle_fans_to_lists_;
@@ -409,7 +559,8 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
                       xenos::PrimitiveType::kTriangleList);
           cacheable.host_draw_vertex_count = GetQuadListTriangleListIndexCount(
               cacheable.host_draw_vertex_count);
-          cacheable.index_buffer_type = ProcessedIndexBufferType::kHostBuiltin;
+          cacheable.index_buffer_type =
+              ProcessedIndexBufferType::kHostBuiltinForAuto;
           assert_true(builtin_ib_offset_quad_lists_to_triangle_lists_ !=
                       SIZE_MAX);
           cacheable.host_index_buffer_handle =
@@ -503,8 +654,8 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
     // The base should already be aligned, but aligning here too for safety.
     guest_index_base = regs[XE_GPU_REG_VGT_DMA_BASE].u32 &
                        ~uint32_t((1 << index_size_log2) - 1);
-    uint32_t guest_index_buffer_needed_bytes = guest_draw_vertex_count
-                                               << index_size_log2;
+    guest_index_buffer_needed_bytes = guest_draw_vertex_count
+                                      << index_size_log2;
     if (guest_index_base > SharedMemory::kBufferSize ||
         SharedMemory::kBufferSize - guest_index_base <
             guest_index_buffer_needed_bytes) {
@@ -517,7 +668,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
     }
 
     cacheable.host_index_format = guest_index_format;
-    cacheable.host_index_endian = guest_index_endian;
+    cacheable.host_shader_index_endian = guest_index_endian;
     uint32_t guest_index_mask_guest_endian =
         guest_index_format == xenos::IndexFormat::kInt16
             ? UINT16_MAX
@@ -666,7 +817,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
                 assert_unhandled_case(guest_index_endian);
                 return false;
             }
-            cacheable.host_index_endian = xenos::Endian::kNone;
+            cacheable.host_shader_index_endian = xenos::Endian::kNone;
           }
         }
         cache_transaction.SetNewResult(cacheable);
@@ -677,7 +828,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
       // endian-swap, or even to safely drop the upper 8 bits if no swap is even
       // needed) indirectly.
       cacheable.host_draw_vertex_count = guest_draw_vertex_count;
-      cacheable.index_buffer_type = ProcessedIndexBufferType::kGuest;
+      cacheable.index_buffer_type = ProcessedIndexBufferType::kGuestDMA;
       cacheable.host_primitive_reset_enabled = guest_primitive_reset_enabled;
       if (guest_primitive_reset_enabled) {
         if (guest_index_format == xenos::IndexFormat::kInt16) {
@@ -742,8 +893,8 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
         } else {
           // Low 24 bits of the guest index are compared to the primitive reset
           // index. If the backend doesn't support full 32-bit indices, for
-          // ProcessedIndexBufferType::kGuest, the host needs to read the buffer
-          // indirectly in the vertex shaders and swap, and for
+          // ProcessedIndexBufferType::kGuestDMA, the host needs to read the
+          // buffer indirectly in the vertex shaders and swap, and for
           // ProcessedIndexBufferType::kHostConverted (if primitive reset is
           // actually used, thus exactly 0xFFFFFFFF must be sent to the host for
           // it in a true index buffer), no indirection is done, but
@@ -800,26 +951,31 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
                 assert_unhandled_case(guest_index_endian);
                 return false;
               }
-              cacheable.host_index_endian = full_32bit_vertex_indices_used_
-                                                ? guest_index_endian
-                                                : xenos::Endian::kNone;
+              cacheable.host_shader_index_endian =
+                  full_32bit_vertex_indices_used_ ? guest_index_endian
+                                                  : xenos::Endian::kNone;
             }
             cache_transaction.SetNewResult(cacheable);
           }
         }
       }
-      if (cacheable.index_buffer_type == ProcessedIndexBufferType::kGuest) {
-        // Request the index buffer memory.
-        // TODO(Triang3l): Shared memory request cache.
-        if (!shared_memory_.RequestRange(guest_index_base,
-                                         guest_index_buffer_needed_bytes)) {
-          XELOGE(
-              "PrimitiveProcessor: Failed to request index buffer 0x{:08X}, "
-              "0x{:X} bytes needed, in the shared memory",
-              guest_index_base, guest_index_buffer_needed_bytes);
-          return false;
-        }
-      }
+    }
+  }
+
+  // Request the indices in the shared memory if they need to be accessed from
+  // there on the GPU.
+  if (cacheable.index_buffer_type == ProcessedIndexBufferType::kGuestDMA ||
+      cacheable.index_buffer_type ==
+          ProcessedIndexBufferType::kHostBuiltinForDMA) {
+    // Request the index buffer memory.
+    // TODO(Triang3l): Shared memory request cache.
+    if (!shared_memory_.RequestRange(guest_index_base,
+                                     guest_index_buffer_needed_bytes)) {
+      XELOGE(
+          "PrimitiveProcessor: Failed to request index buffer 0x{:08X}, 0x{:X} "
+          "bytes needed, in the shared memory",
+          guest_index_base, guest_index_buffer_needed_bytes);
+      return false;
     }
   }
 
@@ -832,7 +988,7 @@ bool PrimitiveProcessor::Process(ProcessingResult& result_out) {
   result_out.index_buffer_type = cacheable.index_buffer_type;
   result_out.guest_index_base = guest_index_base;
   result_out.host_index_format = cacheable.host_index_format;
-  result_out.host_index_endian = cacheable.host_index_endian;
+  result_out.host_shader_index_endian = cacheable.host_shader_index_endian;
   result_out.host_primitive_reset_enabled =
       cacheable.host_primitive_reset_enabled;
   result_out.host_index_buffer_handle = cacheable.host_index_buffer_handle;
