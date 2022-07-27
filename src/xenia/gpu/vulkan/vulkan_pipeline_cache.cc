@@ -118,7 +118,7 @@ VulkanShader* VulkanPipelineCache::LoadShader(xenos::ShaderType shader_type,
 SpirvShaderTranslator::Modification
 VulkanPipelineCache::GetCurrentVertexShaderModification(
     const Shader& shader, Shader::HostVertexShaderType host_vertex_shader_type,
-    uint32_t interpolator_mask) const {
+    uint32_t interpolator_mask, bool ps_param_gen_used) const {
   assert_true(shader.type() == xenos::ShaderType::kVertex);
   assert_true(shader.is_ucode_analyzed());
   const auto& regs = register_file_;
@@ -133,10 +133,15 @@ VulkanPipelineCache::GetCurrentVertexShaderModification(
 
   modification.vertex.interpolator_mask = interpolator_mask;
 
-  modification.vertex.output_point_size =
-      uint32_t((shader.writes_point_size_edge_flag_kill_vertex() & 0b001) &&
-               regs.Get<reg::VGT_DRAW_INITIATOR>().prim_type ==
-                   xenos::PrimitiveType::kPointList);
+  if (host_vertex_shader_type ==
+      Shader::HostVertexShaderType::kPointListAsTriangleStrip) {
+    modification.vertex.output_point_parameters = uint32_t(ps_param_gen_used);
+  } else {
+    modification.vertex.output_point_parameters =
+        uint32_t((shader.writes_point_size_edge_flag_kill_vertex() & 0b001) &&
+                 regs.Get<reg::VGT_DRAW_INITIATOR>().prim_type ==
+                     xenos::PrimitiveType::kPointList);
+  }
 
   return modification;
 }
@@ -828,6 +833,17 @@ bool VulkanPipelineCache::GetGeometryShaderKey(
   if (geometry_shader_type == PipelineGeometryShader::kNone) {
     return false;
   }
+  // For kPointListAsTriangleStrip, output_point_parameters has a different
+  // meaning (the coordinates, not the size). However, the AsTriangleStrip host
+  // vertex shader types are needed specifically when geometry shaders are not
+  // supported as fallbacks.
+  if (vertex_shader_modification.vertex.host_vertex_shader_type ==
+          Shader::HostVertexShaderType::kPointListAsTriangleStrip ||
+      vertex_shader_modification.vertex.host_vertex_shader_type ==
+          Shader::HostVertexShaderType::kRectangleListAsTriangleStrip) {
+    assert_always();
+    return false;
+  }
   GeometryShaderKey key;
   key.type = geometry_shader_type;
   // TODO(Triang3l): Once all needed inputs and outputs are added, uncomment the
@@ -840,7 +856,8 @@ bool VulkanPipelineCache::GetGeometryShaderKey(
       /* vertex_shader_modification.vertex.user_clip_plane_cull */ 0;
   key.has_vertex_kill_and =
       /* vertex_shader_modification.vertex.vertex_kill_and */ 0;
-  key.has_point_size = vertex_shader_modification.vertex.output_point_size;
+  key.has_point_size =
+      vertex_shader_modification.vertex.output_point_parameters;
   key.has_point_coordinates = pixel_shader_modification.pixel.param_gen_point;
   key_out = key;
   return true;

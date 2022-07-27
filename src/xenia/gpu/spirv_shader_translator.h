@@ -50,7 +50,11 @@ class SpirvShaderTranslator : public ShaderTranslator {
       // Interpolators written by the vertex shader and needed by the pixel
       // shader.
       uint32_t interpolator_mask : xenos::kMaxInterpolators;
-      uint32_t output_point_size : 1;
+      // For HostVertexShaderType kPointListAsTriangleStrip, whether to output
+      // the point coordinates.
+      // For other HostVertexShaderTypes (though truly reachable only for
+      // kVertex), whether to output the point size.
+      uint32_t output_point_parameters : 1;
       // Dynamically indexable register count from SQ_PROGRAM_CNTL.
       uint32_t dynamic_addressable_register_count : 8;
       // Pipeline stage and input configuration.
@@ -655,6 +659,9 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // all).
   std::array<spv::Id, xenos::kMaxInterpolators> input_output_interpolators_;
 
+  // VS, only for HostVertexShaderType::kPointListAsTriangleStrip when needed
+  // for the PS - float2.
+  spv::Id output_point_coordinates_;
   // VS, only when needed - float.
   spv::Id output_point_size_;
 

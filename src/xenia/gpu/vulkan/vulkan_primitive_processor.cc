@@ -36,7 +36,9 @@ bool VulkanPrimitiveProcessor::Initialize() {
   if (!InitializeCommon(device_features.fullDrawIndexUint32,
                         !device_portability_subset_features ||
                             device_portability_subset_features->triangleFans,
-                        false, device_features.geometryShader)) {
+                        false, device_features.geometryShader,
+                        device_features.geometryShader,
+                        device_features.geometryShader)) {
     Shutdown();
     return false;
   }
@@ -127,9 +129,9 @@ void VulkanPrimitiveProcessor::EndFrame() {
   frame_index_buffers_.clear();
 }
 
-bool VulkanPrimitiveProcessor::InitializeBuiltin16BitIndexBuffer(
-    uint32_t index_count, std::function<void(uint16_t*)> fill_callback) {
-  assert_not_zero(index_count);
+bool VulkanPrimitiveProcessor::InitializeBuiltinIndexBuffer(
+    size_t size_bytes, std::function<void(void*)> fill_callback) {
+  assert_not_zero(size_bytes);
   assert_true(builtin_index_buffer_ == VK_NULL_HANDLE);
   assert_true(builtin_index_buffer_memory_ == VK_NULL_HANDLE);
   assert_true(builtin_index_buffer_upload_ == VK_NULL_HANDLE);
@@ -140,7 +142,7 @@ bool VulkanPrimitiveProcessor::InitializeBuiltin16BitIndexBuffer(
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
 
-  builtin_index_buffer_size_ = VkDeviceSize(sizeof(uint16_t) * index_count);
+  builtin_index_buffer_size_ = VkDeviceSize(size_bytes);
   if (!ui::vulkan::util::CreateDedicatedAllocationBuffer(
           provider, builtin_index_buffer_size_,
           VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
@@ -148,8 +150,8 @@ bool VulkanPrimitiveProcessor::InitializeBuiltin16BitIndexBuffer(
           builtin_index_buffer_memory_)) {
     XELOGE(
         "Vulkan primitive processor: Failed to create the built-in index "
-        "buffer GPU resource with {} 16-bit indices",
-        index_count);
+        "buffer GPU resource with {} bytes",
+        size_bytes);
     return false;
   }
   uint32_t upload_memory_type;
@@ -161,8 +163,8 @@ bool VulkanPrimitiveProcessor::InitializeBuiltin16BitIndexBuffer(
           &upload_memory_type)) {
     XELOGE(
         "Vulkan primitive processor: Failed to create the built-in index "
-        "buffer upload resource with {} 16-bit indices",
-        index_count);
+        "buffer upload resource with {} bytes",
+        size_bytes);
     ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
                                            builtin_index_buffer_);
     ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device,
@@ -175,8 +177,8 @@ bool VulkanPrimitiveProcessor::InitializeBuiltin16BitIndexBuffer(
                       VK_WHOLE_SIZE, 0, &mapping) != VK_SUCCESS) {
     XELOGE(
         "Vulkan primitive processor: Failed to map the built-in index buffer "
-        "upload resource with {} 16-bit indices",
-        index_count);
+        "upload resource with {} bytes",
+        size_bytes);
     ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device,
                                            builtin_index_buffer_upload_);
     ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device,
@@ -187,7 +189,7 @@ bool VulkanPrimitiveProcessor::InitializeBuiltin16BitIndexBuffer(
                                            builtin_index_buffer_memory_);
     return false;
   }
-  fill_callback(reinterpret_cast<uint16_t*>(mapping));
+  fill_callback(mapping);
   ui::vulkan::util::FlushMappedMemoryRange(
       provider, builtin_index_buffer_memory_, upload_memory_type);
   dfn.vkUnmapMemory(device, builtin_index_buffer_upload_memory_);

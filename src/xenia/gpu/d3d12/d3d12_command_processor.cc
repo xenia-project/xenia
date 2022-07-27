@@ -2268,7 +2268,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   UpdateSystemConstantValues(
       memexport_used, primitive_polygonal,
       primitive_processing_result.line_loop_closing_index,
-      primitive_processing_result.host_index_endian, viewport_info,
+      primitive_processing_result.host_shader_index_endian, viewport_info,
       used_texture_mask, normalized_depth_control, normalized_color_mask);
 
   // Update constant buffers, descriptors and root parameters.
@@ -2513,7 +2513,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     }
     ID3D12Resource* scratch_index_buffer = nullptr;
     switch (primitive_processing_result.index_buffer_type) {
-      case PrimitiveProcessor::ProcessedIndexBufferType::kGuest: {
+      case PrimitiveProcessor::ProcessedIndexBufferType::kGuestDMA: {
         if (memexport_used) {
           // If the shared memory is a UAV, it can't be used as an index buffer
           // (UAV is a read/write state, index buffer is a read-only state).
@@ -2545,7 +2545,8 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
             primitive_processor_->GetConvertedIndexBufferGpuAddress(
                 primitive_processing_result.host_index_buffer_handle);
         break;
-      case PrimitiveProcessor::ProcessedIndexBufferType::kHostBuiltin:
+      case PrimitiveProcessor::ProcessedIndexBufferType::kHostBuiltinForAuto:
+      case PrimitiveProcessor::ProcessedIndexBufferType::kHostBuiltinForDMA:
         index_buffer_view.BufferLocation =
             primitive_processor_->GetBuiltinIndexBufferGpuAddress(
                 primitive_processing_result.host_index_buffer_handle);
