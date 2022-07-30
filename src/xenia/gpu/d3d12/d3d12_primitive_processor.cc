@@ -28,7 +28,7 @@ namespace d3d12 {
 D3D12PrimitiveProcessor::~D3D12PrimitiveProcessor() { Shutdown(true); }
 
 bool D3D12PrimitiveProcessor::Initialize() {
-  if (!InitializeCommon(true, false, false, true)) {
+  if (!InitializeCommon(true, false, false, true, true, true)) {
     Shutdown();
     return false;
   }
@@ -83,9 +83,9 @@ void D3D12PrimitiveProcessor::EndFrame() {
   frame_index_buffers_.clear();
 }
 
-bool D3D12PrimitiveProcessor::InitializeBuiltin16BitIndexBuffer(
-    uint32_t index_count, std::function<void(uint16_t*)> fill_callback) {
-  assert_not_zero(index_count);
+bool D3D12PrimitiveProcessor::InitializeBuiltinIndexBuffer(
+    size_t size_bytes, std::function<void(void*)> fill_callback) {
+  assert_not_zero(size_bytes);
   assert_null(builtin_index_buffer_);
   assert_null(builtin_index_buffer_upload_);
 
@@ -94,9 +94,8 @@ bool D3D12PrimitiveProcessor::InitializeBuiltin16BitIndexBuffer(
   ID3D12Device* device = provider.GetDevice();
 
   D3D12_RESOURCE_DESC resource_desc;
-  ui::d3d12::util::FillBufferResourceDesc(
-      resource_desc, UINT64(sizeof(uint16_t) * index_count),
-      D3D12_RESOURCE_FLAG_NONE);
+  ui::d3d12::util::FillBufferResourceDesc(resource_desc, UINT64(size_bytes),
+                                          D3D12_RESOURCE_FLAG_NONE);
   Microsoft::WRL::ComPtr<ID3D12Resource> draw_resource;
   if (FAILED(device->CreateCommittedResource(
           &ui::d3d12::util::kHeapPropertiesDefault,
@@ -105,8 +104,8 @@ bool D3D12PrimitiveProcessor::InitializeBuiltin16BitIndexBuffer(
           IID_PPV_ARGS(&draw_resource)))) {
     XELOGE(
         "D3D12 primitive processor: Failed to create the built-in index "
-        "buffer GPU resource with {} 16-bit indices",
-        index_count);
+        "buffer GPU resource with {} bytes",
+        size_bytes);
     return false;
   }
   Microsoft::WRL::ComPtr<ID3D12Resource> upload_resource;
@@ -117,8 +116,8 @@ bool D3D12PrimitiveProcessor::InitializeBuiltin16BitIndexBuffer(
           IID_PPV_ARGS(&upload_resource)))) {
     XELOGE(
         "D3D12 primitive processor: Failed to create the built-in index "
-        "buffer upload resource with {} 16-bit indices",
-        index_count);
+        "buffer upload resource with {} bytes",
+        size_bytes);
     return false;
   }
 
@@ -127,8 +126,8 @@ bool D3D12PrimitiveProcessor::InitializeBuiltin16BitIndexBuffer(
   if (FAILED(upload_resource->Map(0, &upload_read_range, &mapping))) {
     XELOGE(
         "D3D12 primitive processor: Failed to map the built-in index buffer "
-        "upload resource with {} 16-bit indices",
-        index_count);
+        "upload resource with {} bytes",
+        size_bytes);
     return false;
   }
   fill_callback(reinterpret_cast<uint16_t*>(mapping));

@@ -2272,7 +2272,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   UpdateSystemConstantValues(
       memexport_used, primitive_polygonal,
       primitive_processing_result.line_loop_closing_index,
-      primitive_processing_result.host_index_endian, viewport_info,
+      primitive_processing_result.host_shader_index_endian, viewport_info,
       used_texture_mask, normalized_depth_control, normalized_color_mask);
 
   // Update constant buffers, descriptors and root parameters.
@@ -2517,7 +2517,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     }
     ID3D12Resource* scratch_index_buffer = nullptr;
     switch (primitive_processing_result.index_buffer_type) {
-      case PrimitiveProcessor::ProcessedIndexBufferType::kGuest: {
+      case PrimitiveProcessor::ProcessedIndexBufferType::kGuestDMA: {
         if (memexport_used) {
           // If the shared memory is a UAV, it can't be used as an index buffer
           // (UAV is a read/write state, index buffer is a read-only state).
@@ -2549,7 +2549,8 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
             primitive_processor_->GetConvertedIndexBufferGpuAddress(
                 primitive_processing_result.host_index_buffer_handle);
         break;
-      case PrimitiveProcessor::ProcessedIndexBufferType::kHostBuiltin:
+      case PrimitiveProcessor::ProcessedIndexBufferType::kHostBuiltinForAuto:
+      case PrimitiveProcessor::ProcessedIndexBufferType::kHostBuiltinForDMA:
         index_buffer_view.BufferLocation =
             primitive_processor_->GetBuiltinIndexBufferGpuAddress(
                 primitive_processing_result.host_index_buffer_handle);
@@ -3167,8 +3168,6 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   const RegisterFile& regs = *register_file_;
   auto pa_cl_clip_cntl = regs.Get<reg::PA_CL_CLIP_CNTL>();
   auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
-  auto pa_su_point_minmax = regs.Get<reg::PA_SU_POINT_MINMAX>();
-  auto pa_su_point_size = regs.Get<reg::PA_SU_POINT_SIZE>();
   auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
   float rb_alpha_ref = regs[XE_GPU_REG_RB_ALPHA_REF].f32;
   auto rb_colorcontrol = regs.Get<reg::RB_COLORCONTROL>();
@@ -3372,43 +3371,47 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   }
 
   // Point size.
-  float point_vertex_diameter_min =
-      float(pa_su_point_minmax.min_size) * (2.0f / 16.0f);
-  float point_vertex_diameter_max =
-      float(pa_su_point_minmax.max_size) * (2.0f / 16.0f);
-  float point_constant_diameter_x =
-      float(pa_su_point_size.width) * (2.0f / 16.0f);
-  float point_constant_diameter_y =
-      float(pa_su_point_size.height) * (2.0f / 16.0f);
-  dirty |=
-      system_constants_.point_vertex_diameter_min != point_vertex_diameter_min;
-  dirty |=
-      system_constants_.point_vertex_diameter_max != point_vertex_diameter_max;
-  dirty |=
-      system_constants_.point_constant_diameter[0] != point_constant_diameter_x;
-  dirty |=
-      system_constants_.point_constant_diameter[1] != point_constant_diameter_y;
-  system_constants_.point_vertex_diameter_min = point_vertex_diameter_min;
-  system_constants_.point_vertex_diameter_max = point_vertex_diameter_max;
-  system_constants_.point_constant_diameter[0] = point_constant_diameter_x;
-  system_constants_.point_constant_diameter[1] = point_constant_diameter_y;
-  // 2 because 1 in the NDC is half of the viewport's axis, 0.5 for diameter to
-  // radius conversion to avoid multiplying the per-vertex diameter by an
-  // additional constant in the shader.
-  float point_screen_diameter_to_ndc_radius_x =
-      (/* 0.5f * 2.0f * */ float(draw_resolution_scale_x)) /
-      std::max(viewport_info.xy_extent[0], uint32_t(1));
-  float point_screen_diameter_to_ndc_radius_y =
-      (/* 0.5f * 2.0f * */ float(draw_resolution_scale_y)) /
-      std::max(viewport_info.xy_extent[1], uint32_t(1));
-  dirty |= system_constants_.point_screen_diameter_to_ndc_radius[0] !=
-           point_screen_diameter_to_ndc_radius_x;
-  dirty |= system_constants_.point_screen_diameter_to_ndc_radius[1] !=
-           point_screen_diameter_to_ndc_radius_y;
-  system_constants_.point_screen_diameter_to_ndc_radius[0] =
-      point_screen_diameter_to_ndc_radius_x;
-  system_constants_.point_screen_diameter_to_ndc_radius[1] =
-      point_screen_diameter_to_ndc_radius_y;
+  if (vgt_draw_initiator.prim_type == xenos::PrimitiveType::kPointList) {
+    auto pa_su_point_minmax = regs.Get<reg::PA_SU_POINT_MINMAX>();
+    auto pa_su_point_size = regs.Get<reg::PA_SU_POINT_SIZE>();
+    float point_vertex_diameter_min =
+        float(pa_su_point_minmax.min_size) * (2.0f / 16.0f);
+    float point_vertex_diameter_max =
+        float(pa_su_point_minmax.max_size) * (2.0f / 16.0f);
+    float point_constant_diameter_x =
+        float(pa_su_point_size.width) * (2.0f / 16.0f);
+    float point_constant_diameter_y =
+        float(pa_su_point_size.height) * (2.0f / 16.0f);
+    dirty |= system_constants_.point_vertex_diameter_min !=
+             point_vertex_diameter_min;
+    dirty |= system_constants_.point_vertex_diameter_max !=
+             point_vertex_diameter_max;
+    dirty |= system_constants_.point_constant_diameter[0] !=
+             point_constant_diameter_x;
+    dirty |= system_constants_.point_constant_diameter[1] !=
+             point_constant_diameter_y;
+    system_constants_.point_vertex_diameter_min = point_vertex_diameter_min;
+    system_constants_.point_vertex_diameter_max = point_vertex_diameter_max;
+    system_constants_.point_constant_diameter[0] = point_constant_diameter_x;
+    system_constants_.point_constant_diameter[1] = point_constant_diameter_y;
+    // 2 because 1 in the NDC is half of the viewport's axis, 0.5 for diameter
+    // to radius conversion to avoid multiplying the per-vertex diameter by an
+    // additional constant in the shader.
+    float point_screen_diameter_to_ndc_radius_x =
+        (/* 0.5f * 2.0f * */ float(draw_resolution_scale_x)) /
+        std::max(viewport_info.xy_extent[0], uint32_t(1));
+    float point_screen_diameter_to_ndc_radius_y =
+        (/* 0.5f * 2.0f * */ float(draw_resolution_scale_y)) /
+        std::max(viewport_info.xy_extent[1], uint32_t(1));
+    dirty |= system_constants_.point_screen_diameter_to_ndc_radius[0] !=
+             point_screen_diameter_to_ndc_radius_x;
+    dirty |= system_constants_.point_screen_diameter_to_ndc_radius[1] !=
+             point_screen_diameter_to_ndc_radius_y;
+    system_constants_.point_screen_diameter_to_ndc_radius[0] =
+        point_screen_diameter_to_ndc_radius_x;
+    system_constants_.point_screen_diameter_to_ndc_radius[1] =
+        point_screen_diameter_to_ndc_radius_y;
+  }
 
   // Texture signedness / gamma.
   bool gamma_render_target_as_srgb =

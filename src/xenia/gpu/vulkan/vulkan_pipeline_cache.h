@@ -71,7 +71,7 @@ class VulkanPipelineCache {
   SpirvShaderTranslator::Modification GetCurrentVertexShaderModification(
       const Shader& shader,
       Shader::HostVertexShaderType host_vertex_shader_type,
-      uint32_t interpolator_mask) const;
+      uint32_t interpolator_mask, bool ps_param_gen_used) const;
   SpirvShaderTranslator::Modification GetCurrentPixelShaderModification(
       const Shader& shader, uint32_t interpolator_mask,
       uint32_t param_gen_pos) const;
@@ -92,6 +92,7 @@ class VulkanPipelineCache {
  private:
   enum class PipelineGeometryShader : uint32_t {
     kNone,
+    kPointList,
     kRectangleList,
     kQuadList,
   };
@@ -267,6 +268,7 @@ class VulkanPipelineCache {
   static bool GetGeometryShaderKey(
       PipelineGeometryShader geometry_shader_type,
       SpirvShaderTranslator::Modification vertex_shader_modification,
+      SpirvShaderTranslator::Modification pixel_shader_modification,
       GeometryShaderKey& key_out);
   VkShaderModule GetGeometryShader(GeometryShaderKey key);
 

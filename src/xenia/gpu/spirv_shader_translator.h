@@ -34,7 +34,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
     // TODO(Triang3l): Change to 0xYYYYMMDD once it's out of the rapid
     // prototyping stage (easier to do small granular updates with an
     // incremental counter).
-    static constexpr uint32_t kVersion = 5;
+    static constexpr uint32_t kVersion = 6;
 
     enum class DepthStencilMode : uint32_t {
       kNoModifiers,
@@ -50,6 +50,11 @@ class SpirvShaderTranslator : public ShaderTranslator {
       // Interpolators written by the vertex shader and needed by the pixel
       // shader.
       uint32_t interpolator_mask : xenos::kMaxInterpolators;
+      // For HostVertexShaderType kPointListAsTriangleStrip, whether to output
+      // the point coordinates.
+      // For other HostVertexShaderTypes (though truly reachable only for
+      // kVertex), whether to output the point size.
+      uint32_t output_point_parameters : 1;
       // Dynamically indexable register count from SQ_PROGRAM_CNTL.
       uint32_t dynamic_addressable_register_count : 8;
       // Pipeline stage and input configuration.
@@ -145,10 +150,15 @@ class SpirvShaderTranslator : public ShaderTranslator {
     int32_t vertex_base_index;
 
     float ndc_scale[3];
-    uint32_t padding_ndc_scale;
+    float point_vertex_diameter_min;
 
     float ndc_offset[3];
-    uint32_t padding_ndc_offset;
+    float point_vertex_diameter_max;
+
+    float point_constant_diameter[2];
+    // Diameter in guest screen coordinates > radius (0.5 * diameter) in the NDC
+    // for the host viewport.
+    float point_screen_diameter_to_ndc_radius[2];
 
     // Each byte contains post-swizzle TextureSign values for each of the needed
     // components of each of the 32 used texture fetch constants.
@@ -603,7 +613,11 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kSystemConstantVertexIndexEndian,
     kSystemConstantVertexBaseIndex,
     kSystemConstantNdcScale,
+    kSystemConstantPointVertexDiameterMin,
     kSystemConstantNdcOffset,
+    kSystemConstantPointVertexDiameterMax,
+    kSystemConstantPointConstantDiameter,
+    kSystemConstantPointScreenDiameterToNdcRadius,
     kSystemConstantTextureSwizzledSigns,
     kSystemConstantTextureSwizzles,
     kSystemConstantAlphaTestReference,
@@ -627,8 +641,10 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id input_vertex_index_;
   // VS as TES only - int.
   spv::Id input_primitive_id_;
+  // PS, only when needed - float2.
+  spv::Id input_point_coordinates_;
   // PS, only when needed - float4.
-  spv::Id input_fragment_coord_;
+  spv::Id input_fragment_coordinates_;
   // PS, only when needed - bool.
   spv::Id input_front_facing_;
 
@@ -642,6 +658,12 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // linked as consecutive array elements, on Qualcomm, they won't be linked at
   // all).
   std::array<spv::Id, xenos::kMaxInterpolators> input_output_interpolators_;
+
+  // VS, only for HostVertexShaderType::kPointListAsTriangleStrip when needed
+  // for the PS - float2.
+  spv::Id output_point_coordinates_;
+  // VS, only when needed - float.
+  spv::Id output_point_size_;
 
   enum OutputPerVertexMember : unsigned int {
     kOutputPerVertexMemberPosition,

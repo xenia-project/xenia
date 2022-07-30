@@ -2171,7 +2171,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     // TODO(Triang3l): Tessellation, geometry-type-specific vertex shader,
     // vertex shader as compute.
     if (primitive_processing_result.host_vertex_shader_type !=
-        Shader::HostVertexShaderType::kVertex) {
+            Shader::HostVertexShaderType::kVertex &&
+        primitive_processing_result.host_vertex_shader_type !=
+            Shader::HostVertexShaderType::kPointListAsTriangleStrip) {
       return false;
     }
 
@@ -2179,7 +2181,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     vertex_shader_modification =
         pipeline_cache_->GetCurrentVertexShaderModification(
             *vertex_shader, primitive_processing_result.host_vertex_shader_type,
-            interpolator_mask);
+            interpolator_mask, ps_param_gen_pos != UINT32_MAX);
     pixel_shader_modification =
         pixel_shader ? pipeline_cache_->GetCurrentPixelShaderModification(
                            *pixel_shader, interpolator_mask, ps_param_gen_pos)
@@ -2348,6 +2350,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   }
 
   const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
+  const VkPhysicalDeviceFeatures& device_features = provider.device_features();
   const VkPhysicalDeviceLimits& device_limits =
       provider.device_properties().limits;
 
@@ -2382,11 +2385,23 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   UpdateDynamicState(viewport_info, primitive_polygonal,
                      normalized_depth_control);
 
+  auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
+
+  // Whether to load the guest 32-bit (usually big-endian) vertex index
+  // indirectly in the vertex shader if full 32-bit indices are not supported by
+  // the host.
+  bool shader_32bit_index_dma =
+      !device_features.fullDrawIndexUint32 &&
+      primitive_processing_result.index_buffer_type ==
+          PrimitiveProcessor::ProcessedIndexBufferType::kGuestDMA &&
+      vgt_draw_initiator.index_size == xenos::IndexFormat::kInt32 &&
+      primitive_processing_result.host_vertex_shader_type ==
+          Shader::HostVertexShaderType::kVertex;
+
   // Update system constants before uploading them.
-  bool vertex_shader_index_load;
   UpdateSystemConstantValues(primitive_polygonal, primitive_processing_result,
-                             viewport_info, used_texture_mask,
-                             vertex_shader_index_load);
+                             shader_32bit_index_dma, viewport_info,
+                             used_texture_mask);
 
   // Update uniform buffers and descriptor sets after binding the pipeline with
   // the new layout.
@@ -2453,13 +2468,13 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // Draw.
   if (primitive_processing_result.index_buffer_type ==
           PrimitiveProcessor::ProcessedIndexBufferType::kNone ||
-      vertex_shader_index_load) {
+      shader_32bit_index_dma) {
     deferred_command_buffer_.CmdVkDraw(
         primitive_processing_result.host_draw_vertex_count, 1, 0, 0);
   } else {
     std::pair<VkBuffer, VkDeviceSize> index_buffer;
     switch (primitive_processing_result.index_buffer_type) {
-      case PrimitiveProcessor::ProcessedIndexBufferType::kGuest:
+      case PrimitiveProcessor::ProcessedIndexBufferType::kGuestDMA:
         index_buffer.first = shared_memory_->buffer();
         index_buffer.second = primitive_processing_result.guest_index_base;
         break;
@@ -2467,7 +2482,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
         index_buffer = primitive_processor_->GetConvertedIndexBuffer(
             primitive_processing_result.host_index_buffer_handle);
         break;
-      case PrimitiveProcessor::ProcessedIndexBufferType::kHostBuiltin:
+      case PrimitiveProcessor::ProcessedIndexBufferType::kHostBuiltinForAuto:
+      case PrimitiveProcessor::ProcessedIndexBufferType::kHostBuiltinForDMA:
         index_buffer = primitive_processor_->GetBuiltinIndexBuffer(
             primitive_processing_result.host_index_buffer_handle);
         break;
@@ -3342,8 +3358,8 @@ void VulkanCommandProcessor::UpdateDynamicState(
 void VulkanCommandProcessor::UpdateSystemConstantValues(
     bool primitive_polygonal,
     const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
-    const draw_util::ViewportInfo& viewport_info, uint32_t used_texture_mask,
-    bool& vertex_shader_index_load_out) {
+    bool shader_32bit_index_dma, const draw_util::ViewportInfo& viewport_info,
+    uint32_t used_texture_mask) {
 #if XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
@@ -3367,51 +3383,17 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
   // Flags.
   uint32_t flags = 0;
   // Vertex index shader loading.
-  bool vertex_shader_index_load = false;
-  // Only for ProcessedIndexBufferType kGuest since kHostConverted indices may
-  // be not loaded into the GPU memory (only read on the CPU), though
-  // kHostConverted must never be used for point lists and rectangle lists
-  // without geometry shaders anyway. For regular 32-bit index fetching without
-  // fullDrawIndexUint32, kHostConverted indices are already byte-swapped and
-  // truncated to 24 bits, so indirect fetch is not needed.
+  if (shader_32bit_index_dma) {
+    flags |= SpirvShaderTranslator::kSysFlag_VertexIndexLoad;
+  }
   if (primitive_processing_result.index_buffer_type ==
-      PrimitiveProcessor::ProcessedIndexBufferType::kGuest) {
-    switch (primitive_processing_result.host_vertex_shader_type) {
-      case Shader::HostVertexShaderType::kVertex: {
-        // For guest (usually big-endian) 32-bit indices when they're not
-        // supported by the device.
-        if (vgt_draw_initiator.index_size == xenos::IndexFormat::kInt32) {
-          const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
-          const VkPhysicalDeviceFeatures& device_features =
-              provider.device_features();
-          if (!device_features.fullDrawIndexUint32) {
-            vertex_shader_index_load = true;
-            flags |= SpirvShaderTranslator::kSysFlag_VertexIndexLoad;
-          }
-        }
-      } break;
-      // kMemexportCompute never comes out of the PrimitiveProcessor, as
-      // memexport compute shaders are executed alongside their vertex
-      // counterparts, since they may still result in drawing.
-      case Shader::HostVertexShaderType::kPointListAsTriangleStrip:
-      case Shader::HostVertexShaderType::kRectangleListAsTriangleStrip: {
-        // Always loading the guest index buffer indirectly if it's used, as
-        // host indexing contains a part needed specifically for the host for
-        // the construction of the primitive - host vertices don't map 1:1 to
-        // guest ones.
-        vertex_shader_index_load = true;
-        flags |=
-            SpirvShaderTranslator::kSysFlag_ComputeOrPrimitiveVertexIndexLoad;
-        if (vgt_draw_initiator.index_size == xenos::IndexFormat::kInt32) {
-          flags |= SpirvShaderTranslator ::
-              kSysFlag_ComputeOrPrimitiveVertexIndexLoad32Bit;
-        }
-      } break;
-      default:
-        break;
+      PrimitiveProcessor::ProcessedIndexBufferType::kHostBuiltinForDMA) {
+    flags |= SpirvShaderTranslator::kSysFlag_ComputeOrPrimitiveVertexIndexLoad;
+    if (vgt_draw_initiator.index_size == xenos::IndexFormat::kInt32) {
+      flags |= SpirvShaderTranslator ::
+          kSysFlag_ComputeOrPrimitiveVertexIndexLoad32Bit;
     }
   }
-  vertex_shader_index_load_out = vertex_shader_index_load;
   // W0 division control.
   // http://www.x.org/docs/AMD/old/evergreen_3D_registers_v2.pdf
   // 8: VTX_XY_FMT = true: the incoming XY have already been multiplied by 1/W0.
@@ -3466,9 +3448,9 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
 
   // Index or tessellation edge factor buffer endianness.
   dirty |= system_constants_.vertex_index_endian !=
-           primitive_processing_result.host_index_endian;
+           primitive_processing_result.host_shader_index_endian;
   system_constants_.vertex_index_endian =
-      primitive_processing_result.host_index_endian;
+      primitive_processing_result.host_shader_index_endian;
 
   // Vertex index offset.
   dirty |= system_constants_.vertex_base_index != vgt_indx_offset;
@@ -3480,6 +3462,49 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
     dirty |= system_constants_.ndc_offset[i] != viewport_info.ndc_offset[i];
     system_constants_.ndc_scale[i] = viewport_info.ndc_scale[i];
     system_constants_.ndc_offset[i] = viewport_info.ndc_offset[i];
+  }
+
+  // Point size.
+  if (vgt_draw_initiator.prim_type == xenos::PrimitiveType::kPointList) {
+    auto pa_su_point_minmax = regs.Get<reg::PA_SU_POINT_MINMAX>();
+    auto pa_su_point_size = regs.Get<reg::PA_SU_POINT_SIZE>();
+    float point_vertex_diameter_min =
+        float(pa_su_point_minmax.min_size) * (2.0f / 16.0f);
+    float point_vertex_diameter_max =
+        float(pa_su_point_minmax.max_size) * (2.0f / 16.0f);
+    float point_constant_diameter_x =
+        float(pa_su_point_size.width) * (2.0f / 16.0f);
+    float point_constant_diameter_y =
+        float(pa_su_point_size.height) * (2.0f / 16.0f);
+    dirty |= system_constants_.point_vertex_diameter_min !=
+             point_vertex_diameter_min;
+    dirty |= system_constants_.point_vertex_diameter_max !=
+             point_vertex_diameter_max;
+    dirty |= system_constants_.point_constant_diameter[0] !=
+             point_constant_diameter_x;
+    dirty |= system_constants_.point_constant_diameter[1] !=
+             point_constant_diameter_y;
+    system_constants_.point_vertex_diameter_min = point_vertex_diameter_min;
+    system_constants_.point_vertex_diameter_max = point_vertex_diameter_max;
+    system_constants_.point_constant_diameter[0] = point_constant_diameter_x;
+    system_constants_.point_constant_diameter[1] = point_constant_diameter_y;
+    // 2 because 1 in the NDC is half of the viewport's axis, 0.5 for diameter
+    // to radius conversion to avoid multiplying the per-vertex diameter by an
+    // additional constant in the shader.
+    float point_screen_diameter_to_ndc_radius_x =
+        (/* 0.5f * 2.0f * */ float(texture_cache_->draw_resolution_scale_x())) /
+        std::max(viewport_info.xy_extent[0], uint32_t(1));
+    float point_screen_diameter_to_ndc_radius_y =
+        (/* 0.5f * 2.0f * */ float(texture_cache_->draw_resolution_scale_y())) /
+        std::max(viewport_info.xy_extent[1], uint32_t(1));
+    dirty |= system_constants_.point_screen_diameter_to_ndc_radius[0] !=
+             point_screen_diameter_to_ndc_radius_x;
+    dirty |= system_constants_.point_screen_diameter_to_ndc_radius[1] !=
+             point_screen_diameter_to_ndc_radius_y;
+    system_constants_.point_screen_diameter_to_ndc_radius[0] =
+        point_screen_diameter_to_ndc_radius_x;
+    system_constants_.point_screen_diameter_to_ndc_radius[1] =
+        point_screen_diameter_to_ndc_radius_y;
   }
 
   // Texture signedness / gamma.
