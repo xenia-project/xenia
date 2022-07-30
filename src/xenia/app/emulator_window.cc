@@ -864,30 +864,29 @@ void EmulatorWindow::FileClose() {
 }
 
 void EmulatorWindow::InstallContent() {
-  std::filesystem::path path;
+  std::vector<std::filesystem::path> paths;
 
   auto file_picker = xe::ui::FilePicker::Create();
   file_picker->set_mode(ui::FilePicker::Mode::kOpen);
   file_picker->set_type(ui::FilePicker::Type::kFile);
-  file_picker->set_multi_selection(false);
+  file_picker->set_multi_selection(true);
   file_picker->set_title("Select Content Package");
   file_picker->set_extensions({
       {"All Files (*.*)", "*.*"},
   });
   if (file_picker->Show(window_.get())) {
-    auto selected_files = file_picker->selected_files();
-    if (!selected_files.empty()) {
-      path = selected_files[0];
-    }
+    paths = file_picker->selected_files();
   }
 
-  if (!path.empty()) {
-    // Normalize the path and make absolute.
-    auto abs_path = std::filesystem::absolute(path);
-    auto result = emulator_->InstallContentPackage(abs_path);
-    if (XFAILED(result)) {
-      // TODO: Display a message box.
-      XELOGE("Failed to install content: {:08X}", result);
+  if (!paths.empty()) {
+    for (auto path : paths) {
+      // Normalize the path and make absolute.
+      auto abs_path = std::filesystem::absolute(path);
+      auto result = emulator_->InstallContentPackage(abs_path);
+      if (XFAILED(result)) {
+        // TODO: Display a message box.
+        XELOGE("Failed to install content: {:08X}", result);
+      }
     }
   }
 }
