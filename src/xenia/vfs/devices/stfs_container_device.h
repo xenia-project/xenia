@@ -83,6 +83,9 @@ class StfsContainerDevice : public Device {
     return files_total_size_ - sizeof(StfsHeader);
   }
 
+  uint32_t title_id() const { return header_.metadata.execution_info.title_id; }
+  XContentType content_type() const { return header_.metadata.content_type; }
+
  private:
   const uint32_t kBlocksPerHashLevel[3] = {170, 28900, 4913000};
   const uint32_t kEndOfChain = 0xFFFFFF;

@@ -353,6 +353,93 @@ X_STATUS Emulator::LaunchStfsContainer(const std::filesystem::path& path) {
   return CompleteLaunch(path, module_path);
 }
 
+X_STATUS Emulator::InstallContentPackage(const std::filesystem::path& path) {
+  std::unique_ptr<vfs::StfsContainerDevice> device =
+      std::make_unique<vfs::StfsContainerDevice>("", path);
+  if (!device->Initialize()) {
+    XELOGE("Failed to initialize device");
+    return X_STATUS_INVALID_PARAMETER;
+  }
+
+  std::filesystem::path installation_path =
+      content_root() / fmt::format("{:08X}", device->title_id()) /
+      fmt::format("{:08X}", device->content_type());
+
+  if (std::filesystem::exists(installation_path / path.filename())) {
+    // TODO: Popup
+    // Do you want to overwrite already existing data?
+  } else {
+    std::filesystem::create_directories(installation_path / path.filename());
+  }
+
+  // Run through all the files, breadth-first style.
+  std::queue<vfs::Entry*> queue;
+  auto root = device->ResolvePath("/");
+  queue.push(root);
+
+  // Allocate a buffer when needed.
+  size_t buffer_size = 0;
+  uint8_t* buffer = nullptr;
+
+  while (!queue.empty()) {
+    auto entry = queue.front();
+    queue.pop();
+    for (auto& entry : entry->children()) {
+      queue.push(entry.get());
+    }
+
+    auto dest_name =
+        installation_path / path.filename() / xe::to_path(entry->path());
+    if (entry->attributes() & vfs::kFileAttributeDirectory) {
+      std::filesystem::create_directories(dest_name);
+      continue;
+    }
+
+    vfs::File* in_file = nullptr;
+    if (entry->Open(vfs::FileAccess::kFileReadData, &in_file) !=
+        X_STATUS_SUCCESS) {
+      continue;
+    }
+
+    auto file = xe::filesystem::OpenFile(dest_name, "wb");
+    if (!file) {
+      in_file->Destroy();
+      continue;
+    }
+
+    if (entry->can_map()) {
+      auto map = entry->OpenMapped(xe::MappedMemory::Mode::kRead);
+      fwrite(map->data(), map->size(), 1, file);
+      map->Close();
+    } else {
+      // Can't map the file into memory. Read it into a temporary buffer.
+      if (!buffer || entry->size() > buffer_size) {
+        // Resize the buffer.
+        if (buffer) {
+          delete[] buffer;
+        }
+
+        // Allocate a buffer rounded up to the nearest 512MB.
+        buffer_size = xe::round_up(entry->size(), 512_MiB);
+        buffer = new uint8_t[buffer_size];
+      }
+
+      size_t bytes_read = 0;
+      in_file->ReadSync(buffer, entry->size(), 0, &bytes_read);
+      fwrite(buffer, bytes_read, 1, file);
+    }
+
+    fclose(file);
+    in_file->Destroy();
+  }
+
+  if (buffer) {
+    delete[] buffer;
+  }
+
+  return X_STATUS_SUCCESS;
+}
+
 void Emulator::Pause() {
   if (paused_) {
     return;

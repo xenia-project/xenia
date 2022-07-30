@@ -196,6 +196,9 @@ const std::unique_ptr<vfs::Device> CreateVfsDeviceBasedOnPath(
   // Launches a game from an STFS container file.
   X_STATUS LaunchStfsContainer(const std::filesystem::path& path);
 
+  // Extract content of package to content specific directory.
+  X_STATUS InstallContentPackage(const std::filesystem::path& path);
+
   void Pause();
   void Resume();
   bool is_paused() const { return paused_; }
