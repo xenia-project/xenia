@@ -284,6 +284,7 @@ enum Opcode {
   OPCODE_TO_SINGLE,  // i could not find a decent name to assign to this opcode,
                      // as we already have OPCODE_ROUND. round double to float (
                      // ppc "single" fpu instruction result rounding behavior )
+	  OPCODE_SET_NJM, 
   __OPCODE_MAX_VALUE,  // Keep at end.
 };
 
@@ -295,6 +296,7 @@ enum OpcodeFlags {
   OPCODE_FLAG_IGNORE = (1 << 5),
   OPCODE_FLAG_HIDE = (1 << 6),
   OPCODE_FLAG_PAIRED_PREV = (1 << 7),
+  OPCODE_FLAG_DISALLOW_CONSTANT_FOLDING = (1 << 8)
 };
 
 enum OpcodeSignatureType {

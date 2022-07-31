@@ -65,6 +65,12 @@ enum class SimdDomain : uint32_t {
                // CONFLICTING means its used in multiple domains)
 };
 
+enum class MXCSRMode : uint32_t {
+	Unknown,
+	Fpu,
+	Vmx
+};
+
 static SimdDomain PickDomain2(SimdDomain dom1, SimdDomain dom2) {
   if (dom1 == dom2) {
     return dom1;
@@ -283,8 +289,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
 
   Xbyak::Reg64 GetNativeParam(uint32_t param);
 
-  Xbyak::Reg64 GetContextReg();
-  Xbyak::Reg64 GetMembaseReg();
+  Xbyak::Reg64 GetContextReg() const;
+  Xbyak::Reg64 GetMembaseReg() const;
   bool CanUseMembaseLow32As0() const { return may_use_membase32_as_zero_reg_; }
   void ReloadMembase();
 
@@ -295,7 +301,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   void MovMem64(const Xbyak::RegExp& addr, uint64_t v);
 
   Xbyak::Address GetXmmConstPtr(XmmConst id);
-  Xbyak::Address GetBackendCtxPtr(int offset_in_x64backendctx);
+  Xbyak::Address GetBackendCtxPtr(int offset_in_x64backendctx) const;
 
   void LoadConstantXmm(Xbyak::Xmm dest, float v);
   void LoadConstantXmm(Xbyak::Xmm dest, double v);
@@ -304,6 +310,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   Xbyak::Address StashConstantXmm(int index, float v);
   Xbyak::Address StashConstantXmm(int index, double v);
   Xbyak::Address StashConstantXmm(int index, const vec128_t& v);
+  Xbyak::Address GetBackendFlagsPtr() const;
   void* FindByteConstantOffset(unsigned bytevalue);
   void* FindWordConstantOffset(unsigned wordvalue);
   void* FindDwordConstantOffset(unsigned bytevalue);
@@ -319,6 +326,16 @@ class X64Emitter : public Xbyak::CodeGenerator {
   size_t stack_size() const { return stack_size_; }
   SimdDomain DeduceSimdDomain(const hir::Value* for_value);
 
+  void ForgetMxcsrMode() {
+    mxcsr_mode_ = MXCSRMode::Unknown;
+  }
+  /*
+	returns true if had to load mxcsr. DOT_PRODUCT can use this to skip clearing the overflow flag, as it will never be set in the vmx fpscr
+  */
+  bool ChangeMxcsrMode(MXCSRMode new_mode, bool already_set=false);//already_set means that the caller already did vldmxcsr, used for SET_ROUNDING_MODE
+
+  void LoadFpuMxcsrDirect(); //unsafe, does not change mxcsr_mode_
+  void LoadVmxMxcsrDirect(); //unsafe, does not change mxcsr_mode_
  protected:
   void* Emplace(const EmitFunctionInfo& func_info,
                 GuestFunction* function = nullptr);
@@ -359,6 +376,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   std::vector<Xbyak::Label*>
       label_cache_;  // for creating labels that need to be referenced much
                      // later by tail emitters
+  MXCSRMode mxcsr_mode_ = MXCSRMode::Unknown;
 };
 
 }  // namespace x64

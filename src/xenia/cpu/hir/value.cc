@@ -199,7 +199,7 @@ void Value::Truncate(TypeName target_type) {
       return;
   }
 }
-
+//WARNING: this does not handle rounding flags at all!
 void Value::Convert(TypeName target_type, RoundMode round_mode) {
   switch (type) {
     case FLOAT32_TYPE:
@@ -401,7 +401,7 @@ void Value::MulHi(Value* other, bool is_unsigned) {
                       32);
       }
       break;
-    case INT64_TYPE:
+    case INT64_TYPE: {
 #if XE_COMPILER_MSVC
       if (is_unsigned) {
         constant.i64 = __umulh(constant.i64, other->constant.i64);
@@ -409,17 +409,19 @@ void Value::MulHi(Value* other, bool is_unsigned) {
         constant.i64 = __mulh(constant.i64, other->constant.i64);
       }
 #else
+      unsigned __int128 product;
       if (is_unsigned) {
-        constant.i64 = static_cast<uint64_t>(
-            static_cast<unsigned __int128>(constant.i64) *
-            static_cast<unsigned __int128>(other->constant.i64));
+        product = static_cast<unsigned __int128>(constant.i64) *
+                  static_cast<unsigned __int128>(other->constant.i64);
       } else {
-        constant.i64 =
-            static_cast<uint64_t>(static_cast<__int128>(constant.i64) *
-                                  static_cast<__int128>(other->constant.i64));
+        product = static_cast<unsigned __int128>(
+            static_cast<__int128>(constant.i64) *
+            static_cast<__int128>(other->constant.i64));
       }
+      constant.i64 = static_cast<int64_t>(product >> 64);
 #endif  // XE_COMPILER_MSVC
       break;
+    }
     default:
       assert_unhandled_case(type);
       break;
@@ -491,52 +493,6 @@ void Value::Max(Value* other) {
       break;
     default:
       assert_unhandled_case(type);
-      break;
-  }
-}
-
-void Value::MulAdd(Value* dest, Value* value1, Value* value2, Value* value3) {
-  switch (dest->type) {
-    case VEC128_TYPE:
-      for (int i = 0; i < 4; i++) {
-        dest->constant.v128.f32[i] =
-            (value1->constant.v128.f32[i] * value2->constant.v128.f32[i]) +
-            value3->constant.v128.f32[i];
-      }
-      break;
-    case FLOAT32_TYPE:
-      dest->constant.f32 =
-          (value1->constant.f32 * value2->constant.f32) + value3->constant.f32;
-      break;
-    case FLOAT64_TYPE:
-      dest->constant.f64 =
-          (value1->constant.f64 * value2->constant.f64) + value3->constant.f64;
-      break;
-    default:
-      assert_unhandled_case(dest->type);
-      break;
-  }
-}
-
-void Value::MulSub(Value* dest, Value* value1, Value* value2, Value* value3) {
-  switch (dest->type) {
-    case VEC128_TYPE:
-      for (int i = 0; i < 4; i++) {
-        dest->constant.v128.f32[i] =
-            (value1->constant.v128.f32[i] * value2->constant.v128.f32[i]) -
-            value3->constant.v128.f32[i];
-      }
-      break;
-    case FLOAT32_TYPE:
-      dest->constant.f32 =
-          (value1->constant.f32 * value2->constant.f32) - value3->constant.f32;
-      break;
-    case FLOAT64_TYPE:
-      dest->constant.f64 =
-          (value1->constant.f64 * value2->constant.f64) - value3->constant.f64;
-      break;
-    default:
-      assert_unhandled_case(dest->type);
       break;
   }
 }
@@ -1643,11 +1599,7 @@ void Value::DenormalFlush() {
     constant.v128.u32[i] = current_element;
   }
 }
-void Value::ToSingle() {
-  assert_true(type == FLOAT64_TYPE);
 
-  constant.f64 = static_cast<double>(static_cast<float>(constant.f64));
-}
 void Value::CountLeadingZeros(const Value* other) {
   switch (other->type) {
     case INT8_TYPE:

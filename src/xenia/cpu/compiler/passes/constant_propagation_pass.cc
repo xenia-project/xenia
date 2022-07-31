@@ -20,6 +20,9 @@
 DEFINE_bool(inline_mmio_access, true, "Inline constant MMIO loads and stores.",
             "CPU");
 
+DEFINE_bool(permit_float_constant_evaluation, false, "Allow float constant evaluation, may produce incorrect results and break games math",
+            "CPU");
+
 namespace xe {
 namespace cpu {
 namespace compiler {
@@ -68,8 +71,24 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
   result = false;
   auto block = builder->first_block();
   while (block) {
-    auto i = block->instr_head;
-    while (i) {
+    for (auto i = block->instr_head; i; i = i->next) {
+      if (((i->opcode->flags & OPCODE_FLAG_DISALLOW_CONSTANT_FOLDING) != 0) &&
+          !cvars::permit_float_constant_evaluation) {
+        continue;
+      }
+      bool might_be_floatop = false;
+
+      i->VisitValueOperands(
+          [&might_be_floatop](Value* current_opnd, uint32_t opnd_index) {
+            might_be_floatop |= current_opnd->MaybeFloaty();
+          });
+      if (i->dest) {
+        might_be_floatop |= i->dest->MaybeFloaty();
+      }
+    
+	  bool should_skip_because_of_float =
+          might_be_floatop && !cvars::permit_float_constant_evaluation;
+
       auto v = i->dest;
       switch (i->opcode->num) {
         case OPCODE_DEBUG_BREAK_TRUE:
@@ -452,7 +471,8 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           break;
 
         case OPCODE_ADD:
-          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          if (i->src1.value->IsConstant() && i->src2.value->IsConstant() &&
+              !should_skip_because_of_float) {
             v->set_from(i->src1.value);
             v->Add(i->src2.value);
             i->Remove();
@@ -481,7 +501,8 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           }
           break;
         case OPCODE_SUB:
-          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+          if (i->src1.value->IsConstant() && i->src2.value->IsConstant() &&
+              !should_skip_because_of_float) {
             v->set_from(i->src1.value);
             v->Sub(i->src2.value);
             i->Remove();
@@ -489,32 +510,34 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           }
           break;
         case OPCODE_MUL:
-          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
-            v->set_from(i->src1.value);
-            v->Mul(i->src2.value);
-            i->Remove();
-            result = true;
-          } else if (i->src1.value->IsConstant() ||
-                     i->src2.value->IsConstant()) {
-            // Reorder the sources to make things simpler.
-            // s1 = non-const, s2 = const
-            auto s1 =
-                i->src1.value->IsConstant() ? i->src2.value : i->src1.value;
-            auto s2 =
-                i->src1.value->IsConstant() ? i->src1.value : i->src2.value;
-
-            // Multiplication by one = no-op
-            if (s2->type != VEC128_TYPE && s2->IsConstantOne()) {
-              i->Replace(&OPCODE_ASSIGN_info, 0);
-              i->set_src1(s1);
+          if (!should_skip_because_of_float) {
+            if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+              v->set_from(i->src1.value);
+              v->Mul(i->src2.value);
+              i->Remove();
               result = true;
-            } else if (s2->type == VEC128_TYPE) {
-              auto& c = s2->constant;
-              if (c.v128.f32[0] == 1.f && c.v128.f32[1] == 1.f &&
-                  c.v128.f32[2] == 1.f && c.v128.f32[3] == 1.f) {
+            } else if (i->src1.value->IsConstant() ||
+                       i->src2.value->IsConstant()) {
+              // Reorder the sources to make things simpler.
+              // s1 = non-const, s2 = const
+              auto s1 =
+                  i->src1.value->IsConstant() ? i->src2.value : i->src1.value;
+              auto s2 =
+                  i->src1.value->IsConstant() ? i->src1.value : i->src2.value;
+
+              // Multiplication by one = no-op
+              if (s2->type != VEC128_TYPE && s2->IsConstantOne()) {
                 i->Replace(&OPCODE_ASSIGN_info, 0);
                 i->set_src1(s1);
                 result = true;
+              } else if (s2->type == VEC128_TYPE) {
+                auto& c = s2->constant;
+                if (c.v128.f32[0] == 1.f && c.v128.f32[1] == 1.f &&
+                    c.v128.f32[2] == 1.f && c.v128.f32[3] == 1.f) {
+                  i->Replace(&OPCODE_ASSIGN_info, 0);
+                  i->set_src1(s1);
+                  result = true;
+                }
               }
             }
           }
@@ -528,72 +551,29 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           }
           break;
         case OPCODE_DIV:
-          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
-            v->set_from(i->src1.value);
-            v->Div(i->src2.value, (i->flags & ARITHMETIC_UNSIGNED) != 0);
-            i->Remove();
-            result = true;
-          } else if (i->src2.value->IsConstant()) {
-            // Division by one = no-op.
-            Value* src1 = i->src1.value;
-            if (i->src2.value->type != VEC128_TYPE &&
-                i->src2.value->IsConstantOne()) {
-              i->Replace(&OPCODE_ASSIGN_info, 0);
-              i->set_src1(src1);
+          if (!should_skip_because_of_float) {
+            if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+              v->set_from(i->src1.value);
+              v->Div(i->src2.value, (i->flags & ARITHMETIC_UNSIGNED) != 0);
+              i->Remove();
               result = true;
-            } else if (i->src2.value->type == VEC128_TYPE) {
-              auto& c = i->src2.value->constant;
-              if (c.v128.f32[0] == 1.f && c.v128.f32[1] == 1.f &&
-                  c.v128.f32[2] == 1.f && c.v128.f32[3] == 1.f) {
+            } else if (i->src2.value->IsConstant()) {
+              // Division by one = no-op.
+              Value* src1 = i->src1.value;
+              if (i->src2.value->type != VEC128_TYPE &&
+                  i->src2.value->IsConstantOne()) {
                 i->Replace(&OPCODE_ASSIGN_info, 0);
                 i->set_src1(src1);
                 result = true;
+              } else if (i->src2.value->type == VEC128_TYPE) {
+                auto& c = i->src2.value->constant;
+                if (c.v128.f32[0] == 1.f && c.v128.f32[1] == 1.f &&
+                    c.v128.f32[2] == 1.f && c.v128.f32[3] == 1.f) {
+                  i->Replace(&OPCODE_ASSIGN_info, 0);
+                  i->set_src1(src1);
+                  result = true;
+                }
               }
-            }
-          }
-          break;
-        case OPCODE_MUL_ADD:
-          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
-            if (i->src3.value->IsConstant()) {
-              v->set_from(i->src1.value);
-              Value::MulAdd(v, i->src1.value, i->src2.value, i->src3.value);
-              i->Remove();
-              result = true;
-            } else {
-              // Multiply part is constant.
-              Value* mul = builder->AllocValue();
-              mul->set_from(i->src1.value);
-              mul->Mul(i->src2.value);
-
-              Value* add = i->src3.value;
-              i->Replace(&OPCODE_ADD_info, 0);
-              i->set_src1(mul);
-              i->set_src2(add);
-
-              result = true;
-            }
-          }
-          break;
-        case OPCODE_MUL_SUB:
-          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
-            // Multiply part is constant.
-            if (i->src3.value->IsConstant()) {
-              v->set_from(i->src1.value);
-              Value::MulSub(v, i->src1.value, i->src2.value, i->src3.value);
-              i->Remove();
-              result = true;
-            } else {
-              // Multiply part is constant.
-              Value* mul = builder->AllocValue();
-              mul->set_from(i->src1.value);
-              mul->Mul(i->src2.value);
-
-              Value* add = i->src3.value;
-              i->Replace(&OPCODE_SUB_info, 0);
-              i->set_src1(mul);
-              i->set_src2(add);
-
-              result = true;
             }
           }
           break;
@@ -925,18 +905,11 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             result = true;
           }
           break;
-        case OPCODE_VECTOR_DENORMFLUSH:
+        case OPCODE_VECTOR_DENORMFLUSH:  // this one is okay to constant
+                                         // evaluate, since it is just bit math
           if (i->src1.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->DenormalFlush();
-            i->Remove();
-            result = true;
-          }
-          break;
-        case OPCODE_TO_SINGLE:
-          if (i->src1.value->IsConstant()) {
-            v->set_from(i->src1.value);
-            v->ToSingle();
             i->Remove();
             result = true;
           }
@@ -945,7 +918,6 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           // Ignored.
           break;
       }
-      i = i->next;
     }
 
     block = block->next;
