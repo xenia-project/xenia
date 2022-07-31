@@ -16,8 +16,8 @@ drivers.
 * Windows 11 SDK version 10.0.22000.0 (for Visual Studio 2019, this or any newer version)
 
 ```
-git clone https://github.com/xenia-project/xenia.git
-cd xenia
+git clone https://github.com/xenia-canary/xenia-canary.git
+cd xenia-canary
 xb setup
 
 # Build on command line (add --config=release for release):
