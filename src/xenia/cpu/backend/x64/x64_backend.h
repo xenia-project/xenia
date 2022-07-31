@@ -37,9 +37,17 @@ typedef void (*ResolveFunctionThunk)();
 // negatively index the membase reg)
 struct X64BackendContext {
   void* ResolveFunction_Ptr;  // cached pointer to resolvefunction
+  unsigned int mxcsr_fpu; //currently, the way we implement rounding mode affects both vmx and the fpu
+  unsigned int mxcsr_vmx;
+  unsigned int flags; //bit 0 = 0 if mxcsr is fpu, else it is vmx
   unsigned int Ox1000;  // constant 0x1000 so we can shrink each tail emitted
                         // add of it by... 2 bytes lol
 };
+constexpr unsigned int DEFAULT_VMX_MXCSR =
+    0x8000 |                   // flush to zero
+    0x0040 | (_MM_MASK_MASK);  // default rounding mode for vmx
+
+constexpr unsigned int DEFAULT_FPU_MXCSR = 0x1F80;
 
 class X64Backend : public Backend {
  public:

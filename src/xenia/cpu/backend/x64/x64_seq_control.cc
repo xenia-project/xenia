@@ -257,6 +257,7 @@ struct CALL_TRUE_I8
     e.jz(skip);
     e.Call(i.instr, static_cast<GuestFunction*>(i.src2.value));
     e.L(skip);
+    e.ForgetMxcsrMode();
   }
 };
 struct CALL_TRUE_I16
@@ -268,6 +269,7 @@ struct CALL_TRUE_I16
     e.jz(skip);
     e.Call(i.instr, static_cast<GuestFunction*>(i.src2.value));
     e.L(skip);
+    e.ForgetMxcsrMode();
   }
 };
 struct CALL_TRUE_I32
@@ -279,6 +281,7 @@ struct CALL_TRUE_I32
     e.jz(skip);
     e.Call(i.instr, static_cast<GuestFunction*>(i.src2.value));
     e.L(skip);
+    e.ForgetMxcsrMode();
   }
 };
 struct CALL_TRUE_I64
@@ -290,6 +293,7 @@ struct CALL_TRUE_I64
     e.jz(skip);
     e.Call(i.instr, static_cast<GuestFunction*>(i.src2.value));
     e.L(skip);
+    e.ForgetMxcsrMode();
   }
 };
 struct CALL_TRUE_F32
@@ -301,6 +305,7 @@ struct CALL_TRUE_F32
     e.jz(skip);
     e.Call(i.instr, static_cast<GuestFunction*>(i.src2.value));
     e.L(skip);
+    e.ForgetMxcsrMode();
   }
 };
 
@@ -313,6 +318,7 @@ struct CALL_TRUE_F64
     e.jz(skip);
     e.Call(i.instr, static_cast<GuestFunction*>(i.src2.value));
     e.L(skip);
+    e.ForgetMxcsrMode();
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_CALL_TRUE, CALL_TRUE_I8, CALL_TRUE_I16,
@@ -326,6 +332,7 @@ struct CALL_INDIRECT
     : Sequence<CALL_INDIRECT, I<OPCODE_CALL_INDIRECT, VoidOp, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.CallIndirect(i.instr, i.src1);
+    e.ForgetMxcsrMode();
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_CALL_INDIRECT, CALL_INDIRECT);

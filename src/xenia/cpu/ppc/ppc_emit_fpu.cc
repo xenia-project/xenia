@@ -382,7 +382,6 @@ int InstrEmit_mtfsfx(PPCHIRBuilder& f, const InstrData& i) {
     return 1;
   } else {
     assert_zero(i.XFL.W);
-
     // Store under control of mask.
     // Expand the mask from 8 bits -> 32 bits.
     uint32_t mask = 0;
@@ -402,7 +401,7 @@ int InstrEmit_mtfsfx(PPCHIRBuilder& f, const InstrData& i) {
 
     // Update the system rounding mode.
     if (mask & 0x7) {
-      f.SetRoundingMode(v);
+      f.SetRoundingMode(f.And(v, f.LoadConstantInt32(7)));
     }
   }
   if (i.XFL.Rc) {
@@ -425,7 +424,7 @@ int InstrEmit_mtfsfix(PPCHIRBuilder& f, const InstrData& i) {
 
   // Update the system rounding mode.
   if (mask & 0x7) {
-    f.SetRoundingMode(fpscr);
+    f.SetRoundingMode(f.And(fpscr, f.LoadConstantInt32(7)));
   }
 
   if (i.X.Rc) {

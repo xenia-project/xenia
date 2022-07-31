@@ -264,7 +264,7 @@ class HIRBuilder {
                                Value* new_value);
   Value* AtomicAdd(Value* address, Value* value);
   Value* AtomicSub(Value* address, Value* value);
-
+  void SetNJM(Value* value);
  protected:
   void DumpValue(StringBuffer* str, Value* value);
   void DumpOp(StringBuffer* str, OpcodeSignatureType sig_type, Instr::Op* op);

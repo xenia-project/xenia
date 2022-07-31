@@ -692,6 +692,12 @@ void X64Backend::InitializeBackendContext(void* ctx) {
   X64BackendContext* bctx = reinterpret_cast<X64BackendContext*>(
       reinterpret_cast<intptr_t>(ctx) - sizeof(X64BackendContext));
   bctx->ResolveFunction_Ptr = reinterpret_cast<void*>(&ResolveFunction);
+  bctx->mxcsr_fpu =
+      DEFAULT_FPU_MXCSR;  // idk if this is right, check on rgh what the
+                          // rounding on ppc is at startup
+  bctx->mxcsr_vmx = DEFAULT_VMX_MXCSR;
+  bctx->flags = 0;
+  // https://media.discordapp.net/attachments/440280035056943104/1000765256643125308/unknown.png
   bctx->Ox1000 = 0x1000;
 }
 }  // namespace x64

@@ -16,7 +16,13 @@
 
 // For OPCODE_PACK/OPCODE_UNPACK
 #include "third_party/half/include/half.hpp"
+#include "xenia/base/cvar.h"
+#include "xenia/cpu/backend/x64/x64_stack_layout.h"
 
+DEFINE_bool(use_extended_range_half, true,
+            "Emulate extended range half-precision, may be slower on games "
+            "that use it heavily",
+            "CPU");
 namespace xe {
 namespace cpu {
 namespace backend {
@@ -31,6 +37,8 @@ struct VECTOR_CONVERT_I2F
     : Sequence<VECTOR_CONVERT_I2F,
                I<OPCODE_VECTOR_CONVERT_I2F, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    e.ChangeMxcsrMode(MXCSRMode::Vmx);
+    Xmm src1 = GetInputRegOrConstant(e, i.src1, e.xmm3);
     // flags = ARITHMETIC_UNSIGNED
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
       // Round manually to (1.stored mantissa bits * 2^31) or to 2^32 to the
@@ -46,8 +54,8 @@ struct VECTOR_CONVERT_I2F
       // be 4294967296.0f.
       // xmm0 = src + 0b01111111 + ((src >> 8) & 1)
       // (xmm1 also used to launch reg + mem early and to require it late)
-      e.vpaddd(e.xmm1, i.src1, e.GetXmmConstPtr(XMMInt127));
-      e.vpslld(e.xmm0, i.src1, 31 - 8);
+      e.vpaddd(e.xmm1, src1, e.GetXmmConstPtr(XMMInt127));
+      e.vpslld(e.xmm0, src1, 31 - 8);
       e.vpsrld(e.xmm0, e.xmm0, 31);
       e.vpaddd(e.xmm0, e.xmm0, e.xmm1);
       // xmm0 = (0xFF800000 | 23 explicit mantissa bits), or 0 if overflowed
@@ -63,13 +71,13 @@ struct VECTOR_CONVERT_I2F
 
       // Convert from signed integer to float.
       // xmm1 = [0x00000000, 0x7FFFFFFF] case result
-      e.vcvtdq2ps(e.xmm1, i.src1);
+      e.vcvtdq2ps(e.xmm1, src1);
 
       // Merge the two ways depending on whether the number is >= 0x80000000
       // (has high bit set).
-      e.vblendvps(i.dest, e.xmm1, e.xmm0, i.src1);
+      e.vblendvps(i.dest, e.xmm1, e.xmm0, src1);
     } else {
-      e.vcvtdq2ps(i.dest, i.src1);
+      e.vcvtdq2ps(i.dest, src1);
     }
   }
 };
@@ -82,9 +90,11 @@ struct VECTOR_CONVERT_F2I
     : Sequence<VECTOR_CONVERT_F2I,
                I<OPCODE_VECTOR_CONVERT_F2I, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    e.ChangeMxcsrMode(MXCSRMode::Vmx);
+    Xmm src1 = GetInputRegOrConstant(e, i.src1, e.xmm3);
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
       // clamp to min 0
-      e.vmaxps(e.xmm0, i.src1, e.GetXmmConstPtr(XMMZero));
+      e.vmaxps(e.xmm0, src1, e.GetXmmConstPtr(XMMZero));
 
       // xmm1 = mask of values >= (unsigned)INT_MIN
       e.vcmpgeps(e.xmm1, e.xmm0, e.GetXmmConstPtr(XMMPosIntMinPS));
@@ -108,14 +118,14 @@ struct VECTOR_CONVERT_F2I
       e.vpor(i.dest, i.dest, e.xmm0);
     } else {
       // xmm2 = NaN mask
-      e.vcmpunordps(e.xmm2, i.src1, i.src1);
+      e.vcmpunordps(e.xmm2, src1, src1);
 
       // convert packed floats to packed dwords
-      e.vcvttps2dq(e.xmm0, i.src1);
+      e.vcvttps2dq(e.xmm0, src1);
 
       // (high bit) xmm1 = dest is indeterminate and i.src1 >= 0
       e.vpcmpeqd(e.xmm1, e.xmm0, e.GetXmmConstPtr(XMMIntMin));
-      e.vpandn(e.xmm1, i.src1, e.xmm1);
+      e.vpandn(e.xmm1, src1, e.xmm1);
 
       // saturate positive values
       e.vblendvps(i.dest, e.xmm0, e.GetXmmConstPtr(XMMIntMax), e.xmm1);
@@ -131,6 +141,7 @@ struct VECTOR_DENORMFLUSH
     : Sequence<VECTOR_DENORMFLUSH,
                I<OPCODE_VECTOR_DENORMFLUSH, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    e.ChangeMxcsrMode(MXCSRMode::Vmx);
     e.vxorps(e.xmm1, e.xmm1, e.xmm1);  // 0.25 P0123
 
     e.vandps(e.xmm0, i.src1,
@@ -352,6 +363,7 @@ struct VECTOR_COMPARE_EQ_V128
               e.vpcmpeqd(dest, src1, src2);
               break;
             case FLOAT32_TYPE:
+              e.ChangeMxcsrMode(MXCSRMode::Vmx);
               e.vcmpeqps(dest, src1, src2);
               break;
           }
@@ -380,6 +392,7 @@ struct VECTOR_COMPARE_SGT_V128
               e.vpcmpgtd(dest, src1, src2);
               break;
             case FLOAT32_TYPE:
+              e.ChangeMxcsrMode(MXCSRMode::Vmx);
               e.vcmpgtps(dest, src1, src2);
               break;
           }
@@ -414,6 +427,7 @@ struct VECTOR_COMPARE_SGE_V128
               e.vpor(dest, e.xmm0);
               break;
             case FLOAT32_TYPE:
+              e.ChangeMxcsrMode(MXCSRMode::Vmx);
               e.vcmpgeps(dest, src1, src2);
               break;
           }
@@ -441,6 +455,7 @@ struct VECTOR_COMPARE_UGT_V128
         sign_addr = e.GetXmmConstPtr(XMMSignMaskI32);
         break;
       case FLOAT32_TYPE:
+        e.ChangeMxcsrMode(MXCSRMode::Vmx);
         sign_addr = e.GetXmmConstPtr(XMMSignMaskF32);
         break;
       default:
@@ -498,6 +513,7 @@ struct VECTOR_COMPARE_UGE_V128
         sign_addr = e.GetXmmConstPtr(XMMSignMaskI32);
         break;
       case FLOAT32_TYPE:
+        e.ChangeMxcsrMode(MXCSRMode::Vmx);
         sign_addr = e.GetXmmConstPtr(XMMSignMaskF32);
         break;
     }
@@ -620,6 +636,7 @@ struct VECTOR_ADD
             case FLOAT32_TYPE:
               assert_false(is_unsigned);
               assert_false(saturate);
+              e.ChangeMxcsrMode(MXCSRMode::Vmx);
               e.vaddps(dest, src1, src2);
               break;
             default:
@@ -711,6 +728,7 @@ struct VECTOR_SUB
               }
               break;
             case FLOAT32_TYPE:
+              e.ChangeMxcsrMode(MXCSRMode::Vmx);
               e.vsubps(dest, src1, src2);
               break;
             default:
@@ -2003,6 +2021,7 @@ EMITTER_OPCODE_TABLE(OPCODE_SWIZZLE, SWIZZLE);
 // ============================================================================
 struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    e.ChangeMxcsrMode(MXCSRMode::Vmx);
     switch (i.instr->flags & PACK_TYPE_MODE) {
       case PACK_TYPE_D3DCOLOR:
         EmitD3DCOLOR(e, i);
@@ -2062,9 +2081,14 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     alignas(16) uint16_t b[8];
     _mm_store_ps(a, src1);
     std::memset(b, 0, sizeof(b));
-
-    for (int i = 0; i < 2; i++) {
-      b[7 - i] = half_float::detail::float2half<std::round_toward_zero>(a[i]);
+    if (!cvars::use_extended_range_half) {
+      for (int i = 0; i < 2; i++) {
+        b[7 - i] = half_float::detail::float2half<std::round_toward_zero>(a[i]);
+      }
+    } else {
+      for (int i = 0; i < 2; i++) {
+        b[7 - i] = float_to_xenos_half(a[i]);
+      }
     }
 
     return _mm_load_si128(reinterpret_cast<__m128i*>(b));
@@ -2074,7 +2098,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     // http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
     // dest = [(src1.x | src1.y), 0, 0, 0]
 
-    if (e.IsFeatureEnabled(kX64EmitF16C)) {
+    if (e.IsFeatureEnabled(kX64EmitF16C) && !cvars::use_extended_range_half) {
       Xmm src;
       if (i.src1.is_constant) {
         src = i.dest;
@@ -2101,10 +2125,15 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     alignas(16) uint16_t b[8];
     _mm_store_ps(a, src1);
     std::memset(b, 0, sizeof(b));
-
-    for (int i = 0; i < 4; i++) {
-      b[7 - (i ^ 2)] =
-          half_float::detail::float2half<std::round_toward_zero>(a[i]);
+    if (!cvars::use_extended_range_half) {
+      for (int i = 0; i < 4; i++) {
+        b[7 - (i ^ 2)] =
+            half_float::detail::float2half<std::round_toward_zero>(a[i]);
+      }
+    } else {
+      for (int i = 0; i < 4; i++) {
+        b[7 - (i ^ 2)] = float_to_xenos_half(a[i]);
+      }
     }
 
     return _mm_load_si128(reinterpret_cast<__m128i*>(b));
@@ -2113,7 +2142,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     assert_true(i.src2.value->IsConstantZero());
     // dest = [(src1.z | src1.w), (src1.x | src1.y), 0, 0]
 
-    if (e.IsFeatureEnabled(kX64EmitF16C)) {
+    if (e.IsFeatureEnabled(kX64EmitF16C) && !cvars::use_extended_range_half) {
       Xmm src;
       if (i.src1.is_constant) {
         src = i.dest;
@@ -2420,6 +2449,7 @@ EMITTER_OPCODE_TABLE(OPCODE_PACK, PACK);
 // ============================================================================
 struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
+    e.ChangeMxcsrMode(MXCSRMode::Vmx);
     switch (i.instr->flags & PACK_TYPE_MODE) {
       case PACK_TYPE_D3DCOLOR:
         EmitD3DCOLOR(e, i);
@@ -2478,10 +2508,15 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     alignas(16) float b[4];
     _mm_store_si128(reinterpret_cast<__m128i*>(a), src1);
 
-    for (int i = 0; i < 2; i++) {
-      b[i] = half_float::detail::half2float(a[VEC128_W(6 + i)]);
+    if (!cvars::use_extended_range_half) {
+      for (int i = 0; i < 2; i++) {
+        b[i] = half_float::detail::half2float(a[VEC128_W(6 + i)]);
+      }
+    } else {
+      for (int i = 0; i < 2; i++) {
+        b[i] = xenos_half_to_float(a[VEC128_W(6 + i)]);
+      }
     }
-
     // Constants, or something
     b[2] = 0.f;
     b[3] = 1.f;
@@ -2501,7 +2536,9 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     // Also zero out the high end.
     // TODO(benvanik): special case constant unpacks that just get 0/1/etc.
 
-    if (e.IsFeatureEnabled(kX64EmitF16C)) {
+    if (e.IsFeatureEnabled(kX64EmitF16C) &&
+        !cvars::use_extended_range_half) {  // todo: can use cvtph and bit logic
+                                            // to implement
       Xmm src;
       if (i.src1.is_constant) {
         src = i.dest;
@@ -2534,16 +2571,21 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     alignas(16) uint16_t a[8];
     alignas(16) float b[4];
     _mm_store_si128(reinterpret_cast<__m128i*>(a), src1);
-
-    for (int i = 0; i < 4; i++) {
-      b[i] = half_float::detail::half2float(a[VEC128_W(4 + i)]);
+    if (!cvars::use_extended_range_half) {
+      for (int i = 0; i < 4; i++) {
+        b[i] = half_float::detail::half2float(a[VEC128_W(4 + i)]);
+      }
+    } else {
+      for (int i = 0; i < 4; i++) {
+        b[i] = xenos_half_to_float(a[VEC128_W(4 + i)]);
+      }
     }
 
     return _mm_load_ps(b);
   }
   static void EmitFLOAT16_4(X64Emitter& e, const EmitArgType& i) {
     // src = [(dest.x | dest.y), (dest.z | dest.w), 0, 0]
-    if (e.IsFeatureEnabled(kX64EmitF16C)) {
+    if (e.IsFeatureEnabled(kX64EmitF16C) && !cvars::use_extended_range_half) {
       Xmm src;
       if (i.src1.is_constant) {
         src = i.dest;
@@ -2805,6 +2847,32 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
 };
 EMITTER_OPCODE_TABLE(OPCODE_UNPACK, UNPACK);
 
+struct SET_NJM_I8 : Sequence<SET_NJM_I8, I<OPCODE_SET_NJM, VoidOp, I8Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    auto addr_vmx = e.GetBackendCtxPtr(offsetof(X64BackendContext, mxcsr_vmx));
+
+    addr_vmx.setBit(32);
+    if (i.src1.is_constant) {
+      if (i.src1.constant() == 0) {
+        // turn off daz/flush2z
+        e.mov(addr_vmx, _MM_MASK_MASK);
+
+      } else {
+        e.mov(addr_vmx, DEFAULT_VMX_MXCSR);
+      }
+
+    } else {
+      e.test(i.src1, i.src1);
+      e.mov(e.edx, DEFAULT_VMX_MXCSR);
+      e.mov(e.eax, _MM_MASK_MASK);
+
+      e.cmove(e.edx, e.eax);
+      e.mov(addr_vmx, e.edx);
+    }
+    e.ChangeMxcsrMode(MXCSRMode::Vmx);
+  }
+};
+EMITTER_OPCODE_TABLE(OPCODE_SET_NJM, SET_NJM_I8);
 }  // namespace x64
 }  // namespace backend
 }  // namespace cpu

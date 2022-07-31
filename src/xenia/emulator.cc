@@ -64,9 +64,13 @@ DEFINE_string(
     "or the module specified by the game. Leave blank to launch the default "
     "module.",
     "General");
+DEFINE_bool(allow_game_relative_writes, false,
+            "Not useful to non-developers. Allows code to write to paths "
+            "relative to game://. Used for "
+            "generating test data to compare with original hardware. ",
+            "General");
 
 namespace xe {
-
 using namespace xe::literals;
 
 Emulator::GameConfigLoadCallback::GameConfigLoadCallback(Emulator& emulator)
@@ -282,7 +286,8 @@ const std::unique_ptr<vfs::Device> Emulator::CreateVfsDeviceBasedOnPath(
   auto extension = xe::utf8::lower_ascii(xe::path_to_utf8(path.extension()));
   if (extension == ".xex" || extension == ".elf" || extension == ".exe") {
     auto parent_path = path.parent_path();
-    return std::make_unique<vfs::HostPathDevice>(mount_path, parent_path, true);
+    return std::make_unique<vfs::HostPathDevice>(
+        mount_path, parent_path, !cvars::allow_game_relative_writes);
   } else {
     return std::make_unique<vfs::DiscImageDevice>(mount_path, path);
   }
@@ -653,8 +658,8 @@ bool Emulator::ExceptionCallback(Exception* ex) {
     // debugger.
     return false;
   } else if (processor()->is_debugger_attached()) {
-    // Let the debugger handle this exception. It may decide to continue past it
-    // (if it was a stepping breakpoint, etc).
+    // Let the debugger handle this exception. It may decide to continue past
+    // it (if it was a stepping breakpoint, etc).
     return processor()->OnUnhandledException(ex);
   }
 
@@ -823,8 +828,8 @@ static std::string format_version(xex2_version version) {
 
 X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
                                   const std::string_view module_path) {
-  // Making changes to the UI (setting the icon) and executing game config load
-  // callbacks which expect to be called from the UI thread.
+  // Making changes to the UI (setting the icon) and executing game config
+  // load callbacks which expect to be called from the UI thread.
   assert_true(display_window_->app_context().IsInUIThread());
 
   // Setup NullDevices for raw HDD partition accesses
@@ -832,12 +837,12 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
   // By using a NullDevice that just returns success to all IO requests it
   // should allow games to believe cache/raw disk was accessed successfully
 
-  // NOTE: this should probably be moved to xenia_main.cc, but right now we need
-  // to register the \Device\Harddisk0\ NullDevice _after_ the
+  // NOTE: this should probably be moved to xenia_main.cc, but right now we
+  // need to register the \Device\Harddisk0\ NullDevice _after_ the
   // \Device\Harddisk0\Partition1 HostPathDevice, otherwise requests to
-  // Partition1 will go to this. Registering during CompleteLaunch allows us to
-  // make sure any HostPathDevices are ready beforehand.
-  // (see comment above cache:\ device registration for more info about why)
+  // Partition1 will go to this. Registering during CompleteLaunch allows us
+  // to make sure any HostPathDevices are ready beforehand. (see comment above
+  // cache:\ device registration for more info about why)
   auto null_paths = {std::string("\\Partition0"), std::string("\\Cache0"),
                      std::string("\\Cache1")};
   auto null_device =
@@ -900,8 +905,8 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
   if (module->title_id()) {
     auto title_id = fmt::format("{:08X}", module->title_id());
 
-    // Load the per-game configuration file and make sure updates are handled by
-    // the callbacks.
+    // Load the per-game configuration file and make sure updates are handled
+    // by the callbacks.
     config::LoadGameConfig(title_id);
     assert_true(game_config_load_callback_loop_next_index_ == SIZE_MAX);
     game_config_load_callback_loop_next_index_ = 0;
@@ -934,10 +939,10 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
     }
   }
 
-  // Initializing the shader storage in a blocking way so the user doesn't miss
-  // the initial seconds - for instance, sound from an intro video may start
-  // playing before the video can be seen if doing this in parallel with the
-  // main thread.
+  // Initializing the shader storage in a blocking way so the user doesn't
+  // miss the initial seconds - for instance, sound from an intro video may
+  // start playing before the video can be seen if doing this in parallel with
+  // the main thread.
   on_shader_storage_initialization(true);
   graphics_system_->InitializeShaderStorage(cache_root_, title_id_.value(),
                                             true);

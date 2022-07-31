@@ -320,6 +320,8 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   // Body.
   auto block = builder->first_block();
   while (block) {
+    ForgetMxcsrMode();  // at start of block, mxcsr mode is undefined
+
     // Mark block labels.
     auto label = block->label_head;
     while (label) {
@@ -490,6 +492,7 @@ uint64_t ResolveFunction(void* raw_context, uint64_t target_address) {
 
 void X64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
   assert_not_null(function);
+  ForgetMxcsrMode();
   auto fn = static_cast<X64Function*>(function);
   // Resolve address to the function to call and store in rax.
 
@@ -564,6 +567,7 @@ void X64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
 
 void X64Emitter::CallIndirect(const hir::Instr* instr,
                               const Xbyak::Reg64& reg) {
+  ForgetMxcsrMode();
   // Check if return.
   if (instr->flags & hir::CALL_POSSIBLE_RETURN) {
     cmp(reg.cvt32(), dword[rsp + StackLayout::GUEST_RET_ADDR]);
@@ -617,6 +621,7 @@ uint64_t UndefinedCallExtern(void* raw_context, uint64_t function_ptr) {
   return 0;
 }
 void X64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
+  ForgetMxcsrMode();
   bool undefined = true;
   if (function->behavior() == Function::Behavior::kBuiltin) {
     auto builtin_function = static_cast<const BuiltinFunction*>(function);
@@ -696,11 +701,13 @@ Xbyak::Reg64 X64Emitter::GetNativeParam(uint32_t param) {
 }
 
 // Important: If you change these, you must update the thunks in x64_backend.cc!
-Xbyak::Reg64 X64Emitter::GetContextReg() { return rsi; }
-Xbyak::Reg64 X64Emitter::GetMembaseReg() { return rdi; }
+Xbyak::Reg64 X64Emitter::GetContextReg() const { return rsi; }
+Xbyak::Reg64 X64Emitter::GetMembaseReg() const { return rdi; }
 
 void X64Emitter::ReloadMembase() {
-  mov(GetMembaseReg(), qword[GetContextReg() + 8]);  // membase
+  mov(GetMembaseReg(),
+      qword[GetContextReg() +
+            offsetof(ppc::PPCContext, virtual_membase)]);  // membase
 }
 
 // Len Assembly                                   Byte Sequence
@@ -917,7 +924,7 @@ static const vec128_t xmm_consts[] = {
     /* XMMQNaN                */ vec128i(0x7FC00000u),
     /* XMMInt127              */ vec128i(0x7Fu),
     /* XMM2To32               */ vec128f(0x1.0p32f),
-    /* xmminf */ vec128i(0x7f800000),
+    /* XMMFloatInf */ vec128i(0x7f800000),
 
     /* XMMIntsToBytes*/
     v128_setr_bytes(0, 4, 8, 12, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
@@ -938,9 +945,7 @@ static const vec128_t xmm_consts[] = {
     /*XMMVSRShlByteshuf*/
     v128_setr_bytes(13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3, 0x80),
     // XMMVSRMask
-    vec128b(1)
-
-};
+    vec128b(1)};
 
 void* X64Emitter::FindByteConstantOffset(unsigned bytevalue) {
   for (auto& vec : xmm_consts) {
@@ -1347,7 +1352,7 @@ SimdDomain X64Emitter::DeduceSimdDomain(const hir::Value* for_value) {
 
   return SimdDomain::DONTCARE;
 }
-Xbyak::Address X64Emitter::GetBackendCtxPtr(int offset_in_x64backendctx) {
+Xbyak::Address X64Emitter::GetBackendCtxPtr(int offset_in_x64backendctx) const {
   /*
     index context ptr negatively to get to backend ctx field
   */
@@ -1367,6 +1372,93 @@ Xbyak::Label& X64Emitter::NewCachedLabel() {
   Xbyak::Label* tmp = new Xbyak::Label;
   label_cache_.push_back(tmp);
   return *tmp;
+}
+
+template<bool switching_to_fpu>
+static void ChangeMxcsrModeDynamicHelper(X64Emitter& e) {
+  auto flags = e.GetBackendFlagsPtr();
+  if (switching_to_fpu) {
+    e.btr(flags, 0);  // bit 0 set to 0 = is fpu mode
+  } else {
+    e.bts(flags, 0); // bit 0 set to 1 = is vmx mode
+  }
+  Xbyak::Label& come_back = e.NewCachedLabel();
+
+  Xbyak::Label& reload_bailout =
+      e.AddToTail([&come_back](X64Emitter& e, Xbyak::Label& thislabel) {
+        e.L(thislabel);
+        if (switching_to_fpu) {
+          e.LoadFpuMxcsrDirect();
+        } else {
+          e.LoadVmxMxcsrDirect();
+		}
+        e.jmp(come_back, X64Emitter::T_NEAR);
+      });
+  if (switching_to_fpu) {
+    e.jc(reload_bailout,
+         X64Emitter::T_NEAR);  // if carry flag was set, we were VMX mxcsr mode.
+  } else {
+    e.jnc(reload_bailout,
+         X64Emitter::T_NEAR);  // if carry flag was set, we were VMX mxcsr mode.
+  }
+  e.L(come_back);
+}
+
+bool X64Emitter::ChangeMxcsrMode(MXCSRMode new_mode, bool already_set) {
+  if (new_mode == mxcsr_mode_) {
+    return false;
+  }
+  assert_true(new_mode != MXCSRMode::Unknown);
+
+  if (mxcsr_mode_ == MXCSRMode::Unknown) {
+    // check the mode dynamically
+    mxcsr_mode_ = new_mode;
+    if (!already_set) {
+      if (new_mode == MXCSRMode::Fpu) {
+        ChangeMxcsrModeDynamicHelper<true>(*this);
+      } else if (new_mode == MXCSRMode::Vmx) {
+        ChangeMxcsrModeDynamicHelper<false>(*this);
+      } else {
+        assert_unhandled_case(new_mode);
+	  }
+    } else { //even if already set, we still need to update flags to reflect our mode
+      if (new_mode == MXCSRMode::Fpu) {
+        btr(GetBackendFlagsPtr(), 0);
+      } else if (new_mode == MXCSRMode::Vmx) {
+        bts(GetBackendFlagsPtr(), 0);
+      } else {
+        assert_unhandled_case(new_mode);
+      }	
+	}
+  } else {
+    mxcsr_mode_ = new_mode;
+    if (!already_set) {
+      if (new_mode == MXCSRMode::Fpu) {
+		  
+        LoadFpuMxcsrDirect();
+        btr(GetBackendFlagsPtr(), 0);
+        return true;
+      } else if (new_mode == MXCSRMode::Vmx) {
+        LoadVmxMxcsrDirect();
+        bts(GetBackendFlagsPtr(), 0);
+        return true;
+      } else {
+        assert_unhandled_case(new_mode);
+      }
+    }
+  }
+  return false;
+}
+void X64Emitter::LoadFpuMxcsrDirect() {
+  vldmxcsr(GetBackendCtxPtr(offsetof(X64BackendContext, mxcsr_fpu)));
+}
+void X64Emitter::LoadVmxMxcsrDirect() {
+  vldmxcsr(GetBackendCtxPtr(offsetof(X64BackendContext, mxcsr_vmx)));
+}
+Xbyak::Address X64Emitter::GetBackendFlagsPtr() const {
+  Xbyak::Address pt = GetBackendCtxPtr(offsetof(X64BackendContext, flags));
+  pt.setBit(32);
+  return pt;
 }
 }  // namespace x64
 }  // namespace backend

@@ -364,7 +364,16 @@ int InstrEmit_mfvscr(PPCHIRBuilder& f, const InstrData& i) {
 
 int InstrEmit_mtvscr(PPCHIRBuilder& f, const InstrData& i) {
   // is this the right format?
+	//todo: what mtvscr does with the unused bits is implementation defined, figure out what it does
+
+
   Value* v = f.LoadVR(i.VX128_1.RB);
+
+
+  Value* has_njm_value = f.Extract(v, (uint8_t)3, INT32_TYPE);
+
+  f.SetNJM(f.IsTrue(f.And(has_njm_value, f.LoadConstantInt32(65536))));
+
   f.StoreContext(offsetof(PPCContext, vscr_vec), v);
   return 0;
 }
