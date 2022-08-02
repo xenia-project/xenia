@@ -20,11 +20,26 @@
 #include "xenia/kernel/xboxkrnl/xboxkrnl_rtl.h"
 #include "xenia/xbox.h"
 
+DEFINE_int32(internal_display_resolution, 8,
+             "   0=640x480\n"
+             "   1=640x576\n"
+             "   2=720x480\n"
+             "   3=720x576\n"
+             "   4=800x600\n"
+             "   5=848x480\n"
+             "   6=1024x768\n"
+             "   7=1152x864\n"
+             "   8=1280x720 (Default)\n"
+             "   9=1280x768\n"
+             "   10=1280x960\n"
+             "   11=1280x1024\n"
+             "   12=1360x768\n"
+             "   13=1440x900\n"
+             "   14=1680x1050\n"
+             "   15=1920x540\n"
+             "   16=1920x1080\n",
+             "Display");
 
-DEFINE_uint32(internal_display_resolution_width, 1280,
-              "Set internal display output resolution.", "Display");
-DEFINE_uint32(internal_display_resolution_height, 720,
-              "Set internal display output resolution.", "Display");
 // BT.709 on modern monitors and TVs looks the closest to the Xbox 360 connected
 // to an HDTV.
 DEFINE_uint32(kernel_display_gamma_type, 2,
@@ -35,6 +50,22 @@ UPDATE_from_uint32(kernel_display_gamma_type, 2020, 12, 31, 13, 1);
 DEFINE_double(kernel_display_gamma_power, 2.22222233,
               "Display gamma to use with kernel_display_gamma_type 3.",
               "Kernel");
+
+static const std::vector<std::pair<uint16_t, uint16_t>>
+    internal_display_resolution_entries = {
+        {640, 480},  {640, 576},   {720, 480},  {720, 576},  {800, 600},
+        {848, 480},  {1024, 768},  {1152, 864}, {1280, 720}, {1280, 768},
+        {1280, 960}, {1280, 1024}, {1360, 768}, {1440, 900}, {1680, 1050},
+        {1920, 540}, {1920, 1080}};
+
+std::pair<uint16_t, uint16_t> GetInternalDisplayResolution() {
+  if (cvars::internal_display_resolution >
+      internal_display_resolution_entries.size()) {
+    return internal_display_resolution_entries[8];
+  }
+  return internal_display_resolution_entries
+      [cvars::internal_display_resolution];
+}
 
 namespace xe {
 namespace kernel {
@@ -139,11 +170,14 @@ DECLARE_XBOXKRNL_EXPORT1(VdGetCurrentDisplayInformation, kVideo, kStub);
 void VdQueryVideoMode(X_VIDEO_MODE* video_mode) {
   // TODO(benvanik): get info from actual display.
   std::memset(video_mode, 0, sizeof(X_VIDEO_MODE));
-  video_mode->display_width = cvars::internal_display_resolution_width;
-  video_mode->display_height = cvars::internal_display_resolution_height;
+
+  auto display_res = GetInternalDisplayResolution();
+
+  video_mode->display_width = display_res.first;
+  video_mode->display_height = display_res.second;
   video_mode->is_interlaced = 0;
-  video_mode->is_widescreen = ((video_mode->display_width / 4) >
-                              (video_mode->display_height / 3));
+  video_mode->is_widescreen =
+      ((video_mode->display_width / 4) > (video_mode->display_height / 3));
   video_mode->is_hi_def = 1;
   video_mode->refresh_rate = 60.0f;
   video_mode->video_standard = 1;  // NTSC
