@@ -336,10 +336,14 @@ int InstrEmit_mulhwx(PPCHIRBuilder& f, const InstrData& i) {
     XEINSTRNOTIMPLEMENTED();
     return 1;
   }
+  Value* ratrunc =
+      f.SignExtend(f.Truncate(f.LoadGPR(i.XO.RA), INT32_TYPE), INT64_TYPE);
 
-  Value* v = f.SignExtend(f.MulHi(f.Truncate(f.LoadGPR(i.XO.RA), INT32_TYPE),
-                                  f.Truncate(f.LoadGPR(i.XO.RB), INT32_TYPE)),
-                          INT64_TYPE);
+  Value* rbtrunc =
+      f.SignExtend(f.Truncate(f.LoadGPR(i.XO.RB), INT32_TYPE), INT64_TYPE);
+
+  Value* v = f.Sha(f.Mul(ratrunc, rbtrunc), 32);
+
   f.StoreGPR(i.XO.RT, v);
   if (i.XO.Rc) {
     f.UpdateCR(0, v);
@@ -355,10 +359,13 @@ int InstrEmit_mulhwux(PPCHIRBuilder& f, const InstrData& i) {
     return 1;
   }
 
-  Value* v = f.ZeroExtend(
-      f.MulHi(f.Truncate(f.LoadGPR(i.XO.RA), INT32_TYPE),
-              f.Truncate(f.LoadGPR(i.XO.RB), INT32_TYPE), ARITHMETIC_UNSIGNED),
-      INT64_TYPE);
+  Value* ratrunc =
+      f.ZeroExtend(f.Truncate(f.LoadGPR(i.XO.RA), INT32_TYPE), INT64_TYPE);
+
+  Value* rbtrunc =
+      f.ZeroExtend(f.Truncate(f.LoadGPR(i.XO.RB), INT32_TYPE), INT64_TYPE);
+
+  Value* v = f.Shr(f.Mul(ratrunc, rbtrunc, ARITHMETIC_UNSIGNED), 32);
   f.StoreGPR(i.XO.RT, v);
   if (i.XO.Rc) {
     f.UpdateCR(0, v);

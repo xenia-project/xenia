@@ -364,11 +364,10 @@ int InstrEmit_mfvscr(PPCHIRBuilder& f, const InstrData& i) {
 
 int InstrEmit_mtvscr(PPCHIRBuilder& f, const InstrData& i) {
   // is this the right format?
-	//todo: what mtvscr does with the unused bits is implementation defined, figure out what it does
-
+  // todo: what mtvscr does with the unused bits is implementation defined,
+  // figure out what it does
 
   Value* v = f.LoadVR(i.VX128_1.RB);
-
 
   Value* has_njm_value = f.Extract(v, (uint8_t)3, INT32_TYPE);
 
@@ -1824,9 +1823,38 @@ int InstrEmit_vsum4ubs(PPCHIRBuilder& f, const InstrData& i) {
   return 1;
 }
 
+static Value* vkpkx_in_low(PPCHIRBuilder& f, Value* input) {
+  // truncate from argb8888 to 1 bit alpha, 5 bit red, 5 bit green, 5 bit blue
+  auto ShrU32Vec = [&f](Value* input, unsigned shift) {
+    return f.VectorShr(input, f.LoadConstantVec128(vec128i(shift)), INT32_TYPE);
+  };
+  auto AndU32Vec = [&f](Value* input, unsigned msk) {
+    return f.And(input, f.LoadConstantVec128(vec128i(msk)));
+  };
+  auto tmp1 = AndU32Vec(ShrU32Vec(input, 9), 0xFC00);
+  auto tmp2 = AndU32Vec(ShrU32Vec(input, 6), 0x3E0);
+  auto tmp3 = AndU32Vec(ShrU32Vec(input, 3), 0x1F);
+  return f.Or(tmp3, f.Or(tmp1, tmp2));
+}
+
 int InstrEmit_vpkpx(PPCHIRBuilder& f, const InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  // I compared the results of this against over a million randomly generated
+  // sets of inputs and all compared equal
+
+  Value* src1 = f.LoadVR(i.VX.VA);
+
+  Value* src2 = f.LoadVR(i.VX.VB);
+
+  Value* pck1 = vkpkx_in_low(f, src1);
+  Value* pck2 = vkpkx_in_low(f, src2);
+
+  Value* result = f.Pack(
+      pck1, pck2,
+      PACK_TYPE_16_IN_32 | PACK_TYPE_IN_UNSIGNED | PACK_TYPE_OUT_UNSIGNED);
+
+  f.StoreVR(i.VX.VD, result);
+
+  return 0;
 }
 
 int InstrEmit_vpkshss_(PPCHIRBuilder& f, uint32_t vd, uint32_t va,

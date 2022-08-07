@@ -50,6 +50,13 @@ DEFINE_bool(resolve_rel32_guest_calls, true,
             "Experimental optimization, directly call already resolved "
             "functions via x86 rel32 call/jmp",
             "CPU");
+
+DEFINE_bool(enable_incorrect_roundingmode_behavior, false,
+            "Disables the FPU/VMX MXCSR sharing workaround, potentially "
+            "causing incorrect rounding behavior and denormal handling in VMX "
+            "code. The workaround may cause reduced CPU performance but is a "
+            "more accurate emulation",
+            "x64");
 namespace xe {
 namespace cpu {
 namespace backend {
@@ -1374,13 +1381,13 @@ Xbyak::Label& X64Emitter::NewCachedLabel() {
   return *tmp;
 }
 
-template<bool switching_to_fpu>
+template <bool switching_to_fpu>
 static void ChangeMxcsrModeDynamicHelper(X64Emitter& e) {
   auto flags = e.GetBackendFlagsPtr();
   if (switching_to_fpu) {
     e.btr(flags, 0);  // bit 0 set to 0 = is fpu mode
   } else {
-    e.bts(flags, 0); // bit 0 set to 1 = is vmx mode
+    e.bts(flags, 0);  // bit 0 set to 1 = is vmx mode
   }
   Xbyak::Label& come_back = e.NewCachedLabel();
 
@@ -1391,20 +1398,24 @@ static void ChangeMxcsrModeDynamicHelper(X64Emitter& e) {
           e.LoadFpuMxcsrDirect();
         } else {
           e.LoadVmxMxcsrDirect();
-		}
+        }
         e.jmp(come_back, X64Emitter::T_NEAR);
       });
   if (switching_to_fpu) {
     e.jc(reload_bailout,
          X64Emitter::T_NEAR);  // if carry flag was set, we were VMX mxcsr mode.
   } else {
-    e.jnc(reload_bailout,
-         X64Emitter::T_NEAR);  // if carry flag was set, we were VMX mxcsr mode.
+    e.jnc(
+        reload_bailout,
+        X64Emitter::T_NEAR);  // if carry flag was set, we were VMX mxcsr mode.
   }
   e.L(come_back);
 }
 
 bool X64Emitter::ChangeMxcsrMode(MXCSRMode new_mode, bool already_set) {
+  if (cvars::enable_incorrect_roundingmode_behavior) {
+    return false;  // no MXCSR mode handling!
+  }
   if (new_mode == mxcsr_mode_) {
     return false;
   }
@@ -1420,21 +1431,21 @@ bool X64Emitter::ChangeMxcsrMode(MXCSRMode new_mode, bool already_set) {
         ChangeMxcsrModeDynamicHelper<false>(*this);
       } else {
         assert_unhandled_case(new_mode);
-	  }
-    } else { //even if already set, we still need to update flags to reflect our mode
+      }
+    } else {  // even if already set, we still need to update flags to reflect
+              // our mode
       if (new_mode == MXCSRMode::Fpu) {
         btr(GetBackendFlagsPtr(), 0);
       } else if (new_mode == MXCSRMode::Vmx) {
         bts(GetBackendFlagsPtr(), 0);
       } else {
         assert_unhandled_case(new_mode);
-      }	
-	}
+      }
+    }
   } else {
     mxcsr_mode_ = new_mode;
     if (!already_set) {
       if (new_mode == MXCSRMode::Fpu) {
-		  
         LoadFpuMxcsrDirect();
         btr(GetBackendFlagsPtr(), 0);
         return true;

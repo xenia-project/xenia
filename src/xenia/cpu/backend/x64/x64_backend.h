@@ -37,9 +37,10 @@ typedef void (*ResolveFunctionThunk)();
 // negatively index the membase reg)
 struct X64BackendContext {
   void* ResolveFunction_Ptr;  // cached pointer to resolvefunction
-  unsigned int mxcsr_fpu; //currently, the way we implement rounding mode affects both vmx and the fpu
+  unsigned int mxcsr_fpu;     // currently, the way we implement rounding mode
+                              // affects both vmx and the fpu
   unsigned int mxcsr_vmx;
-  unsigned int flags; //bit 0 = 0 if mxcsr is fpu, else it is vmx
+  unsigned int flags;   // bit 0 = 0 if mxcsr is fpu, else it is vmx
   unsigned int Ox1000;  // constant 0x1000 so we can shrink each tail emitted
                         // add of it by... 2 bytes lol
 };
@@ -48,7 +49,7 @@ constexpr unsigned int DEFAULT_VMX_MXCSR =
     0x0040 | (_MM_MASK_MASK);  // default rounding mode for vmx
 
 constexpr unsigned int DEFAULT_FPU_MXCSR = 0x1F80;
-
+extern const uint32_t mxcsr_table[8];
 class X64Backend : public Backend {
  public:
   static const uint32_t kForceReturnAddress = 0x9FFF0000u;
@@ -84,6 +85,12 @@ class X64Backend : public Backend {
   void InstallBreakpoint(Breakpoint* breakpoint, Function* fn) override;
   void UninstallBreakpoint(Breakpoint* breakpoint) override;
   virtual void InitializeBackendContext(void* ctx) override;
+
+  X64BackendContext* BackendContextForGuestContext(void* ctx) {
+    return reinterpret_cast<X64BackendContext*>(
+        reinterpret_cast<intptr_t>(ctx) - sizeof(X64BackendContext));
+  }
+  virtual void SetGuestRoundingMode(void* ctx, unsigned int mode) override;
 
  private:
   static bool ExceptionCallbackThunk(Exception* ex, void* data);

@@ -55,7 +55,9 @@ class PPCFrontend {
   PPCBuiltins builtins_ = {0};
   TypePool<PPCTranslator, PPCFrontend*> translator_pool_;
 };
-
+// Checks the state of the global lock and sets scratch to the current MSR
+// value.
+void CheckGlobalLock(PPCContext* ppc_context, void* arg0, void* arg1);
 }  // namespace ppc
 }  // namespace cpu
 }  // namespace xe

@@ -689,8 +689,7 @@ void X64ThunkEmitter::EmitLoadNonvolatileRegs() {
 #endif
 }
 void X64Backend::InitializeBackendContext(void* ctx) {
-  X64BackendContext* bctx = reinterpret_cast<X64BackendContext*>(
-      reinterpret_cast<intptr_t>(ctx) - sizeof(X64BackendContext));
+  X64BackendContext* bctx = BackendContextForGuestContext(ctx);
   bctx->ResolveFunction_Ptr = reinterpret_cast<void*>(&ResolveFunction);
   bctx->mxcsr_fpu =
       DEFAULT_FPU_MXCSR;  // idk if this is right, check on rgh what the
@@ -699,6 +698,18 @@ void X64Backend::InitializeBackendContext(void* ctx) {
   bctx->flags = 0;
   // https://media.discordapp.net/attachments/440280035056943104/1000765256643125308/unknown.png
   bctx->Ox1000 = 0x1000;
+}
+const uint32_t mxcsr_table[8] = {
+    0x1F80, 0x7F80, 0x5F80, 0x3F80, 0x9F80, 0xFF80, 0xDF80, 0xBF80,
+};
+
+void X64Backend::SetGuestRoundingMode(void* ctx, unsigned int mode) {
+  X64BackendContext* bctx = BackendContextForGuestContext(ctx);
+
+  uint32_t control = mode & 7;
+  _mm_setcsr(mxcsr_table[control]);
+  bctx->mxcsr_fpu = mxcsr_table[control];
+  ((ppc::PPCContext*)ctx)->fpscr.bits.rn = control;
 }
 }  // namespace x64
 }  // namespace backend
