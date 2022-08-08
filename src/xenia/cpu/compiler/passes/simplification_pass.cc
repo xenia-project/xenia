@@ -795,7 +795,10 @@ bool SimplificationPass::CheckScalarConstCmp(hir::Instr* i,
 
   if (var_definition) {
     var_definition = var_definition->GetDestDefSkipAssigns();
-    def_opcode = var_definition->opcode->num;
+    if (var_definition != NULL)
+    {
+      def_opcode = var_definition->opcode->num;
+    }
   }
   // x == 0 -> !x
   if (cmpop == OPCODE_COMPARE_EQ && constant_unpacked == 0) {
