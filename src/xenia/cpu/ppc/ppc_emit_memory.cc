@@ -11,9 +11,17 @@
 
 #include <stddef.h>
 #include "xenia/base/assert.h"
+#include "xenia/base/cvar.h"
 #include "xenia/cpu/ppc/ppc_context.h"
 #include "xenia/cpu/ppc/ppc_hir_builder.h"
 
+DEFINE_bool(
+    disable_prefetch_and_cachecontrol, false,
+    "Disables translating ppc prefetch/cache flush instructions to host "
+    "prefetch/cacheflush instructions. This may improve performance as these "
+    "instructions were written with the Xbox 360's cache in mind, and modern "
+    "processors do their own automatic prefetching.",
+    "CPU");
 namespace xe {
 namespace cpu {
 namespace ppc {
@@ -1080,28 +1088,36 @@ int InstrEmit_stfsx(PPCHIRBuilder& f, const InstrData& i) {
 // https://randomascii.wordpress.com/2018/01/07/finding-a-cpu-design-bug-in-the-xbox-360/
 
 int InstrEmit_dcbf(PPCHIRBuilder& f, const InstrData& i) {
-  Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
-  f.CacheControl(ea, 128,
-                 CacheControlType::CACHE_CONTROL_TYPE_DATA_STORE_AND_FLUSH);
+  if (!cvars::disable_prefetch_and_cachecontrol) {
+    Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
+    f.CacheControl(ea, 128,
+                   CacheControlType::CACHE_CONTROL_TYPE_DATA_STORE_AND_FLUSH);
+  }
   return 0;
 }
 
 int InstrEmit_dcbst(PPCHIRBuilder& f, const InstrData& i) {
-  Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
-  f.CacheControl(ea, 128, CacheControlType::CACHE_CONTROL_TYPE_DATA_STORE);
+  if (!cvars::disable_prefetch_and_cachecontrol) {
+    Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
+    f.CacheControl(ea, 128, CacheControlType::CACHE_CONTROL_TYPE_DATA_STORE);
+  }
   return 0;
 }
 
 int InstrEmit_dcbt(PPCHIRBuilder& f, const InstrData& i) {
-  Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
-  f.CacheControl(ea, 128, CacheControlType::CACHE_CONTROL_TYPE_DATA_TOUCH);
+  if (!cvars::disable_prefetch_and_cachecontrol) {
+    Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
+    f.CacheControl(ea, 128, CacheControlType::CACHE_CONTROL_TYPE_DATA_TOUCH);
+  }
   return 0;
 }
 
 int InstrEmit_dcbtst(PPCHIRBuilder& f, const InstrData& i) {
-  Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
-  f.CacheControl(ea, 128,
-                 CacheControlType::CACHE_CONTROL_TYPE_DATA_TOUCH_FOR_STORE);
+  if (!cvars::disable_prefetch_and_cachecontrol) {
+    Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
+    f.CacheControl(ea, 128,
+                   CacheControlType::CACHE_CONTROL_TYPE_DATA_TOUCH_FOR_STORE);
+  }
   return 0;
 }
 

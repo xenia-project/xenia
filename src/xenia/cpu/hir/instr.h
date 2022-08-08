@@ -79,6 +79,10 @@ class Instr {
   void MoveBefore(Instr* other);
   void Replace(const OpcodeInfo* new_opcode, uint16_t new_flags);
   void Remove();
+  const OpcodeInfo* GetOpcodeInfo() const { return opcode; }
+  // if opcode is null, we have bigger problems
+  Opcode GetOpcodeNum() const { return GetOpcodeInfo()->num; }
+
   template <typename TPredicate>
   std::pair<Value*, Value*> BinaryValueArrangeByPredicateExclusive(
       TPredicate&& pred) {
@@ -86,12 +90,13 @@ class Instr {
     auto src2_value = src2.value;
     if (!src1_value || !src2_value) return {nullptr, nullptr};
 
-    if (!opcode) return {nullptr, nullptr};  // impossible!
+    if (!GetOpcodeInfo()) return {nullptr, nullptr};  // impossible!
 
     // check if binary opcode taking two values. we dont care if the dest is a
     // value
 
-    if (!IsOpcodeBinaryValue(opcode->signature)) return {nullptr, nullptr};
+    if (!IsOpcodeBinaryValue(GetOpcodeInfo()->signature))
+      return {nullptr, nullptr};
 
     if (pred(src1_value)) {
       if (pred(src2_value)) {
@@ -119,7 +124,7 @@ if both are constant, return nullptr, nullptr
   std::pair<Value*, Value*> BinaryValueArrangeByDefiningOpcode(
       const OpcodeInfo* op_ptr) {
     return BinaryValueArrangeByPredicateExclusive([op_ptr](Value* value) {
-      return value->def && value->def->opcode == op_ptr;
+      return value->def && value->def->GetOpcodeInfo() == op_ptr;
     });
   }
 
@@ -143,7 +148,7 @@ if both are constant, return nullptr, nullptr
 */
   template <typename TCallable>
   void VisitValueOperands(TCallable&& call_for_values) {
-    uint32_t signature = opcode->signature;
+    uint32_t signature = GetOpcodeInfo()->signature;
 
     OpcodeSignatureType t_dest, t_src1, t_src2, t_src3;
 

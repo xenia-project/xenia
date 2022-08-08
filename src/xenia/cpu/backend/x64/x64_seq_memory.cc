@@ -23,6 +23,10 @@ DEFINE_bool(
     elide_e0_check, false,
     "Eliminate e0 check on some memory accesses, like to r13(tls) or r1(sp)",
     "CPU");
+DEFINE_bool(enable_rmw_context_merging, false,
+            "Permit merging read-modify-write HIR instr sequences together "
+            "into x86 instructions that use a memory operand.",
+            "x64");
 
 namespace xe {
 namespace cpu {
@@ -88,6 +92,9 @@ struct LoadModStoreContext : public LoadModStore {
 };
 static bool GetLoadModStoreContext(const hir::Instr* loadinsn,
                                    LoadModStoreContext* out) {
+  if (!cvars::enable_rmw_context_merging) {
+    return false;
+  }
   if (!GetLoadModStore(loadinsn, out)) {
     return false;
   }

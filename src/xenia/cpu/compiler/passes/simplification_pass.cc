@@ -83,6 +83,7 @@ bool SimplificationPass::Run(HIRBuilder* builder, bool& result) {
     iter_result |= SimplifyBitArith(builder);
     iter_result |= EliminateConversions(builder);
     iter_result |= SimplifyAssignments(builder);
+    iter_result |= SimplifyBasicArith(builder);
 
     result |= iter_result;
   } while (iter_result);
@@ -1228,6 +1229,91 @@ Value* SimplificationPass::CheckValue(Value* value, bool& result) {
   return value;
 }
 
+bool SimplificationPass::SimplifyAddArith(hir::Instr* i,
+                                          hir::HIRBuilder* builder) {
+  /*
+          example: (x <<1 ) + x == (x*3)
+
+  */
+  auto [shlinsn, addend] =
+      i->BinaryValueArrangeByDefiningOpcode(&OPCODE_SHL_info);
+  if (!shlinsn) {
+    return false;
+  }
+  Instr* shift_insn = shlinsn->def;
+
+  Value* shift = shift_insn->src2.value;
+
+  // if not a constant shift, we cant combine to a multiply
+  if (!shift->IsConstant()) {
+    return false;
+  }
+
+  Value* shouldbeaddend = shift_insn->src1.value;
+
+  if (!shouldbeaddend->IsEqual(addend)) {
+    return false;
+  }
+
+  uint64_t multiplier = 1ULL << shift->constant.u8;
+
+  multiplier++;
+
+  hir::Value* oldvalue = shouldbeaddend;
+
+  i->Replace(&OPCODE_MUL_info, ARITHMETIC_UNSIGNED);
+  i->set_src1(oldvalue);
+
+  // this sequence needs to be broken out into some kind of LoadConstant(type,
+  // raw_value) method of hirbuilder
+  auto constmul = builder->AllocValue(oldvalue->type);
+  // could cause problems on big endian targets...
+  constmul->flags |= VALUE_IS_CONSTANT;
+  constmul->constant.u64 = multiplier;
+
+  i->set_src2(constmul);
+
+  return true;
+}
+
+bool SimplificationPass::SimplifySubArith(hir::Instr* i,
+                                          hir::HIRBuilder* builder) {
+  return false;
+}
+bool SimplificationPass::SimplifyBasicArith(hir::Instr* i,
+                                            hir::HIRBuilder* builder) {
+  if (!i->dest) {
+    return false;
+  }
+  if (i->dest->MaybeFloaty()) {
+    return false;
+  }
+
+  hir::Opcode op = i->GetOpcodeNum();
+
+  switch (op) {
+    case OPCODE_ADD: {
+      return SimplifyAddArith(i, builder);
+    }
+    case OPCODE_SUB: {
+      return SimplifySubArith(i, builder);
+    }
+  }
+  return false;
+}
+bool SimplificationPass::SimplifyBasicArith(hir::HIRBuilder* builder) {
+  bool result = false;
+  auto block = builder->first_block();
+  while (block) {
+    auto i = block->instr_head;
+    while (i) {
+      result |= SimplifyBasicArith(i, builder);
+      i = i->next;
+    }
+    block = block->next;
+  }
+  return result;
+}
 }  // namespace passes
 }  // namespace compiler
 }  // namespace cpu

@@ -192,6 +192,21 @@ class ParamBase : public Param {
   T value_;
 };
 
+class ContextParam : public Param {
+ public:
+  ContextParam() : Param(), ctx_(nullptr) {}
+  ContextParam(PPCContext* value) : Param(), ctx_(value) {}
+  ContextParam(Init& init) : Param(init), ctx_(init.ppc_context) {}
+
+  operator PPCContext*() const { return ctx_; }
+  PPCContext* value() const { return ctx_; }
+
+  PPCContext* operator->() const { return ctx_; }
+
+ protected:
+  PPCContext* ctx_;
+};
+
 class PointerParam : public ParamBase<uint32_t> {
  public:
   PointerParam(Init& init) : ParamBase(init) {
@@ -370,6 +385,7 @@ using int_result_t = shim::ResultBase<int32_t>;
 using dword_result_t = shim::ResultBase<uint32_t>;
 using pointer_result_t = shim::ResultBase<uint32_t>;
 using X_HRESULT_result_t = shim::ResultBase<X_HRESULT>;
+using ppc_context_t = shim::ContextParam;
 
 // Exported from kernel_state.cc.
 KernelState* kernel_state();
@@ -421,6 +437,9 @@ inline void AppendParam(StringBuffer* string_buffer, lpdouble_t param) {
   if (param) {
     string_buffer->AppendFormat("({:G})", param.value());
   }
+}
+inline void AppendParam(StringBuffer* string_buffer, ppc_context_t param) {
+  string_buffer->Append("ContextArg");
 }
 inline void AppendParam(StringBuffer* string_buffer, lpstring_t param) {
   string_buffer->AppendFormat("{:08X}", param.guest_address());

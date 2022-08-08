@@ -67,6 +67,7 @@ class Backend {
   // up until the start of ctx may be used by the backend to store whatever data
   // they want
   virtual void InitializeBackendContext(void* ctx) {}
+  virtual void SetGuestRoundingMode(void* ctx, unsigned int mode){};
 
  protected:
   Processor* processor_ = nullptr;

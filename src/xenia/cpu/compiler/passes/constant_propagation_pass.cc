@@ -20,7 +20,9 @@
 DEFINE_bool(inline_mmio_access, true, "Inline constant MMIO loads and stores.",
             "CPU");
 
-DEFINE_bool(permit_float_constant_evaluation, false, "Allow float constant evaluation, may produce incorrect results and break games math",
+DEFINE_bool(permit_float_constant_evaluation, false,
+            "Allow float constant evaluation, may produce incorrect results "
+            "and break games math",
             "CPU");
 
 namespace xe {
@@ -85,8 +87,8 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
       if (i->dest) {
         might_be_floatop |= i->dest->MaybeFloaty();
       }
-    
-	  bool should_skip_because_of_float =
+
+      bool should_skip_because_of_float =
           might_be_floatop && !cvars::permit_float_constant_evaluation;
 
       auto v = i->dest;
@@ -557,6 +559,12 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
               v->Div(i->src2.value, (i->flags & ARITHMETIC_UNSIGNED) != 0);
               i->Remove();
               result = true;
+            } else if (!i->src2.value->MaybeFloaty() &&
+                       i->src2.value->IsConstantZero()) {
+              // division by 0 == 0 every time,
+              v->set_zero(i->src2.value->type);
+              i->Remove();
+              result = true;
             } else if (i->src2.value->IsConstant()) {
               // Division by one = no-op.
               Value* src1 = i->src1.value;
@@ -672,29 +680,33 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           }
           break;
         case OPCODE_SHL:
-          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
-            v->set_from(i->src1.value);
-            v->Shl(i->src2.value);
-            i->Remove();
-            result = true;
-          } else if (i->src2.value->IsConstantZero()) {
-            auto src1 = i->src1.value;
-            i->Replace(&OPCODE_ASSIGN_info, 0);
-            i->set_src1(src1);
-            result = true;
+          if (i->dest->type != VEC128_TYPE) {
+            if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+              v->set_from(i->src1.value);
+              v->Shl(i->src2.value);
+              i->Remove();
+              result = true;
+            } else if (i->src2.value->IsConstantZero()) {
+              auto src1 = i->src1.value;
+              i->Replace(&OPCODE_ASSIGN_info, 0);
+              i->set_src1(src1);
+              result = true;
+            }
           }
           break;
         case OPCODE_SHR:
-          if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
-            v->set_from(i->src1.value);
-            v->Shr(i->src2.value);
-            i->Remove();
-            result = true;
-          } else if (i->src2.value->IsConstantZero()) {
-            auto src1 = i->src1.value;
-            i->Replace(&OPCODE_ASSIGN_info, 0);
-            i->set_src1(src1);
-            result = true;
+          if (i->dest->type != VEC128_TYPE) {
+            if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+              v->set_from(i->src1.value);
+              v->Shr(i->src2.value);
+              i->Remove();
+              result = true;
+            } else if (i->src2.value->IsConstantZero()) {
+              auto src1 = i->src1.value;
+              i->Replace(&OPCODE_ASSIGN_info, 0);
+              i->set_src1(src1);
+              result = true;
+            }
           }
           break;
         case OPCODE_SHA:
@@ -729,7 +741,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             result = true;
           }
           break;
-
+#if 1
         case OPCODE_PERMUTE: {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant() &&
               i->src3.value->IsConstant() &&
@@ -756,6 +768,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
 
           break;
         }
+#endif
         case OPCODE_INSERT:
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant() &&
               i->src3.value->IsConstant()) {
