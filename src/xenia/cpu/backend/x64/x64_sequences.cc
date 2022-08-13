@@ -1683,6 +1683,9 @@ struct DIV_I16 : Sequence<DIV_I16, I<OPCODE_DIV, I16Op, I16Op, I16Op>> {
     assert_impossible_sequence(DIV_I16);
   }
 };
+/*
+        TODO: hoist the overflow/zero checks into HIR
+*/
 struct DIV_I32 : Sequence<DIV_I32, I<OPCODE_DIV, I32Op, I32Op, I32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     Xbyak::Label skip;
@@ -1766,6 +1769,9 @@ struct DIV_I32 : Sequence<DIV_I32, I<OPCODE_DIV, I32Op, I32Op, I32Op>> {
     e.mov(i.dest, e.eax);
   }
 };
+/*
+        TODO: hoist the overflow/zero checks into HIR
+*/
 struct DIV_I64 : Sequence<DIV_I64, I<OPCODE_DIV, I64Op, I64Op, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     Xbyak::Label skip;
@@ -1811,7 +1817,7 @@ struct DIV_I64 : Sequence<DIV_I64, I<OPCODE_DIV, I64Op, I64Op, I64Op>> {
       } else {
         // check for signed overflow
         if (i.src1.is_constant) {
-          if (i.src1.constant() != (1 << 31)) {
+          if (i.src1.constant() != (1ll << 63)) {
             // we're good, overflow is impossible
           } else {
             e.cmp(i.src2, -1);  // otherwise, if src2 is -1 then we have

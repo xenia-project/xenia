@@ -41,9 +41,6 @@
 #include "xenia/ui/windowed_app_context.h"
 #include "xenia/xbox.h"
 
-DEFINE_string(target_trace_file, "", "Specifies the trace file to load.",
-              "GPU");
-
 namespace xe {
 namespace gpu {
 
@@ -66,7 +63,7 @@ TraceViewer::TraceViewer(xe::ui::WindowedAppContext& app_context,
 TraceViewer::~TraceViewer() = default;
 
 bool TraceViewer::OnInitialize() {
-  std::string path = cvars::target_trace_file;
+  std::string path = cvars::target_trace_file.u8string();
 
   // If no path passed, ask the user.
   // On Android, however, there's no synchronous file picker, and the trace file

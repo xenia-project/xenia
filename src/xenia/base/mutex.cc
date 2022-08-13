@@ -10,10 +10,9 @@
 #include "xenia/base/mutex.h"
 
 namespace xe {
-
-std::recursive_mutex& global_critical_region::mutex() {
-  static std::recursive_mutex global_mutex;
-  return global_mutex;
-}
+// chrispy: moved this out of body of function to eliminate the initialization
+// guards
+static std::recursive_mutex global_mutex;
+std::recursive_mutex& global_critical_region::mutex() { return global_mutex; }
 
 }  // namespace xe

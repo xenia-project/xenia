@@ -498,6 +498,9 @@ class Memory {
   bool Save(ByteStream* stream);
   bool Restore(ByteStream* stream);
 
+  void SetMMIOExceptionRecordingCallback(cpu::MmioAccessRecordCallback callback,
+                                         void* context);
+
  private:
   int MapViews(uint8_t* mapping_base);
   void UnmapViews();

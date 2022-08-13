@@ -25,7 +25,7 @@
 #include "xenia/cpu/breakpoint.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/stack_walker.h"
-
+#include "xenia/cpu/xex_module.h"
 DEFINE_int32(x64_extension_mask, -1,
              "Allow the detection and utilization of specific instruction set "
              "features.\n"
@@ -44,6 +44,12 @@ DEFINE_int32(x64_extension_mask, -1,
              " 2048 = AVX512DQ\n"
              "   -1 = Detect and utilize all possible processor features\n",
              "x64");
+
+DEFINE_bool(record_mmio_access_exceptions, true,
+            "For guest addresses records whether we caught any mmio accesses "
+            "for them. This info can then be used on a subsequent run to "
+            "instruct the recompiler to emit checks",
+            "CPU");
 
 namespace xe {
 namespace cpu {
@@ -84,6 +90,11 @@ X64Backend::~X64Backend() {
 
   X64Emitter::FreeConstData(emitter_data_);
   ExceptionHandler::Uninstall(&ExceptionCallbackThunk, this);
+}
+
+static void ForwardMMIOAccessForRecording(void* context, void* hostaddr) {
+  reinterpret_cast<X64Backend*>(context)
+      ->RecordMMIOExceptionForGuestInstruction(hostaddr);
 }
 
 bool X64Backend::Initialize(Processor* processor) {
@@ -146,6 +157,8 @@ bool X64Backend::Initialize(Processor* processor) {
   // Setup exception callback
   ExceptionHandler::Install(&ExceptionCallbackThunk, this);
 
+  processor->memory()->SetMMIOExceptionRecordingCallback(
+      ForwardMMIOAccessForRecording, (void*)this);
   return true;
 }
 
@@ -390,7 +403,28 @@ bool X64Backend::ExceptionCallbackThunk(Exception* ex, void* data) {
   auto backend = reinterpret_cast<X64Backend*>(data);
   return backend->ExceptionCallback(ex);
 }
+void X64Backend::RecordMMIOExceptionForGuestInstruction(void* host_address) {
+  uint64_t host_addr_u64 = (uint64_t)host_address;
 
+  auto fnfor = code_cache()->LookupFunction(host_addr_u64);
+  if (fnfor) {
+    uint32_t guestaddr = fnfor->MapMachineCodeToGuestAddress(host_addr_u64);
+
+    Module* guest_module = fnfor->module();
+    if (guest_module) {
+      XexModule* xex_guest_module = dynamic_cast<XexModule*>(guest_module);
+
+      if (xex_guest_module) {
+        cpu::InfoCacheFlags* icf =
+            xex_guest_module->GetInstructionAddressFlags(guestaddr);
+
+        if (icf) {
+          icf->accessed_mmio = true;
+        }
+      }
+    }
+  }
+}
 bool X64Backend::ExceptionCallback(Exception* ex) {
   if (ex->code() != Exception::Code::kIllegalInstruction) {
     // We only care about illegal instructions. Other things will be handled by
@@ -398,6 +432,8 @@ bool X64Backend::ExceptionCallback(Exception* ex) {
     // with OnUnhandledException to do real crash handling.
     return false;
   }
+
+  // processor_->memory()->LookupVirtualMappedRange()
 
   // Verify an expected illegal instruction.
   auto instruction_bytes =

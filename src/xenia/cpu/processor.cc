@@ -257,9 +257,20 @@ Function* Processor::ResolveFunction(uint32_t address) {
 
     // Grab symbol declaration.
     auto function = LookupFunction(address);
+
     if (!function) {
       entry->status = Entry::STATUS_FAILED;
       return nullptr;
+    }
+
+    auto module_for = function->module();
+
+    auto xexmod = dynamic_cast<XexModule*>(module_for);
+    if (xexmod) {
+      auto addr_flags = xexmod->GetInstructionAddressFlags(address);
+      if (addr_flags) {
+        addr_flags->was_resolved = 1;
+      }
     }
 
     if (!DemandFunction(function)) {

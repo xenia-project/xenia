@@ -181,7 +181,6 @@ bool Win32Window::OpenImpl() {
       SetWindowPlacement(hwnd_, &initial_dpi_placement);
     }
   }
-
   // Disable rounded corners starting with Windows 11 (or silently receive and
   // ignore E_INVALIDARG on Windows versions before 10.0.22000.0), primarily to
   // preserve all pixels of the guest output.
@@ -189,7 +188,6 @@ bool Win32Window::OpenImpl() {
   DwmSetWindowAttribute(hwnd_, DWMWA_WINDOW_CORNER_PREFERENCE,
                         &window_corner_preference,
                         sizeof(window_corner_preference));
-
   // Disable flicks.
   ATOM atom = GlobalAddAtomW(L"MicrosoftTabletPenServiceProperty");
   const DWORD_PTR dwHwndTabletProperty =
@@ -1047,7 +1045,9 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
     } break;
 
     case WM_MOVE: {
-      OnMonitorUpdate(MonitorUpdateEvent(this, false));
+      // chrispy: fix clang use of temporary error
+      MonitorUpdateEvent update_event{this, false};
+      OnMonitorUpdate(update_event);
     } break;
 
     case WM_SIZE: {
@@ -1084,7 +1084,9 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
     } break;
 
     case WM_DISPLAYCHANGE: {
-      OnMonitorUpdate(MonitorUpdateEvent(this, true));
+      // chrispy: fix clang use of temporary error
+      MonitorUpdateEvent update_event{this, true};
+      OnMonitorUpdate(update_event);
     } break;
 
     case WM_DPICHANGED: {

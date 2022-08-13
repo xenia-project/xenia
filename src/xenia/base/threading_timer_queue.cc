@@ -10,12 +10,12 @@
 #include <algorithm>
 #include <forward_list>
 
+#include "third_party/disruptorplus/include/disruptorplus/blocking_wait_strategy.hpp"
 #include "third_party/disruptorplus/include/disruptorplus/multi_threaded_claim_strategy.hpp"
 #include "third_party/disruptorplus/include/disruptorplus/ring_buffer.hpp"
 #include "third_party/disruptorplus/include/disruptorplus/sequence_barrier.hpp"
 #include "third_party/disruptorplus/include/disruptorplus/spin_wait.hpp"
 #include "third_party/disruptorplus/include/disruptorplus/spin_wait_strategy.hpp"
-
 #include "xenia/base/assert.h"
 #include "xenia/base/threading.h"
 #include "xenia/base/threading_timer_queue.h"
@@ -26,6 +26,12 @@ namespace xe {
 namespace threading {
 
 using WaitItem = TimerQueueWaitItem;
+/*
+        chrispy: changed this to a blocking wait from a spin-wait, the spin was
+   monopolizing a ton of cpu time (depending on the game 2-4% of total cpu time)
+   on my 3990x no complaints since that change
+*/
+using WaitStrat = dp::blocking_wait_strategy;
 
 class TimerQueue {
  public:
@@ -147,9 +153,10 @@ class TimerQueue {
   // This ring buffer will be used to introduce timers queued by the public API
   static constexpr size_t kWaitCount = 512;
   dp::ring_buffer<std::shared_ptr<WaitItem>> buffer_;
-  dp::spin_wait_strategy wait_strategy_;
-  dp::multi_threaded_claim_strategy<dp::spin_wait_strategy> claim_strategy_;
-  dp::sequence_barrier<dp::spin_wait_strategy> consumed_;
+
+  WaitStrat wait_strategy_;
+  dp::multi_threaded_claim_strategy<WaitStrat> claim_strategy_;
+  dp::sequence_barrier<WaitStrat> consumed_;
 
   // This is a _sorted_ (ascending due_) list of active timers managed by a
   // dedicated thread

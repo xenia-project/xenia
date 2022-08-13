@@ -12,6 +12,7 @@
 
 #include <string_view>
 
+#include "xenia/base/cvar.h"
 #include "xenia/emulator.h"
 #include "xenia/gpu/shader.h"
 #include "xenia/gpu/trace_player.h"
@@ -24,7 +25,7 @@
 #include "xenia/ui/window.h"
 #include "xenia/ui/window_listener.h"
 #include "xenia/ui/windowed_app.h"
-
+DECLARE_path(target_trace_file);
 namespace xe {
 namespace gpu {
 

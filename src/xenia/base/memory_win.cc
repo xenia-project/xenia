@@ -15,7 +15,15 @@
                             WINAPI_PARTITION_SYSTEM | WINAPI_PARTITION_GAMES)
 #define XE_BASE_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
 #endif
-
+/*
+        these two dont bypass much ms garbage compared to the threading ones,
+   but Protect is used by PhysicalHeap::EnableAccessCallbacks which eats a lot
+   of cpu time, so every bit counts
+*/
+XE_NTDLL_IMPORT(NtProtectVirtualMemory, cls_NtProtectVirtualMemory,
+                NtProtectVirtualMemoryPointer);
+XE_NTDLL_IMPORT(NtQueryVirtualMemory, cls_NtQueryVirtualMemory,
+                NtQueryVirtualMemoryPointer);
 namespace xe {
 namespace memory {
 
@@ -139,6 +147,18 @@ bool Protect(void* base_address, size_t length, PageAccess access,
     *out_old_access = PageAccess::kNoAccess;
   }
   DWORD new_protect = ToWin32ProtectFlags(access);
+
+#if XE_USE_NTDLL_FUNCTIONS == 1
+
+  DWORD old_protect = 0;
+  SIZE_T MemoryLength = length;
+  PVOID MemoryCache = base_address;
+
+  BOOL result = NtProtectVirtualMemoryPointer.invoke<NTSTATUS>(
+                    (HANDLE)0xFFFFFFFFFFFFFFFFLL, &MemoryCache, &MemoryLength,
+                    new_protect, &old_protect) >= 0;
+
+#else
 #ifdef XE_BASE_MEMORY_WIN_USE_DESKTOP_FUNCTIONS
   DWORD old_protect = 0;
   BOOL result = VirtualProtect(base_address, length, new_protect, &old_protect);
@@ -146,6 +166,7 @@ bool Protect(void* base_address, size_t length, PageAccess access,
   ULONG old_protect = 0;
   BOOL result = VirtualProtectFromApp(base_address, length, ULONG(new_protect),
                                       &old_protect);
+#endif
 #endif
   if (!result) {
     return false;
@@ -161,8 +182,17 @@ bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
 
   MEMORY_BASIC_INFORMATION info;
   ZeroMemory(&info, sizeof(info));
+#if XE_USE_NTDLL_FUNCTIONS == 1
+  ULONG_PTR ResultLength;
 
+  NTSTATUS query_result = NtQueryVirtualMemoryPointer.invoke<NTSTATUS>(
+      (HANDLE)0xFFFFFFFFFFFFFFFFLL, (PVOID)base_address,
+      0 /* MemoryBasicInformation*/, &info, length, &ResultLength);
+  SIZE_T result = query_result >= 0 ? ResultLength : 0;
+#else
   SIZE_T result = VirtualQuery(base_address, &info, length);
+
+#endif
   if (!result) {
     return false;
   }

@@ -46,7 +46,9 @@ static_assert((std::endian::native == std::endian::big) ||
 
 namespace xe {
 
-#if XE_COMPILER_MSVC
+// chrispy: added workaround for clang, otherwise byteswap_ulong becomes calls
+// to ucrtbase
+#if XE_COMPILER_MSVC == 1 && !defined(__clang__)
 #define XENIA_BASE_BYTE_SWAP_16 _byteswap_ushort
 #define XENIA_BASE_BYTE_SWAP_32 _byteswap_ulong
 #define XENIA_BASE_BYTE_SWAP_64 _byteswap_uint64

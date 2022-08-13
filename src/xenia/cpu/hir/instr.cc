@@ -200,6 +200,20 @@ const Instr* Instr::GetNonFakePrev() const {
   }
   return curr;
 }
+
+uint32_t Instr::GuestAddressFor() const {
+  Instr* srch = prev;
+
+  while (srch) {
+    if (srch->GetOpcodeNum() == OPCODE_SOURCE_OFFSET) {
+      return (uint32_t)srch->src1.offset;
+    }
+    srch = srch->prev;
+  }
+
+  return 0;  // eek.
+}
+
 }  // namespace hir
 }  // namespace cpu
 }  // namespace xe

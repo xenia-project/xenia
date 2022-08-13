@@ -36,9 +36,11 @@ class SimplificationPass : public ConditionalGroupSubpass {
   // handles simple multiplication/addition rules
   bool SimplifyBasicArith(hir::HIRBuilder* builder);
   bool SimplifyBasicArith(hir::Instr* i, hir::HIRBuilder* builder);
-
+  bool SimplifyAddWithSHL(hir::Instr* i, hir::HIRBuilder* builder);
+  bool SimplifyAddToSelf(hir::Instr* i, hir::HIRBuilder* builder);
   bool SimplifyAddArith(hir::Instr* i, hir::HIRBuilder* builder);
   bool SimplifySubArith(hir::Instr* i, hir::HIRBuilder* builder);
+  bool SimplifySHLArith(hir::Instr* i, hir::HIRBuilder* builder);
   // handle either or or xor with 0
   bool CheckOrXorZero(hir::Instr* i);
   bool CheckOr(hir::Instr* i, hir::HIRBuilder* builder);

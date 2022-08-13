@@ -470,6 +470,7 @@ PPCOpcodeInfo ppc_opcode_table[] = {
   INSTRUCTION(0x6c000000, "xoris"       , kD      , kI, kGeneral),
   INSTRUCTION(0x7c000278, "xorx"        , kX      , kI, kGeneral),
 };
+#undef INSTRUCTION
 static_assert(sizeof(ppc_opcode_table) / sizeof(PPCOpcodeInfo) == static_cast<int>(PPCOpcode::kInvalid), "PPC table mismatch - rerun ppc-table-gen");
 
 const PPCOpcodeInfo& GetOpcodeInfo(PPCOpcode opcode) {

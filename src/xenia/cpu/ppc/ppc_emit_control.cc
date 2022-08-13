@@ -769,8 +769,14 @@ int InstrEmit_mfmsr(PPCHIRBuilder& f, const InstrData& i) {
   // bit 62 = RI; recoverable interrupt
   // return 8000h if unlocked (interrupts enabled), else 0
   f.MemoryBarrier();
-  f.CallExtern(f.builtins()->check_global_lock);
-  f.StoreGPR(i.X.RT, f.LoadContext(offsetof(PPCContext, scratch), INT64_TYPE));
+  if (cvars::disable_global_lock || true) {
+    f.StoreGPR(i.X.RT, f.LoadConstantUint64(0));
+
+  } else {
+    f.CallExtern(f.builtins()->check_global_lock);
+    f.StoreGPR(i.X.RT,
+               f.LoadContext(offsetof(PPCContext, scratch), INT64_TYPE));
+  }
   return 0;
 }
 
@@ -782,6 +788,7 @@ int InstrEmit_mtmsr(PPCHIRBuilder& f, const InstrData& i) {
     f.StoreContext(
         offsetof(PPCContext, scratch),
         f.ZeroExtend(f.ZeroExtend(f.LoadGPR(i.X.RT), INT64_TYPE), INT64_TYPE));
+#if 0
     if (i.X.RT == 13) {
       // iff storing from r13 we are taking a lock (disable interrupts).
       if (!cvars::disable_global_lock) {
@@ -793,6 +800,7 @@ int InstrEmit_mtmsr(PPCHIRBuilder& f, const InstrData& i) {
         f.CallExtern(f.builtins()->leave_global_lock);
       }
     }
+#endif
     return 0;
   } else {
     // L = 0
@@ -807,6 +815,7 @@ int InstrEmit_mtmsrd(PPCHIRBuilder& f, const InstrData& i) {
     f.MemoryBarrier();
     f.StoreContext(offsetof(PPCContext, scratch),
                    f.ZeroExtend(f.LoadGPR(i.X.RT), INT64_TYPE));
+#if 0
     if (i.X.RT == 13) {
       // iff storing from r13 we are taking a lock (disable interrupts).
       if (!cvars::disable_global_lock) {
@@ -818,6 +827,7 @@ int InstrEmit_mtmsrd(PPCHIRBuilder& f, const InstrData& i) {
         f.CallExtern(f.builtins()->leave_global_lock);
       }
     }
+#endif
     return 0;
   } else {
     // L = 0

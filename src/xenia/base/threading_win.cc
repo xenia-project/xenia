@@ -7,19 +7,49 @@
  ******************************************************************************
  */
 
+#include <winternl.h>
 #include "xenia/base/assert.h"
 #include "xenia/base/chrono_steady_cast.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/platform_win.h"
 #include "xenia/base/threading.h"
 #include "xenia/base/threading_timer_queue.h"
-
-#define LOG_LASTERROR() \
-  { XELOGI("Win32 Error 0x{:08X} in " __FUNCTION__ "(...)", GetLastError()); }
-
+#if defined(__clang__)
+// chrispy: i do not understand why this is an error for clang here
+// something about the quoted __FUNCTION__ freaks it out (clang 14.0.1)
+#define LOG_LASTERROR()                                                       \
+  do {                                                                        \
+    XELOGI("Win32 Error 0x{:08X} in {} (...)", GetLastError(), __FUNCTION__); \
+  } while (false)
+#else
+#define LOG_LASTERROR()                                                      \
+  do {                                                                       \
+    XELOGI("Win32 Error 0x{:08X} in " __FUNCTION__ "(...)", GetLastError()); \
+  } while (false)
+#endif
 typedef HANDLE (*SetThreadDescriptionFn)(HANDLE hThread,
                                          PCWSTR lpThreadDescription);
 
+// sys function for ntyieldexecution, by calling it we sidestep
+// RtlGetCurrentUmsThread
+XE_NTDLL_IMPORT(NtYieldExecution, cls_NtYieldExecution,
+                NtYieldExecutionPointer);
+// sidestep the activation context/remapping special windows handles like stdout
+XE_NTDLL_IMPORT(NtWaitForSingleObject, cls_NtWaitForSingleObject,
+                NtWaitForSingleObjectPointer);
+
+XE_NTDLL_IMPORT(NtSetEvent, cls_NtSetEvent, NtSetEventPointer);
+// difference between NtClearEvent and NtResetEvent is that NtResetEvent returns
+// the events state prior to the call, but we dont need that. might need to
+// check whether one or the other is faster in the kernel though yeah, just
+// checked, the code in ntoskrnl is way simpler for clearevent than resetevent
+XE_NTDLL_IMPORT(NtClearEvent, cls_NtClearEvent, NtClearEventPointer);
+XE_NTDLL_IMPORT(NtPulseEvent, cls_NtPulseEvent, NtPulseEventPointer);
+
+// heavily called, we dont skip much garbage by calling this, but every bit
+// counts
+XE_NTDLL_IMPORT(NtReleaseSemaphore, cls_NtReleaseSemaphore,
+                NtReleaseSemaphorePointer);
 namespace xe {
 namespace threading {
 
@@ -80,7 +110,13 @@ void set_name(const std::string_view name) {
 }
 
 void MaybeYield() {
+#if defined(XE_USE_NTDLL_FUNCTIONS)
+  NtYieldExecutionPointer.invoke();
+#else
   SwitchToThread();
+#endif
+
+  // memorybarrier is really not necessary here...
   MemoryBarrier();
 }
 
@@ -134,8 +170,26 @@ class Win32Handle : public T {
 WaitResult Wait(WaitHandle* wait_handle, bool is_alertable,
                 std::chrono::milliseconds timeout) {
   HANDLE handle = wait_handle->native_handle();
-  DWORD result = WaitForSingleObjectEx(handle, DWORD(timeout.count()),
-                                       is_alertable ? TRUE : FALSE);
+  DWORD result;
+  DWORD timeout_dw = DWORD(timeout.count());
+  BOOL bAlertable = is_alertable ? TRUE : FALSE;
+  // todo: we might actually be able to use NtWaitForSingleObject even if its
+  // alertable, just need to study whether
+  // RtlDeactivateActivationContextUnsafeFast/RtlActivateActivationContext are
+  // actually needed for us
+#if XE_USE_NTDLL_FUNCTIONS == 1
+  if (bAlertable) {
+    result = WaitForSingleObjectEx(handle, timeout_dw, bAlertable);
+  } else {
+    LARGE_INTEGER timeout_big;
+    timeout_big.QuadPart = -10000LL * static_cast<int64_t>(timeout_dw);
+
+    result = NtWaitForSingleObjectPointer.invoke<NTSTATUS>(
+        handle, bAlertable, timeout_dw == INFINITE ? nullptr : &timeout_big);
+  }
+#else
+  result = WaitForSingleObjectEx(handle, timeout_dw, bAlertable);
+#endif
   switch (result) {
     case WAIT_OBJECT_0:
       return WaitResult::kSuccess;
@@ -178,7 +232,9 @@ std::pair<WaitResult, size_t> WaitMultiple(WaitHandle* wait_handles[],
                                            size_t wait_handle_count,
                                            bool wait_all, bool is_alertable,
                                            std::chrono::milliseconds timeout) {
-  std::vector<HANDLE> handles(wait_handle_count);
+  std::vector<HANDLE> handles(
+      wait_handle_count);  // max handles is like 64, so it would make more
+                           // sense to just do a fixed size array here
   for (size_t i = 0; i < wait_handle_count; ++i) {
     handles[i] = wait_handles[i]->native_handle();
   }
@@ -208,9 +264,16 @@ class Win32Event : public Win32Handle<Event> {
  public:
   explicit Win32Event(HANDLE handle) : Win32Handle(handle) {}
   ~Win32Event() override = default;
+#if XE_USE_NTDLL_FUNCTIONS == 1
+  void Set() override { NtSetEventPointer.invoke(handle_, nullptr); }
+  void Reset() override { NtClearEventPointer.invoke(handle_); }
+  void Pulse() override { NtPulseEventPointer.invoke(handle_, nullptr); }
+#else
   void Set() override { SetEvent(handle_); }
   void Reset() override { ResetEvent(handle_); }
   void Pulse() override { PulseEvent(handle_); }
+
+#endif
 };
 
 std::unique_ptr<Event> Event::CreateManualResetEvent(bool initial_state) {
@@ -220,6 +283,7 @@ std::unique_ptr<Event> Event::CreateManualResetEvent(bool initial_state) {
     return std::make_unique<Win32Event>(handle);
   } else {
     LOG_LASTERROR();
+
     return nullptr;
   }
 }
@@ -240,10 +304,15 @@ class Win32Semaphore : public Win32Handle<Semaphore> {
   explicit Win32Semaphore(HANDLE handle) : Win32Handle(handle) {}
   ~Win32Semaphore() override = default;
   bool Release(int release_count, int* out_previous_count) override {
+#if XE_USE_NTDLL_FUNCTIONS == 1
+    return NtReleaseSemaphorePointer.invoke<NTSTATUS>(handle_, release_count,
+                                                      out_previous_count) >= 0;
+#else
     return ReleaseSemaphore(handle_, release_count,
                             reinterpret_cast<LPLONG>(out_previous_count))
                ? true
                : false;
+#endif
   }
 };
 

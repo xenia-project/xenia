@@ -796,10 +796,13 @@ bool SimplificationPass::CheckScalarConstCmp(hir::Instr* i,
 
   if (var_definition) {
     var_definition = var_definition->GetDestDefSkipAssigns();
-    if (var_definition != NULL)
-    {
-      def_opcode = var_definition->opcode->num;
+    if (!var_definition) {
+      return false;
     }
+    def_opcode = var_definition->opcode->num;
+  }
+  if (!var_definition) {
+    return false;
   }
   // x == 0 -> !x
   if (cmpop == OPCODE_COMPARE_EQ && constant_unpacked == 0) {
@@ -1231,13 +1234,12 @@ Value* SimplificationPass::CheckValue(Value* value, bool& result) {
   result = false;
   return value;
 }
-
-bool SimplificationPass::SimplifyAddArith(hir::Instr* i,
-                                          hir::HIRBuilder* builder) {
+bool SimplificationPass::SimplifyAddWithSHL(hir::Instr* i,
+                                            hir::HIRBuilder* builder) {
   /*
-          example: (x <<1 ) + x == (x*3)
+  example: (x <<1 ) + x == (x*3)
 
-  */
+*/
   auto [shlinsn, addend] =
       i->BinaryValueArrangeByDefiningOpcode(&OPCODE_SHL_info);
   if (!shlinsn) {
@@ -1278,10 +1280,80 @@ bool SimplificationPass::SimplifyAddArith(hir::Instr* i,
 
   return true;
 }
+bool SimplificationPass::SimplifyAddToSelf(hir::Instr* i,
+                                           hir::HIRBuilder* builder) {
+  /*
+          heres a super easy one
+  */
+
+  if (i->src1.value != i->src2.value) {
+    return false;
+  }
+
+  i->opcode = &OPCODE_SHL_info;
+
+  i->set_src2(builder->LoadConstantUint8(1));
+
+  return true;
+}
+bool SimplificationPass::SimplifyAddArith(hir::Instr* i,
+                                          hir::HIRBuilder* builder) {
+  if (SimplifyAddWithSHL(i, builder)) {
+    return true;
+  }
+  if (SimplifyAddToSelf(i, builder)) {
+    return true;
+  }
+  return false;
+}
 
 bool SimplificationPass::SimplifySubArith(hir::Instr* i,
                                           hir::HIRBuilder* builder) {
+  /*
+  todo: handle expressions like (x*8) - (x*5) == (x*3)...if these can even
+  happen of course */
   return false;
+}
+bool SimplificationPass::SimplifySHLArith(hir::Instr* i,
+                                          hir::HIRBuilder* builder) {
+  Value* sh = i->src2.value;
+
+  Value* shifted = i->src1.value;
+
+  if (!sh->IsConstant()) {
+    return false;
+  }
+
+  hir::Instr* definition = shifted->GetDefSkipAssigns();
+
+  if (!definition) {
+    return false;
+  }
+
+  if (definition->GetOpcodeNum() != OPCODE_MUL) {
+    return false;
+  }
+
+  if (definition->flags != ARITHMETIC_UNSIGNED) {
+    return false;
+  }
+
+  auto [mulconst, mulnonconst] = definition->BinaryValueArrangeAsConstAndVar();
+
+  if (!mulconst) {
+    return false;
+  }
+
+  auto newmul = builder->AllocValue(mulconst->type);
+  newmul->set_from(mulconst);
+
+  newmul->Shl(sh);
+
+  i->Replace(&OPCODE_MUL_info, ARITHMETIC_UNSIGNED);
+  i->set_src1(mulnonconst);
+  i->set_src2(newmul);
+
+  return true;
 }
 bool SimplificationPass::SimplifyBasicArith(hir::Instr* i,
                                             hir::HIRBuilder* builder) {
@@ -1301,6 +1373,9 @@ bool SimplificationPass::SimplifyBasicArith(hir::Instr* i,
     case OPCODE_SUB: {
       return SimplifySubArith(i, builder);
     }
+    case OPCODE_SHL: {
+      return SimplifySHLArith(i, builder);
+    }
   }
   return false;
 }
@@ -1317,6 +1392,97 @@ bool SimplificationPass::SimplifyBasicArith(hir::HIRBuilder* builder) {
   }
   return result;
 }
+
+/*
+        todo: add load-store simplification pass
+
+        do things like load-store byteswap elimination, for instance,
+
+        if a value is loaded, ored with a constant mask, and then stored, we
+   simply have to byteswap the mask it will be ored with and then we can
+   eliminate the two byteswaps
+
+        the same can be done for and, or, xor, andn with constant masks
+
+
+        this can also be done for comparisons with 0 for equality and not equal
+
+
+        another optimization: with ppc you cannot move a floating point register
+   directly to a gp one, a gp one directly to a floating point register, or a
+   vmx one to either. so guest code will store the result to the stack, and then
+   load it to the register it needs in HIR we can sidestep this. we will still
+   need to byteswap and store the result for correctness, but we can eliminate
+   the load and byteswap by grabbing the original value from the store
+
+        skyth's sanic idb, 0x824D7724
+    lis       r11,
+    lfs       f0, flt_8200CBCC@l(r11)
+    fmuls     f0, time, f0
+    fctidz    f0, f0        # vcvttss2si
+    stfd      f0, 0x190+var_138(r1)
+    lwz       r30, 0x190+var_138+4(r1)
+    cmplwi    cr6, r30, 0x63 # 'c'
+    ble       cr6, counter_op
+
+
+
+*/
+
+/*
+        todo: simple loop unrolling
+        skyth sanic 0x831D9908
+
+        mr        r30, r4
+        mr        r29, r5
+        mr        r11, r7
+        li        r31, 0
+
+loc_831D9928:
+        slwi      r9, r11, 1
+        addi      r10, r11, 1
+        addi      r8, r1, 0xD0+var_80
+        clrlwi    r11, r10, 16
+        cmplwi    cr6, r11, 0x10
+        sthx      r31, r9, r8
+        ble       cr6, loc_831D9928
+
+        v5 = 1;
+                do
+                {
+                        v6 = 2 * v5;
+                        v5 = (unsigned __int16)(v5 + 1);
+                        *(_WORD *)&v24[v6] = 0;
+                }
+                while ( v5 <= 0x10 );
+                v7 = 0;
+                do
+                {
+                        v8 = __ROL4__(*(unsigned __int8 *)(v7 + a2), 1);
+                        v7 = (unsigned __int16)(v7 + 1);
+                        ++*(_WORD *)&v24[v8];
+                }
+                while ( v7 < 8 );
+                v9 = 1;
+                v25[0] = 0;
+                do
+                {
+                        v10 = 2 * v9;
+                        v11 = 16 - v9;
+                        v9 = (unsigned __int16)(v9 + 1);
+                        v25[v10 / 2] = (*(_WORD *)&v24[v10] << v11) + *(_WORD
+*)&v24[v10 + 48];
+                }
+                while ( v9 <= 0x10 );
+
+
+        skyth sanic:
+        sub_831BBAE0
+
+        sub_831A41A8
+
+
+*/
 }  // namespace passes
 }  // namespace compiler
 }  // namespace cpu
