@@ -5406,6 +5406,7 @@ PPCOpcodeDisasmInfo ppc_opcode_disasm_table[] = {
   INSTRUCTION(0x6c000000, "xoris"       , kD      , kI, kGeneral, "XOR Immediate Shifted"                                                      , (PPCOpcodeField::kRS,PPCOpcodeField::kUIMM), (PPCOpcodeField::kRA), PrintDisasm_xoris),
   INSTRUCTION(0x7c000278, "xorx"        , kX      , kI, kGeneral, "XOR"                                                                        , (PPCOpcodeField::kRS,PPCOpcodeField::kRB), (PPCOpcodeField::kRA,PPCOpcodeField::kCRcond), PrintDisasm_xorx),
 };
+#undef INSTRUCTION
 static_assert(sizeof(ppc_opcode_disasm_table) / sizeof(PPCOpcodeDisasmInfo) == static_cast<int>(PPCOpcode::kInvalid), "PPC table mismatch - rerun ppc-table-gen");
 
 const PPCOpcodeDisasmInfo& GetOpcodeDisasmInfo(PPCOpcode opcode) {

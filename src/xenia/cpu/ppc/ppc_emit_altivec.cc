@@ -1439,11 +1439,23 @@ int InstrEmit_vsel(PPCHIRBuilder& f, const InstrData& i) {
 int InstrEmit_vsel128(PPCHIRBuilder& f, const InstrData& i) {
   return InstrEmit_vsel_(f, VX128_VD128, VX128_VA128, VX128_VB128, VX128_VD128);
 }
+// chrispy: this is test code for checking whether a game takes advantage of the
+// VSR/VSL undocumented/undefined variable shift behavior
+static void AssertShiftElementsOk(PPCHIRBuilder& f, Value* v) {
+#if 0
+  Value* splatted = f.Splat(f.Extract(v, (uint8_t)0, INT8_TYPE), VEC128_TYPE);
 
+  Value* checkequal = f.Xor(splatted, v);
+  f.DebugBreakTrue(f.IsTrue(checkequal));
+#endif
+}
 int InstrEmit_vsl(PPCHIRBuilder& f, const InstrData& i) {
-  Value* v = f.Shl(f.LoadVR(i.VX.VA),
-                   f.And(f.Extract(f.LoadVR(i.VX.VB), 15, INT8_TYPE),
-                         f.LoadConstantInt8(0b111)));
+  Value* va = f.LoadVR(i.VX.VA);
+  Value* vb = f.LoadVR(i.VX.VB);
+
+  AssertShiftElementsOk(f, vb);
+  Value* v =
+      f.Shl(va, f.And(f.Extract(vb, 15, INT8_TYPE), f.LoadConstantInt8(0b111)));
   f.StoreVR(i.VX.VD, v);
   return 0;
 }
@@ -1623,9 +1635,13 @@ int InstrEmit_vspltisw128(PPCHIRBuilder& f, const InstrData& i) {
 }
 
 int InstrEmit_vsr(PPCHIRBuilder& f, const InstrData& i) {
-  Value* v = f.Shr(f.LoadVR(i.VX.VA),
-                   f.And(f.Extract(f.LoadVR(i.VX.VB), 15, INT8_TYPE),
-                         f.LoadConstantInt8(0b111)));
+  Value* va = f.LoadVR(i.VX.VA);
+  Value* vb = f.LoadVR(i.VX.VB);
+
+  AssertShiftElementsOk(f, vb);
+
+  Value* v =
+      f.Shr(va, f.And(f.Extract(vb, 15, INT8_TYPE), f.LoadConstantInt8(0b111)));
   f.StoreVR(i.VX.VD, v);
   return 0;
 }

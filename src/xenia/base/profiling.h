@@ -20,7 +20,7 @@
 #include "xenia/ui/virtual_key.h"
 #include "xenia/ui/window_listener.h"
 
-#if XE_PLATFORM_WIN32
+#if XE_PLATFORM_WIN32 && 0
 #define XE_OPTION_PROFILING 1
 #define XE_OPTION_PROFILING_UI 1
 #else

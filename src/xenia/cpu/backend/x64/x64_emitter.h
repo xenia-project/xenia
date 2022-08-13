@@ -18,8 +18,8 @@
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/hir/instr.h"
 #include "xenia/cpu/hir/value.h"
+#include "xenia/cpu/xex_module.h"
 #include "xenia/memory.h"
-
 // NOTE: must be included last as it expects windows.h to already be included.
 #include "third_party/xbyak/xbyak/xbyak.h"
 #include "third_party/xbyak/xbyak/xbyak_util.h"
@@ -65,11 +65,7 @@ enum class SimdDomain : uint32_t {
                // CONFLICTING means its used in multiple domains)
 };
 
-enum class MXCSRMode : uint32_t {
-	Unknown,
-	Fpu,
-	Vmx
-};
+enum class MXCSRMode : uint32_t { Unknown, Fpu, Vmx };
 
 static SimdDomain PickDomain2(SimdDomain dom1, SimdDomain dom2) {
   if (dom1 == dom2) {
@@ -326,16 +322,21 @@ class X64Emitter : public Xbyak::CodeGenerator {
   size_t stack_size() const { return stack_size_; }
   SimdDomain DeduceSimdDomain(const hir::Value* for_value);
 
-  void ForgetMxcsrMode() {
-    mxcsr_mode_ = MXCSRMode::Unknown;
-  }
+  void ForgetMxcsrMode() { mxcsr_mode_ = MXCSRMode::Unknown; }
   /*
-	returns true if had to load mxcsr. DOT_PRODUCT can use this to skip clearing the overflow flag, as it will never be set in the vmx fpscr
+        returns true if had to load mxcsr. DOT_PRODUCT can use this to skip
+     clearing the overflow flag, as it will never be set in the vmx fpscr
   */
-  bool ChangeMxcsrMode(MXCSRMode new_mode, bool already_set=false);//already_set means that the caller already did vldmxcsr, used for SET_ROUNDING_MODE
+  bool ChangeMxcsrMode(
+      MXCSRMode new_mode,
+      bool already_set = false);  // already_set means that the caller already
+                                  // did vldmxcsr, used for SET_ROUNDING_MODE
 
-  void LoadFpuMxcsrDirect(); //unsafe, does not change mxcsr_mode_
-  void LoadVmxMxcsrDirect(); //unsafe, does not change mxcsr_mode_
+  void LoadFpuMxcsrDirect();  // unsafe, does not change mxcsr_mode_
+  void LoadVmxMxcsrDirect();  // unsafe, does not change mxcsr_mode_
+
+  XexModule* GuestModule() { return guest_module_; }
+
  protected:
   void* Emplace(const EmitFunctionInfo& func_info,
                 GuestFunction* function = nullptr);
@@ -348,6 +349,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   X64Backend* backend_ = nullptr;
   X64CodeCache* code_cache_ = nullptr;
   XbyakAllocator* allocator_ = nullptr;
+  XexModule* guest_module_ = nullptr;
   Xbyak::util::Cpu cpu_;
   uint32_t feature_flags_ = 0;
 

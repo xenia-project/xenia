@@ -12,7 +12,7 @@
 
 #include <string>
 #include <vector>
-
+#include "xenia/base/mapped_memory.h"
 #include "xenia/cpu/module.h"
 #include "xenia/kernel/util/xex2_info.h"
 
@@ -30,6 +30,39 @@ constexpr fourcc_t kXEX2Signature = make_fourcc("XEX2");
 constexpr fourcc_t kElfSignature = make_fourcc(0x7F, 'E', 'L', 'F');
 
 class Runtime;
+struct InfoCacheFlags {
+  uint32_t was_resolved : 1;  // has this address ever been called/requested
+                              // via resolvefunction?
+  uint32_t accessed_mmio : 1;
+  uint32_t reserved : 30;
+};
+struct XexInfoCache {
+  struct InfoCacheFlagsHeader {
+    unsigned char reserved[256];  // put xenia version here
+
+    InfoCacheFlags* LookupFlags(unsigned offset) {
+      return &reinterpret_cast<InfoCacheFlags*>(&this[1])[offset];
+    }
+  };
+  /*
+        for every 4-byte aligned address, records a 4 byte set of flags.
+  */
+  std::unique_ptr<MappedMemory> executable_addr_flags_;
+
+  void Init(class XexModule*);
+  InfoCacheFlags* LookupFlags(unsigned offset) {
+    offset /= 4;
+    if (!executable_addr_flags_) {
+      return nullptr;
+    }
+    uint8_t* data = executable_addr_flags_->data();
+
+    if (!data) {
+      return nullptr;
+    }
+    return reinterpret_cast<InfoCacheFlagsHeader*>(data)->LookupFlags(offset);
+  }
+};
 
 class XexModule : public xe::cpu::Module {
  public:
@@ -174,10 +207,14 @@ class XexModule : public xe::cpu::Module {
              XEX_MODULE_PATCH_FULL));
   }
 
+  InfoCacheFlags* GetInstructionAddressFlags(uint32_t guest_addr);
+  void PrecompileKnownFunctions();
+
  protected:
   std::unique_ptr<Function> CreateFunction(uint32_t address) override;
 
  private:
+  friend struct XexInfoCache;
   void ReadSecurityInfo();
 
   int ReadImage(const void* xex_addr, size_t xex_length, bool use_dev_key);
@@ -217,6 +254,10 @@ class XexModule : public xe::cpu::Module {
 
   XexFormat xex_format_ = kFormatUnknown;
   SecurityInfoContext security_info_ = {};
+
+  uint8_t image_sha_bytes_[16];
+  std::string image_sha_str_;
+  XexInfoCache info_cache_;
 };
 
 }  // namespace cpu

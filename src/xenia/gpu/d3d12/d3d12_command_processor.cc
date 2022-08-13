@@ -712,7 +712,7 @@ void D3D12CommandProcessor::SetViewport(const D3D12_VIEWPORT& viewport) {
   ff_viewport_update_needed_ |= ff_viewport_.Height != viewport.Height;
   ff_viewport_update_needed_ |= ff_viewport_.MinDepth != viewport.MinDepth;
   ff_viewport_update_needed_ |= ff_viewport_.MaxDepth != viewport.MaxDepth;
-  if (ff_viewport_update_needed_) {
+  if (XE_UNLIKELY(ff_viewport_update_needed_)) {
     ff_viewport_ = viewport;
     deferred_command_list_.RSSetViewport(ff_viewport_);
     ff_viewport_update_needed_ = false;

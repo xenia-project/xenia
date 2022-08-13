@@ -41,18 +41,32 @@
 #error Unsupported target OS.
 #endif
 
-#if defined(__clang__)
+#if defined(__clang__) && !defined(_MSC_VER)  // chrispy: support clang-cl
 #define XE_COMPILER_CLANG 1
+#define XE_COMPILER_HAS_CLANG_EXTENSIONS 1
 #elif defined(__GNUC__)
 #define XE_COMPILER_GNUC 1
+#define XE_COMPILER_HAS_GNU_EXTENSIONS 1
 #elif defined(_MSC_VER)
 #define XE_COMPILER_MSVC 1
+#define XE_COMPILER_HAS_MSVC_EXTENSIONS 1
 #elif defined(__MINGW32)
 #define XE_COMPILER_MINGW32 1
+#define XE_COMPILER_HAS_GNU_EXTENSIONS 1
 #elif defined(__INTEL_COMPILER)
 #define XE_COMPILER_INTEL 1
 #else
 #define XE_COMPILER_UNKNOWN 1
+#endif
+// chrispy: had to place this here.
+#if defined(__clang__) && defined(_MSC_VER)
+#define XE_COMPILER_CLANG_CL 1
+#define XE_COMPILER_HAS_CLANG_EXTENSIONS 1
+#endif
+
+// clang extensions == superset of gnu extensions
+#if XE_COMPILER_HAS_CLANG_EXTENSIONS == 1
+#define XE_COMPILER_HAS_GNU_EXTENSIONS 1
 #endif
 
 #if defined(_M_AMD64) || defined(__amd64__)
@@ -92,6 +106,29 @@
 #define XEPACKEDSTRUCT(name, value) _XEPACKEDSCOPE(struct name value)
 #define XEPACKEDSTRUCTANONYMOUS(value) _XEPACKEDSCOPE(struct value)
 #define XEPACKEDUNION(name, value) _XEPACKEDSCOPE(union name value)
+
+#if XE_COMPILER_HAS_MSVC_EXTENSIONS == 1
+#define XE_FORCEINLINE __forceinline
+#define XE_NOINLINE __declspec(noinline)
+// can't properly emulate "cold" in msvc, but can still segregate the function
+// into its own seg
+#define XE_COLD __declspec(code_seg(".cold"))
+#define XE_LIKELY(...) (!!(__VA_ARGS__))
+#define XE_UNLIKELY(...) (!!(__VA_ARGS__))
+
+#elif XE_COMPILER_HAS_GNU_EXTENSIONS == 1
+#define XE_FORCEINLINE __attribute__((always_inline))
+#define XE_NOINLINE __attribute__((noinline))
+#define XE_COLD __attribute__((cold))
+#define XE_LIKELY(...) __builtin_expect(!!(__VA_ARGS__), true)
+#define XE_UNLIKELY(...) __builtin_expect(!!(__VA_ARGS__), false)
+#else
+#define XE_FORCEINLINE inline
+#define XE_NOINLINE
+#define XE_COLD
+#define XE_LIKELY(...) (!!(__VA_ARGS__))
+#define XE_UNLIKELY(...) (!!(__VA_ARGS__))
+#endif
 
 namespace xe {
 

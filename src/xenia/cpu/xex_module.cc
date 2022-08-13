@@ -14,13 +14,16 @@
 #include "third_party/fmt/include/fmt/format.h"
 
 #include "xenia/base/byte_order.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
+
 #include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/cpu/lzx.h"
 #include "xenia/cpu/processor.h"
+#include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xmodule.h"
 
@@ -28,6 +31,14 @@
 #include "third_party/crypto/rijndael-alg-fst.c"
 #include "third_party/crypto/rijndael-alg-fst.h"
 #include "third_party/pe/pe_image.h"
+
+DEFINE_bool(disable_instruction_infocache, false,
+            "Disables caching records of called instructions/mmio accesses.",
+            "CPU");
+DEFINE_bool(disable_function_precompilation, true,
+            "Disables pre-compiling guest functions that we know we've called "
+            "on previous runs",
+            "CPU");
 
 static const uint8_t xe_xex2_retail_key[16] = {
     0x20, 0xB1, 0x85, 0xA5, 0x9D, 0x28, 0xFD, 0xC3,
@@ -977,6 +988,7 @@ bool XexModule::LoadContinue() {
 
   // Scan and find the low/high addresses.
   // All code sections are continuous, so this should be easy.
+  // could use a source for the above information
   auto heap = memory()->LookupHeap(base_address_);
   auto page_size = heap->page_size();
 
@@ -1045,7 +1057,24 @@ bool XexModule::LoadContinue() {
       library_offset += library->size;
     }
   }
+  sha1::SHA1 final_image_sha_;
 
+  final_image_sha_.reset();
+
+  unsigned high_code = this->high_address_ - this->low_address_;
+
+  final_image_sha_.processBytes(memory()->TranslateVirtual(this->low_address_),
+                                high_code);
+  final_image_sha_.finalize(image_sha_bytes_);
+
+  char fmtbuf[16];
+
+  for (unsigned i = 0; i < 16; ++i) {
+    sprintf_s(fmtbuf, "%X", image_sha_bytes_[i]);
+    image_sha_str_ += &fmtbuf[0];
+  }
+
+  info_cache_.Init(this);
   // Find __savegprlr_* and __restgprlr_* and the others.
   // We can flag these for special handling (inlining/etc).
   if (!FindSaveRest()) {
@@ -1288,7 +1317,68 @@ std::unique_ptr<Function> XexModule::CreateFunction(uint32_t address) {
   return std::unique_ptr<Function>(
       processor_->backend()->CreateGuestFunction(this, address));
 }
+void XexInfoCache::Init(XexModule* xexmod) {
+  if (cvars::disable_instruction_infocache) {
+    return;
+  }
+  auto emu = xexmod->kernel_state_->emulator();
+  std::filesystem::path infocache_path = emu->cache_root();
 
+  infocache_path.append(L"modules");
+
+  infocache_path.append(xexmod->image_sha_str_);
+
+  std::filesystem::create_directories(infocache_path);
+  infocache_path.append("executable_addr_flags.bin");
+
+  unsigned num_codebytes = xexmod->high_address_ - xexmod->low_address_;
+  num_codebytes += 3;  // round up to nearest multiple of 4
+  num_codebytes &= ~3;
+  bool did_exist = true;
+  if (!std::filesystem::exists(infocache_path)) {
+    xe::filesystem::CreateEmptyFile(infocache_path);
+    did_exist = false;
+  }
+
+  // todo: prepopulate with stuff from pdata, dll exports
+  this->executable_addr_flags_ = std::move(xe::MappedMemory::Open(
+      infocache_path, xe::MappedMemory::Mode::kReadWrite, 0,
+      sizeof(InfoCacheFlagsHeader) +
+          (sizeof(InfoCacheFlags) *
+           (num_codebytes /
+            4))));  // one infocacheflags entry for each PPC instr-sized addr
+
+  if (did_exist) {
+    xexmod->PrecompileKnownFunctions();
+  }
+}
+
+InfoCacheFlags* XexModule::GetInstructionAddressFlags(uint32_t guest_addr) {
+  if (guest_addr < low_address_ || guest_addr > high_address_) {
+    return nullptr;
+  }
+
+  guest_addr -= low_address_;
+
+  return info_cache_.LookupFlags(guest_addr);
+}
+
+void XexModule::PrecompileKnownFunctions() {
+  if (cvars::disable_function_precompilation) {
+    return;
+  }
+  uint32_t start = 0;
+  uint32_t end = (high_address_ - low_address_) / 4;
+  auto flags = info_cache_.LookupFlags(0);
+  if (!flags) {
+    return;
+  }
+  for (uint32_t i = 0; i < end; i++) {
+    if (flags[i].was_resolved) {
+      processor_->ResolveFunction(low_address_ + (i * 4));
+    }
+  }
+}
 bool XexModule::FindSaveRest() {
   // Special stack save/restore functions.
   // http://research.microsoft.com/en-us/um/redmond/projects/invisible/src/crt/md/ppc/xxx.s.htm

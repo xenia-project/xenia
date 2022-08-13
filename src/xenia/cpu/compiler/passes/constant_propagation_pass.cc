@@ -149,7 +149,20 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
               i->Remove();
             }
             result = true;
+          } else if (i->src2.value->IsConstant()) {  // chrispy: fix h3 bug from
+                                                     // const indirect call true
+            auto function = processor_->LookupFunction(
+                uint32_t(i->src2.value->constant.i32));
+            if (!function) {
+              break;
+            }
+            // i->Replace(&OPCODE_CALL_TRUE_info, i->flags);
+            i->opcode = &OPCODE_CALL_TRUE_info;
+            i->set_src2(nullptr);
+            i->src2.symbol = function;
+            result = true;
           }
+
           break;
 
         case OPCODE_BRANCH_TRUE:

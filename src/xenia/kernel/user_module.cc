@@ -225,6 +225,7 @@ X_STATUS UserModule::LoadContinue() {
   ldr_data->xex_header_base = guest_xex_header_;
   ldr_data->full_image_size = security_header->image_size;
   ldr_data->image_base = this->xex_module()->base_address();
+
   ldr_data->entry_point = entry_point_;
 
   OnLoad();

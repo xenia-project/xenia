@@ -198,7 +198,8 @@ bool Memory::Initialize() {
   // Add handlers for MMIO.
   mmio_handler_ = cpu::MMIOHandler::Install(
       virtual_membase_, physical_membase_, physical_membase_ + 0x1FFFFFFF,
-      HostToGuestVirtualThunk, this, AccessViolationCallbackThunk, this);
+      HostToGuestVirtualThunk, this, AccessViolationCallbackThunk, this,
+      nullptr, nullptr);
   if (!mmio_handler_) {
     XELOGE("Unable to install MMIO handlers");
     assert_always();
@@ -211,6 +212,11 @@ bool Memory::Initialize() {
                          kMemoryProtectNoAccess, true, &unk_phys_alloc);
 
   return true;
+}
+
+void Memory::SetMMIOExceptionRecordingCallback(
+    cpu::MmioAccessRecordCallback callback, void* context) {
+  mmio_handler_->SetMMIOExceptionRecordingCallback(callback, context);
 }
 
 static const struct {
@@ -1528,9 +1534,10 @@ bool PhysicalHeap::AllocRange(uint32_t low_address, uint32_t high_address,
 }
 
 bool PhysicalHeap::AllocSystemHeap(uint32_t size, uint32_t alignment,
-  uint32_t allocation_type, uint32_t protect,
-  bool top_down, uint32_t* out_address) {
-  return Alloc(size, alignment, allocation_type, protect, top_down, out_address);
+                                   uint32_t allocation_type, uint32_t protect,
+                                   bool top_down, uint32_t* out_address) {
+  return Alloc(size, alignment, allocation_type, protect, top_down,
+               out_address);
 }
 
 bool PhysicalHeap::Decommit(uint32_t address, uint32_t size) {

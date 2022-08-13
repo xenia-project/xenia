@@ -60,23 +60,46 @@ union InstrKey {
 
   InstrKey() : value(0) { static_assert_size(*this, sizeof(value)); }
   InstrKey(uint32_t v) : value(v) {}
+
+  // this used to take about 1% cpu while precompiling
+  // it kept reloading opcode, and also constantly repacking and unpacking the
+  // bitfields. instead, we pack the fields at the very end
   InstrKey(const Instr* i) : value(0) {
-    opcode = i->opcode->num;
-    uint32_t sig = i->opcode->signature;
-    dest =
-        GET_OPCODE_SIG_TYPE_DEST(sig) ? OPCODE_SIG_TYPE_V + i->dest->type : 0;
-    src1 = GET_OPCODE_SIG_TYPE_SRC1(sig);
-    if (src1 == OPCODE_SIG_TYPE_V) {
-      src1 += i->src1.value->type;
+    const OpcodeInfo* info = i->GetOpcodeInfo();
+
+    uint32_t sig = info->signature;
+
+    OpcodeSignatureType dest_type, src1_type, src2_type, src3_type;
+
+    UnpackOpcodeSig(sig, dest_type, src1_type, src2_type, src3_type);
+
+    uint32_t out_desttype = (uint32_t)dest_type;
+    uint32_t out_src1type = (uint32_t)src1_type;
+    uint32_t out_src2type = (uint32_t)src2_type;
+    uint32_t out_src3type = (uint32_t)src3_type;
+
+    Value* destv = i->dest;
+    // pre-deref, even if not value
+    Value* src1v = i->src1.value;
+    Value* src2v = i->src2.value;
+    Value* src3v = i->src3.value;
+
+    if (out_src1type == OPCODE_SIG_TYPE_V) {
+      out_src1type += src1v->type;
     }
-    src2 = GET_OPCODE_SIG_TYPE_SRC2(sig);
-    if (src2 == OPCODE_SIG_TYPE_V) {
-      src2 += i->src2.value->type;
+
+    if (out_src2type == OPCODE_SIG_TYPE_V) {
+      out_src2type += src2v->type;
     }
-    src3 = GET_OPCODE_SIG_TYPE_SRC3(sig);
-    if (src3 == OPCODE_SIG_TYPE_V) {
-      src3 += i->src3.value->type;
+
+    if (out_src3type == OPCODE_SIG_TYPE_V) {
+      out_src3type += src3v->type;
     }
+    opcode = info->num;
+    dest = out_desttype ? OPCODE_SIG_TYPE_V + destv->type : 0;
+    src1 = out_src1type;
+    src2 = out_src2type;
+    src3 = out_src3type;
   }
 
   template <Opcode OPCODE, KeyType DEST = KEY_TYPE_X, KeyType SRC1 = KEY_TYPE_X,

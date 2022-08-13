@@ -25,7 +25,7 @@
 
 namespace xe {
 namespace gpu {
-
+#if XE_ENABLE_TRACE_WRITER_INSTRUMENTATION == 1
 TraceWriter::TraceWriter(uint8_t* membase)
     : membase_(membase), file_(nullptr) {}
 
@@ -362,6 +362,6 @@ void TraceWriter::WriteGammaRamp(
     fwrite(gamma_ramp_pwl_rgb, 1, kPWLUncompressedLength, file_);
   }
 }
-
+#endif
 }  //  namespace gpu
 }  //  namespace xe

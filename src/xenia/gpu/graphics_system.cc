@@ -198,7 +198,7 @@ uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
                   // maximum [width(0x0FFF), height(0x0FFF)]
       return 0x050002D0;
     default:
-      if (!register_file_.GetRegisterInfo(r)) {
+      if (!register_file_.IsValidRegister(r)) {
         XELOGE("GPU: Read from unknown register ({:04X})", r);
       }
   }

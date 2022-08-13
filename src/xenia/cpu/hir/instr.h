@@ -169,6 +169,8 @@ if both are constant, return nullptr, nullptr
   // gets previous instr, skipping instrs like COMMENT, OPCODE_CONTEXT_BARRIER,
   // OPCODE_SOURCE_OFFSET
   const hir::Instr* GetNonFakePrev() const;
+
+  uint32_t GuestAddressFor() const;
 };
 
 }  // namespace hir

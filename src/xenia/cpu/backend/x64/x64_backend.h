@@ -92,6 +92,8 @@ class X64Backend : public Backend {
   }
   virtual void SetGuestRoundingMode(void* ctx, unsigned int mode) override;
 
+  void RecordMMIOExceptionForGuestInstruction(void* host_address);
+
  private:
   static bool ExceptionCallbackThunk(Exception* ex, void* data);
   bool ExceptionCallback(Exception* ex);

@@ -18,7 +18,7 @@
 #include "xenia/cpu/backend/x64/x64_op.h"
 #include "xenia/cpu/backend/x64/x64_tracers.h"
 #include "xenia/cpu/ppc/ppc_context.h"
-
+#include "xenia/cpu/processor.h"
 DEFINE_bool(
     elide_e0_check, false,
     "Eliminate e0 check on some memory accesses, like to r13(tls) or r1(sp)",
@@ -27,6 +27,10 @@ DEFINE_bool(enable_rmw_context_merging, false,
             "Permit merging read-modify-write HIR instr sequences together "
             "into x86 instructions that use a memory operand.",
             "x64");
+DEFINE_bool(emit_mmio_aware_stores_for_recorded_exception_addresses, true,
+            "Uses info gathered via record_mmio_access_exceptions to emit "
+            "special stores that are faster than trapping the exception",
+            "CPU");
 
 namespace xe {
 namespace cpu {
@@ -965,6 +969,21 @@ struct STORE_MMIO_I32
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_STORE_MMIO, STORE_MMIO_I32);
+// according to triangle we dont support mmio reads atm so no point in
+// implementing this for them
+static bool IsPossibleMMIOInstruction(X64Emitter& e, const hir::Instr* i) {
+  if (!cvars::emit_mmio_aware_stores_for_recorded_exception_addresses) {
+    return false;
+  }
+  uint32_t guestaddr = i->GuestAddressFor();
+  if (!guestaddr) {
+    return false;
+  }
+
+  auto flags = e.GuestModule()->GetInstructionAddressFlags(guestaddr);
+
+  return flags && flags->accessed_mmio;
+}
 
 // ============================================================================
 // OPCODE_LOAD_OFFSET
@@ -1030,6 +1049,28 @@ struct LOAD_OFFSET_I64
 EMITTER_OPCODE_TABLE(OPCODE_LOAD_OFFSET, LOAD_OFFSET_I8, LOAD_OFFSET_I16,
                      LOAD_OFFSET_I32, LOAD_OFFSET_I64);
 
+template <typename T, bool swap>
+static void MMIOAwareStore(void* _ctx, unsigned int guestaddr, T value) {
+  if (swap) {
+    value = xe::byte_swap(value);
+  }
+  if (guestaddr >= 0xE0000000) {
+    guestaddr += 0x1000;
+  }
+
+  auto ctx = reinterpret_cast<ppc::PPCContext*>(_ctx);
+
+  auto gaddr = ctx->processor->memory()->LookupVirtualMappedRange(guestaddr);
+  if (!gaddr) {
+    *reinterpret_cast<T*>(ctx->virtual_membase + guestaddr) = value;
+  } else {
+    value = xe::byte_swap(value); /*
+          was having issues, found by comparing the values used with exceptions
+          to these that we were reversed...
+    */
+    gaddr->write(nullptr, gaddr->callback_context, guestaddr, value);
+  }
+}
 // ============================================================================
 // OPCODE_STORE_OFFSET
 // ============================================================================
@@ -1038,6 +1079,7 @@ struct STORE_OFFSET_I8
                I<OPCODE_STORE_OFFSET, VoidOp, I64Op, I64Op, I8Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     auto addr = ComputeMemoryAddressOffset(e, i.src1, i.src2);
+
     if (i.src3.is_constant) {
       e.mov(e.byte[addr], i.src3.constant());
     } else {
@@ -1076,23 +1118,48 @@ struct STORE_OFFSET_I32
     : Sequence<STORE_OFFSET_I32,
                I<OPCODE_STORE_OFFSET, VoidOp, I64Op, I64Op, I32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    auto addr = ComputeMemoryAddressOffset(e, i.src1, i.src2);
-    if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
-      assert_false(i.src3.is_constant);
-      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
-        e.movbe(e.dword[addr], i.src3);
-      } else {
-        assert_always("not implemented");
+    if (IsPossibleMMIOInstruction(e, i.instr)) {
+      void* addrptr = (void*)&MMIOAwareStore<uint32_t, false>;
+
+      if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
+        addrptr = (void*)&MMIOAwareStore<uint32_t, true>;
       }
-    } else {
+      if (i.src1.is_constant) {
+        e.mov(e.GetNativeParam(0).cvt32(), i.src1.constant());
+      } else {
+        e.mov(e.GetNativeParam(0).cvt32(), i.src1.reg().cvt32());
+      }
+      if (i.src2.is_constant) {
+        e.add(e.GetNativeParam(0).cvt32(), (uint32_t)i.src2.constant());
+      } else {
+        e.add(e.GetNativeParam(0).cvt32(), i.src2);
+      }
       if (i.src3.is_constant) {
-        if (i.src3.constant() == 0 && e.CanUseMembaseLow32As0()) {
-          e.mov(e.dword[addr], e.GetMembaseReg().cvt32());
+        e.mov(e.GetNativeParam(1).cvt32(), i.src3.constant());
+      } else {
+        e.mov(e.GetNativeParam(1).cvt32(), i.src3);
+      }
+      e.CallNativeSafe(addrptr);
+
+    } else {
+      auto addr = ComputeMemoryAddressOffset(e, i.src1, i.src2);
+      if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
+        assert_false(i.src3.is_constant);
+        if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+          e.movbe(e.dword[addr], i.src3);
         } else {
-          e.mov(e.dword[addr], i.src3.constant());
+          assert_always("not implemented");
         }
       } else {
-        e.mov(e.dword[addr], i.src3);
+        if (i.src3.is_constant) {
+          if (i.src3.constant() == 0 && e.CanUseMembaseLow32As0()) {
+            e.mov(e.dword[addr], e.GetMembaseReg().cvt32());
+          } else {
+            e.mov(e.dword[addr], i.src3.constant());
+          }
+        } else {
+          e.mov(e.dword[addr], i.src3);
+        }
       }
     }
   }
@@ -1290,23 +1357,43 @@ struct STORE_I16 : Sequence<STORE_I16, I<OPCODE_STORE, VoidOp, I64Op, I16Op>> {
 };
 struct STORE_I32 : Sequence<STORE_I32, I<OPCODE_STORE, VoidOp, I64Op, I32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    auto addr = ComputeMemoryAddress(e, i.src1);
-    if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
-      assert_false(i.src2.is_constant);
-      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
-        e.movbe(e.dword[addr], i.src2);
-      } else {
-        assert_always("not implemented");
+    if (IsPossibleMMIOInstruction(e, i.instr)) {
+      void* addrptr = (void*)&MMIOAwareStore<uint32_t, false>;
+
+      if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
+        addrptr = (void*)&MMIOAwareStore<uint32_t, true>;
       }
-    } else {
-      if (i.src2.is_constant) {
-        e.mov(e.dword[addr], i.src2.constant());
+      if (i.src1.is_constant) {
+        e.mov(e.GetNativeParam(0).cvt32(), (uint32_t)i.src1.constant());
       } else {
-        e.mov(e.dword[addr], i.src2);
+        e.mov(e.GetNativeParam(0).cvt32(), i.src1.reg().cvt32());
+      }
+      if (i.src2.is_constant) {
+        e.mov(e.GetNativeParam(1).cvt32(), i.src2.constant());
+      } else {
+        e.mov(e.GetNativeParam(1).cvt32(), i.src2);
+      }
+      e.CallNativeSafe(addrptr);
+
+    } else {
+      auto addr = ComputeMemoryAddress(e, i.src1);
+      if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
+        assert_false(i.src2.is_constant);
+        if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+          e.movbe(e.dword[addr], i.src2);
+        } else {
+          assert_always("not implemented");
+        }
+      } else {
+        if (i.src2.is_constant) {
+          e.mov(e.dword[addr], i.src2.constant());
+        } else {
+          e.mov(e.dword[addr], i.src2);
+        }
       }
     }
     if (IsTracingData()) {
-      addr = ComputeMemoryAddress(e, i.src1);
+      auto addr = ComputeMemoryAddress(e, i.src1);
       e.mov(e.GetNativeParam(1).cvt32(), e.dword[addr]);
       e.lea(e.GetNativeParam(0), e.ptr[addr]);
       e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreI32));

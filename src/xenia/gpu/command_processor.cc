@@ -16,6 +16,7 @@
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/byte_stream.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
@@ -28,6 +29,10 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
 
+DEFINE_bool(log_unknown_register_writes, false,
+            "Log writes to unknown registers from "
+            "CommandProcessor::WriteRegister. Has significant performance hit.",
+            "GPU");
 namespace xe {
 namespace gpu {
 
@@ -329,19 +334,9 @@ void CommandProcessor::UpdateWritePointer(uint32_t value) {
   write_ptr_index_ = value;
   write_ptr_index_event_->Set();
 }
-
-void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
+void CommandProcessor::HandleSpecialRegisterWrite(uint32_t index,
+                                                  uint32_t value) {
   RegisterFile& regs = *register_file_;
-  if (index >= RegisterFile::kRegisterCount) {
-    XELOGW("CommandProcessor::WriteRegister index out of bounds: {}", index);
-    return;
-  }
-
-  regs.values[index].u32 = value;
-  if (!regs.GetRegisterInfo(index)) {
-    XELOGW("GPU: Write to unknown register ({:04X} = {:08X})", index, value);
-  }
-
   // Scratch register writeback.
   if (index >= XE_GPU_REG_SCRATCH_REG0 && index <= XE_GPU_REG_SCRATCH_REG7) {
     uint32_t scratch_reg = index - XE_GPU_REG_SCRATCH_REG0;
@@ -469,6 +464,43 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
     }
   }
 }
+void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
+  if (XE_UNLIKELY(cvars::log_unknown_register_writes)) {
+    // chrispy: rearrange check order, place set after checks
+    if (XE_UNLIKELY(!register_file_->IsValidRegister(index))) {
+      XELOGW("GPU: Write to unknown register ({:04X} = {:08X})", index, value);
+    check_reg_out_of_bounds:
+      if (XE_UNLIKELY(index >= RegisterFile::kRegisterCount)) {
+        XELOGW("CommandProcessor::WriteRegister index out of bounds: {}",
+               index);
+        return;
+      }
+    }
+  } else {
+    goto check_reg_out_of_bounds;
+  }
+  register_file_->values[index].u32 = value;
+
+  //  regs with extra logic on write: XE_GPU_REG_COHER_STATUS_HOST
+  //  XE_GPU_REG_DC_LUT_RW_INDEX
+  // XE_GPU_REG_DC_LUT_SEQ_COLOR XE_GPU_REG_DC_LUT_PWL_DATA
+  // XE_GPU_REG_DC_LUT_30_COLOR
+
+  // quick pre-test
+  // todo: figure out just how unlikely this is. if very (it ought to be, theres
+  // a ton of registers other than these) make this predicate branchless and
+  // mark with unlikely, then make HandleSpecialRegisterWrite noinline yep, its
+  // very unlikely. these ORS here are meant to be bitwise ors, so that we do
+  // not do branching evaluation of the conditions (we will almost always take
+  // all of the branches)
+  if (XE_UNLIKELY(
+          (index - XE_GPU_REG_SCRATCH_REG0 < 8) |
+          (index == XE_GPU_REG_COHER_STATUS_HOST) |
+          ((index - XE_GPU_REG_DC_LUT_RW_INDEX) <=
+           (XE_GPU_REG_DC_LUT_30_COLOR - XE_GPU_REG_DC_LUT_RW_INDEX)))) {
+    HandleSpecialRegisterWrite(index, value);
+  }
+}
 
 void CommandProcessor::MakeCoherent() {
   SCOPE_profile_cpu_f("gpu");
@@ -570,7 +602,7 @@ void CommandProcessor::ExecuteIndirectBuffer(uint32_t ptr, uint32_t count) {
       // Return up a level if we encounter a bad packet.
       XELOGE("**** INDIRECT RINGBUFFER: Failed to execute packet.");
       assert_always();
-      //break;
+      // break;
     }
   } while (reader.read_count());
 
