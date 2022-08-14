@@ -493,13 +493,18 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
   // very unlikely. these ORS here are meant to be bitwise ors, so that we do
   // not do branching evaluation of the conditions (we will almost always take
   // all of the branches)
-  if (XE_UNLIKELY(
-          (index - XE_GPU_REG_SCRATCH_REG0 < 8) |
-          (index == XE_GPU_REG_COHER_STATUS_HOST) |
-          ((index - XE_GPU_REG_DC_LUT_RW_INDEX) <=
-           (XE_GPU_REG_DC_LUT_30_COLOR - XE_GPU_REG_DC_LUT_RW_INDEX)))) {
+
+  unsigned expr = (index - XE_GPU_REG_SCRATCH_REG0 < 8) |
+                  (index == XE_GPU_REG_COHER_STATUS_HOST) |
+                  ((index - XE_GPU_REG_DC_LUT_RW_INDEX) <=
+                   (XE_GPU_REG_DC_LUT_30_COLOR - XE_GPU_REG_DC_LUT_RW_INDEX));
+  //chrispy: reordered for msvc branch probability (assumes if is taken and else is not)
+  if (XE_LIKELY(expr == 0)) {
+  
+  } else {
     HandleSpecialRegisterWrite(index, value);
   }
+
 }
 
 void CommandProcessor::MakeCoherent() {

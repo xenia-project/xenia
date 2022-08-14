@@ -466,6 +466,48 @@ constexpr inline fourcc_t make_fourcc(const std::string_view fourcc) {
   }
   return make_fourcc(fourcc[0], fourcc[1], fourcc[2], fourcc[3]);
 }
+//chrispy::todo:use for command stream vector, resize happens a ton and has to call memset
+template <size_t sz>
+class fixed_vmem_vector {
+  static_assert((sz & 65535) == 0,
+                "Always give fixed_vmem_vector a size divisible by 65536 to "
+                "avoid wasting memory on windows");
+
+  uint8_t* data_;
+  size_t nbytes_;
+
+ public:
+  fixed_vmem_vector()
+      : data_((uint8_t*)AllocFixed(nullptr, sz, AllocationType::kReserveCommit,
+                                   PageAccess::kReadWrite)),
+        nbytes_(0) {}
+  ~fixed_vmem_vector() {
+    if (data_) {
+      DeallocFixed(data_, sz, DeallocationType::kRelease);
+      data_ = nullptr;
+    }
+    nbytes_ = 0;
+  }
+
+  uint8_t* data() const { return data_; }
+  size_t size() const { return nbytes_; }
+
+  void resize(size_t newsize) {
+    nbytes_ = newsize;
+    xenia_assert(newsize < sz);
+  }
+  size_t alloc() const { return sz; }
+
+  void clear() {
+    resize(0);  // todo:maybe zero out
+  }
+  void reserve(size_t size) { xenia_assert(size < sz); }
+
+
+};
+
+
+
 
 }  // namespace xe
 

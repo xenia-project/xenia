@@ -30,8 +30,11 @@ class D3D12CommandProcessor;
 
 class DeferredCommandList {
  public:
+  /*
+	chrispy: upped from 1_MiB to 4_MiB, m:durandal hits frequent resizes in large open maps
+  */
   DeferredCommandList(const D3D12CommandProcessor& command_processor,
-                      size_t initial_size_bytes = 1_MiB);
+                      size_t initial_size_bytes = 4_MiB);
 
   void Reset();
   void Execute(ID3D12GraphicsCommandList* command_list,

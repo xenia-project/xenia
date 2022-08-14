@@ -12,7 +12,7 @@
 #include <mutex>
 #include "platform.h"
 
-//#define		XE_ENABLE_FAST_WIN32_MUTEX 1
+#define		XE_ENABLE_FAST_WIN32_MUTEX 1
 namespace xe {
 
 #if XE_PLATFORM_WIN32 == 1 && XE_ENABLE_FAST_WIN32_MUTEX==1
