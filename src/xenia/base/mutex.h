@@ -9,11 +9,50 @@
 
 #ifndef XENIA_BASE_MUTEX_H_
 #define XENIA_BASE_MUTEX_H_
-
 #include <mutex>
+#include "platform.h"
 
+//#define		XE_ENABLE_FAST_WIN32_MUTEX 1
 namespace xe {
 
+#if XE_PLATFORM_WIN32 == 1 && XE_ENABLE_FAST_WIN32_MUTEX==1
+/*
+   must conform to
+   BasicLockable:https://en.cppreference.com/w/cpp/named_req/BasicLockable as
+   well as Lockable: https://en.cppreference.com/w/cpp/named_req/Lockable
+
+   this emulates a recursive mutex, except with far less overhead
+*/
+class alignas(64) xe_global_mutex {
+  char detail[64];
+
+ public:
+  xe_global_mutex();
+  ~xe_global_mutex();
+
+  void lock();
+  void unlock();
+  bool try_lock();
+};
+using global_mutex_type = xe_global_mutex;
+
+class alignas(64) xe_fast_mutex {
+  char detail[64];
+
+ public:
+  xe_fast_mutex();
+  ~xe_fast_mutex();
+
+  void lock();
+  void unlock();
+  bool try_lock();
+};
+using xe_mutex = xe_fast_mutex;
+#else
+using global_mutex_type = std::recursive_mutex;
+using xe_mutex = std::mutex;
+#endif
+using global_unique_lock_type = std::unique_lock<global_mutex_type>;
 // The global critical region mutex singleton.
 // This must guard any operation that may suspend threads or be sensitive to
 // being suspended such as global table locks and such.
@@ -54,30 +93,30 @@ namespace xe {
 // };
 class global_critical_region {
  public:
-  static std::recursive_mutex& mutex();
+  static global_mutex_type& mutex();
 
   // Acquires a lock on the global critical section.
   // Use this when keeping an instance is not possible. Otherwise, prefer
   // to keep an instance of global_critical_region near the members requiring
   // it to keep things readable.
-  static std::unique_lock<std::recursive_mutex> AcquireDirect() {
-    return std::unique_lock<std::recursive_mutex>(mutex());
+  static global_unique_lock_type AcquireDirect() {
+    return global_unique_lock_type(mutex());
   }
 
   // Acquires a lock on the global critical section.
-  inline std::unique_lock<std::recursive_mutex> Acquire() {
-    return std::unique_lock<std::recursive_mutex>(mutex());
+  inline global_unique_lock_type Acquire() {
+    return global_unique_lock_type(mutex());
   }
 
   // Acquires a deferred lock on the global critical section.
-  inline std::unique_lock<std::recursive_mutex> AcquireDeferred() {
-    return std::unique_lock<std::recursive_mutex>(mutex(), std::defer_lock);
+  inline global_unique_lock_type AcquireDeferred() {
+    return global_unique_lock_type(mutex(), std::defer_lock);
   }
 
   // Tries to acquire a lock on the glboal critical section.
   // Check owns_lock() to see if the lock was successfully acquired.
-  inline std::unique_lock<std::recursive_mutex> TryAcquire() {
-    return std::unique_lock<std::recursive_mutex>(mutex(), std::try_to_lock);
+  inline global_unique_lock_type TryAcquire() {
+    return global_unique_lock_type(mutex(), std::try_to_lock);
   }
 };
 

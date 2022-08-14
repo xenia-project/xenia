@@ -48,7 +48,7 @@ class MMIOHandler {
   typedef uint32_t (*HostToGuestVirtual)(const void* context,
                                          const void* host_address);
   typedef bool (*AccessViolationCallback)(
-      std::unique_lock<std::recursive_mutex> global_lock_locked_once,
+      global_unique_lock_type global_lock_locked_once, //not passed by reference with const like the others?
       void* context, void* host_address, bool is_write);
 
   // access_violation_callback is called with global_critical_region locked once

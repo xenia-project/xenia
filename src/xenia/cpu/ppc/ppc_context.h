@@ -15,7 +15,7 @@
 #include <string>
 
 #include "xenia/base/vec128.h"
-
+#include "xenia/base/mutex.h"
 namespace xe {
 namespace cpu {
 class Processor;
@@ -405,7 +405,7 @@ typedef struct alignas(64) PPCContext_s {
 
   // Global interrupt lock, held while interrupts are disabled or interrupts are
   // executing. This is shared among all threads and comes from the processor.
-  std::recursive_mutex* global_mutex;
+  global_mutex_type* global_mutex;
 
   // Used to shuttle data into externs. Contents volatile.
   uint64_t scratch;

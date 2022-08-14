@@ -271,8 +271,7 @@ class PhysicalHeap : public BaseHeap {
                              bool enable_invalidation_notifications,
                              bool enable_data_providers);
   // Returns true if any page in the range was watched.
-  bool TriggerCallbacks(
-      std::unique_lock<std::recursive_mutex> global_lock_locked_once,
+  bool TriggerCallbacks(global_unique_lock_type global_lock_locked_once,
       uint32_t virtual_address, uint32_t length, bool is_write,
       bool unwatch_exact_range, bool unprotect = true);
 
@@ -459,7 +458,7 @@ class Memory {
   // TODO(Triang3l): Implement data providers - this is why locking depth of 1
   // will be required in the future.
   bool TriggerPhysicalMemoryCallbacks(
-      std::unique_lock<std::recursive_mutex> global_lock_locked_once,
+      global_unique_lock_type global_lock_locked_once,
       uint32_t virtual_address, uint32_t length, bool is_write,
       bool unwatch_exact_range, bool unprotect = true);
 
@@ -508,11 +507,10 @@ class Memory {
   static uint32_t HostToGuestVirtualThunk(const void* context,
                                           const void* host_address);
 
-  bool AccessViolationCallback(
-      std::unique_lock<std::recursive_mutex> global_lock_locked_once,
+  bool AccessViolationCallback(global_unique_lock_type global_lock_locked_once,
       void* host_address, bool is_write);
   static bool AccessViolationCallbackThunk(
-      std::unique_lock<std::recursive_mutex> global_lock_locked_once,
+      global_unique_lock_type global_lock_locked_once,
       void* context, void* host_address, bool is_write);
 
   std::filesystem::path file_name_;

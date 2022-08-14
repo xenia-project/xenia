@@ -36,7 +36,7 @@ using WaitItem = TimerQueueWaitItem;
 	edit: actually had to change it back, when i was testing it only worked because i fixed disruptorplus' code to compile (it gives wrong args to condition_variable::wait_until) but now builds
 
 */
-using WaitStrat = dp::spin_wait_strategy; //dp::blocking_wait_strategy;
+using WaitStrat = dp::blocking_wait_strategy;
 
 class TimerQueue {
  public:

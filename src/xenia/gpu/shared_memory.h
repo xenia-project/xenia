@@ -35,7 +35,7 @@ class SharedMemory {
   virtual void SetSystemPageBlocksValidWithGpuDataWritten();
 
   typedef void (*GlobalWatchCallback)(
-      const std::unique_lock<std::recursive_mutex>& global_lock, void* context,
+      const global_unique_lock_type& global_lock, void* context,
       uint32_t address_first, uint32_t address_last, bool invalidated_by_gpu);
   typedef void* GlobalWatchHandle;
   // Registers a callback invoked when something is invalidated in the GPU
@@ -49,8 +49,8 @@ class SharedMemory {
   GlobalWatchHandle RegisterGlobalWatch(GlobalWatchCallback callback,
                                         void* callback_context);
   void UnregisterGlobalWatch(GlobalWatchHandle handle);
-  typedef void (*WatchCallback)(
-      const std::unique_lock<std::recursive_mutex>& global_lock, void* context,
+  typedef void (*WatchCallback)(const global_unique_lock_type& global_lock,
+                                void* context,
       void* data, uint64_t argument, bool invalidated_by_gpu);
   typedef void* WatchHandle;
   // Registers a callback invoked when the specified memory range is invalidated

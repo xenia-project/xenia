@@ -230,19 +230,15 @@ class TextureCache {
     }
     bool IsResolved() const { return base_resolved_ || mips_resolved_; }
 
-    bool base_outdated(
-        const std::unique_lock<std::recursive_mutex>& global_lock) const {
+    bool base_outdated(const global_unique_lock_type& global_lock) const {
       return base_outdated_;
     }
-    bool mips_outdated(
-        const std::unique_lock<std::recursive_mutex>& global_lock) const {
+    bool mips_outdated(const global_unique_lock_type& global_lock) const {
       return mips_outdated_;
     }
-    void MakeUpToDateAndWatch(
-        const std::unique_lock<std::recursive_mutex>& global_lock);
+    void MakeUpToDateAndWatch(const global_unique_lock_type& global_lock);
 
-    void WatchCallback(
-        const std::unique_lock<std::recursive_mutex>& global_lock, bool is_mip);
+    void WatchCallback(const global_unique_lock_type& global_lock, bool is_mip);
 
     // For LRU caching - updates the last usage frame and moves the texture to
     // the end of the usage queue. Must be called any time the texture is
@@ -579,8 +575,8 @@ class TextureCache {
   void UpdateTexturesTotalHostMemoryUsage(uint64_t add, uint64_t subtract);
 
   // Shared memory callback for texture data invalidation.
-  static void WatchCallback(
-      const std::unique_lock<std::recursive_mutex>& global_lock, void* context,
+  static void WatchCallback(const global_unique_lock_type& global_lock,
+                            void* context,
       void* data, uint64_t argument, bool invalidated_by_gpu);
 
   // Checks if there are any pages that contain scaled resolve data within the
@@ -589,10 +585,10 @@ class TextureCache {
   // Global shared memory invalidation callback for invalidating scaled resolved
   // texture data.
   static void ScaledResolveGlobalWatchCallbackThunk(
-      const std::unique_lock<std::recursive_mutex>& global_lock, void* context,
+      const global_unique_lock_type& global_lock, void* context,
       uint32_t address_first, uint32_t address_last, bool invalidated_by_gpu);
   void ScaledResolveGlobalWatchCallback(
-      const std::unique_lock<std::recursive_mutex>& global_lock,
+      const global_unique_lock_type& global_lock,
       uint32_t address_first, uint32_t address_last, bool invalidated_by_gpu);
 
   const RegisterFile& register_file_;
