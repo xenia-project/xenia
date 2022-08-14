@@ -12,7 +12,18 @@
 #include "xenia/base/platform_win.h"
 
 namespace xe {
+	#if XE_USE_KUSER_SHARED==1
+uint64_t Clock::host_tick_frequency_platform() { return 10000000ULL; }
 
+uint64_t Clock::host_tick_count_platform() {
+  return *reinterpret_cast<volatile uint64_t*>(&KUserShared()->SystemTime);
+}
+uint64_t Clock::QueryHostSystemTime() {
+  return *reinterpret_cast<volatile uint64_t*>(&KUserShared()->SystemTime);
+}
+
+
+	#else
 uint64_t Clock::host_tick_frequency_platform() {
   LARGE_INTEGER frequency;
   QueryPerformanceFrequency(&frequency);
@@ -27,7 +38,6 @@ uint64_t Clock::host_tick_count_platform() {
   }
   return time;
 }
-
 uint64_t Clock::QueryHostSystemTime() {
   FILETIME t;
   GetSystemTimeAsFileTime(&t);
@@ -37,5 +47,10 @@ uint64_t Clock::QueryHostSystemTime() {
 uint64_t Clock::QueryHostUptimeMillis() {
   return host_tick_count_platform() * 1000 / host_tick_frequency_platform();
 }
+#endif
+uint64_t Clock::QueryHostUptimeMillis() {
+  return host_tick_count_platform() * 1000 / host_tick_frequency_platform();
+}
+
 
 }  // namespace xe

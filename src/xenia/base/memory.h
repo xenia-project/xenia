@@ -478,12 +478,13 @@ class fixed_vmem_vector {
 
  public:
   fixed_vmem_vector()
-      : data_((uint8_t*)AllocFixed(nullptr, sz, AllocationType::kReserveCommit,
-                                   PageAccess::kReadWrite)),
+      : data_((uint8_t*)memory::AllocFixed(
+            nullptr, sz, memory::AllocationType::kReserveCommit,
+            memory::PageAccess::kReadWrite)),
         nbytes_(0) {}
   ~fixed_vmem_vector() {
     if (data_) {
-      DeallocFixed(data_, sz, DeallocationType::kRelease);
+      memory::DeallocFixed(data_, sz, memory::DeallocationType::kRelease);
       data_ = nullptr;
     }
     nbytes_ = 0;

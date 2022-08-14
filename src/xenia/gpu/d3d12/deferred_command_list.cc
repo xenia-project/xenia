@@ -31,8 +31,8 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
 #if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
-  const uintmax_t* stream = command_stream_.data();
-  size_t stream_remaining = command_stream_.size();
+  const uintmax_t* stream = (const uintmax_t*)command_stream_.data();
+  size_t stream_remaining = command_stream_.size() / sizeof(uintmax_t);
   ID3D12PipelineState* current_pipeline_state = nullptr;
   while (stream_remaining != 0) {
     const CommandHeader& header =
@@ -266,8 +266,12 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
 
 void* DeferredCommandList::WriteCommand(Command command,
                                         size_t arguments_size_bytes) {
+
   size_t arguments_size_elements =
-      (arguments_size_bytes + sizeof(uintmax_t) - 1) / sizeof(uintmax_t);
+      round_up(arguments_size_bytes, sizeof(uintmax_t), false);
+
+      //(arguments_size_bytes + sizeof(uintmax_t) - 1) / sizeof(uintmax_t);
+  #if 0
   size_t offset = command_stream_.size();
   command_stream_.resize(offset + kCommandHeaderSizeElements +
                          arguments_size_elements);
@@ -276,6 +280,19 @@ void* DeferredCommandList::WriteCommand(Command command,
   header.command = command;
   header.arguments_size_elements = uint32_t(arguments_size_elements);
   return command_stream_.data() + (offset + kCommandHeaderSizeElements);
+  #else
+
+  size_t offset = command_stream_.size();
+  constexpr size_t kCommandHeaderSizeBytes =
+      kCommandHeaderSizeElements * sizeof(uintmax_t);
+  command_stream_.resize(offset + kCommandHeaderSizeBytes +
+                         arguments_size_elements);
+  CommandHeader& header =
+      *reinterpret_cast<CommandHeader*>(command_stream_.data() + offset);
+  header.command = command;
+  header.arguments_size_elements = uint32_t(arguments_size_elements) / sizeof(uintmax_t);
+  return command_stream_.data() + (offset + kCommandHeaderSizeBytes);
+  #endif
 }
 
 }  // namespace d3d12

@@ -15,6 +15,13 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
+#include "xenia/base/mutex.h"
+
+#if defined(_WIN32)
+
+#include "xenia/base/platform_win.h"
+
+#endif
 
 DEFINE_bool(clock_no_scaling, false,
             "Disable scaling code. Time management and locking is bypassed. "
@@ -42,8 +49,19 @@ std::pair<uint64_t, uint64_t> guest_tick_ratio_ = std::make_pair(1, 1);
 uint64_t last_guest_tick_count_ = 0;
 // Last sampled host tick count.
 uint64_t last_host_tick_count_ = Clock::QueryHostTickCount();
+
+struct null_lock {
+ public:
+  static void lock() {}
+  static void unlock() {}
+  static bool try_lock() { return true; }
+};
+
+using tick_mutex_type = null_lock;  // xe::xe_mutex;
+
 // Mutex to ensure last_host_tick_count_ and last_guest_tick_count_ are in sync
-std::mutex tick_mutex_;
+// std::mutex tick_mutex_;
+static tick_mutex_type tick_mutex_;
 
 void RecomputeGuestTickScalar() {
   // Create a rational number with numerator (first) and denominator (second)
@@ -61,7 +79,7 @@ void RecomputeGuestTickScalar() {
   // Keep this a rational calculation and reduce the fraction
   reduce_fraction(frac);
 
-  std::lock_guard<std::mutex> lock(tick_mutex_);
+  std::lock_guard<tick_mutex_type> lock(tick_mutex_);
   guest_tick_ratio_ = frac;
 }
 
@@ -75,7 +93,7 @@ uint64_t UpdateGuestClock() {
     return host_tick_count * guest_tick_ratio_.first / guest_tick_ratio_.second;
   }
 
-  std::unique_lock<std::mutex> lock(tick_mutex_, std::defer_lock);
+  std::unique_lock<tick_mutex_type> lock(tick_mutex_, std::defer_lock);
   if (lock.try_lock()) {
     // Translate host tick count to guest tick count.
     uint64_t host_tick_delta = host_tick_count > last_host_tick_count_
@@ -107,7 +125,6 @@ inline uint64_t QueryGuestSystemTimeOffset() {
 
   return guest_tick_count * numerator / denominator;
 }
-
 uint64_t Clock::QueryHostTickFrequency() {
 #if XE_CLOCK_RAW_AVAILABLE
   if (cvars::clock_source_raw) {
@@ -137,7 +154,7 @@ void Clock::set_guest_time_scalar(double scalar) {
 }
 
 std::pair<uint64_t, uint64_t> Clock::guest_tick_ratio() {
-  std::lock_guard<std::mutex> lock(tick_mutex_);
+  std::lock_guard<tick_mutex_type> lock(tick_mutex_);
   return guest_tick_ratio_;
 }
 

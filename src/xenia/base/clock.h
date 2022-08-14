@@ -33,11 +33,15 @@ class Clock {
   // Either from platform suplied time source or from hardware directly.
   static uint64_t host_tick_frequency_platform();
 #if XE_CLOCK_RAW_AVAILABLE
+  XE_NOINLINE
   static uint64_t host_tick_frequency_raw();
 #endif
   // Host tick count. Generally QueryHostTickCount() should be used.
   static uint64_t host_tick_count_platform();
 #if XE_CLOCK_RAW_AVAILABLE
+  //chrispy: the way msvc was ordering the branches was causing rdtsc to be speculatively executed each time
+  //the branch history was lost
+  XE_NOINLINE
   static uint64_t host_tick_count_raw();
 #endif
 

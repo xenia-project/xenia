@@ -148,6 +148,7 @@ bool SetTlsValue(TlsHandle handle, uintptr_t value);
 // be kept short or else all timers will be impacted. This is a simplified
 // wrapper around QueueTimerRecurring which automatically cancels the timer on
 // destruction.
+//only used by XboxkrnlModule::XboxkrnlModule
 class HighResolutionTimer {
   HighResolutionTimer(std::chrono::milliseconds interval,
                       std::function<void()> callback) {
