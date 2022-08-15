@@ -507,7 +507,7 @@ dword_result_t MmQueryStatistics_entry(
   stats_ptr->size = size;
 
   stats_ptr->total_physical_pages = 0x00020000;  // 512mb / 4kb pages
-  stats_ptr->kernel_pages = 0x00000300;
+  stats_ptr->kernel_pages = 0x00000100; // Previous value 0x300
 
   uint32_t reserved_pages = 0;
   uint32_t unreserved_pages = 0;
