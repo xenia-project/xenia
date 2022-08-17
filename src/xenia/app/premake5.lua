@@ -20,7 +20,6 @@ project("xenia-app")
     "xenia-patcher",
     "xenia-ui",
     "xenia-ui-vulkan",
-    "xenia-patcher",
     "xenia-vfs",
   })
   links({

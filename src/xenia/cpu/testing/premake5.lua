@@ -12,6 +12,7 @@ test_suite("xenia-cpu-tests", project_root, ".", {
     -- TODO(benvanik): cut these dependencies?
     "xenia-kernel",
     "xenia-ui", -- needed by xenia-base
+    "xenia-patcher",
   },
   filtered_links = {
     {

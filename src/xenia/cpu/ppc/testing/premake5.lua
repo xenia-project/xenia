@@ -13,6 +13,8 @@ project("xenia-cpu-ppc-tests")
     "xenia-core",
     "xenia-cpu",
     "xenia-base",
+    "xenia-kernel",
+    "xenia-patcher",
   })
   files({
     "ppc_testing_main.cc",
