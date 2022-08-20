@@ -549,12 +549,12 @@ struct MAX_F64 : Sequence<MAX_F64, I<OPCODE_MAX, F64Op, F64Op, F64Op>> {
 struct MAX_V128 : Sequence<MAX_V128, I<OPCODE_MAX, V128Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.ChangeMxcsrMode(MXCSRMode::Vmx);
-
+	//if 0 and -0, return 0! opposite of minfp
     auto src1 = GetInputRegOrConstant(e, i.src1, e.xmm0);
     auto src2 = GetInputRegOrConstant(e, i.src2, e.xmm1);
     e.vmaxps(e.xmm2, src1, src2);
     e.vmaxps(e.xmm3, src2, src1);
-    e.vorps(i.dest, e.xmm2, e.xmm3);
+    e.vandps(i.dest, e.xmm2, e.xmm3);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_MAX, MAX_F32, MAX_F64, MAX_V128);
