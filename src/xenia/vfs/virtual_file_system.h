@@ -47,6 +47,7 @@ class VirtualFileSystem {
                     bool is_non_directory, File** out_file,
                     FileAction* out_action);
 
+  static X_STATUS ExtractFiles(Device* device, std::filesystem::path base_path);
  private:
   xe::global_critical_region global_critical_region_;
   std::vector<std::unique_ptr<Device>> devices_;
