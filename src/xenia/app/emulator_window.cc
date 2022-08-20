@@ -883,9 +883,9 @@ void EmulatorWindow::InstallContent() {
       // Normalize the path and make absolute.
       auto abs_path = std::filesystem::absolute(path);
       auto result = emulator_->InstallContentPackage(abs_path);
-      if (XFAILED(result)) {
+      if (result != X_STATUS_SUCCESS) {
         // TODO: Display a message box.
-        XELOGE("Failed to install content: {:08X}", result);
+        XELOGE("Failed to install content! Error code: {:08X}", result);
       }
     }
   }

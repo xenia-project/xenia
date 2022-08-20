@@ -374,7 +374,12 @@ X_STATUS Emulator::InstallContentPackage(const std::filesystem::path& path) {
     // TODO: Popup
     // Do you want to overwrite already existing data?
   } else {
-    std::filesystem::create_directories(installation_path / path.filename());
+    std::error_code error_code;
+    std::filesystem::create_directories(installation_path / path.filename(),
+                                        error_code);
+    if (error_code) {
+      return error_code.value();
+    }
   }
 
   // Run through all the files, breadth-first style.
@@ -396,7 +401,11 @@ X_STATUS Emulator::InstallContentPackage(const std::filesystem::path& path) {
     auto dest_name =
         installation_path / path.filename() / xe::to_path(entry->path());
     if (entry->attributes() & vfs::kFileAttributeDirectory) {
-      std::filesystem::create_directories(dest_name);
+      std::error_code error_code;
+      std::filesystem::create_directories(dest_name, error_code);
+      if (error_code) {
+        return error_code.value();
+      }
       continue;
     }
 
