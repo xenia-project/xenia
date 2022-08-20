@@ -156,6 +156,21 @@ class CommandProcessor {
   XE_FORCEINLINE
   virtual void WriteRegister(uint32_t index, uint32_t value);
 
+  // mem has big-endian register values
+  XE_FORCEINLINE
+  virtual void WriteRegistersFromMem(uint32_t start_index, uint32_t* base,
+                                     uint32_t num_registers);
+
+  XE_FORCEINLINE
+  virtual void WriteRegisterRangeFromRing(xe::RingBuffer* ring, uint32_t base,
+                                          uint32_t num_registers);
+
+  XE_FORCEINLINE
+  virtual void WriteOneRegisterFromRing(
+      xe::RingBuffer* ring, uint32_t base,
+      uint32_t
+          num_times);  // repeatedly write a value to one register, presumably a
+                       // register with special handling for writes
   const reg::DC_LUT_30_COLOR* gamma_ramp_256_entry_table() const {
     return gamma_ramp_256_entry_table_;
   }

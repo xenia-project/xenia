@@ -50,14 +50,8 @@ uint64_t last_guest_tick_count_ = 0;
 // Last sampled host tick count.
 uint64_t last_host_tick_count_ = Clock::QueryHostTickCount();
 
-struct null_lock {
- public:
-  static void lock() {}
-  static void unlock() {}
-  static bool try_lock() { return true; }
-};
 
-using tick_mutex_type = null_lock;  // xe::xe_mutex;
+using tick_mutex_type = xe_unlikely_mutex;  
 
 // Mutex to ensure last_host_tick_count_ and last_guest_tick_count_ are in sync
 // std::mutex tick_mutex_;
@@ -176,6 +170,7 @@ uint64_t Clock::QueryGuestTickCount() {
   return guest_tick_count;
 }
 
+uint64_t* Clock::GetGuestTickCountPointer() { return &last_guest_tick_count_; }
 uint64_t Clock::QueryGuestSystemTime() {
   if (cvars::clock_no_scaling) {
     return Clock::QueryHostSystemTime();

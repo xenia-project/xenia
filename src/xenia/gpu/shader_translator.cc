@@ -320,8 +320,7 @@ void Shader::GatherVertexFetchInformation(
   for (auto& vertex_binding : vertex_bindings_) {
     if (vertex_binding.fetch_constant == op.fetch_constant_index()) {
       // It may not hold that all strides are equal, but I hope it does.
-      assert_true(!fetch_instr.attributes.stride ||
-                  vertex_binding.stride_words == fetch_instr.attributes.stride);
+
       vertex_binding.attributes.push_back({});
       attrib = &vertex_binding.attributes.back();
       break;

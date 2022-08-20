@@ -10,7 +10,7 @@
 #include "xenia/cpu/backend/x64/x64_backend.h"
 
 #include <stddef.h>
-
+#include <algorithm>
 #include "third_party/capstone/include/capstone/capstone.h"
 #include "third_party/capstone/include/capstone/x86.h"
 
@@ -50,6 +50,9 @@ DEFINE_bool(record_mmio_access_exceptions, true,
             "for them. This info can then be used on a subsequent run to "
             "instruct the recompiler to emit checks",
             "CPU");
+#if XE_X64_PROFILER_AVAILABLE == 1
+DECLARE_bool(instrument_call_times);
+#endif
 
 namespace xe {
 namespace cpu {
@@ -96,6 +99,68 @@ static void ForwardMMIOAccessForRecording(void* context, void* hostaddr) {
   reinterpret_cast<X64Backend*>(context)
       ->RecordMMIOExceptionForGuestInstruction(hostaddr);
 }
+#if XE_X64_PROFILER_AVAILABLE == 1
+// todo: better way of passing to atexit. maybe do in destructor instead?
+// nope, destructor is never called
+static GuestProfilerData* backend_profiler_data = nullptr;
+
+static uint64_t nanosecond_lifetime_start = 0;
+static void WriteGuestProfilerData() {
+  if (cvars::instrument_call_times) {
+    uint64_t end = Clock::QueryHostSystemTime();
+
+    uint64_t total = end - nanosecond_lifetime_start;
+
+    double totaltime_divisor = static_cast<double>(total);
+
+    FILE* output_file = nullptr;
+    std::vector<std::pair<uint32_t, uint64_t>> unsorted_profile{};
+    for (auto&& entry : *backend_profiler_data) {
+      if (entry.second) {  // skip times of 0
+        unsorted_profile.emplace_back(entry.first, entry.second);
+      }
+    }
+
+    std::sort(unsorted_profile.begin(), unsorted_profile.end(),
+              [](auto& x, auto& y) { return x.second < y.second; });
+
+    fopen_s(&output_file, "profile_times.txt", "w");
+    FILE* idapy_file = nullptr;
+    fopen_s(&idapy_file, "profile_print_times.py", "w");
+
+    for (auto&& sorted_entry : unsorted_profile) {
+      // double time_in_seconds =
+      //    static_cast<double>(sorted_entry.second) / 10000000.0;
+      double time_in_milliseconds =
+          static_cast<double>(sorted_entry.second) / (10000000.0 / 1000.0);
+
+      double slice = static_cast<double>(sorted_entry.second) /
+                     static_cast<double>(totaltime_divisor);
+
+      fprintf(output_file,
+              "%X took %.20f milliseconds, totaltime slice percentage %.20f \n",
+              sorted_entry.first, time_in_milliseconds, slice);
+
+      fprintf(idapy_file,
+              "print(get_name(0x%X) + ' took %.20f ms, %.20f percent')\n",
+              sorted_entry.first, time_in_milliseconds, slice);
+    }
+
+    fclose(output_file);
+    fclose(idapy_file);
+  }
+}
+
+static void GuestProfilerUpdateThreadProc() {
+  nanosecond_lifetime_start = Clock::QueryHostSystemTime();
+
+  do {
+    xe::threading::Sleep(std::chrono::seconds(30));
+    WriteGuestProfilerData();
+  } while (true);
+}
+static std::unique_ptr<xe::threading::Thread> g_profiler_update_thread{};
+#endif
 
 bool X64Backend::Initialize(Processor* processor) {
   if (!Backend::Initialize(processor)) {
@@ -159,6 +224,21 @@ bool X64Backend::Initialize(Processor* processor) {
 
   processor->memory()->SetMMIOExceptionRecordingCallback(
       ForwardMMIOAccessForRecording, (void*)this);
+
+#if XE_X64_PROFILER_AVAILABLE == 1
+  if (cvars::instrument_call_times) {
+    backend_profiler_data = &profiler_data_;
+    xe::threading::Thread::CreationParameters slimparams;
+
+    slimparams.create_suspended = false;
+    slimparams.initial_priority = xe::threading::ThreadPriority::kLowest;
+    slimparams.stack_size = 65536 * 4;
+
+    g_profiler_update_thread = std::move(xe::threading::Thread::Create(
+        slimparams, GuestProfilerUpdateThreadProc));
+  }
+#endif
+
   return true;
 }
 
@@ -734,6 +814,7 @@ void X64Backend::InitializeBackendContext(void* ctx) {
   bctx->flags = 0;
   // https://media.discordapp.net/attachments/440280035056943104/1000765256643125308/unknown.png
   bctx->Ox1000 = 0x1000;
+  bctx->guest_tick_count = Clock::GetGuestTickCountPointer();
 }
 const uint32_t mxcsr_table[8] = {
     0x1F80, 0x7F80, 0x5F80, 0x3F80, 0x9F80, 0xFF80, 0xDF80, 0xBF80,
@@ -747,6 +828,23 @@ void X64Backend::SetGuestRoundingMode(void* ctx, unsigned int mode) {
   bctx->mxcsr_fpu = mxcsr_table[control];
   ((ppc::PPCContext*)ctx)->fpscr.bits.rn = control;
 }
+
+#if XE_X64_PROFILER_AVAILABLE == 1
+uint64_t* X64Backend::GetProfilerRecordForFunction(uint32_t guest_address) {
+  // who knows, we might want to compile different versions of a function one
+  // day
+  auto entry = profiler_data_.find(guest_address);
+
+  if (entry != profiler_data_.end()) {
+    return &entry->second;
+  } else {
+    profiler_data_[guest_address] = 0;
+
+    return &profiler_data_[guest_address];
+  }
+}
+
+#endif
 }  // namespace x64
 }  // namespace backend
 }  // namespace cpu

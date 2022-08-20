@@ -29,10 +29,20 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
 
+#if defined(NDEBUG)
+static constexpr bool should_log_unknown_reg_writes() { return false; }
+
+#else
+
 DEFINE_bool(log_unknown_register_writes, false,
             "Log writes to unknown registers from "
             "CommandProcessor::WriteRegister. Has significant performance hit.",
             "GPU");
+static bool should_log_unknown_reg_writes() {
+  return cvars::log_unknown_register_writes;
+}
+#endif
+
 namespace xe {
 namespace gpu {
 
@@ -465,7 +475,7 @@ void CommandProcessor::HandleSpecialRegisterWrite(uint32_t index,
   }
 }
 void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
-  if (XE_UNLIKELY(cvars::log_unknown_register_writes)) {
+  if (should_log_unknown_reg_writes()) {
     // chrispy: rearrange check order, place set after checks
     if (XE_UNLIKELY(!register_file_->IsValidRegister(index))) {
       XELOGW("GPU: Write to unknown register ({:04X} = {:08X})", index, value);
@@ -498,15 +508,40 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
                   (index == XE_GPU_REG_COHER_STATUS_HOST) |
                   ((index - XE_GPU_REG_DC_LUT_RW_INDEX) <=
                    (XE_GPU_REG_DC_LUT_30_COLOR - XE_GPU_REG_DC_LUT_RW_INDEX));
-  //chrispy: reordered for msvc branch probability (assumes if is taken and else is not)
+  // chrispy: reordered for msvc branch probability (assumes if is taken and
+  // else is not)
   if (XE_LIKELY(expr == 0)) {
-  
   } else {
     HandleSpecialRegisterWrite(index, value);
   }
-
+}
+void CommandProcessor::WriteRegistersFromMem(uint32_t start_index,
+                                             uint32_t* base,
+                                             uint32_t num_registers) {
+  for (uint32_t i = 0; i < num_registers; ++i) {
+    uint32_t data = xe::load_and_swap<uint32_t>(base + i);
+    this->WriteRegister(start_index + i, data);
+  }
 }
 
+void CommandProcessor::WriteRegisterRangeFromRing(xe::RingBuffer* ring,
+                                                  uint32_t base,
+                                                  uint32_t num_registers) {
+  for (uint32_t i = 0; i < num_registers; ++i) {
+    uint32_t data = ring->ReadAndSwap<uint32_t>();
+    WriteRegister(base + i, data);
+  }
+}
+
+void CommandProcessor::WriteOneRegisterFromRing(xe::RingBuffer* ring,
+                                                uint32_t base,
+                                                uint32_t num_times) {
+  for (uint32_t m = 0; m < num_times; m++) {
+    uint32_t reg_data = ring->ReadAndSwap<uint32_t>();
+    uint32_t target_index = base;
+    WriteRegister(target_index, reg_data);
+  }
+}
 void CommandProcessor::MakeCoherent() {
   SCOPE_profile_cpu_f("gpu");
 
@@ -628,15 +663,20 @@ void CommandProcessor::ExecutePacket(uint32_t ptr, uint32_t count) {
 }
 
 bool CommandProcessor::ExecutePacket(RingBuffer* reader) {
+  // prefetch the wraparound range
+  // it likely is already in L3 cache, but in a zen system it may be another
+  // chiplets l3
+  reader->BeginPrefetchedRead<swcache::PrefetchTag::Level2>(
+      reader->read_count());
   const uint32_t packet = reader->ReadAndSwap<uint32_t>();
   const uint32_t packet_type = packet >> 30;
-  if (packet == 0 || packet == 0x0BADF00D) {
+  if (XE_UNLIKELY(packet == 0 || packet == 0x0BADF00D)) {
     trace_writer_.WritePacketStart(uint32_t(reader->read_ptr() - 4), 1);
     trace_writer_.WritePacketEnd();
     return true;
   }
 
-  if (packet == 0xCDCDCDCD) {
+  if (XE_UNLIKELY(packet == 0xCDCDCDCD)) {
     XELOGW("GPU packet is CDCDCDCD - probably read uninitialized memory!");
   }
 
@@ -672,10 +712,10 @@ bool CommandProcessor::ExecutePacketType0(RingBuffer* reader, uint32_t packet) {
 
   uint32_t base_index = (packet & 0x7FFF);
   uint32_t write_one_reg = (packet >> 15) & 0x1;
-  for (uint32_t m = 0; m < count; m++) {
-    uint32_t reg_data = reader->ReadAndSwap<uint32_t>();
-    uint32_t target_index = write_one_reg ? base_index : base_index + m;
-    WriteRegister(target_index, reg_data);
+  if (write_one_reg) {
+    WriteOneRegisterFromRing(reader, base_index, count);
+  } else {
+    WriteRegisterRangeFromRing(reader, base_index, count);
   }
 
   trace_writer_.WritePacketEnd();
@@ -939,7 +979,7 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingBuffer* reader,
                                                   uint32_t count) {
   SCOPE_profile_cpu_f("gpu");
 
-  XELOGI("XE_SWAP");
+  XELOGD("XE_SWAP");
 
   Profiler::Flip();
 
@@ -1472,10 +1512,9 @@ bool CommandProcessor::ExecutePacketType3_SET_CONSTANT(RingBuffer* reader,
       reader->AdvanceRead((count - 1) * sizeof(uint32_t));
       return true;
   }
-  for (uint32_t n = 0; n < count - 1; n++, index++) {
-    uint32_t data = reader->ReadAndSwap<uint32_t>();
-    WriteRegister(index, data);
-  }
+
+  WriteRegisterRangeFromRing(reader, index, count - 1);
+
   return true;
 }
 
@@ -1484,10 +1523,9 @@ bool CommandProcessor::ExecutePacketType3_SET_CONSTANT2(RingBuffer* reader,
                                                         uint32_t count) {
   uint32_t offset_type = reader->ReadAndSwap<uint32_t>();
   uint32_t index = offset_type & 0xFFFF;
-  for (uint32_t n = 0; n < count - 1; n++, index++) {
-    uint32_t data = reader->ReadAndSwap<uint32_t>();
-    WriteRegister(index, data);
-  }
+
+  WriteRegisterRangeFromRing(reader, index, count - 1);
+
   return true;
 }
 
@@ -1522,12 +1560,12 @@ bool CommandProcessor::ExecutePacketType3_LOAD_ALU_CONSTANT(RingBuffer* reader,
       assert_always();
       return true;
   }
+
   trace_writer_.WriteMemoryRead(CpuToGpu(address), size_dwords * 4);
-  for (uint32_t n = 0; n < size_dwords; n++, index++) {
-    uint32_t data = xe::load_and_swap<uint32_t>(
-        memory_->TranslatePhysical(address + n * 4));
-    WriteRegister(index, data);
-  }
+
+  WriteRegistersFromMem(index, (uint32_t*)memory_->TranslatePhysical(address),
+                        size_dwords);
+
   return true;
 }
 
@@ -1535,10 +1573,9 @@ bool CommandProcessor::ExecutePacketType3_SET_SHADER_CONSTANTS(
     RingBuffer* reader, uint32_t packet, uint32_t count) {
   uint32_t offset_type = reader->ReadAndSwap<uint32_t>();
   uint32_t index = offset_type & 0xFFFF;
-  for (uint32_t n = 0; n < count - 1; n++, index++) {
-    uint32_t data = reader->ReadAndSwap<uint32_t>();
-    WriteRegister(index, data);
-  }
+
+  WriteRegisterRangeFromRing(reader, index, count - 1);
+
   return true;
 }
 

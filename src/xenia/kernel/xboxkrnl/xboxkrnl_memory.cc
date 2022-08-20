@@ -121,7 +121,8 @@ dword_result_t NtAllocateVirtualMemory_entry(lpdword_t base_addr_ptr,
                                ? -int32_t(region_size_ptr.value())
                                : region_size_ptr.value();
 
-  adjusted_size = xe::round_up(adjusted_size, adjusted_base ? page_size : 64 * 1024);
+  adjusted_size =
+      xe::round_up(adjusted_size, adjusted_base ? page_size : 64 * 1024);
 
   // Allocate.
   uint32_t allocation_type = 0;
@@ -295,10 +296,19 @@ struct X_MEMORY_BASIC_INFORMATION {
   be<uint32_t> protect;
   be<uint32_t> type;
 };
-
+// chrispy: added region_type ? guessed name, havent seen any except 0 used
 dword_result_t NtQueryVirtualMemory_entry(
     dword_t base_address,
-    pointer_t<X_MEMORY_BASIC_INFORMATION> memory_basic_information_ptr) {
+    pointer_t<X_MEMORY_BASIC_INFORMATION> memory_basic_information_ptr,
+    dword_t region_type) {
+  switch (region_type) {
+    case 0:
+    case 1:
+    case 2:
+      break;
+    default:
+      return X_STATUS_INVALID_PARAMETER;
+  }
   auto heap = kernel_state()->memory()->LookupHeap(base_address);
   HeapAllocationInfo alloc_info;
   if (heap == nullptr || !heap->QueryRegionInfo(base_address, &alloc_info)) {
@@ -373,8 +383,9 @@ dword_result_t MmAllocatePhysicalMemoryEx_entry(
   // min_addr_range/max_addr_range are bounds in physical memory, not virtual.
   uint32_t heap_base = heap->heap_base();
   uint32_t heap_physical_address_offset = heap->GetPhysicalAddress(heap_base);
-  // TODO(Gliniak): Games like 545108B4 compares min_addr_range with value returned.
-  // 0x1000 offset causes it to go below that minimal range and goes haywire
+  // TODO(Gliniak): Games like 545108B4 compares min_addr_range with value
+  // returned. 0x1000 offset causes it to go below that minimal range and goes
+  // haywire
   if (min_addr_range && max_addr_range) {
     heap_physical_address_offset = 0;
   }

@@ -14,8 +14,8 @@
 #include <mutex>
 #include <string>
 
-#include "xenia/base/vec128.h"
 #include "xenia/base/mutex.h"
+#include "xenia/base/vec128.h"
 namespace xe {
 namespace cpu {
 class Processor;
@@ -390,8 +390,10 @@ typedef struct alignas(64) PPCContext_s {
   // These are split to make it easier to do DCE on unused stores.
   uint64_t cr() const;
   void set_cr(uint64_t value);
-
+  // todo: remove, saturation should be represented by a vector
   uint8_t vscr_sat;
+
+  uint32_t vrsave;
 
   // uint32_t get_fprf() {
   //   return fpscr.value & 0x000F8000;

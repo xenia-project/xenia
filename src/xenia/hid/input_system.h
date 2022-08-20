@@ -12,7 +12,7 @@
 
 #include <memory>
 #include <vector>
-
+#include "xenia/base/mutex.h"
 #include "xenia/hid/input.h"
 #include "xenia/hid/input_driver.h"
 #include "xenia/xbox.h"
@@ -48,6 +48,8 @@ class InputSystem {
   void UpdateUsedSlot(uint8_t slot, bool connected);
   uint8_t GetConnectedSlots() const { return connected_slot; }
 
+  std::unique_lock<xe_unlikely_mutex> lock();
+
  private:
   xe::ui::Window* window_ = nullptr;
 
@@ -55,6 +57,7 @@ class InputSystem {
 
   X_INPUT_VIBRATION ModifyVibrationLevel(X_INPUT_VIBRATION* vibration);
   uint8_t connected_slot = 0b0001;
+  xe_unlikely_mutex lock_;
 };
 
 }  // namespace hid

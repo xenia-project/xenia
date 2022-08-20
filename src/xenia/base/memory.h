@@ -466,9 +466,11 @@ constexpr inline fourcc_t make_fourcc(const std::string_view fourcc) {
   }
   return make_fourcc(fourcc[0], fourcc[1], fourcc[2], fourcc[3]);
 }
-//chrispy::todo:use for command stream vector, resize happens a ton and has to call memset
+
+// chrispy::todo:use for command stream vector, resize happens a ton and has to
+// call memset
 template <size_t sz>
-class fixed_vmem_vector {
+class FixedVMemVector {
   static_assert((sz & 65535) == 0,
                 "Always give fixed_vmem_vector a size divisible by 65536 to "
                 "avoid wasting memory on windows");
@@ -477,12 +479,12 @@ class fixed_vmem_vector {
   size_t nbytes_;
 
  public:
-  fixed_vmem_vector()
+  FixedVMemVector()
       : data_((uint8_t*)memory::AllocFixed(
             nullptr, sz, memory::AllocationType::kReserveCommit,
             memory::PageAccess::kReadWrite)),
         nbytes_(0) {}
-  ~fixed_vmem_vector() {
+  ~FixedVMemVector() {
     if (data_) {
       memory::DeallocFixed(data_, sz, memory::DeallocationType::kRelease);
       data_ = nullptr;
@@ -503,13 +505,221 @@ class fixed_vmem_vector {
     resize(0);  // todo:maybe zero out
   }
   void reserve(size_t size) { xenia_assert(size < sz); }
-
-
 };
+// software prefetches/cache operations
+namespace swcache {
+/*
+        warning, prefetchw's current behavior is not consistent across msvc and
+   clang, for clang it will only compile to prefetchw if the set architecture
+   supports it, for msvc however it will unconditionally compile to prefetchw!
+        so prefetchw support is still in process
+
+
+        only use these if you're absolutely certain you know what you're doing;
+   you can easily tank performance through misuse CPUS have excellent automatic
+   prefetchers that can predict patterns, but in situations where memory
+   accesses are super unpredictable and follow no pattern you can make use of
+   them
+
+        another scenario where it can be handy is when crossing page boundaries,
+   as many automatic prefetchers do not allow their streams to cross pages (no
+   idea what this means for huge pages)
+
+        I believe software prefetches do not kick off an automatic prefetcher
+   stream, so you can't just prefetch one line of the data you're about to
+   access and be fine, you need to go all the way
+
+        prefetchnta is implementation dependent, and that makes its use a bit
+   limited. For intel cpus, i believe it only prefetches the line into one way
+   of the L3
+
+        for amd cpus, it marks the line as requiring immediate eviction, the
+   next time an entry is needed in the set it resides in it will be evicted. ms
+   does dumb shit for memcpy, like looping over the contents of the source
+   buffer and doing prefetchnta on them, likely evicting some of the data they
+   just prefetched by the end of the buffer, and probably messing up data that
+   was already in the cache
+
+
+        another warning for these: this bypasses what i think is called
+   "critical word load", the data will always become available starting from the
+   very beginning of the line instead of from the piece that is needed
+
+        L1I cache is not prefetchable, however likely all cpus can fulfill
+   requests for the L1I from L2, so prefetchL2 on instructions should be fine
+
+        todo: clwb, clflush
+*/
+#if XE_COMPILER_HAS_GNU_EXTENSIONS == 1
+
+XE_FORCEINLINE
+static void PrefetchW(const void* addr) { __builtin_prefetch(addr, 1, 0); }
+XE_FORCEINLINE
+
+static void PrefetchNTA(const void* addr) { __builtin_prefetch(addr, 0, 0); }
+XE_FORCEINLINE
+
+static void PrefetchL3(const void* addr) { __builtin_prefetch(addr, 0, 1); }
+XE_FORCEINLINE
+
+static void PrefetchL2(const void* addr) { __builtin_prefetch(addr, 0, 2); }
+XE_FORCEINLINE
+
+static void PrefetchL1(const void* addr) { __builtin_prefetch(addr, 0, 3); }
+#elif XE_ARCH_AMD64 == 1 && XE_COMPILER_MSVC == 1
+XE_FORCEINLINE
+static void PrefetchW(const void* addr) { _m_prefetchw(addr); }
+
+XE_FORCEINLINE
+static void PrefetchNTA(const void* addr) {
+  _mm_prefetch((const char*)addr, _MM_HINT_NTA);
+}
+XE_FORCEINLINE
+
+static void PrefetchL3(const void* addr) {
+  _mm_prefetch((const char*)addr, _MM_HINT_T2);
+}
+XE_FORCEINLINE
+
+static void PrefetchL2(const void* addr) {
+  _mm_prefetch((const char*)addr, _MM_HINT_T1);
+}
+XE_FORCEINLINE
+
+static void PrefetchL1(const void* addr) {
+  _mm_prefetch((const char*)addr, _MM_HINT_T0);
+}
+
+#else
+XE_FORCEINLINE
+static void PrefetchW(const void* addr) {}
+
+XE_FORCEINLINE
+static void PrefetchNTA(const void* addr) {}
+XE_FORCEINLINE
+
+static void PrefetchL3(const void* addr) {}
+XE_FORCEINLINE
+
+static void PrefetchL2(const void* addr) {}
+XE_FORCEINLINE
+
+static void PrefetchL1(const void* addr) {}
+
+#endif
+
+enum class PrefetchTag { Write, Nontemporal, Level3, Level2, Level1 };
+
+template <PrefetchTag tag>
+static void Prefetch(const void* addr) {
+  static_assert(false, "Unknown tag");
+}
+
+template <>
+static void Prefetch<PrefetchTag::Write>(const void* addr) {
+  PrefetchW(addr);
+}
+template <>
+static void Prefetch<PrefetchTag::Nontemporal>(const void* addr) {
+  PrefetchNTA(addr);
+}
+template <>
+static void Prefetch<PrefetchTag::Level3>(const void* addr) {
+  PrefetchL3(addr);
+}
+template <>
+static void Prefetch<PrefetchTag::Level2>(const void* addr) {
+  PrefetchL2(addr);
+}
+template <>
+static void Prefetch<PrefetchTag::Level1>(const void* addr) {
+  PrefetchL1(addr);
+}
+// todo: does aarch64 have streaming stores/loads?
+
+/*
+        non-temporal stores/loads
+
+        the stores allow cacheable memory to behave like write-combining memory.
+        on the first nt store to a line, an intermediate buffer will be
+   allocated by the cpu for stores that come after. once the entire contents of
+   the line have been written the intermediate buffer will be transmitted to
+   memory
+
+        the written line will not be cached and if it is in the cache it will be
+   invalidated from all levels of the hierarchy
+
+        the cpu in this case does not have to read line from memory when we
+   first write to it if it is not anywhere in the cache, so we use half the
+   memory bandwidth using these stores
+
+        non-temporal loads are... loads, but they dont use the cache. you need
+   to manually insert memory barriers (_ReadWriteBarrier, ReadBarrier, etc, do
+   not use any barriers that generate actual code) if on msvc to prevent it from
+   moving the load of the data to just before the use of the data (immediately
+   requiring the memory to be available = big stall)
 
 
 
+*/
 
+#if XE_COMPILER_MSVC == 1 && XE_COMPILER_CLANG_CL == 0
+#define XE_MSVC_REORDER_BARRIER _ReadWriteBarrier
+
+#else
+// if the compiler actually has pipelining for instructions we dont need a
+// barrier
+#define XE_MSVC_REORDER_BARRIER() static_cast<void>(0)
+#endif
+#if XE_ARCH_AMD64 == 1
+
+XE_FORCEINLINE
+static void WriteLineNT(void* destination, const void* source) {
+  assert((reinterpret_cast<uintptr_t>(destination) & 63ULL) == 0);
+  __m256i low = _mm256_loadu_si256((const __m256i*)source);
+  __m256i high = _mm256_loadu_si256(&((const __m256i*)source)[1]);
+  XE_MSVC_REORDER_BARRIER();
+  _mm256_stream_si256((__m256i*)destination, low);
+  _mm256_stream_si256(&((__m256i*)destination)[1], high);
+}
+
+XE_FORCEINLINE
+static void ReadLineNT(void* destination, const void* source) {
+  assert((reinterpret_cast<uintptr_t>(source) & 63ULL) == 0);
+  __m256i low = _mm256_stream_load_si256((const __m256i*)source);
+  __m256i high = _mm256_stream_load_si256(&((const __m256i*)source)[1]);
+  XE_MSVC_REORDER_BARRIER();
+  _mm256_storeu_si256((__m256i*)destination, low);
+  _mm256_storeu_si256(&((__m256i*)destination)[1], high);
+}
+
+XE_FORCEINLINE
+static void WriteFence() { _mm_sfence(); }
+XE_FORCEINLINE
+static void ReadFence() { _mm_lfence(); }
+XE_FORCEINLINE
+static void ReadWriteFence() { _mm_mfence(); }
+#else
+
+XE_FORCEINLINE
+static void WriteLineNT(void* destination, const void* source) {
+  assert((reinterpret_cast<uintptr_t>(destination) & 63ULL) == 0);
+  memcpy(destination, source, 64);
+}
+
+XE_FORCEINLINE
+static void ReadLineNT(void* destination, const void* source) {
+  assert((reinterpret_cast<uintptr_t>(source) & 63ULL) == 0);
+  memcpy(destination, source, 64);
+}
+XE_FORCEINLINE
+static void WriteFence() {}
+XE_FORCEINLINE
+static void ReadFence() {}
+XE_FORCEINLINE
+static void ReadWriteFence() {}
+#endif
+}  // namespace swcache
 }  // namespace xe
 
 #endif  // XENIA_BASE_MEMORY_H_

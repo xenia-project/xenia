@@ -45,7 +45,7 @@ namespace xe {
 namespace gpu {
 namespace vulkan {
 
-class VulkanCommandProcessor : public CommandProcessor {
+class VulkanCommandProcessor final : public CommandProcessor {
  public:
   // Single-descriptor layouts for use within a single frame.
   enum class SingleTransientDescriptorLayout {
@@ -259,8 +259,11 @@ class VulkanCommandProcessor : public CommandProcessor {
  protected:
   bool SetupContext() override;
   void ShutdownContext() override;
-
+  XE_FORCEINLINE
   void WriteRegister(uint32_t index, uint32_t value) override;
+  XE_FORCEINLINE
+  virtual void WriteRegistersFromMem(uint32_t start_index, uint32_t* base,
+                                     uint32_t num_registers) override;
 
   void OnGammaRamp256EntryTableValueWritten() override;
   void OnGammaRampPWLValueWritten() override;

@@ -74,6 +74,8 @@ class Clock {
   // Queries the current guest tick count, accounting for frequency adjustment
   // and scaling.
   static uint64_t QueryGuestTickCount();
+
+  static uint64_t* GetGuestTickCountPointer();
   // Queries the guest time, in FILETIME format, accounting for scaling.
   static uint64_t QueryGuestSystemTime();
   // Queries the milliseconds since the guest began, accounting for scaling.

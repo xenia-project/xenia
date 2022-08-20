@@ -57,6 +57,12 @@ DEFINE_bool(enable_incorrect_roundingmode_behavior, false,
             "code. The workaround may cause reduced CPU performance but is a "
             "more accurate emulation",
             "x64");
+
+#if XE_X64_PROFILER_AVAILABLE == 1
+DEFINE_bool(instrument_call_times, false,
+            "Compute time taken for functions, for profiling guest code",
+            "x64");
+#endif
 namespace xe {
 namespace cpu {
 namespace backend {
@@ -120,28 +126,37 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
 */
   unsigned int data[4];
   Xbyak::util::Cpu::getCpuid(0x80000001, data);
-  if (data[2] & (1U << 5)) {
+  unsigned amd_flags = data[2];
+  if (amd_flags & (1U << 5)) {
     if ((cvars::x64_extension_mask & kX64EmitLZCNT) == kX64EmitLZCNT) {
       feature_flags_ |= kX64EmitLZCNT;
     }
   }
+  // todo: although not reported by cpuid, zen 1 and zen+ also have fma4
+  if (amd_flags & (1U << 16)) {
+    if ((cvars::x64_extension_mask & kX64EmitFMA4) == kX64EmitFMA4) {
+      feature_flags_ |= kX64EmitFMA4;
+    }
+  }
+  if (amd_flags & (1U << 21)) {
+    if ((cvars::x64_extension_mask & kX64EmitTBM) == kX64EmitTBM) {
+      feature_flags_ |= kX64EmitTBM;
+    }
+  }
   if (cpu_.has(Xbyak::util::Cpu::tAMD)) {
     bool is_zennish = cpu_.displayFamily >= 0x17;
-
+    /*
+                chrispy: according to agner's tables, all amd architectures that
+       we support (ones with avx) have the same timings for
+       jrcxz/loop/loope/loopne as for other jmps
+        */
+    feature_flags_ |= kX64FastJrcx;
+    feature_flags_ |= kX64FastLoop;
     if (is_zennish) {
       // ik that i heard somewhere that this is the case for zen, but i need to
       // verify. cant find my original source for that.
       // todo: ask agner?
       feature_flags_ |= kX64FlagsIndependentVars;
-      feature_flags_ |= kX64FastJrcx;
-
-      if (cpu_.displayFamily > 0x17) {
-        feature_flags_ |= kX64FastLoop;
-
-      } else if (cpu_.displayFamily == 0x17 && cpu_.displayModel >= 0x31) {
-        feature_flags_ |= kX64FastLoop;
-      }  // todo:figure out at model zen+ became zen2, this is just the model
-         // for my cpu, which is ripper90
     }
   }
   may_use_membase32_as_zero_reg_ =
@@ -157,6 +172,7 @@ bool X64Emitter::Emit(GuestFunction* function, HIRBuilder* builder,
                       std::vector<SourceMapEntry>* out_source_map) {
   SCOPE_profile_cpu_f("cpu");
   guest_module_ = dynamic_cast<XexModule*>(function->module());
+  current_guest_function_ = function->address();
   // Reset.
   debug_info_ = debug_info;
   debug_info_flags_ = debug_info_flags;
@@ -286,10 +302,19 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   * chrispy: removed this, it serves no purpose
   mov(qword[rsp + StackLayout::GUEST_CTX_HOME], GetContextReg());
   */
+
   mov(qword[rsp + StackLayout::GUEST_RET_ADDR], rcx);
 
   mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], rax);  // 0
 
+#if XE_X64_PROFILER_AVAILABLE == 1
+  if (cvars::instrument_call_times) {
+    mov(rdx, 0x7ffe0014);  // load pointer to kusershared systemtime
+    mov(rdx, qword[rdx]);
+    mov(qword[rsp + StackLayout::GUEST_PROFILER_START],
+        rdx);  // save time for end of function
+  }
+#endif
   // Safe now to do some tracing.
   if (debug_info_flags_ & DebugInfoFlags::kDebugInfoTraceFunctions) {
     // We require 32-bit addresses.
@@ -363,6 +388,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   mov(GetContextReg(), qword[rsp + StackLayout::GUEST_CTX_HOME]);
   */
   code_offsets.epilog = getSize();
+  EmitProfilerEpilogue();
 
   add(rsp, (uint32_t)stack_size);
   ret();
@@ -390,6 +416,27 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
       code_offsets.prolog_stack_alloc - code_offsets.prolog;
 
   return true;
+}
+// dont use rax, we do this in tail call handling
+void X64Emitter::EmitProfilerEpilogue() {
+#if XE_X64_PROFILER_AVAILABLE == 1
+  if (cvars::instrument_call_times) {
+    uint64_t* profiler_entry =
+        backend()->GetProfilerRecordForFunction(current_guest_function_);
+    mov(ecx, 0x7ffe0014);
+    mov(rdx, qword[rcx]);
+    mov(rbx, (uintptr_t)profiler_entry);
+    sub(rdx, qword[rsp + StackLayout::GUEST_PROFILER_START]);
+
+    // atomic add our time to the profiler entry
+    // this could be atomic free if we had per thread profile counts, and on a
+    // threads exit we lock and sum up to the global counts, which would make
+    // this a few cycles less intrusive, but its good enough for now
+    //  actually... lets just try without atomics lol
+    // lock();
+    add(qword[rbx], rdx);
+  }
+#endif
 }
 
 void X64Emitter::MarkSourceOffset(const Instr* i) {
@@ -558,7 +605,7 @@ void X64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
   if (instr->flags & hir::CALL_TAIL) {
     // Since we skip the prolog we need to mark the return here.
     EmitTraceUserCallReturn();
-
+    EmitProfilerEpilogue();
     // Pass the callers return address over.
     mov(rcx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
 
@@ -602,7 +649,7 @@ void X64Emitter::CallIndirect(const hir::Instr* instr,
   if (instr->flags & hir::CALL_TAIL) {
     // Since we skip the prolog we need to mark the return here.
     EmitTraceUserCallReturn();
-
+    EmitProfilerEpilogue();
     // Pass the callers return address over.
     mov(rcx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
 
@@ -952,7 +999,34 @@ static const vec128_t xmm_consts[] = {
     /*XMMVSRShlByteshuf*/
     v128_setr_bytes(13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3, 0x80),
     // XMMVSRMask
-    vec128b(1)};
+    vec128b(1),
+    /*
+        XMMF16UnpackLCPI2
+        */
+
+    vec128i(0x38000000),
+    /*
+                XMMF16UnpackLCPI3
+        */
+    vec128q(0x7fe000007fe000ULL),
+
+    /* XMMF16PackLCPI0*/
+    vec128i(0x8000000),
+    /*XMMF16PackLCPI2*/
+    vec128i(0x47ffe000),
+    /*XMMF16PackLCPI3*/
+    vec128i(0xc7800000),
+    /*XMMF16PackLCPI4
+     */
+    vec128i(0xf7fdfff),
+    /*XMMF16PackLCPI5*/
+    vec128i(0x7fff),
+    /*
+    XMMF16PackLCPI6
+    */
+    vec128i(0x8000)
+
+};
 
 void* X64Emitter::FindByteConstantOffset(unsigned bytevalue) {
   for (auto& vec : xmm_consts) {

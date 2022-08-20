@@ -979,7 +979,12 @@ void EmulatorWindow::ToggleDisplayConfigDialog() {
 }
 
 void EmulatorWindow::ToggleControllerVibration() {
-  emulator()->input_system()->ToggleVibration();
+  auto input_sys = emulator()->input_system();
+  if (input_sys) {
+    auto input_lock = input_sys->lock();
+
+    input_sys->ToggleVibration();
+  }
 }
 
 void EmulatorWindow::ShowCompatibility() {

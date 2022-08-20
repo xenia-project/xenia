@@ -948,7 +948,11 @@ bool KernelState::Restore(ByteStream* stream) {
 }
 
 uint8_t KernelState::GetConnectedUsers() const {
-  return emulator_->input_system()->GetConnectedSlots();
+  auto input_sys = emulator_->input_system();
+
+  auto lock = input_sys->lock();
+
+  return input_sys->GetConnectedSlots();
 }
 
 void KernelState::UpdateUsedUserProfiles() {

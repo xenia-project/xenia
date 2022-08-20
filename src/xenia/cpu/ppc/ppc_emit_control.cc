@@ -16,6 +16,12 @@
 #include "xenia/cpu/ppc/ppc_hir_builder.h"
 
 #include <stddef.h>
+// chrispy: added this, we can have simpler control flow and do dce on the
+// inputs
+DEFINE_bool(ignore_trap_instructions, true,
+            "Generate no code for powerpc trap instructions, can result in "
+            "better performance in games that aggressively check with trap.",
+            "CPU");
 
 namespace xe {
 namespace cpu {
@@ -449,6 +455,9 @@ constexpr uint32_t TRAP_SLT = 1 << 4, TRAP_SGT = 1 << 3, TRAP_EQ = 1 << 2,
 
 int InstrEmit_trap(PPCHIRBuilder& f, const InstrData& i, Value* va, Value* vb,
                    uint32_t TO) {
+  if (cvars::ignore_trap_instructions) {
+    return 0;
+  }
   // if (a < b) & TO[0] then TRAP
   // if (a > b) & TO[1] then TRAP
   // if (a = b) & TO[2] then TRAP
@@ -521,6 +530,9 @@ int InstrEmit_trap(PPCHIRBuilder& f, const InstrData& i, Value* va, Value* vb,
 }
 
 int InstrEmit_td(PPCHIRBuilder& f, const InstrData& i) {
+  if (cvars::ignore_trap_instructions) {
+    return 0;
+  }
   // a <- (RA)
   // b <- (RB)
   // if (a < b) & TO[0] then TRAP
@@ -534,6 +546,9 @@ int InstrEmit_td(PPCHIRBuilder& f, const InstrData& i) {
 }
 
 int InstrEmit_tdi(PPCHIRBuilder& f, const InstrData& i) {
+  if (cvars::ignore_trap_instructions) {
+    return 0;
+  }
   // a <- (RA)
   // if (a < EXTS(SI)) & TO[0] then TRAP
   // if (a > EXTS(SI)) & TO[1] then TRAP
@@ -546,6 +561,9 @@ int InstrEmit_tdi(PPCHIRBuilder& f, const InstrData& i) {
 }
 
 int InstrEmit_tw(PPCHIRBuilder& f, const InstrData& i) {
+  if (cvars::ignore_trap_instructions) {
+    return 0;
+  }
   // a <- EXTS((RA)[32:63])
   // b <- EXTS((RB)[32:63])
   // if (a < b) & TO[0] then TRAP
@@ -561,6 +579,9 @@ int InstrEmit_tw(PPCHIRBuilder& f, const InstrData& i) {
 }
 
 int InstrEmit_twi(PPCHIRBuilder& f, const InstrData& i) {
+  if (cvars::ignore_trap_instructions) {
+    return 0;
+  }
   // a <- EXTS((RA)[32:63])
   // if (a < EXTS(SI)) & TO[0] then TRAP
   // if (a > EXTS(SI)) & TO[1] then TRAP
@@ -645,7 +666,9 @@ int InstrEmit_mfspr(PPCHIRBuilder& f, const InstrData& i) {
       break;
     case 256:
       // VRSAVE
-      v = f.LoadZeroInt64();
+
+      v = f.ZeroExtend(f.LoadContext(offsetof(PPCContext, vrsave), INT32_TYPE),
+                       INT64_TYPE);
       break;
     case 268:
       // TB
@@ -749,6 +772,8 @@ int InstrEmit_mtspr(PPCHIRBuilder& f, const InstrData& i) {
       f.StoreCTR(rt);
       break;
     case 256:
+
+      f.StoreContext(offsetof(PPCContext, vrsave), f.Truncate(rt, INT32_TYPE));
       // VRSAVE
       break;
     default:
@@ -768,6 +793,7 @@ int InstrEmit_mfmsr(PPCHIRBuilder& f, const InstrData& i) {
   // bit 48 = EE; interrupt enabled
   // bit 62 = RI; recoverable interrupt
   // return 8000h if unlocked (interrupts enabled), else 0
+#if 0
   f.MemoryBarrier();
   if (cvars::disable_global_lock || true) {
     f.StoreGPR(i.X.RT, f.LoadConstantUint64(0));
@@ -777,63 +803,23 @@ int InstrEmit_mfmsr(PPCHIRBuilder& f, const InstrData& i) {
     f.StoreGPR(i.X.RT,
                f.LoadContext(offsetof(PPCContext, scratch), INT64_TYPE));
   }
+#else
+  f.StoreGPR(i.X.RT, f.LoadConstantUint64(0));
+#endif
   return 0;
 }
 
 int InstrEmit_mtmsr(PPCHIRBuilder& f, const InstrData& i) {
-  if (i.X.RA & 0x01) {
-    // L = 1
-    // iff storing from r13
-    f.MemoryBarrier();
-    f.StoreContext(
-        offsetof(PPCContext, scratch),
-        f.ZeroExtend(f.ZeroExtend(f.LoadGPR(i.X.RT), INT64_TYPE), INT64_TYPE));
-#if 0
-    if (i.X.RT == 13) {
-      // iff storing from r13 we are taking a lock (disable interrupts).
-      if (!cvars::disable_global_lock) {
-        f.CallExtern(f.builtins()->enter_global_lock);
-      }
-    } else {
-      // Otherwise we are restoring interrupts (probably).
-      if (!cvars::disable_global_lock) {
-        f.CallExtern(f.builtins()->leave_global_lock);
-      }
-    }
-#endif
-    return 0;
-  } else {
-    // L = 0
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.StoreContext(
+      offsetof(PPCContext, scratch),
+      f.ZeroExtend(f.ZeroExtend(f.LoadGPR(i.X.RT), INT64_TYPE), INT64_TYPE));
+  return 0;
 }
 
 int InstrEmit_mtmsrd(PPCHIRBuilder& f, const InstrData& i) {
-  if (i.X.RA & 0x01) {
-    // L = 1
-    f.MemoryBarrier();
-    f.StoreContext(offsetof(PPCContext, scratch),
-                   f.ZeroExtend(f.LoadGPR(i.X.RT), INT64_TYPE));
-#if 0
-    if (i.X.RT == 13) {
-      // iff storing from r13 we are taking a lock (disable interrupts).
-      if (!cvars::disable_global_lock) {
-        f.CallExtern(f.builtins()->enter_global_lock);
-      }
-    } else {
-      // Otherwise we are restoring interrupts (probably).
-      if (!cvars::disable_global_lock) {
-        f.CallExtern(f.builtins()->leave_global_lock);
-      }
-    }
-#endif
-    return 0;
-  } else {
-    // L = 0
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-  }
+  f.StoreContext(offsetof(PPCContext, scratch),
+                 f.ZeroExtend(f.LoadGPR(i.X.RT), INT64_TYPE));
+  return 0;
 }
 
 void RegisterEmitCategoryControl() {

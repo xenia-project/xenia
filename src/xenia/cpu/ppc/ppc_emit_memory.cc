@@ -834,6 +834,7 @@ int InstrEmit_stdcx(PPCHIRBuilder& f, const InstrData& i) {
 
   // Issue memory barrier for when we go out of lock and want others to see our
   // updates.
+
   f.MemoryBarrier();
 
   return 0;

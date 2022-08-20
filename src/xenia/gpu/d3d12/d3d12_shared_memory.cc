@@ -406,14 +406,16 @@ bool D3D12SharedMemory::AllocateSparseHostGpuMemoryRange(
 }
 
 bool D3D12SharedMemory::UploadRanges(
-    const std::vector<std::pair<uint32_t, uint32_t>>& upload_page_ranges) {
-  if (upload_page_ranges.empty()) {
+    const std::pair<uint32_t, uint32_t>* upload_page_ranges, unsigned num_upload_page_ranges) {
+  if (!num_upload_page_ranges) {
     return true;
   }
   CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATE_COPY_DEST);
   command_processor_.SubmitBarriers();
   auto& command_list = command_processor_.GetDeferredCommandList();
-  for (auto upload_range : upload_page_ranges) {
+  //for (auto upload_range : upload_page_ranges) {
+  for (unsigned int i = 0; i < num_upload_page_ranges; ++i) {
+    auto& upload_range = upload_page_ranges[i];
     uint32_t upload_range_start = upload_range.first;
     uint32_t upload_range_length = upload_range.second;
     trace_writer_.WriteMemoryRead(upload_range_start << page_size_log2(),

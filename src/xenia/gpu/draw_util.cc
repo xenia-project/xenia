@@ -868,7 +868,7 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
            xenos::kMaxResolveSize);
     y1 = y0 + int32_t(xenos::kMaxResolveSize);
   }
-
+  //fails in forza horizon 1
   assert_true(x0 < x1 && y0 < y1);
   if (x0 >= x1 || y0 >= y1) {
     XELOGE("Resolve region is empty");

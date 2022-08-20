@@ -12,12 +12,14 @@
 #include "xenia/base/platform_win.h"
 #endif
 
-
 namespace xe {
-#if XE_PLATFORM_WIN32 == 1 &&XE_ENABLE_FAST_WIN32_MUTEX == 1
-	//default spincount for entercriticalsection is insane on windows, 0x20007D0i64 (33556432 times!!)
-	//when a lock is highly contended performance degrades sharply on some processors
-	#define		XE_CRIT_SPINCOUNT		128
+#if XE_PLATFORM_WIN32 == 1 && XE_ENABLE_FAST_WIN32_MUTEX == 1
+// default spincount for entercriticalsection is insane on windows, 0x20007D0i64
+// (33556432 times!!) when a lock is highly contended performance degrades
+// sharply on some processors todo: perhaps we should have a set of optional
+// jobs that processors can do instead of spinning, for instance, sorting a list
+// so we have better locality later or something
+#define XE_CRIT_SPINCOUNT 128
 /*
 chrispy: todo, if a thread exits before releasing the global mutex we need to
 check this and release the mutex one way to do this is by using FlsAlloc and
@@ -30,8 +32,8 @@ static CRITICAL_SECTION* global_critical_section(xe_global_mutex* mutex) {
 }
 
 xe_global_mutex::xe_global_mutex() {
-  InitializeCriticalSectionAndSpinCount(global_critical_section(this),
-                                        XE_CRIT_SPINCOUNT);
+  InitializeCriticalSectionEx(global_critical_section(this), XE_CRIT_SPINCOUNT,
+                              CRITICAL_SECTION_NO_DEBUG_INFO);
 }
 xe_global_mutex ::~xe_global_mutex() {
   DeleteCriticalSection(global_critical_section(this));
@@ -65,7 +67,8 @@ CRITICAL_SECTION* fast_crit(xe_fast_mutex* mutex) {
   return reinterpret_cast<CRITICAL_SECTION*>(mutex);
 }
 xe_fast_mutex::xe_fast_mutex() {
-  InitializeCriticalSectionAndSpinCount(fast_crit(this), XE_CRIT_SPINCOUNT);
+  InitializeCriticalSectionEx(fast_crit(this), XE_CRIT_SPINCOUNT,
+                              CRITICAL_SECTION_NO_DEBUG_INFO);
 }
 xe_fast_mutex::~xe_fast_mutex() { DeleteCriticalSection(fast_crit(this)); }
 

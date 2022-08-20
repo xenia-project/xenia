@@ -42,7 +42,7 @@ namespace xe {
 namespace gpu {
 namespace d3d12 {
 
-class D3D12CommandProcessor : public CommandProcessor {
+class D3D12CommandProcessor final : public CommandProcessor {
  public:
   explicit D3D12CommandProcessor(D3D12GraphicsSystem* graphics_system,
                                  kernel::KernelState* kernel_state);
@@ -203,9 +203,17 @@ class D3D12CommandProcessor : public CommandProcessor {
  protected:
   bool SetupContext() override;
   void ShutdownContext() override;
-
+  XE_FORCEINLINE
   void WriteRegister(uint32_t index, uint32_t value) override;
-
+  XE_FORCEINLINE
+  virtual void WriteRegistersFromMem(uint32_t start_index, uint32_t* base,
+                                     uint32_t num_registers) override;
+  XE_FORCEINLINE
+  virtual void WriteRegisterRangeFromRing(xe::RingBuffer* ring, uint32_t base,
+                                          uint32_t num_registers) override;
+  XE_FORCEINLINE
+  virtual void WriteOneRegisterFromRing(xe::RingBuffer* ring, uint32_t base,
+                                        uint32_t num_times) override;
   void OnGammaRamp256EntryTableValueWritten() override;
   void OnGammaRampPWLValueWritten() override;
 

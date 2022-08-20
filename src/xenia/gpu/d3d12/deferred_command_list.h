@@ -567,7 +567,7 @@ class DeferredCommandList {
 
   // uintmax_t to ensure uint64_t and pointer alignment of all structures.
   //std::vector<uintmax_t> command_stream_;
-  fixed_vmem_vector<MAX_SIZEOF_COMMANDLIST> command_stream_;
+  FixedVMemVector<MAX_SIZEOF_COMMANDLIST> command_stream_;
 };
 
 }  // namespace d3d12

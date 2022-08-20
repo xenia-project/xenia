@@ -78,17 +78,25 @@ std::pair<char*, size_t> GetThreadBuffer();
 void AppendLogLine(LogLevel log_level, const char prefix_char, size_t written);
 
 }  // namespace internal
-
-// Appends a line to the log with {fmt}-style formatting.
 template <typename... Args>
-void AppendLogLineFormat(LogLevel log_level, const char prefix_char,
+XE_NOINLINE XE_COLD static void AppendLogLineFormat_Impl(LogLevel log_level,
+                                                         const char prefix_char,
+                                                         const char* format,
+                                                         const Args&... args) {
+  auto target = internal::GetThreadBuffer();
+  auto result = fmt::format_to_n(target.first, target.second, format, args...);
+  internal::AppendLogLine(log_level, prefix_char, result.size);
+}
+
+  // Appends a line to the log with {fmt}-style formatting.
+//chrispy: inline the initial check, outline the append. the append should happen rarely for end users
+template <typename... Args>
+XE_FORCEINLINE static void AppendLogLineFormat(LogLevel log_level, const char prefix_char,
                          const char* format, const Args&... args) {
   if (!internal::ShouldLog(log_level)) {
     return;
   }
-  auto target = internal::GetThreadBuffer();
-  auto result = fmt::format_to_n(target.first, target.second, format, args...);
-  internal::AppendLogLine(log_level, prefix_char, result.size);
+  AppendLogLineFormat_Impl(log_level, prefix_char, format, args...);
 }
 
 // Appends a line to the log.
@@ -98,18 +106,19 @@ void AppendLogLine(LogLevel log_level, const char prefix_char,
 }  // namespace logging
 
 // Logs a fatal error and aborts the program.
-void FatalError(const std::string_view str);
+[[noreturn]] void FatalError(const std::string_view str);
 
 }  // namespace xe
 
 #if XE_OPTION_ENABLE_LOGGING
 
 template <typename... Args>
-void XELOGE(const char* format, const Args&... args) {
+XE_COLD void XELOGE(const char* format, const Args&... args) {
   xe::logging::AppendLogLineFormat(xe::LogLevel::Error, '!', format, args...);
 }
 
 template <typename... Args>
+XE_COLD
 void XELOGW(const char* format, const Args&... args) {
   xe::logging::AppendLogLineFormat(xe::LogLevel::Warning, 'w', format, args...);
 }
@@ -131,12 +140,12 @@ void XELOGCPU(const char* format, const Args&... args) {
 
 template <typename... Args>
 void XELOGAPU(const char* format, const Args&... args) {
-  xe::logging::AppendLogLineFormat(xe::LogLevel::Info, 'A', format, args...);
+  xe::logging::AppendLogLineFormat(xe::LogLevel::Debug, 'A', format, args...);
 }
 
 template <typename... Args>
 void XELOGGPU(const char* format, const Args&... args) {
-  xe::logging::AppendLogLineFormat(xe::LogLevel::Info, 'G', format, args...);
+  xe::logging::AppendLogLineFormat(xe::LogLevel::Debug, 'G', format, args...);
 }
 
 template <typename... Args>

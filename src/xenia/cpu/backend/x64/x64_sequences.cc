@@ -50,6 +50,10 @@ DEFINE_bool(no_round_to_single, false,
             "Not for users, breaks games. Skip rounding double values to "
             "single precision and back",
             "CPU");
+DEFINE_bool(
+    inline_loadclock, false,
+    "Directly read cached guest clock without calling the LoadClock method (it gets repeatedly updated by calls from other threads)",
+    "CPU");
 namespace xe {
 namespace cpu {
 namespace backend {
@@ -475,33 +479,39 @@ EMITTER_OPCODE_TABLE(OPCODE_ROUND, ROUND_F32, ROUND_F64, ROUND_V128);
 // ============================================================================
 struct LOAD_CLOCK : Sequence<LOAD_CLOCK, I<OPCODE_LOAD_CLOCK, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    // When scaling is disabled and the raw clock source is selected, the code
-    // in the Clock class is actually just forwarding tick counts after one
-    // simple multiply and division. In that case we rather bake the scaling in
-    // here to cut extra function calls with CPU cache misses and stack frame
-    // overhead.
-    if (cvars::clock_no_scaling && cvars::clock_source_raw) {
-      auto ratio = Clock::guest_tick_ratio();
-      // The 360 CPU is an in-order CPU, AMD64 usually isn't. Without
-      // mfence/lfence magic the rdtsc instruction can be executed sooner or
-      // later in the cache window. Since it's resolution however is much higher
-      // than the 360's mftb instruction this can safely be ignored.
-
-      // Read time stamp in edx (high part) and eax (low part).
-      e.rdtsc();
-      // Make it a 64 bit number in rax.
-      e.shl(e.rdx, 32);
-      e.or_(e.rax, e.rdx);
-      // Apply tick frequency scaling.
-      e.mov(e.rcx, ratio.first);
-      e.mul(e.rcx);
-      // We actually now have a 128 bit number in rdx:rax.
-      e.mov(e.rcx, ratio.second);
-      e.div(e.rcx);
-      e.mov(i.dest, e.rax);
+    if (cvars::inline_loadclock) {
+      e.mov(e.rcx,
+            e.GetBackendCtxPtr(offsetof(X64BackendContext, guest_tick_count)));
+      e.mov(i.dest, e.qword[e.rcx]);
     } else {
-      e.CallNative(LoadClock);
-      e.mov(i.dest, e.rax);
+      // When scaling is disabled and the raw clock source is selected, the code
+      // in the Clock class is actually just forwarding tick counts after one
+      // simple multiply and division. In that case we rather bake the scaling
+      // in here to cut extra function calls with CPU cache misses and stack
+      // frame overhead.
+      if (cvars::clock_no_scaling && cvars::clock_source_raw) {
+        auto ratio = Clock::guest_tick_ratio();
+        // The 360 CPU is an in-order CPU, AMD64 usually isn't. Without
+        // mfence/lfence magic the rdtsc instruction can be executed sooner or
+        // later in the cache window. Since it's resolution however is much
+        // higher than the 360's mftb instruction this can safely be ignored.
+
+        // Read time stamp in edx (high part) and eax (low part).
+        e.rdtsc();
+        // Make it a 64 bit number in rax.
+        e.shl(e.rdx, 32);
+        e.or_(e.rax, e.rdx);
+        // Apply tick frequency scaling.
+        e.mov(e.rcx, ratio.first);
+        e.mul(e.rcx);
+        // We actually now have a 128 bit number in rdx:rax.
+        e.mov(e.rcx, ratio.second);
+        e.div(e.rcx);
+        e.mov(i.dest, e.rax);
+      } else {
+        e.CallNative(LoadClock);
+        e.mov(i.dest, e.rax);
+      }
     }
   }
   static uint64_t LoadClock(void* raw_context) {
@@ -539,10 +549,12 @@ struct MAX_F64 : Sequence<MAX_F64, I<OPCODE_MAX, F64Op, F64Op, F64Op>> {
 struct MAX_V128 : Sequence<MAX_V128, I<OPCODE_MAX, V128Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.ChangeMxcsrMode(MXCSRMode::Vmx);
-    EmitCommutativeBinaryXmmOp(e, i,
-                               [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
-                                 e.vmaxps(dest, src1, src2);
-                               });
+
+    auto src1 = GetInputRegOrConstant(e, i.src1, e.xmm0);
+    auto src2 = GetInputRegOrConstant(e, i.src2, e.xmm1);
+    e.vmaxps(e.xmm2, src1, src2);
+    e.vmaxps(e.xmm3, src2, src1);
+    e.vorps(i.dest, e.xmm2, e.xmm3);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_MAX, MAX_F32, MAX_F64, MAX_V128);
@@ -597,10 +609,11 @@ struct MIN_F64 : Sequence<MIN_F64, I<OPCODE_MIN, F64Op, F64Op, F64Op>> {
 struct MIN_V128 : Sequence<MIN_V128, I<OPCODE_MIN, V128Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.ChangeMxcsrMode(MXCSRMode::Vmx);
-    EmitCommutativeBinaryXmmOp(e, i,
-                               [](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
-                                 e.vminps(dest, src1, src2);
-                               });
+    auto src1 = GetInputRegOrConstant(e, i.src1, e.xmm0);
+    auto src2 = GetInputRegOrConstant(e, i.src2, e.xmm1);
+    e.vminps(e.xmm2, src1, src2);
+    e.vminps(e.xmm3, src2, src1);
+    e.vorps(i.dest, e.xmm2, e.xmm3);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_MIN, MIN_I8, MIN_I16, MIN_I32, MIN_I64, MIN_F32,
@@ -768,6 +781,7 @@ struct SELECT_V128_V128
     } else if (mayblend == PermittedBlend::Ps) {
       e.vblendvps(i.dest, src2, src3, src1);
     } else {
+		//ideally we would have an xop path here...
       // src1 ? src2 : src3;
       e.vpandn(e.xmm3, src1, src2);
       e.vpand(i.dest, src1, src3);
@@ -1932,6 +1946,53 @@ struct MUL_ADD_V128
 };
 EMITTER_OPCODE_TABLE(OPCODE_MUL_ADD, MUL_ADD_F32, MUL_ADD_F64, MUL_ADD_V128);
 
+struct NEGATED_MUL_ADD_F64
+    : Sequence<NEGATED_MUL_ADD_F64,
+               I<OPCODE_NEGATED_MUL_ADD, F64Op, F64Op, F64Op, F64Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    e.ChangeMxcsrMode(MXCSRMode::Fpu);
+
+    Xmm src1 = GetInputRegOrConstant(e, i.src1, e.xmm0);
+    Xmm src2 = GetInputRegOrConstant(e, i.src2, e.xmm1);
+    Xmm src3 = GetInputRegOrConstant(e, i.src3, e.xmm2);
+    if (e.IsFeatureEnabled(kX64EmitFMA)) {
+      // todo: this is garbage
+      e.vmovapd(e.xmm3, src1);
+      e.vfmadd213sd(e.xmm3, src2, src3);
+      e.vxorpd(i.dest, e.xmm3, e.GetXmmConstPtr(XMMSignMaskPD));
+    } else {
+      // todo: might need to use x87 in this case...
+      e.vmulsd(e.xmm3, src1, src2);
+      e.vaddsd(i.dest, e.xmm3, src3);
+      e.vxorpd(i.dest, i.dest, e.GetXmmConstPtr(XMMSignMaskPD));
+    }
+  }
+};
+struct NEGATED_MUL_ADD_V128
+    : Sequence<NEGATED_MUL_ADD_V128,
+               I<OPCODE_NEGATED_MUL_ADD, V128Op, V128Op, V128Op, V128Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    e.ChangeMxcsrMode(MXCSRMode::Vmx);
+
+    Xmm src1 = GetInputRegOrConstant(e, i.src1, e.xmm0);
+    Xmm src2 = GetInputRegOrConstant(e, i.src2, e.xmm1);
+    Xmm src3 = GetInputRegOrConstant(e, i.src3, e.xmm2);
+    if (e.IsFeatureEnabled(kX64EmitFMA)) {
+      // todo: this is garbage
+      e.vmovaps(e.xmm3, src1);
+      e.vfmadd213ps(e.xmm3, src2, src3);
+      e.vxorps(i.dest, e.xmm3, e.GetXmmConstPtr(XMMSignMaskPS));
+    } else {
+      // todo: might need to use x87 in this case...
+      e.vmulps(e.xmm3, src1, src2);
+      e.vaddps(i.dest, e.xmm3, src3);
+      e.vxorps(i.dest, i.dest, e.GetXmmConstPtr(XMMSignMaskPS));
+    }
+  }
+};
+EMITTER_OPCODE_TABLE(OPCODE_NEGATED_MUL_ADD, NEGATED_MUL_ADD_F64,
+                     NEGATED_MUL_ADD_V128);
+
 // ============================================================================
 // OPCODE_MUL_SUB
 // ============================================================================
@@ -1944,12 +2005,7 @@ EMITTER_OPCODE_TABLE(OPCODE_MUL_ADD, MUL_ADD_F32, MUL_ADD_F64, MUL_ADD_V128);
 // - 132 -> $1 = $1 * $3 - $2
 // - 213 -> $1 = $2 * $1 - $3
 // - 231 -> $1 = $2 * $3 - $1
-struct MUL_SUB_F32
-    : Sequence<MUL_SUB_F32, I<OPCODE_MUL_SUB, F32Op, F32Op, F32Op, F32Op>> {
-  static void Emit(X64Emitter& e, const EmitArgType& i) {
-    assert_impossible_sequence(MUL_SUB_F32);
-  }
-};
+
 struct MUL_SUB_F64
     : Sequence<MUL_SUB_F64, I<OPCODE_MUL_SUB, F64Op, F64Op, F64Op, F64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
@@ -1991,7 +2047,54 @@ struct MUL_SUB_V128
     }
   }
 };
-EMITTER_OPCODE_TABLE(OPCODE_MUL_SUB, MUL_SUB_F32, MUL_SUB_F64, MUL_SUB_V128);
+EMITTER_OPCODE_TABLE(OPCODE_MUL_SUB, MUL_SUB_F64, MUL_SUB_V128);
+
+struct NEGATED_MUL_SUB_F64
+    : Sequence<NEGATED_MUL_SUB_F64,
+               I<OPCODE_NEGATED_MUL_SUB, F64Op, F64Op, F64Op, F64Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    e.ChangeMxcsrMode(MXCSRMode::Fpu);
+
+    Xmm src1 = GetInputRegOrConstant(e, i.src1, e.xmm0);
+    Xmm src2 = GetInputRegOrConstant(e, i.src2, e.xmm1);
+    Xmm src3 = GetInputRegOrConstant(e, i.src3, e.xmm2);
+    if (e.IsFeatureEnabled(kX64EmitFMA)) {
+      // todo: this is garbage
+      e.vmovapd(e.xmm3, src1);
+      e.vfmsub213sd(e.xmm3, src2, src3);
+      e.vxorpd(i.dest, e.xmm3, e.GetXmmConstPtr(XMMSignMaskPD));
+    } else {
+      // todo: might need to use x87 in this case...
+      e.vmulsd(e.xmm3, src1, src2);
+      e.vsubsd(i.dest, e.xmm3, src3);
+      e.vxorpd(i.dest, i.dest, e.GetXmmConstPtr(XMMSignMaskPD));
+    }
+  }
+};
+struct NEGATED_MUL_SUB_V128
+    : Sequence<NEGATED_MUL_SUB_V128,
+               I<OPCODE_NEGATED_MUL_SUB, V128Op, V128Op, V128Op, V128Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    e.ChangeMxcsrMode(MXCSRMode::Vmx);
+
+    Xmm src1 = GetInputRegOrConstant(e, i.src1, e.xmm0);
+    Xmm src2 = GetInputRegOrConstant(e, i.src2, e.xmm1);
+    Xmm src3 = GetInputRegOrConstant(e, i.src3, e.xmm2);
+    if (e.IsFeatureEnabled(kX64EmitFMA)) {
+      // todo: this is garbage
+      e.vmovaps(e.xmm3, src1);
+      e.vfmsub213ps(e.xmm3, src2, src3);
+      e.vxorps(i.dest, e.xmm3, e.GetXmmConstPtr(XMMSignMaskPS));
+    } else {
+      // todo: might need to use x87 in this case...
+      e.vmulps(e.xmm3, src1, src2);
+      e.vsubps(i.dest, e.xmm3, src3);
+      e.vxorps(i.dest, i.dest, e.GetXmmConstPtr(XMMSignMaskPS));
+    }
+  }
+};
+EMITTER_OPCODE_TABLE(OPCODE_NEGATED_MUL_SUB, NEGATED_MUL_SUB_F64,
+                     NEGATED_MUL_SUB_V128);
 
 // ============================================================================
 // OPCODE_NEG
@@ -2264,7 +2367,7 @@ struct DOT_PRODUCT_3_V128
     e.ChangeMxcsrMode(MXCSRMode::Vmx);
     // todo: add fast_dot_product path that just checks for infinity instead of
     // using mxcsr
-    auto mxcsr_storage = e.dword[e.rsp + StackLayout::GUEST_SCRATCH64];
+    auto mxcsr_storage = e.dword[e.rsp + StackLayout::GUEST_SCRATCH];
 
     // this is going to hurt a bit...
     /*
@@ -2380,7 +2483,7 @@ struct DOT_PRODUCT_4_V128
     e.ChangeMxcsrMode(MXCSRMode::Vmx);
     // todo: add fast_dot_product path that just checks for infinity instead of
     // using mxcsr
-    auto mxcsr_storage = e.dword[e.rsp + StackLayout::GUEST_SCRATCH64];
+    auto mxcsr_storage = e.dword[e.rsp + StackLayout::GUEST_SCRATCH];
 
     bool is_lensqr = i.instr->src1.value == i.instr->src2.value;
 
@@ -3162,9 +3265,9 @@ struct SET_ROUNDING_MODE_I32
     // backends dont have to worry about it
     if (i.src1.is_constant) {
       e.mov(e.eax, mxcsr_table[i.src1.constant()]);
-      e.mov(e.dword[e.rsp + StackLayout::GUEST_SCRATCH64], e.eax);
+      e.mov(e.dword[e.rsp + StackLayout::GUEST_SCRATCH], e.eax);
       e.mov(e.GetBackendCtxPtr(offsetof(X64BackendContext, mxcsr_fpu)), e.eax);
-      e.vldmxcsr(e.dword[e.rsp + StackLayout::GUEST_SCRATCH64]);
+      e.vldmxcsr(e.dword[e.rsp + StackLayout::GUEST_SCRATCH]);
 
     } else {
       e.mov(e.ecx, i.src1);

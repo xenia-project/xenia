@@ -159,7 +159,15 @@ enum XmmConst {
   XMMThreeFloatMask,  // for clearing the fourth float prior to DOT_PRODUCT_3
   XMMXenosF16ExtRangeStart,
   XMMVSRShlByteshuf,
-  XMMVSRMask
+  XMMVSRMask,
+  XMMF16UnpackLCPI2,  // 0x38000000, 1/ 32768
+  XMMF16UnpackLCPI3,  // 0x0x7fe000007fe000
+  XMMF16PackLCPI0,
+  XMMF16PackLCPI2,
+  XMMF16PackLCPI3,
+  XMMF16PackLCPI4,
+  XMMF16PackLCPI5,
+  XMMF16PackLCPI6
 };
 // X64Backend specific Instr->runtime_flags
 enum : uint32_t {
@@ -177,7 +185,7 @@ class XbyakAllocator : public Xbyak::Allocator {
 enum X64EmitterFeatureFlags {
   kX64EmitAVX2 = 1 << 0,
   kX64EmitFMA = 1 << 1,
-  kX64EmitLZCNT = 1 << 2,
+  kX64EmitLZCNT = 1 << 2,  // this is actually ABM and includes popcount
   kX64EmitBMI1 = 1 << 3,
   kX64EmitBMI2 = 1 << 4,
   kX64EmitF16C = 1 << 5,
@@ -201,7 +209,11 @@ enum X64EmitterFeatureFlags {
                 // inc/dec) do not introduce false dependencies on EFLAGS
                 // because the individual flags are treated as different vars by
                 // the processor. (this applies to zen)
-  kX64EmitPrefetchW = 1 << 16
+  kX64EmitPrefetchW = 1 << 16,
+  kX64EmitXOP = 1 << 17,   // chrispy: xop maps really well to many vmx
+                           // instructions, and FX users need the boost
+  kX64EmitFMA4 = 1 << 18,  // todo: also use on zen1?
+  kX64EmitTBM = 1 << 19
 };
 class ResolvableGuestCall {
  public:
@@ -337,6 +349,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
 
   XexModule* GuestModule() { return guest_module_; }
 
+  void EmitProfilerEpilogue();
+
  protected:
   void* Emplace(const EmitFunctionInfo& func_info,
                 GuestFunction* function = nullptr);
@@ -352,7 +366,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   XexModule* guest_module_ = nullptr;
   Xbyak::util::Cpu cpu_;
   uint32_t feature_flags_ = 0;
-
+  uint32_t current_guest_function_ = 0;
   Xbyak::Label* epilog_label_ = nullptr;
 
   hir::Instr* current_instr_ = nullptr;

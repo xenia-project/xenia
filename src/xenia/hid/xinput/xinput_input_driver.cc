@@ -14,9 +14,9 @@
 
 #include <xinput.h>  // NOLINT(build/include_order)
 
+#include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
 #include "xenia/hid/hid_flags.h"
-
 namespace xe {
 namespace hid {
 namespace xinput {
@@ -81,13 +81,39 @@ X_STATUS XInputInputDriver::Setup() {
   }
   return X_STATUS_SUCCESS;
 }
+constexpr uint64_t SKIP_INVALID_CONTROLLER_TIME = 1100;
+static uint64_t last_invalid_time[4];
+
+static DWORD should_skip(uint32_t user_index) {
+  uint64_t time = last_invalid_time[user_index];
+  if (time) {
+    uint64_t deltatime = xe::Clock::QueryHostUptimeMillis() - time;
+
+    if (deltatime < SKIP_INVALID_CONTROLLER_TIME) {
+      return ERROR_DEVICE_NOT_CONNECTED;
+    }
+    last_invalid_time[user_index] = 0;
+  }
+  return 0;
+}
+
+static void set_skip(uint32_t user_index) {
+  last_invalid_time[user_index] = xe::Clock::QueryHostUptimeMillis();
+}
 
 X_RESULT XInputInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
                                             X_INPUT_CAPABILITIES* out_caps) {
+  DWORD skipper = should_skip(user_index);
+  if (skipper) {
+    return skipper;
+  }
   XINPUT_CAPABILITIES native_caps;
   auto xigc = (decltype(&XInputGetCapabilities))XInputGetCapabilities_;
   DWORD result = xigc(user_index, flags, &native_caps);
   if (result) {
+    if (result == ERROR_DEVICE_NOT_CONNECTED) {
+      set_skip(user_index);
+    }
     return result;
   }
 
@@ -110,10 +136,18 @@ X_RESULT XInputInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
 
 X_RESULT XInputInputDriver::GetState(uint32_t user_index,
                                      X_INPUT_STATE* out_state) {
+  DWORD skipper = should_skip(user_index);
+  if (skipper) {
+    return skipper;
+  }
   XINPUT_STATE native_state;
   auto xigs = (decltype(&XInputGetState))XInputGetState_;
+
   DWORD result = xigs(user_index, &native_state);
   if (result) {
+    if (result == ERROR_DEVICE_NOT_CONNECTED) {
+      set_skip(user_index);
+    }
     return result;
   }
 
@@ -131,11 +165,18 @@ X_RESULT XInputInputDriver::GetState(uint32_t user_index,
 
 X_RESULT XInputInputDriver::SetState(uint32_t user_index,
                                      X_INPUT_VIBRATION* vibration) {
+  DWORD skipper = should_skip(user_index);
+  if (skipper) {
+    return skipper;
+  }
   XINPUT_VIBRATION native_vibration;
   native_vibration.wLeftMotorSpeed = vibration->left_motor_speed;
   native_vibration.wRightMotorSpeed = vibration->right_motor_speed;
   auto xiss = (decltype(&XInputSetState))XInputSetState_;
   DWORD result = xiss(user_index, &native_vibration);
+  if (result == ERROR_DEVICE_NOT_CONNECTED) {
+    set_skip(user_index);
+  }
   return result;
 }
 

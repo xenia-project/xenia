@@ -137,6 +137,8 @@ X_INPUT_VIBRATION InputSystem::ModifyVibrationLevel(
   modified_vibration.right_motor_speed = 0;
   return modified_vibration;
 }
-
+std::unique_lock<xe_unlikely_mutex> InputSystem::lock() {
+  return std::unique_lock<xe_unlikely_mutex>{lock_};
+}
 }  // namespace hid
 }  // namespace xe

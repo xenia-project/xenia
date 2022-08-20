@@ -12,10 +12,10 @@
 #include <mutex>
 #include "platform.h"
 
-#define		XE_ENABLE_FAST_WIN32_MUTEX 1
+#define XE_ENABLE_FAST_WIN32_MUTEX 1
 namespace xe {
 
-#if XE_PLATFORM_WIN32 == 1 && XE_ENABLE_FAST_WIN32_MUTEX==1
+#if XE_PLATFORM_WIN32 == 1 && XE_ENABLE_FAST_WIN32_MUTEX == 1
 /*
    must conform to
    BasicLockable:https://en.cppreference.com/w/cpp/named_req/BasicLockable as
@@ -23,7 +23,8 @@ namespace xe {
 
    this emulates a recursive mutex, except with far less overhead
 */
-class alignas(64) xe_global_mutex {
+
+class alignas(4096) xe_global_mutex {
   char detail[64];
 
  public:
@@ -47,11 +48,50 @@ class alignas(64) xe_fast_mutex {
   void unlock();
   bool try_lock();
 };
+// a mutex that is extremely unlikely to ever be locked
+// use for race conditions that have extremely remote odds of happening
+class xe_unlikely_mutex {
+  std::atomic<uint32_t> mut;
+  bool _tryget() {
+    uint32_t lock_expected = 0;
+    return mut.compare_exchange_strong(lock_expected, 1);
+  }
+
+ public:
+  xe_unlikely_mutex() : mut(0) {}
+  ~xe_unlikely_mutex() { mut = 0; }
+
+  void lock() {
+    uint32_t lock_expected = 0;
+
+    if (XE_LIKELY(_tryget())) {
+      return;
+    } else {
+      do {
+        // chrispy: warning, if no SMT, mm_pause does nothing...
+#if XE_ARCH_AMD64 == 1
+        _mm_pause();
+#endif
+
+      } while (!_tryget());
+    }
+  }
+  void unlock() { mut.exchange(0); }
+  bool try_lock() { return _tryget(); }
+};
 using xe_mutex = xe_fast_mutex;
 #else
 using global_mutex_type = std::recursive_mutex;
 using xe_mutex = std::mutex;
+using xe_unlikely_mutex = std::mutex;
 #endif
+struct null_mutex {
+ public:
+  static void lock() {}
+  static void unlock() {}
+  static bool try_lock() { return true; }
+};
+
 using global_unique_lock_type = std::unique_lock<global_mutex_type>;
 // The global critical region mutex singleton.
 // This must guard any operation that may suspend threads or be sensitive to

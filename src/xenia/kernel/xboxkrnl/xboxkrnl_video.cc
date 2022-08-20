@@ -473,7 +473,8 @@ void VdSwap_entry(
     dwords[i] = xenos::MakePacketType2();
   }
 }
-DECLARE_XBOXKRNL_EXPORT2(VdSwap, kVideo, kImplemented, kImportant);
+DECLARE_XBOXKRNL_EXPORT3(VdSwap, kVideo, kImplemented, kHighFrequency,
+                         kImportant);
 
 void RegisterVideoExports(xe::cpu::ExportResolver* export_resolver,
                           KernelState* kernel_state) {

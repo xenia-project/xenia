@@ -613,10 +613,12 @@ class Value {
   // returns true if every single use is as an operand to a single instruction
   // (add var2, var1, var1)
   bool AllUsesByOneInsn() const;
-  //the maybe is here because this includes vec128, which is untyped data that can be treated as float or int depending on the context
+  // the maybe is here because this includes vec128, which is untyped data that
+  // can be treated as float or int depending on the context
   bool MaybeFloaty() const {
     return type == FLOAT32_TYPE || type == FLOAT64_TYPE || type == VEC128_TYPE;
   }
+
  private:
   static bool CompareInt8(Opcode opcode, Value* a, Value* b);
   static bool CompareInt16(Opcode opcode, Value* a, Value* b);
