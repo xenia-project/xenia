@@ -370,6 +370,10 @@ X_STATUS Emulator::InstallContentPackage(const std::filesystem::path& path) {
       content_root() / fmt::format("{:08X}", device->title_id()) /
       fmt::format("{:08X}", device->content_type()) / path.filename();
 
+  std::filesystem::path header_path =
+      content_root() / fmt::format("{:08X}", device->title_id()) / "Headers" /
+      fmt::format("{:08X}", device->content_type()) / path.filename();
+
   if (std::filesystem::exists(installation_path)) {
     // TODO(Gliniak): Popup
     // Do you want to overwrite already existing data?
@@ -380,7 +384,11 @@ X_STATUS Emulator::InstallContentPackage(const std::filesystem::path& path) {
       return error_code.value();
     }
   }
-  return vfs::VirtualFileSystem::ExtractFiles(device.get(), installation_path);
+
+  vfs::VirtualFileSystem::ExtractContentHeader(device.get(), header_path);
+
+  return vfs::VirtualFileSystem::ExtractContentFiles(device.get(),
+                                                     installation_path);
 }
 
 void Emulator::Pause() {

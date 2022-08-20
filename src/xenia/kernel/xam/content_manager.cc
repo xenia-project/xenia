@@ -144,7 +144,7 @@ bool ContentManager::ContentExists(const XCONTENT_AGGREGATE_DATA& data) {
 
 X_RESULT ContentManager::WriteContentHeaderFile(
     const XCONTENT_AGGREGATE_DATA* data) {
-  auto title_id = fmt::format("{:8X}", kernel_state_->title_id());
+  auto title_id = fmt::format("{:08X}", kernel_state_->title_id());
   auto content_type =
       fmt::format("{:08X}", load_and_swap<uint32_t>(&data->content_type));
   auto header_path =

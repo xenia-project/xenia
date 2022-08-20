@@ -18,6 +18,7 @@
 #include "xenia/base/math.h"
 #include "xenia/base/string_util.h"
 #include "xenia/kernel/util/xex2_info.h"
+#include "xenia/kernel/xam/content_manager.h"
 #include "xenia/vfs/device.h"
 #include "xenia/vfs/devices/stfs_xbox.h"
 
@@ -85,6 +86,8 @@ class StfsContainerDevice : public Device {
 
   uint32_t title_id() const { return header_.metadata.execution_info.title_id; }
   XContentType content_type() const { return header_.metadata.content_type; }
+
+  kernel::xam::XCONTENT_AGGREGATE_DATA content_header() const;
 
  private:
   const uint32_t kBlocksPerHashLevel[3] = {170, 28900, 4913000};

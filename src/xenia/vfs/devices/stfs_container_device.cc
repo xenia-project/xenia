@@ -856,5 +856,31 @@ bool StfsContainerDevice::ResolveFromFolder(const std::filesystem::path& path) {
   return true;
 }
 
+kernel::xam::XCONTENT_AGGREGATE_DATA StfsContainerDevice::content_header() const {
+  kernel::xam::XCONTENT_AGGREGATE_DATA data;
+
+  std::memset(&data, 0, sizeof(kernel::xam::XCONTENT_AGGREGATE_DATA));
+
+  data.device_id = 1;
+  data.title_id = header_.metadata.execution_info.title_id;
+  data.content_type = header_.metadata.content_type;
+
+  auto name = header_.metadata.display_name(XLanguage::kEnglish);
+  if (name.empty()) {
+    // Find first filled language and use it. It might be incorrect, but meh
+    // until stfs support is done.
+    for (uint8_t i = 0; i < header_.metadata.kNumLanguagesV2; i++) {
+      name = header_.metadata.display_name((XLanguage)i);
+      if (!name.empty()) {
+        break;
+      }
+    }
+  }
+
+  data.set_display_name(name);
+
+  return data;
+}
+
 }  // namespace vfs
 }  // namespace xe

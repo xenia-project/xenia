@@ -8,6 +8,8 @@
  */
 
 #include "xenia/vfs/virtual_file_system.h"
+#include "xenia/kernel/xam/content_manager.h"
+#include "xenia/vfs/devices/stfs_container_device.h"
 
 #include "xenia/base/literals.h"
 #include "xenia/base/logging.h"
@@ -310,8 +312,8 @@ X_STATUS VirtualFileSystem::OpenFile(Entry* root_entry,
   return result;
 }
 
-X_STATUS VirtualFileSystem::ExtractFiles(Device* device,
-                                    std::filesystem::path base_path) {
+X_STATUS VirtualFileSystem::ExtractContentFiles(
+    Device* device, std::filesystem::path base_path) {
   // Run through all the files, breadth-first style.
   std::queue<vfs::Entry*> queue;
   auto root = device->ResolvePath("/");
@@ -381,6 +383,29 @@ X_STATUS VirtualFileSystem::ExtractFiles(Device* device,
   }
 
   return X_STATUS_SUCCESS;
+}
+
+void VirtualFileSystem::ExtractContentHeader(Device* device,
+                                             std::filesystem::path base_path) {
+  auto stfs_device = ((StfsContainerDevice*)device);
+
+  if (!std::filesystem::exists(base_path.parent_path())) {
+    if (!std::filesystem::create_directories(base_path.parent_path())) {
+      return;
+    }
+  }
+  auto header_filename = base_path.filename().string() + ".header";
+  auto header_path = base_path.parent_path() / header_filename;
+  xe::filesystem::CreateEmptyFile(header_path);
+
+  if (std::filesystem::exists(header_path)) {
+    auto file = xe::filesystem::OpenFile(header_path, "wb");
+    kernel::xam::XCONTENT_AGGREGATE_DATA data = stfs_device->content_header();
+    data.set_file_name(base_path.filename().string());
+    fwrite(&data, 1, sizeof(kernel::xam::XCONTENT_AGGREGATE_DATA), file);
+    fclose(file);
+  }
+  return;
 }
 }  // namespace vfs
 }  // namespace xe

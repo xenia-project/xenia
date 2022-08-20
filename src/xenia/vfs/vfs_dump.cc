@@ -45,7 +45,7 @@ int vfs_dump_main(const std::vector<std::string>& args) {
     XELOGE("Failed to initialize device");
     return 1;
   }
-  return VirtualFileSystem::ExtractFiles(device.get(), base_path);
+  return VirtualFileSystem::ExtractContentFiles(device.get(), base_path);
 }
 
 }  // namespace vfs
