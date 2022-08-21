@@ -143,6 +143,12 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
       feature_flags_ |= kX64EmitTBM;
     }
   }
+  if (amd_flags & (1U << 11)) {
+    if ((cvars::x64_extension_mask & kX64EmitXOP) == kX64EmitXOP) {
+      feature_flags_ |= kX64EmitXOP;
+      XELOGCPU("Cpu support XOP!\n\n");
+    }
+  }
   if (cpu_.has(Xbyak::util::Cpu::tAMD)) {
     bool is_zennish = cpu_.displayFamily >= 0x17;
     /*

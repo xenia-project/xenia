@@ -781,11 +781,12 @@ struct SELECT_V128_V128
     } else if (mayblend == PermittedBlend::Ps) {
       e.vblendvps(i.dest, src2, src3, src1);
     } else {
-      if (e.IsFeatureEnabled(kX64EmitXOP)) {
+       if (1 && e.IsFeatureEnabled(kX64EmitXOP)) {
         XELOGCPU("Doing vpcmov!!");
-        e.vpcmov(i.dest, src2, src3, src1);
+        e.vpcmov(i.dest, src3, src2, src1);
       } else {
         // src1 ? src2 : src3;
+
         e.vpandn(e.xmm3, src1, src2);
         e.vpand(i.dest, src1, src3);
         e.vpor(i.dest, i.dest, e.xmm3);

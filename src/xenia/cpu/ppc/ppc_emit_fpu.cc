@@ -442,7 +442,18 @@ int InstrEmit_fabsx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- abs(frB)
   Value* v = f.Abs(f.LoadFPR(i.X.RB));
   f.StoreFPR(i.X.RT, v);
-  f.UpdateFPSCR(v, i.X.Rc);
+  /*
+  The contents of frB with bit 0 cleared are placed into frD.
+Note that the fabs instruction treats NaNs just like any other kind of value. That is, the sign
+bit of a NaN may be altered by fabs. This instruction does not alter the FPSCR.
+Other registers altered:
+• Condition Register (CR1 field):
+Affected: FX, FEX, VX, OX (if Rc = 1)
+  */
+ // f.UpdateFPSCR(v, i.X.Rc);
+  if (i.X.Rc) {
+  
+  }
   return 0;
 }
 

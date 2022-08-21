@@ -143,6 +143,7 @@ struct VECTOR_DENORMFLUSH
     e.vandps(e.xmm0, i.src1,
              e.GetXmmConstPtr(XMMSingleDenormalMask));  // 0.25 P0123
     e.vcmpneqps(e.xmm2, e.xmm0, e.xmm1);                // 0.5 P01
+                                                        // todo: xop vpcmov here
     e.vandps(e.xmm1, i.src1,
              e.GetXmmConstPtr(XMMSignMaskF32));  // 0.5 P0123 take signs, zeros
                                                  // must keep their signs
@@ -457,68 +458,52 @@ struct VECTOR_COMPARE_UGT_V128
     : Sequence<VECTOR_COMPARE_UGT_V128,
                I<OPCODE_VECTOR_COMPARE_UGT, V128Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (i.instr->flags != FLOAT32_TYPE && e.IsFeatureEnabled(kX64EmitXOP)) {
-      Xmm src1 = GetInputRegOrConstant(e, i.src1, e.xmm0);
-      Xmm src2 = GetInputRegOrConstant(e, i.src2, e.xmm1);
-      switch (i.instr->flags) {
-        case INT8_TYPE:
-          e.vpcomub(i.dest, src1, src2, xopcompare_e::GT);
-          break;
-        case INT16_TYPE:
-          e.vpcomuw(i.dest, src1, src2, xopcompare_e::GT);
-          break;
-        case INT32_TYPE:
-          e.vpcomud(i.dest, src1, src2, xopcompare_e::GT);
-          break;
-      }
+    Xbyak::Address sign_addr = e.ptr[e.rax];  // dummy
+    switch (i.instr->flags) {
+      case INT8_TYPE:
+        sign_addr = e.GetXmmConstPtr(XMMSignMaskI8);
+        break;
+      case INT16_TYPE:
+        sign_addr = e.GetXmmConstPtr(XMMSignMaskI16);
+        break;
+      case INT32_TYPE:
+        sign_addr = e.GetXmmConstPtr(XMMSignMaskI32);
+        break;
+      case FLOAT32_TYPE:
+        e.ChangeMxcsrMode(MXCSRMode::Vmx);
+        sign_addr = e.GetXmmConstPtr(XMMSignMaskF32);
+        break;
+      default:
+        assert_always();
+        break;
+    }
+    if (i.src1.is_constant) {
+      // TODO(benvanik): make this constant.
+      e.LoadConstantXmm(e.xmm0, i.src1.constant());
+      e.vpxor(e.xmm0, sign_addr);
     } else {
-      Xbyak::Address sign_addr = e.ptr[e.rax];  // dummy
-      switch (i.instr->flags) {
-        case INT8_TYPE:
-          sign_addr = e.GetXmmConstPtr(XMMSignMaskI8);
-          break;
-        case INT16_TYPE:
-          sign_addr = e.GetXmmConstPtr(XMMSignMaskI16);
-          break;
-        case INT32_TYPE:
-          sign_addr = e.GetXmmConstPtr(XMMSignMaskI32);
-          break;
-        case FLOAT32_TYPE:
-          e.ChangeMxcsrMode(MXCSRMode::Vmx);
-          sign_addr = e.GetXmmConstPtr(XMMSignMaskF32);
-          break;
-        default:
-          assert_always();
-          break;
-      }
-      if (i.src1.is_constant) {
-        // TODO(benvanik): make this constant.
-        e.LoadConstantXmm(e.xmm0, i.src1.constant());
-        e.vpxor(e.xmm0, sign_addr);
-      } else {
-        e.vpxor(e.xmm0, i.src1, sign_addr);
-      }
-      if (i.src2.is_constant) {
-        // TODO(benvanik): make this constant.
-        e.LoadConstantXmm(e.xmm1, i.src2.constant());
-        e.vpxor(e.xmm1, sign_addr);
-      } else {
-        e.vpxor(e.xmm1, i.src2, sign_addr);
-      }
-      switch (i.instr->flags) {
-        case INT8_TYPE:
-          e.vpcmpgtb(i.dest, e.xmm0, e.xmm1);
-          break;
-        case INT16_TYPE:
-          e.vpcmpgtw(i.dest, e.xmm0, e.xmm1);
-          break;
-        case INT32_TYPE:
-          e.vpcmpgtd(i.dest, e.xmm0, e.xmm1);
-          break;
-        case FLOAT32_TYPE:
-          e.vcmpgtps(i.dest, e.xmm0, e.xmm1);
-          break;
-      }
+      e.vpxor(e.xmm0, i.src1, sign_addr);
+    }
+    if (i.src2.is_constant) {
+      // TODO(benvanik): make this constant.
+      e.LoadConstantXmm(e.xmm1, i.src2.constant());
+      e.vpxor(e.xmm1, sign_addr);
+    } else {
+      e.vpxor(e.xmm1, i.src2, sign_addr);
+    }
+    switch (i.instr->flags) {
+      case INT8_TYPE:
+        e.vpcmpgtb(i.dest, e.xmm0, e.xmm1);
+        break;
+      case INT16_TYPE:
+        e.vpcmpgtw(i.dest, e.xmm0, e.xmm1);
+        break;
+      case INT32_TYPE:
+        e.vpcmpgtd(i.dest, e.xmm0, e.xmm1);
+        break;
+      case FLOAT32_TYPE:
+        e.vcmpgtps(i.dest, e.xmm0, e.xmm1);
+        break;
     }
   }
 };
@@ -634,6 +619,7 @@ struct VECTOR_ADD
                   // overflowed (only need to check one input)
                   // if (src1 > res) then overflowed
                   // http://locklessinc.com/articles/sat_arithmetic/
+                  // chrispy: todo - add xop stuff here
                   e.vpxor(e.xmm2, src1, e.GetXmmConstPtr(XMMSignMaskI32));
                   e.vpxor(e.xmm0, e.xmm1, e.GetXmmConstPtr(XMMSignMaskI32));
                   e.vpcmpgtd(e.xmm0, e.xmm2, e.xmm0);

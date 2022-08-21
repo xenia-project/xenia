@@ -1023,13 +1023,6 @@ Value* HIRBuilder::Truncate(Value* value, TypeName target_type) {
 
 Value* HIRBuilder::Convert(Value* value, TypeName target_type,
                            RoundMode round_mode) {
-  if (value->type == target_type) {
-    return value;
-  } else if (value->IsConstant()) {
-    Value* dest = CloneValue(value);
-    dest->Convert(target_type, round_mode);
-    return dest;
-  }
 
   Instr* i =
       AppendInstr(OPCODE_CONVERT_info, round_mode, AllocValue(target_type));
@@ -1041,11 +1034,6 @@ Value* HIRBuilder::Convert(Value* value, TypeName target_type,
 Value* HIRBuilder::Round(Value* value, RoundMode round_mode) {
   ASSERT_FLOAT_OR_VECTOR_TYPE(value);
 
-  if (value->IsConstant()) {
-    Value* dest = CloneValue(value);
-    dest->Round(round_mode);
-    return dest;
-  }
 
   Instr* i =
       AppendInstr(OPCODE_ROUND_info, round_mode, AllocValue(value->type));
@@ -1295,7 +1283,7 @@ void HIRBuilder::SetNJM(Value* value) {
 Value* HIRBuilder::Max(Value* value1, Value* value2) {
   ASSERT_TYPES_EQUAL(value1, value2);
 
-  if (value1->type != VEC128_TYPE && value1->IsConstant() &&
+  if (IsScalarIntegralType( value1->type) && value1->IsConstant() &&
       value2->IsConstant()) {
     return value1->Compare(OPCODE_COMPARE_SLT, value2) ? value2 : value1;
   }
@@ -1323,7 +1311,7 @@ Value* HIRBuilder::VectorMax(Value* value1, Value* value2, TypeName part_type,
 Value* HIRBuilder::Min(Value* value1, Value* value2) {
   ASSERT_TYPES_EQUAL(value1, value2);
 
-  if (value1->type != VEC128_TYPE && value1->IsConstant() &&
+  if (IsScalarIntegralType(value1->type) && value1->IsConstant() &&
       value2->IsConstant()) {
     return value1->Compare(OPCODE_COMPARE_SLT, value2) ? value1 : value2;
   }
@@ -1351,8 +1339,9 @@ Value* HIRBuilder::VectorMin(Value* value1, Value* value2, TypeName part_type,
 Value* HIRBuilder::Select(Value* cond, Value* value1, Value* value2) {
   assert_true(cond->type == INT8_TYPE || cond->type == VEC128_TYPE);  // for now
   ASSERT_TYPES_EQUAL(value1, value2);
-
-  if (cond->IsConstant()) {
+  // chrispy: this was being done with V128, which was breaking stuff obviously
+  // because that should be an element by element select
+  if (cond->IsConstant() && IsScalarIntegralType(cond->type)) {
     return cond->IsConstantTrue() ? value1 : value2;
   }
 
@@ -1518,7 +1507,8 @@ Value* HIRBuilder::Add(Value* value1, Value* value2,
   ASSERT_TYPES_EQUAL(value1, value2);
 
   // TODO(benvanik): optimize when flags set.
-  if (!arithmetic_flags) {
+
+  if (!arithmetic_flags && IsScalarIntegralType(value1->type)) {
     if (value1->IsConstantZero()) {
       return value2;
     } else if (value2->IsConstantZero()) {
