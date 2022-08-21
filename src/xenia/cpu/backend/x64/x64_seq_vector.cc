@@ -406,26 +406,44 @@ struct VECTOR_COMPARE_SGE_V128
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     EmitAssociativeBinaryXmmOp(
         e, i, [&i](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
-          switch (i.instr->flags) {
-            case INT8_TYPE:
-              e.vpcmpeqb(e.xmm0, src1, src2);
-              e.vpcmpgtb(dest, src1, src2);
-              e.vpor(dest, e.xmm0);
-              break;
-            case INT16_TYPE:
-              e.vpcmpeqw(e.xmm0, src1, src2);
-              e.vpcmpgtw(dest, src1, src2);
-              e.vpor(dest, e.xmm0);
-              break;
-            case INT32_TYPE:
-              e.vpcmpeqd(e.xmm0, src1, src2);
-              e.vpcmpgtd(dest, src1, src2);
-              e.vpor(dest, e.xmm0);
-              break;
-            case FLOAT32_TYPE:
-              e.ChangeMxcsrMode(MXCSRMode::Vmx);
-              e.vcmpgeps(dest, src1, src2);
-              break;
+          if (e.IsFeatureEnabled(kX64EmitXOP)) {
+            switch (i.instr->flags) {
+              case INT8_TYPE:
+                e.vpcomb(dest, src1, src2, xopcompare_e::GTE);
+                break;
+              case INT16_TYPE:
+                e.vpcomw(dest, src1, src2, xopcompare_e::GTE);
+                break;
+              case INT32_TYPE:
+                e.vpcomd(dest, src1, src2, xopcompare_e::GTE);
+                break;
+              case FLOAT32_TYPE:
+                e.ChangeMxcsrMode(MXCSRMode::Vmx);
+                e.vcmpgeps(dest, src1, src2);
+                break;
+            }
+          } else {
+            switch (i.instr->flags) {
+              case INT8_TYPE:
+                e.vpcmpeqb(e.xmm0, src1, src2);
+                e.vpcmpgtb(dest, src1, src2);
+                e.vpor(dest, e.xmm0);
+                break;
+              case INT16_TYPE:
+                e.vpcmpeqw(e.xmm0, src1, src2);
+                e.vpcmpgtw(dest, src1, src2);
+                e.vpor(dest, e.xmm0);
+                break;
+              case INT32_TYPE:
+                e.vpcmpeqd(e.xmm0, src1, src2);
+                e.vpcmpgtd(dest, src1, src2);
+                e.vpor(dest, e.xmm0);
+                break;
+              case FLOAT32_TYPE:
+                e.ChangeMxcsrMode(MXCSRMode::Vmx);
+                e.vcmpgeps(dest, src1, src2);
+                break;
+            }
           }
         });
   }
@@ -439,52 +457,68 @@ struct VECTOR_COMPARE_UGT_V128
     : Sequence<VECTOR_COMPARE_UGT_V128,
                I<OPCODE_VECTOR_COMPARE_UGT, V128Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    Xbyak::Address sign_addr = e.ptr[e.rax];  // dummy
-    switch (i.instr->flags) {
-      case INT8_TYPE:
-        sign_addr = e.GetXmmConstPtr(XMMSignMaskI8);
-        break;
-      case INT16_TYPE:
-        sign_addr = e.GetXmmConstPtr(XMMSignMaskI16);
-        break;
-      case INT32_TYPE:
-        sign_addr = e.GetXmmConstPtr(XMMSignMaskI32);
-        break;
-      case FLOAT32_TYPE:
-        e.ChangeMxcsrMode(MXCSRMode::Vmx);
-        sign_addr = e.GetXmmConstPtr(XMMSignMaskF32);
-        break;
-      default:
-        assert_always();
-        break;
-    }
-    if (i.src1.is_constant) {
-      // TODO(benvanik): make this constant.
-      e.LoadConstantXmm(e.xmm0, i.src1.constant());
-      e.vpxor(e.xmm0, sign_addr);
+    if (i.instr->flags != FLOAT32_TYPE && e.IsFeatureEnabled(kX64EmitXOP)) {
+      Xmm src1 = GetInputRegOrConstant(e, i.src1, e.xmm0);
+      Xmm src2 = GetInputRegOrConstant(e, i.src2, e.xmm1);
+      switch (i.instr->flags) {
+        case INT8_TYPE:
+          e.vpcomub(i.dest, src1, src2, xopcompare_e::GT);
+          break;
+        case INT16_TYPE:
+          e.vpcomuw(i.dest, src1, src2, xopcompare_e::GT);
+          break;
+        case INT32_TYPE:
+          e.vpcomud(i.dest, src1, src2, xopcompare_e::GT);
+          break;
+      }
     } else {
-      e.vpxor(e.xmm0, i.src1, sign_addr);
-    }
-    if (i.src2.is_constant) {
-      // TODO(benvanik): make this constant.
-      e.LoadConstantXmm(e.xmm1, i.src2.constant());
-      e.vpxor(e.xmm1, sign_addr);
-    } else {
-      e.vpxor(e.xmm1, i.src2, sign_addr);
-    }
-    switch (i.instr->flags) {
-      case INT8_TYPE:
-        e.vpcmpgtb(i.dest, e.xmm0, e.xmm1);
-        break;
-      case INT16_TYPE:
-        e.vpcmpgtw(i.dest, e.xmm0, e.xmm1);
-        break;
-      case INT32_TYPE:
-        e.vpcmpgtd(i.dest, e.xmm0, e.xmm1);
-        break;
-      case FLOAT32_TYPE:
-        e.vcmpgtps(i.dest, e.xmm0, e.xmm1);
-        break;
+      Xbyak::Address sign_addr = e.ptr[e.rax];  // dummy
+      switch (i.instr->flags) {
+        case INT8_TYPE:
+          sign_addr = e.GetXmmConstPtr(XMMSignMaskI8);
+          break;
+        case INT16_TYPE:
+          sign_addr = e.GetXmmConstPtr(XMMSignMaskI16);
+          break;
+        case INT32_TYPE:
+          sign_addr = e.GetXmmConstPtr(XMMSignMaskI32);
+          break;
+        case FLOAT32_TYPE:
+          e.ChangeMxcsrMode(MXCSRMode::Vmx);
+          sign_addr = e.GetXmmConstPtr(XMMSignMaskF32);
+          break;
+        default:
+          assert_always();
+          break;
+      }
+      if (i.src1.is_constant) {
+        // TODO(benvanik): make this constant.
+        e.LoadConstantXmm(e.xmm0, i.src1.constant());
+        e.vpxor(e.xmm0, sign_addr);
+      } else {
+        e.vpxor(e.xmm0, i.src1, sign_addr);
+      }
+      if (i.src2.is_constant) {
+        // TODO(benvanik): make this constant.
+        e.LoadConstantXmm(e.xmm1, i.src2.constant());
+        e.vpxor(e.xmm1, sign_addr);
+      } else {
+        e.vpxor(e.xmm1, i.src2, sign_addr);
+      }
+      switch (i.instr->flags) {
+        case INT8_TYPE:
+          e.vpcmpgtb(i.dest, e.xmm0, e.xmm1);
+          break;
+        case INT16_TYPE:
+          e.vpcmpgtw(i.dest, e.xmm0, e.xmm1);
+          break;
+        case INT32_TYPE:
+          e.vpcmpgtd(i.dest, e.xmm0, e.xmm1);
+          break;
+        case FLOAT32_TYPE:
+          e.vcmpgtps(i.dest, e.xmm0, e.xmm1);
+          break;
+      }
     }
   }
 };

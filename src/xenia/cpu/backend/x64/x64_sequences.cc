@@ -50,10 +50,10 @@ DEFINE_bool(no_round_to_single, false,
             "Not for users, breaks games. Skip rounding double values to "
             "single precision and back",
             "CPU");
-DEFINE_bool(
-    inline_loadclock, false,
-    "Directly read cached guest clock without calling the LoadClock method (it gets repeatedly updated by calls from other threads)",
-    "CPU");
+DEFINE_bool(inline_loadclock, false,
+            "Directly read cached guest clock without calling the LoadClock "
+            "method (it gets repeatedly updated by calls from other threads)",
+            "CPU");
 namespace xe {
 namespace cpu {
 namespace backend {
@@ -549,7 +549,7 @@ struct MAX_F64 : Sequence<MAX_F64, I<OPCODE_MAX, F64Op, F64Op, F64Op>> {
 struct MAX_V128 : Sequence<MAX_V128, I<OPCODE_MAX, V128Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.ChangeMxcsrMode(MXCSRMode::Vmx);
-	//if 0 and -0, return 0! opposite of minfp
+    // if 0 and -0, return 0! opposite of minfp
     auto src1 = GetInputRegOrConstant(e, i.src1, e.xmm0);
     auto src2 = GetInputRegOrConstant(e, i.src2, e.xmm1);
     e.vmaxps(e.xmm2, src1, src2);
@@ -781,11 +781,15 @@ struct SELECT_V128_V128
     } else if (mayblend == PermittedBlend::Ps) {
       e.vblendvps(i.dest, src2, src3, src1);
     } else {
-		//ideally we would have an xop path here...
-      // src1 ? src2 : src3;
-      e.vpandn(e.xmm3, src1, src2);
-      e.vpand(i.dest, src1, src3);
-      e.vpor(i.dest, i.dest, e.xmm3);
+      if (e.IsFeatureEnabled(kX64EmitXOP)) {
+        XELOGCPU("Doing vpcmov!!");
+        e.vpcmov(i.dest, src2, src3, src1);
+      } else {
+        // src1 ? src2 : src3;
+        e.vpandn(e.xmm3, src1, src2);
+        e.vpand(i.dest, src1, src3);
+        e.vpor(i.dest, i.dest, e.xmm3);
+      }
     }
   }
 };
