@@ -1710,7 +1710,60 @@ void D3D12CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
     }
   }
 }
+void D3D12CommandProcessor::WriteRegistersFromMem(uint32_t start_index,
+                                                  uint32_t* base,
+                                                  uint32_t num_registers) {
+  for (uint32_t i = 0; i < num_registers; ++i) {
+    uint32_t data = xe::load_and_swap<uint32_t>(base + i);
+    D3D12CommandProcessor::WriteRegister(start_index + i, data);
+  }
+}
+void D3D12CommandProcessor::WriteRegisterRangeFromRing(xe::RingBuffer* ring,
+                                                       uint32_t base,
+                                                       uint32_t num_registers) {
+  // we already brought it into L2 earlier
+  RingBuffer::ReadRange range =
+      ring->BeginPrefetchedRead<swcache::PrefetchTag::Level1>(num_registers *
+                                                              sizeof(uint32_t));
 
+  uint32_t num_regs_firstrange =
+      static_cast<uint32_t>(range.first_length / sizeof(uint32_t));
+
+  D3D12CommandProcessor::WriteRegistersFromMem(
+      base, reinterpret_cast<uint32_t*>(const_cast<uint8_t*>(range.first)),
+      num_regs_firstrange);
+  if (range.second) {
+    D3D12CommandProcessor::WriteRegistersFromMem(
+        base + num_regs_firstrange,
+        reinterpret_cast<uint32_t*>(const_cast<uint8_t*>(range.second)),
+        num_registers - num_regs_firstrange);
+  }
+  ring->EndRead(range);
+}
+void D3D12CommandProcessor::WriteOneRegisterFromRing(xe::RingBuffer* ring,
+                                                     uint32_t base,
+                                                     uint32_t num_times) {
+  auto read = ring->BeginPrefetchedRead<swcache::PrefetchTag::Level1>(
+      num_times * sizeof(uint32_t));
+
+  uint32_t first_length = read.first_length / sizeof(uint32_t);
+
+  for (uint32_t i = 0; i < first_length; ++i) {
+    D3D12CommandProcessor::WriteRegister(
+        base, xe::load_and_swap<uint32_t>(read.first + (sizeof(uint32_t) * i)));
+  }
+
+  if (read.second) {
+    uint32_t second_length = read.second_length / sizeof(uint32_t);
+
+    for (uint32_t i = 0; i < second_length; ++i) {
+      D3D12CommandProcessor::WriteRegister(
+          base,
+          xe::load_and_swap<uint32_t>(read.second + (sizeof(uint32_t) * i)));
+    }
+  }
+  ring->EndRead(read);
+}
 void D3D12CommandProcessor::OnGammaRamp256EntryTableValueWritten() {
   gamma_ramp_256_entry_table_up_to_date_ = false;
 }

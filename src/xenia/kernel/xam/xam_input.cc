@@ -58,6 +58,7 @@ dword_result_t XamInputGetCapabilities_entry(
   }
 
   auto input_system = kernel_state()->emulator()->input_system();
+  auto lock = input_system->lock();
   return input_system->GetCapabilities(actual_user_index, flags, caps);
 }
 DECLARE_XAM_EXPORT1(XamInputGetCapabilities, kInput, kSketchy);
@@ -81,6 +82,7 @@ dword_result_t XamInputGetCapabilitiesEx_entry(
   }
 
   auto input_system = kernel_state()->emulator()->input_system();
+  auto lock = input_system->lock();
   return input_system->GetCapabilities(actual_user_index, flags, caps);
 }
 DECLARE_XAM_EXPORT1(XamInputGetCapabilitiesEx, kInput, kSketchy);
@@ -88,6 +90,13 @@ DECLARE_XAM_EXPORT1(XamInputGetCapabilitiesEx, kInput, kSketchy);
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetstate(v=vs.85).aspx
 dword_result_t XamInputGetState_entry(dword_t user_index, dword_t flags,
                                       pointer_t<X_INPUT_STATE> input_state) {
+  if (input_state) {
+    memset((void*)input_state.host_address(), 0, sizeof X_INPUT_STATE);
+  }
+  if (user_index >= 4) {
+    return X_ERROR_DEVICE_NOT_CONNECTED;
+  }
+
   // Games call this with a NULL state ptr, probably as a query.
 
   if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
@@ -96,12 +105,14 @@ dword_result_t XamInputGetState_entry(dword_t user_index, dword_t flags,
   }
 
   uint32_t actual_user_index = user_index;
+  // chrispy: change this, logic is not right
   if ((actual_user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
     // Always pin user to 0.
     actual_user_index = 0;
   }
 
   auto input_system = kernel_state()->emulator()->input_system();
+  auto lock = input_system->lock();
   return input_system->GetState(user_index, input_state);
 }
 DECLARE_XAM_EXPORT2(XamInputGetState, kInput, kImplemented, kHighFrequency);
@@ -109,6 +120,9 @@ DECLARE_XAM_EXPORT2(XamInputGetState, kInput, kImplemented, kHighFrequency);
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputsetstate(v=vs.85).aspx
 dword_result_t XamInputSetState_entry(dword_t user_index, dword_t unk,
                                       pointer_t<X_INPUT_VIBRATION> vibration) {
+  if (user_index >= 4) {
+    return X_E_DEVICE_NOT_CONNECTED;
+  }
   if (!vibration) {
     return X_ERROR_BAD_ARGUMENTS;
   }
@@ -120,6 +134,7 @@ dword_result_t XamInputSetState_entry(dword_t user_index, dword_t unk,
   }
 
   auto input_system = kernel_state()->emulator()->input_system();
+  auto lock = input_system->lock();
   return input_system->SetState(user_index, vibration);
 }
 DECLARE_XAM_EXPORT1(XamInputSetState, kInput, kImplemented);
@@ -147,6 +162,7 @@ dword_result_t XamInputGetKeystroke_entry(
   }
 
   auto input_system = kernel_state()->emulator()->input_system();
+  auto lock = input_system->lock();
   return input_system->GetKeystroke(user_index, flags, keystroke);
 }
 DECLARE_XAM_EXPORT1(XamInputGetKeystroke, kInput, kImplemented);
@@ -166,14 +182,15 @@ dword_result_t XamInputGetKeystrokeEx_entry(
 
   uint32_t user_index = *user_index_ptr;
   auto input_system = kernel_state()->emulator()->input_system();
-
+  auto lock = input_system->lock();
   if ((user_index & 0xFF) == 0xFF) {
     // Always pin user to 0.
     user_index = 0;
   }
 
   if (flags & XINPUT_FLAG_ANY_USER) {
-    // That flag means we should iterate over every connected controller and check which one have pending request.
+    // That flag means we should iterate over every connected controller and
+    // check which one have pending request.
     auto result = X_ERROR_DEVICE_NOT_CONNECTED;
     for (uint32_t i = 0; i < 4; i++) {
       auto result = input_system->GetKeystroke(i, flags, keystroke);
@@ -188,6 +205,7 @@ dword_result_t XamInputGetKeystrokeEx_entry(
   }
 
   auto result = input_system->GetKeystroke(user_index, flags, keystroke);
+
   if (XSUCCEEDED(result)) {
     *user_index_ptr = keystroke->user_index;
   }
@@ -202,7 +220,8 @@ X_HRESULT_result_t XamUserGetDeviceContext_entry(dword_t user_index,
   // If this function fails they assume zero, so let's fail AND
   // set zero just to be safe.
   *out_ptr = 0;
-  if (kernel_state()->IsUserSignedIn(user_index) || (user_index & 0xFF) == 0xFF) {
+  if (kernel_state()->IsUserSignedIn(user_index) ||
+      (user_index & 0xFF) == 0xFF) {
     *out_ptr = (uint32_t)user_index;
     return X_E_SUCCESS;
   } else {

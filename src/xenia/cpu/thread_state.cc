@@ -77,7 +77,8 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
 
   // Allocate with 64b alignment.
 
-  context_ = reinterpret_cast<ppc::PPCContext*>(AllocateContext());  // memory::AlignedAlloc<ppc::PPCContext>(64);
+  context_ = reinterpret_cast<ppc::PPCContext*>(
+      AllocateContext());
   processor->backend()->InitializeBackendContext(context_);
   assert_true(((uint64_t)context_ & 0x3F) == 0);
   std::memset(context_, 0, sizeof(ppc::PPCContext));
@@ -93,6 +94,7 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
   // Set initial registers.
   context_->r[1] = stack_base;
   context_->r[13] = pcr_address;
+  // fixme: VSCR must be set here!
 }
 
 ThreadState::~ThreadState() {
@@ -105,7 +107,7 @@ ThreadState::~ThreadState() {
   if (context_) {
     FreeContext(reinterpret_cast<void*>(context_));
   }
- // memory::AlignedFree(context_);
+  // memory::AlignedFree(context_);
 }
 
 void ThreadState::Bind(ThreadState* thread_state) {

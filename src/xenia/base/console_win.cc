@@ -19,7 +19,7 @@ namespace xe {
 
 // TODO(Triang3l): Set the default depending on the actual subsystem. Currently
 // it inhibits message boxes.
-static bool has_console_attached_ = true;
+static bool has_console_attached_ = false;
 
 bool has_console_attached() { return has_console_attached_; }
 

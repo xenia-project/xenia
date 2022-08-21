@@ -15,6 +15,14 @@
 #include "xenia/base/cvar.h"
 #include "xenia/cpu/backend/backend.h"
 
+#if XE_PLATFORM_WIN32 == 1
+// we use KUSER_SHARED's systemtime field, which is at a fixed address and
+// obviously windows specific, to get the start/end time for a function using
+// rdtsc would be too slow and skew the results by consuming extra cpu time, so
+// we have lower time precision but better overall accuracy
+#define XE_X64_PROFILER_AVAILABLE 1
+#endif
+
 DECLARE_int32(x64_extension_mask);
 
 namespace xe {
@@ -24,6 +32,8 @@ namespace xe {
 namespace cpu {
 namespace backend {
 namespace x64 {
+// mapping of guest function addresses to total nanoseconds taken in the func
+using GuestProfilerData = std::map<uint32_t, uint64_t>;
 
 class X64CodeCache;
 
@@ -37,8 +47,10 @@ typedef void (*ResolveFunctionThunk)();
 // negatively index the membase reg)
 struct X64BackendContext {
   void* ResolveFunction_Ptr;  // cached pointer to resolvefunction
-  unsigned int mxcsr_fpu;     // currently, the way we implement rounding mode
-                              // affects both vmx and the fpu
+  uint64_t* guest_tick_count;
+
+  unsigned int mxcsr_fpu;  // currently, the way we implement rounding mode
+                           // affects both vmx and the fpu
   unsigned int mxcsr_vmx;
   unsigned int flags;   // bit 0 = 0 if mxcsr is fpu, else it is vmx
   unsigned int Ox1000;  // constant 0x1000 so we can shrink each tail emitted
@@ -93,7 +105,9 @@ class X64Backend : public Backend {
   virtual void SetGuestRoundingMode(void* ctx, unsigned int mode) override;
 
   void RecordMMIOExceptionForGuestInstruction(void* host_address);
-
+#if XE_X64_PROFILER_AVAILABLE == 1
+  uint64_t* GetProfilerRecordForFunction(uint32_t guest_address);
+#endif
  private:
   static bool ExceptionCallbackThunk(Exception* ex, void* data);
   bool ExceptionCallback(Exception* ex);
@@ -106,6 +120,10 @@ class X64Backend : public Backend {
   HostToGuestThunk host_to_guest_thunk_;
   GuestToHostThunk guest_to_host_thunk_;
   ResolveFunctionThunk resolve_function_thunk_;
+
+#if XE_X64_PROFILER_AVAILABLE == 1
+  GuestProfilerData profiler_data_;
+#endif
 };
 
 }  // namespace x64

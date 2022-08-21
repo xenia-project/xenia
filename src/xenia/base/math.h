@@ -376,6 +376,29 @@ template <int N>
 int64_t m128_i64(const __m128& v) {
   return m128_i64<N>(_mm_castps_pd(v));
 }
+/*
+	
+	std::min/max float has handling for nans, where if either argument is nan the first argument is returned
+
+	minss/maxss are different, if either argument is nan the second operand to the instruction is returned
+	this is problematic because we have no assurances from the compiler on the argument ordering
+
+	so only use in places where nan handling is not needed
+*/
+static float xe_minf(float x, float y) {
+  return _mm_cvtss_f32(_mm_min_ss(_mm_set_ss(x), _mm_set_ss(y)));
+}
+static float xe_maxf(float x, float y) {
+  return _mm_cvtss_f32(_mm_max_ss(_mm_set_ss(x), _mm_set_ss(y)));
+}
+static float xe_rcpf(float den) {
+  return _mm_cvtss_f32(_mm_rcp_ss(_mm_set_ss(den)));
+}
+
+#else
+static float xe_minf(float x, float y) { return std::min<float>(x, y); }
+static float xe_maxf(float x, float y) { return std::max<float>(x, y); }
+static float xe_rcpf(float den) { return 1.0f / den; }
 #endif
 
 // Similar to the C++ implementation of XMConvertFloatToHalf and

@@ -122,12 +122,31 @@
 #define XE_COLD __attribute__((cold))
 #define XE_LIKELY(...) __builtin_expect(!!(__VA_ARGS__), true)
 #define XE_UNLIKELY(...) __builtin_expect(!!(__VA_ARGS__), false)
+
 #else
 #define XE_FORCEINLINE inline
 #define XE_NOINLINE
 #define XE_COLD
 #define XE_LIKELY(...) (!!(__VA_ARGS__))
 #define XE_UNLIKELY(...) (!!(__VA_ARGS__))
+#endif
+// only use __restrict if MSVC, for clang/gcc we can use -fstrict-aliasing which
+// acts as __restrict across the board todo: __restrict is part of the type
+// system, we might actually have to still emit it on clang and gcc
+#if XE_COMPILER_CLANG_CL == 0 && XE_COMPILER_MSVC == 1
+
+#define XE_RESTRICT __restrict
+#else
+#define XE_RESTRICT
+#endif
+
+#if XE_ARCH_AMD64 == 1
+#define XE_HOST_CACHE_LINE_SIZE 64
+#elif XE_ARCH_ARM64 == 1
+#define XE_HOST_CACHE_LINE_SIZE 64
+#else
+
+#error unknown cache line size for unknown architecture!
 #endif
 
 namespace xe {

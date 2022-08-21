@@ -214,6 +214,10 @@ class HIRBuilder {
   Value* Div(Value* value1, Value* value2, uint32_t arithmetic_flags = 0);
   Value* MulAdd(Value* value1, Value* value2, Value* value3);  // (1 * 2) + 3
   Value* MulSub(Value* value1, Value* value2, Value* value3);  // (1 * 2) - 3
+  Value* NegatedMulAdd(Value* value1, Value* value2,
+                       Value* value3);  // -((1 * 2) + 3)
+  Value* NegatedMulSub(Value* value1, Value* value2,
+                       Value* value3);  // -((1 * 2) - 3)
   Value* Neg(Value* value);
   Value* Abs(Value* value);
   Value* Sqrt(Value* value);
@@ -265,6 +269,7 @@ class HIRBuilder {
   Value* AtomicAdd(Value* address, Value* value);
   Value* AtomicSub(Value* address, Value* value);
   void SetNJM(Value* value);
+
  protected:
   void DumpValue(StringBuffer* str, Value* value);
   void DumpOp(StringBuffer* str, OpcodeSignatureType sig_type, Instr::Op* op);

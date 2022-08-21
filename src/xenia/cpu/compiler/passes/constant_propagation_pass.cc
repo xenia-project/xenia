@@ -600,6 +600,9 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           break;
         case OPCODE_MAX:
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
+            if (should_skip_because_of_float) {
+              break;
+			}
             v->set_from(i->src1.value);
             v->Max(i->src2.value);
             i->Remove();

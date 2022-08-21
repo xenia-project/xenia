@@ -1636,15 +1636,7 @@ Value* HIRBuilder::Div(Value* value1, Value* value2,
 Value* HIRBuilder::MulAdd(Value* value1, Value* value2, Value* value3) {
   ASSERT_TYPES_EQUAL(value1, value2);
   ASSERT_TYPES_EQUAL(value1, value3);
-  #if 0
-  bool c1 = value1->IsConstant();
-  bool c2 = value2->IsConstant();
-  if (c1 && c2) {
-    Value* dest = CloneValue(value1);
-    dest->Mul(value2);
-    return Add(dest, value3);
-  }
-  #endif
+
   Instr* i = AppendInstr(OPCODE_MUL_ADD_info, 0, AllocValue(value1->type));
   i->set_src1(value1);
   i->set_src2(value2);
@@ -1655,16 +1647,32 @@ Value* HIRBuilder::MulAdd(Value* value1, Value* value2, Value* value3) {
 Value* HIRBuilder::MulSub(Value* value1, Value* value2, Value* value3) {
   ASSERT_TYPES_EQUAL(value1, value2);
   ASSERT_TYPES_EQUAL(value1, value3);
-  #if 0
-  bool c1 = value1->IsConstant();
-  bool c2 = value2->IsConstant();
-  if (c1 && c2) {
-    Value* dest = CloneValue(value1);
-    dest->Mul(value2);
-    return Sub(dest, value3);
-  }
-  #endif
+
   Instr* i = AppendInstr(OPCODE_MUL_SUB_info, 0, AllocValue(value1->type));
+  i->set_src1(value1);
+  i->set_src2(value2);
+  i->set_src3(value3);
+  return i->dest;
+}
+
+Value* HIRBuilder::NegatedMulAdd(Value* value1, Value* value2, Value* value3) {
+  ASSERT_TYPES_EQUAL(value1, value2);
+  ASSERT_TYPES_EQUAL(value1, value3);
+
+  Instr* i =
+      AppendInstr(OPCODE_NEGATED_MUL_ADD_info, 0, AllocValue(value1->type));
+  i->set_src1(value1);
+  i->set_src2(value2);
+  i->set_src3(value3);
+  return i->dest;
+}
+
+Value* HIRBuilder::NegatedMulSub(Value* value1, Value* value2, Value* value3) {
+  ASSERT_TYPES_EQUAL(value1, value2);
+  ASSERT_TYPES_EQUAL(value1, value3);
+
+  Instr* i =
+      AppendInstr(OPCODE_NEGATED_MUL_SUB_info, 0, AllocValue(value1->type));
   i->set_src1(value1);
   i->set_src2(value2);
   i->set_src3(value3);

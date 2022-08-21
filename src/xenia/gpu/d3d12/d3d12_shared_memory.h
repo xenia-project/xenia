@@ -91,8 +91,8 @@ class D3D12SharedMemory : public SharedMemory {
   bool AllocateSparseHostGpuMemoryRange(uint32_t offset_allocations,
                                         uint32_t length_allocations) override;
 
-  bool UploadRanges(const std::vector<std::pair<uint32_t, uint32_t>>&
-                        upload_page_ranges) override;
+  bool UploadRanges(const std::pair<uint32_t, uint32_t>*
+                        upload_page_ranges, unsigned num_ranges) override;
 
  private:
   D3D12CommandProcessor& command_processor_;

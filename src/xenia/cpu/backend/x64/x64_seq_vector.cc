@@ -19,10 +19,6 @@
 #include "xenia/base/cvar.h"
 #include "xenia/cpu/backend/x64/x64_stack_layout.h"
 
-DEFINE_bool(use_extended_range_half, true,
-            "Emulate extended range half-precision, may be slower on games "
-            "that use it heavily",
-            "CPU");
 namespace xe {
 namespace cpu {
 namespace backend {
@@ -1982,6 +1978,137 @@ struct PERMUTE_V128
 };
 EMITTER_OPCODE_TABLE(OPCODE_PERMUTE, PERMUTE_I32, PERMUTE_V128);
 
+#define LCPI(name, quad1) const __m128i name = _mm_set1_epi32(quad1)
+// xmm0 is precasted to int, but contains float
+// chrispy: todo: make available to gpu code
+static __m128i xenos_float4_to_float16_x4(__m128i xmm0) {
+  LCPI(LCPI0_0, 2147483647);
+  LCPI(LCPI0_1, 1207951360);
+  LCPI(LCPI0_2, 134217728);
+  LCPI(LCPI0_3, 3347054592);
+  LCPI(LCPI0_4, 260038655);
+  LCPI(LCPI0_5, 32767);
+  LCPI(LCPI0_6, 4294934528);
+
+  __m128i xmm1 = _mm_and_si128(xmm0, LCPI0_0);
+
+  __m128i xmm2 = LCPI0_1;
+
+  __m128i xmm3 = _mm_add_epi32(xmm0, LCPI0_2);
+  xmm2 = _mm_cmpgt_epi32(xmm2, xmm1);
+  xmm3 = _mm_srli_epi32(xmm3, 13);
+  xmm1 = _mm_add_epi32(xmm1, LCPI0_3);
+  __m128i xmm4 = _mm_min_epu32(xmm1, LCPI0_4);
+  xmm1 = _mm_cmpeq_epi32(xmm1, xmm4);
+  xmm4 = LCPI0_5;
+  xmm3 = _mm_and_si128(xmm3, xmm4);
+  xmm1 = _mm_and_si128(xmm1, xmm3);
+
+  xmm1 = _mm_castps_si128(_mm_blendv_ps(
+      _mm_castsi128_ps(xmm4), _mm_castsi128_ps(xmm1), _mm_castsi128_ps(xmm2)));
+  xmm0 = _mm_srli_epi32(xmm0, 16);
+  xmm0 = _mm_and_si128(xmm0, LCPI0_6);
+  xmm0 = _mm_or_si128(xmm1, xmm0);
+  xmm0 = _mm_packus_epi32(xmm0, _mm_setzero_si128());
+  return xmm0;
+}
+// returns floats, uncasted
+// chrispy: todo, make this available to gpu code?
+static __m128i xenos_halves_to_floats(__m128i xmm0) {
+  LCPI(LCPI3_0, 0x1f);
+  LCPI(LCPI3_1, 0x80000000);
+  LCPI(LCPI3_2, 0x38000000);
+  LCPI(LCPI3_3, 0x7fe000);
+
+  __m128i xmm1, xmm2, xmm3, xmm4;
+
+  xmm1 = _mm_cvtepu16_epi32(xmm0);
+
+  xmm2 = _mm_srli_epi32(xmm1, 10);
+
+  xmm2 = _mm_and_si128(xmm2, LCPI3_0);
+
+  xmm0 = _mm_cvtepi16_epi32(xmm0);
+
+  xmm0 = _mm_and_si128(xmm0, LCPI3_1);
+
+  xmm3 = _mm_setzero_si128();
+
+  xmm4 = _mm_slli_epi32(xmm2, 23);
+
+  xmm4 = _mm_add_epi32(xmm4, LCPI3_2);
+
+  xmm2 = _mm_cmpeq_epi32(xmm2, xmm3);
+
+  xmm1 = _mm_slli_epi32(xmm1, 13);
+
+  xmm1 = _mm_and_si128(xmm1, LCPI3_3);
+
+  xmm3 = _mm_andnot_si128(xmm2, xmm4);
+
+  xmm1 = _mm_andnot_si128(xmm2, xmm1);
+
+  xmm0 = _mm_or_si128(xmm1, xmm0);
+  xmm0 = _mm_or_si128(xmm0, xmm3);
+  return xmm0;
+}
+
+#undef LCPI
+template <typename Inst>
+static void emit_fast_f16_unpack(X64Emitter& e, const Inst& i,
+                                 XmmConst initial_shuffle) {
+  auto src1 = i.src1;
+
+  e.vpshufb(i.dest, src1, e.GetXmmConstPtr(initial_shuffle));
+  e.vpmovsxwd(e.xmm1, i.dest);
+
+  e.vpsrld(e.xmm2, e.xmm1, 10);
+  e.vpmovsxwd(e.xmm0, i.dest);
+  e.vpand(e.xmm0, e.xmm0, e.GetXmmConstPtr(XMMSignMaskPS));
+  e.vpand(e.xmm2, e.xmm2, e.GetXmmConstPtr(XMMPermuteByteMask));
+
+  e.vpslld(e.xmm3, e.xmm2, 23);
+
+  e.vpaddd(e.xmm3, e.xmm3, e.GetXmmConstPtr(XMMF16UnpackLCPI2));
+
+  e.vpcmpeqd(e.xmm2, e.xmm2, e.GetXmmConstPtr(XMMZero));
+
+  e.vpslld(e.xmm1, e.xmm1, 13);
+
+  e.vpandn(e.xmm1, e.xmm2, e.xmm1);
+  e.vpandn(e.xmm2, e.xmm2, e.xmm3);
+
+  e.vpand(e.xmm1, e.xmm1, e.GetXmmConstPtr(XMMF16UnpackLCPI3));
+  e.vpor(e.xmm0, e.xmm1, e.xmm0);
+  e.vpor(i.dest, e.xmm0, e.xmm2);
+}
+template <typename Inst>
+static void emit_fast_f16_pack(X64Emitter& e, const Inst& i,
+                               XmmConst final_shuffle) {
+  e.vpaddd(e.xmm1, i.src1, e.GetXmmConstPtr(XMMF16PackLCPI0));
+  e.vpand(e.xmm2, i.src1, e.GetXmmConstPtr(XMMAbsMaskPS));
+  e.vmovdqa(e.xmm3, e.GetXmmConstPtr(XMMF16PackLCPI2));
+
+  e.vpcmpgtd(e.xmm3, e.xmm3, e.xmm2);
+  e.vpsrld(e.xmm1, e.xmm1, 13);
+
+  e.vpaddd(e.xmm2, e.xmm2, e.GetXmmConstPtr(XMMF16PackLCPI3));
+  e.vpminud(e.xmm0, e.xmm2, e.GetXmmConstPtr(XMMF16PackLCPI4));
+
+  e.vpcmpeqd(e.xmm2, e.xmm2, e.xmm0);
+  e.vmovdqa(e.xmm0, e.GetXmmConstPtr(XMMF16PackLCPI5));
+  e.vpand(e.xmm1, e.xmm1, e.xmm0);
+  e.vpand(e.xmm1, e.xmm2, e.xmm1);
+  e.vpxor(e.xmm2, e.xmm2, e.xmm2);
+
+  e.vblendvps(e.xmm1, e.xmm0, e.xmm1, e.xmm3);
+
+  e.vpsrld(e.xmm0, i.src1, 16);
+  e.vpand(e.xmm0, e.xmm0, e.GetXmmConstPtr(XMMF16PackLCPI6));
+  e.vorps(e.xmm0, e.xmm1, e.xmm0);
+  e.vpackusdw(i.dest, e.xmm0, e.xmm2);
+  e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(final_shuffle));
+}
 // ============================================================================
 // OPCODE_SWIZZLE
 // ============================================================================
@@ -2081,14 +2208,9 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     alignas(16) uint16_t b[8];
     _mm_store_ps(a, src1);
     std::memset(b, 0, sizeof(b));
-    if (!cvars::use_extended_range_half) {
-      for (int i = 0; i < 2; i++) {
-        b[7 - i] = half_float::detail::float2half<std::round_toward_zero>(a[i]);
-      }
-    } else {
-      for (int i = 0; i < 2; i++) {
-        b[7 - i] = float_to_xenos_half(a[i]);
-      }
+
+    for (int i = 0; i < 2; i++) {
+      b[7 - i] = float_to_xenos_half(a[i]);
     }
 
     return _mm_load_si128(reinterpret_cast<__m128i*>(b));
@@ -2098,70 +2220,26 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     // http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
     // dest = [(src1.x | src1.y), 0, 0, 0]
 
-    if (e.IsFeatureEnabled(kX64EmitF16C) && !cvars::use_extended_range_half) {
-      Xmm src;
-      if (i.src1.is_constant) {
-        src = i.dest;
-        e.LoadConstantXmm(src, i.src1.constant());
-      } else {
-        src = i.src1;
-      }
-      // 0|0|0|0|W|Z|Y|X
-      e.vcvtps2ph(i.dest, src, 0b00000011);
-      // Shuffle to X|Y|0|0|0|0|0|0
-      e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackFLOAT16_2));
+    if (i.src1.is_constant) {
+      e.lea(e.GetNativeParam(0), e.StashConstantXmm(0, i.src1.constant()));
     } else {
-      if (i.src1.is_constant) {
-        e.lea(e.GetNativeParam(0), e.StashConstantXmm(0, i.src1.constant()));
-      } else {
-        e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
-      }
-      e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_2));
-      e.vmovaps(i.dest, e.xmm0);
+      e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
     }
+    e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_2));
+    e.vmovaps(i.dest, e.xmm0);
   }
-  static __m128i EmulateFLOAT16_4(void*, __m128 src1) {
-    alignas(16) float a[4];
-    alignas(16) uint16_t b[8];
-    _mm_store_ps(a, src1);
-    std::memset(b, 0, sizeof(b));
-    if (!cvars::use_extended_range_half) {
-      for (int i = 0; i < 4; i++) {
-        b[7 - (i ^ 2)] =
-            half_float::detail::float2half<std::round_toward_zero>(a[i]);
-      }
-    } else {
-      for (int i = 0; i < 4; i++) {
-        b[7 - (i ^ 2)] = float_to_xenos_half(a[i]);
-      }
-    }
 
-    return _mm_load_si128(reinterpret_cast<__m128i*>(b));
-  }
   static void EmitFLOAT16_4(X64Emitter& e, const EmitArgType& i) {
-    assert_true(i.src2.value->IsConstantZero());
-    // dest = [(src1.z | src1.w), (src1.x | src1.y), 0, 0]
-
-    if (e.IsFeatureEnabled(kX64EmitF16C) && !cvars::use_extended_range_half) {
-      Xmm src;
-      if (i.src1.is_constant) {
-        src = i.dest;
-        e.LoadConstantXmm(src, i.src1.constant());
-      } else {
-        src = i.src1;
-      }
-      // 0|0|0|0|W|Z|Y|X
-      e.vcvtps2ph(i.dest, src, 0b00000011);
-      // Shuffle to Z|W|X|Y|0|0|0|0
-      e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMPackFLOAT16_4));
+    if (!i.src1.is_constant) {
+      emit_fast_f16_pack(e, i, XMMPackFLOAT16_4);
     } else {
-      if (i.src1.is_constant) {
-        e.lea(e.GetNativeParam(0), e.StashConstantXmm(0, i.src1.constant()));
-      } else {
-        e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
+      vec128_t result = vec128b(0);
+      for (unsigned idx = 0; idx < 4; ++idx) {
+        result.u16[(7 - (idx ^ 2))] =
+            float_to_xenos_half(i.src1.constant().f32[idx]);
       }
-      e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_4));
-      e.vmovaps(i.dest, e.xmm0);
+
+      e.LoadConstantXmm(i.dest, result);
     }
   }
   static void EmitSHORT_2(X64Emitter& e, const EmitArgType& i) {
@@ -2508,15 +2586,10 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     alignas(16) float b[4];
     _mm_store_si128(reinterpret_cast<__m128i*>(a), src1);
 
-    if (!cvars::use_extended_range_half) {
-      for (int i = 0; i < 2; i++) {
-        b[i] = half_float::detail::half2float(a[VEC128_W(6 + i)]);
-      }
-    } else {
-      for (int i = 0; i < 2; i++) {
-        b[i] = xenos_half_to_float(a[VEC128_W(6 + i)]);
-      }
+    for (int i = 0; i < 2; i++) {
+      b[i] = xenos_half_to_float(a[VEC128_W(6 + i)]);
     }
+
     // Constants, or something
     b[2] = 0.f;
     b[3] = 1.f;
@@ -2536,74 +2609,28 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     // Also zero out the high end.
     // TODO(benvanik): special case constant unpacks that just get 0/1/etc.
 
-    if (e.IsFeatureEnabled(kX64EmitF16C) &&
-        !cvars::use_extended_range_half) {  // todo: can use cvtph and bit logic
-                                            // to implement
-      Xmm src;
-      if (i.src1.is_constant) {
-        src = i.dest;
-        e.LoadConstantXmm(src, i.src1.constant());
-      } else {
-        src = i.src1;
-      }
-      // sx = src.iw >> 16;
-      // sy = src.iw & 0xFFFF;
-      // dest = { XMConvertHalfToFloat(sx),
-      //          XMConvertHalfToFloat(sy),
-      //          0.0,
-      //          1.0 };
-      // Shuffle to 0|0|0|0|0|0|Y|X
-      e.vpshufb(i.dest, src, e.GetXmmConstPtr(XMMUnpackFLOAT16_2));
-      e.vcvtph2ps(i.dest, i.dest);
-      e.vpshufd(i.dest, i.dest, 0b10100100);
-      e.vpor(i.dest, e.GetXmmConstPtr(XMM0001));
+    if (i.src1.is_constant) {
+      e.lea(e.GetNativeParam(0), e.StashConstantXmm(0, i.src1.constant()));
     } else {
-      if (i.src1.is_constant) {
-        e.lea(e.GetNativeParam(0), e.StashConstantXmm(0, i.src1.constant()));
-      } else {
-        e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
-      }
-      e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_2));
-      e.vmovaps(i.dest, e.xmm0);
+      e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
     }
+    e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_2));
+    e.vmovaps(i.dest, e.xmm0);
   }
-  static __m128 EmulateFLOAT16_4(void*, __m128i src1) {
-    alignas(16) uint16_t a[8];
-    alignas(16) float b[4];
-    _mm_store_si128(reinterpret_cast<__m128i*>(a), src1);
-    if (!cvars::use_extended_range_half) {
-      for (int i = 0; i < 4; i++) {
-        b[i] = half_float::detail::half2float(a[VEC128_W(4 + i)]);
-      }
-    } else {
-      for (int i = 0; i < 4; i++) {
-        b[i] = xenos_half_to_float(a[VEC128_W(4 + i)]);
-      }
-    }
 
-    return _mm_load_ps(b);
-  }
   static void EmitFLOAT16_4(X64Emitter& e, const EmitArgType& i) {
-    // src = [(dest.x | dest.y), (dest.z | dest.w), 0, 0]
-    if (e.IsFeatureEnabled(kX64EmitF16C) && !cvars::use_extended_range_half) {
-      Xmm src;
-      if (i.src1.is_constant) {
-        src = i.dest;
-        e.LoadConstantXmm(src, i.src1.constant());
-      } else {
-        src = i.src1;
+    if (i.src1.is_constant) {
+      vec128_t result{};
+
+      for (int idx = 0; idx < 4; ++idx) {
+        result.f32[idx] =
+            xenos_half_to_float(i.src1.constant().u16[VEC128_W(4 + idx)]);
       }
-      // Shuffle to 0|0|0|0|W|Z|Y|X
-      e.vpshufb(i.dest, src, e.GetXmmConstPtr(XMMUnpackFLOAT16_4));
-      e.vcvtph2ps(i.dest, i.dest);
+
+      e.LoadConstantXmm(i.dest, result);
+
     } else {
-      if (i.src1.is_constant) {
-        e.lea(e.GetNativeParam(0), e.StashConstantXmm(0, i.src1.constant()));
-      } else {
-        e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
-      }
-      e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_4));
-      e.vmovaps(i.dest, e.xmm0);
+      emit_fast_f16_unpack(e, i, XMMUnpackFLOAT16_4);
     }
   }
   static void EmitSHORT_2(X64Emitter& e, const EmitArgType& i) {

@@ -36,7 +36,7 @@ using WaitItem = TimerQueueWaitItem;
 	edit: actually had to change it back, when i was testing it only worked because i fixed disruptorplus' code to compile (it gives wrong args to condition_variable::wait_until) but now builds
 
 */
-using WaitStrat = dp::spin_wait_strategy; //dp::blocking_wait_strategy;
+using WaitStrat = dp::blocking_wait_strategy;
 
 class TimerQueue {
  public:
@@ -205,7 +205,7 @@ void TimerQueueWaitItem::Disarm() {
     spinner.spin_once();
   }
 }
-
+//unused
 std::weak_ptr<WaitItem> QueueTimerOnce(std::function<void(void*)> callback,
                                        void* userdata,
                                        WaitItem::clock::time_point due) {
@@ -213,7 +213,7 @@ std::weak_ptr<WaitItem> QueueTimerOnce(std::function<void(void*)> callback,
       std::make_shared<WaitItem>(std::move(callback), userdata, &timer_queue_,
                                  due, WaitItem::clock::duration::zero()));
 }
-
+// only used by HighResolutionTimer
 std::weak_ptr<WaitItem> QueueTimerRecurring(
     std::function<void(void*)> callback, void* userdata,
     WaitItem::clock::time_point due, WaitItem::clock::duration interval) {

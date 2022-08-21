@@ -208,6 +208,12 @@ enum Opcode {
   OPCODE_STORE_OFFSET,
   OPCODE_LOAD,
   OPCODE_STORE,
+  // chrispy: todo: implement, our current codegen for the unaligned loads is
+  // very bad
+  OPCODE_LVLX,
+  OPCODE_LVRX,
+  OPCODE_STVLX,
+  OPCODE_STVRX,
   OPCODE_MEMSET,
   OPCODE_CACHE_CONTROL,
   OPCODE_MEMORY_BARRIER,
@@ -244,7 +250,9 @@ enum Opcode {
   OPCODE_MUL_HI,  // TODO(benvanik): remove this and add INT128 type.
   OPCODE_DIV,
   OPCODE_MUL_ADD,
+  OPCODE_NEGATED_MUL_ADD,
   OPCODE_MUL_SUB,
+  OPCODE_NEGATED_MUL_SUB,
   OPCODE_NEG,
   OPCODE_ABS,
   OPCODE_SQRT,
@@ -284,7 +292,8 @@ enum Opcode {
   OPCODE_TO_SINGLE,  // i could not find a decent name to assign to this opcode,
                      // as we already have OPCODE_ROUND. round double to float (
                      // ppc "single" fpu instruction result rounding behavior )
-	  OPCODE_SET_NJM, 
+  OPCODE_SET_NJM,
+
   __OPCODE_MAX_VALUE,  // Keep at end.
 };
 

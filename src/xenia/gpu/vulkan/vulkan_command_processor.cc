@@ -1157,7 +1157,14 @@ void VulkanCommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
     }
   }
 }
-
+void VulkanCommandProcessor::WriteRegistersFromMem(uint32_t start_index,
+                                                   uint32_t* base,
+                                                   uint32_t num_registers) {
+  for (uint32_t i = 0; i < num_registers; ++i) {
+    uint32_t data = xe::load_and_swap<uint32_t>(base + i);
+    VulkanCommandProcessor::WriteRegister(start_index + i, data);
+  }
+}
 void VulkanCommandProcessor::SparseBindBuffer(
     VkBuffer buffer, uint32_t bind_count, const VkSparseMemoryBind* binds,
     VkPipelineStageFlags wait_stage_mask) {

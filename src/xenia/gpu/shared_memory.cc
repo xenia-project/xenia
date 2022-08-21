@@ -14,6 +14,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/bit_range.h"
+#include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
@@ -344,7 +345,7 @@ void SharedMemory::UnlinkWatchRange(WatchRange* range) {
   range->next_free = watch_range_first_free_;
   watch_range_first_free_ = range;
 }
-
+// todo: optimize, an enormous amount of cpu time (1.34%) is spent here.
 bool SharedMemory::RequestRange(uint32_t start, uint32_t length,
                                 bool* any_data_resolved_out) {
   if (!length) {
@@ -364,14 +365,20 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length,
     return false;
   }
 
+  unsigned int current_upload_range = 0;
   uint32_t page_first = start >> page_size_log2_;
   uint32_t page_last = (start + length - 1) >> page_size_log2_;
 
   upload_ranges_.clear();
+
+  std::pair<uint32_t, uint32_t>* uploads =
+      reinterpret_cast<std::pair<uint32_t, uint32_t>*>(upload_ranges_.data());
+
   bool any_data_resolved = false;
   uint32_t block_first = page_first >> 6;
   uint32_t block_last = page_last >> 6;
   uint32_t range_start = UINT32_MAX;
+
   {
     auto global_lock = global_critical_region_.Acquire();
     for (uint32_t i = block_first; i <= block_last; ++i) {
@@ -412,8 +419,13 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length,
           if (!xe::bit_scan_forward(block_valid_from_start, &block_page)) {
             break;
           }
-          upload_ranges_.push_back(
-              std::make_pair(range_start, (i << 6) + block_page - range_start));
+          if (current_upload_range + 1 >= MAX_UPLOAD_RANGES) {
+            xe::FatalError(
+                "Hit max upload ranges in shared_memory.cc, tell a dev to "
+                "raise the limit!");
+          }
+          uploads[current_upload_range++] =
+              std::make_pair(range_start, (i << 6) + block_page - range_start);
           // In the next iteration within this block, consider this range valid
           // since it has been queued for upload.
           block_valid |= (uint64_t(1) << block_page) - 1;
@@ -423,17 +435,17 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length,
     }
   }
   if (range_start != UINT32_MAX) {
-    upload_ranges_.push_back(
-        std::make_pair(range_start, page_last + 1 - range_start));
+    uploads[current_upload_range++] =
+        (std::make_pair(range_start, page_last + 1 - range_start));
   }
   if (any_data_resolved_out) {
     *any_data_resolved_out = any_data_resolved;
   }
-  if (upload_ranges_.empty()) {
+  if (!current_upload_range) {
     return true;
   }
 
-  return UploadRanges(upload_ranges_);
+  return UploadRanges(uploads, current_upload_range);
 }
 
 std::pair<uint32_t, uint32_t> SharedMemory::MemoryInvalidationCallbackThunk(

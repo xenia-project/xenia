@@ -17,6 +17,8 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
+#include "xenia/base/math.h"
+#include "xenia/base/memory.h"
 
 namespace xe {
 /*
@@ -39,18 +41,24 @@ namespace xe {
    that the registers no longer need the rex prefix, shrinking the generated
    code a bit.. like i said, every bit helps in this class
 */
+using ring_size_t = uint32_t;
 class RingBuffer {
  public:
   RingBuffer(uint8_t* buffer, size_t capacity);
 
   uint8_t* buffer() const { return buffer_; }
-  size_t capacity() const { return capacity_; }
+  ring_size_t capacity() const { return capacity_; }
   bool empty() const { return read_offset_ == write_offset_; }
 
-  size_t read_offset() const { return read_offset_; }
-  uintptr_t read_ptr() const { return uintptr_t(buffer_) + read_offset_; }
+  ring_size_t read_offset() const { return read_offset_; }
+  uintptr_t read_ptr() const {
+    return uintptr_t(buffer_) + static_cast<uintptr_t>(read_offset_);
+  }
+
+  // todo: offset/ capacity_ is probably always 1 when its over, just check and
+  // subtract instead
   void set_read_offset(size_t offset) { read_offset_ = offset % capacity_; }
-  size_t read_count() const {
+  ring_size_t read_count() const {
 // chrispy: these branches are unpredictable
 #if 0
     if (read_offset_ == write_offset_) {
@@ -61,14 +69,14 @@ class RingBuffer {
       return (capacity_ - read_offset_) + write_offset_;
     }
 #else
-    size_t read_offs = read_offset_;
-    size_t write_offs = write_offset_;
-    size_t cap = capacity_;
+    ring_size_t read_offs = read_offset_;
+    ring_size_t write_offs = write_offset_;
+    ring_size_t cap = capacity_;
 
-    size_t offset_delta = write_offs - read_offs;
-    size_t wrap_read_count = (cap - read_offs) + write_offs;
+    ring_size_t offset_delta = write_offs - read_offs;
+    ring_size_t wrap_read_count = (cap - read_offs) + write_offs;
 
-    size_t comparison_value = read_offs <= write_offs;
+    ring_size_t comparison_value = read_offs <= write_offs;
 #if 0
     size_t selector =
         static_cast<size_t>(-static_cast<ptrdiff_t>(comparison_value));
@@ -89,10 +97,12 @@ class RingBuffer {
 #endif
   }
 
-  size_t write_offset() const { return write_offset_; }
+  ring_size_t write_offset() const { return write_offset_; }
   uintptr_t write_ptr() const { return uintptr_t(buffer_) + write_offset_; }
-  void set_write_offset(size_t offset) { write_offset_ = offset % capacity_; }
-  size_t write_count() const {
+  void set_write_offset(size_t offset) {
+    write_offset_ = static_cast<ring_size_t>(offset) % capacity_;
+  }
+  ring_size_t write_count() const {
     if (read_offset_ == write_offset_) {
       return capacity_;
     } else if (write_offset_ < read_offset_) {
@@ -107,12 +117,34 @@ class RingBuffer {
 
   struct ReadRange {
     const uint8_t* first;
-    size_t first_length;
+
     const uint8_t* second;
-    size_t second_length;
+    ring_size_t first_length;
+    ring_size_t second_length;
   };
   ReadRange BeginRead(size_t count);
   void EndRead(ReadRange read_range);
+
+  /*
+        BeginRead, but if there is a second Range it will prefetch all lines of it
+
+		this does not prefetch the first range, because software prefetching can do that faster than we can
+  */
+  template <swcache::PrefetchTag tag>
+  XE_FORCEINLINE ReadRange BeginPrefetchedRead(size_t count) {
+    ReadRange range = BeginRead(count);
+
+    if (range.second) {
+      ring_size_t numlines =
+          xe::align<ring_size_t>(range.second_length, XE_HOST_CACHE_LINE_SIZE) /
+          XE_HOST_CACHE_LINE_SIZE;
+	  //chrispy: maybe unroll?
+      for (ring_size_t i = 0; i < numlines; ++i) {
+        swcache::Prefetch<tag>(range.second + (i * XE_HOST_CACHE_LINE_SIZE));
+      }
+    }
+    return range;
+  }
 
   size_t Read(uint8_t* buffer, size_t count);
   template <typename T>
@@ -156,29 +188,29 @@ class RingBuffer {
 
  private:
   uint8_t* buffer_ = nullptr;
-  size_t capacity_ = 0;
-  size_t read_offset_ = 0;
-  size_t write_offset_ = 0;
+  ring_size_t capacity_ = 0;
+  ring_size_t read_offset_ = 0;
+  ring_size_t write_offset_ = 0;
 };
 
 template <>
 inline uint32_t RingBuffer::ReadAndSwap<uint32_t>() {
-  size_t read_offset = this->read_offset_;
+  ring_size_t read_offset = this->read_offset_;
   xenia_assert(this->capacity_ >= 4);
 
-  size_t next_read_offset = read_offset + 4;
-  #if 0
+  ring_size_t next_read_offset = read_offset + 4;
+#if 0
   size_t zerotest = next_read_offset - this->capacity_;
   // unpredictable branch, use bit arith instead
   // todo: it would be faster to use lzcnt, but we need to figure out if all
   // machines we support support it
   next_read_offset &= -static_cast<ptrdiff_t>(!!zerotest);
-  #else
+#else
   if (XE_UNLIKELY(next_read_offset == this->capacity_)) {
     next_read_offset = 0;
-	//todo: maybe prefetch next? or should that happen much earlier?
+    // todo: maybe prefetch next? or should that happen much earlier?
   }
-  #endif
+#endif
   this->read_offset_ = next_read_offset;
   unsigned int ring_value = *(uint32_t*)&this->buffer_[read_offset];
   return xe::byte_swap(ring_value);
