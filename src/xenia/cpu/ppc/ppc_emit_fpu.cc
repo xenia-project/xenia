@@ -452,7 +452,7 @@ Affected: FX, FEX, VX, OX (if Rc = 1)
   */
  // f.UpdateFPSCR(v, i.X.Rc);
   if (i.X.Rc) {
-  
+    // todo
   }
   return 0;
 }
@@ -469,7 +469,10 @@ int InstrEmit_fnabsx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- !abs(frB)
   Value* v = f.Neg(f.Abs(f.LoadFPR(i.X.RB)));
   f.StoreFPR(i.X.RT, v);
-  f.UpdateFPSCR(v, i.X.Rc);
+  //f.UpdateFPSCR(v, i.X.Rc);
+  if (i.X.Rc) {
+	//todo
+  }
   return 0;
 }
 
@@ -477,7 +480,10 @@ int InstrEmit_fnegx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- ¬ frB[0] || frB[1-63]
   Value* v = f.Neg(f.LoadFPR(i.X.RB));
   f.StoreFPR(i.X.RT, v);
-  f.UpdateFPSCR(v, i.X.Rc);
+  //f.UpdateFPSCR(v, i.X.Rc);
+  if (i.X.Rc) {
+	//todo
+  }
   return 0;
 }
 

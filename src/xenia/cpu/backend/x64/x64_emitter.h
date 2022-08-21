@@ -167,7 +167,11 @@ enum XmmConst {
   XMMF16PackLCPI3,
   XMMF16PackLCPI4,
   XMMF16PackLCPI5,
-  XMMF16PackLCPI6
+  XMMF16PackLCPI6,
+  XMMXOPByteShiftMask,
+  XMMXOPWordShiftMask,
+  XMMXOPDwordShiftMask,
+
 };
 using amdfx::xopcompare_e;
 using Xbyak::Xmm;
@@ -383,7 +387,30 @@ class X64Emitter : public Xbyak::CodeGenerator {
   DEFINECOMPARE(vpcomud);
   DEFINECOMPARE(vpcomq);
   DEFINECOMPARE(vpcomuq);
-  #undef DEFINECOMPARE
+#undef DEFINECOMPARE
+
+#define DEFINESHIFTER(name)                                                   \
+  void name(Xmm dest, Xmm src1, Xmm src2) {                                   \
+    auto xop_bytes =                                                          \
+        amdfx::operations::name(dest.getIdx(), src1.getIdx(), src2.getIdx()); \
+    EmitXOP(xop_bytes);                                                       \
+  }
+
+  DEFINESHIFTER(vprotb)
+  DEFINESHIFTER(vprotw)
+  DEFINESHIFTER(vprotd)
+  DEFINESHIFTER(vprotq)
+
+  DEFINESHIFTER(vpshab)
+  DEFINESHIFTER(vpshaw)
+  DEFINESHIFTER(vpshad)
+  DEFINESHIFTER(vpshaq)
+
+  DEFINESHIFTER(vpshlb)
+  DEFINESHIFTER(vpshlw)
+  DEFINESHIFTER(vpshld)
+  DEFINESHIFTER(vpshlq)
+
  protected:
   void* Emplace(const EmitFunctionInfo& func_info,
                 GuestFunction* function = nullptr);

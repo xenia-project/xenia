@@ -1030,8 +1030,13 @@ static const vec128_t xmm_consts[] = {
     /*
     XMMF16PackLCPI6
     */
-    vec128i(0x8000)
-
+    vec128i(0x8000),
+    /* XMMXOPByteShiftMask,*/
+    vec128b(7),
+    /*XMMXOPWordShiftMask*/
+    vec128s(15),
+    /*XMMXOPDwordShiftMask*/
+    vec128i(31)
 };
 
 void* X64Emitter::FindByteConstantOffset(unsigned bytevalue) {
