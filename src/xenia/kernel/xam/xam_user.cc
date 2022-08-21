@@ -385,9 +385,19 @@ dword_result_t XamUserWriteProfileSettings_entry(
     switch (setting_type) {
       case UserProfile::Setting::Type::CONTENT:
       case UserProfile::Setting::Type::BINARY: {
+        UserProfile::Setting::Key setting_key;
+        setting_key.value = static_cast<uint32_t>(setting.setting_id);
+
         uint8_t* binary_ptr =
             kernel_state()->memory()->TranslateVirtual(setting.data.binary.ptr);
+
         size_t binary_size = setting.data.binary.size;
+        if (setting_key.size < binary_size) {
+          XELOGW(
+              "XamUserWriteProfileSettings: binary size > key size. Shrinking "
+              "binary size!");
+          binary_size = setting_key.size;
+        }
         std::vector<uint8_t> bytes;
         if (setting.data.binary.ptr) {
           // Copy provided data
