@@ -84,7 +84,7 @@ bool SimplificationPass::Run(HIRBuilder* builder, bool& result) {
     iter_result |= EliminateConversions(builder);
     iter_result |= SimplifyAssignments(builder);
     iter_result |= SimplifyBasicArith(builder);
-
+    iter_result |= SimplifyVectorOps(builder);
     result |= iter_result;
   } while (iter_result);
   return true;
@@ -1393,6 +1393,65 @@ bool SimplificationPass::SimplifyBasicArith(hir::HIRBuilder* builder) {
   return result;
 }
 
+static bool CouldEverProduceDenormal(hir::Instr* i) {
+  if (!i) {
+    return false;
+  }
+  Opcode denflushed_opcode = i->GetOpcodeNum();
+
+  if (denflushed_opcode == OPCODE_VECTOR_DENORMFLUSH) {
+    return false;
+  } else if (denflushed_opcode == OPCODE_UNPACK) {
+    // todo: more unpack operations likely cannot produce denormals
+    if (i->flags == PACK_TYPE_FLOAT16_4 || i->flags == PACK_TYPE_FLOAT16_2) {
+      return false;  // xenos half float format does not support denormals
+    }
+  } else if (denflushed_opcode == OPCODE_VECTOR_CONVERT_I2F) {
+    return false;
+  }
+  return true;  // todo: recurse, check values for min/max, abs, and others
+}
+
+bool SimplificationPass::SimplifyVectorOps(hir::Instr* i,
+                                           hir::HIRBuilder* builder) {
+  Opcode opc = i->GetOpcodeNum();
+  /*
+        if the input to an unconditional denormal flush is an output of an
+     unconditional denormal flush, it is a pointless instruction and should be
+     elimed
+  */
+  if (opc == OPCODE_VECTOR_DENORMFLUSH) {
+    hir::Instr* denflushed_def = i->src1.value->GetDefSkipAssigns();
+
+    if (denflushed_def) {
+      if (!CouldEverProduceDenormal(denflushed_def)) {
+        i->opcode = &OPCODE_ASSIGN_info;
+        return true;
+      }
+    }
+  }
+  return false;
+}
+bool SimplificationPass::SimplifyVectorOps(hir::HIRBuilder* builder) {
+  bool result = false;
+  auto block = builder->first_block();
+  while (block) {
+    auto i = block->instr_head;
+    while (i) {
+      bool looks_vectory = false;
+
+      i->VisitValueOperands([&looks_vectory](Value* val, uint32_t idx) {
+        if (val->type == VEC128_TYPE) {
+          looks_vectory = true;
+        }
+      });
+      result |= SimplifyVectorOps(i, builder);
+      i = i->next;
+    }
+    block = block->next;
+  }
+  return result;
+}
 /*
         todo: add load-store simplification pass
 

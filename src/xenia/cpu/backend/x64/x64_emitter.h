@@ -23,7 +23,7 @@
 // NOTE: must be included last as it expects windows.h to already be included.
 #include "third_party/xbyak/xbyak/xbyak.h"
 #include "third_party/xbyak/xbyak/xbyak_util.h"
-
+#include "x64_amdfx_extensions.h"
 namespace xe {
 namespace cpu {
 class Processor;
@@ -167,8 +167,14 @@ enum XmmConst {
   XMMF16PackLCPI3,
   XMMF16PackLCPI4,
   XMMF16PackLCPI5,
-  XMMF16PackLCPI6
+  XMMF16PackLCPI6,
+  XMMXOPByteShiftMask,
+  XMMXOPWordShiftMask,
+  XMMXOPDwordShiftMask,
+
 };
+using amdfx::xopcompare_e;
+using Xbyak::Xmm;
 // X64Backend specific Instr->runtime_flags
 enum : uint32_t {
   INSTR_X64_FLAGS_ELIMINATED =
@@ -350,6 +356,60 @@ class X64Emitter : public Xbyak::CodeGenerator {
   XexModule* GuestModule() { return guest_module_; }
 
   void EmitProfilerEpilogue();
+
+  void EmitXOP(amdfx::xop_t xoperation) {
+    xoperation.ForeachByte([this](uint8_t b) { this->db(b); });
+  }
+
+  void vpcmov(Xmm dest, Xmm src1, Xmm src2, Xmm selector) {
+    auto xop_bytes = amdfx::operations::vpcmov(
+        dest.getIdx(), src1.getIdx(), src2.getIdx(), selector.getIdx());
+    EmitXOP(xop_bytes);
+  }
+
+  void vpperm(Xmm dest, Xmm src1, Xmm src2, Xmm selector) {
+    auto xop_bytes = amdfx::operations::vpperm(
+        dest.getIdx(), src1.getIdx(), src2.getIdx(), selector.getIdx());
+    EmitXOP(xop_bytes);
+  }
+
+#define DEFINECOMPARE(name)                                                \
+  void name(Xmm dest, Xmm src1, Xmm src2, xopcompare_e compareop) {        \
+    auto xop_bytes = amdfx::operations::name(dest.getIdx(), src1.getIdx(), \
+                                             src2.getIdx(), compareop);    \
+    EmitXOP(xop_bytes);                                                    \
+  }
+  DEFINECOMPARE(vpcomb);
+  DEFINECOMPARE(vpcomub);
+  DEFINECOMPARE(vpcomw);
+  DEFINECOMPARE(vpcomuw);
+  DEFINECOMPARE(vpcomd);
+  DEFINECOMPARE(vpcomud);
+  DEFINECOMPARE(vpcomq);
+  DEFINECOMPARE(vpcomuq);
+#undef DEFINECOMPARE
+
+#define DEFINESHIFTER(name)                                                   \
+  void name(Xmm dest, Xmm src1, Xmm src2) {                                   \
+    auto xop_bytes =                                                          \
+        amdfx::operations::name(dest.getIdx(), src1.getIdx(), src2.getIdx()); \
+    EmitXOP(xop_bytes);                                                       \
+  }
+
+  DEFINESHIFTER(vprotb)
+  DEFINESHIFTER(vprotw)
+  DEFINESHIFTER(vprotd)
+  DEFINESHIFTER(vprotq)
+
+  DEFINESHIFTER(vpshab)
+  DEFINESHIFTER(vpshaw)
+  DEFINESHIFTER(vpshad)
+  DEFINESHIFTER(vpshaq)
+
+  DEFINESHIFTER(vpshlb)
+  DEFINESHIFTER(vpshlw)
+  DEFINESHIFTER(vpshld)
+  DEFINESHIFTER(vpshlq)
 
  protected:
   void* Emplace(const EmitFunctionInfo& func_info,

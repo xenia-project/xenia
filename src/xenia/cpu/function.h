@@ -31,10 +31,11 @@ struct SourceMapEntry {
   uint32_t hir_offset;     // Block ordinal (16b) | Instr ordinal (16b)
   uint32_t code_offset;    // Offset from emitted code start.
 };
+enum class SaveRestoreType : uint8_t { NONE, GPR, VMX, FPR };
 
 class Function : public Symbol {
  public:
-  enum class Behavior {
+  enum class Behavior : uint8_t {
     kDefault = 0,
     kProlog,
     kEpilog,
@@ -52,6 +53,20 @@ class Function : public Symbol {
   Behavior behavior() const { return behavior_; }
   void set_behavior(Behavior value) { behavior_ = value; }
   bool is_guest() const { return behavior_ != Behavior::kBuiltin; }
+
+  void SetSaverest(SaveRestoreType type, bool is_rest, uint8_t index) {
+    saverest_type_ = type;
+    is_restore_ = is_rest;
+    saverest_index_ = index;
+  }
+
+  bool IsSaverest() const { return saverest_type_ != SaveRestoreType::NONE; }
+
+  SaveRestoreType SaverestType() const { return saverest_type_; }
+  unsigned SaverestIndex() const { return saverest_index_; }
+
+  bool IsSave() const { return IsSaverest() && is_restore_ == 0; }
+  bool IsRestore() const { return IsSaverest() && is_restore_; }
 
   bool ContainsAddress(uint32_t address) const {
     if (!address_ || !end_address_) {
@@ -71,7 +86,11 @@ class Function : public Symbol {
   Function(Module* module, uint32_t address);
 
   uint32_t end_address_ = 0;
+
   Behavior behavior_ = Behavior::kDefault;
+  SaveRestoreType saverest_type_ = SaveRestoreType::NONE;
+  uint8_t is_restore_ = 0;
+  uint8_t saverest_index_ = 0;
 };
 
 class BuiltinFunction : public Function {

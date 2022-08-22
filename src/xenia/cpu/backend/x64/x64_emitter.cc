@@ -143,6 +143,12 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
       feature_flags_ |= kX64EmitTBM;
     }
   }
+  if (amd_flags & (1U << 11)) {
+    if ((cvars::x64_extension_mask & kX64EmitXOP) == kX64EmitXOP) {
+      feature_flags_ |= kX64EmitXOP;
+      XELOGCPU("Cpu support XOP!\n\n");
+    }
+  }
   if (cpu_.has(Xbyak::util::Cpu::tAMD)) {
     bool is_zennish = cpu_.displayFamily >= 0x17;
     /*
@@ -1024,8 +1030,13 @@ static const vec128_t xmm_consts[] = {
     /*
     XMMF16PackLCPI6
     */
-    vec128i(0x8000)
-
+    vec128i(0x8000),
+    /* XMMXOPByteShiftMask,*/
+    vec128b(7),
+    /*XMMXOPWordShiftMask*/
+    vec128s(15),
+    /*XMMXOPDwordShiftMask*/
+    vec128i(31)
 };
 
 void* X64Emitter::FindByteConstantOffset(unsigned bytevalue) {

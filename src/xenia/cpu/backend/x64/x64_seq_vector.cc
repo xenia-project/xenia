@@ -19,6 +19,16 @@
 #include "xenia/base/cvar.h"
 #include "xenia/cpu/backend/x64/x64_stack_layout.h"
 
+DEFINE_bool(xop_rotates, false, "rotate via xop", "X64");
+
+DEFINE_bool(xop_left_shifts, false, "shl via xop", "X64");
+
+DEFINE_bool(xop_right_shifts, false, "shr via xop", "X64");
+
+DEFINE_bool(xop_arithmetic_right_shifts, false, "sar via xop", "X64");
+
+DEFINE_bool(xop_compares, true, "compare via xop", "X64");
+
 namespace xe {
 namespace cpu {
 namespace backend {
@@ -143,6 +153,7 @@ struct VECTOR_DENORMFLUSH
     e.vandps(e.xmm0, i.src1,
              e.GetXmmConstPtr(XMMSingleDenormalMask));  // 0.25 P0123
     e.vcmpneqps(e.xmm2, e.xmm0, e.xmm1);                // 0.5 P01
+                                                        // todo: xop vpcmov here
     e.vandps(e.xmm1, i.src1,
              e.GetXmmConstPtr(XMMSignMaskF32));  // 0.5 P0123 take signs, zeros
                                                  // must keep their signs
@@ -406,26 +417,44 @@ struct VECTOR_COMPARE_SGE_V128
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     EmitAssociativeBinaryXmmOp(
         e, i, [&i](X64Emitter& e, Xmm dest, Xmm src1, Xmm src2) {
-          switch (i.instr->flags) {
-            case INT8_TYPE:
-              e.vpcmpeqb(e.xmm0, src1, src2);
-              e.vpcmpgtb(dest, src1, src2);
-              e.vpor(dest, e.xmm0);
-              break;
-            case INT16_TYPE:
-              e.vpcmpeqw(e.xmm0, src1, src2);
-              e.vpcmpgtw(dest, src1, src2);
-              e.vpor(dest, e.xmm0);
-              break;
-            case INT32_TYPE:
-              e.vpcmpeqd(e.xmm0, src1, src2);
-              e.vpcmpgtd(dest, src1, src2);
-              e.vpor(dest, e.xmm0);
-              break;
-            case FLOAT32_TYPE:
-              e.ChangeMxcsrMode(MXCSRMode::Vmx);
-              e.vcmpgeps(dest, src1, src2);
-              break;
+          if (cvars::xop_compares && e.IsFeatureEnabled(kX64EmitXOP)) {
+            switch (i.instr->flags) {
+              case INT8_TYPE:
+                e.vpcomb(dest, src1, src2, xopcompare_e::GTE);
+                break;
+              case INT16_TYPE:
+                e.vpcomw(dest, src1, src2, xopcompare_e::GTE);
+                break;
+              case INT32_TYPE:
+                e.vpcomd(dest, src1, src2, xopcompare_e::GTE);
+                break;
+              case FLOAT32_TYPE:
+                e.ChangeMxcsrMode(MXCSRMode::Vmx);
+                e.vcmpgeps(dest, src1, src2);
+                break;
+            }
+          } else {
+            switch (i.instr->flags) {
+              case INT8_TYPE:
+                e.vpcmpeqb(e.xmm0, src1, src2);
+                e.vpcmpgtb(dest, src1, src2);
+                e.vpor(dest, e.xmm0);
+                break;
+              case INT16_TYPE:
+                e.vpcmpeqw(e.xmm0, src1, src2);
+                e.vpcmpgtw(dest, src1, src2);
+                e.vpor(dest, e.xmm0);
+                break;
+              case INT32_TYPE:
+                e.vpcmpeqd(e.xmm0, src1, src2);
+                e.vpcmpgtd(dest, src1, src2);
+                e.vpor(dest, e.xmm0);
+                break;
+              case FLOAT32_TYPE:
+                e.ChangeMxcsrMode(MXCSRMode::Vmx);
+                e.vcmpgeps(dest, src1, src2);
+                break;
+            }
           }
         });
   }
@@ -600,6 +629,7 @@ struct VECTOR_ADD
                   // overflowed (only need to check one input)
                   // if (src1 > res) then overflowed
                   // http://locklessinc.com/articles/sat_arithmetic/
+                  // chrispy: todo - add xop stuff here
                   e.vpxor(e.xmm2, src1, e.GetXmmConstPtr(XMMSignMaskI32));
                   e.vpxor(e.xmm0, e.xmm1, e.GetXmmConstPtr(XMMSignMaskI32));
                   e.vpcmpgtd(e.xmm0, e.xmm2, e.xmm0);
@@ -755,23 +785,52 @@ static __m128i EmulateVectorShl(void*, __m128i src1, __m128i src2) {
   // Store result and return it.
   return _mm_load_si128(reinterpret_cast<__m128i*>(value));
 }
-
+static XmmConst GetShiftmaskForType(unsigned typ) {
+  if (typ == INT8_TYPE) {
+    return XMMXOPByteShiftMask;
+  } else if (typ == INT16_TYPE) {
+    return XMMXOPWordShiftMask;
+  } else {
+    return XMMXOPDwordShiftMask;
+  }
+}
 struct VECTOR_SHL_V128
     : Sequence<VECTOR_SHL_V128, I<OPCODE_VECTOR_SHL, V128Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    switch (i.instr->flags) {
-      case INT8_TYPE:
-        EmitInt8(e, i);
-        break;
-      case INT16_TYPE:
-        EmitInt16(e, i);
-        break;
-      case INT32_TYPE:
-        EmitInt32(e, i);
-        break;
-      default:
-        assert_always();
-        break;
+    if (cvars::xop_left_shifts && e.IsFeatureEnabled(kX64EmitXOP)) {
+      Xmm src1 = GetInputRegOrConstant(e, i.src1, e.xmm0);
+      Xmm src2 = GetInputRegOrConstant(e, i.src2, e.xmm1);
+
+      e.vpand(e.xmm2, src2,
+              e.GetXmmConstPtr(GetShiftmaskForType(i.instr->flags)));
+
+      switch (i.instr->flags) {
+        case INT8_TYPE:
+          e.vpshlb(i.dest, src1, e.xmm2);
+          break;
+        case INT16_TYPE:
+          e.vpshlw(i.dest, src1, e.xmm2);
+          break;
+        case INT32_TYPE:
+          e.vpshld(i.dest, src1, e.xmm2);
+          break;
+      }
+
+    } else {
+      switch (i.instr->flags) {
+        case INT8_TYPE:
+          EmitInt8(e, i);
+          break;
+        case INT16_TYPE:
+          EmitInt16(e, i);
+          break;
+        case INT32_TYPE:
+          EmitInt32(e, i);
+          break;
+        default:
+          assert_always();
+          break;
+      }
     }
   }
 
@@ -1041,19 +1100,45 @@ static __m128i EmulateVectorShr(void*, __m128i src1, __m128i src2) {
 struct VECTOR_SHR_V128
     : Sequence<VECTOR_SHR_V128, I<OPCODE_VECTOR_SHR, V128Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    switch (i.instr->flags) {
-      case INT8_TYPE:
-        EmitInt8(e, i);
-        break;
-      case INT16_TYPE:
-        EmitInt16(e, i);
-        break;
-      case INT32_TYPE:
-        EmitInt32(e, i);
-        break;
-      default:
-        assert_always();
-        break;
+    if (cvars::xop_right_shifts && e.IsFeatureEnabled(kX64EmitXOP)) {
+      Xmm src1 = GetInputRegOrConstant(e, i.src1, e.xmm0);
+      Xmm src2 = GetInputRegOrConstant(e, i.src2, e.xmm1);
+
+      e.vpand(e.xmm2, src2,
+              e.GetXmmConstPtr(GetShiftmaskForType(i.instr->flags)));
+
+      e.vpcmpeqb(e.xmm3, e.xmm3);
+
+      switch (i.instr->flags) {
+        case INT8_TYPE:
+          e.vpsignb(e.xmm2, e.xmm3);
+          e.vpshlb(i.dest, src1, e.xmm2);
+          break;
+        case INT16_TYPE:
+          e.vpsignw(e.xmm2, e.xmm3);
+          e.vpshlw(i.dest, src1, e.xmm2);
+          break;
+        case INT32_TYPE:
+          e.vpsignd(e.xmm2, e.xmm3);
+          e.vpshld(i.dest, src1, e.xmm2);
+          break;
+      }
+
+    } else {
+      switch (i.instr->flags) {
+        case INT8_TYPE:
+          EmitInt8(e, i);
+          break;
+        case INT16_TYPE:
+          EmitInt16(e, i);
+          break;
+        case INT32_TYPE:
+          EmitInt32(e, i);
+          break;
+        default:
+          assert_always();
+          break;
+      }
     }
   }
 
@@ -1224,19 +1309,45 @@ EMITTER_OPCODE_TABLE(OPCODE_VECTOR_SHR, VECTOR_SHR_V128);
 struct VECTOR_SHA_V128
     : Sequence<VECTOR_SHA_V128, I<OPCODE_VECTOR_SHA, V128Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    switch (i.instr->flags) {
-      case INT8_TYPE:
-        EmitInt8(e, i);
-        break;
-      case INT16_TYPE:
-        EmitInt16(e, i);
-        break;
-      case INT32_TYPE:
-        EmitInt32(e, i);
-        break;
-      default:
-        assert_always();
-        break;
+    if (cvars::xop_arithmetic_right_shifts && e.IsFeatureEnabled(kX64EmitXOP)) {
+      Xmm src1 = GetInputRegOrConstant(e, i.src1, e.xmm0);
+      Xmm src2 = GetInputRegOrConstant(e, i.src2, e.xmm1);
+
+      e.vpand(e.xmm2, src2,
+              e.GetXmmConstPtr(GetShiftmaskForType(i.instr->flags)));
+
+      e.vpcmpeqb(e.xmm3, e.xmm3);
+
+      switch (i.instr->flags) {
+        case INT8_TYPE:
+          e.vpsignb(e.xmm2, e.xmm3);
+          e.vpshab(i.dest, src1, e.xmm2);
+          break;
+        case INT16_TYPE:
+          e.vpsignw(e.xmm2, e.xmm3);
+          e.vpshaw(i.dest, src1, e.xmm2);
+          break;
+        case INT32_TYPE:
+          e.vpsignd(e.xmm2, e.xmm3);
+          e.vpshad(i.dest, src1, e.xmm2);
+          break;
+      }
+
+    } else {
+      switch (i.instr->flags) {
+        case INT8_TYPE:
+          EmitInt8(e, i);
+          break;
+        case INT16_TYPE:
+          EmitInt16(e, i);
+          break;
+        case INT32_TYPE:
+          EmitInt32(e, i);
+          break;
+        default:
+          assert_always();
+          break;
+      }
     }
   }
 
@@ -1412,55 +1523,29 @@ struct VECTOR_ROTATE_LEFT_V128
     : Sequence<VECTOR_ROTATE_LEFT_V128,
                I<OPCODE_VECTOR_ROTATE_LEFT, V128Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    switch (i.instr->flags) {
-      case INT8_TYPE:
-        // TODO(benvanik): native version (with shift magic).
-        if (i.src2.is_constant) {
-          e.lea(e.GetNativeParam(1), e.StashConstantXmm(1, i.src2.constant()));
-        } else {
-          e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
-        }
-        e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
-        e.CallNativeSafe(
-            reinterpret_cast<void*>(EmulateVectorRotateLeft<uint8_t>));
-        e.vmovaps(i.dest, e.xmm0);
-        break;
-      case INT16_TYPE:
-        // TODO(benvanik): native version (with shift magic).
-        if (i.src2.is_constant) {
-          e.lea(e.GetNativeParam(1), e.StashConstantXmm(1, i.src2.constant()));
-        } else {
-          e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
-        }
-        e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
-        e.CallNativeSafe(
-            reinterpret_cast<void*>(EmulateVectorRotateLeft<uint16_t>));
-        e.vmovaps(i.dest, e.xmm0);
-        break;
-      case INT32_TYPE: {
-        if (e.IsFeatureEnabled(kX64EmitAVX512Ortho)) {
-          e.vprolvd(i.dest, i.src1, i.src2);
-        } else if (e.IsFeatureEnabled(kX64EmitAVX2)) {
-          Xmm temp = i.dest;
-          if (i.dest == i.src1 || i.dest == i.src2) {
-            temp = e.xmm2;
-          }
-          // Shift left (to get high bits):
-          if (i.src2.is_constant) {
-            e.LoadConstantXmm(temp, i.src2.constant());
-            e.vpand(e.xmm0, temp, e.GetXmmConstPtr(XMMShiftMaskPS));
-          } else {
-            e.vpand(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskPS));
-          }
-          e.vpsllvd(e.xmm1, i.src1, e.xmm0);
-          // Shift right (to get low bits):
-          e.vmovaps(temp, e.GetXmmConstPtr(XMMPI32));
-          e.vpsubd(temp, e.xmm0);
-          e.vpsrlvd(i.dest, i.src1, temp);
-          // Merge:
-          e.vpor(i.dest, e.xmm1);
-        } else {
-          // TODO(benvanik): non-AVX2 native version.
+    if (cvars::xop_rotates && e.IsFeatureEnabled(kX64EmitXOP)) {
+      Xmm src1 = GetInputRegOrConstant(e, i.src1, e.xmm0);
+      Xmm src2 = GetInputRegOrConstant(e, i.src2, e.xmm1);
+
+      e.vpand(e.xmm2, src2,
+              e.GetXmmConstPtr(GetShiftmaskForType(i.instr->flags)));
+
+      switch (i.instr->flags) {
+        case INT8_TYPE:
+          e.vprotb(i.dest, src1, e.xmm2);
+          break;
+        case INT16_TYPE:
+          e.vprotw(i.dest, src1, e.xmm2);
+          break;
+        case INT32_TYPE:
+          e.vprotd(i.dest, src1, e.xmm2);
+          break;
+      }
+
+    } else {
+      switch (i.instr->flags) {
+        case INT8_TYPE:
+          // TODO(benvanik): native version (with shift magic).
           if (i.src2.is_constant) {
             e.lea(e.GetNativeParam(1),
                   e.StashConstantXmm(1, i.src2.constant()));
@@ -1469,14 +1554,63 @@ struct VECTOR_ROTATE_LEFT_V128
           }
           e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
           e.CallNativeSafe(
-              reinterpret_cast<void*>(EmulateVectorRotateLeft<uint32_t>));
+              reinterpret_cast<void*>(EmulateVectorRotateLeft<uint8_t>));
           e.vmovaps(i.dest, e.xmm0);
+          break;
+        case INT16_TYPE:
+          // TODO(benvanik): native version (with shift magic).
+          if (i.src2.is_constant) {
+            e.lea(e.GetNativeParam(1),
+                  e.StashConstantXmm(1, i.src2.constant()));
+          } else {
+            e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
+          }
+          e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
+          e.CallNativeSafe(
+              reinterpret_cast<void*>(EmulateVectorRotateLeft<uint16_t>));
+          e.vmovaps(i.dest, e.xmm0);
+          break;
+        case INT32_TYPE: {
+          if (e.IsFeatureEnabled(kX64EmitAVX512Ortho)) {
+            e.vprolvd(i.dest, i.src1, i.src2);
+          } else if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+            Xmm temp = i.dest;
+            if (i.dest == i.src1 || i.dest == i.src2) {
+              temp = e.xmm2;
+            }
+            // Shift left (to get high bits):
+            if (i.src2.is_constant) {
+              e.LoadConstantXmm(temp, i.src2.constant());
+              e.vpand(e.xmm0, temp, e.GetXmmConstPtr(XMMShiftMaskPS));
+            } else {
+              e.vpand(e.xmm0, i.src2, e.GetXmmConstPtr(XMMShiftMaskPS));
+            }
+            e.vpsllvd(e.xmm1, i.src1, e.xmm0);
+            // Shift right (to get low bits):
+            e.vmovaps(temp, e.GetXmmConstPtr(XMMPI32));
+            e.vpsubd(temp, e.xmm0);
+            e.vpsrlvd(i.dest, i.src1, temp);
+            // Merge:
+            e.vpor(i.dest, e.xmm1);
+          } else {
+            // TODO(benvanik): non-AVX2 native version.
+            if (i.src2.is_constant) {
+              e.lea(e.GetNativeParam(1),
+                    e.StashConstantXmm(1, i.src2.constant()));
+            } else {
+              e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
+            }
+            e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
+            e.CallNativeSafe(
+                reinterpret_cast<void*>(EmulateVectorRotateLeft<uint32_t>));
+            e.vmovaps(i.dest, e.xmm0);
+          }
+          break;
         }
-        break;
+        default:
+          assert_always();
+          break;
       }
-      default:
-        assert_always();
-        break;
     }
   }
 };

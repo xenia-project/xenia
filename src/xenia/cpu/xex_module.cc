@@ -1598,6 +1598,8 @@ bool XexModule::FindSaveRest() {
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveGprLr;
       function->set_behavior(Function::Behavior::kProlog);
       function->set_status(Symbol::Status::kDeclared);
+      function->SetSaverest(cpu::SaveRestoreType::GPR, false, n);
+
       address += 4;
     }
     address = gplr_start + 20 * 4;
@@ -1612,6 +1614,7 @@ bool XexModule::FindSaveRest() {
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestGprLr;
       function->set_behavior(Function::Behavior::kEpilogReturn);
       function->set_status(Symbol::Status::kDeclared);
+      function->SetSaverest(cpu::SaveRestoreType::GPR, true, n);
       address += 4;
     }
   }
@@ -1628,6 +1631,8 @@ bool XexModule::FindSaveRest() {
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveFpr;
       function->set_behavior(Function::Behavior::kProlog);
       function->set_status(Symbol::Status::kDeclared);
+
+      function->SetSaverest(cpu::SaveRestoreType::FPR, false, n);
       address += 4;
     }
     address = fpr_start + (18 * 4) + (1 * 4);
@@ -1642,6 +1647,7 @@ bool XexModule::FindSaveRest() {
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestFpr;
       function->set_behavior(Function::Behavior::kEpilog);
       function->set_status(Symbol::Status::kDeclared);
+      function->SetSaverest(cpu::SaveRestoreType::FPR, true, n);
       address += 4;
     }
   }
@@ -1662,6 +1668,7 @@ bool XexModule::FindSaveRest() {
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveVmx;
       function->set_behavior(Function::Behavior::kProlog);
       function->set_status(Symbol::Status::kDeclared);
+      function->SetSaverest(cpu::SaveRestoreType::VMX, false, n);
       address += 2 * 4;
     }
     address += 4;
@@ -1675,6 +1682,7 @@ bool XexModule::FindSaveRest() {
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveVmx;
       function->set_behavior(Function::Behavior::kProlog);
       function->set_status(Symbol::Status::kDeclared);
+      function->SetSaverest(cpu::SaveRestoreType::VMX, false, n);
       address += 2 * 4;
     }
     address = vmx_start + (18 * 2 * 4) + (1 * 4) + (64 * 2 * 4) + (1 * 4);
@@ -1688,6 +1696,7 @@ bool XexModule::FindSaveRest() {
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestVmx;
       function->set_behavior(Function::Behavior::kEpilog);
       function->set_status(Symbol::Status::kDeclared);
+      function->SetSaverest(cpu::SaveRestoreType::VMX, true, n);
       address += 2 * 4;
     }
     address += 4;
@@ -1701,6 +1710,7 @@ bool XexModule::FindSaveRest() {
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestVmx;
       function->set_behavior(Function::Behavior::kEpilog);
       function->set_status(Symbol::Status::kDeclared);
+      function->SetSaverest(cpu::SaveRestoreType::VMX, true, n);
       address += 2 * 4;
     }
   }
