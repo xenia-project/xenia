@@ -626,35 +626,37 @@ bool Emulator::ExceptionCallback(Exception* ex) {
 
   auto context = current_thread->thread_state()->context();
 
-  XELOGE("==== CRASH DUMP ====");
-  XELOGE("Thread ID (Host: 0x{:08X} / Guest: 0x{:08X})",
-         current_thread->thread()->system_id(), current_thread->thread_id());
-  XELOGE("Thread Handle: 0x{:08X}", current_thread->handle());
-  XELOGE("PC: 0x{:08X}",
-         guest_function->MapMachineCodeToGuestAddress(ex->pc()));
-  XELOGE("Registers:");
+  std::string crash_msg;
+  crash_msg.append("==== CRASH DUMP ====\n");
+  crash_msg.append(fmt::format("Thread ID (Host: 0x{:08X} / Guest: 0x{:08X})\n",
+         current_thread->thread()->system_id(), current_thread->thread_id()));
+  crash_msg.append(fmt::format("Thread Handle: 0x{:08X}\n", current_thread->handle()));
+  crash_msg.append(fmt::format("PC: 0x{:08X}\n",
+         guest_function->MapMachineCodeToGuestAddress(ex->pc())));
+  crash_msg.append("Registers:\n");
   for (int i = 0; i < 32; i++) {
-    XELOGE(" r{:<3} = {:016X}", i, context->r[i]);
+    crash_msg.append(fmt::format(" r{:<3} = {:016X}\n", i, context->r[i]));
   }
   for (int i = 0; i < 32; i++) {
-    XELOGE(" f{:<3} = {:016X} = (double){} = (float){}", i,
+    crash_msg.append(fmt::format(" f{:<3} = {:016X} = (double){} = (float){}\n", i,
            *reinterpret_cast<uint64_t*>(&context->f[i]), context->f[i],
-           *(float*)&context->f[i]);
+           *(float*)&context->f[i]));
   }
   for (int i = 0; i < 128; i++) {
-    XELOGE(" v{:<3} = [0x{:08X}, 0x{:08X}, 0x{:08X}, 0x{:08X}]", i,
+    crash_msg.append(fmt::format(" v{:<3} = [0x{:08X}, 0x{:08X}, 0x{:08X}, 0x{:08X}]\n", i,
            context->v[i].u32[0], context->v[i].u32[1], context->v[i].u32[2],
-           context->v[i].u32[3]);
+           context->v[i].u32[3]));
   }
+  XELOGE("{}", crash_msg);
+  std::string crash_dlg = fmt::format(
+              "The guest has crashed.\n\n"
+              "Xenia has now paused itself.\n\n"
+              "{}", crash_msg);
   // Display a dialog telling the user the guest has crashed.
   if (display_window_ && imgui_drawer_) {
-    display_window_->app_context().CallInUIThreadSynchronous([this]() {
+    display_window_->app_context().CallInUIThreadSynchronous([this, &crash_dlg]() {
       xe::ui::ImGuiDialog::ShowMessageBox(
-          imgui_drawer_, "Uh-oh!",
-          "The guest has crashed.\n\n"
-          ""
-          "Xenia has now paused itself.\n"
-          "A crash dump has been written into the log.");
+          imgui_drawer_, "Uh-oh!", crash_dlg);
     });
   }
 
