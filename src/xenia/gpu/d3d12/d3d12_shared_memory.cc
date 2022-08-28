@@ -406,14 +406,15 @@ bool D3D12SharedMemory::AllocateSparseHostGpuMemoryRange(
 }
 
 bool D3D12SharedMemory::UploadRanges(
-    const std::pair<uint32_t, uint32_t>* upload_page_ranges, unsigned num_upload_page_ranges) {
+    const std::pair<uint32_t, uint32_t>* upload_page_ranges,
+    unsigned num_upload_page_ranges) {
   if (!num_upload_page_ranges) {
     return true;
   }
   CommitUAVWritesAndTransitionBuffer(D3D12_RESOURCE_STATE_COPY_DEST);
   command_processor_.SubmitBarriers();
   auto& command_list = command_processor_.GetDeferredCommandList();
-  //for (auto upload_range : upload_page_ranges) {
+  // for (auto upload_range : upload_page_ranges) {
   for (unsigned int i = 0; i < num_upload_page_ranges; ++i) {
     auto& upload_range = upload_page_ranges[i];
     uint32_t upload_range_start = upload_range.first;
@@ -434,10 +435,20 @@ bool D3D12SharedMemory::UploadRanges(
       }
       MakeRangeValid(upload_range_start << page_size_log2(),
                      uint32_t(upload_buffer_size), false, false);
-      std::memcpy(
-          upload_buffer_mapping,
-          memory().TranslatePhysical(upload_range_start << page_size_log2()),
-          upload_buffer_size);
+
+      if (upload_buffer_size < (1ULL << 32) && upload_buffer_size > 8192) {
+        dma::vastcpy(
+            upload_buffer_mapping,
+            memory().TranslatePhysical(upload_range_start << page_size_log2()),
+            static_cast<uint32_t>(upload_buffer_size));
+        swcache::WriteFence();
+
+      } else {
+        memcpy(
+            upload_buffer_mapping,
+            memory().TranslatePhysical(upload_range_start << page_size_log2()),
+            upload_buffer_size);
+      }
       command_list.D3DCopyBufferRegion(
           buffer_, upload_range_start << page_size_log2(), upload_buffer,
           UINT64(upload_buffer_offset), UINT64(upload_buffer_size));
