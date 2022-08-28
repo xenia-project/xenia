@@ -87,14 +87,15 @@ int InstrEmit_addex(PPCHIRBuilder& f, const InstrData& i) {
   Value* rb = f.LoadGPR(i.XO.RB);
   Value* v = f.AddWithCarry(ra, rb, f.LoadCA());
   f.StoreGPR(i.XO.RT, v);
-  if (i.XO.OE) {
-    XEINSTRNOTIMPLEMENTED();
-    // e.update_xer_with_overflow(EFLAGS OF?);
-  } else {
-    f.StoreCA(AddWithCarryDidCarry(f, ra, rb, f.LoadCA()));
-  }
+  f.StoreCA(AddWithCarryDidCarry(f, ra, rb, f.LoadCA()));
   if (i.XO.Rc) {
     f.UpdateCR(0, v);
+  }
+  if (i.XO.OE) {
+    // Stub implementation.
+    // TODO: Handle overflow flag.
+    // NOTE: 535507D4 (Raiden Fighters Aces) never seems to rely on this
+    //   behavior either, despite OE being set.
   }
   return 0;
 }
@@ -416,33 +417,20 @@ int InstrEmit_mullwx(PPCHIRBuilder& f, const InstrData& i) {
 int InstrEmit_negx(PPCHIRBuilder& f, const InstrData& i) {
   // RT <- ¬(RA) + 1
   if (i.XO.OE) {
-    // With XER update.
-    // This is a different codepath as we need to use llvm.ssub.with.overflow.
-
-    // if RA == 0x8000000000000000 then no-op and set OV=1
-    // This may just magically do that...
-
-    XEINSTRNOTIMPLEMENTED();
-    return 1;
-    // Function* ssub_with_overflow = Intrinsic::getDeclaration(
-    //    e.gen_module(), Intrinsic::ssub_with_overflow, jit_type_nint);
-    // jit_value_t v = b.CreateCall2(ssub_with_overflow,
-    //                         e.get_int64(0), f.LoadGPR(i.XO.RA));
-    // jit_value_t v0 = b.CreateExtractValue(v, 0);
-    // f.StoreGPR(i.XO.RT, v0);
-    // e.update_xer_with_overflow(b.CreateExtractValue(v, 1));
-
-    // if (i.XO.Rc) {
-    //  // With cr0 update.
-    //  f.UpdateCR(0, v0, e.get_int64(0), true);
-    //}
-  } else {
-    // No OE bit setting.
-    Value* v = f.Neg(f.LoadGPR(i.XO.RA));
-    f.StoreGPR(i.XO.RT, v);
-    if (i.XO.Rc) {
-      f.UpdateCR(0, v);
+    // Stub implementation.
+    // TODO: Handle overflow flag for XER.
+    // NOTE: 535507D4 (Raiden Fighters Aces) never seems to rely on this
+    //   behavior, despite having OE set.
+    Value* v = f.LoadGPR(i.XO.RA);
+    if (v->AsUint64() == 0x8000000000000000) {
+      f.StoreGPR(i.XO.RT, v);
+      return 0;
     }
+  }
+  Value* v = f.Neg(f.LoadGPR(i.XO.RA));
+  f.StoreGPR(i.XO.RT, v);
+  if (i.XO.Rc) {
+    f.UpdateCR(0, v);
   }
   return 0;
 }
