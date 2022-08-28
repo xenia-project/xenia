@@ -277,18 +277,151 @@ struct ViewportInfo {
   float ndc_scale[3];
   float ndc_offset[3];
 };
+static_assert(sizeof(xenos::DepthRenderTargetFormat) == sizeof(uint32_t),
+              "Change in depthrendertargetformat throws off "
+              "getviewportinfoargs by a bit");
+struct GetViewportInfoArgs {
+  union alignas(64) {
+    struct {
+      // group 1
+      uint32_t x_max;
+      uint32_t y_max;
+      union {
+        struct {
+          uint32_t origin_bottom_left : 1;
+          uint32_t allow_reverse_z : 1;
+          uint32_t convert_z_to_float24 : 1;
+          uint32_t full_float24_in_0_to_1 : 1;
+          uint32_t pixel_shader_writes_depth : 1;
+          xenos::DepthRenderTargetFormat depth_format : 1;
+        };
+        uint32_t packed_portions;
+      };
+      reg::RB_DEPTHCONTROL normalized_depth_control;
+      // group 2
+      reg::PA_CL_CLIP_CNTL pa_cl_clip_cntl;
+      reg::PA_CL_VTE_CNTL pa_cl_vte_cntl;
+      reg::PA_SU_SC_MODE_CNTL pa_su_sc_mode_cntl;
+      reg::PA_SU_VTX_CNTL pa_su_vtx_cntl;
+      // group 3
+      reg::PA_SC_WINDOW_OFFSET pa_sc_window_offset;
+      float PA_CL_VPORT_XSCALE;
+      float PA_CL_VPORT_YSCALE;
+      float PA_CL_VPORT_ZSCALE;
+
+      float PA_CL_VPORT_XOFFSET;
+      float PA_CL_VPORT_YOFFSET;
+      float PA_CL_VPORT_ZOFFSET;
+      uint32_t padding_set_to_0;
+    };
+#if XE_ARCH_AMD64 == 1
+    struct {
+      __m128i first4;   // x_max, y_max, packed_portions,
+                        // normalized_depth_control
+      __m128i second4;  // pa_cl_clip_cntl, pa_cl_vte_cntl, pa_su_sc_mode_cntl,
+                        // pa_su_vtx_cntl
+      __m128i third4;   // pa_sc_window_offset, PA_CL_VPORT_XSCALE,
+                        // PA_CL_VPORT_YSCALE, PA_CL_VPORT_ZSCALE
+      __m128i last4;    // PA_CL_VPORT_XOFFSET, PA_CL_VPORT_YOFFSET,
+                        // PA_CL_VPORT_ZOFFSET, padding_set_to_0
+    };
+#endif
+  };
+
+  // everything that follows here does not need to be compared
+  uint32_t draw_resolution_scale_x;
+  uint32_t draw_resolution_scale_y;
+  divisors::MagicDiv draw_resolution_scale_x_divisor;
+  divisors::MagicDiv draw_resolution_scale_y_divisor;
+  void Setup(uint32_t _draw_resolution_scale_x,
+             uint32_t _draw_resolution_scale_y,
+             divisors::MagicDiv _draw_resolution_scale_x_divisor,
+             divisors::MagicDiv _draw_resolution_scale_y_divisor,
+             bool _origin_bottom_left, uint32_t _x_max, uint32_t _y_max,
+             bool _allow_reverse_z,
+             reg::RB_DEPTHCONTROL _normalized_depth_control,
+             bool _convert_z_to_float24, bool _full_float24_in_0_to_1,
+             bool _pixel_shader_writes_depth) {
+    packed_portions = 0;
+    padding_set_to_0 = 0;  // important to zero this
+    draw_resolution_scale_x = _draw_resolution_scale_x;
+    draw_resolution_scale_y = _draw_resolution_scale_y;
+    draw_resolution_scale_x_divisor = _draw_resolution_scale_x_divisor;
+    draw_resolution_scale_y_divisor = _draw_resolution_scale_y_divisor;
+    origin_bottom_left = _origin_bottom_left;
+    x_max = _x_max;
+    y_max = _y_max;
+    allow_reverse_z = _allow_reverse_z;
+    normalized_depth_control = _normalized_depth_control;
+    convert_z_to_float24 = _convert_z_to_float24;
+    full_float24_in_0_to_1 = _full_float24_in_0_to_1;
+    pixel_shader_writes_depth = _pixel_shader_writes_depth;
+  }
+
+  void SetupRegisterValues(const RegisterFile& regs) {
+    pa_cl_clip_cntl = regs.Get<reg::PA_CL_CLIP_CNTL>();
+    pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
+    pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
+    pa_su_vtx_cntl = regs.Get<reg::PA_SU_VTX_CNTL>();
+    PA_CL_VPORT_XSCALE = regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32;
+    PA_CL_VPORT_YSCALE = regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32;
+    PA_CL_VPORT_ZSCALE = regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32;
+    PA_CL_VPORT_XOFFSET = regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32;
+    PA_CL_VPORT_YOFFSET = regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32;
+    PA_CL_VPORT_ZOFFSET = regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32;
+    pa_sc_window_offset = regs.Get<reg::PA_SC_WINDOW_OFFSET>();
+    depth_format = regs.Get<reg::RB_DEPTH_INFO>().depth_format;
+  }
+  XE_FORCEINLINE
+  bool operator==(const GetViewportInfoArgs& prev) {
+#if XE_ARCH_AMD64 == 0
+    bool result = true;
+
+    auto accum_eq = [&result](auto x, auto y) { result &= (x == y); };
+
+#define EQC(field) accum_eq(field, prev.field)
+    EQC(x_max);
+    EQC(y_max);
+    EQC(packed_portions);
+    EQC(normalized_depth_control.value);
+    EQC(pa_cl_clip_cntl.value);
+    EQC(pa_cl_vte_cntl.value);
+
+    EQC(pa_su_sc_mode_cntl.value);
+    EQC(pa_su_vtx_cntl.value);
+    EQC(PA_CL_VPORT_XSCALE);
+    EQC(PA_CL_VPORT_YSCALE);
+    EQC(PA_CL_VPORT_ZSCALE);
+    EQC(PA_CL_VPORT_XOFFSET);
+    EQC(PA_CL_VPORT_YOFFSET);
+    EQC(PA_CL_VPORT_ZOFFSET);
+    EQC(pa_sc_window_offset.value);
+
+#undef EQC
+    return result;
+#else
+    __m128i mask1 = _mm_cmpeq_epi32(first4, prev.first4);
+    __m128i mask2 = _mm_cmpeq_epi32(second4, prev.second4);
+
+    __m128i mask3 = _mm_cmpeq_epi32(third4, prev.third4);
+    __m128i unified1 = _mm_and_si128(mask1, mask2);
+    __m128i mask4 = _mm_cmpeq_epi32(last4, prev.last4);
+
+    __m128i unified2 = _mm_and_si128(unified1, mask3);
+
+    __m128i unified3 = _mm_and_si128(unified2, mask4);
+
+    return _mm_movemask_epi8(unified3) == 0xFFFF;
+
+#endif
+  }
+};
+
 // Converts the guest viewport (or fakes one if drawing without a viewport) to
 // a viewport, plus values to multiply-add the returned position by, usable on
 // host graphics APIs such as Direct3D 11+ and Vulkan, also forcing it to the
 // Direct3D clip space with 0...W Z rather than -W...W.
-void GetHostViewportInfo(const RegisterFile& regs,
-                         uint32_t draw_resolution_scale_x,
-                         uint32_t draw_resolution_scale_y,
-                         bool origin_bottom_left, uint32_t x_max,
-                         uint32_t y_max, bool allow_reverse_z,
-                         reg::RB_DEPTHCONTROL normalized_depth_control,
-                         bool convert_z_to_float24, bool full_float24_in_0_to_1,
-                         bool pixel_shader_writes_depth,
+void GetHostViewportInfo(GetViewportInfoArgs* XE_RESTRICT args,
                          ViewportInfo& viewport_info_out);
 
 struct Scissor {

@@ -1,4 +1,5 @@
 /**
+/**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
@@ -19,6 +20,7 @@
 #include <utility>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/dma.h"
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
 #include "xenia/gpu/d3d12/d3d12_primitive_processor.h"
@@ -581,6 +583,7 @@ class D3D12CommandProcessor final : public CommandProcessor {
 
   static constexpr uint32_t kReadbackBufferSizeIncrement = 16 * 1024 * 1024;
   ID3D12Resource* readback_buffer_ = nullptr;
+  dma::DMACJobHandle readback_available_ = 0;
   uint32_t readback_buffer_size_ = 0;
 
   std::atomic<bool> pix_capture_requested_ = false;
@@ -614,9 +617,11 @@ class D3D12CommandProcessor final : public CommandProcessor {
   DxbcShaderTranslator::SystemConstants system_constants_;
 
   // Float constant usage masks of the last draw call.
-  uint64_t current_float_constant_map_vertex_[4];
-  uint64_t current_float_constant_map_pixel_[4];
-
+  // chrispy: make sure accesses to these cant cross cacheline boundaries
+  struct alignas(XE_HOST_CACHE_LINE_SIZE) {
+    uint64_t current_float_constant_map_vertex_[4];
+    uint64_t current_float_constant_map_pixel_[4];
+  };
   // Constant buffer bindings.
   struct ConstantBufferBinding {
     D3D12_GPU_VIRTUAL_ADDRESS address;
@@ -670,6 +675,9 @@ class D3D12CommandProcessor final : public CommandProcessor {
 
   // Current primitive topology.
   D3D_PRIMITIVE_TOPOLOGY primitive_topology_;
+
+  draw_util::GetViewportInfoArgs previous_viewport_info_args_;
+  draw_util::ViewportInfo previous_viewport_info_;
 };
 
 }  // namespace d3d12

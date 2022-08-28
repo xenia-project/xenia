@@ -2366,6 +2366,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
 
   // Get dynamic rasterizer state.
   draw_util::ViewportInfo viewport_info;
+
   // Just handling maxViewportDimensions is enough - viewportBoundsRange[1] must
   // be at least 2 * max(maxViewportDimensions[0...1]) - 1, and
   // maxViewportDimensions must be greater than or equal to the size of the
@@ -2382,11 +2383,16 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // life. Or even disregard the viewport bounds range in the fragment shader
   // interlocks case completely - apply the viewport and the scissor offset
   // directly to pixel address and to things like ps_param_gen.
-  draw_util::GetHostViewportInfo(
-      regs, 1, 1, false, device_limits.maxViewportDimensions[0],
-      device_limits.maxViewportDimensions[1], true, normalized_depth_control,
-      false, host_render_targets_used,
-      pixel_shader && pixel_shader->writes_depth(), viewport_info);
+  draw_util::GetViewportInfoArgs gviargs{};
+  gviargs.Setup(1, 1, divisors::MagicDiv{1}, divisors::MagicDiv{1}, false,
+                device_limits.maxViewportDimensions[0],
+
+                device_limits.maxViewportDimensions[1], true,
+                normalized_depth_control, false, host_render_targets_used,
+                pixel_shader && pixel_shader->writes_depth());
+  gviargs.SetupRegisterValues(regs);
+
+  draw_util::GetHostViewportInfo(&gviargs, viewport_info);
 
   // Update dynamic graphics pipeline state.
   UpdateDynamicState(viewport_info, primitive_polygonal,

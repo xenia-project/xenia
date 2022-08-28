@@ -57,7 +57,11 @@ DEFINE_bool(enable_incorrect_roundingmode_behavior, false,
             "code. The workaround may cause reduced CPU performance but is a "
             "more accurate emulation",
             "x64");
-
+DEFINE_uint32(align_all_basic_blocks, 0,
+              "Aligns the start of all basic blocks to N bytes. Only specify a "
+              "power of 2, 16 is the recommended value. Results in larger "
+              "icache usage, but potentially faster loops",
+              "x64");
 #if XE_X64_PROFILER_AVAILABLE == 1
 DEFINE_bool(instrument_call_times, false,
             "Compute time taken for functions, for profiling guest code",
@@ -110,7 +114,6 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
   TEST_EMIT_FEATURE(kX64EmitLZCNT, Xbyak::util::Cpu::tLZCNT);
   TEST_EMIT_FEATURE(kX64EmitBMI1, Xbyak::util::Cpu::tBMI1);
   TEST_EMIT_FEATURE(kX64EmitBMI2, Xbyak::util::Cpu::tBMI2);
-  TEST_EMIT_FEATURE(kX64EmitF16C, Xbyak::util::Cpu::tF16C);
   TEST_EMIT_FEATURE(kX64EmitMovbe, Xbyak::util::Cpu::tMOVBE);
   TEST_EMIT_FEATURE(kX64EmitGFNI, Xbyak::util::Cpu::tGFNI);
   TEST_EMIT_FEATURE(kX64EmitAVX512F, Xbyak::util::Cpu::tAVX512F);
@@ -200,7 +203,55 @@ bool X64Emitter::Emit(GuestFunction* function, HIRBuilder* builder,
 
   return true;
 }
+#pragma pack(push, 1)
+struct RGCEmitted {
+  uint8_t ff_;
+  uint32_t rgcid_;
+};
+#pragma pack(pop)
 
+#if 0
+void X64Emitter::InjectCallAddresses(void* new_execute_address) {
+  for (auto&& callsite : call_sites_) {
+    RGCEmitted* hunter = (RGCEmitted*)new_execute_address;
+    while (hunter->ff_ != 0xFF || hunter->rgcid_ != callsite.offset_) {
+      hunter =
+          reinterpret_cast<RGCEmitted*>(reinterpret_cast<char*>(hunter) + 1);
+    }
+
+    hunter->ff_ = callsite.is_jump_ ? 0xE9 : 0xE8;
+    hunter->rgcid_ =
+        static_cast<uint32_t>(static_cast<intptr_t>(callsite.destination_) -
+                              reinterpret_cast<intptr_t>(hunter + 1));
+  }
+}
+
+#else
+void X64Emitter::InjectCallAddresses(void* new_execute_address) {
+#if 0
+	RGCEmitted* hunter = (RGCEmitted*)new_execute_address;
+
+  std::map<uint32_t, ResolvableGuestCall*> id_to_rgc{};
+
+  for (auto&& callsite : call_sites_) {
+    id_to_rgc[callsite.offset_] = &callsite;
+  }
+#else
+  RGCEmitted* hunter = (RGCEmitted*)new_execute_address;
+  for (auto&& callsite : call_sites_) {
+    while (hunter->ff_ != 0xFF || hunter->rgcid_ != callsite.offset_) {
+      hunter =
+          reinterpret_cast<RGCEmitted*>(reinterpret_cast<char*>(hunter) + 1);
+    }
+
+    hunter->ff_ = callsite.is_jump_ ? 0xE9 : 0xE8;
+    hunter->rgcid_ =
+        static_cast<uint32_t>(static_cast<intptr_t>(callsite.destination_) -
+                              reinterpret_cast<intptr_t>(hunter + 1));
+  }
+#endif
+}
+#endif
 void* X64Emitter::Emplace(const EmitFunctionInfo& func_info,
                           GuestFunction* function) {
   // To avoid changing xbyak, we do a switcharoo here.
@@ -218,25 +269,9 @@ void* X64Emitter::Emplace(const EmitFunctionInfo& func_info,
   if (function) {
     code_cache_->PlaceGuestCode(function->address(), top_, func_info, function,
                                 new_execute_address, new_write_address);
-    if (cvars::resolve_rel32_guest_calls) {
-      for (auto&& callsite : call_sites_) {
-#pragma pack(push, 1)
-        struct RGCEmitted {
-          uint8_t ff_;
-          uint32_t rgcid_;
-        };
-#pragma pack(pop)
-        RGCEmitted* hunter = (RGCEmitted*)new_execute_address;
-        while (hunter->ff_ != 0xFF || hunter->rgcid_ != callsite.offset_) {
-          hunter = reinterpret_cast<RGCEmitted*>(
-              reinterpret_cast<char*>(hunter) + 1);
-        }
 
-        hunter->ff_ = callsite.is_jump_ ? 0xE9 : 0xE8;
-        hunter->rgcid_ =
-            static_cast<uint32_t>(static_cast<intptr_t>(callsite.destination_) -
-                                  reinterpret_cast<intptr_t>(hunter + 1));
-      }
+    if (cvars::resolve_rel32_guest_calls) {
+      InjectCallAddresses(new_execute_address);
     }
   } else {
     code_cache_->PlaceHostCode(0, top_, func_info, new_execute_address,
@@ -367,6 +402,9 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
       label = label->next;
     }
 
+    if (cvars::align_all_basic_blocks) {
+      align(cvars::align_all_basic_blocks, true);
+    }
     // Process instructions.
     const Instr* instr = block->instr_head;
     while (instr) {
@@ -1000,12 +1038,6 @@ static const vec128_t xmm_consts[] = {
     vec128i(0x7f800000),
     /* XMMThreeFloatMask */
     vec128i(~0U, ~0U, ~0U, 0U),
-    /*XMMXenosF16ExtRangeStart*/
-    vec128f(65504),
-    /*XMMVSRShlByteshuf*/
-    v128_setr_bytes(13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3, 0x80),
-    // XMMVSRMask
-    vec128b(1),
     /*
         XMMF16UnpackLCPI2
         */
@@ -1036,8 +1068,7 @@ static const vec128_t xmm_consts[] = {
     /*XMMXOPWordShiftMask*/
     vec128s(15),
     /*XMMXOPDwordShiftMask*/
-    vec128i(31)
-};
+    vec128i(31)};
 
 void* X64Emitter::FindByteConstantOffset(unsigned bytevalue) {
   for (auto& vec : xmm_consts) {

@@ -377,29 +377,45 @@ int64_t m128_i64(const __m128& v) {
   return m128_i64<N>(_mm_castps_pd(v));
 }
 /*
-	
-	std::min/max float has handling for nans, where if either argument is nan the first argument is returned
 
-	minss/maxss are different, if either argument is nan the second operand to the instruction is returned
-	this is problematic because we have no assurances from the compiler on the argument ordering
+        std::min/max float has handling for nans, where if either argument is
+   nan the first argument is returned
 
-	so only use in places where nan handling is not needed
+        minss/maxss are different, if either argument is nan the second operand
+   to the instruction is returned this is problematic because we have no
+   assurances from the compiler on the argument ordering
+
+        so only use in places where nan handling is not needed
 */
-static float xe_minf(float x, float y) {
+XE_FORCEINLINE
+static float ArchMin(float x, float y) {
   return _mm_cvtss_f32(_mm_min_ss(_mm_set_ss(x), _mm_set_ss(y)));
 }
-static float xe_maxf(float x, float y) {
+XE_FORCEINLINE
+static float ArchMax(float x, float y) {
   return _mm_cvtss_f32(_mm_max_ss(_mm_set_ss(x), _mm_set_ss(y)));
 }
-static float xe_rcpf(float den) {
+XE_FORCEINLINE
+static float ArchReciprocal(float den) {
   return _mm_cvtss_f32(_mm_rcp_ss(_mm_set_ss(den)));
 }
 
 #else
-static float xe_minf(float x, float y) { return std::min<float>(x, y); }
-static float xe_maxf(float x, float y) { return std::max<float>(x, y); }
-static float xe_rcpf(float den) { return 1.0f / den; }
+static float ArchMin(float x, float y) { return std::min<float>(x, y); }
+static float ArchMax(float x, float y) { return std::max<float>(x, y); }
+static float ArchReciprocal(float den) { return 1.0f / den; }
 #endif
+XE_FORCEINLINE
+static float RefineReciprocal(float initial, float den) {
+  float t0 = initial * den;
+  float t1 = t0 * initial;
+  float rcp2 = initial + initial;
+  return rcp2 - t1;
+}
+XE_FORCEINLINE
+static float ArchReciprocalRefined(float den) {
+  return RefineReciprocal(ArchReciprocal(den), den);
+}
 
 // Similar to the C++ implementation of XMConvertFloatToHalf and
 // XMConvertHalfToFloat from DirectXMath 3.00 (pre-3.04, which switched from the
@@ -494,7 +510,101 @@ inline T sat_sub(T a, T b) {
   }
   return T(result);
 }
+namespace divisors {
+union IDivExtraInfo {
+  uint32_t value_;
+  struct {
+    uint32_t shift_ : 31;
+    uint32_t add_ : 1;
+  } info;
+};
+// returns magicnum multiplier
+static uint32_t PregenerateUint32Div(uint32_t _denom, uint32_t& out_extra) {
+  IDivExtraInfo extra;
 
+  uint32_t d = _denom;
+  int p;
+  uint32_t nc, delta, q1, r1, q2, r2;
+  struct {
+    unsigned M;
+    int a;
+    int s;
+  } magu;
+  magu.a = 0;
+  nc = -1 - ((uint32_t) - (int32_t)d) % d;
+  p = 31;
+  q1 = 0x80000000 / nc;
+  r1 = 0x80000000 - q1 * nc;
+  q2 = 0x7FFFFFFF / d;
+  r2 = 0x7FFFFFFF - q2 * d;
+  do {
+    p += 1;
+    if (r1 >= nc - r1) {
+      q1 = 2 * q1 + 1;
+      r1 = 2 * r1 - nc;
+    } else {
+      q1 = 2 * q1;
+      r1 = 2 * r1;
+    }
+    if (r2 + 1 >= d - r2) {
+      if (q2 >= 0x7FFFFFFF) {
+        magu.a = 1;
+      }
+      q2 = 2 * q2 + 1;
+      r2 = 2 * r2 + 1 - d;
+
+    } else {
+      if (q2 >= 0x80000000U) {
+        magu.a = 1;
+      }
+      q2 = 2 * q2;
+      r2 = 2 * r2 + 1;
+    }
+    delta = d - 1 - r2;
+  } while (p < 64 && (q1 < delta || r1 == 0));
+
+  extra.info.add_ = magu.a;
+  extra.info.shift_ = p - 32;
+  out_extra = extra.value_;
+  return static_cast<uint64_t>(q2 + 1);
+}
+
+static inline uint32_t ApplyUint32Div(uint32_t num, uint32_t mul,
+                                      uint32_t extradata) {
+  IDivExtraInfo extra;
+
+  extra.value_ = extradata;
+
+  uint32_t result = ((uint64_t)(num) * (uint64_t)mul) >> 32;
+  if (extra.info.add_) {
+    uint32_t addend = result + num;
+    addend = ((addend < result ? 0x80000000 : 0) | addend);
+    result = addend;
+  }
+  return result >> extra.info.shift_;
+}
+
+static inline uint32_t ApplyUint32UMod(uint32_t num, uint32_t mul,
+                                       uint32_t extradata, uint32_t original) {
+  uint32_t dived = ApplyUint32Div(num, mul, extradata);
+  unsigned result = num - (dived * original);
+
+  return result;
+}
+
+struct MagicDiv {
+  uint32_t multiplier_;
+  uint32_t extradata_;
+  MagicDiv() : multiplier_(0), extradata_(0) {}
+  MagicDiv(uint32_t original) {
+    multiplier_ = PregenerateUint32Div(original, extradata_);
+  }
+
+  uint32_t Apply(uint32_t numerator) const {
+    return ApplyUint32Div(numerator, multiplier_, extradata_);
+  }
+};
+}  // namespace divisors
 }  // namespace xe
 
 #endif  // XENIA_BASE_MATH_H_

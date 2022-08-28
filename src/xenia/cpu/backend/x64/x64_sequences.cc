@@ -67,7 +67,7 @@ using namespace xe::cpu::hir;
 
 using xe::cpu::hir::Instr;
 
-typedef bool (*SequenceSelectFn)(X64Emitter&, const Instr*);
+typedef bool (*SequenceSelectFn)(X64Emitter&, const Instr*, InstrKeyValue ikey);
 std::unordered_map<uint32_t, SequenceSelectFn> sequence_table;
 
 // ============================================================================
@@ -868,59 +868,6 @@ static bool MayCombineSetxWithFollowingCtxStore(const hir::Instr* setx_insn,
   }
   return false;
 }
-#define EMITTER_IS_TRUE(typ, tester)                                 \
-  struct IS_TRUE_##typ                                               \
-      : Sequence<IS_TRUE_##typ, I<OPCODE_IS_TRUE, I8Op, typ##Op>> {  \
-    static void Emit(X64Emitter& e, const EmitArgType& i) {          \
-      e.tester(i.src1, i.src1);                                      \
-      unsigned ctxoffset = 0;                                        \
-      if (MayCombineSetxWithFollowingCtxStore(i.instr, ctxoffset)) { \
-        e.setnz(e.byte[e.GetContextReg() + ctxoffset]);              \
-      } else {                                                       \
-        e.setnz(i.dest);                                             \
-      }                                                              \
-    }                                                                \
-  }
-
-#define EMITTER_IS_TRUE_INT(typ) EMITTER_IS_TRUE(typ, test)
-
-EMITTER_IS_TRUE_INT(I8);
-EMITTER_IS_TRUE_INT(I16);
-EMITTER_IS_TRUE_INT(I32);
-EMITTER_IS_TRUE_INT(I64);
-EMITTER_IS_TRUE(F32, vtestps);
-EMITTER_IS_TRUE(F64, vtestpd);
-
-EMITTER_IS_TRUE(V128, vptest);
-
-EMITTER_OPCODE_TABLE(OPCODE_IS_TRUE, IS_TRUE_I8, IS_TRUE_I16, IS_TRUE_I32,
-                     IS_TRUE_I64, IS_TRUE_F32, IS_TRUE_F64, IS_TRUE_V128);
-
-#define EMITTER_IS_FALSE(typ, tester)                                 \
-  struct IS_FALSE_##typ                                               \
-      : Sequence<IS_FALSE_##typ, I<OPCODE_IS_FALSE, I8Op, typ##Op>> { \
-    static void Emit(X64Emitter& e, const EmitArgType& i) {           \
-      e.tester(i.src1, i.src1);                                       \
-      unsigned ctxoffset = 0;                                         \
-      if (MayCombineSetxWithFollowingCtxStore(i.instr, ctxoffset)) {  \
-        e.setz(e.byte[e.GetContextReg() + ctxoffset]);                \
-      } else {                                                        \
-        e.setz(i.dest);                                               \
-      }                                                               \
-    }                                                                 \
-  }
-#define EMITTER_IS_FALSE_INT(typ) EMITTER_IS_FALSE(typ, test)
-EMITTER_IS_FALSE_INT(I8);
-EMITTER_IS_FALSE_INT(I16);
-EMITTER_IS_FALSE_INT(I32);
-EMITTER_IS_FALSE_INT(I64);
-EMITTER_IS_FALSE(F32, vtestps);
-EMITTER_IS_FALSE(F64, vtestpd);
-
-EMITTER_IS_FALSE(V128, vptest);
-
-EMITTER_OPCODE_TABLE(OPCODE_IS_FALSE, IS_FALSE_I8, IS_FALSE_I16, IS_FALSE_I32,
-                     IS_FALSE_I64, IS_FALSE_F32, IS_FALSE_F64, IS_FALSE_V128);
 
 // ============================================================================
 // OPCODE_IS_NAN
@@ -3308,7 +3255,7 @@ bool SelectSequence(X64Emitter* e, const Instr* i, const Instr** new_tail) {
 
     auto it = sequence_table.find(key);
     if (it != sequence_table.end()) {
-      if (it->second(*e, i)) {
+      if (it->second(*e, i, InstrKey(i))) {
         *new_tail = i->next;
         return true;
       }

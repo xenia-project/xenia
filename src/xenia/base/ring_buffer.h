@@ -59,16 +59,8 @@ class RingBuffer {
   // subtract instead
   void set_read_offset(size_t offset) { read_offset_ = offset % capacity_; }
   ring_size_t read_count() const {
-// chrispy: these branches are unpredictable
-#if 0
-    if (read_offset_ == write_offset_) {
-      return 0;
-    } else if (read_offset_ < write_offset_) {
-      return write_offset_ - read_offset_;
-    } else {
-      return (capacity_ - read_offset_) + write_offset_;
-    }
-#else
+    // chrispy: these branches are unpredictable
+
     ring_size_t read_offs = read_offset_;
     ring_size_t write_offs = write_offset_;
     ring_size_t cap = capacity_;
@@ -77,14 +69,6 @@ class RingBuffer {
     ring_size_t wrap_read_count = (cap - read_offs) + write_offs;
 
     ring_size_t comparison_value = read_offs <= write_offs;
-#if 0
-    size_t selector =
-        static_cast<size_t>(-static_cast<ptrdiff_t>(comparison_value));
-    offset_delta &= selector;
-
-    wrap_read_count &= ~selector;
-    return offset_delta | wrap_read_count;
-#else
 
     if (XE_LIKELY(read_offs <= write_offs)) {
       return offset_delta;  // will be 0 if they are equal, semantically
@@ -93,8 +77,6 @@ class RingBuffer {
     } else {
       return wrap_read_count;
     }
-#endif
-#endif
   }
 
   ring_size_t write_offset() const { return write_offset_; }
@@ -116,9 +98,9 @@ class RingBuffer {
   void AdvanceWrite(size_t count);
 
   struct ReadRange {
-    const uint8_t* first;
+    const uint8_t* XE_RESTRICT first;
 
-    const uint8_t* second;
+    const uint8_t* XE_RESTRICT second;
     ring_size_t first_length;
     ring_size_t second_length;
   };
@@ -126,9 +108,11 @@ class RingBuffer {
   void EndRead(ReadRange read_range);
 
   /*
-        BeginRead, but if there is a second Range it will prefetch all lines of it
+        BeginRead, but if there is a second Range it will prefetch all lines of
+     it
 
-		this does not prefetch the first range, because software prefetching can do that faster than we can
+                this does not prefetch the first range, because software
+     prefetching can do that faster than we can
   */
   template <swcache::PrefetchTag tag>
   XE_FORCEINLINE ReadRange BeginPrefetchedRead(size_t count) {
@@ -138,7 +122,7 @@ class RingBuffer {
       ring_size_t numlines =
           xe::align<ring_size_t>(range.second_length, XE_HOST_CACHE_LINE_SIZE) /
           XE_HOST_CACHE_LINE_SIZE;
-	  //chrispy: maybe unroll?
+      // chrispy: maybe unroll?
       for (ring_size_t i = 0; i < numlines; ++i) {
         swcache::Prefetch<tag>(range.second + (i * XE_HOST_CACHE_LINE_SIZE));
       }
@@ -187,7 +171,7 @@ class RingBuffer {
   }
 
  private:
-  uint8_t* buffer_ = nullptr;
+  uint8_t* XE_RESTRICT buffer_ = nullptr;
   ring_size_t capacity_ = 0;
   ring_size_t read_offset_ = 0;
   ring_size_t write_offset_ = 0;

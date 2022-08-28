@@ -1023,7 +1023,6 @@ Value* HIRBuilder::Truncate(Value* value, TypeName target_type) {
 
 Value* HIRBuilder::Convert(Value* value, TypeName target_type,
                            RoundMode round_mode) {
-
   Instr* i =
       AppendInstr(OPCODE_CONVERT_info, round_mode, AllocValue(target_type));
   i->set_src1(value);
@@ -1033,7 +1032,6 @@ Value* HIRBuilder::Convert(Value* value, TypeName target_type,
 
 Value* HIRBuilder::Round(Value* value, RoundMode round_mode) {
   ASSERT_FLOAT_OR_VECTOR_TYPE(value);
-
 
   Instr* i =
       AppendInstr(OPCODE_ROUND_info, round_mode, AllocValue(value->type));
@@ -1248,7 +1246,34 @@ void HIRBuilder::Store(Value* address, Value* value, uint32_t store_flags) {
   i->set_src2(value);
   i->src3.value = NULL;
 }
-
+Value* HIRBuilder::LoadVectorLeft(Value* address) {
+  ASSERT_ADDRESS_TYPE(address);
+  Instr* i = AppendInstr(OPCODE_LVL_info, 0, AllocValue(VEC128_TYPE));
+  i->set_src1(address);
+  i->src2.value = i->src3.value = NULL;
+  return i->dest;
+}
+Value* HIRBuilder::LoadVectorRight(Value* address) {
+  ASSERT_ADDRESS_TYPE(address);
+  Instr* i = AppendInstr(OPCODE_LVR_info, 0, AllocValue(VEC128_TYPE));
+  i->set_src1(address);
+  i->src2.value = i->src3.value = NULL;
+  return i->dest;
+}
+void HIRBuilder::StoreVectorLeft(Value* address, Value* value) {
+  ASSERT_ADDRESS_TYPE(address);
+  Instr* i = AppendInstr(OPCODE_STVL_info, 0);
+  i->set_src1(address);
+  i->set_src2(value);
+  i->src3.value = NULL;
+}
+void HIRBuilder::StoreVectorRight(Value* address, Value* value) {
+  ASSERT_ADDRESS_TYPE(address);
+  Instr* i = AppendInstr(OPCODE_STVR_info, 0);
+  i->set_src1(address);
+  i->set_src2(value);
+  i->src3.value = NULL;
+}
 void HIRBuilder::Memset(Value* address, Value* value, Value* length) {
   ASSERT_ADDRESS_TYPE(address);
   ASSERT_TYPES_EQUAL(address, length);
@@ -1283,7 +1308,7 @@ void HIRBuilder::SetNJM(Value* value) {
 Value* HIRBuilder::Max(Value* value1, Value* value2) {
   ASSERT_TYPES_EQUAL(value1, value2);
 
-  if (IsScalarIntegralType( value1->type) && value1->IsConstant() &&
+  if (IsScalarIntegralType(value1->type) && value1->IsConstant() &&
       value2->IsConstant()) {
     return value1->Compare(OPCODE_COMPARE_SLT, value2) ? value2 : value1;
   }
@@ -1351,27 +1376,51 @@ Value* HIRBuilder::Select(Value* cond, Value* value1, Value* value2) {
   i->set_src3(value2);
   return i->dest;
 }
+static Value* OrLanes32(HIRBuilder& f, Value* value) {
+  hir::Value* v1 = f.Extract(value, (uint8_t)0, INT32_TYPE);
+  hir::Value* v2 = f.Extract(value, (uint8_t)1, INT32_TYPE);
+  hir::Value* v3 = f.Extract(value, (uint8_t)2, INT32_TYPE);
+  hir::Value* ored = f.Or(v1, v2);
 
+  hir::Value* v4 = f.Extract(value, (uint8_t)3, INT32_TYPE);
+  ored = f.Or(ored, v3);
+
+  ored = f.Or(ored, v4);
+  return ored;
+}
 Value* HIRBuilder::IsTrue(Value* value) {
+  assert_true(value);
+  if (value->type == VEC128_TYPE) {
+    // chrispy: this probably doesnt happen often enough to be worth its own
+    // opcode or special code path but this could be optimized to not require as
+    // many extracts, we can shuffle and or v128 and then extract the low
+
+    return CompareEQ(OrLanes32(*this, value), LoadZeroInt32());
+  }
+
   if (value->IsConstant()) {
     return LoadConstantInt8(value->IsConstantTrue() ? 1 : 0);
   }
 
-  Instr* i = AppendInstr(OPCODE_IS_TRUE_info, 0, AllocValue(INT8_TYPE));
-  i->set_src1(value);
-  i->src2.value = i->src3.value = NULL;
-  return i->dest;
+  return CompareNE(value, LoadZero(value->type));
 }
 
 Value* HIRBuilder::IsFalse(Value* value) {
+  assert_true(value);
+
+  if (value->type == VEC128_TYPE) {
+    // chrispy: this probably doesnt happen often enough to be worth its own
+    // opcode or special code path but this could be optimized to not require as
+    // many extracts, we can shuffle and or v128 and then extract the low
+
+    return CompareEQ(OrLanes32(*this, value), LoadZeroInt32());
+  }
+
   if (value->IsConstant()) {
     return LoadConstantInt8(value->IsConstantFalse() ? 1 : 0);
   }
 
-  Instr* i = AppendInstr(OPCODE_IS_FALSE_info, 0, AllocValue(INT8_TYPE));
-  i->set_src1(value);
-  i->src2.value = i->src3.value = NULL;
-  return i->dest;
+  return CompareEQ(value, LoadZero(value->type));
 }
 
 Value* HIRBuilder::IsNan(Value* value) {

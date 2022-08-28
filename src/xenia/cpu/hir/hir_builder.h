@@ -166,6 +166,11 @@ class HIRBuilder {
                    uint32_t store_flags = 0);
 
   Value* Load(Value* address, TypeName type, uint32_t load_flags = 0);
+
+  Value* LoadVectorLeft(Value* address);
+  Value* LoadVectorRight(Value* address);
+  void StoreVectorLeft(Value* address, Value* value);
+  void StoreVectorRight(Value* address, Value* value);
   void Store(Value* address, Value* value, uint32_t store_flags = 0);
   void Memset(Value* address, Value* value, Value* length);
   void CacheControl(Value* address, size_t cache_line_size,
@@ -268,6 +273,7 @@ class HIRBuilder {
                                Value* new_value);
   Value* AtomicAdd(Value* address, Value* value);
   Value* AtomicSub(Value* address, Value* value);
+
   void SetNJM(Value* value);
 
  protected:

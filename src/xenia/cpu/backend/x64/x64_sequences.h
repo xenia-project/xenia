@@ -25,7 +25,7 @@ namespace x64 {
 
 class X64Emitter;
 
-typedef bool (*SequenceSelectFn)(X64Emitter&, const hir::Instr*);
+typedef bool (*SequenceSelectFn)(X64Emitter&, const hir::Instr*, uint32_t ikey);
 extern std::unordered_map<uint32_t, SequenceSelectFn> sequence_table;
 
 template <typename T>

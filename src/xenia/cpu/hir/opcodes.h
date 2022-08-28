@@ -210,10 +210,10 @@ enum Opcode {
   OPCODE_STORE,
   // chrispy: todo: implement, our current codegen for the unaligned loads is
   // very bad
-  OPCODE_LVLX,
-  OPCODE_LVRX,
-  OPCODE_STVLX,
-  OPCODE_STVRX,
+  OPCODE_LVL,
+  OPCODE_LVR,
+  OPCODE_STVL,
+  OPCODE_STVR,
   OPCODE_MEMSET,
   OPCODE_CACHE_CONTROL,
   OPCODE_MEMORY_BARRIER,
@@ -222,8 +222,6 @@ enum Opcode {
   OPCODE_MIN,
   OPCODE_VECTOR_MIN,
   OPCODE_SELECT,
-  OPCODE_IS_TRUE,
-  OPCODE_IS_FALSE,
   OPCODE_IS_NAN,
   OPCODE_COMPARE_EQ,
   OPCODE_COMPARE_NE,

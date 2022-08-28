@@ -167,17 +167,17 @@ bool IsPixelShaderNeededWithRasterization(const Shader& shader,
   return false;
 }
 
-void GetHostViewportInfo(const RegisterFile& regs,
-                         uint32_t draw_resolution_scale_x,
-                         uint32_t draw_resolution_scale_y,
-                         bool origin_bottom_left, uint32_t x_max,
-                         uint32_t y_max, bool allow_reverse_z,
-                         reg::RB_DEPTHCONTROL normalized_depth_control,
-                         bool convert_z_to_float24, bool full_float24_in_0_to_1,
-                         bool pixel_shader_writes_depth,
+static float ViewportRecip2_0(float f) {
+  float f1 = ArchReciprocalRefined(f);
+  return f1 + f1;
+}
+
+// chrispy: todo, the int/float divides and the nan-checked mins show up
+// relatively high on uprof when i uc to 1.7ghz
+void GetHostViewportInfo(GetViewportInfoArgs* XE_RESTRICT args,
                          ViewportInfo& viewport_info_out) {
-  assert_not_zero(draw_resolution_scale_x);
-  assert_not_zero(draw_resolution_scale_y);
+  assert_not_zero(args->draw_resolution_scale_x);
+  assert_not_zero(args->draw_resolution_scale_y);
 
   // A vertex position goes the following path:
   //
@@ -304,38 +304,32 @@ void GetHostViewportInfo(const RegisterFile& regs,
   // TODO(Triang3l): Investigate the need for clamping of oDepth to 0...1 for
   // D24FS8 as well.
 
-  auto pa_cl_clip_cntl = regs.Get<reg::PA_CL_CLIP_CNTL>();
-  auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
-  auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
-  auto pa_su_vtx_cntl = regs.Get<reg::PA_SU_VTX_CNTL>();
+  auto pa_cl_clip_cntl = args->pa_cl_clip_cntl;
+  auto pa_cl_vte_cntl = args->pa_cl_vte_cntl;
+  auto pa_su_sc_mode_cntl = args->pa_su_sc_mode_cntl;
+  auto pa_su_vtx_cntl = args->pa_su_vtx_cntl;
 
   // Obtain the original viewport values in a normalized way.
   float scale_xy[] = {
-      pa_cl_vte_cntl.vport_x_scale_ena ? regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32
-                                       : 1.0f,
-      pa_cl_vte_cntl.vport_y_scale_ena ? regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32
-                                       : 1.0f,
+
+      pa_cl_vte_cntl.vport_x_scale_ena ? args->PA_CL_VPORT_XSCALE : 1.0f,
+      pa_cl_vte_cntl.vport_y_scale_ena ? args->PA_CL_VPORT_YSCALE : 1.0f,
   };
-  float scale_z = pa_cl_vte_cntl.vport_z_scale_ena
-                      ? regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32
-                      : 1.0f;
+  float scale_z =
+      pa_cl_vte_cntl.vport_z_scale_ena ? args->PA_CL_VPORT_ZSCALE : 1.0f;
+
   float offset_base_xy[] = {
-      pa_cl_vte_cntl.vport_x_offset_ena
-          ? regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32
-          : 0.0f,
-      pa_cl_vte_cntl.vport_y_offset_ena
-          ? regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32
-          : 0.0f,
+      pa_cl_vte_cntl.vport_x_offset_ena ? args->PA_CL_VPORT_XOFFSET : 0.0f,
+      pa_cl_vte_cntl.vport_y_offset_ena ? args->PA_CL_VPORT_YOFFSET : 0.0f,
   };
-  float offset_z = pa_cl_vte_cntl.vport_z_offset_ena
-                       ? regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32
-                       : 0.0f;
+  float offset_z =
+      pa_cl_vte_cntl.vport_z_offset_ena ? args->PA_CL_VPORT_ZOFFSET : 0.0f;
   // Calculate all the integer.0 or integer.5 offsetting exactly at full
   // precision, separately so it can be used in other integer calculations
   // without double rounding if needed.
   float offset_add_xy[2] = {};
   if (pa_su_sc_mode_cntl.vtx_window_offset_enable) {
-    auto pa_sc_window_offset = regs.Get<reg::PA_SC_WINDOW_OFFSET>();
+    auto pa_sc_window_offset = args->pa_sc_window_offset;
     offset_add_xy[0] += float(pa_sc_window_offset.window_x_offset);
     offset_add_xy[1] += float(pa_sc_window_offset.window_y_offset);
   }
@@ -346,8 +340,11 @@ void GetHostViewportInfo(const RegisterFile& regs,
 
   // The maximum value is at least the maximum host render target size anyway -
   // and a guest pixel is always treated as a whole with resolution scaling.
-  uint32_t xy_max_unscaled[] = {x_max / draw_resolution_scale_x,
-                                y_max / draw_resolution_scale_y};
+  // cbrispy: todo, this integer divides show up high on the profiler somehow
+  // (it was a very long session, too)
+  uint32_t xy_max_unscaled[] = {
+      args->draw_resolution_scale_x_divisor.Apply(args->x_max),
+      args->draw_resolution_scale_y_divisor.Apply(args->y_max)};
   assert_not_zero(xy_max_unscaled[0]);
   assert_not_zero(xy_max_unscaled[1]);
 
@@ -367,9 +364,11 @@ void GetHostViewportInfo(const RegisterFile& regs,
           std::min(xenos::kTexture2DCubeMaxWidthHeight, xy_max_unscaled[i]);
       viewport_info_out.xy_extent[i] =
           extent_axis_unscaled *
-          (i ? draw_resolution_scale_y : draw_resolution_scale_x);
+          (i ? args->draw_resolution_scale_y : args->draw_resolution_scale_x);
       float extent_axis_unscaled_float = float(extent_axis_unscaled);
-      float pixels_to_ndc_axis = 2.0f / extent_axis_unscaled_float;
+
+      float pixels_to_ndc_axis = ViewportRecip2_0(extent_axis_unscaled_float);
+
       ndc_scale[i] = scale_xy[i] * pixels_to_ndc_axis;
       ndc_offset[i] = (offset_base_xy[i] - extent_axis_unscaled_float * 0.5f +
                        offset_add_xy[i]) *
@@ -394,7 +393,7 @@ void GetHostViewportInfo(const RegisterFile& regs,
       // doing truncation for simplicity - since maxing with 0 is done anyway
       // (we only return viewports in the positive quarter-plane).
       uint32_t axis_resolution_scale =
-          i ? draw_resolution_scale_y : draw_resolution_scale_x;
+          i ? args->draw_resolution_scale_y : args->draw_resolution_scale_x;
       float offset_axis = offset_base_xy[i] + offset_add_xy[i];
       float scale_axis = scale_xy[i];
       float scale_axis_abs = std::abs(scale_xy[i]);
@@ -422,11 +421,14 @@ void GetHostViewportInfo(const RegisterFile& regs,
         // space, a region previously outside -W...W should end up within it, so
         // the scale should be < 1.
         float axis_extent_rounded = float(axis_extent_int);
-        ndc_scale_axis = scale_axis * 2.0f / axis_extent_rounded;
+        float inv_axis_extent_rounded =
+            ArchReciprocalRefined(axis_extent_rounded);
+
+        ndc_scale_axis = scale_axis * 2.0f * inv_axis_extent_rounded;
         // Move the origin of the snapped coordinates back to the original one.
         ndc_offset_axis = (float(offset_axis) -
                            (float(axis_0_int) + axis_extent_rounded * 0.5f)) *
-                          2.0f / axis_extent_rounded;
+                          2.0f * inv_axis_extent_rounded;
       } else {
         // Empty viewport (everything outside the viewport scissor).
         ndc_scale_axis = 1.0f;
@@ -497,7 +499,7 @@ void GetHostViewportInfo(const RegisterFile& regs,
       ndc_scale[2] = 0.5f;
       ndc_offset[2] = 0.5f;
     }
-    if (pixel_shader_writes_depth) {
+    if (args->pixel_shader_writes_depth) {
       // Allow the pixel shader to write any depth value since
       // PA_SC_VPORT_ZMIN/ZMAX isn't present on the Adreno 200; guest pixel
       // shaders don't have access to the original Z in the viewport space
@@ -515,7 +517,7 @@ void GetHostViewportInfo(const RegisterFile& regs,
       // Direct3D 12 doesn't allow reverse depth range - on some drivers it
       // works, on some drivers it doesn't, actually, but it was never
       // explicitly allowed by the specification.
-      if (!allow_reverse_z && z_min > z_max) {
+      if (!args->allow_reverse_z && z_min > z_max) {
         std::swap(z_min, z_max);
         ndc_scale[2] = -ndc_scale[2];
         ndc_offset[2] = 1.0f - ndc_offset[2];
@@ -523,10 +525,9 @@ void GetHostViewportInfo(const RegisterFile& regs,
     }
   }
 
-  if (normalized_depth_control.z_enable &&
-      regs.Get<reg::RB_DEPTH_INFO>().depth_format ==
-          xenos::DepthRenderTargetFormat::kD24FS8) {
-    if (convert_z_to_float24) {
+  if (args->normalized_depth_control.z_enable &&
+      args->depth_format == xenos::DepthRenderTargetFormat::kD24FS8) {
+    if (args->convert_z_to_float24) {
       // Need to adjust the bounds that the resulting depth values will be
       // clamped to after the pixel shader. Preferring adding some error to
       // interpolated Z instead if conversion can't be done exactly, without
@@ -537,7 +538,7 @@ void GetHostViewportInfo(const RegisterFile& regs,
       z_min = xenos::Float20e4To32(xenos::Float32To20e4(z_min, true));
       z_max = xenos::Float20e4To32(xenos::Float32To20e4(z_max, true));
     }
-    if (full_float24_in_0_to_1) {
+    if (args->full_float24_in_0_to_1) {
       // Remap the full [0...2) float24 range to [0...1) support data round-trip
       // during render target ownership transfer of EDRAM tiles through depth
       // input without unrestricted depth range.
@@ -548,7 +549,7 @@ void GetHostViewportInfo(const RegisterFile& regs,
   viewport_info_out.z_min = z_min;
   viewport_info_out.z_max = z_max;
 
-  if (origin_bottom_left) {
+  if (args->origin_bottom_left) {
     ndc_scale[1] = -ndc_scale[1];
     ndc_offset[1] = -ndc_offset[1];
   }
@@ -557,7 +558,6 @@ void GetHostViewportInfo(const RegisterFile& regs,
     viewport_info_out.ndc_offset[i] = ndc_offset[i];
   }
 }
-
 void GetScissor(const RegisterFile& regs, Scissor& scissor_out,
                 bool clamp_to_surface_pitch) {
   auto pa_sc_window_scissor_tl = regs.Get<reg::PA_SC_WINDOW_SCISSOR_TL>();
@@ -868,7 +868,7 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
            xenos::kMaxResolveSize);
     y1 = y0 + int32_t(xenos::kMaxResolveSize);
   }
-  //fails in forza horizon 1
+  // fails in forza horizon 1
   assert_true(x0 < x1 && y0 < y1);
   if (x0 >= x1 || y0 >= y1) {
     XELOGE("Resolve region is empty");

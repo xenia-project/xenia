@@ -27,12 +27,6 @@ static void EmitFusedBranch(X64Emitter& e, const T& i) {
   if (valid) {
     auto name = i.src2.value->name;
     switch (opcode) {
-      case OPCODE_IS_TRUE:
-        e.jnz(name, e.T_NEAR);
-        break;
-      case OPCODE_IS_FALSE:
-        e.jz(name, e.T_NEAR);
-        break;
       case OPCODE_COMPARE_EQ:
         e.je(name, e.T_NEAR);
         break;
@@ -299,26 +293,14 @@ struct CALL_TRUE_I64
 struct CALL_TRUE_F32
     : Sequence<CALL_TRUE_F32, I<OPCODE_CALL_TRUE, VoidOp, F32Op, SymbolOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    assert_true(i.src2.value->is_guest());
-    e.vptest(i.src1, i.src1);
-    Xbyak::Label skip;
-    e.jz(skip);
-    e.Call(i.instr, static_cast<GuestFunction*>(i.src2.value));
-    e.L(skip);
-    e.ForgetMxcsrMode();
+    assert_impossible_sequence(CALL_TRUE_F32);
   }
 };
 
 struct CALL_TRUE_F64
     : Sequence<CALL_TRUE_F64, I<OPCODE_CALL_TRUE, VoidOp, F64Op, SymbolOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    assert_true(i.src2.value->is_guest());
-    e.vptest(i.src1, i.src1);
-    Xbyak::Label skip;
-    e.jz(skip);
-    e.Call(i.instr, static_cast<GuestFunction*>(i.src2.value));
-    e.L(skip);
-    e.ForgetMxcsrMode();
+    assert_impossible_sequence(CALL_TRUE_F64);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_CALL_TRUE, CALL_TRUE_I8, CALL_TRUE_I16,
@@ -404,22 +386,14 @@ struct CALL_INDIRECT_TRUE_F32
     : Sequence<CALL_INDIRECT_TRUE_F32,
                I<OPCODE_CALL_INDIRECT_TRUE, VoidOp, F32Op, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vptest(i.src1, i.src1);
-    Xbyak::Label skip;
-    e.jz(skip, CodeGenerator::T_NEAR);
-    e.CallIndirect(i.instr, i.src2);
-    e.L(skip);
+    assert_impossible_sequence(CALL_INDIRECT_TRUE_F32);
   }
 };
 struct CALL_INDIRECT_TRUE_F64
     : Sequence<CALL_INDIRECT_TRUE_F64,
                I<OPCODE_CALL_INDIRECT_TRUE, VoidOp, F64Op, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vptest(i.src1, i.src1);
-    Xbyak::Label skip;
-    e.jz(skip, CodeGenerator::T_NEAR);
-    e.CallIndirect(i.instr, i.src2);
-    e.L(skip);
+    assert_impossible_sequence(CALL_INDIRECT_TRUE_F64);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_CALL_INDIRECT_TRUE, CALL_INDIRECT_TRUE_I8,
@@ -486,15 +460,13 @@ struct RETURN_TRUE_I64
 struct RETURN_TRUE_F32
     : Sequence<RETURN_TRUE_F32, I<OPCODE_RETURN_TRUE, VoidOp, F32Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vptest(i.src1, i.src1);
-    e.jnz(e.epilog_label(), CodeGenerator::T_NEAR);
+    assert_impossible_sequence(RETURN_TRUE_F32);
   }
 };
 struct RETURN_TRUE_F64
     : Sequence<RETURN_TRUE_F64, I<OPCODE_RETURN_TRUE, VoidOp, F64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vptest(i.src1, i.src1);
-    e.jnz(e.epilog_label(), CodeGenerator::T_NEAR);
+    assert_impossible_sequence(RETURN_TRUE_F64);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_RETURN_TRUE, RETURN_TRUE_I8, RETURN_TRUE_I16,
@@ -553,33 +525,25 @@ struct BRANCH_TRUE_I64
 struct BRANCH_TRUE_F32
     : Sequence<BRANCH_TRUE_F32, I<OPCODE_BRANCH_TRUE, VoidOp, F32Op, LabelOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (i.instr->prev && i.instr->prev->opcode == &OPCODE_IS_TRUE_info &&
-        i.instr->prev->dest == i.src1.value) {
-      e.jnz(i.src2.value->name, e.T_NEAR);
-    } else if (i.instr->prev &&
-               i.instr->prev->opcode == &OPCODE_IS_FALSE_info &&
-               i.instr->prev->dest == i.src1.value) {
-      e.jz(i.src2.value->name, e.T_NEAR);
-    } else {
-      e.vptest(i.src1, i.src1);
-      e.jnz(i.src2.value->name, e.T_NEAR);
-    }
+    /*
+                chrispy: right now, im not confident that we are always clearing
+       the upper 96 bits of registers, making vptest extremely unsafe. many
+       ss/sd operations copy over the upper 96 from the source, and for abs we
+       negate ALL elements, making the top 64 bits contain 0x80000000 etc
+        */
+    Xmm input = GetInputRegOrConstant(e, i.src1, e.xmm0);
+    e.vmovd(e.eax, input);
+    e.test(e.eax, e.eax);
+    e.jnz(i.src2.value->name, e.T_NEAR);
   }
 };
 struct BRANCH_TRUE_F64
     : Sequence<BRANCH_TRUE_F64, I<OPCODE_BRANCH_TRUE, VoidOp, F64Op, LabelOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    if (i.instr->prev && i.instr->prev->opcode == &OPCODE_IS_TRUE_info &&
-        i.instr->prev->dest == i.src1.value) {
-      e.jnz(i.src2.value->name, e.T_NEAR);
-    } else if (i.instr->prev &&
-               i.instr->prev->opcode == &OPCODE_IS_FALSE_info &&
-               i.instr->prev->dest == i.src1.value) {
-      e.jz(i.src2.value->name, e.T_NEAR);
-    } else {
-      e.vptest(i.src1, i.src1);
-      e.jnz(i.src2.value->name, e.T_NEAR);
-    }
+    Xmm input = GetInputRegOrConstant(e, i.src1, e.xmm0);
+    e.vmovq(e.rax, input);
+    e.test(e.rax, e.rax);
+    e.jnz(i.src2.value->name, e.T_NEAR);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_BRANCH_TRUE, BRANCH_TRUE_I8, BRANCH_TRUE_I16,
@@ -624,7 +588,9 @@ struct BRANCH_FALSE_F32
     : Sequence<BRANCH_FALSE_F32,
                I<OPCODE_BRANCH_FALSE, VoidOp, F32Op, LabelOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vptest(i.src1, i.src1);
+    Xmm input = GetInputRegOrConstant(e, i.src1, e.xmm0);
+    e.vmovd(e.eax, input);
+    e.test(e.eax, e.eax);
     e.jz(i.src2.value->name, e.T_NEAR);
   }
 };
@@ -632,7 +598,9 @@ struct BRANCH_FALSE_F64
     : Sequence<BRANCH_FALSE_F64,
                I<OPCODE_BRANCH_FALSE, VoidOp, F64Op, LabelOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.vptest(i.src1, i.src1);
+    Xmm input = GetInputRegOrConstant(e, i.src1, e.xmm0);
+    e.vmovq(e.rax, input);
+    e.test(e.rax, e.rax);
     e.jz(i.src2.value->name, e.T_NEAR);
   }
 };

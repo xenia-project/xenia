@@ -303,17 +303,6 @@ DEFINE_OPCODE(
     OPCODE_SIG_V_V_V_V,
     0)
 
-DEFINE_OPCODE(
-    OPCODE_IS_TRUE,
-    "is_true",
-    OPCODE_SIG_V_V,
-    0)
-
-DEFINE_OPCODE(
-    OPCODE_IS_FALSE,
-    "is_false",
-    OPCODE_SIG_V_V,
-    0)
 
 DEFINE_OPCODE(
     OPCODE_IS_NAN,
@@ -706,4 +695,27 @@ DEFINE_OPCODE(
 	OPCODE_SIG_X_V,
 	0
 )
+DEFINE_OPCODE(
+	OPCODE_LVL,
+	"loadv_left",
+	OPCODE_SIG_V_V,
+	OPCODE_FLAG_MEMORY
+)
 
+DEFINE_OPCODE(
+	OPCODE_LVR,
+	"loadv_right",
+	OPCODE_SIG_V_V,
+	OPCODE_FLAG_MEMORY
+)
+DEFINE_OPCODE(
+    OPCODE_STVL,
+    "storev_left",
+    OPCODE_SIG_X_V_V,
+    OPCODE_FLAG_MEMORY)
+
+DEFINE_OPCODE(
+    OPCODE_STVR,
+    "storev_right",
+    OPCODE_SIG_X_V_V,
+    OPCODE_FLAG_MEMORY)
