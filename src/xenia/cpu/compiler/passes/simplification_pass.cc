@@ -214,12 +214,7 @@ bool SimplificationPass::CheckBooleanXor1(hir::Instr* i,
   bool need_zx = (tunflags & MOVTUNNEL_MOVZX) != 0;
 
   Value* new_value = nullptr;
-  if (xorop == OPCODE_IS_FALSE) {
-    new_value = builder->IsTrue(xordef->src1.value);
-
-  } else if (xorop == OPCODE_IS_TRUE) {
-    new_value = builder->IsFalse(xordef->src1.value);
-  } else if (xorop == OPCODE_COMPARE_EQ) {
+  if (xorop == OPCODE_COMPARE_EQ) {
     new_value = builder->CompareNE(xordef->src1.value, xordef->src2.value);
 
   } else if (xorop == OPCODE_COMPARE_NE) {
@@ -294,7 +289,7 @@ bool SimplificationPass::CheckXor(hir::Instr* i, hir::HIRBuilder* builder) {
   return false;
 }
 bool SimplificationPass::Is1BitOpcode(hir::Opcode def_opcode) {
-  return def_opcode >= OPCODE_IS_TRUE && def_opcode <= OPCODE_DID_SATURATE;
+  return def_opcode >= OPCODE_COMPARE_EQ && def_opcode <= OPCODE_DID_SATURATE;
 }
 
 inline static uint64_t RotateOfSize(ScalarNZM nzm, unsigned rotation,
@@ -804,24 +799,12 @@ bool SimplificationPass::CheckScalarConstCmp(hir::Instr* i,
   if (!var_definition) {
     return false;
   }
-  // x == 0 -> !x
-  if (cmpop == OPCODE_COMPARE_EQ && constant_unpacked == 0) {
-    i->Replace(&OPCODE_IS_FALSE_info, 0);
-    i->set_src1(variable);
-    return true;
-  }
-  // x != 0 -> !!x
-  if (cmpop == OPCODE_COMPARE_NE && constant_unpacked == 0) {
-    i->Replace(&OPCODE_IS_TRUE_info, 0);
-    i->set_src1(variable);
-    return true;
-  }
 
   if (cmpop == OPCODE_COMPARE_ULE &&
       constant_unpacked ==
           0) {  // less than or equal to zero = (== 0) = IS_FALSE
-    i->Replace(&OPCODE_IS_FALSE_info, 0);
-    i->set_src1(variable);
+    i->opcode = &OPCODE_COMPARE_EQ_info;
+
     return true;
   }
   // todo: OPCODE_COMPARE_NE too?
@@ -840,15 +823,20 @@ bool SimplificationPass::CheckScalarConstCmp(hir::Instr* i,
   }
   if (cmpop == OPCODE_COMPARE_ULT &&
       constant_unpacked == 1) {  // unsigned lt 1 means == 0
-    i->Replace(&OPCODE_IS_FALSE_info, 0);
-    i->set_src1(variable);
+                                 // i->Replace(&OPCODE_IS_FALSE_info, 0);
+
+    i->opcode = &OPCODE_COMPARE_EQ_info;
+
+    // i->set_src1(variable);
+    i->set_src2(builder->LoadZero(variable->type));
     return true;
   }
   if (cmpop == OPCODE_COMPARE_UGT &&
       constant_unpacked == 0) {  // unsigned gt 1 means != 0
 
-    i->Replace(&OPCODE_IS_TRUE_info, 0);
-    i->set_src1(variable);
+    // i->Replace(&OPCODE_IS_TRUE_info, 0);
+    // i->set_src1(variable);
+    i->opcode = &OPCODE_COMPARE_NE_info;
     return true;
   }
 
@@ -870,8 +858,11 @@ bool SimplificationPass::CheckScalarConstCmp(hir::Instr* i,
   } else if (cmpop == OPCODE_COMPARE_SGT && signbit_definitely_0 &&
              constant_unpacked == 0) {
     // signbit cant be set, and checking if gt 0, so actually checking != 0
-    i->Replace(&OPCODE_IS_TRUE_info, 0);
-    i->set_src1(variable);
+    // i->Replace(&OPCODE_IS_TRUE_info, 0);
+
+    // i->set_src1(variable);
+    i->opcode = &OPCODE_COMPARE_NE_info;
+
     return true;
   }
 
@@ -885,9 +876,9 @@ bool SimplificationPass::CheckScalarConstCmp(hir::Instr* i,
     Value* constant_replacement = nullptr;
 
     if (cmpop == OPCODE_COMPARE_EQ || cmpop == OPCODE_COMPARE_UGE) {
-      repl = &OPCODE_IS_TRUE_info;
+      repl = &OPCODE_COMPARE_NE_info;
     } else if (cmpop == OPCODE_COMPARE_NE || cmpop == OPCODE_COMPARE_ULT) {
-      repl = &OPCODE_IS_FALSE_info;
+      repl = &OPCODE_COMPARE_EQ_info;
 
     } else if (cmpop == OPCODE_COMPARE_UGT) {
       // impossible, cannot be greater than mask
@@ -906,6 +897,7 @@ bool SimplificationPass::CheckScalarConstCmp(hir::Instr* i,
     if (repl) {
       i->Replace(repl, 0);
       i->set_src1(variable);
+      i->set_src2(builder->LoadZero(variable->type));
       return true;
     }
     if (constant_replacement) {
@@ -919,10 +911,16 @@ bool SimplificationPass::CheckScalarConstCmp(hir::Instr* i,
 }
 bool SimplificationPass::CheckIsTrueIsFalse(hir::Instr* i,
                                             hir::HIRBuilder* builder) {
-  bool istrue = i->opcode == &OPCODE_IS_TRUE_info;
-  bool isfalse = i->opcode == &OPCODE_IS_FALSE_info;
+  bool istrue = i->opcode == &OPCODE_COMPARE_NE_info;
+  bool isfalse = i->opcode == &OPCODE_COMPARE_EQ_info;
 
-  Value* input = i->src1.value;
+  auto [input_cosntant, input] = i->BinaryValueArrangeAsConstAndVar();
+
+  if (!input_cosntant || input_cosntant->AsUint64() != 0) {
+    return false;
+  }
+
+  // Value* input = i->src1.value;
   TypeName input_type = input->type;
   if (!IsScalarIntegralType(input_type)) {
     return false;
@@ -1012,8 +1010,10 @@ bool SimplificationPass::CheckSHRByConst(hir::Instr* i,
           i->set_src1(isfalsetest);
 
         } else {
-          i->Replace(&OPCODE_IS_FALSE_info, 0);
+          // i->Replace(&OPCODE_IS_FALSE_info, 0);
+          i->Replace(&OPCODE_COMPARE_EQ_info, 0);
           i->set_src1(lz_input);
+          i->set_src2(builder->LoadZero(lz_input->type));
         }
         return true;
       }
@@ -1067,7 +1067,7 @@ bool SimplificationPass::SimplifyBitArith(hir::HIRBuilder* builder) {
     while (i) {
       // vector types use the same opcodes as scalar ones for AND/OR/XOR! we
       // don't handle these in our simplifications, so skip
-      if (i->dest && IsScalarIntegralType(i->dest->type)) {
+      if (i->AllScalarIntegral()) {
         Opcode iop = i->opcode->num;
 
         if (iop == OPCODE_OR) {
@@ -1080,7 +1080,6 @@ bool SimplificationPass::SimplifyBitArith(hir::HIRBuilder* builder) {
           result |= CheckAdd(i, builder);
         } else if (IsScalarBasicCmp(iop)) {
           result |= CheckScalarConstCmp(i, builder);
-        } else if (iop == OPCODE_IS_FALSE || iop == OPCODE_IS_TRUE) {
           result |= CheckIsTrueIsFalse(i, builder);
         } else if (iop == OPCODE_SHR) {
           result |= CheckSHR(i, builder);

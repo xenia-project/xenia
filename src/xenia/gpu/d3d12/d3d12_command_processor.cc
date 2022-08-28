@@ -7,18 +7,17 @@
  ******************************************************************************
  */
 
+#include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include <algorithm>
 #include <cstring>
 #include <sstream>
 #include <utility>
-
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
-#include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
 #include "xenia/gpu/d3d12/d3d12_shader.h"
 #include "xenia/gpu/draw_util.h"
@@ -843,6 +842,7 @@ bool D3D12CommandProcessor::SetupContext() {
   bool draw_resolution_scale_not_clamped =
       TextureCache::GetConfigDrawResolutionScale(draw_resolution_scale_x,
                                                  draw_resolution_scale_y);
+
   if (!D3D12TextureCache::ClampDrawResolutionScaleToMaxSupported(
           draw_resolution_scale_x, draw_resolution_scale_y, provider)) {
     draw_resolution_scale_not_clamped = false;
@@ -1676,37 +1676,52 @@ void D3D12CommandProcessor::ShutdownContext() {
 
   CommandProcessor::ShutdownContext();
 }
-
+// todo: bit-pack the bools and use bitarith to reduce branches
 void D3D12CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
   CommandProcessor::WriteRegister(index, value);
 
-  if (index >= XE_GPU_REG_SHADER_CONSTANT_000_X &&
-      index <= XE_GPU_REG_SHADER_CONSTANT_511_W) {
-    if (frame_open_) {
-      uint32_t float_constant_index =
-          (index - XE_GPU_REG_SHADER_CONSTANT_000_X) >> 2;
-      if (float_constant_index >= 256) {
-        float_constant_index -= 256;
-        if (current_float_constant_map_pixel_[float_constant_index >> 6] &
-            (1ull << (float_constant_index & 63))) {
-          cbuffer_binding_float_pixel_.up_to_date = false;
-        }
-      } else {
-        if (current_float_constant_map_vertex_[float_constant_index >> 6] &
-            (1ull << (float_constant_index & 63))) {
-          cbuffer_binding_float_vertex_.up_to_date = false;
+  bool cbuf_binding_float_pixel_utd = cbuffer_binding_float_pixel_.up_to_date;
+  bool cbuf_binding_float_vertex_utd = cbuffer_binding_float_vertex_.up_to_date;
+  bool cbuf_binding_bool_loop_utd = cbuffer_binding_bool_loop_.up_to_date;
+
+  if (index >= XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 &&
+      index <= XE_GPU_REG_SHADER_CONSTANT_FETCH_31_5) {
+    cbuffer_binding_fetch_.up_to_date = false;
+    // texture cache is never nullptr
+    // if (texture_cache_ != nullptr) {
+    texture_cache_->TextureFetchConstantWritten(
+        (index - XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0) / 6);
+    // }
+  } else {
+    if (!(cbuf_binding_float_pixel_utd | cbuf_binding_float_vertex_utd |
+          cbuf_binding_bool_loop_utd)) {
+      return;
+    }
+
+    if (index >= XE_GPU_REG_SHADER_CONSTANT_000_X &&
+        index <= XE_GPU_REG_SHADER_CONSTANT_511_W) {
+      if (!(cbuf_binding_float_pixel_utd | cbuf_binding_float_vertex_utd)) {
+        return;
+      }
+      if (frame_open_) {
+        uint32_t float_constant_index =
+            (index - XE_GPU_REG_SHADER_CONSTANT_000_X) >> 2;
+        if (float_constant_index >= 256) {
+          float_constant_index -= 256;
+          if (current_float_constant_map_pixel_[float_constant_index >> 6] &
+              (1ull << (float_constant_index & 63))) {
+            cbuffer_binding_float_pixel_.up_to_date = false;
+          }
+        } else {
+          if (current_float_constant_map_vertex_[float_constant_index >> 6] &
+              (1ull << (float_constant_index & 63))) {
+            cbuffer_binding_float_vertex_.up_to_date = false;
+          }
         }
       }
-    }
-  } else if (index >= XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031 &&
-             index <= XE_GPU_REG_SHADER_CONSTANT_LOOP_31) {
-    cbuffer_binding_bool_loop_.up_to_date = false;
-  } else if (index >= XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 &&
-             index <= XE_GPU_REG_SHADER_CONSTANT_FETCH_31_5) {
-    cbuffer_binding_fetch_.up_to_date = false;
-    if (texture_cache_ != nullptr) {
-      texture_cache_->TextureFetchConstantWritten(
-          (index - XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0) / 6);
+    } else if (index >= XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031 &&
+               index <= XE_GPU_REG_SHADER_CONSTANT_LOOP_31) {
+      cbuffer_binding_bool_loop_.up_to_date = false;
     }
   }
 }
@@ -2301,14 +2316,26 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   uint32_t draw_resolution_scale_x = texture_cache_->draw_resolution_scale_x();
   uint32_t draw_resolution_scale_y = texture_cache_->draw_resolution_scale_y();
   draw_util::ViewportInfo viewport_info;
-  draw_util::GetHostViewportInfo(
-      regs, draw_resolution_scale_x, draw_resolution_scale_y, true,
+  draw_util::GetViewportInfoArgs gviargs{};
+
+  gviargs.Setup(
+      draw_resolution_scale_x, draw_resolution_scale_y,
+      texture_cache_->draw_resolution_scale_x_divisor(),
+      texture_cache_->draw_resolution_scale_y_divisor(), true,
       D3D12_VIEWPORT_BOUNDS_MAX, D3D12_VIEWPORT_BOUNDS_MAX, false,
       normalized_depth_control,
       host_render_targets_used &&
           render_target_cache_->depth_float24_convert_in_pixel_shader(),
-      host_render_targets_used, pixel_shader && pixel_shader->writes_depth(),
-      viewport_info);
+      host_render_targets_used, pixel_shader && pixel_shader->writes_depth());
+  gviargs.SetupRegisterValues(regs);
+
+  if (gviargs == previous_viewport_info_args_) {
+    viewport_info = previous_viewport_info_;
+  } else {
+    draw_util::GetHostViewportInfo(&gviargs, viewport_info);
+    previous_viewport_info_args_ = gviargs;
+    previous_viewport_info_ = viewport_info;
+  }
   draw_util::Scissor scissor;
   draw_util::GetScissor(regs, scissor);
   scissor.offset[0] *= draw_resolution_scale_x;
@@ -2711,6 +2738,24 @@ void D3D12CommandProcessor::InitializeTrace() {
     shared_memory_->InitializeTraceCompleteDownloads();
   }
 }
+static void DmaPrefunc(dma::XeDMAJob* job) {
+  D3D12_RANGE readback_range;
+  readback_range.Begin = 0;
+  readback_range.End = job->size;
+  void* readback_mapping;
+  ID3D12Resource* readback_buffer = (ID3D12Resource*)job->userdata1;
+
+  HRESULT mapres = readback_buffer->Map(0, &readback_range, &readback_mapping);
+  xenia_assert(SUCCEEDED(mapres));
+
+  job->source = (uint8_t*)readback_mapping;
+}
+
+static void DmaPostfunc(dma::XeDMAJob* job) {
+  D3D12_RANGE readback_write_range = {};
+  ID3D12Resource* readback_buffer = (ID3D12Resource*)job->userdata1;
+  readback_buffer->Unmap(0, &readback_write_range);
+}
 
 bool D3D12CommandProcessor::IssueCopy() {
 #if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
@@ -2736,17 +2781,35 @@ bool D3D12CommandProcessor::IssueCopy() {
           readback_buffer, 0, shared_memory_buffer, written_address,
           written_length);
       if (AwaitAllQueueOperationsCompletion()) {
+#if 1
         D3D12_RANGE readback_range;
         readback_range.Begin = 0;
         readback_range.End = written_length;
         void* readback_mapping;
         if (SUCCEEDED(
                 readback_buffer->Map(0, &readback_range, &readback_mapping))) {
-          std::memcpy(memory_->TranslatePhysical(written_address),
-                      readback_mapping, written_length);
+          // chrispy: this memcpy needs to be optimized as much as possible
+
+          auto physaddr = memory_->TranslatePhysical(written_address);
+          dma::vastcpy(physaddr, (uint8_t*)readback_mapping,
+                                      written_length);
+         // XEDmaCpy(physaddr, readback_mapping, written_length);
           D3D12_RANGE readback_write_range = {};
           readback_buffer->Unmap(0, &readback_write_range);
         }
+
+#else
+        dma::XeDMAJob job{};
+        job.destination = memory_->TranslatePhysical(written_address);
+        job.size = written_length;
+        job.source = nullptr;
+        job.userdata1 = (void*)readback_buffer;
+        job.precall = DmaPrefunc;
+        job.postcall = DmaPostfunc;
+
+        readback_available_ = GetDMAC()->PushDMAJob(&job);
+
+#endif
       }
     }
   }
@@ -3885,9 +3948,10 @@ bool D3D12CommandProcessor::UpdateBindings(
     if (bool_loop_constants == nullptr) {
       return false;
     }
-    std::memcpy(bool_loop_constants,
-                &regs[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031].u32,
-                kBoolLoopConstantsSize);
+    xe::smallcpy_const<kBoolLoopConstantsSize>(
+        bool_loop_constants,
+        &regs[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031].u32);
+
     cbuffer_binding_bool_loop_.up_to_date = true;
     current_graphics_root_up_to_date_ &=
         ~(1u << root_parameter_bool_loop_constants);
@@ -3901,9 +3965,9 @@ bool D3D12CommandProcessor::UpdateBindings(
     if (fetch_constants == nullptr) {
       return false;
     }
-    std::memcpy(fetch_constants,
-                &regs[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0].u32,
-                kFetchConstantsSize);
+    xe::smallcpy_const<kFetchConstantsSize>(
+        fetch_constants, &regs[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0].u32);
+
     cbuffer_binding_fetch_.up_to_date = true;
     current_graphics_root_up_to_date_ &=
         ~(1u << root_parameter_fetch_constants);
@@ -4542,6 +4606,12 @@ ID3D12Resource* D3D12CommandProcessor::RequestReadbackBuffer(uint32_t size) {
   if (size == 0) {
     return nullptr;
   }
+  #if 0
+  if (readback_available_) {
+    GetDMAC()->WaitJobDone(readback_available_);
+    readback_available_ = 0;
+  }
+  #endif
   size = xe::align(size, kReadbackBufferSizeIncrement);
   if (size > readback_buffer_size_) {
     const ui::d3d12::D3D12Provider& provider = GetD3D12Provider();
@@ -4561,6 +4631,7 @@ ID3D12Resource* D3D12CommandProcessor::RequestReadbackBuffer(uint32_t size) {
       readback_buffer_->Release();
     }
     readback_buffer_ = buffer;
+    readback_buffer_size_ = size;
   }
   return readback_buffer_;
 }

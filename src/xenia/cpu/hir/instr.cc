@@ -213,7 +213,19 @@ uint32_t Instr::GuestAddressFor() const {
 
   return 0;  // eek.
 }
+bool Instr::AllScalarIntegral() {
+  bool result = true;
+  if (dest) {
+    if (!IsScalarIntegralType(dest->type)) {
+      return false;
+    }
+  }
 
+  VisitValueOperands([&result](Value* v, uint32_t idx) {
+    result = result && IsScalarIntegralType(v->type);
+  });
+  return result;
+}
 }  // namespace hir
 }  // namespace cpu
 }  // namespace xe

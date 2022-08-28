@@ -154,7 +154,9 @@ TextureCache::TextureCache(const RegisterFile& register_file,
     : register_file_(register_file),
       shared_memory_(shared_memory),
       draw_resolution_scale_x_(draw_resolution_scale_x),
-      draw_resolution_scale_y_(draw_resolution_scale_y) {
+      draw_resolution_scale_y_(draw_resolution_scale_y),
+      draw_resolution_scale_x_divisor_(draw_resolution_scale_x),
+      draw_resolution_scale_y_divisor_(draw_resolution_scale_y) {
   assert_true(draw_resolution_scale_x >= 1);
   assert_true(draw_resolution_scale_x <= kMaxDrawResolutionScaleAlongAxis);
   assert_true(draw_resolution_scale_y >= 1);
@@ -187,6 +189,7 @@ bool TextureCache::GetConfigDrawResolutionScale(uint32_t& x_out,
       uint32_t(std::max(INT32_C(1), cvars::draw_resolution_scale_x));
   uint32_t config_y =
       uint32_t(std::max(INT32_C(1), cvars::draw_resolution_scale_y));
+
   uint32_t clamped_x = std::min(kMaxDrawResolutionScaleAlongAxis, config_x);
   uint32_t clamped_y = std::min(kMaxDrawResolutionScaleAlongAxis, config_y);
   x_out = clamped_x;
@@ -552,8 +555,7 @@ void TextureCache::Texture::MarkAsUsed() {
 }
 
 void TextureCache::Texture::WatchCallback(
-    [[maybe_unused]] const global_unique_lock_type& global_lock,
-    bool is_mip) {
+    [[maybe_unused]] const global_unique_lock_type& global_lock, bool is_mip) {
   if (is_mip) {
     assert_not_zero(GetGuestMipsSize());
     mips_outdated_ = true;
@@ -566,8 +568,8 @@ void TextureCache::Texture::WatchCallback(
 }
 
 void TextureCache::WatchCallback(const global_unique_lock_type& global_lock,
-                                 void* context,
-    void* data, uint64_t argument, bool invalidated_by_gpu) {
+                                 void* context, void* data, uint64_t argument,
+                                 bool invalidated_by_gpu) {
   Texture& texture = *static_cast<Texture*>(context);
   texture.WatchCallback(global_lock, argument != 0);
   texture.texture_cache().texture_became_outdated_.store(
@@ -910,8 +912,8 @@ void TextureCache::ScaledResolveGlobalWatchCallbackThunk(
 }
 
 void TextureCache::ScaledResolveGlobalWatchCallback(
-    const global_unique_lock_type& global_lock,
-    uint32_t address_first, uint32_t address_last, bool invalidated_by_gpu) {
+    const global_unique_lock_type& global_lock, uint32_t address_first,
+    uint32_t address_last, bool invalidated_by_gpu) {
   assert_true(IsDrawResolutionScaled());
   if (invalidated_by_gpu) {
     // Resolves themselves do exactly the opposite of what this should do.

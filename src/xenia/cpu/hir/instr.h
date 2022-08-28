@@ -171,6 +171,8 @@ if both are constant, return nullptr, nullptr
   const hir::Instr* GetNonFakePrev() const;
 
   uint32_t GuestAddressFor() const;
+
+  bool AllScalarIntegral();  // dest and all srcs are scalar integral
 };
 
 }  // namespace hir

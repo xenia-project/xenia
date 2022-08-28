@@ -157,9 +157,6 @@ enum XmmConst {
   XMMLVSRTableBase,
   XMMSingleDenormalMask,
   XMMThreeFloatMask,  // for clearing the fourth float prior to DOT_PRODUCT_3
-  XMMXenosF16ExtRangeStart,
-  XMMVSRShlByteshuf,
-  XMMVSRMask,
   XMMF16UnpackLCPI2,  // 0x38000000, 1/ 32768
   XMMF16UnpackLCPI3,  // 0x0x7fe000007fe000
   XMMF16PackLCPI0,
@@ -194,7 +191,7 @@ enum X64EmitterFeatureFlags {
   kX64EmitLZCNT = 1 << 2,  // this is actually ABM and includes popcount
   kX64EmitBMI1 = 1 << 3,
   kX64EmitBMI2 = 1 << 4,
-  kX64EmitF16C = 1 << 5,
+  kX64EmitPrefetchW = 1 << 5,
   kX64EmitMovbe = 1 << 6,
   kX64EmitGFNI = 1 << 7,
 
@@ -215,11 +212,14 @@ enum X64EmitterFeatureFlags {
                 // inc/dec) do not introduce false dependencies on EFLAGS
                 // because the individual flags are treated as different vars by
                 // the processor. (this applies to zen)
-  kX64EmitPrefetchW = 1 << 16,
-  kX64EmitXOP = 1 << 17,   // chrispy: xop maps really well to many vmx
+  kX64EmitXOP = 1 << 16,   // chrispy: xop maps really well to many vmx
                            // instructions, and FX users need the boost
-  kX64EmitFMA4 = 1 << 18,  // todo: also use on zen1?
-  kX64EmitTBM = 1 << 19
+  kX64EmitFMA4 = 1 << 17,  // todo: also use on zen1?
+  kX64EmitTBM = 1 << 18,
+  // kX64XMMRegisterMergeOptimization = 1 << 19, //section 2.11.5, amd family
+  // 17h/19h optimization manuals. allows us to save 1 byte on certain xmm
+  // instructions by using the legacy sse version if we recently cleared the
+  // high 128 bits of the
 };
 class ResolvableGuestCall {
  public:
@@ -251,6 +251,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
             uint32_t debug_info_flags, FunctionDebugInfo* debug_info,
             void** out_code_address, size_t* out_code_size,
             std::vector<SourceMapEntry>* out_source_map);
+  void InjectCallAddresses(void* new_execute_addr);
 
  public:
   // Reserved:  rsp, rsi, rdi

@@ -326,7 +326,14 @@ constexpr bool IsColorRenderTargetFormat64bpp(ColorRenderTargetFormat format) {
          format == ColorRenderTargetFormat::k_32_32_FLOAT;
 }
 
-inline uint32_t GetColorRenderTargetFormatComponentCount(
+// if 0, 1
+// if 1, 2
+// if 3, 4
+// 2 bits per entry, shift and add 1
+
+using ColorFormatComponentTable = uint32_t;
+
+static constexpr uint32_t GetComponentCountConst(
     ColorRenderTargetFormat format) {
   switch (format) {
     case ColorRenderTargetFormat::k_8_8_8_8:
@@ -337,19 +344,51 @@ inline uint32_t GetColorRenderTargetFormatComponentCount(
     case ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
     case ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
     case ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16:
-      return 4;
+      return 4 - 1;
     case ColorRenderTargetFormat::k_16_16:
     case ColorRenderTargetFormat::k_16_16_FLOAT:
     case ColorRenderTargetFormat::k_32_32_FLOAT:
-      return 2;
+      return 2 - 1;
     case ColorRenderTargetFormat::k_32_FLOAT:
-      return 1;
+      return 1 - 1;
     default:
-      assert_unhandled_case(format);
       return 0;
   }
 }
+namespace detail {
+static constexpr uint32_t encode_format_component_table() {
+  uint32_t result = 0;
 
+#define ADDFORMAT(name)                                           \
+  result |= GetComponentCountConst(ColorRenderTargetFormat::name) \
+            << (static_cast<uint32_t>(ColorRenderTargetFormat::name) * 2)
+  ADDFORMAT(k_8_8_8_8);
+  ADDFORMAT(k_8_8_8_8_GAMMA);
+  ADDFORMAT(k_2_10_10_10);
+  ADDFORMAT(k_2_10_10_10_FLOAT);
+
+  ADDFORMAT(k_16_16_16_16);
+  ADDFORMAT(k_16_16_16_16_FLOAT);
+  ADDFORMAT(k_2_10_10_10_AS_10_10_10_10);
+  ADDFORMAT(k_2_10_10_10_FLOAT_AS_16_16_16_16);
+
+  ADDFORMAT(k_16_16);
+  ADDFORMAT(k_16_16_FLOAT);
+  ADDFORMAT(k_32_32_FLOAT);
+  ADDFORMAT(k_32_FLOAT);
+  return result;
+}
+constexpr uint32_t color_format_component_table =
+    encode_format_component_table();
+
+}  // namespace detail
+constexpr uint32_t GetColorRenderTargetFormatComponentCount(
+    ColorRenderTargetFormat format) {
+  return ((detail::color_format_component_table >>
+           (static_cast<uint32_t>(format) * 2)) &
+          0b11) +
+         1;
+}
 // Returns the version of the format with the same packing and meaning of values
 // stored in it, but without blending precision modifiers.
 constexpr ColorRenderTargetFormat GetStorageColorFormat(

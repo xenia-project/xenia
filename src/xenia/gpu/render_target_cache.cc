@@ -813,20 +813,22 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
     }
     // Make sure the same render target isn't bound into two different slots
     // over time.
-    for (uint32_t i = 1; are_accumulated_render_targets_valid_ &&
-                         i < 1 + xenos::kMaxColorRenderTargets;
-         ++i) {
-      const RenderTarget* render_target =
-          last_update_accumulated_render_targets_[i];
-      if (!render_target) {
-        continue;
-      }
-      for (uint32_t j = 0; j < i; ++j) {
-        if (last_update_accumulated_render_targets_[j] == render_target) {
-          are_accumulated_render_targets_valid_ = false;
-          break;
+    // chrispy: this needs optimization!
+    if (are_accumulated_render_targets_valid_) {
+      for (uint32_t i = 1; i < 1 + xenos::kMaxColorRenderTargets; ++i) {
+        const RenderTarget* render_target =
+            last_update_accumulated_render_targets_[i];
+        if (!render_target) {
+          continue;
+        }
+        for (uint32_t j = 0; j < i; ++j) {
+          if (last_update_accumulated_render_targets_[j] == render_target) {
+            are_accumulated_render_targets_valid_ = false;
+            goto exit_slot_check_loop;
+          }
         }
       }
+    exit_slot_check_loop:;
     }
   }
   if (!are_accumulated_render_targets_valid_) {

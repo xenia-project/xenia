@@ -19,6 +19,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/hash.h"
+#include "xenia/base/math.h"
 #include "xenia/base/mutex.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/shared_memory.h"
@@ -70,6 +71,14 @@ class TextureCache {
   static bool GetConfigDrawResolutionScale(uint32_t& x_out, uint32_t& y_out);
   uint32_t draw_resolution_scale_x() const { return draw_resolution_scale_x_; }
   uint32_t draw_resolution_scale_y() const { return draw_resolution_scale_y_; }
+
+  divisors::MagicDiv draw_resolution_scale_x_divisor() const {
+    return draw_resolution_scale_x_divisor_;
+  }
+  divisors::MagicDiv draw_resolution_scale_y_divisor() const {
+    return draw_resolution_scale_y_divisor_;
+  }
+
   bool IsDrawResolutionScaled() const {
     return draw_resolution_scale_x_ > 1 || draw_resolution_scale_y_ > 1;
   }
@@ -576,8 +585,8 @@ class TextureCache {
 
   // Shared memory callback for texture data invalidation.
   static void WatchCallback(const global_unique_lock_type& global_lock,
-                            void* context,
-      void* data, uint64_t argument, bool invalidated_by_gpu);
+                            void* context, void* data, uint64_t argument,
+                            bool invalidated_by_gpu);
 
   // Checks if there are any pages that contain scaled resolve data within the
   // range.
@@ -588,14 +597,15 @@ class TextureCache {
       const global_unique_lock_type& global_lock, void* context,
       uint32_t address_first, uint32_t address_last, bool invalidated_by_gpu);
   void ScaledResolveGlobalWatchCallback(
-      const global_unique_lock_type& global_lock,
-      uint32_t address_first, uint32_t address_last, bool invalidated_by_gpu);
+      const global_unique_lock_type& global_lock, uint32_t address_first,
+      uint32_t address_last, bool invalidated_by_gpu);
 
   const RegisterFile& register_file_;
   SharedMemory& shared_memory_;
   uint32_t draw_resolution_scale_x_;
   uint32_t draw_resolution_scale_y_;
-
+  divisors::MagicDiv draw_resolution_scale_x_divisor_;
+  divisors::MagicDiv draw_resolution_scale_y_divisor_;
   static const LoadShaderInfo load_shader_info_[kLoadShaderCount];
 
   xe::global_critical_region global_critical_region_;

@@ -672,25 +672,58 @@ static void Prefetch<PrefetchTag::Level1>(const void* addr) {
 #define XE_MSVC_REORDER_BARRIER() static_cast<void>(0)
 #endif
 #if XE_ARCH_AMD64 == 1
-
+union alignas(XE_HOST_CACHE_LINE_SIZE) CacheLine {
+  struct {
+    __m256 low32;
+    __m256 high32;
+  };
+  struct {
+    __m128i xmms[4];
+  };
+  float floats[XE_HOST_CACHE_LINE_SIZE / sizeof(float)];
+};
 XE_FORCEINLINE
-static void WriteLineNT(void* destination, const void* source) {
-  assert((reinterpret_cast<uintptr_t>(destination) & 63ULL) == 0);
-  __m256i low = _mm256_loadu_si256((const __m256i*)source);
-  __m256i high = _mm256_loadu_si256(&((const __m256i*)source)[1]);
-  XE_MSVC_REORDER_BARRIER();
-  _mm256_stream_si256((__m256i*)destination, low);
-  _mm256_stream_si256(&((__m256i*)destination)[1], high);
+static void WriteLineNT(CacheLine* XE_RESTRICT destination,
+                        const CacheLine* XE_RESTRICT source) {
+  assert_true((reinterpret_cast<uintptr_t>(destination) & 63ULL) == 0);
+  __m256 low = _mm256_loadu_ps(&source->floats[0]);
+  __m256 high = _mm256_loadu_ps(&source->floats[8]);
+  _mm256_stream_ps(&destination->floats[0], low);
+  _mm256_stream_ps(&destination->floats[8], high);
 }
 
 XE_FORCEINLINE
-static void ReadLineNT(void* destination, const void* source) {
-  assert((reinterpret_cast<uintptr_t>(source) & 63ULL) == 0);
-  __m256i low = _mm256_stream_load_si256((const __m256i*)source);
-  __m256i high = _mm256_stream_load_si256(&((const __m256i*)source)[1]);
-  XE_MSVC_REORDER_BARRIER();
-  _mm256_storeu_si256((__m256i*)destination, low);
-  _mm256_storeu_si256(&((__m256i*)destination)[1], high);
+static void ReadLineNT(CacheLine* XE_RESTRICT destination,
+                       const CacheLine* XE_RESTRICT source) {
+  assert_true((reinterpret_cast<uintptr_t>(source) & 63ULL) == 0);
+
+  __m128i first = _mm_stream_load_si128(&source->xmms[0]);
+  __m128i second = _mm_stream_load_si128(&source->xmms[1]);
+  __m128i third = _mm_stream_load_si128(&source->xmms[2]);
+  __m128i fourth = _mm_stream_load_si128(&source->xmms[3]);
+
+  destination->xmms[0] = first;
+  destination->xmms[1] = second;
+  destination->xmms[2] = third;
+  destination->xmms[3] = fourth;
+}
+XE_FORCEINLINE
+static void ReadLine(CacheLine* XE_RESTRICT destination,
+                     const CacheLine* XE_RESTRICT source) {
+  assert_true((reinterpret_cast<uintptr_t>(source) & 63ULL) == 0);
+  __m256 low = _mm256_loadu_ps(&source->floats[0]);
+  __m256 high = _mm256_loadu_ps(&source->floats[8]);
+  _mm256_storeu_ps(&destination->floats[0], low);
+  _mm256_storeu_ps(&destination->floats[8], high);
+}
+XE_FORCEINLINE
+static void WriteLine(CacheLine* XE_RESTRICT destination,
+                      const CacheLine* XE_RESTRICT source) {
+  assert_true((reinterpret_cast<uintptr_t>(destination) & 63ULL) == 0);
+  __m256 low = _mm256_loadu_ps(&source->floats[0]);
+  __m256 high = _mm256_loadu_ps(&source->floats[8]);
+  _mm256_storeu_ps(&destination->floats[0], low);
+  _mm256_storeu_ps(&destination->floats[8], high);
 }
 
 XE_FORCEINLINE
@@ -699,19 +732,29 @@ XE_FORCEINLINE
 static void ReadFence() { _mm_lfence(); }
 XE_FORCEINLINE
 static void ReadWriteFence() { _mm_mfence(); }
+
 #else
-
+union alignas(XE_HOST_CACHE_LINE_SIZE) CacheLine {
+  uint8_t bvals[XE_HOST_CACHE_LINE_SIZE];
+};
 XE_FORCEINLINE
-static void WriteLineNT(void* destination, const void* source) {
-  assert((reinterpret_cast<uintptr_t>(destination) & 63ULL) == 0);
-  memcpy(destination, source, 64);
+static void WriteLineNT(CacheLine* destination, const CacheLine* source) {
+  memcpy(destination, source, XE_HOST_CACHE_LINE_SIZE);
 }
 
 XE_FORCEINLINE
-static void ReadLineNT(void* destination, const void* source) {
-  assert((reinterpret_cast<uintptr_t>(source) & 63ULL) == 0);
-  memcpy(destination, source, 64);
+static void ReadLineNT(CacheLine* destination, const CacheLine* source) {
+  memcpy(destination, source, XE_HOST_CACHE_LINE_SIZE);
 }
+XE_FORCEINLINE
+static void WriteLine(CacheLine* destination, const CacheLine* source) {
+  memcpy(destination, source, XE_HOST_CACHE_LINE_SIZE);
+}
+XE_FORCEINLINE
+static void ReadLine(CacheLine* destination, const CacheLine* source) {
+  memcpy(destination, source, XE_HOST_CACHE_LINE_SIZE);
+}
+
 XE_FORCEINLINE
 static void WriteFence() {}
 XE_FORCEINLINE
@@ -720,6 +763,47 @@ XE_FORCEINLINE
 static void ReadWriteFence() {}
 #endif
 }  // namespace swcache
+
+template <unsigned Size>
+static void smallcpy_const(void* destination, const void* source) {
+#if XE_ARCH_AMD64 == 1 && XE_COMPILER_MSVC == 1
+  if constexpr ((Size & 7) == 0) {
+    __movsq((unsigned long long*)destination, (const unsigned long long*)source,
+            Size / 8);
+  } else if constexpr ((Size & 3) == 0) {
+    __movsd((unsigned long*)destination, (const unsigned long*)source,
+            Size / 4);
+    // dont even bother with movsw, i think the operand size override prefix
+    // slows it down
+  } else {
+    __movsb((unsigned char*)destination, (const unsigned char*)source, Size);
+  }
+#else
+  memcpy(destination, source, Size);
+#endif
+}
+template <unsigned Size>
+static void smallset_const(void* destination, unsigned char fill_value) {
+#if XE_ARCH_AMD64 == 1 && XE_COMPILER_MSVC == 1
+  if constexpr ((Size & 7) == 0) {
+    unsigned long long fill =
+        static_cast<unsigned long long>(fill_value) * 0x0101010101010101ULL;
+
+    __stosq((unsigned long long*)destination, fill, Size / 8);
+  } else if constexpr ((Size & 3) == 0) {
+    static constexpr unsigned long fill =
+        static_cast<unsigned long>(fill_value) * 0x01010101U;
+    __stosd((unsigned long*)destination, fill, Size / 4);
+    // dont even bother with movsw, i think the operand size override prefix
+    // slows it down
+  } else {
+    __stosb((unsigned char*)destination, fill_value, Size);
+  }
+#else
+  memset(destination, fill_value, Size);
+#endif
+}
+
 }  // namespace xe
 
 #endif  // XENIA_BASE_MEMORY_H_

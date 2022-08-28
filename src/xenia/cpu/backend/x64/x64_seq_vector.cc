@@ -19,15 +19,15 @@
 #include "xenia/base/cvar.h"
 #include "xenia/cpu/backend/x64/x64_stack_layout.h"
 
-DEFINE_bool(xop_rotates, false, "rotate via xop", "X64");
+DEFINE_bool(xop_rotates, false, "rotate via xop", "x64");
 
-DEFINE_bool(xop_left_shifts, false, "shl via xop", "X64");
+DEFINE_bool(xop_left_shifts, false, "shl via xop", "x64");
 
-DEFINE_bool(xop_right_shifts, false, "shr via xop", "X64");
+DEFINE_bool(xop_right_shifts, false, "shr via xop", "x64");
 
-DEFINE_bool(xop_arithmetic_right_shifts, false, "sar via xop", "X64");
+DEFINE_bool(xop_arithmetic_right_shifts, false, "sar via xop", "x64");
 
-DEFINE_bool(xop_compares, true, "compare via xop", "X64");
+DEFINE_bool(xop_compares, true, "compare via xop", "x64");
 
 namespace xe {
 namespace cpu {

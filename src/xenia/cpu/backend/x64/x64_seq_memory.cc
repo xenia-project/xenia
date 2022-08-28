@@ -975,6 +975,9 @@ static bool IsPossibleMMIOInstruction(X64Emitter& e, const hir::Instr* i) {
   if (!cvars::emit_mmio_aware_stores_for_recorded_exception_addresses) {
     return false;
   }
+  if (IsTracingData()) {  // incompatible with tracing
+    return false;
+  }
   uint32_t guestaddr = i->GuestAddressFor();
   if (!guestaddr) {
     return false;
@@ -984,7 +987,54 @@ static bool IsPossibleMMIOInstruction(X64Emitter& e, const hir::Instr* i) {
 
   return flags && flags->accessed_mmio;
 }
+template <typename T, bool swap>
+static void MMIOAwareStore(void* _ctx, unsigned int guestaddr, T value) {
+  if (swap) {
+    value = xe::byte_swap(value);
+  }
+  if (guestaddr >= 0xE0000000) {
+    guestaddr += 0x1000;
+  }
 
+  auto ctx = reinterpret_cast<ppc::PPCContext*>(_ctx);
+
+  auto gaddr = ctx->processor->memory()->LookupVirtualMappedRange(guestaddr);
+  if (!gaddr) {
+    *reinterpret_cast<T*>(ctx->virtual_membase + guestaddr) = value;
+  } else {
+    value = xe::byte_swap(value); /*
+          was having issues, found by comparing the values used with exceptions
+          to these that we were reversed...
+    */
+    gaddr->write(nullptr, gaddr->callback_context, guestaddr, value);
+  }
+}
+
+template <typename T, bool swap>
+static T MMIOAwareLoad(void* _ctx, unsigned int guestaddr) {
+  T value;
+
+  if (guestaddr >= 0xE0000000) {
+    guestaddr += 0x1000;
+  }
+
+  auto ctx = reinterpret_cast<ppc::PPCContext*>(_ctx);
+
+  auto gaddr = ctx->processor->memory()->LookupVirtualMappedRange(guestaddr);
+  if (!gaddr) {
+    value = *reinterpret_cast<T*>(ctx->virtual_membase + guestaddr);
+    if (swap) {
+      value = xe::byte_swap(value);
+    }
+  } else {
+    /*
+          was having issues, found by comparing the values used with exceptions
+          to these that we were reversed...
+    */
+    value = gaddr->read(nullptr, gaddr->callback_context, guestaddr);
+  }
+  return value;
+}
 // ============================================================================
 // OPCODE_LOAD_OFFSET
 // ============================================================================
@@ -1016,16 +1066,38 @@ struct LOAD_OFFSET_I16
 struct LOAD_OFFSET_I32
     : Sequence<LOAD_OFFSET_I32, I<OPCODE_LOAD_OFFSET, I32Op, I64Op, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    auto addr = ComputeMemoryAddressOffset(e, i.src1, i.src2);
-    if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
-      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
-        e.movbe(i.dest, e.dword[addr]);
+    if (IsPossibleMMIOInstruction(e, i.instr)) {
+      void* addrptr = (void*)&MMIOAwareLoad<uint32_t, false>;
+
+      if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
+        addrptr = (void*)&MMIOAwareLoad<uint32_t, true>;
+      }
+      if (i.src1.is_constant) {
+        e.mov(e.GetNativeParam(0).cvt32(), (uint32_t)i.src1.constant());
+      } else {
+        e.mov(e.GetNativeParam(0).cvt32(), i.src1.reg().cvt32());
+      }
+
+      if (i.src2.is_constant) {
+        e.add(e.GetNativeParam(0).cvt32(), (uint32_t)i.src2.constant());
+      } else {
+        e.add(e.GetNativeParam(0).cvt32(), i.src2.reg().cvt32());
+      }
+
+      e.CallNativeSafe(addrptr);
+      e.mov(i.dest, e.eax);
+    } else {
+      auto addr = ComputeMemoryAddressOffset(e, i.src1, i.src2);
+      if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
+        if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+          e.movbe(i.dest, e.dword[addr]);
+        } else {
+          e.mov(i.dest, e.dword[addr]);
+          e.bswap(i.dest);
+        }
       } else {
         e.mov(i.dest, e.dword[addr]);
-        e.bswap(i.dest);
       }
-    } else {
-      e.mov(i.dest, e.dword[addr]);
     }
   }
 };
@@ -1049,28 +1121,6 @@ struct LOAD_OFFSET_I64
 EMITTER_OPCODE_TABLE(OPCODE_LOAD_OFFSET, LOAD_OFFSET_I8, LOAD_OFFSET_I16,
                      LOAD_OFFSET_I32, LOAD_OFFSET_I64);
 
-template <typename T, bool swap>
-static void MMIOAwareStore(void* _ctx, unsigned int guestaddr, T value) {
-  if (swap) {
-    value = xe::byte_swap(value);
-  }
-  if (guestaddr >= 0xE0000000) {
-    guestaddr += 0x1000;
-  }
-
-  auto ctx = reinterpret_cast<ppc::PPCContext*>(_ctx);
-
-  auto gaddr = ctx->processor->memory()->LookupVirtualMappedRange(guestaddr);
-  if (!gaddr) {
-    *reinterpret_cast<T*>(ctx->virtual_membase + guestaddr) = value;
-  } else {
-    value = xe::byte_swap(value); /*
-          was having issues, found by comparing the values used with exceptions
-          to these that we were reversed...
-    */
-    gaddr->write(nullptr, gaddr->callback_context, guestaddr, value);
-  }
-}
 // ============================================================================
 // OPCODE_STORE_OFFSET
 // ============================================================================
@@ -1225,21 +1275,37 @@ struct LOAD_I16 : Sequence<LOAD_I16, I<OPCODE_LOAD, I16Op, I64Op>> {
 };
 struct LOAD_I32 : Sequence<LOAD_I32, I<OPCODE_LOAD, I32Op, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    auto addr = ComputeMemoryAddress(e, i.src1);
-    if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
-      if (e.IsFeatureEnabled(kX64EmitMovbe)) {
-        e.movbe(i.dest, e.dword[addr]);
+    if (IsPossibleMMIOInstruction(e, i.instr)) {
+      void* addrptr = (void*)&MMIOAwareLoad<uint32_t, false>;
+
+      if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
+        addrptr = (void*)&MMIOAwareLoad<uint32_t, true>;
+      }
+      if (i.src1.is_constant) {
+        e.mov(e.GetNativeParam(0).cvt32(), (uint32_t)i.src1.constant());
+      } else {
+        e.mov(e.GetNativeParam(0).cvt32(), i.src1.reg().cvt32());
+      }
+
+      e.CallNativeSafe(addrptr);
+      e.mov(i.dest, e.eax);
+    } else {
+      auto addr = ComputeMemoryAddress(e, i.src1);
+      if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
+        if (e.IsFeatureEnabled(kX64EmitMovbe)) {
+          e.movbe(i.dest, e.dword[addr]);
+        } else {
+          e.mov(i.dest, e.dword[addr]);
+          e.bswap(i.dest);
+        }
       } else {
         e.mov(i.dest, e.dword[addr]);
-        e.bswap(i.dest);
       }
-    } else {
-      e.mov(i.dest, e.dword[addr]);
-    }
-    if (IsTracingData()) {
-      e.mov(e.GetNativeParam(1).cvt32(), i.dest);
-      e.lea(e.GetNativeParam(0), e.ptr[addr]);
-      e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadI32));
+      if (IsTracingData()) {
+        e.mov(e.GetNativeParam(1).cvt32(), i.dest);
+        e.lea(e.GetNativeParam(0), e.ptr[addr]);
+        e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadI32));
+      }
     }
   }
 };
@@ -1390,13 +1456,12 @@ struct STORE_I32 : Sequence<STORE_I32, I<OPCODE_STORE, VoidOp, I64Op, I32Op>> {
         } else {
           e.mov(e.dword[addr], i.src2);
         }
+        if (IsTracingData()) {
+          e.mov(e.GetNativeParam(1).cvt32(), e.dword[addr]);
+          e.lea(e.GetNativeParam(0), e.ptr[addr]);
+          e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreI32));
+        }
       }
-    }
-    if (IsTracingData()) {
-      auto addr = ComputeMemoryAddress(e, i.src1);
-      e.mov(e.GetNativeParam(1).cvt32(), e.dword[addr]);
-      e.lea(e.GetNativeParam(0), e.ptr[addr]);
-      e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreI32));
     }
   }
 };

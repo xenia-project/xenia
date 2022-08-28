@@ -43,23 +43,23 @@ enum KeyType {
   KEY_TYPE_V_F64 = OPCODE_SIG_TYPE_V + FLOAT64_TYPE,
   KEY_TYPE_V_V128 = OPCODE_SIG_TYPE_V + VEC128_TYPE,
 };
-
+using InstrKeyValue = uint32_t;
 #pragma pack(push, 1)
 union InstrKey {
-  uint32_t value;
+  InstrKeyValue value;
   struct {
-    uint32_t opcode : 8;
-    uint32_t dest : 5;
-    uint32_t src1 : 5;
-    uint32_t src2 : 5;
-    uint32_t src3 : 5;
-    uint32_t reserved : 4;
+    InstrKeyValue opcode : 8;
+    InstrKeyValue dest : 5;
+    InstrKeyValue src1 : 5;
+    InstrKeyValue src2 : 5;
+    InstrKeyValue src3 : 5;
+    InstrKeyValue reserved : 4;
   };
 
-  operator uint32_t() const { return value; }
+  operator InstrKeyValue() const { return value; }
 
   InstrKey() : value(0) { static_assert_size(*this, sizeof(value)); }
-  InstrKey(uint32_t v) : value(v) {}
+  InstrKey(InstrKeyValue v) : value(v) {}
 
   // this used to take about 1% cpu while precompiling
   // it kept reloading opcode, and also constantly repacking and unpacking the
@@ -67,16 +67,16 @@ union InstrKey {
   InstrKey(const Instr* i) : value(0) {
     const OpcodeInfo* info = i->GetOpcodeInfo();
 
-    uint32_t sig = info->signature;
+    InstrKeyValue sig = info->signature;
 
     OpcodeSignatureType dest_type, src1_type, src2_type, src3_type;
 
     UnpackOpcodeSig(sig, dest_type, src1_type, src2_type, src3_type);
 
-    uint32_t out_desttype = (uint32_t)dest_type;
-    uint32_t out_src1type = (uint32_t)src1_type;
-    uint32_t out_src2type = (uint32_t)src2_type;
-    uint32_t out_src3type = (uint32_t)src3_type;
+    InstrKeyValue out_desttype = (InstrKeyValue)dest_type;
+    InstrKeyValue out_src1type = (InstrKeyValue)src1_type;
+    InstrKeyValue out_src2type = (InstrKeyValue)src2_type;
+    InstrKeyValue out_src3type = (InstrKeyValue)src3_type;
 
     Value* destv = i->dest;
     // pre-deref, even if not value
@@ -105,7 +105,7 @@ union InstrKey {
   template <Opcode OPCODE, KeyType DEST = KEY_TYPE_X, KeyType SRC1 = KEY_TYPE_X,
             KeyType SRC2 = KEY_TYPE_X, KeyType SRC3 = KEY_TYPE_X>
   struct Construct {
-    static const uint32_t value =
+    static const InstrKeyValue value =
         (OPCODE) | (DEST << 8) | (SRC1 << 13) | (SRC2 << 18) | (SRC3 << 23);
   };
 };
@@ -307,8 +307,8 @@ struct I<OPCODE, DEST> : DestField<DEST> {
  protected:
   template <typename SEQ, typename T>
   friend struct Sequence;
-  bool Load(const Instr* i) {
-    if (InstrKey(i).value == key && BASE::LoadDest(i)) {
+  bool Load(const Instr* i, InstrKeyValue kv) {
+    if (kv == key && BASE::LoadDest(i)) {
       instr = i;
       return true;
     }
@@ -329,8 +329,8 @@ struct I<OPCODE, DEST, SRC1> : DestField<DEST> {
  protected:
   template <typename SEQ, typename T>
   friend struct Sequence;
-  bool Load(const Instr* i) {
-    if (InstrKey(i).value == key && BASE::LoadDest(i)) {
+  bool Load(const Instr* i, InstrKeyValue kv) {
+    if (kv == key && BASE::LoadDest(i)) {
       instr = i;
       src1.Load(i->src1);
       return true;
@@ -355,8 +355,8 @@ struct I<OPCODE, DEST, SRC1, SRC2> : DestField<DEST> {
  protected:
   template <typename SEQ, typename T>
   friend struct Sequence;
-  bool Load(const Instr* i) {
-    if (InstrKey(i).value == key && BASE::LoadDest(i)) {
+  bool Load(const Instr* i, InstrKeyValue kv) {
+    if (kv == key && BASE::LoadDest(i)) {
       instr = i;
       src1.Load(i->src1);
       src2.Load(i->src2);
@@ -385,8 +385,8 @@ struct I<OPCODE, DEST, SRC1, SRC2, SRC3> : DestField<DEST> {
  protected:
   template <typename SEQ, typename T>
   friend struct Sequence;
-  bool Load(const Instr* i) {
-    if (InstrKey(i).value == key && BASE::LoadDest(i)) {
+  bool Load(const Instr* i, InstrKeyValue ikey) {
+    if (ikey == key && BASE::LoadDest(i)) {
       instr = i;
       src1.Load(i->src1);
       src2.Load(i->src2);
@@ -422,9 +422,9 @@ struct Sequence {
 
   static constexpr uint32_t head_key() { return T::key; }
 
-  static bool Select(X64Emitter& e, const Instr* i) {
+  static bool Select(X64Emitter& e, const Instr* i, InstrKeyValue ikey) {
     T args;
-    if (!args.Load(i)) {
+    if (!args.Load(i, ikey)) {
       return false;
     }
     SEQ::Emit(e, args);

@@ -361,28 +361,6 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             }
           }
           break;
-        case OPCODE_IS_TRUE:
-          if (i->src1.value->IsConstant()) {
-            if (i->src1.value->IsConstantTrue()) {
-              v->set_constant(uint8_t(1));
-            } else {
-              v->set_constant(uint8_t(0));
-            }
-            i->Remove();
-            result = true;
-          }
-          break;
-        case OPCODE_IS_FALSE:
-          if (i->src1.value->IsConstant()) {
-            if (i->src1.value->IsConstantFalse()) {
-              v->set_constant(uint8_t(1));
-            } else {
-              v->set_constant(uint8_t(0));
-            }
-            i->Remove();
-            result = true;
-          }
-          break;
         case OPCODE_IS_NAN:
           if (i->src1.value->IsConstant()) {
             if (i->src1.value->type == FLOAT32_TYPE &&
@@ -602,7 +580,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             if (should_skip_because_of_float) {
               break;
-			}
+            }
             v->set_from(i->src1.value);
             v->Max(i->src2.value);
             i->Remove();
