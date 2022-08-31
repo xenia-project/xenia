@@ -94,7 +94,7 @@ DEFINE_bool(mount_cache, false, "Enable cache mount", "Storage");
 DEFINE_transient_path(target, "",
                       "Specifies the target .xex or .iso to execute.",
                       "General");
-DEFINE_transient_bool(portable, false,
+DEFINE_transient_bool(portable, true,
                       "Specifies if Xenia should run in portable mode.",
                       "General");
 
