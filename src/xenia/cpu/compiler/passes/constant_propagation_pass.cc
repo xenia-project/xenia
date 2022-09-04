@@ -243,7 +243,16 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             result = true;
           }
           break;
-
+        case OPCODE_LVR:
+          if (i->src1.value->IsConstant()) {
+            if (!(i->src1.value->AsUint32() & 0xF)) {
+              v->set_zero(VEC128_TYPE);
+              i->Remove();
+              result = true;
+              break;
+            }
+          }
+          break;
         case OPCODE_LOAD:
         case OPCODE_LOAD_OFFSET:
           if (i->src1.value->IsConstant()) {
@@ -921,6 +930,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             result = true;
           }
           break;
+
         default:
           // Ignored.
           break;

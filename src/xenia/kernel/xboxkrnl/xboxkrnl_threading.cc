@@ -952,11 +952,17 @@ void KfReleaseSpinLock_entry(lpdword_t lock_ptr, dword_t old_irql) {
 }
 DECLARE_XBOXKRNL_EXPORT2(KfReleaseSpinLock, kThreading, kImplemented,
                          kHighFrequency);
-
+// todo: this is not accurate
 void KeAcquireSpinLockAtRaisedIrql_entry(lpdword_t lock_ptr) {
   // Lock.
   auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
   while (!xe::atomic_cas(0, 1, lock)) {
+#if XE_ARCH_AMD64 == 1
+    // todo: this is just a nop if they don't have SMT, which is not great
+    // either...
+
+    _mm_pause();
+#endif
     // Spin!
     // TODO(benvanik): error on deadlock?
   }
