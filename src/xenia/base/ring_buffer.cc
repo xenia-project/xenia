@@ -45,15 +45,17 @@ void RingBuffer::AdvanceWrite(size_t _count) {
 RingBuffer::ReadRange RingBuffer::BeginRead(size_t _count) {
   ring_size_t count =
       std::min<ring_size_t>(static_cast<ring_size_t>(_count), capacity_);
-  if (!count) {
-    return {0};
+  XE_LIKELY_IF(count) {
+    if (read_offset_ + count < capacity_) {
+      return {buffer_ + read_offset_, nullptr, count, 0};
+    } else {
+      ring_size_t left_half = capacity_ - read_offset_;
+      ring_size_t right_half = count - left_half;
+      return {buffer_ + read_offset_, buffer_, left_half, right_half};
+    }
   }
-  if (read_offset_ + count < capacity_) {
-    return {buffer_ + read_offset_, nullptr, count, 0};
-  } else {
-    ring_size_t left_half = capacity_ - read_offset_;
-    ring_size_t right_half = count - left_half;
-    return {buffer_ + read_offset_, buffer_, left_half, right_half};
+  else {
+    return {0};
   }
 }
 

@@ -1678,11 +1678,79 @@ void D3D12CommandProcessor::ShutdownContext() {
 }
 // todo: bit-pack the bools and use bitarith to reduce branches
 void D3D12CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
-  CommandProcessor::WriteRegister(index, value);
+#if XE_ARCH_AMD64 == 1
+  // CommandProcessor::WriteRegister(index, value);
 
-  bool cbuf_binding_float_pixel_utd = cbuffer_binding_float_pixel_.up_to_date;
-  bool cbuf_binding_float_vertex_utd = cbuffer_binding_float_vertex_.up_to_date;
-  bool cbuf_binding_bool_loop_utd = cbuffer_binding_bool_loop_.up_to_date;
+  __m128i to_rangecheck = _mm_set1_epi16(static_cast<short>(index));
+
+  __m128i lower_bounds = _mm_setr_epi16(
+      XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 - 1,
+      XE_GPU_REG_SHADER_CONSTANT_000_X - 1,
+      XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031 - 1, XE_GPU_REG_SCRATCH_REG0 - 1,
+      XE_GPU_REG_COHER_STATUS_HOST - 1, XE_GPU_REG_DC_LUT_RW_INDEX - 1, 0, 0);
+  __m128i upper_bounds = _mm_setr_epi16(
+      XE_GPU_REG_SHADER_CONSTANT_FETCH_31_5 + 1,
+      XE_GPU_REG_SHADER_CONSTANT_511_W + 1,
+      XE_GPU_REG_SHADER_CONSTANT_LOOP_31 + 1, XE_GPU_REG_SCRATCH_REG7 + 1,
+      XE_GPU_REG_COHER_STATUS_HOST + 1, XE_GPU_REG_DC_LUT_30_COLOR + 1, 0, 0);
+
+  // quick pre-test
+  // todo: figure out just how unlikely this is. if very (it ought to be,
+  // theres a ton of registers other than these) make this predicate
+  // branchless and mark with unlikely, then make HandleSpecialRegisterWrite
+  // noinline yep, its very unlikely. these ORS here are meant to be bitwise
+  // ors, so that we do not do branching evaluation of the conditions (we will
+  // almost always take all of the branches)
+  /* unsigned expr =
+      (index - XE_GPU_REG_SCRATCH_REG0 < 8) |
+                  (index == XE_GPU_REG_COHER_STATUS_HOST) |
+                  ((index - XE_GPU_REG_DC_LUT_RW_INDEX) <=
+                   (XE_GPU_REG_DC_LUT_30_COLOR - XE_GPU_REG_DC_LUT_RW_INDEX));*/
+  __m128i is_above_lower = _mm_cmpgt_epi16(to_rangecheck, lower_bounds);
+  __m128i is_below_upper = _mm_cmplt_epi16(to_rangecheck, upper_bounds);
+  __m128i is_within_range = _mm_and_si128(is_above_lower, is_below_upper);
+  register_file_->values[index].u32 = value;
+
+  uint32_t movmask = static_cast<uint32_t>(_mm_movemask_epi8(is_within_range));
+
+  if (!movmask) {
+    return;
+  } else {
+    if (movmask & (1 << 3)) {
+      if (frame_open_) {
+        uint32_t float_constant_index =
+            (index - XE_GPU_REG_SHADER_CONSTANT_000_X) >> 2;
+        uint64_t float_constant_mask = 1ULL << float_constant_index;
+
+        if (float_constant_index >= 256) {
+          float_constant_index =
+              static_cast<unsigned char>(float_constant_index);
+          if (current_float_constant_map_pixel_[float_constant_index >> 6] &
+              float_constant_mask) {  // take advantage of x86
+                                      // modulus shift
+            cbuffer_binding_float_pixel_.up_to_date = false;
+          }
+        } else {
+          if (current_float_constant_map_vertex_[float_constant_index >> 6] &
+              float_constant_mask) {
+            cbuffer_binding_float_vertex_.up_to_date = false;
+          }
+        }
+      }
+    } else if (movmask & (1 << 5)) {
+      cbuffer_binding_bool_loop_.up_to_date = false;
+    } else if (movmask & (1 << 1)) {
+      cbuffer_binding_fetch_.up_to_date = false;
+
+      texture_cache_->TextureFetchConstantWritten(
+          (index - XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0) / 6);
+    } else {
+      HandleSpecialRegisterWrite(index, value);
+    }
+  }
+#else
+
+  CommandProcessor::WriteRegister(index, value);
 
   if (index >= XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 &&
       index <= XE_GPU_REG_SHADER_CONSTANT_FETCH_31_5) {
@@ -1693,16 +1761,8 @@ void D3D12CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
         (index - XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0) / 6);
     // }
   } else {
-    if (!(cbuf_binding_float_pixel_utd | cbuf_binding_float_vertex_utd |
-          cbuf_binding_bool_loop_utd)) {
-      return;
-    }
-
     if (index >= XE_GPU_REG_SHADER_CONSTANT_000_X &&
         index <= XE_GPU_REG_SHADER_CONSTANT_511_W) {
-      if (!(cbuf_binding_float_pixel_utd | cbuf_binding_float_vertex_utd)) {
-        return;
-      }
       if (frame_open_) {
         uint32_t float_constant_index =
             (index - XE_GPU_REG_SHADER_CONSTANT_000_X) >> 2;
@@ -1724,6 +1784,7 @@ void D3D12CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
       cbuffer_binding_bool_loop_.up_to_date = false;
     }
   }
+#endif
 }
 void D3D12CommandProcessor::WriteRegistersFromMem(uint32_t start_index,
                                                   uint32_t* base,
@@ -1733,9 +1794,14 @@ void D3D12CommandProcessor::WriteRegistersFromMem(uint32_t start_index,
     D3D12CommandProcessor::WriteRegister(start_index + i, data);
   }
 }
-void D3D12CommandProcessor::WriteRegisterRangeFromRing(xe::RingBuffer* ring,
-                                                       uint32_t base,
-                                                       uint32_t num_registers) {
+/*
+wraparound rarely happens, so its best to hoist this out of
+writeregisterrangefromring, and structure the two functions so that this can be
+tail called
+*/
+XE_NOINLINE
+void D3D12CommandProcessor::WriteRegisterRangeFromRing_WraparoundCase(
+    xe::RingBuffer* ring, uint32_t base, uint32_t num_registers) {
   // we already brought it into L2 earlier
   RingBuffer::ReadRange range =
       ring->BeginPrefetchedRead<swcache::PrefetchTag::Level1>(num_registers *
@@ -1747,13 +1813,31 @@ void D3D12CommandProcessor::WriteRegisterRangeFromRing(xe::RingBuffer* ring,
   D3D12CommandProcessor::WriteRegistersFromMem(
       base, reinterpret_cast<uint32_t*>(const_cast<uint8_t*>(range.first)),
       num_regs_firstrange);
-  if (range.second) {
-    D3D12CommandProcessor::WriteRegistersFromMem(
-        base + num_regs_firstrange,
-        reinterpret_cast<uint32_t*>(const_cast<uint8_t*>(range.second)),
-        num_registers - num_regs_firstrange);
-  }
+
+  D3D12CommandProcessor::WriteRegistersFromMem(
+      base + num_regs_firstrange,
+      reinterpret_cast<uint32_t*>(const_cast<uint8_t*>(range.second)),
+      num_registers - num_regs_firstrange);
+
   ring->EndRead(range);
+}
+void D3D12CommandProcessor::WriteRegisterRangeFromRing(xe::RingBuffer* ring,
+                                                       uint32_t base,
+                                                       uint32_t num_registers) {
+  RingBuffer::ReadRange range =
+      ring->BeginRead(num_registers * sizeof(uint32_t));
+
+  XE_LIKELY_IF(!range.second) {
+    uint32_t num_regs_firstrange =
+        static_cast<uint32_t>(range.first_length / sizeof(uint32_t));
+
+    D3D12CommandProcessor::WriteRegistersFromMem(
+        base, reinterpret_cast<uint32_t*>(const_cast<uint8_t*>(range.first)),
+        num_regs_firstrange);
+    ring->EndRead(range);
+  } else {
+    return WriteRegisterRangeFromRing_WraparoundCase(ring, base, num_registers);
+  }
 }
 void D3D12CommandProcessor::WriteOneRegisterFromRing(xe::RingBuffer* ring,
                                                      uint32_t base,
@@ -1768,7 +1852,7 @@ void D3D12CommandProcessor::WriteOneRegisterFromRing(xe::RingBuffer* ring,
         base, xe::load_and_swap<uint32_t>(read.first + (sizeof(uint32_t) * i)));
   }
 
-  if (read.second) {
+  XE_UNLIKELY_IF (read.second) {
     uint32_t second_length = read.second_length / sizeof(uint32_t);
 
     for (uint32_t i = 0; i < second_length; ++i) {
@@ -2791,9 +2875,8 @@ bool D3D12CommandProcessor::IssueCopy() {
           // chrispy: this memcpy needs to be optimized as much as possible
 
           auto physaddr = memory_->TranslatePhysical(written_address);
-          dma::vastcpy(physaddr, (uint8_t*)readback_mapping,
-                                      written_length);
-         // XEDmaCpy(physaddr, readback_mapping, written_length);
+          dma::vastcpy(physaddr, (uint8_t*)readback_mapping, written_length);
+          // XEDmaCpy(physaddr, readback_mapping, written_length);
           D3D12_RANGE readback_write_range = {};
           readback_buffer->Unmap(0, &readback_write_range);
         }
@@ -4606,12 +4689,12 @@ ID3D12Resource* D3D12CommandProcessor::RequestReadbackBuffer(uint32_t size) {
   if (size == 0) {
     return nullptr;
   }
-  #if 0
+#if 0
   if (readback_available_) {
     GetDMAC()->WaitJobDone(readback_available_);
     readback_available_ = 0;
   }
-  #endif
+#endif
   size = xe::align(size, kReadbackBufferSizeIncrement);
   if (size > readback_buffer_size_) {
     const ui::d3d12::D3D12Provider& provider = GetD3D12Provider();

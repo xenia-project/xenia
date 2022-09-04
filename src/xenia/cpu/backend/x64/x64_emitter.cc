@@ -1068,7 +1068,15 @@ static const vec128_t xmm_consts[] = {
     /*XMMXOPWordShiftMask*/
     vec128s(15),
     /*XMMXOPDwordShiftMask*/
-    vec128i(31)};
+    vec128i(31),
+    /*XMMLVLShuffle*/
+    v128_setr_bytes(3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12),
+    /*XMMLVRCmp16*/
+    vec128b(16),
+    /*XMMSTVLShuffle*/
+    v128_setr_bytes(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15),
+    /* XMMSTVRSwapMask*/
+    vec128b((uint8_t)0x83)};
 
 void* X64Emitter::FindByteConstantOffset(unsigned bytevalue) {
   for (auto& vec : xmm_consts) {

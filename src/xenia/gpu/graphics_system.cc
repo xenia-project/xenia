@@ -50,7 +50,11 @@ __declspec(dllexport) uint32_t AmdPowerXpressRequestHighPerformance = 1;
 }  // extern "C"
 #endif  // XE_PLATFORM_WIN32
 
-GraphicsSystem::GraphicsSystem() : vsync_worker_running_(false) {}
+GraphicsSystem::GraphicsSystem() : vsync_worker_running_(false) {
+  register_file_ = reinterpret_cast<RegisterFile*>(memory::AllocFixed(
+      nullptr, sizeof(RegisterFile), memory::AllocationType::kReserveCommit,
+      memory::PageAccess::kReadWrite));
+}
 
 GraphicsSystem::~GraphicsSystem() = default;
 
@@ -198,13 +202,13 @@ uint32_t GraphicsSystem::ReadRegister(uint32_t addr) {
                   // maximum [width(0x0FFF), height(0x0FFF)]
       return 0x050002D0;
     default:
-      if (!register_file_.IsValidRegister(r)) {
+      if (!register_file()->IsValidRegister(r)) {
         XELOGE("GPU: Read from unknown register ({:04X})", r);
       }
   }
 
   assert_true(r < RegisterFile::kRegisterCount);
-  return register_file_.values[r].u32;
+  return register_file()->values[r].u32;
 }
 
 void GraphicsSystem::WriteRegister(uint32_t addr, uint32_t value) {
@@ -222,7 +226,7 @@ void GraphicsSystem::WriteRegister(uint32_t addr, uint32_t value) {
   }
 
   assert_true(r < RegisterFile::kRegisterCount);
-  register_file_.values[r].u32 = value;
+  this->register_file()->values[r].u32 = value;
 }
 
 void GraphicsSystem::InitializeRingBuffer(uint32_t ptr, uint32_t size_log2) {

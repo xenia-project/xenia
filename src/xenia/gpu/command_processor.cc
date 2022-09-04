@@ -29,20 +29,6 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
 
-#if defined(NDEBUG)
-static constexpr bool should_log_unknown_reg_writes() { return false; }
-
-#else
-
-DEFINE_bool(log_unknown_register_writes, false,
-            "Log writes to unknown registers from "
-            "CommandProcessor::WriteRegister. Has significant performance hit.",
-            "GPU");
-static bool should_log_unknown_reg_writes() {
-  return cvars::log_unknown_register_writes;
-}
-#endif
-
 namespace xe {
 namespace gpu {
 
@@ -475,44 +461,34 @@ void CommandProcessor::HandleSpecialRegisterWrite(uint32_t index,
   }
 }
 void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
-  if (should_log_unknown_reg_writes()) {
-    // chrispy: rearrange check order, place set after checks
-    if (XE_UNLIKELY(!register_file_->IsValidRegister(index))) {
-      XELOGW("GPU: Write to unknown register ({:04X} = {:08X})", index, value);
-    check_reg_out_of_bounds:
-      if (XE_UNLIKELY(index >= RegisterFile::kRegisterCount)) {
-        XELOGW("CommandProcessor::WriteRegister index out of bounds: {}",
-               index);
-        return;
-      }
+  // chrispy: rearrange check order, place set after checks
+
+  if (XE_LIKELY(index < RegisterFile::kRegisterCount)) {
+    register_file_->values[index].u32 = value;
+
+    // quick pre-test
+    // todo: figure out just how unlikely this is. if very (it ought to be,
+    // theres a ton of registers other than these) make this predicate
+    // branchless and mark with unlikely, then make HandleSpecialRegisterWrite
+    // noinline yep, its very unlikely. these ORS here are meant to be bitwise
+    // ors, so that we do not do branching evaluation of the conditions (we will
+    // almost always take all of the branches)
+
+    unsigned expr = (index - XE_GPU_REG_SCRATCH_REG0 < 8) |
+                    (index == XE_GPU_REG_COHER_STATUS_HOST) |
+                    ((index - XE_GPU_REG_DC_LUT_RW_INDEX) <=
+                     (XE_GPU_REG_DC_LUT_30_COLOR - XE_GPU_REG_DC_LUT_RW_INDEX));
+    // chrispy: reordered for msvc branch probability (assumes if is taken and
+    // else is not)
+    if (XE_LIKELY(expr == 0)) {
+      XE_MSVC_REORDER_BARRIER();
+
+    } else {
+      HandleSpecialRegisterWrite(index, value);
     }
   } else {
-    goto check_reg_out_of_bounds;
-  }
-  register_file_->values[index].u32 = value;
-
-  //  regs with extra logic on write: XE_GPU_REG_COHER_STATUS_HOST
-  //  XE_GPU_REG_DC_LUT_RW_INDEX
-  // XE_GPU_REG_DC_LUT_SEQ_COLOR XE_GPU_REG_DC_LUT_PWL_DATA
-  // XE_GPU_REG_DC_LUT_30_COLOR
-
-  // quick pre-test
-  // todo: figure out just how unlikely this is. if very (it ought to be, theres
-  // a ton of registers other than these) make this predicate branchless and
-  // mark with unlikely, then make HandleSpecialRegisterWrite noinline yep, its
-  // very unlikely. these ORS here are meant to be bitwise ors, so that we do
-  // not do branching evaluation of the conditions (we will almost always take
-  // all of the branches)
-
-  unsigned expr = (index - XE_GPU_REG_SCRATCH_REG0 < 8) |
-                  (index == XE_GPU_REG_COHER_STATUS_HOST) |
-                  ((index - XE_GPU_REG_DC_LUT_RW_INDEX) <=
-                   (XE_GPU_REG_DC_LUT_30_COLOR - XE_GPU_REG_DC_LUT_RW_INDEX));
-  // chrispy: reordered for msvc branch probability (assumes if is taken and
-  // else is not)
-  if (XE_LIKELY(expr == 0)) {
-  } else {
-    HandleSpecialRegisterWrite(index, value);
+    XELOGW("CommandProcessor::WriteRegister index out of bounds: {}", index);
+    return;
   }
 }
 void CommandProcessor::WriteRegistersFromMem(uint32_t start_index,
@@ -587,7 +563,7 @@ void CommandProcessor::ReturnFromWait() {}
 uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index,
                                                 uint32_t write_index) {
   SCOPE_profile_cpu_f("gpu");
-
+#if XE_ENABLE_TRACE_WRITER_INSTRUMENTATION == 1
   // If we have a pending trace stream open it now. That way we ensure we get
   // all commands.
   if (!trace_writer_.is_open() && trace_state_ == TraceState::kStreaming) {
@@ -599,7 +575,7 @@ uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index,
     trace_writer_.Open(path, title_id);
     InitializeTrace();
   }
-
+#endif
   // Adjust pointer base.
   uint32_t start_ptr = primary_buffer_ptr_ + read_index * sizeof(uint32_t);
   start_ptr = (primary_buffer_ptr_ & ~0x1FFFFFFF) | (start_ptr & 0x1FFFFFFF);
@@ -676,22 +652,24 @@ bool CommandProcessor::ExecutePacket(RingBuffer* reader) {
     return true;
   }
 
-  if (XE_UNLIKELY(packet == 0xCDCDCDCD)) {
+  if (XE_LIKELY(packet != 0xCDCDCDCD)) {
+  actually_execute_packet:
+    switch (packet_type) {
+      case 0x00:
+        return ExecutePacketType0(reader, packet);
+      case 0x01:
+        return ExecutePacketType1(reader, packet);
+      case 0x02:
+        return ExecutePacketType2(reader, packet);
+      case 0x03:
+        return ExecutePacketType3(reader, packet);
+      default:
+        assert_unhandled_case(packet_type);
+        return false;
+    }
+  } else {
     XELOGW("GPU packet is CDCDCDCD - probably read uninitialized memory!");
-  }
-
-  switch (packet_type) {
-    case 0x00:
-      return ExecutePacketType0(reader, packet);
-    case 0x01:
-      return ExecutePacketType1(reader, packet);
-    case 0x02:
-      return ExecutePacketType2(reader, packet);
-    case 0x03:
-      return ExecutePacketType3(reader, packet);
-    default:
-      assert_unhandled_case(packet_type);
-      return false;
+    goto actually_execute_packet;
   }
 }
 
@@ -712,10 +690,15 @@ bool CommandProcessor::ExecutePacketType0(RingBuffer* reader, uint32_t packet) {
 
   uint32_t base_index = (packet & 0x7FFF);
   uint32_t write_one_reg = (packet >> 15) & 0x1;
-  if (write_one_reg) {
-    WriteOneRegisterFromRing(reader, base_index, count);
+
+  if (!write_one_reg) {
+    if (count == 1) {
+      WriteRegister(base_index, reader->ReadAndSwap<uint32_t>());
+    } else {
+      WriteRegisterRangeFromRing(reader, base_index, count);
+    }
   } else {
-    WriteRegisterRangeFromRing(reader, base_index, count);
+    WriteOneRegisterFromRing(reader, base_index, count);
   }
 
   trace_writer_.WritePacketEnd();
@@ -750,7 +733,7 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
   uint32_t count = ((packet >> 16) & 0x3FFF) + 1;
   auto data_start_offset = reader->read_offset();
 
-  if (reader->read_count() < count * sizeof(uint32_t)) {
+  XE_UNLIKELY_IF(reader->read_count() < count * sizeof(uint32_t)) {
     XELOGE(
         "ExecutePacketType3 overflow (read count {:08X}, packet count {:08X})",
         reader->read_count(), count * sizeof(uint32_t));
@@ -914,6 +897,8 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
   }
 
   trace_writer_.WritePacketEnd();
+#if XE_ENABLE_TRACE_WRITER_INSTRUMENTATION == 1
+
   if (opcode == PM4_XE_SWAP) {
     // End the trace writer frame.
     if (trace_writer_.is_open()) {
@@ -932,6 +917,7 @@ bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
       InitializeTrace();
     }
   }
+#endif
 
   assert_true(reader->read_offset() ==
               (data_start_offset + (count * sizeof(uint32_t))) %
@@ -1512,9 +1498,13 @@ bool CommandProcessor::ExecutePacketType3_SET_CONSTANT(RingBuffer* reader,
       reader->AdvanceRead((count - 1) * sizeof(uint32_t));
       return true;
   }
+  uint32_t countm1 = count - 1;
 
-  WriteRegisterRangeFromRing(reader, index, count - 1);
-
+  if (countm1 != 1) {
+    WriteRegisterRangeFromRing(reader, index, countm1);
+  } else {
+    WriteRegister(index, reader->ReadAndSwap<uint32_t>());
+  }
   return true;
 }
 
@@ -1523,9 +1513,13 @@ bool CommandProcessor::ExecutePacketType3_SET_CONSTANT2(RingBuffer* reader,
                                                         uint32_t count) {
   uint32_t offset_type = reader->ReadAndSwap<uint32_t>();
   uint32_t index = offset_type & 0xFFFF;
+  uint32_t countm1 = count - 1;
 
-  WriteRegisterRangeFromRing(reader, index, count - 1);
-
+  if (countm1 != 1) {
+    WriteRegisterRangeFromRing(reader, index, countm1);
+  } else {
+    WriteRegister(index, reader->ReadAndSwap<uint32_t>());
+  }
   return true;
 }
 
@@ -1573,8 +1567,12 @@ bool CommandProcessor::ExecutePacketType3_SET_SHADER_CONSTANTS(
     RingBuffer* reader, uint32_t packet, uint32_t count) {
   uint32_t offset_type = reader->ReadAndSwap<uint32_t>();
   uint32_t index = offset_type & 0xFFFF;
-
-  WriteRegisterRangeFromRing(reader, index, count - 1);
+  uint32_t countm1 = count - 1;
+  if (countm1 != 1) {
+    WriteRegisterRangeFromRing(reader, index, countm1);
+  } else {
+    WriteRegister(index, reader->ReadAndSwap<uint32_t>());
+  }
 
   return true;
 }

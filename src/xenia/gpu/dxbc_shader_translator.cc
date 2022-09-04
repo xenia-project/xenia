@@ -94,7 +94,9 @@ std::vector<uint8_t> DxbcShaderTranslator::CreateDepthOnlyPixelShader() {
   // TODO(Triang3l): Handle in a nicer way (is_depth_only_pixel_shader_ is a
   // leftover from when a Shader object wasn't used during translation).
   Shader shader(xenos::ShaderType::kPixel, 0, nullptr, 0);
-  shader.AnalyzeUcode(instruction_disassembly_buffer_);
+  if (!shader.is_ucode_analyzed()) {
+    shader.AnalyzeUcode(instruction_disassembly_buffer_);
+  }
   Shader::Translation& translation = *shader.GetOrCreateTranslation(0);
   TranslateAnalyzedShader(translation);
   is_depth_only_pixel_shader_ = false;

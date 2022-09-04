@@ -612,7 +612,7 @@ enum class PrefetchTag { Write, Nontemporal, Level3, Level2, Level1 };
 
 template <PrefetchTag tag>
 static void Prefetch(const void* addr) {
-  static_assert(false, "Unknown tag");
+  xenia_assert(false && "Unknown tag");
 }
 
 template <>

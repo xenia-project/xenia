@@ -71,7 +71,9 @@ class PipelineCache {
                           const uint32_t* host_address, uint32_t dword_count);
   // Analyze shader microcode on the translator thread.
   void AnalyzeShaderUcode(Shader& shader) {
-    shader.AnalyzeUcode(ucode_disasm_buffer_);
+    if (!shader.is_ucode_analyzed()) {
+      shader.AnalyzeUcode(ucode_disasm_buffer_);
+    }
   }
 
   // Retrieves the shader modification for the current state. The shader must
