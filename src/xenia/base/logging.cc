@@ -466,8 +466,7 @@ void ShutdownLogging() {
 }
 
 bool logging::internal::ShouldLog(LogLevel log_level) {
-  return logger_ != nullptr &&
-         static_cast<int32_t>(log_level) <= cvars::log_level;
+  return static_cast<int32_t>(log_level) <= cvars::log_level;
 }
 
 std::pair<char*, size_t> logging::internal::GetThreadBuffer() {
@@ -476,7 +475,7 @@ std::pair<char*, size_t> logging::internal::GetThreadBuffer() {
 
 void logging::internal::AppendLogLine(LogLevel log_level,
                                       const char prefix_char, size_t written) {
-  if (!ShouldLog(log_level) || !written) {
+  if (!logger_ || !ShouldLog(log_level) || !written) {
     return;
   }
   logger_->AppendLine(xe::threading::current_thread_id(), prefix_char,

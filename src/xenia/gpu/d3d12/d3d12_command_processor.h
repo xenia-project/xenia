@@ -213,6 +213,11 @@ class D3D12CommandProcessor final : public CommandProcessor {
   XE_FORCEINLINE
   virtual void WriteRegisterRangeFromRing(xe::RingBuffer* ring, uint32_t base,
                                           uint32_t num_registers) override;
+
+  XE_NOINLINE
+  void WriteRegisterRangeFromRing_WraparoundCase(xe::RingBuffer* ring,
+                                                 uint32_t base,
+                                                 uint32_t num_registers); 
   XE_FORCEINLINE
   virtual void WriteOneRegisterFromRing(xe::RingBuffer* ring, uint32_t base,
                                         uint32_t num_times) override;
@@ -614,7 +619,8 @@ class D3D12CommandProcessor final : public CommandProcessor {
   uint32_t current_graphics_root_up_to_date_;
 
   // System shader constants.
-  DxbcShaderTranslator::SystemConstants system_constants_;
+  alignas(XE_HOST_CACHE_LINE_SIZE) 
+	  DxbcShaderTranslator::SystemConstants system_constants_;
 
   // Float constant usage masks of the last draw call.
   // chrispy: make sure accesses to these cant cross cacheline boundaries

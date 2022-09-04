@@ -168,6 +168,10 @@ enum XmmConst {
   XMMXOPByteShiftMask,
   XMMXOPWordShiftMask,
   XMMXOPDwordShiftMask,
+  XMMLVLShuffle,
+  XMMLVRCmp16,
+  XMMSTVLShuffle,
+  XMMSTVRSwapMask  // swapwordmask with bit 7 set
 
 };
 using amdfx::xopcompare_e;

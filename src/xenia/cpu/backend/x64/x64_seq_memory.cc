@@ -16,6 +16,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/backend/x64/x64_op.h"
+#include "xenia/cpu/backend/x64/x64_stack_layout.h"
 #include "xenia/cpu/backend/x64/x64_tracers.h"
 #include "xenia/cpu/ppc/ppc_context.h"
 #include "xenia/cpu/processor.h"
@@ -359,6 +360,451 @@ EMITTER_OPCODE_TABLE(OPCODE_ATOMIC_EXCHANGE, ATOMIC_EXCHANGE_I8,
                      ATOMIC_EXCHANGE_I16, ATOMIC_EXCHANGE_I32,
                      ATOMIC_EXCHANGE_I64);
 
+static __m128i callnativesafe_lvl(void* ctx, void* addr) {
+  uintptr_t uaddr = reinterpret_cast<uintptr_t>(addr);
+
+  uintptr_t bad_offs = uaddr & 0xf;
+
+  uaddr &= ~0xfULL;
+
+  __m128i tempload = _mm_loadu_si128((const __m128i*)uaddr);
+
+  __m128i badhelper =
+      _mm_setr_epi8(3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12);
+
+  __m128i tmpshuf = _mm_add_epi8(badhelper, _mm_set1_epi8((char)bad_offs));
+
+  tmpshuf = _mm_or_si128(tmpshuf, _mm_cmpgt_epi8(tmpshuf, _mm_set1_epi8(15)));
+  return _mm_shuffle_epi8(tempload, tmpshuf);
+}
+
+struct LVL_V128 : Sequence<LVL_V128, I<OPCODE_LVL, V128Op, I64Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    e.mov(e.edx, 0xf);
+
+    e.lea(e.rcx, e.ptr[ComputeMemoryAddress(e, i.src1)]);
+    e.mov(e.eax, 0xf);
+
+    e.and_(e.eax, e.ecx);
+    e.or_(e.rcx, e.rdx);
+    e.vmovd(e.xmm0, e.eax);
+
+    e.xor_(e.rcx, e.rdx);
+    e.vpxor(e.xmm1, e.xmm1);
+    e.vmovdqa(e.xmm3, e.ptr[e.rcx]);
+    e.vmovdqa(e.xmm2, e.GetXmmConstPtr(XMMLVLShuffle));
+    e.vmovdqa(i.dest, e.GetXmmConstPtr(XMMPermuteControl15));
+    e.vpshufb(e.xmm0, e.xmm0, e.xmm1);
+
+    e.vpaddb(e.xmm2, e.xmm0);
+
+    e.vpcmpgtb(e.xmm1, e.xmm2, i.dest);
+    e.vpor(e.xmm0, e.xmm1, e.xmm2);
+    e.vpshufb(i.dest, e.xmm3, e.xmm0);
+  }
+};
+EMITTER_OPCODE_TABLE(OPCODE_LVL, LVL_V128);
+
+static __m128i callnativesafe_lvr(void* ctx, void* addr) {
+  uintptr_t uaddr = reinterpret_cast<uintptr_t>(addr);
+
+  uintptr_t bad_offs = uaddr & 0xf;
+  if (!bad_offs) {
+    return _mm_setzero_si128();
+  }
+  uaddr &= ~0xfULL;
+
+  __m128i tempload = _mm_loadu_si128((const __m128i*)uaddr);
+
+  __m128i badhelper =
+      _mm_setr_epi8(3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12);
+
+  __m128i tmpshuf = _mm_add_epi8(badhelper, _mm_set1_epi8((char)bad_offs));
+
+  tmpshuf = _mm_or_si128(tmpshuf, _mm_cmplt_epi8(tmpshuf, _mm_set1_epi8(16)));
+  return _mm_shuffle_epi8(tempload, tmpshuf);
+}
+
+struct LVR_V128 : Sequence<LVR_V128, I<OPCODE_LVR, V128Op, I64Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    Xbyak::Label endpoint{};
+    // todo: bailout instead? dont know how frequently the zero skip happens
+    e.vpxor(i.dest, i.dest);
+    e.mov(e.edx, 0xf);
+
+    e.lea(e.rcx, e.ptr[ComputeMemoryAddress(e, i.src1)]);
+    e.mov(e.eax, 0xf);
+
+    e.and_(e.eax, e.ecx);
+    e.jz(endpoint);
+    e.or_(e.rcx, e.rdx);
+    e.vmovd(e.xmm0, e.eax);
+
+    e.xor_(e.rcx, e.rdx);
+    e.vpxor(e.xmm1, e.xmm1);
+    e.vmovdqa(e.xmm3, e.ptr[e.rcx]);
+    e.vmovdqa(e.xmm2, e.GetXmmConstPtr(XMMLVLShuffle));
+    e.vmovdqa(i.dest, e.GetXmmConstPtr(XMMLVRCmp16));
+    e.vpshufb(e.xmm0, e.xmm0, e.xmm1);
+
+    e.vpaddb(e.xmm2, e.xmm0);
+
+    e.vpcmpgtb(e.xmm1, i.dest, e.xmm2);
+    e.vpor(e.xmm0, e.xmm1, e.xmm2);
+    e.vpshufb(i.dest, e.xmm3, e.xmm0);
+    e.L(endpoint);
+  }
+};
+EMITTER_OPCODE_TABLE(OPCODE_LVR, LVR_V128);
+
+static __m128i PermuteV128Bytes(__m128i selector, __m128i src1, __m128i src2) {
+#if 1
+  __m128i selector2 = _mm_xor_si128(selector, _mm_set1_epi8(3));
+
+  __m128i src1_shuf = _mm_shuffle_epi8(src1, selector2);
+  __m128i src2_shuf = _mm_shuffle_epi8(src2, selector2);
+
+  __m128i src2_selection = _mm_cmpgt_epi8(selector2, _mm_set1_epi8(15));
+
+  return _mm_blendv_epi8(src1_shuf, src2_shuf, src2_selection);
+
+#else
+  // not the issue
+  unsigned char tmpbuffer[32];
+
+  _mm_storeu_si128((__m128i*)tmpbuffer, src1);
+  _mm_storeu_si128((__m128i*)(&tmpbuffer[16]), src2);
+
+  __m128i result;
+
+  for (unsigned i = 0; i < 16; ++i) {
+    result.m128i_u8[i] = tmpbuffer[(selector.m128i_u8[i] ^ 3) & 0x1f];
+  }
+  return result;
+
+#endif
+}
+static __m128i ByteSwap(__m128i input) {
+  return _mm_shuffle_epi8(input, _mm_setr_epi32(0x00010203u, 0x04050607u,
+                                                0x08090A0Bu, 0x0C0D0E0Fu));
+}
+static __m128i LVSR(char input) {
+  __m128i lvsr_table_base = ByteSwap(_mm_setr_epi8(
+      16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31));
+
+  __m128i base_as_vec = _mm_loadu_si128((const __m128i*)&lvsr_table_base);
+
+  __m128i shr_for_offset = _mm_sub_epi8(base_as_vec, _mm_set1_epi8(input));
+  return shr_for_offset;
+}
+
+/*
+Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstantInt8(0xF));
+// ea &= ~0xF
+ea = f.And(ea, f.LoadConstantUint64(~0xFull));
+Value* shrs = f.LoadVectorShr(eb);
+Value* zerovec = f.LoadZeroVec128();
+
+// v = (old & ~mask) | ((new >> eb) & mask)
+Value* new_value = f.Permute(shrs, zerovec, f.LoadVR(vd), INT8_TYPE);
+Value* old_value = f.ByteSwap(f.Load(ea, VEC128_TYPE));
+
+// mask = FFFF... >> eb
+Value* mask = f.Permute(shrs, zerovec, f.Not(zerovec), INT8_TYPE);
+
+Value* v = f.Select(mask, old_value, new_value);
+// ea &= ~0xF (handled above)
+f.Store(ea, f.ByteSwap(v));
+*/
+#if 0
+
+static void callnativesafe_stvl(void* ctx, void* addr, __m128i* value) {
+  uintptr_t uaddr = reinterpret_cast<uintptr_t>(addr);
+
+  uintptr_t bad_offs = uaddr & 0xf;
+
+  uaddr &= ~0xfULL;
+
+  __m128i tempload = ByteSwap(_mm_loadu_si128((const __m128i*)uaddr));
+
+  __m128i our_value_to_store = _mm_loadu_si128(value);
+
+  __m128i shr_for_offset = LVSR((char)bad_offs);
+
+  __m128i permuted_us =
+      PermuteV128Bytes(shr_for_offset, _mm_setzero_si128(), our_value_to_store);
+  //__m128i mask = PermuteV128Bytes(shr_for_offset, _mm_setzero_si128(),
+   //                               _mm_set1_epi8((char)0xff));
+
+  __m128i mask = _mm_cmpgt_epi8(shr_for_offset, _mm_set1_epi8(15));
+  __m128i blended_input_and_memory =
+      _mm_blendv_epi8(tempload, permuted_us, mask);
+
+  __m128i swapped_final_result = ByteSwap(blended_input_and_memory);
+
+  _mm_storeu_si128((__m128i*)uaddr, swapped_final_result);
+}
+#else
+static void callnativesafe_stvl(void* ctx, void* addr, __m128i* value) {
+  uintptr_t uaddr = reinterpret_cast<uintptr_t>(addr);
+
+  uintptr_t bad_offs = uaddr & 0xf;
+
+  uaddr &= ~0xfULL;
+
+  __m128i tempload = _mm_loadu_si128((const __m128i*)uaddr);
+
+  __m128i our_value_to_store = _mm_loadu_si128(value);
+
+  __m128i shr_for_offset;
+  {
+    __m128i lvsr_table_base =
+        _mm_sub_epi8(_mm_setr_epi8(16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+                                   27, 28, 29, 30, 31),
+                     _mm_set1_epi8(16));
+    shr_for_offset =
+        _mm_sub_epi8(lvsr_table_base, _mm_set1_epi8((char)bad_offs));
+  }
+  __m128i permuted_us;
+  {
+    __m128i selector2 = _mm_xor_si128(shr_for_offset, _mm_set1_epi8(3));
+
+    __m128i src2_shuf = _mm_shuffle_epi8(our_value_to_store, selector2);
+
+    permuted_us = src2_shuf;
+  }
+
+  __m128i blended_input_and_memory =
+      _mm_blendv_epi8(permuted_us, tempload, shr_for_offset);
+
+  __m128i swapped_final_result = blended_input_and_memory;
+
+  _mm_storeu_si128((__m128i*)uaddr, swapped_final_result);
+}
+static void callnativesafe_stvl_experiment(void* addr, __m128i* value) {
+  uintptr_t uaddr = reinterpret_cast<uintptr_t>(addr);
+
+  uintptr_t bad_offs = uaddr & 0xf;
+
+  uaddr &= ~0xfULL;
+
+  __m128i tempload = _mm_loadu_si128((const __m128i*)uaddr);
+
+  __m128i our_value_to_store = _mm_loadu_si128(value);
+
+  __m128i shr_for_offset;
+  {
+    __m128i lvsr_table_base =
+        _mm_sub_epi8(_mm_setr_epi8(16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+                                   27, 28, 29, 30, 31),
+                     _mm_set1_epi8(16));
+
+    // lvsr_table_base = _mm_xor_si128(lvsr_table_base, _mm_set1_epi8(3));
+    // lvsr_table_base = ByteSwap(lvsr_table_base);
+    shr_for_offset =
+        _mm_sub_epi8(lvsr_table_base, _mm_set1_epi8((char)bad_offs));
+  }
+  __m128i permuted_us;
+  {
+    shr_for_offset = _mm_xor_si128(shr_for_offset, _mm_set1_epi8(3));
+
+    __m128i src2_shuf = _mm_shuffle_epi8(our_value_to_store, shr_for_offset);
+
+    permuted_us = src2_shuf;
+  }
+
+  __m128i blended_input_and_memory =
+      _mm_blendv_epi8(permuted_us, tempload, shr_for_offset);
+
+  __m128i swapped_final_result = blended_input_and_memory;
+
+  _mm_storeu_si128((__m128i*)uaddr, swapped_final_result);
+}
+
+#endif
+struct STVL_V128 : Sequence<STVL_V128, I<OPCODE_STVL, VoidOp, I64Op, V128Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+#if 0
+	  e.lea(e.GetNativeParam(0), e.ptr[ComputeMemoryAddress(e, i.src1)]);
+    Xmm src2 = GetInputRegOrConstant(e, i.src2, e.xmm1);
+
+    e.lea(e.GetNativeParam(1), e.StashXmm(0, src2));
+    e.CallNativeSafe((void*)callnativesafe_stvl);
+
+#else
+    e.mov(e.ecx, 15);
+    e.mov(e.edx, e.ecx);
+    e.lea(e.rax, e.ptr[ComputeMemoryAddress(e, i.src1)]);
+    e.and_(e.ecx, e.eax);
+    e.vmovd(e.xmm0, e.ecx);
+    e.not_(e.rdx);
+    e.and_(e.rax, e.rdx);
+    e.vmovdqa(e.xmm1, e.GetXmmConstPtr(XMMSTVLShuffle));
+    // e.vmovdqa(e.xmm2, e.GetXmmConstPtr(XMMSwapWordMask));
+    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+      e.vpbroadcastb(e.xmm3, e.xmm0);
+    } else {
+      e.vpshufb(e.xmm3, e.xmm0, e.GetXmmConstPtr(XMMZero));
+    }
+    e.vpsubb(e.xmm0, e.xmm1, e.xmm3);
+    e.vpxor(e.xmm1, e.xmm0,
+            e.GetXmmConstPtr(XMMSwapWordMask));  // xmm1 from now on will be our
+                                                 // selector for blend/shuffle
+    // we can reuse xmm0, xmm2 and xmm3 now
+    // e.vmovdqa(e.xmm0, e.ptr[e.rax]);
+
+    Xmm src2 = GetInputRegOrConstant(e, i.src2, e.xmm0);
+
+    e.vpshufb(e.xmm2, src2, e.xmm1);
+    e.vpblendvb(e.xmm3, e.xmm2, e.ptr[e.rax], e.xmm1);
+    e.vmovdqa(e.ptr[e.rax], e.xmm3);
+
+#endif
+  }
+};
+EMITTER_OPCODE_TABLE(OPCODE_STVL, STVL_V128);
+
+/*
+  Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstantInt8(0xF));
+  // Skip if %16=0 (no data to store).
+  auto skip_label = f.NewLabel();
+  f.BranchFalse(eb, skip_label);
+  // ea &= ~0xF
+  // NOTE: need to recalculate ea and eb because after Branch we start a new
+  // block and we can't use their previous instantiation in the new block
+  ea = CalculateEA_0(f, ra, rb);
+  eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstantInt8(0xF));
+  ea = f.And(ea, f.LoadConstantUint64(~0xFull));
+  Value* shrs = f.LoadVectorShr(eb);
+  Value* zerovec = f.LoadZeroVec128();
+  // v = (old & ~mask) | ((new << eb) & mask)
+  Value* new_value = f.Permute(shrs, f.LoadVR(vd), zerovec, INT8_TYPE);
+  Value* old_value = f.ByteSwap(f.Load(ea, VEC128_TYPE));
+  // mask = ~FFFF... >> eb
+  Value* mask = f.Permute(shrs, f.Not(zerovec), zerovec, INT8_TYPE);
+  Value* v = f.Select(mask, old_value, new_value);
+  // ea &= ~0xF (handled above)
+  f.Store(ea, f.ByteSwap(v));
+  f.MarkLabel(skip_label);
+*/
+#if 0
+static void callnativesafe_stvr(void* ctx, void* addr, __m128i* value) {
+  uintptr_t uaddr = reinterpret_cast<uintptr_t>(addr);
+
+  uintptr_t bad_offs = uaddr & 0xf;
+  if (!bad_offs) {
+    return;
+  }
+  uaddr &= ~0xfULL;
+
+  __m128i tempload = ByteSwap(_mm_loadu_si128((const __m128i*)uaddr));
+
+  __m128i our_value_to_store = _mm_loadu_si128(value);
+
+  __m128i shr_for_offset = LVSR((char)bad_offs);
+
+  __m128i permuted_us = PermuteV128Bytes(
+      shr_for_offset, our_value_to_store, _mm_setzero_si128() );
+  __m128i mask = PermuteV128Bytes(
+      shr_for_offset, _mm_set1_epi8((char)0xff) ,_mm_setzero_si128()
+                                 );
+
+  //__m128i mask = _mm_cmpgt_epi8(shr_for_offset, _mm_set1_epi8(15));
+  __m128i blended_input_and_memory =
+      _mm_blendv_epi8(tempload, permuted_us, mask);
+
+  __m128i swapped_final_result = ByteSwap(blended_input_and_memory);
+
+  _mm_storeu_si128((__m128i*)uaddr, swapped_final_result);
+}
+#else
+static void callnativesafe_stvr(void* ctx, void* addr, __m128i* value) {
+  uintptr_t uaddr = reinterpret_cast<uintptr_t>(addr);
+
+  uintptr_t bad_offs = uaddr & 0xf;
+
+  uaddr &= ~0xfULL;
+  if (!bad_offs) {
+    return;
+  }
+  __m128i tempload = _mm_loadu_si128((const __m128i*)uaddr);
+
+  __m128i our_value_to_store = _mm_loadu_si128(value);
+
+  __m128i shr_for_offset;
+  {
+    __m128i lvsr_table_base =
+        _mm_sub_epi8(_mm_setr_epi8(16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+                                   27, 28, 29, 30, 31),
+                     _mm_set1_epi8(16));
+
+    // lvsr_table_base = _mm_xor_si128(lvsr_table_base, _mm_set1_epi8(3));
+    // lvsr_table_base = ByteSwap(lvsr_table_base);
+    shr_for_offset =
+        _mm_sub_epi8(lvsr_table_base, _mm_set1_epi8((char)bad_offs));
+  }
+  __m128i permuted_us;
+  {
+    shr_for_offset = _mm_xor_si128(shr_for_offset, _mm_set1_epi8((char)0x83));
+
+    __m128i src2_shuf = _mm_shuffle_epi8(our_value_to_store, shr_for_offset);
+
+    permuted_us = src2_shuf;
+  }
+
+  __m128i blended_input_and_memory =
+      _mm_blendv_epi8(permuted_us, tempload, shr_for_offset);
+
+  __m128i swapped_final_result = blended_input_and_memory;
+
+  _mm_storeu_si128((__m128i*)uaddr, swapped_final_result);
+}
+#endif
+struct STVR_V128 : Sequence<STVR_V128, I<OPCODE_STVR, VoidOp, I64Op, V128Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+#if 0
+    e.lea(e.GetNativeParam(0), e.ptr[ComputeMemoryAddress(e, i.src1)]);
+    Xmm src2 = GetInputRegOrConstant(e, i.src2, e.xmm1);
+
+    e.lea(e.GetNativeParam(1), e.StashXmm(0, src2));
+    e.CallNativeSafe((void*)callnativesafe_stvr);
+
+#else
+    Xbyak::Label skipper{};
+    e.mov(e.ecx, 15);
+    e.mov(e.edx, e.ecx);
+    e.lea(e.rax, e.ptr[ComputeMemoryAddress(e, i.src1)]);
+    e.and_(e.ecx, e.eax);
+    e.jz(skipper);
+    e.vmovd(e.xmm0, e.ecx);
+    e.not_(e.rdx);
+    e.and_(e.rax, e.rdx);
+    e.vmovdqa(e.xmm1, e.GetXmmConstPtr(XMMSTVLShuffle));
+    // todo: maybe a table lookup might be a better idea for getting the
+    // shuffle/blend
+    //  e.vmovdqa(e.xmm2, e.GetXmmConstPtr(XMMSTVRSwapMask));
+    if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+      e.vpbroadcastb(e.xmm3, e.xmm0);
+    } else {
+      e.vpshufb(e.xmm3, e.xmm0, e.GetXmmConstPtr(XMMZero));
+    }
+    e.vpsubb(e.xmm0, e.xmm1, e.xmm3);
+    e.vpxor(e.xmm1, e.xmm0,
+            e.GetXmmConstPtr(XMMSTVRSwapMask));  // xmm1 from now on will be our
+                                                 // selector for blend/shuffle
+    // we can reuse xmm0, xmm2 and xmm3 now
+    // e.vmovdqa(e.xmm0, e.ptr[e.rax]);
+
+    Xmm src2 = GetInputRegOrConstant(e, i.src2, e.xmm0);
+
+    e.vpshufb(e.xmm2, src2, e.xmm1);
+    e.vpblendvb(e.xmm3, e.xmm2, e.ptr[e.rax], e.xmm1);
+    e.vmovdqa(e.ptr[e.rax], e.xmm3);
+    e.L(skipper);
+#endif
+  }
+};
+EMITTER_OPCODE_TABLE(OPCODE_STVR, STVR_V128);
 // ============================================================================
 // OPCODE_ATOMIC_COMPARE_EXCHANGE
 // ============================================================================

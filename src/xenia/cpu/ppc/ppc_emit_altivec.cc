@@ -208,6 +208,7 @@ int InstrEmit_stvxl128(PPCHIRBuilder& f, const InstrData& i) {
 int InstrEmit_lvlx_(PPCHIRBuilder& f, const InstrData& i, uint32_t vd,
                     uint32_t ra, uint32_t rb) {
   Value* ea = CalculateEA_0(f, ra, rb);
+#if 0
   Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstantInt8(0xF));
   // ea &= ~0xF
   ea = f.And(ea, f.LoadConstantUint64(~0xFull));
@@ -216,6 +217,11 @@ int InstrEmit_lvlx_(PPCHIRBuilder& f, const InstrData& i, uint32_t vd,
                        f.LoadZeroVec128(), INT8_TYPE);
   f.StoreVR(vd, v);
   return 0;
+#else
+  Value* val = f.LoadVectorLeft(ea);
+  f.StoreVR(vd, val);
+  return 0;
+#endif
 }
 int InstrEmit_lvlx(PPCHIRBuilder& f, const InstrData& i) {
   return InstrEmit_lvlx_(f, i, i.X.RT, i.X.RA, i.X.RB);
@@ -237,6 +243,7 @@ int InstrEmit_lvrx_(PPCHIRBuilder& f, const InstrData& i, uint32_t vd,
   // buffer, which sometimes may be nothing and hang off the end of the valid
   // page area. We still need to zero the resulting register, though.
   Value* ea = CalculateEA_0(f, ra, rb);
+#if 0
   Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstantInt8(0xF));
   // Skip if %16=0 (just load zero).
   auto load_label = f.NewLabel();
@@ -257,6 +264,11 @@ int InstrEmit_lvrx_(PPCHIRBuilder& f, const InstrData& i, uint32_t vd,
   f.StoreVR(vd, v);
   f.MarkLabel(end_label);
   return 0;
+#else
+  Value* val = f.LoadVectorRight(ea);
+  f.StoreVR(vd, val);
+  return 0;
+#endif
 }
 int InstrEmit_lvrx(PPCHIRBuilder& f, const InstrData& i) {
   return InstrEmit_lvrx_(f, i, i.X.RT, i.X.RA, i.X.RB);
@@ -275,7 +287,9 @@ int InstrEmit_stvlx_(PPCHIRBuilder& f, const InstrData& i, uint32_t vd,
                      uint32_t ra, uint32_t rb) {
   // NOTE: if eb == 0 (so 16b aligned) this equals new_value
   //       we could optimize this to prevent the other load/mask, in that case.
+
   Value* ea = CalculateEA_0(f, ra, rb);
+#if 0
   Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstantInt8(0xF));
   // ea &= ~0xF
   ea = f.And(ea, f.LoadConstantUint64(~0xFull));
@@ -283,6 +297,8 @@ int InstrEmit_stvlx_(PPCHIRBuilder& f, const InstrData& i, uint32_t vd,
   Value* zerovec = f.LoadZeroVec128();
 
   // v = (old & ~mask) | ((new >> eb) & mask)
+
+  Value* mask = f.Permute(shrs, zerovec, f.Not(zerovec), INT8_TYPE);
   Value* new_value = f.Permute(shrs, zerovec, f.LoadVR(vd), INT8_TYPE);
   Value* old_value = f.ByteSwap(f.Load(ea, VEC128_TYPE));
   /*
@@ -291,11 +307,16 @@ int InstrEmit_stvlx_(PPCHIRBuilder& f, const InstrData& i, uint32_t vd,
   here looks as if it might make more sense as a comparison (
 */
   // mask = FFFF... >> eb
-  Value* mask = f.Permute(shrs, zerovec, f.Not(zerovec), INT8_TYPE);
+  
 
   Value* v = f.Select(mask, old_value, new_value);
   // ea &= ~0xF (handled above)
   f.Store(ea, f.ByteSwap(v));
+#else
+
+  Value* vdr = f.LoadVR(vd);
+  f.StoreVectorLeft(ea, vdr);
+#endif
   return 0;
 }
 int InstrEmit_stvlx(PPCHIRBuilder& f, const InstrData& i) {
@@ -318,6 +339,7 @@ int InstrEmit_stvrx_(PPCHIRBuilder& f, const InstrData& i, uint32_t vd,
   // buffer, which sometimes may be nothing and hang off the end of the valid
   // page area.
   Value* ea = CalculateEA_0(f, ra, rb);
+#if 0
   Value* eb = f.And(f.Truncate(ea, INT8_TYPE), f.LoadConstantInt8(0xF));
   // Skip if %16=0 (no data to store).
   auto skip_label = f.NewLabel();
@@ -339,6 +361,10 @@ int InstrEmit_stvrx_(PPCHIRBuilder& f, const InstrData& i, uint32_t vd,
   // ea &= ~0xF (handled above)
   f.Store(ea, f.ByteSwap(v));
   f.MarkLabel(skip_label);
+#else
+  Value* vdr = f.LoadVR(vd);
+  f.StoreVectorRight(ea, vdr);
+#endif
   return 0;
 }
 int InstrEmit_stvrx(PPCHIRBuilder& f, const InstrData& i) {

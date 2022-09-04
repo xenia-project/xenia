@@ -427,7 +427,9 @@ void PipelineCache::InitializeShaderStorage(
           ++shader_translation_threads_busy;
           break;
         }
-        shader_to_translate->AnalyzeUcode(ucode_disasm_buffer);
+        if (!shader_to_translate->is_ucode_analyzed()) {
+          shader_to_translate->AnalyzeUcode(ucode_disasm_buffer);
+        }
         // Translate each needed modification on this thread after performing
         // modification-independent analysis of the whole shader.
         uint64_t ucode_data_hash = shader_to_translate->ucode_data_hash();
@@ -980,7 +982,9 @@ bool PipelineCache::ConfigurePipeline(
                   xenos::VertexShaderExportMode::kPosition2VectorsEdgeKill);
   assert_false(register_file_.Get<reg::SQ_PROGRAM_CNTL>().gen_index_vtx);
   if (!vertex_shader->is_translated()) {
-    vertex_shader->shader().AnalyzeUcode(ucode_disasm_buffer_);
+    if (!vertex_shader->shader().is_ucode_analyzed()) {
+      vertex_shader->shader().AnalyzeUcode(ucode_disasm_buffer_);
+    }
     if (!TranslateAnalyzedShader(*shader_translator_, *vertex_shader,
                                  dxbc_converter_, dxc_utils_, dxc_compiler_)) {
       XELOGE("Failed to translate the vertex shader!");
@@ -1004,7 +1008,9 @@ bool PipelineCache::ConfigurePipeline(
   }
   if (pixel_shader != nullptr) {
     if (!pixel_shader->is_translated()) {
-      pixel_shader->shader().AnalyzeUcode(ucode_disasm_buffer_);
+      if (!pixel_shader->shader().is_ucode_analyzed()) {
+        pixel_shader->shader().AnalyzeUcode(ucode_disasm_buffer_);
+      }
       if (!TranslateAnalyzedShader(*shader_translator_, *pixel_shader,
                                    dxbc_converter_, dxc_utils_,
                                    dxc_compiler_)) {

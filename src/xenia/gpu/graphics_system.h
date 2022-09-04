@@ -58,7 +58,7 @@ class GraphicsSystem {
   // from a device loss.
   void OnHostGpuLossFromAnyThread(bool is_responsible);
 
-  RegisterFile* register_file() { return &register_file_; }
+  RegisterFile* register_file() { return register_file_; }
   CommandProcessor* command_processor() const {
     return command_processor_.get();
   }
@@ -112,7 +112,7 @@ class GraphicsSystem {
   std::atomic<bool> vsync_worker_running_;
   kernel::object_ref<kernel::XHostThread> vsync_worker_thread_;
 
-  RegisterFile register_file_;
+  RegisterFile* register_file_;
   std::unique_ptr<CommandProcessor> command_processor_;
 
   bool paused_ = false;
