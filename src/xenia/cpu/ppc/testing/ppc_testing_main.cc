@@ -349,8 +349,8 @@ class TestRunner {
           uint32_t expected = std::strtoul(ccs, nullptr, 16);
           uint8_t actual = *p;
 
-          expecteds.AppendFormat(" %02X", expected);
-          actuals.AppendFormat(" %02X", actual);
+          expecteds.AppendFormat(" {:02X}", expected);
+          actuals.AppendFormat(" {:02X}", actual);
 
           if (expected != actual) {
             any_failed = true;
