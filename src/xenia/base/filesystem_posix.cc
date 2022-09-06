@@ -219,6 +219,10 @@ std::vector<FileInfo> ListFiles(const std::filesystem::path& path) {
   while (auto ent = readdir(dir)) {
     FileInfo info;
 
+    if (ent->d_name[0] == '.') {
+      continue;
+    }
+
     info.name = ent->d_name;
     struct stat st;
     stat((path / info.name).c_str(), &st);

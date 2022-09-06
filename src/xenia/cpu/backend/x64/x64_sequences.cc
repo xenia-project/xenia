@@ -38,6 +38,9 @@
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/processor.h"
 
+// For OPCODE_PACK/OPCODE_UNPACK
+#include "third_party/half/include/half.hpp"
+
 namespace xe {
 namespace cpu {
 namespace backend {
@@ -53,6 +56,23 @@ using xe::cpu::hir::Instr;
 
 typedef bool (*SequenceSelectFn)(X64Emitter&, const Instr*);
 std::unordered_map<uint32_t, SequenceSelectFn> sequence_table;
+
+template <typename T>
+bool Register() {
+  sequence_table.insert({T::head_key(), T::Select});
+  return true;
+}
+
+template <typename T, typename Tn, typename... Ts>
+static bool Register() {
+  bool b = true;
+  b = b && Register<T>();          // Call the above function
+  b = b && Register<Tn, Ts...>();  // Call ourself again (recursively)
+  return b;
+}
+
+#define EMITTER_OPCODE_TABLE(name, ...) \
+  const auto X64_INSTR_##name = Register<__VA_ARGS__>();
 
 // ============================================================================
 // OPCODE_COMMENT
@@ -2435,7 +2455,7 @@ EMITTER_OPCODE_TABLE(OPCODE_RECIP, RECIP_F32, RECIP_F64, RECIP_V128);
 // TODO(benvanik): use approx here:
 //     https://jrfonseca.blogspot.com/2008/09/fast-sse2-pow-tables-or-polynomials.html
 struct POW2_F32 : Sequence<POW2_F32, I<OPCODE_POW2, F32Op, F32Op>> {
-  static __m128 EmulatePow2(void*, __m128 src) {
+  static __m128 EmulatePow2(void*, __m128& src) {
     float src_value;
     _mm_store_ss(&src_value, src);
     float result = std::exp2(src_value);
@@ -2449,7 +2469,7 @@ struct POW2_F32 : Sequence<POW2_F32, I<OPCODE_POW2, F32Op, F32Op>> {
   }
 };
 struct POW2_F64 : Sequence<POW2_F64, I<OPCODE_POW2, F64Op, F64Op>> {
-  static __m128d EmulatePow2(void*, __m128d src) {
+  static __m128d EmulatePow2(void*, __m128d& src) {
     double src_value;
     _mm_store_sd(&src_value, src);
     double result = std::exp2(src_value);
@@ -2463,7 +2483,7 @@ struct POW2_F64 : Sequence<POW2_F64, I<OPCODE_POW2, F64Op, F64Op>> {
   }
 };
 struct POW2_V128 : Sequence<POW2_V128, I<OPCODE_POW2, V128Op, V128Op>> {
-  static __m128 EmulatePow2(void*, __m128 src) {
+  static __m128 EmulatePow2(void*, __m128& src) {
     alignas(16) float values[4];
     _mm_store_ps(values, src);
     for (size_t i = 0; i < 4; ++i) {
@@ -2486,7 +2506,7 @@ EMITTER_OPCODE_TABLE(OPCODE_POW2, POW2_F32, POW2_F64, POW2_V128);
 //     https://jrfonseca.blogspot.com/2008/09/fast-sse2-pow-tables-or-polynomials.html
 // TODO(benvanik): this emulated fn destroys all xmm registers! don't do it!
 struct LOG2_F32 : Sequence<LOG2_F32, I<OPCODE_LOG2, F32Op, F32Op>> {
-  static __m128 EmulateLog2(void*, __m128 src) {
+  static __m128 EmulateLog2(void*, __m128& src) {
     float src_value;
     _mm_store_ss(&src_value, src);
     float result = std::log2(src_value);
@@ -2504,7 +2524,7 @@ struct LOG2_F32 : Sequence<LOG2_F32, I<OPCODE_LOG2, F32Op, F32Op>> {
   }
 };
 struct LOG2_F64 : Sequence<LOG2_F64, I<OPCODE_LOG2, F64Op, F64Op>> {
-  static __m128d EmulateLog2(void*, __m128d src) {
+  static __m128d EmulateLog2(void*, __m128d& src) {
     double src_value;
     _mm_store_sd(&src_value, src);
     double result = std::log2(src_value);
@@ -2522,7 +2542,7 @@ struct LOG2_F64 : Sequence<LOG2_F64, I<OPCODE_LOG2, F64Op, F64Op>> {
   }
 };
 struct LOG2_V128 : Sequence<LOG2_V128, I<OPCODE_LOG2, V128Op, V128Op>> {
-  static __m128 EmulateLog2(void*, __m128 src) {
+  static __m128 EmulateLog2(void*, __m128& src) {
     alignas(16) float values[4];
     _mm_store_ps(values, src);
     for (size_t i = 0; i < 4; ++i) {
@@ -2959,7 +2979,7 @@ struct SHL_V128 : Sequence<SHL_V128, I<OPCODE_SHL, V128Op, V128Op, I8Op>> {
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateShlV128));
     e.vmovaps(i.dest, e.xmm0);
   }
-  static __m128i EmulateShlV128(void*, __m128i src1, uint8_t src2) {
+  static __m128i EmulateShlV128(void*, __m128i& src1, uint8_t src2) {
     // Almost all instances are shamt = 1, but non-constant.
     // shamt is [0,7]
     uint8_t shamt = src2 & 0x7;
@@ -3036,7 +3056,7 @@ struct SHR_V128 : Sequence<SHR_V128, I<OPCODE_SHR, V128Op, V128Op, I8Op>> {
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateShrV128));
     e.vmovaps(i.dest, e.xmm0);
   }
-  static __m128i EmulateShrV128(void*, __m128i src1, uint8_t src2) {
+  static __m128i EmulateShrV128(void*, __m128i& src1, uint8_t src2) {
     // Almost all instances are shamt = 1, but non-constant.
     // shamt is [0,7]
     uint8_t shamt = src2 & 0x7;
@@ -3303,15 +3323,9 @@ struct SET_ROUNDING_MODE_I32
 };
 EMITTER_OPCODE_TABLE(OPCODE_SET_ROUNDING_MODE, SET_ROUNDING_MODE_I32);
 
-// Include anchors to other sequence sources so they get included in the build.
-extern volatile int anchor_control;
-static int anchor_control_dest = anchor_control;
-
-extern volatile int anchor_memory;
-static int anchor_memory_dest = anchor_memory;
-
-extern volatile int anchor_vector;
-static int anchor_vector_dest = anchor_vector;
+#include "x64_seq_control.inc"
+#include "x64_seq_memory.inc"
+#include "x64_seq_vector.inc"
 
 bool SelectSequence(X64Emitter* e, const Instr* i, const Instr** new_tail) {
   const InstrKey key(i);

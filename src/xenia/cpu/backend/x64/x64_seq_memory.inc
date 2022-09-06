@@ -2,26 +2,12 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2018 Xenia Developers. All rights reserved.                      *
+ * Copyright 2022 Xenia Developers. All rights reserved.                      *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#include "xenia/cpu/backend/x64/x64_sequences.h"
-
-#include <algorithm>
-#include <cstring>
-
-#include "xenia/base/memory.h"
-#include "xenia/cpu/backend/x64/x64_op.h"
-#include "xenia/cpu/backend/x64/x64_tracers.h"
-
-namespace xe {
-namespace cpu {
-namespace backend {
-namespace x64 {
-
-volatile int anchor_memory = 0;
+// NOTICE: This file is #included in x64_sequences.cc
 
 // Note: all types are always aligned in the context.
 RegExp ComputeContextAddress(X64Emitter& e, const OffsetOp& offset) {
@@ -1169,8 +1155,3 @@ struct MEMSET_I64_I8_I64
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_MEMSET, MEMSET_I64_I8_I64);
-
-}  // namespace x64
-}  // namespace backend
-}  // namespace cpu
-}  // namespace xe

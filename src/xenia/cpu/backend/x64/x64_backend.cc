@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Copyright 2022 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -417,9 +417,9 @@ X64ThunkEmitter::X64ThunkEmitter(X64Backend* backend, XbyakAllocator* allocator)
 X64ThunkEmitter::~X64ThunkEmitter() {}
 
 HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
-  // rcx = target
-  // rdx = arg0 (context)
-  // r8 = arg1 (guest return address)
+  // 1st native reg = target
+  // 2nd native reg = arg0 (context)
+  // 3rd native reg = arg1 (guest return address)
 
   struct _code_offsets {
     size_t prolog;
@@ -434,10 +434,10 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   code_offsets.prolog = getSize();
 
   // rsp + 0 = return address
-  mov(qword[rsp + 8 * 3], r8);
-  mov(qword[rsp + 8 * 2], rdx);
-  mov(qword[rsp + 8 * 1], rcx);
   sub(rsp, stack_size);
+  mov(qword[rsp + offsetof(StackLayout::Thunk, arg_temp[2])], GetNativeReg(2));
+  mov(qword[rsp + offsetof(StackLayout::Thunk, arg_temp[1])], GetNativeReg(1));
+  mov(qword[rsp + offsetof(StackLayout::Thunk, arg_temp[0])], GetNativeReg(0));
 
   code_offsets.prolog_stack_alloc = getSize();
   code_offsets.body = getSize();
@@ -445,19 +445,19 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   // Save nonvolatile registers.
   EmitSaveNonvolatileRegs();
 
-  mov(rax, rcx);
-  mov(rsi, rdx);  // context
-  mov(rcx, r8);   // return address
+  mov(rax, GetNativeReg(0));
+  mov(GetContextReg(), GetNativeReg(1));  // context
+  mov(GetNativeReg(0), GetNativeReg(2));  // return address
   call(rax);
 
   EmitLoadNonvolatileRegs();
 
   code_offsets.epilog = getSize();
 
+  mov(GetNativeReg(0), qword[rsp + offsetof(StackLayout::Thunk, arg_temp[0])]);
+  mov(GetNativeReg(1), qword[rsp + offsetof(StackLayout::Thunk, arg_temp[1])]);
+  mov(GetNativeReg(2), qword[rsp + offsetof(StackLayout::Thunk, arg_temp[2])]);
   add(rsp, stack_size);
-  mov(rcx, qword[rsp + 8 * 1]);
-  mov(rdx, qword[rsp + 8 * 2]);
-  mov(r8, qword[rsp + 8 * 3]);
   ret();
 
   code_offsets.tail = getSize();
@@ -478,10 +478,10 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
 }
 
 GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
-  // rcx = target function
-  // rdx = arg0
-  // r8  = arg1
-  // r9  = arg2
+  // 1st native reg = target function
+  // 2nd native reg = arg0
+  // 3rd native reg = arg1
+  // 4th native reg = arg2
 
   struct _code_offsets {
     size_t prolog;
@@ -504,8 +504,8 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
   // Save off volatile registers.
   EmitSaveVolatileRegs();
 
-  mov(rax, rcx);              // function
-  mov(rcx, GetContextReg());  // context
+  mov(rax, GetNativeReg(0));              // function
+  mov(GetNativeReg(0), GetContextReg());  // context
   call(rax);
 
   EmitLoadVolatileRegs();
@@ -560,8 +560,8 @@ ResolveFunctionThunk X64ThunkEmitter::EmitResolveFunctionThunk() {
   // Save volatile registers
   EmitSaveVolatileRegs();
 
-  mov(rcx, rsi);  // context
-  mov(rdx, rbx);
+  mov(GetNativeReg(0), GetContextReg());  // context
+  mov(GetNativeReg(1), rbx);
   mov(rax, reinterpret_cast<uint64_t>(&ResolveFunction));
   call(rax);
 
