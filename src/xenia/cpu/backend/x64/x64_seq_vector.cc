@@ -83,6 +83,19 @@ struct VECTOR_CONVERT_F2I
                I<OPCODE_VECTOR_CONVERT_F2I, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
+      if (e.IsFeatureEnabled(kX64EmitAVX512Ortho)) {
+        Opmask mask = e.k1;
+        // Mask positive values and unordered values
+        // _CMP_NLT_UQ
+        e.vcmpps(mask, i.src1, e.GetXmmConstPtr(XMMZero), 0x15);
+
+        // vcvttps2udq will saturate overflowing positive values and unordered
+        // values to UINT_MAX. Mask registers will write zero everywhere
+        // else (negative values)
+        e.vcvttps2udq(i.dest.reg() | mask | e.T_z, i.src1);
+        return;
+      }
+
       // clamp to min 0
       e.vmaxps(e.xmm0, i.src1, e.GetXmmConstPtr(XMMZero));
 
