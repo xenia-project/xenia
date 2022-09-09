@@ -547,6 +547,15 @@ struct VECTOR_ADD
             case INT32_TYPE:
               if (saturate) {
                 if (is_unsigned) {
+                  if (e.IsFeatureEnabled(kX64EmitAVX512Ortho)) {
+                    e.vpaddd(dest, src1, src2);
+                    Opmask saturate = e.k1;
+                    // _mm_cmplt_epu32_mask
+                    e.vpcmpud(saturate, dest, src1, 0x1);
+                    e.vpternlogd(dest | saturate, dest, dest, 0xFF);
+                    return;
+                  }
+
                   // xmm0 is the only temp register that can be used by
                   // src1/src2.
                   e.vpaddd(e.xmm1, src1, src2);
@@ -561,6 +570,20 @@ struct VECTOR_ADD
                   e.vpor(dest, e.xmm1, e.xmm0);
                 } else {
                   e.vpaddd(e.xmm1, src1, src2);
+
+                  if (e.IsFeatureEnabled(kX64EmitAVX512Ortho |
+                                         kX64EmitAVX512DQ)) {
+                    e.vmovdqa32(e.xmm3, src1);
+                    e.vpternlogd(e.xmm3, e.xmm1, src2, 0b00100100);
+
+                    const Opmask saturate = e.k1;
+                    e.vpmovd2m(saturate, e.xmm3);
+
+                    e.vpsrad(e.xmm2, e.xmm1, 31);
+                    e.vpxord(e.xmm2, e.xmm2, e.GetXmmConstPtr(XMMSignMaskI32));
+                    e.vpblendmd(dest | saturate, e.xmm1, e.xmm2); 
+                    return;
+                  }
 
                   // Overflow results if two inputs are the same sign and the
                   // result isn't the same sign. if ((s32b)(~(src1 ^ src2) &
