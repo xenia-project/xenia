@@ -12,9 +12,13 @@
 
 #include <memory>
 
-#include "xenia/gpu/d3d12/d3d12_nvapi.hpp"
 #include "xenia/ui/d3d12/d3d12_api.h"
 #include "xenia/ui/graphics_provider.h"
+// chrispy: this is here to prevent clang format from moving d3d12_nvapi above
+// the headers it depends on
+#define HEADERFENCE
+#undef HEADERFENCE
+#include "xenia/gpu/d3d12/d3d12_nvapi.hpp"
 #define XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES 1
 
 namespace xe {
