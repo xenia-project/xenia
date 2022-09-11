@@ -51,7 +51,7 @@ uint64_t last_guest_tick_count_ = 0;
 uint64_t last_host_tick_count_ = Clock::QueryHostTickCount();
 
 
-using tick_mutex_type = xe_unlikely_mutex;  
+using tick_mutex_type = std::mutex;  
 
 // Mutex to ensure last_host_tick_count_ and last_guest_tick_count_ are in sync
 // std::mutex tick_mutex_;

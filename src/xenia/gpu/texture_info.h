@@ -181,7 +181,7 @@ inline xenos::TextureFormat DepthRenderTargetToTextureFormat(
   }
 }
 
-enum class FormatType {
+enum class FormatType : uint32_t {
   // Uncompressed, and is also a ColorFormat.
   kResolvable,
   // Uncompressed, but resolve or memory export cannot be done to the format.
@@ -190,12 +190,12 @@ enum class FormatType {
 };
 
 struct FormatInfo {
-  xenos::TextureFormat format;
-  const char* name;
-  FormatType type;
-  uint32_t block_width;
-  uint32_t block_height;
-  uint32_t bits_per_pixel;
+  const xenos::TextureFormat format;
+
+  const FormatType type;
+  const uint32_t block_width;
+  const uint32_t block_height;
+  const uint32_t bits_per_pixel;
 
   uint32_t bytes_per_block() const {
     return block_width * block_height * bits_per_pixel / 8;
@@ -203,6 +203,20 @@ struct FormatInfo {
 
   static const FormatInfo* Get(uint32_t gpu_format);
 
+  static const char* GetName(uint32_t gpu_format);
+  static const char* GetName(xenos::TextureFormat format) {
+    return GetName(static_cast<uint32_t>(format));
+  }
+
+  static unsigned char GetWidthShift(uint32_t gpu_format);
+  static unsigned char GetHeightShift(uint32_t gpu_format);
+
+  static unsigned char GetWidthShift(xenos::TextureFormat gpu_format) {
+    return GetWidthShift(static_cast<uint32_t>(gpu_format));
+  }
+  static unsigned char GetHeightShift(xenos::TextureFormat gpu_format) {
+    return GetHeightShift(static_cast<uint32_t>(gpu_format));
+  }
   static const FormatInfo* Get(xenos::TextureFormat format) {
     return Get(static_cast<uint32_t>(format));
   }
@@ -259,7 +273,9 @@ struct TextureInfo {
   const FormatInfo* format_info() const {
     return FormatInfo::Get(static_cast<uint32_t>(format));
   }
-
+  const char* format_name() const {
+    return FormatInfo::GetName(static_cast<uint32_t>(format));
+  }
   bool is_compressed() const {
     return format_info()->type == FormatType::kCompressed;
   }
@@ -280,18 +296,6 @@ struct TextureInfo {
   const TextureExtent GetMipExtent(uint32_t mip, bool is_guest) const;
 
   void GetMipSize(uint32_t mip, uint32_t* width, uint32_t* height) const;
-
-  // Get the memory location of a mip. offset_x and offset_y are in blocks.
-  uint32_t GetMipLocation(uint32_t mip, uint32_t* offset_x, uint32_t* offset_y,
-                          bool is_guest) const;
-
-  static bool GetPackedTileOffset(uint32_t width, uint32_t height,
-                                  const FormatInfo* format_info,
-                                  int packed_tile, uint32_t* offset_x,
-                                  uint32_t* offset_y);
-
-  bool GetPackedTileOffset(int packed_tile, uint32_t* offset_x,
-                           uint32_t* offset_y) const;
 
   uint64_t hash() const;
   bool operator==(const TextureInfo& other) const {

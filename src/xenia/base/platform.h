@@ -115,14 +115,17 @@
 #define XE_COLD __declspec(code_seg(".cold"))
 #define XE_LIKELY(...) (!!(__VA_ARGS__))
 #define XE_UNLIKELY(...) (!!(__VA_ARGS__))
-
+#define XE_MSVC_ASSUME(...) __assume(__VA_ARGS__)
+#define	XE_NOALIAS		__declspec(noalias)
 #elif XE_COMPILER_HAS_GNU_EXTENSIONS == 1
 #define XE_FORCEINLINE __attribute__((always_inline))
 #define XE_NOINLINE __attribute__((noinline))
 #define XE_COLD __attribute__((cold))
 #define XE_LIKELY(...) __builtin_expect(!!(__VA_ARGS__), true)
 #define XE_UNLIKELY(...) __builtin_expect(!!(__VA_ARGS__), false)
-
+#define XE_NOALIAS		
+//cant do unevaluated assume
+#define XE_MSVC_ASSUME(...) static_cast<void>(0)
 #else
 #define XE_FORCEINLINE inline
 #define XE_NOINLINE
@@ -130,6 +133,9 @@
 
 #define XE_LIKELY_IF(...) if (!!(__VA_ARGS__)) [[likely]]
 #define XE_UNLIKELY_IF(...) if (!!(__VA_ARGS__)) [[unlikely]]
+#define XE_NOALIAS
+#define XE_MSVC_ASSUME(...) static_cast<void>(0)
+
 #endif
 
 #if XE_COMPILER_HAS_GNU_EXTENSIONS == 1
@@ -174,5 +180,7 @@ const char kPathSeparator = '/';
 const char kGuestPathSeparator = '\\';
 
 }  // namespace xe
-
+#if XE_ARCH_AMD64==1
+#include "platform_amd64.h"
+#endif
 #endif  // XENIA_BASE_PLATFORM_H_

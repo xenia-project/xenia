@@ -53,6 +53,7 @@ class VulkanCommandProcessor final : public CommandProcessor {
     kStorageBufferCompute,
     kCount,
   };
+#include "../pm4_command_processor_declare.h"
 
   class ScratchBufferAcquisition {
    public:

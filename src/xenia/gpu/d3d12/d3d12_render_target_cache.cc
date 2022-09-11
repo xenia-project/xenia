@@ -5492,11 +5492,19 @@ void D3D12RenderTargetCache::SetCommandListRenderTargets(
   }
 
   // Bind the render targets.
-  if (are_current_command_list_render_targets_valid_ &&
-      std::memcmp(current_command_list_render_targets_,
-                  depth_and_color_render_targets,
-                  sizeof(current_command_list_render_targets_))) {
-    are_current_command_list_render_targets_valid_ = false;
+  if (are_current_command_list_render_targets_valid_) {
+    // chrispy: the small memcmp doesnt get optimized by msvc
+
+    for (unsigned i = 0;
+         i < sizeof(current_command_list_render_targets_) /
+                 sizeof(current_command_list_render_targets_[0]);
+         ++i) {
+      if ((const void*)current_command_list_render_targets_[i] !=
+          (const void*)depth_and_color_render_targets[i]) {
+        are_current_command_list_render_targets_valid_ = false;
+        break;
+      }
+    }
   }
   uint32_t render_targets_are_srgb;
   if (gamma_render_target_as_srgb_) {

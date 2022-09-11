@@ -2020,7 +2020,7 @@ bool VulkanTextureCache::Initialize() {
     // Log which formats are not supported or supported via fallbacks.
     const HostFormatPair& best_host_format = kBestHostFormats[i];
     const char* guest_format_name =
-        FormatInfo::Get(xenos::TextureFormat(i))->name;
+        FormatInfo::GetName(xenos::TextureFormat(i));
     if (best_host_format.format_unsigned.format != VK_FORMAT_UNDEFINED) {
       assert_not_null(guest_format_name);
       if (host_format.format_unsigned.format != VK_FORMAT_UNDEFINED) {

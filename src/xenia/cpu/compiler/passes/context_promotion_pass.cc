@@ -146,7 +146,7 @@ void ContextPromotionPass::RemoveDeadStoresBlock(Block* block) {
         validity.set(static_cast<uint32_t>(offset));
       } else {
         // Already written to. Remove this store.
-        i->Remove();
+        i->UnlinkAndNOP();
       }
     }
     i = prev;

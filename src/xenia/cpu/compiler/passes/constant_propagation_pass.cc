@@ -98,7 +98,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             if (i->src1.value->IsConstantTrue()) {
               i->Replace(&OPCODE_DEBUG_BREAK_info, i->flags);
             } else {
-              i->Remove();
+              i->UnlinkAndNOP();
             }
             result = true;
           }
@@ -109,7 +109,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             if (i->src1.value->IsConstantTrue()) {
               i->Replace(&OPCODE_TRAP_info, i->flags);
             } else {
-              i->Remove();
+              i->UnlinkAndNOP();
             }
             result = true;
           }
@@ -122,7 +122,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
               i->Replace(&OPCODE_CALL_info, i->flags);
               i->src1.symbol = symbol;
             } else {
-              i->Remove();
+              i->UnlinkAndNOP();
             }
             result = true;
           }
@@ -146,7 +146,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
               i->Replace(&OPCODE_CALL_INDIRECT_info, i->flags);
               i->set_src1(value);
             } else {
-              i->Remove();
+              i->UnlinkAndNOP();
             }
             result = true;
           } else if (i->src2.value->IsConstant()) {  // chrispy: fix h3 bug from
@@ -172,7 +172,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
               i->Replace(&OPCODE_BRANCH_info, i->flags);
               i->src1.label = label;
             } else {
-              i->Remove();
+              i->UnlinkAndNOP();
             }
             result = true;
           }
@@ -184,7 +184,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
               i->Replace(&OPCODE_BRANCH_info, i->flags);
               i->src1.label = label;
             } else {
-              i->Remove();
+              i->UnlinkAndNOP();
             }
             result = true;
           }
@@ -195,7 +195,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             TypeName target_type = v->type;
             v->set_from(i->src1.value);
             v->Cast(target_type);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -204,7 +204,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             TypeName target_type = v->type;
             v->set_from(i->src1.value);
             v->Convert(target_type, RoundMode(i->flags));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -212,7 +212,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->Round(RoundMode(i->flags));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -221,7 +221,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             TypeName target_type = v->type;
             v->set_from(i->src1.value);
             v->ZeroExtend(target_type);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -230,7 +230,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             TypeName target_type = v->type;
             v->set_from(i->src1.value);
             v->SignExtend(target_type);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -239,7 +239,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             TypeName target_type = v->type;
             v->set_from(i->src1.value);
             v->Truncate(target_type);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -247,7 +247,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant()) {
             if (!(i->src1.value->AsUint32() & 0xF)) {
               v->set_zero(VEC128_TYPE);
-              i->Remove();
+              i->UnlinkAndNOP();
               result = true;
               break;
             }
@@ -281,22 +281,22 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
                 switch (v->type) {
                   case INT8_TYPE:
                     v->set_constant(xe::load<uint8_t>(host_addr));
-                    i->Remove();
+                    i->UnlinkAndNOP();
                     result = true;
                     break;
                   case INT16_TYPE:
                     v->set_constant(xe::load<uint16_t>(host_addr));
-                    i->Remove();
+                    i->UnlinkAndNOP();
                     result = true;
                     break;
                   case INT32_TYPE:
                     v->set_constant(xe::load<uint32_t>(host_addr));
-                    i->Remove();
+                    i->UnlinkAndNOP();
                     result = true;
                     break;
                   case INT64_TYPE:
                     v->set_constant(xe::load<uint64_t>(host_addr));
-                    i->Remove();
+                    i->UnlinkAndNOP();
                     result = true;
                     break;
                   case VEC128_TYPE:
@@ -304,7 +304,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
                     val.low = xe::load<uint64_t>(host_addr);
                     val.high = xe::load<uint64_t>(host_addr + 8);
                     v->set_constant(val);
-                    i->Remove();
+                    i->UnlinkAndNOP();
                     result = true;
                     break;
                   default:
@@ -357,14 +357,14 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
                          i->src3.value->IsConstant()) {
                 v->set_from(i->src2.value);
                 v->Select(i->src3.value, i->src1.value);
-                i->Remove();
+                i->UnlinkAndNOP();
                 result = true;
               }
             } else {
               if (i->src2.value->IsConstant() && i->src3.value->IsConstant()) {
                 v->set_from(i->src2.value);
                 v->Select(i->src3.value, i->src1.value);
-                i->Remove();
+                i->UnlinkAndNOP();
                 result = true;
               }
             }
@@ -381,7 +381,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             } else {
               v->set_constant(uint8_t(0));
             }
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -391,7 +391,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             bool value = i->src1.value->IsConstantEQ(i->src2.value);
             i->dest->set_constant(uint8_t(value));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -399,7 +399,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             bool value = i->src1.value->IsConstantNE(i->src2.value);
             i->dest->set_constant(uint8_t(value));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -407,7 +407,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             bool value = i->src1.value->IsConstantSLT(i->src2.value);
             i->dest->set_constant(uint8_t(value));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -415,7 +415,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             bool value = i->src1.value->IsConstantSLE(i->src2.value);
             i->dest->set_constant(uint8_t(value));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -423,7 +423,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             bool value = i->src1.value->IsConstantSGT(i->src2.value);
             i->dest->set_constant(uint8_t(value));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -431,7 +431,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             bool value = i->src1.value->IsConstantSGE(i->src2.value);
             i->dest->set_constant(uint8_t(value));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -439,7 +439,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             bool value = i->src1.value->IsConstantULT(i->src2.value);
             i->dest->set_constant(uint8_t(value));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -447,7 +447,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             bool value = i->src1.value->IsConstantULE(i->src2.value);
             i->dest->set_constant(uint8_t(value));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -455,7 +455,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             bool value = i->src1.value->IsConstantUGT(i->src2.value);
             i->dest->set_constant(uint8_t(value));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -463,7 +463,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             bool value = i->src1.value->IsConstantUGE(i->src2.value);
             i->dest->set_constant(uint8_t(value));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -477,7 +477,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
               !should_skip_because_of_float) {
             v->set_from(i->src1.value);
             v->Add(i->src2.value);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -489,7 +489,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
               TypeName target_type = v->type;
               v->set_from(ca);
               v->ZeroExtend(target_type);
-              i->Remove();
+              i->UnlinkAndNOP();
             } else {
               if (i->dest->type == ca->type) {
                 i->Replace(&OPCODE_ASSIGN_info, 0);
@@ -507,7 +507,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
               !should_skip_because_of_float) {
             v->set_from(i->src1.value);
             v->Sub(i->src2.value);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -516,7 +516,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
               v->set_from(i->src1.value);
               v->Mul(i->src2.value);
-              i->Remove();
+              i->UnlinkAndNOP();
               result = true;
             } else if (i->src1.value->IsConstant() ||
                        i->src2.value->IsConstant()) {
@@ -548,7 +548,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->MulHi(i->src2.value, (i->flags & ARITHMETIC_UNSIGNED) != 0);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -557,13 +557,13 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
               v->set_from(i->src1.value);
               v->Div(i->src2.value, (i->flags & ARITHMETIC_UNSIGNED) != 0);
-              i->Remove();
+              i->UnlinkAndNOP();
               result = true;
             } else if (!i->src2.value->MaybeFloaty() &&
                        i->src2.value->IsConstantZero()) {
               // division by 0 == 0 every time,
               v->set_zero(i->src2.value->type);
-              i->Remove();
+              i->UnlinkAndNOP();
               result = true;
             } else if (i->src2.value->IsConstant()) {
               // Division by one = no-op.
@@ -592,7 +592,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             }
             v->set_from(i->src1.value);
             v->Max(i->src2.value);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -600,7 +600,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->Neg();
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -608,7 +608,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->Abs();
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -616,7 +616,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->Sqrt();
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -624,7 +624,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->RSqrt();
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -632,7 +632,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->Recip();
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -640,7 +640,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->And(i->src2.value);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -648,7 +648,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->AndNot(i->src2.value);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -656,7 +656,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->Or(i->src2.value);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -664,13 +664,13 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->Xor(i->src2.value);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           } else if (!i->src1.value->IsConstant() &&
                      !i->src2.value->IsConstant() &&
                      i->src1.value == i->src2.value) {
             v->set_zero(v->type);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -678,7 +678,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->Not();
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -687,7 +687,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
               v->set_from(i->src1.value);
               v->Shl(i->src2.value);
-              i->Remove();
+              i->UnlinkAndNOP();
               result = true;
             } else if (i->src2.value->IsConstantZero()) {
               auto src1 = i->src1.value;
@@ -702,7 +702,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
               v->set_from(i->src1.value);
               v->Shr(i->src2.value);
-              i->Remove();
+              i->UnlinkAndNOP();
               result = true;
             } else if (i->src2.value->IsConstantZero()) {
               auto src1 = i->src1.value;
@@ -716,7 +716,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->Sha(i->src2.value);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -724,7 +724,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->RotateLeft(i->src2.value);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -732,7 +732,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->ByteSwap();
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -740,7 +740,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant()) {
             v->set_zero(v->type);
             v->CountLeadingZeros(i->src1.value);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -751,7 +751,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
               (i->flags == INT8_TYPE || i->flags == INT16_TYPE)) {
             v->set_from(i->src1.value);
             v->Permute(i->src2.value, i->src3.value, (TypeName)i->flags);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
 
@@ -765,7 +765,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             */
 
             v->set_zero(VEC128_TYPE);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
 
@@ -777,7 +777,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
               i->src3.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->Insert(i->src2.value, i->src3.value, (TypeName)i->flags);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -785,7 +785,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->Swizzle((uint32_t)i->src2.offset, (TypeName)i->flags);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -793,7 +793,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_zero(v->type);
             v->Extract(i->src1.value, i->src2.value);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -801,7 +801,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant()) {
             v->set_zero(v->type);
             v->Splat(i->src1.value);
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -809,7 +809,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->VectorCompareEQ(i->src2.value, hir::TypeName(i->flags));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -817,7 +817,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->VectorCompareSGT(i->src2.value, hir::TypeName(i->flags));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -825,7 +825,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->VectorCompareSGE(i->src2.value, hir::TypeName(i->flags));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -833,7 +833,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->VectorCompareUGT(i->src2.value, hir::TypeName(i->flags));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -841,7 +841,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->VectorCompareUGE(i->src2.value, hir::TypeName(i->flags));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -850,7 +850,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             v->set_zero(VEC128_TYPE);
             v->VectorConvertF2I(i->src1.value,
                                 !!(i->flags & ARITHMETIC_UNSIGNED));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -859,7 +859,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             v->set_zero(VEC128_TYPE);
             v->VectorConvertI2F(i->src1.value,
                                 !!(i->flags & ARITHMETIC_UNSIGNED));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -867,7 +867,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->VectorShl(i->src2.value, hir::TypeName(i->flags));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -875,7 +875,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->VectorShr(i->src2.value, hir::TypeName(i->flags));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -883,7 +883,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->VectorRol(i->src2.value, hir::TypeName(i->flags));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -894,7 +894,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             v->VectorAdd(i->src2.value, hir::TypeName(i->flags & 0xFF),
                          !!(arith_flags & ARITHMETIC_UNSIGNED),
                          !!(arith_flags & ARITHMETIC_SATURATE));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -905,7 +905,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             v->VectorSub(i->src2.value, hir::TypeName(i->flags & 0xFF),
                          !!(arith_flags & ARITHMETIC_UNSIGNED),
                          !!(arith_flags & ARITHMETIC_SATURATE));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -917,7 +917,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
             v->VectorAverage(i->src2.value, hir::TypeName(i->flags & 0xFF),
                              !!(arith_flags & ARITHMETIC_UNSIGNED),
                              !!(arith_flags & ARITHMETIC_SATURATE));
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;
@@ -926,7 +926,7 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           if (i->src1.value->IsConstant()) {
             v->set_from(i->src1.value);
             v->DenormalFlush();
-            i->Remove();
+            i->UnlinkAndNOP();
             result = true;
           }
           break;

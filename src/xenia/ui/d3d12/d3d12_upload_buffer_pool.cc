@@ -81,10 +81,10 @@ D3D12UploadBufferPool::CreatePageImplementation() {
   util::FillBufferResourceDesc(buffer_desc, page_size_,
                                D3D12_RESOURCE_FLAG_NONE);
   Microsoft::WRL::ComPtr<ID3D12Resource> buffer;
-  if (FAILED(provider_.GetDevice()->CreateCommittedResource(
-          &util::kHeapPropertiesUpload, provider_.GetHeapFlagCreateNotZeroed(),
-          &buffer_desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-          IID_PPV_ARGS(&buffer)))) {
+
+  if (!provider_.CreateUploadResource(
+          provider_.GetHeapFlagCreateNotZeroed(), &buffer_desc,
+          D3D12_RESOURCE_STATE_GENERIC_READ, IID_PPV_ARGS(&buffer))) {
     XELOGE("Failed to create a D3D upload buffer with {} bytes", page_size_);
     return nullptr;
   }

@@ -128,6 +128,14 @@ class TextureCache {
     return (binding->texture && binding->texture->IsResolved()) ||
            (binding->texture_signed && binding->texture_signed->IsResolved());
   }
+  template <swcache::PrefetchTag tag>
+  void PrefetchTextureBinding(uint32_t fetch_constant_index) const {
+    swcache::Prefetch<tag>(&texture_bindings_[fetch_constant_index]);
+    swcache::Prefetch<tag>(
+        &texture_bindings_[fetch_constant_index +
+                           1]);  // we may cross a cache line boundary :( size
+                                 // of the structure is 0x28
+  }
 
  protected:
   struct TextureKey {

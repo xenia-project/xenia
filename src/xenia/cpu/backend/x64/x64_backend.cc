@@ -26,24 +26,6 @@
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/stack_walker.h"
 #include "xenia/cpu/xex_module.h"
-DEFINE_int32(x64_extension_mask, -1,
-             "Allow the detection and utilization of specific instruction set "
-             "features.\n"
-             "    0 = x86_64 + AVX1\n"
-             "    1 = AVX2\n"
-             "    2 = FMA\n"
-             "    4 = LZCNT\n"
-             "    8 = BMI1\n"
-             "   16 = BMI2\n"
-             "   32 = F16C\n"
-             "   64 = Movbe\n"
-             "  128 = GFNI\n"
-             "  256 = AVX512F\n"
-             "  512 = AVX512VL\n"
-             " 1024 = AVX512BW\n"
-             " 2048 = AVX512DQ\n"
-             "   -1 = Detect and utilize all possible processor features\n",
-             "x64");
 
 DEFINE_bool(record_mmio_access_exceptions, true,
             "For guest addresses records whether we caught any mmio accesses "

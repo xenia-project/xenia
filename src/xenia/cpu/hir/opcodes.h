@@ -292,7 +292,7 @@ enum Opcode {
                      // as we already have OPCODE_ROUND. round double to float (
                      // ppc "single" fpu instruction result rounding behavior )
   OPCODE_SET_NJM,
-
+	OPCODE_DELAY_EXECUTION, //for db16cyc
   __OPCODE_MAX_VALUE,  // Keep at end.
 };
 

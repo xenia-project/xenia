@@ -218,7 +218,7 @@ DEFINE_OPCODE(
     "context_barrier",
     OPCODE_SIG_X,
     0)
-
+DEFINE_OPCODE(OPCODE_DELAY_EXECUTION, "delay_execution", OPCODE_SIG_X, 0)
 DEFINE_OPCODE(
     OPCODE_LOAD_MMIO,
     "load_mmio",

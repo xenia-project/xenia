@@ -103,7 +103,9 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
         "FAQ for system requirements at https://xenia.jp");
     return;
   }
-
+#if 1
+  feature_flags_ = amd64::GetFeatureFlags();
+#else
 #define TEST_EMIT_FEATURE(emit, ext)                \
   if ((cvars::x64_extension_mask & emit) == emit) { \
     feature_flags_ |= (cpu_.has(ext) ? emit : 0);   \
@@ -168,6 +170,7 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
       feature_flags_ |= kX64FlagsIndependentVars;
     }
   }
+#endif
   may_use_membase32_as_zero_reg_ =
       static_cast<uint32_t>(reinterpret_cast<uintptr_t>(
           processor()->memory()->virtual_membase())) == 0;
@@ -913,6 +916,8 @@ static inline vec128_t v128_setr_bytes(unsigned char v0, unsigned char v1,
 
 static const vec128_t xmm_consts[] = {
     /* XMMZero                */ vec128f(0.0f),
+    /* XMMByteSwapMask        */
+    vec128i(0x00010203u, 0x04050607u, 0x08090A0Bu, 0x0C0D0E0Fu),
     /* XMMOne                 */ vec128f(1.0f),
     /* XMMOnePD               */ vec128d(1.0),
     /* XMMNegativeOne         */ vec128f(-1.0f, -1.0f, -1.0f, -1.0f),
@@ -937,8 +942,7 @@ static const vec128_t xmm_consts[] = {
     vec128i(0x7FFFFFFFu, 0x7FFFFFFFu, 0x7FFFFFFFu, 0x7FFFFFFFu),
     /* XMMAbsMaskPD           */
     vec128i(0xFFFFFFFFu, 0x7FFFFFFFu, 0xFFFFFFFFu, 0x7FFFFFFFu),
-    /* XMMByteSwapMask        */
-    vec128i(0x00010203u, 0x04050607u, 0x08090A0Bu, 0x0C0D0E0Fu),
+
     /* XMMByteOrderMask       */
     vec128i(0x01000302u, 0x05040706u, 0x09080B0Au, 0x0D0C0F0Eu),
     /* XMMPermuteControl15    */ vec128b(15),

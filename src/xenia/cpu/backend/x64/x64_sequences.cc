@@ -3234,7 +3234,17 @@ struct SET_ROUNDING_MODE_I32
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_SET_ROUNDING_MODE, SET_ROUNDING_MODE_I32);
-
+// ============================================================================
+// OPCODE_DELAY_EXECUTION
+// ============================================================================
+struct DELAY_EXECUTION
+    : Sequence<DELAY_EXECUTION, I<OPCODE_DELAY_EXECUTION, VoidOp>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    // todo: what if they dont have smt?
+    e.pause();
+  }
+};
+EMITTER_OPCODE_TABLE(OPCODE_DELAY_EXECUTION, DELAY_EXECUTION);
 // Include anchors to other sequence sources so they get included in the build.
 extern volatile int anchor_control;
 static int anchor_control_dest = anchor_control;

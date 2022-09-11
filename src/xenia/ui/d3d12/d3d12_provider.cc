@@ -17,7 +17,7 @@
 #include "xenia/base/math.h"
 #include "xenia/ui/d3d12/d3d12_immediate_drawer.h"
 #include "xenia/ui/d3d12/d3d12_presenter.h"
-
+#include "xenia/ui/d3d12/d3d12_util.h"
 DEFINE_bool(d3d12_debug, false, "Enable Direct3D 12 and DXGI debug layer.",
             "D3D12");
 DEFINE_bool(d3d12_break_on_error, false,
@@ -35,6 +35,8 @@ DEFINE_int32(
     "system responsibility)",
     "D3D12");
 
+DEFINE_bool(d3d12_nvapi_use_driver_heap_priorities, false, "nvidia stuff",
+            "D3D12");
 namespace xe {
 namespace ui {
 namespace d3d12 {
@@ -61,6 +63,7 @@ std::unique_ptr<D3D12Provider> D3D12Provider::Create() {
         "supported GPUs.");
     return nullptr;
   }
+
   return provider;
 }
 
@@ -476,10 +479,69 @@ bool D3D12Provider::Initialize() {
   // Get the graphics analysis interface, will silently fail if PIX is not
   // attached.
   pfn_dxgi_get_debug_interface1_(0, IID_PPV_ARGS(&graphics_analysis_));
+  if (GetAdapterVendorID() == ui::GraphicsProvider::GpuVendorID::kNvidia) {
+    nvapi_ = new lightweight_nvapi::nvapi_state_t();
+    if (!nvapi_->is_available()) {
+      delete nvapi_;
+      nvapi_ = nullptr;
+    } else {
+      using namespace lightweight_nvapi;
 
+      nvapi_createcommittedresource_ =
+          (cb_NvAPI_D3D12_CreateCommittedResource)nvapi_->query_interface<void>(
+              id_NvAPI_D3D12_CreateCommittedResource);
+      nvapi_querycpuvisiblevidmem_ =
+          (cb_NvAPI_D3D12_QueryCpuVisibleVidmem)nvapi_->query_interface<void>(
+              id_NvAPI_D3D12_QueryCpuVisibleVidmem);
+      nvapi_usedriverheappriorities_ =
+          (cb_NvAPI_D3D12_UseDriverHeapPriorities)nvapi_->query_interface<void>(
+              id_NvAPI_D3D12_UseDriverHeapPriorities);
+
+      if (nvapi_usedriverheappriorities_) {
+        if (cvars::d3d12_nvapi_use_driver_heap_priorities) {
+          if (nvapi_usedriverheappriorities_(device_) != 0) {
+            XELOGI("Failed to enable driver heap priorities");
+          }
+        }
+      }
+    }
+  }
   return true;
 }
+uint32_t D3D12Provider::CreateUploadResource(
+    D3D12_HEAP_FLAGS HeapFlags, _In_ const D3D12_RESOURCE_DESC* pDesc,
+    D3D12_RESOURCE_STATES InitialResourceState, REFIID riidResource,
+    void** ppvResource, bool try_create_cpuvisible,
+    const D3D12_CLEAR_VALUE* pOptimizedClearValue) const {
+  auto device = GetDevice();
 
+  if (try_create_cpuvisible && nvapi_createcommittedresource_) {
+    lightweight_nvapi::NV_RESOURCE_PARAMS nvrp;
+    nvrp.NVResourceFlags =
+        lightweight_nvapi::NV_D3D12_RESOURCE_FLAG_CPUVISIBLE_VIDMEM;
+    nvrp.version = 0;  // nothing checks the version
+
+    if (nvapi_createcommittedresource_(
+            device, &ui::d3d12::util::kHeapPropertiesUpload, HeapFlags, pDesc,
+            InitialResourceState, pOptimizedClearValue, &nvrp, riidResource,
+            ppvResource, nullptr) != 0) {
+      XELOGI(
+          "Failed to create CPUVISIBLE_VIDMEM upload resource, will just do "
+          "normal CreateCommittedResource");
+    } else {
+      return UPLOAD_RESULT_CREATE_CPUVISIBLE;
+    }
+  }
+  if (FAILED(device->CreateCommittedResource(
+          &ui::d3d12::util::kHeapPropertiesUpload, HeapFlags, pDesc,
+          InitialResourceState, pOptimizedClearValue, riidResource,
+          ppvResource))) {
+    XELOGE("Failed to create the gamma ramp upload buffer");
+    return UPLOAD_RESULT_CREATE_FAILED;
+  }
+
+  return UPLOAD_RESULT_CREATE_SUCCESS;
+}
 std::unique_ptr<Presenter> D3D12Provider::CreatePresenter(
     Presenter::HostGpuLossCallback host_gpu_loss_callback) {
   return D3D12Presenter::Create(host_gpu_loss_callback, *this);

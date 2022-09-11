@@ -34,7 +34,7 @@ namespace xe {
 namespace cpu {
 namespace backend {
 namespace x64 {
-
+using namespace amd64;
 class X64Backend;
 class X64CodeCache;
 
@@ -81,6 +81,7 @@ static SimdDomain PickDomain2(SimdDomain dom1, SimdDomain dom2) {
 }
 enum XmmConst {
   XMMZero = 0,
+  XMMByteSwapMask,
   XMMOne,
   XMMOnePD,
   XMMNegativeOne,
@@ -97,7 +98,7 @@ enum XmmConst {
   XMMSignMaskPD,
   XMMAbsMaskPS,
   XMMAbsMaskPD,
-  XMMByteSwapMask,
+
   XMMByteOrderMask,
   XMMPermuteControl15,
   XMMPermuteByteMask,
@@ -189,42 +190,6 @@ class XbyakAllocator : public Xbyak::Allocator {
   virtual bool useProtect() const { return false; }
 };
 
-enum X64EmitterFeatureFlags {
-  kX64EmitAVX2 = 1 << 0,
-  kX64EmitFMA = 1 << 1,
-  kX64EmitLZCNT = 1 << 2,  // this is actually ABM and includes popcount
-  kX64EmitBMI1 = 1 << 3,
-  kX64EmitBMI2 = 1 << 4,
-  kX64EmitPrefetchW = 1 << 5,
-  kX64EmitMovbe = 1 << 6,
-  kX64EmitGFNI = 1 << 7,
-
-  kX64EmitAVX512F = 1 << 8,
-  kX64EmitAVX512VL = 1 << 9,
-
-  kX64EmitAVX512BW = 1 << 10,
-  kX64EmitAVX512DQ = 1 << 11,
-
-  kX64EmitAVX512Ortho = kX64EmitAVX512F | kX64EmitAVX512VL,
-  kX64EmitAVX512Ortho64 = kX64EmitAVX512Ortho | kX64EmitAVX512DQ,
-  kX64FastJrcx = 1 << 12,  // jrcxz is as fast as any other jump ( >= Zen1)
-  kX64FastLoop =
-      1 << 13,  // loop/loope/loopne is as fast as any other jump ( >= Zen2)
-  kX64EmitAVX512VBMI = 1 << 14,
-  kX64FlagsIndependentVars =
-      1 << 15,  // if true, instructions that only modify some flags (like
-                // inc/dec) do not introduce false dependencies on EFLAGS
-                // because the individual flags are treated as different vars by
-                // the processor. (this applies to zen)
-  kX64EmitXOP = 1 << 16,   // chrispy: xop maps really well to many vmx
-                           // instructions, and FX users need the boost
-  kX64EmitFMA4 = 1 << 17,  // todo: also use on zen1?
-  kX64EmitTBM = 1 << 18,
-  // kX64XMMRegisterMergeOptimization = 1 << 19, //section 2.11.5, amd family
-  // 17h/19h optimization manuals. allows us to save 1 byte on certain xmm
-  // instructions by using the legacy sse version if we recently cleared the
-  // high 128 bits of the
-};
 class ResolvableGuestCall {
  public:
   bool is_jump_;

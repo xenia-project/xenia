@@ -96,10 +96,25 @@ PPCTranslator::PPCTranslator(PPCFrontend* frontend) : frontend_(frontend) {
 
 PPCTranslator::~PPCTranslator() = default;
 
+class HirBuilderScope {
+  PPCHIRBuilder* builder_;
+
+ public:
+  HirBuilderScope(PPCHIRBuilder* builder) : builder_(builder) {
+    builder_->MakeCurrent();
+  }
+
+  ~HirBuilderScope() {
+    if (builder_) {
+      builder_->RemoveCurrent();
+	}
+  }
+};
+
 bool PPCTranslator::Translate(GuestFunction* function,
                               uint32_t debug_info_flags) {
   SCOPE_profile_cpu_f("cpu");
-
+  HirBuilderScope hir_build_scope{builder_.get()};
   // Reset() all caching when we leave.
   xe::make_reset_scope(builder_);
   xe::make_reset_scope(compiler_);
@@ -196,7 +211,7 @@ bool PPCTranslator::Translate(GuestFunction* function,
 
   return true;
 }
-
+void PPCTranslator::Reset() { builder_->ResetPools(); }
 void PPCTranslator::DumpSource(GuestFunction* function,
                                StringBuffer* string_buffer) {
   Memory* memory = frontend_->memory();

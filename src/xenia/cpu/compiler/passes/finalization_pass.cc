@@ -61,7 +61,7 @@ bool FinalizationPass::Run(HIRBuilder* builder) {
       auto target = tail->src1.label;
       if (target->block == block->next) {
         // Jumping to subsequent block. Remove.
-        tail->Remove();
+        tail->UnlinkAndNOP();
       }
     }
 
