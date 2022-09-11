@@ -56,6 +56,8 @@ void aes_decrypt_buffer(const uint8_t* session_key, const uint8_t* input_buffer,
   }
 }
 
+DEFINE_bool(xex_apply_patches_allow_invalid_signature, false, "Apply XEX patches with invalid signature.", "Kernel");
+
 namespace xe {
 namespace cpu {
 
@@ -216,34 +218,37 @@ int XexModule::ApplyPatch(XexModule* module) {
   s.finalize(digest);
 
   if (memcmp(digest, patch_header->digest_source, 0x14) != 0) {
-    XELOGW(
+    XELOGE(
         "XEX patch signature hash doesn't match base XEX signature hash, patch "
         "will likely fail!");
+    if (!cvars::xex_apply_patches_allow_invalid_signature) {
+      return 2;
+    }
   }
 
   uint32_t size = module->xex_header()->header_size;
   if (patch_header->delta_headers_source_offset > size) {
     XELOGE("XEX header patch source is outside base XEX header area");
-    return 2;
+    return 3;
   }
 
   uint32_t header_size_available =
       size - patch_header->delta_headers_source_offset;
   if (patch_header->delta_headers_source_size > header_size_available) {
     XELOGE("XEX header patch source is too large");
-    return 3;
+    return 4;
   }
 
   if (patch_header->delta_headers_target_offset >
       patch_header->size_of_target_headers) {
     XELOGE("XEX header patch target is outside base XEX header area");
-    return 4;
+    return 5;
   }
 
   uint32_t delta_target_size = patch_header->size_of_target_headers -
                                patch_header->delta_headers_target_offset;
   if (patch_header->delta_headers_source_size > delta_target_size) {
-    return 5;  // ? unsure what the point of this test is, kernel checks for it
+    return 6;  // ? unsure what the point of this test is, kernel checks for it
                // though
   }
 
