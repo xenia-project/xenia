@@ -473,8 +473,9 @@ class Memory {
   void SystemHeapFree(uint32_t address);
 
   // Gets the heap for the address space containing the given address.
+  XE_NOALIAS
   const BaseHeap* LookupHeap(uint32_t address) const;
-
+  XE_NOALIAS
   inline BaseHeap* LookupHeap(uint32_t address) {
     return const_cast<BaseHeap*>(
         const_cast<const Memory*>(this)->LookupHeap(address));

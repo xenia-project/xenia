@@ -400,10 +400,91 @@ static float ArchReciprocal(float den) {
   return _mm_cvtss_f32(_mm_rcp_ss(_mm_set_ss(den)));
 }
 
+#if 0
+using ArchFloatMask = float;
+
+XE_FORCEINLINE
+static ArchFloatMask ArchCmpneqFloatMask(float x, float y) {
+  return _mm_cvtss_f32(_mm_cmpneq_ss(_mm_set_ss(x), _mm_set_ss(y)));
+}
+XE_FORCEINLINE
+static ArchFloatMask ArchORFloatMask(ArchFloatMask x, ArchFloatMask y) {
+  return _mm_cvtss_f32(_mm_or_ps(_mm_set_ss(x), _mm_set_ss(y)));
+}
+XE_FORCEINLINE
+static ArchFloatMask ArchXORFloatMask(ArchFloatMask x, ArchFloatMask y) {
+  return _mm_cvtss_f32(_mm_xor_ps(_mm_set_ss(x), _mm_set_ss(y)));
+}
+
+XE_FORCEINLINE
+static ArchFloatMask ArchANDFloatMask(ArchFloatMask x, ArchFloatMask y) {
+  return _mm_cvtss_f32(_mm_and_ps(_mm_set_ss(x), _mm_set_ss(y)));
+}
+
+XE_FORCEINLINE
+static uint32_t ArchFloatMaskSignbit(ArchFloatMask x) {
+  return static_cast<uint32_t>(_mm_movemask_ps(_mm_set_ss(x)));
+}
+
+constexpr ArchFloatMask floatmask_zero = .0f;
+#else
+using ArchFloatMask = __m128;
+
+XE_FORCEINLINE
+static ArchFloatMask ArchCmpneqFloatMask(float x, float y) {
+  return _mm_cmpneq_ss(_mm_set_ss(x), _mm_set_ss(y));
+}
+XE_FORCEINLINE
+static ArchFloatMask ArchORFloatMask(ArchFloatMask x, ArchFloatMask y) {
+  return _mm_or_ps(x, y);
+}
+XE_FORCEINLINE
+static ArchFloatMask ArchXORFloatMask(ArchFloatMask x, ArchFloatMask y) {
+  return _mm_xor_ps(x, y);
+}
+
+XE_FORCEINLINE
+static ArchFloatMask ArchANDFloatMask(ArchFloatMask x, ArchFloatMask y) {
+  return _mm_and_ps(x, y);
+}
+
+XE_FORCEINLINE
+static uint32_t ArchFloatMaskSignbit(ArchFloatMask x) {
+  return static_cast<uint32_t>(_mm_movemask_ps(x) &1);
+}
+
+constexpr ArchFloatMask floatmask_zero{.0f};
+#endif
 #else
 static float ArchMin(float x, float y) { return std::min<float>(x, y); }
 static float ArchMax(float x, float y) { return std::max<float>(x, y); }
 static float ArchReciprocal(float den) { return 1.0f / den; }
+using ArchFloatMask = unsigned;
+
+XE_FORCEINLINE
+static ArchFloatMask ArchCmpneqFloatMask(float x, float y) {
+  return static_cast<unsigned>(-static_cast<signed>(x != y));
+}
+
+XE_FORCEINLINE
+static ArchFloatMask ArchORFloatMask(ArchFloatMask x, ArchFloatMask y) {
+  return x | y;
+}
+XE_FORCEINLINE
+static ArchFloatMask ArchXORFloatMask(ArchFloatMask x, ArchFloatMask y) {
+  return x ^ y;
+}
+
+XE_FORCEINLINE
+static ArchFloatMask ArchANDFloatMask(ArchFloatMask x, ArchFloatMask y) {
+  return x & y;
+}
+constexpr ArchFloatMask floatmask_zero = 0;
+
+
+XE_FORCEINLINE
+static uint32_t ArchFloatMaskSignbit(ArchFloatMask x) { return x >> 31; }
+
 #endif
 XE_FORCEINLINE
 static float RefineReciprocal(float initial, float den) {

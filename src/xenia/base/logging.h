@@ -74,11 +74,15 @@ namespace internal {
 
 bool ShouldLog(LogLevel log_level);
 std::pair<char*, size_t> GetThreadBuffer();
-
+XE_NOALIAS
 void AppendLogLine(LogLevel log_level, const char prefix_char, size_t written);
 
 }  // namespace internal
+//technically, noalias is incorrect here, these functions do in fact alias global memory,
+//but msvc will not optimize the calls away, and the global memory modified by the calls is limited to internal logging variables,
+//so it might as well be noalias
 template <typename... Args>
+XE_NOALIAS
 XE_NOINLINE XE_COLD static void AppendLogLineFormat_Impl(LogLevel log_level,
                                                          const char prefix_char,
                                                          const char* format,

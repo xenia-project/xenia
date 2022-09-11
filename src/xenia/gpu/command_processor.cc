@@ -36,7 +36,8 @@ using namespace xe::gpu::xenos;
 
 CommandProcessor::CommandProcessor(GraphicsSystem* graphics_system,
                                    kernel::KernelState* kernel_state)
-    : memory_(graphics_system->memory()),
+    : reader_(nullptr, 0),
+      memory_(graphics_system->memory()),
       kernel_state_(kernel_state),
       graphics_system_(graphics_system),
       register_file_(graphics_system_->register_file()),
@@ -45,6 +46,11 @@ CommandProcessor::CommandProcessor(GraphicsSystem* graphics_system,
       write_ptr_index_event_(xe::threading::Event::CreateAutoResetEvent(false)),
       write_ptr_index_(0) {
   assert_not_null(write_ptr_index_event_);
+#if 0
+  dmac_ = dma::CreateDMAC();
+#else
+  dmac_ = nullptr;
+#endif
 }
 
 CommandProcessor::~CommandProcessor() = default;
@@ -217,12 +223,12 @@ void CommandProcessor::WorkerThreadMain() {
       do {
         // If we spin around too much, revert to a "low-power" state.
         if (loop_count > 500) {
-          const int wait_time_ms = 5;
+          const int wait_time_ms = 2;
           xe::threading::Wait(write_ptr_index_event_.get(), true,
                               std::chrono::milliseconds(wait_time_ms));
+        } else {
+          xe::threading::MaybeYield();
         }
-
-        xe::threading::MaybeYield();
         loop_count++;
         write_ptr_index = write_ptr_index_.load();
       } while (worker_running_ && pending_fns_.empty() &&
@@ -509,11 +515,78 @@ void CommandProcessor::WriteRegisterRangeFromRing(xe::RingBuffer* ring,
   }
 }
 
-void CommandProcessor::WriteOneRegisterFromRing(xe::RingBuffer* ring,
-                                                uint32_t base,
+void CommandProcessor::WriteALURangeFromRing(xe::RingBuffer* ring,
+                                             uint32_t base,
+                                             uint32_t num_times) {
+  WriteRegisterRangeFromRing(ring, base + 0x4000, num_times);
+}
+
+void CommandProcessor::WriteFetchRangeFromRing(xe::RingBuffer* ring,
+                                               uint32_t base,
+                                               uint32_t num_times) {
+  WriteRegisterRangeFromRing(ring, base + 0x4800, num_times);
+}
+
+XE_FORCEINLINE
+void CommandProcessor::WriteBoolRangeFromRing(xe::RingBuffer* ring,
+                                              uint32_t base,
+                                              uint32_t num_times) {
+  WriteRegisterRangeFromRing(ring, base + 0x4900, num_times);
+}
+
+XE_FORCEINLINE
+void CommandProcessor::WriteLoopRangeFromRing(xe::RingBuffer* ring,
+                                              uint32_t base,
+                                              uint32_t num_times) {
+  WriteRegisterRangeFromRing(ring, base + 0x4908, num_times);
+}
+
+XE_FORCEINLINE
+void CommandProcessor::WriteREGISTERSRangeFromRing(xe::RingBuffer* ring,
+                                                   uint32_t base,
+                                                   uint32_t num_times) {
+  WriteRegisterRangeFromRing(ring, base + 0x2000, num_times);
+}
+
+XE_FORCEINLINE
+void CommandProcessor::WriteALURangeFromMem(uint32_t start_index,
+                                            uint32_t* base,
+                                            uint32_t num_registers) {
+  WriteRegistersFromMem(start_index + 0x4000, base, num_registers);
+}
+
+XE_FORCEINLINE
+void CommandProcessor::WriteFetchRangeFromMem(uint32_t start_index,
+                                              uint32_t* base,
+                                              uint32_t num_registers) {
+  WriteRegistersFromMem(start_index + 0x4800, base, num_registers);
+}
+
+XE_FORCEINLINE
+void CommandProcessor::WriteBoolRangeFromMem(uint32_t start_index,
+                                             uint32_t* base,
+                                             uint32_t num_registers) {
+  WriteRegistersFromMem(start_index + 0x4900, base, num_registers);
+}
+
+XE_FORCEINLINE
+void CommandProcessor::WriteLoopRangeFromMem(uint32_t start_index,
+                                             uint32_t* base,
+                                             uint32_t num_registers) {
+  WriteRegistersFromMem(start_index + 0x4908, base, num_registers);
+}
+
+XE_FORCEINLINE
+void CommandProcessor::WriteREGISTERSRangeFromMem(uint32_t start_index,
+                                                  uint32_t* base,
+                                                  uint32_t num_registers) {
+  WriteRegistersFromMem(start_index + 0x2000, base, num_registers);
+}
+XE_NOINLINE
+void CommandProcessor::WriteOneRegisterFromRing(uint32_t base,
                                                 uint32_t num_times) {
   for (uint32_t m = 0; m < num_times; m++) {
-    uint32_t reg_data = ring->ReadAndSwap<uint32_t>();
+    uint32_t reg_data = reader_.ReadAndSwap<uint32_t>();
     uint32_t target_index = base;
     WriteRegister(target_index, reg_data);
   }
@@ -585,1104 +658,47 @@ uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index,
   trace_writer_.WritePrimaryBufferStart(start_ptr, write_index - read_index);
 
   // Execute commands!
-  RingBuffer reader(memory_->TranslatePhysical(primary_buffer_ptr_),
-                    primary_buffer_size_);
-  reader.set_read_offset(read_index * sizeof(uint32_t));
-  reader.set_write_offset(write_index * sizeof(uint32_t));
+
+  RingBuffer old_reader = reader_;
+  new (&reader_) RingBuffer(memory_->TranslatePhysical(primary_buffer_ptr_),
+                            primary_buffer_size_);
+
+  reader_.set_read_offset(read_index * sizeof(uint32_t));
+  reader_.set_write_offset(write_index * sizeof(uint32_t));
   do {
-    if (!ExecutePacket(&reader)) {
+    if (!ExecutePacket()) {
       // This probably should be fatal - but we're going to continue anyways.
       XELOGE("**** PRIMARY RINGBUFFER: Failed to execute packet.");
       assert_always();
       break;
     }
-  } while (reader.read_count());
+  } while (reader_.read_count());
 
   OnPrimaryBufferEnd();
 
   trace_writer_.WritePrimaryBufferEnd();
 
+  reader_ = old_reader;
   return write_index;
-}
-
-void CommandProcessor::ExecuteIndirectBuffer(uint32_t ptr, uint32_t count) {
-  SCOPE_profile_cpu_f("gpu");
-
-  trace_writer_.WriteIndirectBufferStart(ptr, count * sizeof(uint32_t));
-
-  // Execute commands!
-  RingBuffer reader(memory_->TranslatePhysical(ptr), count * sizeof(uint32_t));
-  reader.set_write_offset(count * sizeof(uint32_t));
-  do {
-    if (!ExecutePacket(&reader)) {
-      // Return up a level if we encounter a bad packet.
-      XELOGE("**** INDIRECT RINGBUFFER: Failed to execute packet.");
-      assert_always();
-      // break;
-    }
-  } while (reader.read_count());
-
-  trace_writer_.WriteIndirectBufferEnd();
 }
 
 void CommandProcessor::ExecutePacket(uint32_t ptr, uint32_t count) {
   // Execute commands!
-  RingBuffer reader(memory_->TranslatePhysical(ptr), count * sizeof(uint32_t));
-  reader.set_write_offset(count * sizeof(uint32_t));
+  RingBuffer old_reader = reader_;
+
+  new (&reader_)
+      RingBuffer{memory_->TranslatePhysical(ptr), count * sizeof(uint32_t)};
+
+  reader_.set_write_offset(count * sizeof(uint32_t));
+
   do {
-    if (!ExecutePacket(&reader)) {
+    if (!ExecutePacket()) {
       XELOGE("**** ExecutePacket: Failed to execute packet.");
       assert_always();
       break;
     }
-  } while (reader.read_count());
-}
-
-bool CommandProcessor::ExecutePacket(RingBuffer* reader) {
-  // prefetch the wraparound range
-  // it likely is already in L3 cache, but in a zen system it may be another
-  // chiplets l3
-  reader->BeginPrefetchedRead<swcache::PrefetchTag::Level2>(
-      reader->read_count());
-  const uint32_t packet = reader->ReadAndSwap<uint32_t>();
-  const uint32_t packet_type = packet >> 30;
-  if (XE_UNLIKELY(packet == 0 || packet == 0x0BADF00D)) {
-    trace_writer_.WritePacketStart(uint32_t(reader->read_ptr() - 4), 1);
-    trace_writer_.WritePacketEnd();
-    return true;
-  }
-
-  if (XE_LIKELY(packet != 0xCDCDCDCD)) {
-  actually_execute_packet:
-    switch (packet_type) {
-      case 0x00:
-        return ExecutePacketType0(reader, packet);
-      case 0x01:
-        return ExecutePacketType1(reader, packet);
-      case 0x02:
-        return ExecutePacketType2(reader, packet);
-      case 0x03:
-        return ExecutePacketType3(reader, packet);
-      default:
-        assert_unhandled_case(packet_type);
-        return false;
-    }
-  } else {
-    XELOGW("GPU packet is CDCDCDCD - probably read uninitialized memory!");
-    goto actually_execute_packet;
-  }
-}
-
-bool CommandProcessor::ExecutePacketType0(RingBuffer* reader, uint32_t packet) {
-  // Type-0 packet.
-  // Write count registers in sequence to the registers starting at
-  // (base_index << 2).
-
-  uint32_t count = ((packet >> 16) & 0x3FFF) + 1;
-  if (reader->read_count() < count * sizeof(uint32_t)) {
-    XELOGE(
-        "ExecutePacketType0 overflow (read count {:08X}, packet count {:08X})",
-        reader->read_count(), count * sizeof(uint32_t));
-    return false;
-  }
-
-  trace_writer_.WritePacketStart(uint32_t(reader->read_ptr() - 4), 1 + count);
-
-  uint32_t base_index = (packet & 0x7FFF);
-  uint32_t write_one_reg = (packet >> 15) & 0x1;
-
-  if (!write_one_reg) {
-    if (count == 1) {
-      WriteRegister(base_index, reader->ReadAndSwap<uint32_t>());
-    } else {
-      WriteRegisterRangeFromRing(reader, base_index, count);
-    }
-  } else {
-    WriteOneRegisterFromRing(reader, base_index, count);
-  }
-
-  trace_writer_.WritePacketEnd();
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType1(RingBuffer* reader, uint32_t packet) {
-  // Type-1 packet.
-  // Contains two registers of data. Type-0 should be more common.
-  trace_writer_.WritePacketStart(uint32_t(reader->read_ptr() - 4), 3);
-  uint32_t reg_index_1 = packet & 0x7FF;
-  uint32_t reg_index_2 = (packet >> 11) & 0x7FF;
-  uint32_t reg_data_1 = reader->ReadAndSwap<uint32_t>();
-  uint32_t reg_data_2 = reader->ReadAndSwap<uint32_t>();
-  WriteRegister(reg_index_1, reg_data_1);
-  WriteRegister(reg_index_2, reg_data_2);
-  trace_writer_.WritePacketEnd();
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType2(RingBuffer* reader, uint32_t packet) {
-  // Type-2 packet.
-  // No-op. Do nothing.
-  trace_writer_.WritePacketStart(uint32_t(reader->read_ptr() - 4), 1);
-  trace_writer_.WritePacketEnd();
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3(RingBuffer* reader, uint32_t packet) {
-  // Type-3 packet.
-  uint32_t opcode = (packet >> 8) & 0x7F;
-  uint32_t count = ((packet >> 16) & 0x3FFF) + 1;
-  auto data_start_offset = reader->read_offset();
-
-  XE_UNLIKELY_IF(reader->read_count() < count * sizeof(uint32_t)) {
-    XELOGE(
-        "ExecutePacketType3 overflow (read count {:08X}, packet count {:08X})",
-        reader->read_count(), count * sizeof(uint32_t));
-    return false;
-  }
-
-  // To handle nesting behavior when tracing we special case indirect buffers.
-  if (opcode == PM4_INDIRECT_BUFFER) {
-    trace_writer_.WritePacketStart(uint32_t(reader->read_ptr() - 4), 2);
-  } else {
-    trace_writer_.WritePacketStart(uint32_t(reader->read_ptr() - 4), 1 + count);
-  }
-
-  // & 1 == predicate - when set, we do bin check to see if we should execute
-  // the packet. Only type 3 packets are affected.
-  // We also skip predicated swaps, as they are never valid (probably?).
-  if (packet & 1) {
-    bool any_pass = (bin_select_ & bin_mask_) != 0;
-    if (!any_pass || opcode == PM4_XE_SWAP) {
-      reader->AdvanceRead(count * sizeof(uint32_t));
-      trace_writer_.WritePacketEnd();
-      return true;
-    }
-  }
-
-  bool result = false;
-  switch (opcode) {
-    case PM4_ME_INIT:
-      result = ExecutePacketType3_ME_INIT(reader, packet, count);
-      break;
-    case PM4_NOP:
-      result = ExecutePacketType3_NOP(reader, packet, count);
-      break;
-    case PM4_INTERRUPT:
-      result = ExecutePacketType3_INTERRUPT(reader, packet, count);
-      break;
-    case PM4_XE_SWAP:
-      result = ExecutePacketType3_XE_SWAP(reader, packet, count);
-      break;
-    case PM4_INDIRECT_BUFFER:
-    case PM4_INDIRECT_BUFFER_PFD:
-      result = ExecutePacketType3_INDIRECT_BUFFER(reader, packet, count);
-      break;
-    case PM4_WAIT_REG_MEM:
-      result = ExecutePacketType3_WAIT_REG_MEM(reader, packet, count);
-      break;
-    case PM4_REG_RMW:
-      result = ExecutePacketType3_REG_RMW(reader, packet, count);
-      break;
-    case PM4_REG_TO_MEM:
-      result = ExecutePacketType3_REG_TO_MEM(reader, packet, count);
-      break;
-    case PM4_MEM_WRITE:
-      result = ExecutePacketType3_MEM_WRITE(reader, packet, count);
-      break;
-    case PM4_COND_WRITE:
-      result = ExecutePacketType3_COND_WRITE(reader, packet, count);
-      break;
-    case PM4_EVENT_WRITE:
-      result = ExecutePacketType3_EVENT_WRITE(reader, packet, count);
-      break;
-    case PM4_EVENT_WRITE_SHD:
-      result = ExecutePacketType3_EVENT_WRITE_SHD(reader, packet, count);
-      break;
-    case PM4_EVENT_WRITE_EXT:
-      result = ExecutePacketType3_EVENT_WRITE_EXT(reader, packet, count);
-      break;
-    case PM4_EVENT_WRITE_ZPD:
-      result = ExecutePacketType3_EVENT_WRITE_ZPD(reader, packet, count);
-      break;
-    case PM4_DRAW_INDX:
-      result = ExecutePacketType3_DRAW_INDX(reader, packet, count);
-      break;
-    case PM4_DRAW_INDX_2:
-      result = ExecutePacketType3_DRAW_INDX_2(reader, packet, count);
-      break;
-    case PM4_SET_CONSTANT:
-      result = ExecutePacketType3_SET_CONSTANT(reader, packet, count);
-      break;
-    case PM4_SET_CONSTANT2:
-      result = ExecutePacketType3_SET_CONSTANT2(reader, packet, count);
-      break;
-    case PM4_LOAD_ALU_CONSTANT:
-      result = ExecutePacketType3_LOAD_ALU_CONSTANT(reader, packet, count);
-      break;
-    case PM4_SET_SHADER_CONSTANTS:
-      result = ExecutePacketType3_SET_SHADER_CONSTANTS(reader, packet, count);
-      break;
-    case PM4_IM_LOAD:
-      result = ExecutePacketType3_IM_LOAD(reader, packet, count);
-      break;
-    case PM4_IM_LOAD_IMMEDIATE:
-      result = ExecutePacketType3_IM_LOAD_IMMEDIATE(reader, packet, count);
-      break;
-    case PM4_INVALIDATE_STATE:
-      result = ExecutePacketType3_INVALIDATE_STATE(reader, packet, count);
-      break;
-    case PM4_VIZ_QUERY:
-      result = ExecutePacketType3_VIZ_QUERY(reader, packet, count);
-      break;
-
-    case PM4_SET_BIN_MASK_LO: {
-      uint32_t value = reader->ReadAndSwap<uint32_t>();
-      bin_mask_ = (bin_mask_ & 0xFFFFFFFF00000000ull) | value;
-      result = true;
-    } break;
-    case PM4_SET_BIN_MASK_HI: {
-      uint32_t value = reader->ReadAndSwap<uint32_t>();
-      bin_mask_ =
-          (bin_mask_ & 0xFFFFFFFFull) | (static_cast<uint64_t>(value) << 32);
-      result = true;
-    } break;
-    case PM4_SET_BIN_SELECT_LO: {
-      uint32_t value = reader->ReadAndSwap<uint32_t>();
-      bin_select_ = (bin_select_ & 0xFFFFFFFF00000000ull) | value;
-      result = true;
-    } break;
-    case PM4_SET_BIN_SELECT_HI: {
-      uint32_t value = reader->ReadAndSwap<uint32_t>();
-      bin_select_ =
-          (bin_select_ & 0xFFFFFFFFull) | (static_cast<uint64_t>(value) << 32);
-      result = true;
-    } break;
-    case PM4_SET_BIN_MASK: {
-      assert_true(count == 2);
-      uint64_t val_hi = reader->ReadAndSwap<uint32_t>();
-      uint64_t val_lo = reader->ReadAndSwap<uint32_t>();
-      bin_mask_ = (val_hi << 32) | val_lo;
-      result = true;
-    } break;
-    case PM4_SET_BIN_SELECT: {
-      assert_true(count == 2);
-      uint64_t val_hi = reader->ReadAndSwap<uint32_t>();
-      uint64_t val_lo = reader->ReadAndSwap<uint32_t>();
-      bin_select_ = (val_hi << 32) | val_lo;
-      result = true;
-    } break;
-    case PM4_CONTEXT_UPDATE: {
-      assert_true(count == 1);
-      uint32_t value = reader->ReadAndSwap<uint32_t>();
-      XELOGGPU("GPU context update = {:08X}", value);
-      assert_true(value == 0);
-      result = true;
-      break;
-    }
-    case PM4_WAIT_FOR_IDLE: {
-      // This opcode is used by 5454084E while going / being ingame.
-      assert_true(count == 1);
-      uint32_t value = reader->ReadAndSwap<uint32_t>();
-      XELOGGPU("GPU wait for idle = {:08X}", value);
-      result = true;
-      break;
-    }
-
-    default:
-      XELOGGPU("Unimplemented GPU OPCODE: 0x{:02X}\t\tCOUNT: {}\n", opcode,
-               count);
-      assert_always();
-      reader->AdvanceRead(count * sizeof(uint32_t));
-      break;
-  }
-
-  trace_writer_.WritePacketEnd();
-#if XE_ENABLE_TRACE_WRITER_INSTRUMENTATION == 1
-
-  if (opcode == PM4_XE_SWAP) {
-    // End the trace writer frame.
-    if (trace_writer_.is_open()) {
-      trace_writer_.WriteEvent(EventCommand::Type::kSwap);
-      trace_writer_.Flush();
-      if (trace_state_ == TraceState::kSingleFrame) {
-        trace_state_ = TraceState::kDisabled;
-        trace_writer_.Close();
-      }
-    } else if (trace_state_ == TraceState::kSingleFrame) {
-      // New trace request - we only start tracing at the beginning of a frame.
-      uint32_t title_id = kernel_state_->GetExecutableModule()->title_id();
-      auto file_name = fmt::format("{:08X}_{}.xtr", title_id, counter_ - 1);
-      auto path = trace_frame_path_ / file_name;
-      trace_writer_.Open(path, title_id);
-      InitializeTrace();
-    }
-  }
-#endif
-
-  assert_true(reader->read_offset() ==
-              (data_start_offset + (count * sizeof(uint32_t))) %
-                  reader->capacity());
-  return result;
-}
-
-bool CommandProcessor::ExecutePacketType3_ME_INIT(RingBuffer* reader,
-                                                  uint32_t packet,
-                                                  uint32_t count) {
-  // initialize CP's micro-engine
-  me_bin_.clear();
-  for (uint32_t i = 0; i < count; i++) {
-    me_bin_.push_back(reader->ReadAndSwap<uint32_t>());
-  }
-
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3_NOP(RingBuffer* reader,
-                                              uint32_t packet, uint32_t count) {
-  // skip N 32-bit words to get to the next packet
-  // No-op, ignore some data.
-  reader->AdvanceRead(count * sizeof(uint32_t));
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3_INTERRUPT(RingBuffer* reader,
-                                                    uint32_t packet,
-                                                    uint32_t count) {
-  SCOPE_profile_cpu_f("gpu");
-
-  // generate interrupt from the command stream
-  uint32_t cpu_mask = reader->ReadAndSwap<uint32_t>();
-  for (int n = 0; n < 6; n++) {
-    if (cpu_mask & (1 << n)) {
-      graphics_system_->DispatchInterruptCallback(1, n);
-    }
-  }
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3_XE_SWAP(RingBuffer* reader,
-                                                  uint32_t packet,
-                                                  uint32_t count) {
-  SCOPE_profile_cpu_f("gpu");
-
-  XELOGD("XE_SWAP");
-
-  Profiler::Flip();
-
-  // Xenia-specific VdSwap hook.
-  // VdSwap will post this to tell us we need to swap the screen/fire an
-  // interrupt.
-  // 63 words here, but only the first has any data.
-  uint32_t magic = reader->ReadAndSwap<fourcc_t>();
-  assert_true(magic == kSwapSignature);
-
-  // TODO(benvanik): only swap frontbuffer ptr.
-  uint32_t frontbuffer_ptr = reader->ReadAndSwap<uint32_t>();
-  uint32_t frontbuffer_width = reader->ReadAndSwap<uint32_t>();
-  uint32_t frontbuffer_height = reader->ReadAndSwap<uint32_t>();
-  reader->AdvanceRead((count - 4) * sizeof(uint32_t));
-
-  IssueSwap(frontbuffer_ptr, frontbuffer_width, frontbuffer_height);
-
-  ++counter_;
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3_INDIRECT_BUFFER(RingBuffer* reader,
-                                                          uint32_t packet,
-                                                          uint32_t count) {
-  // indirect buffer dispatch
-  uint32_t list_ptr = CpuToGpu(reader->ReadAndSwap<uint32_t>());
-  uint32_t list_length = reader->ReadAndSwap<uint32_t>();
-  assert_zero(list_length & ~0xFFFFF);
-  list_length &= 0xFFFFF;
-  ExecuteIndirectBuffer(GpuToCpu(list_ptr), list_length);
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(RingBuffer* reader,
-                                                       uint32_t packet,
-                                                       uint32_t count) {
-  SCOPE_profile_cpu_f("gpu");
-
-  // wait until a register or memory location is a specific value
-  uint32_t wait_info = reader->ReadAndSwap<uint32_t>();
-  uint32_t poll_reg_addr = reader->ReadAndSwap<uint32_t>();
-  uint32_t ref = reader->ReadAndSwap<uint32_t>();
-  uint32_t mask = reader->ReadAndSwap<uint32_t>();
-  uint32_t wait = reader->ReadAndSwap<uint32_t>();
-  bool matched = false;
-  do {
-    uint32_t value;
-    if (wait_info & 0x10) {
-      // Memory.
-      auto endianness = static_cast<xenos::Endian>(poll_reg_addr & 0x3);
-      poll_reg_addr &= ~0x3;
-      value = xe::load<uint32_t>(memory_->TranslatePhysical(poll_reg_addr));
-      value = GpuSwap(value, endianness);
-      trace_writer_.WriteMemoryRead(CpuToGpu(poll_reg_addr), 4);
-    } else {
-      // Register.
-      assert_true(poll_reg_addr < RegisterFile::kRegisterCount);
-      value = register_file_->values[poll_reg_addr].u32;
-      if (poll_reg_addr == XE_GPU_REG_COHER_STATUS_HOST) {
-        MakeCoherent();
-        value = register_file_->values[poll_reg_addr].u32;
-      }
-    }
-    switch (wait_info & 0x7) {
-      case 0x0:  // Never.
-        matched = false;
-        break;
-      case 0x1:  // Less than reference.
-        matched = (value & mask) < ref;
-        break;
-      case 0x2:  // Less than or equal to reference.
-        matched = (value & mask) <= ref;
-        break;
-      case 0x3:  // Equal to reference.
-        matched = (value & mask) == ref;
-        break;
-      case 0x4:  // Not equal to reference.
-        matched = (value & mask) != ref;
-        break;
-      case 0x5:  // Greater than or equal to reference.
-        matched = (value & mask) >= ref;
-        break;
-      case 0x6:  // Greater than reference.
-        matched = (value & mask) > ref;
-        break;
-      case 0x7:  // Always
-        matched = true;
-        break;
-    }
-    if (!matched) {
-      // Wait.
-      if (wait >= 0x100) {
-        PrepareForWait();
-        if (!cvars::vsync) {
-          // User wants it fast and dangerous.
-          xe::threading::MaybeYield();
-        } else {
-          xe::threading::Sleep(std::chrono::milliseconds(wait / 0x100));
-        }
-        xe::threading::SyncMemory();
-        ReturnFromWait();
-
-        if (!worker_running_) {
-          // Short-circuited exit.
-          return false;
-        }
-      } else {
-        xe::threading::MaybeYield();
-      }
-    }
-  } while (!matched);
-
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3_REG_RMW(RingBuffer* reader,
-                                                  uint32_t packet,
-                                                  uint32_t count) {
-  // register read/modify/write
-  // ? (used during shader upload and edram setup)
-  uint32_t rmw_info = reader->ReadAndSwap<uint32_t>();
-  uint32_t and_mask = reader->ReadAndSwap<uint32_t>();
-  uint32_t or_mask = reader->ReadAndSwap<uint32_t>();
-  uint32_t value = register_file_->values[rmw_info & 0x1FFF].u32;
-  if ((rmw_info >> 31) & 0x1) {
-    // & reg
-    value &= register_file_->values[and_mask & 0x1FFF].u32;
-  } else {
-    // & imm
-    value &= and_mask;
-  }
-  if ((rmw_info >> 30) & 0x1) {
-    // | reg
-    value |= register_file_->values[or_mask & 0x1FFF].u32;
-  } else {
-    // | imm
-    value |= or_mask;
-  }
-  WriteRegister(rmw_info & 0x1FFF, value);
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3_REG_TO_MEM(RingBuffer* reader,
-                                                     uint32_t packet,
-                                                     uint32_t count) {
-  // Copy Register to Memory (?)
-  // Count is 2, assuming a Register Addr and a Memory Addr.
-
-  uint32_t reg_addr = reader->ReadAndSwap<uint32_t>();
-  uint32_t mem_addr = reader->ReadAndSwap<uint32_t>();
-
-  uint32_t reg_val;
-
-  assert_true(reg_addr < RegisterFile::kRegisterCount);
-  reg_val = register_file_->values[reg_addr].u32;
-
-  auto endianness = static_cast<xenos::Endian>(mem_addr & 0x3);
-  mem_addr &= ~0x3;
-  reg_val = GpuSwap(reg_val, endianness);
-  xe::store(memory_->TranslatePhysical(mem_addr), reg_val);
-  trace_writer_.WriteMemoryWrite(CpuToGpu(mem_addr), 4);
-
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3_MEM_WRITE(RingBuffer* reader,
-                                                    uint32_t packet,
-                                                    uint32_t count) {
-  uint32_t write_addr = reader->ReadAndSwap<uint32_t>();
-  for (uint32_t i = 0; i < count - 1; i++) {
-    uint32_t write_data = reader->ReadAndSwap<uint32_t>();
-
-    auto endianness = static_cast<xenos::Endian>(write_addr & 0x3);
-    auto addr = write_addr & ~0x3;
-    write_data = GpuSwap(write_data, endianness);
-    xe::store(memory_->TranslatePhysical(addr), write_data);
-    trace_writer_.WriteMemoryWrite(CpuToGpu(addr), 4);
-    write_addr += 4;
-  }
-
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3_COND_WRITE(RingBuffer* reader,
-                                                     uint32_t packet,
-                                                     uint32_t count) {
-  // conditional write to memory or register
-  uint32_t wait_info = reader->ReadAndSwap<uint32_t>();
-  uint32_t poll_reg_addr = reader->ReadAndSwap<uint32_t>();
-  uint32_t ref = reader->ReadAndSwap<uint32_t>();
-  uint32_t mask = reader->ReadAndSwap<uint32_t>();
-  uint32_t write_reg_addr = reader->ReadAndSwap<uint32_t>();
-  uint32_t write_data = reader->ReadAndSwap<uint32_t>();
-  uint32_t value;
-  if (wait_info & 0x10) {
-    // Memory.
-    auto endianness = static_cast<xenos::Endian>(poll_reg_addr & 0x3);
-    poll_reg_addr &= ~0x3;
-    trace_writer_.WriteMemoryRead(CpuToGpu(poll_reg_addr), 4);
-    value = xe::load<uint32_t>(memory_->TranslatePhysical(poll_reg_addr));
-    value = GpuSwap(value, endianness);
-  } else {
-    // Register.
-    assert_true(poll_reg_addr < RegisterFile::kRegisterCount);
-    value = register_file_->values[poll_reg_addr].u32;
-  }
-  bool matched = false;
-  switch (wait_info & 0x7) {
-    case 0x0:  // Never.
-      matched = false;
-      break;
-    case 0x1:  // Less than reference.
-      matched = (value & mask) < ref;
-      break;
-    case 0x2:  // Less than or equal to reference.
-      matched = (value & mask) <= ref;
-      break;
-    case 0x3:  // Equal to reference.
-      matched = (value & mask) == ref;
-      break;
-    case 0x4:  // Not equal to reference.
-      matched = (value & mask) != ref;
-      break;
-    case 0x5:  // Greater than or equal to reference.
-      matched = (value & mask) >= ref;
-      break;
-    case 0x6:  // Greater than reference.
-      matched = (value & mask) > ref;
-      break;
-    case 0x7:  // Always
-      matched = true;
-      break;
-  }
-  if (matched) {
-    // Write.
-    if (wait_info & 0x100) {
-      // Memory.
-      auto endianness = static_cast<xenos::Endian>(write_reg_addr & 0x3);
-      write_reg_addr &= ~0x3;
-      write_data = GpuSwap(write_data, endianness);
-      xe::store(memory_->TranslatePhysical(write_reg_addr), write_data);
-      trace_writer_.WriteMemoryWrite(CpuToGpu(write_reg_addr), 4);
-    } else {
-      // Register.
-      WriteRegister(write_reg_addr, write_data);
-    }
-  }
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3_EVENT_WRITE(RingBuffer* reader,
-                                                      uint32_t packet,
-                                                      uint32_t count) {
-  // generate an event that creates a write to memory when completed
-  uint32_t initiator = reader->ReadAndSwap<uint32_t>();
-  // Writeback initiator.
-  WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, initiator & 0x3F);
-  if (count == 1) {
-    // Just an event flag? Where does this write?
-  } else {
-    // Write to an address.
-    assert_always();
-    reader->AdvanceRead((count - 1) * sizeof(uint32_t));
-  }
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_SHD(RingBuffer* reader,
-                                                          uint32_t packet,
-                                                          uint32_t count) {
-  // generate a VS|PS_done event
-  uint32_t initiator = reader->ReadAndSwap<uint32_t>();
-  uint32_t address = reader->ReadAndSwap<uint32_t>();
-  uint32_t value = reader->ReadAndSwap<uint32_t>();
-  // Writeback initiator.
-  WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, initiator & 0x3F);
-  uint32_t data_value;
-  if ((initiator >> 31) & 0x1) {
-    // Write counter (GPU vblank counter?).
-    data_value = counter_;
-  } else {
-    // Write value.
-    data_value = value;
-  }
-  auto endianness = static_cast<xenos::Endian>(address & 0x3);
-  address &= ~0x3;
-  data_value = GpuSwap(data_value, endianness);
-  xe::store(memory_->TranslatePhysical(address), data_value);
-  trace_writer_.WriteMemoryWrite(CpuToGpu(address), 4);
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_EXT(RingBuffer* reader,
-                                                          uint32_t packet,
-                                                          uint32_t count) {
-  // generate a screen extent event
-  uint32_t initiator = reader->ReadAndSwap<uint32_t>();
-  uint32_t address = reader->ReadAndSwap<uint32_t>();
-  // Writeback initiator.
-  WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, initiator & 0x3F);
-  auto endianness = static_cast<xenos::Endian>(address & 0x3);
-  address &= ~0x3;
-
-  // Let us hope we can fake this.
-  // This callback tells the driver the xy coordinates affected by a previous
-  // drawcall.
-  // https://www.google.com/patents/US20060055701
-  uint16_t extents[] = {
-      0 >> 3,                                    // min x
-      xenos::kTexture2DCubeMaxWidthHeight >> 3,  // max x
-      0 >> 3,                                    // min y
-      xenos::kTexture2DCubeMaxWidthHeight >> 3,  // max y
-      0,                                         // min z
-      1,                                         // max z
-  };
-  assert_true(endianness == xenos::Endian::k8in16);
-  xe::copy_and_swap_16_unaligned(memory_->TranslatePhysical(address), extents,
-                                 xe::countof(extents));
-  trace_writer_.WriteMemoryWrite(CpuToGpu(address), sizeof(extents));
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(RingBuffer* reader,
-                                                          uint32_t packet,
-                                                          uint32_t count) {
-  // Set by D3D as BE but struct ABI is LE
-  const uint32_t kQueryFinished = xe::byte_swap(0xFFFFFEED);
-  assert_true(count == 1);
-  uint32_t initiator = reader->ReadAndSwap<uint32_t>();
-  // Writeback initiator.
-  WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, initiator & 0x3F);
-
-  // Occlusion queries:
-  // This command is send on query begin and end.
-  // As a workaround report some fixed amount of passed samples.
-  auto fake_sample_count = cvars::query_occlusion_fake_sample_count;
-  if (fake_sample_count >= 0) {
-    auto* pSampleCounts =
-        memory_->TranslatePhysical<xe_gpu_depth_sample_counts*>(
-            register_file_->values[XE_GPU_REG_RB_SAMPLE_COUNT_ADDR].u32);
-    // 0xFFFFFEED is written to this two locations by D3D only on D3DISSUE_END
-    // and used to detect a finished query.
-    bool is_end_via_z_pass = pSampleCounts->ZPass_A == kQueryFinished &&
-                             pSampleCounts->ZPass_B == kQueryFinished;
-    // Older versions of D3D also checks for ZFail (4D5307D5).
-    bool is_end_via_z_fail = pSampleCounts->ZFail_A == kQueryFinished &&
-                             pSampleCounts->ZFail_B == kQueryFinished;
-    std::memset(pSampleCounts, 0, sizeof(xe_gpu_depth_sample_counts));
-    if (is_end_via_z_pass || is_end_via_z_fail) {
-      pSampleCounts->ZPass_A = fake_sample_count;
-      pSampleCounts->Total_A = fake_sample_count;
-    }
-  }
-
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3Draw(RingBuffer* reader,
-                                              uint32_t packet,
-                                              const char* opcode_name,
-                                              uint32_t viz_query_condition,
-                                              uint32_t count_remaining) {
-  // if viz_query_condition != 0, this is a conditional draw based on viz query.
-  // This ID matches the one issued in PM4_VIZ_QUERY
-  // uint32_t viz_id = viz_query_condition & 0x3F;
-  // when true, render conditionally based on query result
-  // uint32_t viz_use = viz_query_condition & 0x100;
-
-  assert_not_zero(count_remaining);
-  if (!count_remaining) {
-    XELOGE("{}: Packet too small, can't read VGT_DRAW_INITIATOR", opcode_name);
-    return false;
-  }
-  reg::VGT_DRAW_INITIATOR vgt_draw_initiator;
-  vgt_draw_initiator.value = reader->ReadAndSwap<uint32_t>();
-  --count_remaining;
-  WriteRegister(XE_GPU_REG_VGT_DRAW_INITIATOR, vgt_draw_initiator.value);
-
-  bool draw_succeeded = true;
-  // TODO(Triang3l): Remove IndexBufferInfo and replace handling of all this
-  // with PrimitiveProcessor when the old Vulkan renderer is removed.
-  bool is_indexed = false;
-  IndexBufferInfo index_buffer_info;
-  switch (vgt_draw_initiator.source_select) {
-    case xenos::SourceSelect::kDMA: {
-      // Indexed draw.
-      is_indexed = true;
-
-      // Two separate bounds checks so if there's only one missing register
-      // value out of two, one uint32_t will be skipped in the command buffer,
-      // not two.
-      assert_not_zero(count_remaining);
-      if (!count_remaining) {
-        XELOGE("{}: Packet too small, can't read VGT_DMA_BASE", opcode_name);
-        return false;
-      }
-      uint32_t vgt_dma_base = reader->ReadAndSwap<uint32_t>();
-      --count_remaining;
-      WriteRegister(XE_GPU_REG_VGT_DMA_BASE, vgt_dma_base);
-      reg::VGT_DMA_SIZE vgt_dma_size;
-      assert_not_zero(count_remaining);
-      if (!count_remaining) {
-        XELOGE("{}: Packet too small, can't read VGT_DMA_SIZE", opcode_name);
-        return false;
-      }
-      vgt_dma_size.value = reader->ReadAndSwap<uint32_t>();
-      --count_remaining;
-      WriteRegister(XE_GPU_REG_VGT_DMA_SIZE, vgt_dma_size.value);
-
-      uint32_t index_size_bytes =
-          vgt_draw_initiator.index_size == xenos::IndexFormat::kInt16
-              ? sizeof(uint16_t)
-              : sizeof(uint32_t);
-      // The base address must already be word-aligned according to the R6xx
-      // documentation, but for safety.
-      index_buffer_info.guest_base = vgt_dma_base & ~(index_size_bytes - 1);
-      index_buffer_info.endianness = vgt_dma_size.swap_mode;
-      index_buffer_info.format = vgt_draw_initiator.index_size;
-      index_buffer_info.length = vgt_dma_size.num_words * index_size_bytes;
-      index_buffer_info.count = vgt_draw_initiator.num_indices;
-    } break;
-    case xenos::SourceSelect::kImmediate: {
-      // TODO(Triang3l): VGT_IMMED_DATA.
-      XELOGE(
-          "{}: Using immediate vertex indices, which are not supported yet. "
-          "Report the game to Xenia developers!",
-          opcode_name, uint32_t(vgt_draw_initiator.source_select));
-      draw_succeeded = false;
-      assert_always();
-    } break;
-    case xenos::SourceSelect::kAutoIndex: {
-      // Auto draw.
-      index_buffer_info.guest_base = 0;
-      index_buffer_info.length = 0;
-    } break;
-    default: {
-      // Invalid source selection.
-      draw_succeeded = false;
-      assert_unhandled_case(vgt_draw_initiator.source_select);
-    } break;
-  }
-
-  // Skip to the next command, for example, if there are immediate indexes that
-  // we don't support yet.
-  reader->AdvanceRead(count_remaining * sizeof(uint32_t));
-
-  if (draw_succeeded) {
-    auto viz_query = register_file_->Get<reg::PA_SC_VIZ_QUERY>();
-    if (!(viz_query.viz_query_ena && viz_query.kill_pix_post_hi_z)) {
-      // TODO(Triang3l): Don't drop the draw call completely if the vertex
-      // shader has memexport.
-      // TODO(Triang3l || JoelLinn): Handle this properly in the render
-      // backends.
-      draw_succeeded = IssueDraw(
-          vgt_draw_initiator.prim_type, vgt_draw_initiator.num_indices,
-          is_indexed ? &index_buffer_info : nullptr,
-          xenos::IsMajorModeExplicit(vgt_draw_initiator.major_mode,
-                                     vgt_draw_initiator.prim_type));
-      if (!draw_succeeded) {
-        XELOGE("{}({}, {}, {}): Failed in backend", opcode_name,
-               vgt_draw_initiator.num_indices,
-               uint32_t(vgt_draw_initiator.prim_type),
-               uint32_t(vgt_draw_initiator.source_select));
-      }
-    }
-  }
-
-  // If read the packed correctly, but merely couldn't execute it (because of,
-  // for instance, features not supported by the host), don't terminate command
-  // buffer processing as that would leave rendering in a way more inconsistent
-  // state than just a single dropped draw command.
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3_DRAW_INDX(RingBuffer* reader,
-                                                    uint32_t packet,
-                                                    uint32_t count) {
-  // "initiate fetch of index buffer and draw"
-  // Generally used by Xbox 360 Direct3D 9 for kDMA and kAutoIndex sources.
-  // With a viz query token as the first one.
-  uint32_t count_remaining = count;
-  assert_not_zero(count_remaining);
-  if (!count_remaining) {
-    XELOGE("PM4_DRAW_INDX: Packet too small, can't read the viz query token");
-    return false;
-  }
-  uint32_t viz_query_condition = reader->ReadAndSwap<uint32_t>();
-  --count_remaining;
-  return ExecutePacketType3Draw(reader, packet, "PM4_DRAW_INDX",
-                                viz_query_condition, count_remaining);
-}
-
-bool CommandProcessor::ExecutePacketType3_DRAW_INDX_2(RingBuffer* reader,
-                                                      uint32_t packet,
-                                                      uint32_t count) {
-  // "draw using supplied indices in packet"
-  // Generally used by Xbox 360 Direct3D 9 for kAutoIndex source.
-  // No viz query token.
-  return ExecutePacketType3Draw(reader, packet, "PM4_DRAW_INDX_2", 0, count);
-}
-
-bool CommandProcessor::ExecutePacketType3_SET_CONSTANT(RingBuffer* reader,
-                                                       uint32_t packet,
-                                                       uint32_t count) {
-  // load constant into chip and to memory
-  // PM4_REG(reg) ((0x4 << 16) | (GSL_HAL_SUBBLOCK_OFFSET(reg)))
-  //                                     reg - 0x2000
-  uint32_t offset_type = reader->ReadAndSwap<uint32_t>();
-  uint32_t index = offset_type & 0x7FF;
-  uint32_t type = (offset_type >> 16) & 0xFF;
-  switch (type) {
-    case 0:  // ALU
-      index += 0x4000;
-      break;
-    case 1:  // FETCH
-      index += 0x4800;
-      break;
-    case 2:  // BOOL
-      index += 0x4900;
-      break;
-    case 3:  // LOOP
-      index += 0x4908;
-      break;
-    case 4:  // REGISTERS
-      index += 0x2000;
-      break;
-    default:
-      assert_always();
-      reader->AdvanceRead((count - 1) * sizeof(uint32_t));
-      return true;
-  }
-  uint32_t countm1 = count - 1;
-
-  if (countm1 != 1) {
-    WriteRegisterRangeFromRing(reader, index, countm1);
-  } else {
-    WriteRegister(index, reader->ReadAndSwap<uint32_t>());
-  }
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3_SET_CONSTANT2(RingBuffer* reader,
-                                                        uint32_t packet,
-                                                        uint32_t count) {
-  uint32_t offset_type = reader->ReadAndSwap<uint32_t>();
-  uint32_t index = offset_type & 0xFFFF;
-  uint32_t countm1 = count - 1;
-
-  if (countm1 != 1) {
-    WriteRegisterRangeFromRing(reader, index, countm1);
-  } else {
-    WriteRegister(index, reader->ReadAndSwap<uint32_t>());
-  }
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3_LOAD_ALU_CONSTANT(RingBuffer* reader,
-                                                            uint32_t packet,
-                                                            uint32_t count) {
-  // load constants from memory
-  uint32_t address = reader->ReadAndSwap<uint32_t>();
-  address &= 0x3FFFFFFF;
-  uint32_t offset_type = reader->ReadAndSwap<uint32_t>();
-  uint32_t index = offset_type & 0x7FF;
-  uint32_t size_dwords = reader->ReadAndSwap<uint32_t>();
-  size_dwords &= 0xFFF;
-  uint32_t type = (offset_type >> 16) & 0xFF;
-  switch (type) {
-    case 0:  // ALU
-      index += 0x4000;
-      break;
-    case 1:  // FETCH
-      index += 0x4800;
-      break;
-    case 2:  // BOOL
-      index += 0x4900;
-      break;
-    case 3:  // LOOP
-      index += 0x4908;
-      break;
-    case 4:  // REGISTERS
-      index += 0x2000;
-      break;
-    default:
-      assert_always();
-      return true;
-  }
-
-  trace_writer_.WriteMemoryRead(CpuToGpu(address), size_dwords * 4);
-
-  WriteRegistersFromMem(index, (uint32_t*)memory_->TranslatePhysical(address),
-                        size_dwords);
-
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3_SET_SHADER_CONSTANTS(
-    RingBuffer* reader, uint32_t packet, uint32_t count) {
-  uint32_t offset_type = reader->ReadAndSwap<uint32_t>();
-  uint32_t index = offset_type & 0xFFFF;
-  uint32_t countm1 = count - 1;
-  if (countm1 != 1) {
-    WriteRegisterRangeFromRing(reader, index, countm1);
-  } else {
-    WriteRegister(index, reader->ReadAndSwap<uint32_t>());
-  }
-
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3_IM_LOAD(RingBuffer* reader,
-                                                  uint32_t packet,
-                                                  uint32_t count) {
-  SCOPE_profile_cpu_f("gpu");
-
-  // load sequencer instruction memory (pointer-based)
-  uint32_t addr_type = reader->ReadAndSwap<uint32_t>();
-  auto shader_type = static_cast<xenos::ShaderType>(addr_type & 0x3);
-  uint32_t addr = addr_type & ~0x3;
-  uint32_t start_size = reader->ReadAndSwap<uint32_t>();
-  uint32_t start = start_size >> 16;
-  uint32_t size_dwords = start_size & 0xFFFF;  // dwords
-  assert_true(start == 0);
-  trace_writer_.WriteMemoryRead(CpuToGpu(addr), size_dwords * 4);
-  auto shader =
-      LoadShader(shader_type, addr, memory_->TranslatePhysical<uint32_t*>(addr),
-                 size_dwords);
-  switch (shader_type) {
-    case xenos::ShaderType::kVertex:
-      active_vertex_shader_ = shader;
-      break;
-    case xenos::ShaderType::kPixel:
-      active_pixel_shader_ = shader;
-      break;
-    default:
-      assert_unhandled_case(shader_type);
-      return false;
-  }
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3_IM_LOAD_IMMEDIATE(RingBuffer* reader,
-                                                            uint32_t packet,
-                                                            uint32_t count) {
-  SCOPE_profile_cpu_f("gpu");
-
-  // load sequencer instruction memory (code embedded in packet)
-  uint32_t dword0 = reader->ReadAndSwap<uint32_t>();
-  uint32_t dword1 = reader->ReadAndSwap<uint32_t>();
-  auto shader_type = static_cast<xenos::ShaderType>(dword0);
-  uint32_t start_size = dword1;
-  uint32_t start = start_size >> 16;
-  uint32_t size_dwords = start_size & 0xFFFF;  // dwords
-  assert_true(start == 0);
-  assert_true(reader->read_count() >= size_dwords * 4);
-  assert_true(count - 2 >= size_dwords);
-  auto shader =
-      LoadShader(shader_type, uint32_t(reader->read_ptr()),
-                 reinterpret_cast<uint32_t*>(reader->read_ptr()), size_dwords);
-  switch (shader_type) {
-    case xenos::ShaderType::kVertex:
-      active_vertex_shader_ = shader;
-      break;
-    case xenos::ShaderType::kPixel:
-      active_pixel_shader_ = shader;
-      break;
-    default:
-      assert_unhandled_case(shader_type);
-      return false;
-  }
-  reader->AdvanceRead(size_dwords * sizeof(uint32_t));
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3_INVALIDATE_STATE(RingBuffer* reader,
-                                                           uint32_t packet,
-                                                           uint32_t count) {
-  // selective invalidation of state pointers
-  /*uint32_t mask =*/reader->ReadAndSwap<uint32_t>();
-  // driver_->InvalidateState(mask);
-  return true;
-}
-
-bool CommandProcessor::ExecutePacketType3_VIZ_QUERY(RingBuffer* reader,
-                                                    uint32_t packet,
-                                                    uint32_t count) {
-  // begin/end initiator for viz query extent processing
-  // https://www.google.com/patents/US20050195186
-  assert_true(count == 1);
-
-  uint32_t dword0 = reader->ReadAndSwap<uint32_t>();
-
-  uint32_t id = dword0 & 0x3F;
-  uint32_t end = dword0 & 0x100;
-  if (!end) {
-    // begin a new viz query @ id
-    // On hardware this clears the internal state of the scan converter (which
-    // is different to the register)
-    WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, VIZQUERY_START);
-    XELOGGPU("Begin viz query ID {:02X}", id);
-  } else {
-    // end the viz query
-    WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, VIZQUERY_END);
-    XELOGGPU("End viz query ID {:02X}", id);
-    // The scan converter writes the internal result back to the register here.
-    // We just fake it and say it was visible in case it is read back.
-    if (id < 32) {
-      register_file_->values[XE_GPU_REG_PA_SC_VIZ_QUERY_STATUS_0].u32 |=
-          uint32_t(1) << id;
-    } else {
-      register_file_->values[XE_GPU_REG_PA_SC_VIZ_QUERY_STATUS_1].u32 |=
-          uint32_t(1) << (id - 32);
-    }
-  }
-
-  return true;
+  } while (reader_.read_count());
+  reader_ = old_reader;
 }
 
 void CommandProcessor::InitializeTrace() {
@@ -1696,6 +712,7 @@ void CommandProcessor::InitializeTrace() {
   trace_writer_.WriteGammaRamp(gamma_ramp_256_entry_table(),
                                gamma_ramp_pwl_rgb(), gamma_ramp_rw_component_);
 }
-
+#define COMMAND_PROCESSOR CommandProcessor
+#include "pm4_command_processor_implement.h"
 }  // namespace gpu
 }  // namespace xe

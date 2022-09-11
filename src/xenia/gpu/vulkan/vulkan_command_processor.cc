@@ -32,10 +32,11 @@
 #include "xenia/gpu/vulkan/vulkan_shader.h"
 #include "xenia/gpu/vulkan/vulkan_shared_memory.h"
 #include "xenia/gpu/xenos.h"
+#include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/user_module.h"
 #include "xenia/ui/vulkan/vulkan_presenter.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 #include "xenia/ui/vulkan/vulkan_util.h"
-
 namespace xe {
 namespace gpu {
 namespace vulkan {
@@ -4171,6 +4172,8 @@ uint32_t VulkanCommandProcessor::WriteTransientTextureBindings(
   return descriptor_set_write_count;
 }
 
+#define COMMAND_PROCESSOR VulkanCommandProcessor
+#include "../pm4_command_processor_implement.h"
 }  // namespace vulkan
 }  // namespace gpu
 }  // namespace xe

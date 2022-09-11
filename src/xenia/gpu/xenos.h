@@ -1045,8 +1045,9 @@ inline uint16_t GpuSwap(uint16_t value, Endian endianness) {
       return value;
   }
 }
-
-inline uint32_t GpuSwap(uint32_t value, Endian endianness) {
+XE_NOINLINE
+XE_NOALIAS
+static uint32_t GpuSwap(uint32_t value, Endian endianness) {
   switch (endianness) {
     default:
     case Endian::kNone:

@@ -117,6 +117,7 @@ bool PPCFrontend::DefineFunction(GuestFunction* function,
                                  uint32_t debug_info_flags) {
   auto translator = translator_pool_.Allocate(this);
   bool result = translator->Translate(function, debug_info_flags);
+  translator->Reset();
   translator_pool_.Release(translator);
   return result;
 }

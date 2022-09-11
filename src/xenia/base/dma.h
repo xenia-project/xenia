@@ -16,7 +16,8 @@ struct XeDMAJob;
 using DmaPrecall = void (*)(XeDMAJob* job);
 using DmaPostcall = void (*)(XeDMAJob* job);
 struct XeDMAJob {
-  threading::Event* signal_on_done;
+  //threading::Event* signal_on_done;
+  uintptr_t dmac_specific_;
   uint8_t* destination;
   uint8_t* source;
   size_t size;

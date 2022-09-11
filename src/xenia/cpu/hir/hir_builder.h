@@ -15,6 +15,8 @@
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/arena.h"
 #include "xenia/base/string_buffer.h"
+
+#include "xenia/base/simple_freelist.h"
 #include "xenia/cpu/hir/block.h"
 #include "xenia/cpu/hir/instr.h"
 #include "xenia/cpu/hir/label.h"
@@ -31,11 +33,20 @@ enum FunctionAttributes {
 };
 
 class HIRBuilder {
+  SimpleFreelist<Instr> free_instrs_;
+  SimpleFreelist<Value> free_values_;
+  SimpleFreelist<Value::Use> free_uses_;
+
  public:
   HIRBuilder();
   virtual ~HIRBuilder();
+  static HIRBuilder* GetCurrent();
+
+  void MakeCurrent();
+  void RemoveCurrent();
 
   virtual void Reset();
+
   virtual bool Finalize();
 
   void Dump(StringBuffer* str);
@@ -66,6 +77,18 @@ class HIRBuilder {
   void RemoveBlock(Block* block);
   void MergeAdjacentBlocks(Block* left, Block* right);
 
+  Instr* AllocateInstruction();
+
+  Value* AllocateValue();
+  Value::Use* AllocateUse();
+  void DeallocateInstruction(Instr* instr);
+  void DeallocateValue(Value* value);
+  void DeallocateUse(Value::Use* use);
+  void ResetPools() {
+    free_instrs_.Reset();
+    free_uses_.Reset();
+    free_values_.Reset();
+  }
   // static allocations:
   // Value* AllocStatic(size_t length);
 
@@ -176,7 +199,7 @@ class HIRBuilder {
   void CacheControl(Value* address, size_t cache_line_size,
                     CacheControlType type);
   void MemoryBarrier();
-
+  void DelayExecution();
   void SetRoundingMode(Value* value);
   Value* Max(Value* value1, Value* value2);
   Value* VectorMax(Value* value1, Value* value2, TypeName part_type,

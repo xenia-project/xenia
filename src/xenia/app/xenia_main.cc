@@ -379,6 +379,9 @@ std::vector<std::unique_ptr<hid::InputDriver>> EmulatorApp::CreateInputDrivers(
 }
 
 bool EmulatorApp::OnInitialize() {
+#if XE_ARCH_AMD64 == 1
+  amd64::InitFeatureFlags();
+#endif
   Profiler::Initialize();
   Profiler::ThreadEnter("Main");
 

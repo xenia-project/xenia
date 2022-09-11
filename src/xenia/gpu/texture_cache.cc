@@ -440,7 +440,7 @@ void TextureCache::TextureKey::LogAction(const char* action) const {
       "base at 0x{:08X} (pitch {}), mips at 0x{:08X}",
       action, tiled ? "tiled" : "linear", scaled_resolve ? "scaled " : "",
       GetWidth(), GetHeight(), GetDepthOrArraySize(), GetLogDimensionName(),
-      FormatInfo::Get(format)->name, mip_max_level + 1, packed_mips ? "" : "un",
+      FormatInfo::GetName(format), mip_max_level + 1, packed_mips ? "" : "un",
       mip_max_level != 0 ? "s" : "", base_page << 12, pitch << 5,
       mip_page << 12);
 }
@@ -453,7 +453,7 @@ void TextureCache::Texture::LogAction(const char* action) const {
       action, key_.tiled ? "tiled" : "linear",
       key_.scaled_resolve ? "scaled " : "", key_.GetWidth(), key_.GetHeight(),
       key_.GetDepthOrArraySize(), key_.GetLogDimensionName(),
-      FormatInfo::Get(key_.format)->name, key_.mip_max_level + 1,
+      FormatInfo::GetName(key_.format), key_.mip_max_level + 1,
       key_.packed_mips ? "" : "un", key_.mip_max_level != 0 ? "s" : "",
       key_.base_page << 12, key_.pitch << 5, GetGuestBaseSize(),
       key_.mip_page << 12, GetGuestMipsSize());

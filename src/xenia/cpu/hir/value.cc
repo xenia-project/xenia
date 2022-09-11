@@ -16,13 +16,13 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
 #include "xenia/base/math.h"
-
+#include "xenia/cpu/hir/hir_builder.h"
 namespace xe {
 namespace cpu {
 namespace hir {
 
 Value::Use* Value::AddUse(Arena* arena, Instr* instr) {
-  Use* use = arena->Alloc<Use>();
+  Use* use = HIRBuilder::GetCurrent()->AllocateUse();
   use->instr = instr;
   use->prev = NULL;
   use->next = use_head;
@@ -42,6 +42,8 @@ void Value::RemoveUse(Use* use) {
   if (use->next) {
     use->next->prev = use->prev;
   }
+
+  //HIRBuilder::GetCurrent()->DeallocateUse(use);
 }
 
 uint32_t Value::AsUint32() {

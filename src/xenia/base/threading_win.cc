@@ -50,6 +50,9 @@ XE_NTDLL_IMPORT(NtPulseEvent, cls_NtPulseEvent, NtPulseEventPointer);
 // counts
 XE_NTDLL_IMPORT(NtReleaseSemaphore, cls_NtReleaseSemaphore,
                 NtReleaseSemaphorePointer);
+
+XE_NTDLL_IMPORT(NtDelayExecution, cls_NtDelayExecution,
+                NtDelayExecutionPointer);
 namespace xe {
 namespace threading {
 
@@ -109,13 +112,30 @@ void set_name(const std::string_view name) {
   set_name(GetCurrentThread(), name);
 }
 
+// checked ntoskrnl, it does not modify delay, so we can place this as a
+// constant and avoid creating a stack variable
+static const LARGE_INTEGER sleepdelay0_for_maybeyield{0LL};
+
 void MaybeYield() {
+#if 0
 #if defined(XE_USE_NTDLL_FUNCTIONS)
+	
   NtYieldExecutionPointer.invoke();
 #else
   SwitchToThread();
 #endif
-
+#else
+  // chrispy: SwitchToThread will only switch to a ready thread on the current
+  // processor, so if one is not ready we end up spinning, constantly calling
+  // switchtothread without doing any work, heating up the users cpu sleep(0)
+  // however will yield to threads on other processors and surrenders the
+  // current timeslice
+#if defined(XE_USE_NTDLL_FUNCTIONS)
+  NtDelayExecutionPointer.invoke(0, &sleepdelay0_for_maybeyield);
+#else
+  ::Sleep(0);
+#endif
+#endif
   // memorybarrier is really not necessary here...
   MemoryBarrier();
 }

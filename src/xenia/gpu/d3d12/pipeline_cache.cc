@@ -1047,8 +1047,7 @@ bool PipelineCache::ConfigurePipeline(
   PipelineDescription& description = runtime_description.description;
 
   if (current_pipeline_ != nullptr &&
-      !std::memcmp(&current_pipeline_->description.description, &description,
-                   sizeof(description))) {
+      current_pipeline_->description.description == description) {
     *pipeline_handle_out = current_pipeline_;
     *root_signature_out = runtime_description.root_signature;
     return true;
@@ -1059,8 +1058,7 @@ bool PipelineCache::ConfigurePipeline(
   auto found_range = pipelines_.equal_range(hash);
   for (auto it = found_range.first; it != found_range.second; ++it) {
     Pipeline* found_pipeline = it->second;
-    if (!std::memcmp(&found_pipeline->description.description, &description,
-                     sizeof(description))) {
+    if (found_pipeline->description.description == description) {
       current_pipeline_ = found_pipeline;
       *pipeline_handle_out = found_pipeline;
       *root_signature_out = found_pipeline->description.root_signature;

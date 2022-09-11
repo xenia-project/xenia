@@ -929,8 +929,8 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
       XELOGW(
           "Resolving to format {}, which is untested - treating like {}. "
           "Report the game to Xenia developers!",
-          FormatInfo::Get(dest_format)->name,
-          FormatInfo::Get(dest_closest_format)->name);
+          FormatInfo::GetName(dest_format),
+          FormatInfo::GetName(dest_closest_format));
     }
   }
 
@@ -1002,7 +1002,7 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
     }
   } else {
     XELOGE("Tried to resolve to format {}, which is not a ColorFormat",
-           dest_format_info.name);
+           FormatInfo::GetName(dest_format));
     copy_dest_extent_start = copy_dest_base_adjusted;
     copy_dest_extent_end = copy_dest_base_adjusted;
   }
@@ -1117,7 +1117,7 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
                      xenos::DepthRenderTargetFormat(depth_edram_info.format))
                : xenos::GetColorRenderTargetFormatName(
                      xenos::ColorRenderTargetFormat(color_edram_info.format)),
-      dest_format_info.name, rb_copy_dest_base, copy_dest_extent_start,
+      FormatInfo::GetName(dest_format), rb_copy_dest_base, copy_dest_extent_start,
       copy_dest_extent_end);
 
   return true;

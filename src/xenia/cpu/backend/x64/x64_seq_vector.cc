@@ -1354,15 +1354,17 @@ struct VECTOR_SHA_V128
   static void EmitInt8(X64Emitter& e, const EmitArgType& i) {
     // TODO(benvanik): native version (with shift magic).
     if (i.src2.is_constant) {
-      if (e.IsFeatureEnabled(kX64EmitGFNI)) {
-        const auto& shamt = i.src2.constant();
-        bool all_same = true;
-        for (size_t n = 0; n < 16 - n; ++n) {
-          if (shamt.u8[n] != shamt.u8[n + 1]) {
-            all_same = false;
-            break;
-          }
+      const auto& shamt = i.src2.constant();
+      bool all_same = true;
+      for (size_t n = 0; n < 16 - n; ++n) {
+        if (shamt.u8[n] != shamt.u8[n + 1]) {
+          all_same = false;
+          break;
         }
+      }
+
+	  
+      if (e.IsFeatureEnabled(kX64EmitGFNI)) {
         if (all_same) {
           // Every count is the same, so we can use gf2p8affineqb.
           const uint8_t shift_amount = shamt.u8[0] & 0b111;
@@ -1375,6 +1377,19 @@ struct VECTOR_SHA_V128
           return;
         }
       }
+      else if (all_same) {
+        Xmm to_be_shifted = GetInputRegOrConstant(e, i.src1, e.xmm1);
+
+        e.vpmovsxbw(e.xmm0, to_be_shifted);  //_mm_srai_epi16 / psraw
+        e.vpunpckhqdq(e.xmm2, to_be_shifted, to_be_shifted);
+        e.vpmovsxbw(e.xmm1, e.xmm2);
+        e.vpsraw(e.xmm0, shamt.u8[0]);
+        e.vpsraw(e.xmm1, shamt.u8[0]);
+        e.vpacksswb(i.dest, e.xmm0, e.xmm1);
+        return;
+      }
+
+
       e.lea(e.GetNativeParam(1), e.StashConstantXmm(1, i.src2.constant()));
     } else {
       e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));

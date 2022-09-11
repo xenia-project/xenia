@@ -46,15 +46,27 @@ namespace hir {
               (value->type) == FLOAT64_TYPE || (value->type) == VEC128_TYPE)
 #define ASSERT_TYPES_EQUAL(value1, value2) \
   assert_true((value1->type) == (value2->type))
-
+thread_local HIRBuilder* thrd_current_hirfunction = nullptr;
 HIRBuilder::HIRBuilder() {
   arena_ = new Arena();
   Reset();
 }
 
+HIRBuilder* HIRBuilder::GetCurrent() { return thrd_current_hirfunction; }
+
+void HIRBuilder::MakeCurrent() { thrd_current_hirfunction = this; }
+void HIRBuilder::RemoveCurrent() {
+  if (thrd_current_hirfunction == this) {
+    thrd_current_hirfunction = nullptr;
+  }
+}
+
 HIRBuilder::~HIRBuilder() {
   Reset();
   delete arena_;
+  if (thrd_current_hirfunction == this) {
+    thrd_current_hirfunction = nullptr;
+  }
 }
 
 void HIRBuilder::Reset() {
@@ -105,7 +117,37 @@ bool HIRBuilder::Finalize() {
   }
   return true;
 }
+Instr* HIRBuilder::AllocateInstruction() {
+  Instr* result = free_instrs_.NewEntry();
+  if (result) {
+    return result;
+  }
+  return arena()->Alloc<Instr>();
+}
 
+Value* HIRBuilder::AllocateValue() {
+  Value* result = free_values_.NewEntry();
+  if (result) {
+    return result;
+  }
+  return arena()->Alloc<Value>();
+}
+Value::Use* HIRBuilder::AllocateUse() {
+  Value::Use* result = free_uses_.NewEntry();
+  if (result) {
+    return result;
+  }
+  return arena()->Alloc<Value::Use>();
+}
+void HIRBuilder::DeallocateInstruction(Instr* instr) {
+  // free_instrs_.DeleteEntry(instr);
+}
+void HIRBuilder::DeallocateValue(Value* value) {
+  // free_values_.DeleteEntry(value);
+}
+void HIRBuilder::DeallocateUse(Value::Use* use) {
+  // free_uses_.DeleteEntry(use);
+}
 void HIRBuilder::DumpValue(StringBuffer* str, Value* value) {
   if (value->IsConstant()) {
     switch (value->type) {
@@ -545,12 +587,12 @@ void HIRBuilder::MergeAdjacentBlocks(Block* left, Block* right) {
     auto sig = left->instr_tail->opcode->signature;
     if (GET_OPCODE_SIG_TYPE_SRC1(sig) == OPCODE_SIG_TYPE_L) {
       if (left->instr_tail->src1.label->block == right) {
-        left->instr_tail->Remove();
+        left->instr_tail->UnlinkAndNOP();
       }
     }
     if (GET_OPCODE_SIG_TYPE_SRC2(sig) == OPCODE_SIG_TYPE_L) {
       if (left->instr_tail->src2.label->block == right) {
-        left->instr_tail->Remove();
+        left->instr_tail->UnlinkAndNOP();
       }
     }
   }
@@ -678,7 +720,7 @@ Instr* HIRBuilder::AppendInstr(const OpcodeInfo& opcode_info, uint16_t flags,
   }
   Block* block = current_block_;
 
-  Instr* instr = arena_->Alloc<Instr>();
+  Instr* instr = AllocateInstruction();
   instr->next = NULL;
   instr->prev = block->instr_tail;
   if (block->instr_tail) {
@@ -705,7 +747,7 @@ Instr* HIRBuilder::AppendInstr(const OpcodeInfo& opcode_info, uint16_t flags,
 }
 
 Value* HIRBuilder::AllocValue(TypeName type) {
-  Value* value = arena_->Alloc<Value>();
+  Value* value = AllocateValue();
   value->ordinal = next_value_ordinal_++;
   value->type = type;
   value->flags = 0;
@@ -719,7 +761,7 @@ Value* HIRBuilder::AllocValue(TypeName type) {
 }
 
 Value* HIRBuilder::CloneValue(Value* source) {
-  Value* value = arena_->Alloc<Value>();
+  Value* value = AllocateValue();
   value->ordinal = next_value_ordinal_++;
   value->type = source->type;
   value->flags = source->flags;
@@ -1295,6 +1337,9 @@ void HIRBuilder::CacheControl(Value* address, size_t cache_line_size,
 
 void HIRBuilder::MemoryBarrier() { AppendInstr(OPCODE_MEMORY_BARRIER_info, 0); }
 
+void HIRBuilder::DelayExecution() {
+  AppendInstr(OPCODE_DELAY_EXECUTION_info, 0);
+}
 void HIRBuilder::SetRoundingMode(Value* value) {
   ASSERT_INTEGER_TYPE(value);
   Instr* i = AppendInstr(OPCODE_SET_ROUNDING_MODE_info, 0);

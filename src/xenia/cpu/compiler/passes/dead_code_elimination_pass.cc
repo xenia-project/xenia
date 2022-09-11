@@ -120,7 +120,8 @@ bool DeadCodeEliminationPass::Run(HIRBuilder* builder) {
         Instr* next = i->next;
         if (i->opcode == &OPCODE_NOP_info) {
           // Nop - remove!
-          i->Remove();
+          i->UnlinkAndNOP();
+          i->Deallocate();
         }
         i = next;
       }
@@ -148,7 +149,9 @@ bool DeadCodeEliminationPass::Run(HIRBuilder* builder) {
 
 void DeadCodeEliminationPass::MakeNopRecursive(Instr* i) {
   i->opcode = &hir::OPCODE_NOP_info;
-  i->dest->def = NULL;
+  if (i->dest) {
+    i->dest->def = NULL;
+  }
   i->dest = NULL;
 
 #define MAKE_NOP_SRC(n)                                  \
@@ -163,7 +166,9 @@ void DeadCodeEliminationPass::MakeNopRecursive(Instr* i) {
       if (value->def && value->def != i) {               \
         MakeNopRecursive(value->def);                    \
       }                                                  \
+      HIRBuilder::GetCurrent()->DeallocateValue(value);  \
     }                                                    \
+    HIRBuilder::GetCurrent()->DeallocateUse(use);        \
   }
   MAKE_NOP_SRC(1);
   MAKE_NOP_SRC(2);
@@ -189,7 +194,8 @@ void DeadCodeEliminationPass::ReplaceAssignment(Instr* i) {
     use = use->next;
   }
 
-  i->Remove();
+  i->UnlinkAndNOP();
+  i->Deallocate();
 }
 
 bool DeadCodeEliminationPass::CheckLocalUse(Instr* i) {
@@ -204,11 +210,11 @@ bool DeadCodeEliminationPass::CheckLocalUse(Instr* i) {
     }
 
     // Load/store are paired. They can both be removed.
-    use_instr->Remove();
+    use_instr->UnlinkAndNOP();
   }
 
-  i->Remove();
-
+  i->UnlinkAndNOP();
+  i->Deallocate();
   return false;
 }
 

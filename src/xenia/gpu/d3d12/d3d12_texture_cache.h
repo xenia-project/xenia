@@ -119,7 +119,8 @@ class D3D12TextureCache final : public TextureCache {
       D3D12_CPU_DESCRIPTOR_HANDLE handle);
   uint32_t GetActiveTextureBindlessSRVIndex(
       const D3D12Shader::TextureBinding& host_shader_binding);
-
+  void PrefetchSamplerParameters(
+      const D3D12Shader::SamplerBinding& binding) const;
   SamplerParameters GetSamplerParameters(
       const D3D12Shader::SamplerBinding& binding) const;
   void WriteSampler(SamplerParameters parameters,
@@ -712,7 +713,7 @@ class D3D12TextureCache final : public TextureCache {
   }
 
   LoadShaderIndex GetLoadShaderIndex(TextureKey key) const;
-
+  // chrispy: todo, can use simple branchless tests here
   static constexpr bool AreDimensionsCompatible(
       xenos::FetchOpDimension binding_dimension,
       xenos::DataDimension resource_dimension) {

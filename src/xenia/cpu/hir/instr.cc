@@ -10,7 +10,7 @@
 #include "xenia/cpu/hir/instr.h"
 
 #include "xenia/cpu/hir/block.h"
-
+#include "xenia/cpu/hir/hir_builder.h"
 namespace xe {
 namespace cpu {
 namespace hir {
@@ -62,21 +62,35 @@ void Instr::Replace(const OpcodeInfo* new_opcode, uint16_t new_flags) {
   if (src1_use) {
     src1.value->RemoveUse(src1_use);
     src1.value = NULL;
-    src1_use = NULL;
+    // src1_use = NULL;
   }
   if (src2_use) {
     src2.value->RemoveUse(src2_use);
     src2.value = NULL;
-    src2_use = NULL;
+    // src2_use = NULL;
   }
   if (src3_use) {
     src3.value->RemoveUse(src3_use);
     src3.value = NULL;
-    src3_use = NULL;
+    // src3_use = NULL;
+  }
+
+  if (src1_use) {
+    HIRBuilder::GetCurrent()->DeallocateUse(src1_use);
+    src1_use = nullptr;
+  }
+  if (src2_use) {
+    HIRBuilder::GetCurrent()->DeallocateUse(src2_use);
+    src2_use = nullptr;
+  }
+
+  if (src3_use) {
+    HIRBuilder::GetCurrent()->DeallocateUse(src3_use);
+    src3_use = nullptr;
   }
 }
 
-void Instr::Remove() {
+void Instr::UnlinkAndNOP() {
   // Remove all srcs/dest.
   Replace(&OPCODE_NOP_info, 0);
 
@@ -90,6 +104,10 @@ void Instr::Remove() {
   } else {
     block->instr_tail = prev;
   }
+}
+
+void Instr::Deallocate() {
+  HIRBuilder::GetCurrent()->DeallocateInstruction(this);
 }
 Instr* Instr::GetDestDefSkipAssigns() {
   Instr* current_def = this;

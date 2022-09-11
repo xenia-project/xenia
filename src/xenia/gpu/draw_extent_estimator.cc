@@ -320,22 +320,38 @@ uint32_t DrawExtentEstimator::EstimateMaxY(bool try_to_estimate_vertex_max_y,
     // scissor (it's set by Direct3D 9 when a viewport is used), on hosts, it
     // usually exists and can't be disabled.
     auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
+
     float viewport_bottom = 0.0f;
+    uint32_t enable_window_offset =
+        regs.Get<reg::PA_SU_SC_MODE_CNTL>().vtx_window_offset_enable;
+
+    bool not_pix_center = !regs.Get<reg::PA_SU_VTX_CNTL>().pix_center;
+
+    float window_y_offset_f = float(window_y_offset);
+
+    float yoffset = regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32;
+
     // First calculate all the integer.0 or integer.5 offsetting exactly at full
     // precision.
-    if (regs.Get<reg::PA_SU_SC_MODE_CNTL>().vtx_window_offset_enable) {
-      viewport_bottom += float(window_y_offset);
+    // chrispy: branch mispredicts here causing some pain according to vtune
+    float sm1 = .0f, sm2 = .0f, sm3 = .0f, sm4 = .0f;
+
+    if (enable_window_offset) {
+      sm1 = window_y_offset_f;
     }
-    if (!regs.Get<reg::PA_SU_VTX_CNTL>().pix_center) {
-      viewport_bottom += 0.5f;
+    if (not_pix_center) {
+      sm2 = 0.5f;
     }
     // Then apply the floating-point viewport offset.
     if (pa_cl_vte_cntl.vport_y_offset_ena) {
-      viewport_bottom += regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32;
+      sm3 = yoffset;
     }
-    viewport_bottom += pa_cl_vte_cntl.vport_y_scale_ena
-                           ? std::abs(regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32)
-                           : 1.0f;
+    sm4 = pa_cl_vte_cntl.vport_y_scale_ena
+              ? std::abs(regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32)
+              : 1.0f;
+
+    viewport_bottom = sm1 + sm2 + sm3 + sm4;
+
     // Using floor, or, rather, truncation (because maxing with zero anyway)
     // similar to how viewport scissoring behaves on real AMD, Intel and Nvidia
     // GPUs on Direct3D 12 (but not WARP), also like in

@@ -472,7 +472,7 @@ bool logging::internal::ShouldLog(LogLevel log_level) {
 std::pair<char*, size_t> logging::internal::GetThreadBuffer() {
   return {thread_log_buffer_, sizeof(thread_log_buffer_)};
 }
-
+XE_NOALIAS
 void logging::internal::AppendLogLine(LogLevel log_level,
                                       const char prefix_char, size_t written) {
   if (!logger_ || !ShouldLog(log_level) || !written) {

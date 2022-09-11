@@ -316,8 +316,46 @@ void Memory::Reset() {
   heaps_.v90000000.Reset();
   heaps_.physical.Reset();
 }
-
+XE_NOALIAS
 const BaseHeap* Memory::LookupHeap(uint32_t address) const {
+#if 1
+#define HEAP_INDEX(name) \
+  offsetof(Memory, heaps_.name) - offsetof(Memory, heaps_)
+
+  const char* heap_select = (const char*)&this->heaps_;
+
+  unsigned selected_heap_offset = 0;
+  unsigned high_nibble = address >> 28;
+
+  if (high_nibble < 0x4) {
+    selected_heap_offset = HEAP_INDEX(v00000000);
+  } else if (address < 0x7F000000) {
+    selected_heap_offset = HEAP_INDEX(v40000000);
+  } else if (high_nibble < 0x8) {
+    heap_select = nullptr;
+    // return nullptr;
+  } else if (high_nibble < 0x9) {
+    selected_heap_offset = HEAP_INDEX(v80000000);
+    // return &heaps_.v80000000;
+  } else if (high_nibble < 0xA) {
+    // return &heaps_.v90000000;
+    selected_heap_offset = HEAP_INDEX(v90000000);
+  } else if (high_nibble < 0xC) {
+    // return &heaps_.vA0000000;
+    selected_heap_offset = HEAP_INDEX(vA0000000);
+  } else if (high_nibble < 0xE) {
+    // return &heaps_.vC0000000;
+    selected_heap_offset = HEAP_INDEX(vC0000000);
+  } else if (address < 0xFFD00000) {
+    // return &heaps_.vE0000000;
+    selected_heap_offset = HEAP_INDEX(vE0000000);
+  } else {
+    //  return nullptr;
+    heap_select = nullptr;
+  }
+  return reinterpret_cast<const BaseHeap*>(selected_heap_offset + heap_select);
+
+#else
   if (address < 0x40000000) {
     return &heaps_.v00000000;
   } else if (address < 0x7F000000) {
@@ -337,6 +375,7 @@ const BaseHeap* Memory::LookupHeap(uint32_t address) const {
   } else {
     return nullptr;
   }
+#endif
 }
 
 BaseHeap* Memory::LookupHeapByType(bool physical, uint32_t page_size) {
@@ -465,8 +504,8 @@ cpu::MMIORange* Memory::LookupVirtualMappedRange(uint32_t virtual_address) {
 }
 
 bool Memory::AccessViolationCallback(
-    global_unique_lock_type global_lock_locked_once,
-    void* host_address, bool is_write) {
+    global_unique_lock_type global_lock_locked_once, void* host_address,
+    bool is_write) {
   // Access via physical_membase_ is special, when need to bypass everything
   // (for instance, for a data provider to actually write the data) so only
   // triggering callbacks on virtual memory regions.
@@ -493,16 +532,15 @@ bool Memory::AccessViolationCallback(
 }
 
 bool Memory::AccessViolationCallbackThunk(
-    global_unique_lock_type global_lock_locked_once,
-    void* context, void* host_address, bool is_write) {
+    global_unique_lock_type global_lock_locked_once, void* context,
+    void* host_address, bool is_write) {
   return reinterpret_cast<Memory*>(context)->AccessViolationCallback(
       std::move(global_lock_locked_once), host_address, is_write);
 }
 
 bool Memory::TriggerPhysicalMemoryCallbacks(
-    global_unique_lock_type global_lock_locked_once,
-    uint32_t virtual_address, uint32_t length, bool is_write,
-    bool unwatch_exact_range, bool unprotect) {
+    global_unique_lock_type global_lock_locked_once, uint32_t virtual_address,
+    uint32_t length, bool is_write, bool unwatch_exact_range, bool unprotect) {
   BaseHeap* heap = LookupHeap(virtual_address);
   if (heap->heap_type() == HeapType::kGuestPhysical) {
     auto physical_heap = static_cast<PhysicalHeap*>(heap);
@@ -1711,9 +1749,8 @@ void PhysicalHeap::EnableAccessCallbacks(uint32_t physical_address,
 }
 
 bool PhysicalHeap::TriggerCallbacks(
-    global_unique_lock_type global_lock_locked_once,
-    uint32_t virtual_address, uint32_t length, bool is_write,
-    bool unwatch_exact_range, bool unprotect) {
+    global_unique_lock_type global_lock_locked_once, uint32_t virtual_address,
+    uint32_t length, bool is_write, bool unwatch_exact_range, bool unprotect) {
   // TODO(Triang3l): Support read watches.
   assert_true(is_write);
   if (!is_write) {

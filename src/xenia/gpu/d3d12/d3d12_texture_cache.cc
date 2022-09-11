@@ -467,7 +467,7 @@ void D3D12TextureCache::EndFrame() {
       XELOGE("Unsupported texture formats used in the frame:");
       unsupported_header_written = true;
     }
-    XELOGE("* {}{}{}{}", FormatInfo::Get(xenos::TextureFormat(i))->name,
+    XELOGE("* {}{}{}{}", FormatInfo::GetName(xenos::TextureFormat(i)),
            unsupported_features & kUnsupportedResourceBit ? " resource" : "",
            unsupported_features & kUnsupportedUnormBit ? " unsigned" : "",
            unsupported_features & kUnsupportedSnormBit ? " signed" : "");
@@ -523,12 +523,16 @@ void D3D12TextureCache::RequestTextures(uint32_t used_texture_mask) {
     }
   }
 }
-
+// chrispy: optimize this further
 bool D3D12TextureCache::AreActiveTextureSRVKeysUpToDate(
     const TextureSRVKey* keys,
     const D3D12Shader::TextureBinding* host_shader_bindings,
     size_t host_shader_binding_count) const {
   for (size_t i = 0; i < host_shader_binding_count; ++i) {
+    if (i + 8 < host_shader_binding_count) {
+      PrefetchTextureBinding<swcache::PrefetchTag::Nontemporal>(
+          host_shader_bindings[i + 8].fetch_constant);
+    }
     const TextureSRVKey& key = keys[i];
     const TextureBinding* binding =
         GetValidTextureBinding(host_shader_bindings[i].fetch_constant);
@@ -538,8 +542,9 @@ bool D3D12TextureCache::AreActiveTextureSRVKeysUpToDate(
       }
       continue;
     }
-    if (key.key != binding->key || key.host_swizzle != binding->host_swizzle ||
-        key.swizzled_signs != binding->swizzled_signs) {
+    if ((key.key != binding->key) |
+        (key.host_swizzle != binding->host_swizzle) |
+        (key.swizzled_signs != binding->swizzled_signs)) {
       return false;
     }
   }
@@ -666,8 +671,12 @@ uint32_t D3D12TextureCache::GetActiveTextureBindlessSRVIndex(
   }
   return descriptor_index;
 }
-
-D3D12TextureCache::SamplerParameters D3D12TextureCache::GetSamplerParameters(
+void D3D12TextureCache::PrefetchSamplerParameters(
+	const D3D12Shader::SamplerBinding& binding) const {
+  swcache::PrefetchL1(&register_file()[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
+                                       binding.fetch_constant * 6]);
+}
+    D3D12TextureCache::SamplerParameters D3D12TextureCache::GetSamplerParameters(
     const D3D12Shader::SamplerBinding& binding) const {
   const auto& regs = register_file();
   const auto& fetch = regs.Get<xenos::xe_gpu_texture_fetch_t>(
@@ -694,7 +703,7 @@ D3D12TextureCache::SamplerParameters D3D12TextureCache::GetSamplerParameters(
                                                  nullptr, nullptr, nullptr,
                                                  &mip_min_level, nullptr);
   parameters.mip_min_level = mip_min_level;
-
+  //high cache miss count here, prefetch fetch earlier
   // TODO(Triang3l): Disable filtering for texture formats not supporting it.
   xenos::AnisoFilter aniso_filter =
       binding.aniso_filter == xenos::AnisoFilter::kUseFetchConst

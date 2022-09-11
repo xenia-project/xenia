@@ -233,15 +233,27 @@ void SharedMemory::FireWatches(uint32_t page_first, uint32_t page_last,
   // Fire per-range watches.
   for (uint32_t i = bucket_first; i <= bucket_last; ++i) {
     WatchNode* node = watch_buckets_[i];
+    if (i + 1 <= bucket_last) {
+      WatchNode* nextnode = watch_buckets_[i + 1];
+      if (nextnode) {
+        swcache::PrefetchL1(nextnode->range);
+      }
+    }
     while (node != nullptr) {
       WatchRange* range = node->range;
       // Store the next node now since when the callback is triggered, the links
       // will be broken.
       node = node->bucket_node_next;
+      if (node) {
+        swcache::PrefetchL1(node);
+      }
       if (page_first <= range->page_last && page_last >= range->page_first) {
         range->callback(global_lock, range->callback_context,
                         range->callback_data, range->callback_argument,
                         invalidated_by_gpu);
+        if (node && node->range) {
+          swcache::PrefetchL1(node->range);
+        }
         UnlinkWatchRange(range);
       }
     }

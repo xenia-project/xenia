@@ -199,9 +199,8 @@ bool GetPackedMipOffset(uint32_t width, uint32_t height, uint32_t depth,
     }
   }
 
-  const FormatInfo* format_info = FormatInfo::Get(format);
-  x_blocks /= format_info->block_width;
-  y_blocks /= format_info->block_height;
+  x_blocks >>= FormatInfo::GetWidthShift(format);
+  y_blocks >>= FormatInfo::GetHeightShift(format);
   return true;
 }
 
@@ -273,9 +272,10 @@ TextureGuestLayout GetGuestTextureLayout(
   }
   layout.mips_total_extent_bytes = 0;
 
-  const FormatInfo* format_info = FormatInfo::Get(format);
-  uint32_t bytes_per_block = format_info->bytes_per_block();
-
+  const FormatInfo* const format_info = FormatInfo::Get(format);
+  const uint32_t bytes_per_block = format_info->bytes_per_block();
+  const unsigned char block_width_sh = FormatInfo::GetWidthShift(format);
+  const unsigned char block_height_sh = FormatInfo::GetHeightShift(format);
   // The loop counter can mean two things depending on whether the packed mip
   // tail is stored as mip 0, because in this case, it would be ambiguous since
   // both the base and the mips would be on "level 0", but stored separately and
@@ -320,10 +320,13 @@ TextureGuestLayout GetGuestTextureLayout(
       z_slice_stride_texel_rows_unaligned =
           std::max(xe::next_pow2(height_texels) >> level, uint32_t(1));
     }
-    uint32_t row_pitch_blocks_tile_aligned = xe::align(
-        xe::align(row_pitch_texels_unaligned, format_info->block_width) /
-            format_info->block_width,
-        xenos::kTextureTileWidthHeight);
+    // maybe do 1 << block_width_sh instead of format_info->block_width, since
+    // we'll have cl loaded with the shift anyway
+    uint32_t row_pitch_blocks_tile_aligned =
+        xe::align(xe::align<uint32_t>(row_pitch_texels_unaligned,
+                                      format_info->block_width) >>
+                      block_width_sh,
+                  xenos::kTextureTileWidthHeight);
     level_layout.row_pitch_bytes =
         row_pitch_blocks_tile_aligned * bytes_per_block;
     // Assuming the provided pitch is already 256-byte-aligned for linear, but
@@ -335,10 +338,11 @@ TextureGuestLayout GetGuestTextureLayout(
     }
     level_layout.z_slice_stride_block_rows =
         dimension != xenos::DataDimension::k1D
-            ? xe::align(xe::align(z_slice_stride_texel_rows_unaligned,
-                                  format_info->block_height) /
-                            format_info->block_height,
-                        xenos::kTextureTileWidthHeight)
+            ? xe::align<uint32_t>(
+                  xe::align<uint32_t>(z_slice_stride_texel_rows_unaligned,
+                                      format_info->block_height) >>
+                      block_height_sh,
+                  xenos::kTextureTileWidthHeight)
             : 1;
     level_layout.array_slice_stride_bytes =
         level_layout.row_pitch_bytes * level_layout.z_slice_stride_block_rows;
@@ -358,13 +362,13 @@ TextureGuestLayout GetGuestTextureLayout(
     // the stride. For tiled textures, this is the dimensions aligned to 32x32x4
     // blocks (or x1 for the missing dimensions).
     uint32_t level_width_blocks =
-        xe::align(std::max(width_texels >> level, uint32_t(1)),
-                  format_info->block_width) /
-        format_info->block_width;
+        xe::align<uint32_t>(std::max(width_texels >> level, uint32_t(1)),
+                            format_info->block_width) >>
+        block_width_sh;
     uint32_t level_height_blocks =
-        xe::align(std::max(height_texels >> level, uint32_t(1)),
-                  format_info->block_height) /
-        format_info->block_height;
+        xe::align<uint32_t>(std::max(height_texels >> level, uint32_t(1)),
+                            format_info->block_height) >>
+        block_height_sh;
     uint32_t level_depth = std::max(depth >> level, uint32_t(1));
     if (is_tiled) {
       level_layout.x_extent_blocks =
@@ -415,20 +419,20 @@ TextureGuestLayout GetGuestTextureLayout(
           GetPackedMipOffset(width_texels, height_texels, depth, format,
                              packed_sublevel, packed_sublevel_x_blocks,
                              packed_sublevel_y_blocks, packed_sublevel_z);
-          level_layout.x_extent_blocks = std::max(
+          level_layout.x_extent_blocks = std::max<uint32_t>(
               level_layout.x_extent_blocks,
               packed_sublevel_x_blocks +
-                  xe::align(
-                      std::max(width_texels >> packed_sublevel, uint32_t(1)),
-                      format_info->block_width) /
-                      format_info->block_width);
-          level_layout.y_extent_blocks = std::max(
+                  (xe::align<uint32_t>(
+                       std::max(width_texels >> packed_sublevel, uint32_t(1)),
+                       format_info->block_width) >>
+                   block_width_sh));
+          level_layout.y_extent_blocks = std::max<uint32_t>(
               level_layout.y_extent_blocks,
               packed_sublevel_y_blocks +
-                  xe::align(
-                      std::max(height_texels >> packed_sublevel, uint32_t(1)),
-                      format_info->block_height) /
-                      format_info->block_height);
+                  (xe::align<uint32_t>(
+                       std::max(height_texels >> packed_sublevel, uint32_t(1)),
+                       format_info->block_height) >>
+                   block_height_sh));
           level_layout.z_extent =
               std::max(level_layout.z_extent,
                        packed_sublevel_z +

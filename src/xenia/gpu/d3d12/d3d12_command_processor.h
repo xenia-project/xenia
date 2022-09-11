@@ -1,5 +1,6 @@
 /**
 /**
+/**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
@@ -35,6 +36,7 @@
 #include "xenia/gpu/registers.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/user_module.h"
 #include "xenia/ui/d3d12/d3d12_descriptor_heap_pool.h"
 #include "xenia/ui/d3d12/d3d12_provider.h"
 #include "xenia/ui/d3d12/d3d12_upload_buffer_pool.h"
@@ -46,6 +48,7 @@ namespace d3d12 {
 
 class D3D12CommandProcessor final : public CommandProcessor {
  public:
+#include "../pm4_command_processor_declare.h"
   explicit D3D12CommandProcessor(D3D12GraphicsSystem* graphics_system,
                                  kernel::KernelState* kernel_state);
   ~D3D12CommandProcessor();
@@ -205,22 +208,70 @@ class D3D12CommandProcessor final : public CommandProcessor {
  protected:
   bool SetupContext() override;
   void ShutdownContext() override;
-  XE_FORCEINLINE
+
   void WriteRegister(uint32_t index, uint32_t value) override;
   XE_FORCEINLINE
   virtual void WriteRegistersFromMem(uint32_t start_index, uint32_t* base,
                                      uint32_t num_registers) override;
+
+  template <uint32_t register_lower_bound, uint32_t register_upper_bound>
+  XE_FORCEINLINE void WriteRegisterRangeFromMem_WithKnownBound(
+      uint32_t start_index, uint32_t* base, uint32_t num_registers);
   XE_FORCEINLINE
   virtual void WriteRegisterRangeFromRing(xe::RingBuffer* ring, uint32_t base,
                                           uint32_t num_registers) override;
+  template <uint32_t register_lower_bound, uint32_t register_upper_bound>
+  XE_FORCEINLINE void WriteRegisterRangeFromRing_WithKnownBound(
+      xe::RingBuffer* ring, uint32_t base, uint32_t num_registers);
 
   XE_NOINLINE
   void WriteRegisterRangeFromRing_WraparoundCase(xe::RingBuffer* ring,
                                                  uint32_t base,
-                                                 uint32_t num_registers); 
-  XE_FORCEINLINE
-  virtual void WriteOneRegisterFromRing(xe::RingBuffer* ring, uint32_t base,
+                                                 uint32_t num_registers);
+  XE_NOINLINE
+  virtual void WriteOneRegisterFromRing(uint32_t base,
                                         uint32_t num_times) override;
+
+  XE_FORCEINLINE
+  void WriteALURangeFromRing(xe::RingBuffer* ring, uint32_t base,
+                             uint32_t num_times);
+
+  XE_FORCEINLINE
+  void WriteFetchRangeFromRing(xe::RingBuffer* ring, uint32_t base,
+                               uint32_t num_times);
+
+  XE_FORCEINLINE
+  void WriteBoolRangeFromRing(xe::RingBuffer* ring, uint32_t base,
+                              uint32_t num_times);
+
+  XE_FORCEINLINE
+  void WriteLoopRangeFromRing(xe::RingBuffer* ring, uint32_t base,
+                              uint32_t num_times);
+
+  XE_FORCEINLINE
+  void WriteREGISTERSRangeFromRing(xe::RingBuffer* ring, uint32_t base,
+                                   uint32_t num_times);
+
+  XE_FORCEINLINE
+  void WriteALURangeFromMem(uint32_t start_index, uint32_t* base,
+                            uint32_t num_registers);
+
+  XE_FORCEINLINE
+  void WriteFetchRangeFromMem(uint32_t start_index, uint32_t* base,
+                              uint32_t num_registers);
+
+  XE_FORCEINLINE
+  void WriteBoolRangeFromMem(uint32_t start_index, uint32_t* base,
+                             uint32_t num_registers);
+
+  XE_FORCEINLINE
+  void WriteLoopRangeFromMem(uint32_t start_index, uint32_t* base,
+                             uint32_t num_registers);
+
+  XE_FORCEINLINE
+  void WriteREGISTERSRangeFromMem(uint32_t start_index, uint32_t* base,
+                                  uint32_t num_registers);
+
   void OnGammaRamp256EntryTableValueWritten() override;
   void OnGammaRampPWLValueWritten() override;
 
@@ -367,6 +418,14 @@ class D3D12CommandProcessor final : public CommandProcessor {
                                 const draw_util::Scissor& scissor,
                                 bool primitive_polygonal,
                                 reg::RB_DEPTHCONTROL normalized_depth_control);
+
+  template <bool primitive_polygonal, bool edram_rov_used>
+  XE_NOINLINE void UpdateSystemConstantValues_Impl(
+      bool shared_memory_is_uav, uint32_t line_loop_closing_index,
+      xenos::Endian index_endian, const draw_util::ViewportInfo& viewport_info,
+      uint32_t used_texture_mask, reg::RB_DEPTHCONTROL normalized_depth_control,
+      uint32_t normalized_color_mask);
+
   void UpdateSystemConstantValues(bool shared_memory_is_uav,
                                   bool primitive_polygonal,
                                   uint32_t line_loop_closing_index,
@@ -619,8 +678,8 @@ class D3D12CommandProcessor final : public CommandProcessor {
   uint32_t current_graphics_root_up_to_date_;
 
   // System shader constants.
-  alignas(XE_HOST_CACHE_LINE_SIZE) 
-	  DxbcShaderTranslator::SystemConstants system_constants_;
+  alignas(XE_HOST_CACHE_LINE_SIZE)
+      DxbcShaderTranslator::SystemConstants system_constants_;
 
   // Float constant usage masks of the last draw call.
   // chrispy: make sure accesses to these cant cross cacheline boundaries

@@ -511,7 +511,8 @@ template <size_t I = 0, typename... Ps>
 StringBuffer* thread_local_string_buffer();
 
 template <typename Tuple>
-void PrintKernelCall(cpu::Export* export_entry, const Tuple& params) {
+XE_NOALIAS void PrintKernelCall(cpu::Export* export_entry,
+                                const Tuple& params) {
   auto& string_buffer = *thread_local_string_buffer();
   string_buffer.Reset();
   string_buffer.Append(export_entry->name);
@@ -526,58 +527,89 @@ void PrintKernelCall(cpu::Export* export_entry, const Tuple& params) {
                                string_buffer.to_string_view());
   }
 }
+/*
+        todo: need faster string formatting/concatenation (all arguments are
+   always turned into strings except if kHighFrequency)
 
+*/
 template <typename F, typename Tuple, std::size_t... I>
-auto KernelTrampoline(F&& f, Tuple&& t, std::index_sequence<I...>) {
+XE_FORCEINLINE static auto KernelTrampoline(F&& f, Tuple&& t,
+                                            std::index_sequence<I...>) {
   return std::forward<F>(f)(std::get<I>(std::forward<Tuple>(t))...);
 }
 
 template <KernelModuleId MODULE, uint16_t ORDINAL, typename R, typename... Ps>
-xe::cpu::Export* RegisterExport(R (*fn)(Ps&...), const char* name,
-                                xe::cpu::ExportTag::type tags) {
-  static_assert(
-      std::is_void<R>::value || std::is_base_of<shim::Result, R>::value,
-      "R must be void or derive from shim::Result");
-  static_assert((std::is_base_of_v<shim::Param, Ps> && ...),
-                "Ps must derive from shim::Param");
-  static const auto export_entry = new cpu::Export(
-      ORDINAL, xe::cpu::Export::Type::kFunction, name,
-      tags | xe::cpu::ExportTag::kImplemented | xe::cpu::ExportTag::kLog);
-  static R (*FN)(Ps & ...) = fn;
-  struct X {
-    static void Trampoline(PPCContext* ppc_context) {
-      ++export_entry->function_data.call_count;
-      Param::Init init = {
-          ppc_context,
-          0,
-      };
-      // Using braces initializer instead of make_tuple because braces
-      // enforce execution order across compilers.
-      // The make_tuple order is undefined per the C++ standard and
-      // cause inconsitencies between msvc and clang.
-      std::tuple<Ps...> params = {Ps(init)...};
-      if (export_entry->tags & xe::cpu::ExportTag::kLog &&
-          (!(export_entry->tags & xe::cpu::ExportTag::kHighFrequency) ||
-           cvars::log_high_frequency_kernel_calls)) {
-        PrintKernelCall(export_entry, params);
-      }
-      if constexpr (std::is_void<R>::value) {
-        KernelTrampoline(FN, std::forward<std::tuple<Ps...>>(params),
-                         std::make_index_sequence<sizeof...(Ps)>());
-      } else {
-        auto result =
-            KernelTrampoline(FN, std::forward<std::tuple<Ps...>>(params),
-                             std::make_index_sequence<sizeof...(Ps)>());
-        result.Store(ppc_context);
-        if (export_entry->tags &
-            (xe::cpu::ExportTag::kLog | xe::cpu::ExportTag::kLogResult)) {
-          // TODO(benvanik): log result.
+struct ExportRegistrerHelper {
+  template <R (*fn)(Ps&...), xe::cpu::ExportTag::type tags>
+  static xe::cpu::Export* RegisterExport(const char* name) {
+    static_assert(
+        std::is_void<R>::value || std::is_base_of<shim::Result, R>::value,
+        "R must be void or derive from shim::Result");
+    static_assert((std::is_base_of_v<shim::Param, Ps> && ...),
+                  "Ps must derive from shim::Param");
+    constexpr auto TAGS =
+        tags | xe::cpu::ExportTag::kImplemented | xe::cpu::ExportTag::kLog;
+
+    static const auto export_entry =
+        new cpu::Export(ORDINAL, xe::cpu::Export::Type::kFunction, name, TAGS);
+    struct X {
+      static void Trampoline(PPCContext* ppc_context) {
+        ++export_entry->function_data.call_count;
+        Param::Init init = {
+            ppc_context,
+            0,
+        };
+        // Using braces initializer instead of make_tuple because braces
+        // enforce execution order across compilers.
+        // The make_tuple order is undefined per the C++ standard and
+        // cause inconsitencies between msvc and clang.
+        std::tuple<Ps...> params = {Ps(init)...};
+        if (TAGS & xe::cpu::ExportTag::kLog &&
+            (!(TAGS & xe::cpu::ExportTag::kHighFrequency) ||
+             cvars::log_high_frequency_kernel_calls)) {
+          PrintKernelCall(export_entry, params);
+        }
+        if constexpr (std::is_void<R>::value) {
+          KernelTrampoline(fn, std::forward<std::tuple<Ps...>>(params),
+                           std::make_index_sequence<sizeof...(Ps)>());
+        } else {
+          auto result =
+              KernelTrampoline(fn, std::forward<std::tuple<Ps...>>(params),
+                               std::make_index_sequence<sizeof...(Ps)>());
+          result.Store(ppc_context);
+          if (TAGS &
+              (xe::cpu::ExportTag::kLog | xe::cpu::ExportTag::kLogResult)) {
+            // TODO(benvanik): log result.
+          }
         }
       }
-    }
-  };
-  export_entry->function_data.trampoline = &X::Trampoline;
-  return export_entry;
+    };
+    struct Y {
+      static void Trampoline(PPCContext* ppc_context) {
+        Param::Init init = {
+            ppc_context,
+            0,
+        };
+        std::tuple<Ps...> params = {Ps(init)...};
+        if constexpr (std::is_void<R>::value) {
+          KernelTrampoline(fn, std::forward<std::tuple<Ps...>>(params),
+                           std::make_index_sequence<sizeof...(Ps)>());
+        } else {
+          auto result =
+              KernelTrampoline(fn, std::forward<std::tuple<Ps...>>(params),
+                               std::make_index_sequence<sizeof...(Ps)>());
+          result.Store(ppc_context);
+        }
+      }
+    };
+    export_entry->function_data.trampoline = &X::Trampoline;
+    return export_entry;
+  }
+};
+template <KernelModuleId MODULE, uint16_t ORDINAL, typename R, typename... Ps>
+auto GetRegister(R (*fngetter)(Ps&...)) {
+  return static_cast<ExportRegistrerHelper<MODULE, ORDINAL, R, Ps...>*>(
+      nullptr);
 }
 
 }  // namespace shim
@@ -585,13 +617,17 @@ xe::cpu::Export* RegisterExport(R (*fn)(Ps&...), const char* name,
 using xe::cpu::ExportTag;
 
 #define DECLARE_EXPORT(module_name, name, category, tags)                  \
+  using _register_##module_name##_##name =                                 \
+      std::remove_cv_t<std::remove_reference_t<                            \
+          decltype(*xe::kernel::shim::GetRegister<                         \
+                   xe::kernel::shim::KernelModuleId::module_name,          \
+                   ordinals::name>(&name##_entry))>>;                      \
   const auto EXPORT_##module_name##_##name = RegisterExport_##module_name( \
-      xe::kernel::shim::RegisterExport<                                    \
-          xe::kernel::shim::KernelModuleId::module_name, ordinals::name>(  \
-          &name##_entry, #name,                                            \
-          tags | (static_cast<xe::cpu::ExportTag::type>(                   \
-                      xe::cpu::ExportCategory::category)                   \
-                  << xe::cpu::ExportTag::CategoryShift)));
+      _register_##module_name##_##name ::RegisterExport<                   \
+          &name##_entry, tags | (static_cast<xe::cpu::ExportTag::type>(    \
+                                     xe::cpu::ExportCategory::category)    \
+                                 << xe::cpu::ExportTag::CategoryShift)>(   \
+          #name));
 
 #define DECLARE_EMPTY_REGISTER_EXPORTS(module_name, group_name) \
   void xe::kernel::module_name::Register##group_name##Exports(  \
