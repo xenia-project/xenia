@@ -13,7 +13,7 @@
 
 namespace xe {
 namespace amd64 {
-enum X64FeatureFlags {
+enum X64FeatureFlags : uint64_t {
   kX64EmitAVX2 = 1 << 0,
   kX64EmitFMA = 1 << 1,
   kX64EmitLZCNT = 1 << 2,  // this is actually ABM and includes popcount
@@ -44,14 +44,13 @@ enum X64FeatureFlags {
                            // instructions, and FX users need the boost
   kX64EmitFMA4 = 1 << 17,  // todo: also use on zen1?
   kX64EmitTBM = 1 << 18,
-  // kX64XMMRegisterMergeOptimization = 1 << 19, //section 2.11.5, amd family
-  // 17h/19h optimization manuals. allows us to save 1 byte on certain xmm
-  // instructions by using the legacy sse version if we recently cleared the
-  // high 128 bits of the
+  kX64EmitMovdir64M = 1 << 19,
+  kX64FastRepMovs = 1 << 20
+
 };
 
 XE_NOALIAS
-uint32_t GetFeatureFlags();
+uint64_t GetFeatureFlags();
 XE_COLD
 void InitFeatureFlags();
 

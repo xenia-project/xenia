@@ -26,7 +26,7 @@ check this and release the mutex one way to do this is by using FlsAlloc and
 PFLS_CALLBACK_FUNCTION, which gets called with the fiber local data when a
 thread exits
 */
-thread_local unsigned global_mutex_depth = 0;
+
 static CRITICAL_SECTION* global_critical_section(xe_global_mutex* mutex) {
   return reinterpret_cast<CRITICAL_SECTION*>(mutex);
 }
@@ -38,29 +38,16 @@ xe_global_mutex::xe_global_mutex() {
 xe_global_mutex ::~xe_global_mutex() {
   DeleteCriticalSection(global_critical_section(this));
 }
+
 void xe_global_mutex::lock() {
-  if (global_mutex_depth) {
-  } else {
-    EnterCriticalSection(global_critical_section(this));
-  }
-  global_mutex_depth++;
+  EnterCriticalSection(global_critical_section(this));
 }
 void xe_global_mutex::unlock() {
-  if (--global_mutex_depth == 0) {
-    LeaveCriticalSection(global_critical_section(this));
-  }
+  LeaveCriticalSection(global_critical_section(this));
 }
 bool xe_global_mutex::try_lock() {
-  if (global_mutex_depth) {
-    ++global_mutex_depth;
-    return true;
-  } else {
-    BOOL success = TryEnterCriticalSection(global_critical_section(this));
-    if (success) {
-      ++global_mutex_depth;
-    }
-    return success;
-  }
+  BOOL success = TryEnterCriticalSection(global_critical_section(this));
+  return success;
 }
 
 CRITICAL_SECTION* fast_crit(xe_fast_mutex* mutex) {

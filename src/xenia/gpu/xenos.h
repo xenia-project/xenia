@@ -421,10 +421,12 @@ float Float7e3To32(uint32_t f10);
 // floating-point number.
 // Converts an IEEE-754 32-bit floating-point number to Xenos floating-point
 // depth, rounding to the nearest even or towards zero.
-uint32_t Float32To20e4(float f32, bool round_to_nearest_even);
+XE_NOALIAS 
+uint32_t Float32To20e4(float f32, bool round_to_nearest_even) noexcept;
 // Converts Xenos floating-point depth in bits 0:23 (not clamping) to an
 // IEEE-754 32-bit floating-point number.
-float Float20e4To32(uint32_t f24);
+XE_NOALIAS
+float Float20e4To32(uint32_t f24) noexcept;
 // Converts 24-bit unorm depth in the value (not clamping) to an IEEE-754 32-bit
 // floating-point number.
 constexpr float UNorm24To32(uint32_t n24) {
@@ -1045,9 +1047,9 @@ inline uint16_t GpuSwap(uint16_t value, Endian endianness) {
       return value;
   }
 }
-XE_NOINLINE
+XE_FORCEINLINE
 XE_NOALIAS
-static uint32_t GpuSwap(uint32_t value, Endian endianness) {
+static uint32_t GpuSwapInline(uint32_t value, Endian endianness) {
   switch (endianness) {
     default:
     case Endian::kNone:
@@ -1064,6 +1066,11 @@ static uint32_t GpuSwap(uint32_t value, Endian endianness) {
       // Swap half words.
       return ((value >> 16) & 0xFFFF) | (value << 16);
   }
+}
+XE_NOINLINE
+XE_NOALIAS
+static uint32_t GpuSwap(uint32_t value, Endian endianness) {
+  return GpuSwapInline(value, endianness);
 }
 
 inline float GpuSwap(float value, Endian endianness) {

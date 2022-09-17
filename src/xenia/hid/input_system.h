@@ -48,7 +48,7 @@ class InputSystem {
   void UpdateUsedSlot(uint8_t slot, bool connected);
   uint8_t GetConnectedSlots() const { return connected_slot; }
 
-  std::unique_lock<xe_unlikely_mutex> lock();
+  std::unique_lock<xe_mutex> lock();
 
  private:
   xe::ui::Window* window_ = nullptr;
@@ -57,7 +57,7 @@ class InputSystem {
 
   X_INPUT_VIBRATION ModifyVibrationLevel(X_INPUT_VIBRATION* vibration);
   uint8_t connected_slot = 0b0001;
-  xe_unlikely_mutex lock_;
+  xe_mutex lock_;
 };
 
 }  // namespace hid

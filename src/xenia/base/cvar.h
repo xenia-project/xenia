@@ -335,7 +335,8 @@ ICommandVar* define_cmdvar(const char* name, T* default_value,
 
 #define DEFINE_uint64(name, default_value, description, category) \
   DEFINE_CVar(name, default_value, description, category, false, uint64_t)
-
+#define DEFINE_int64(name, default_value, description, category) \
+  DEFINE_CVar(name, default_value, description, category, false, int64_t)
 #define DEFINE_double(name, default_value, description, category) \
   DEFINE_CVar(name, default_value, description, category, false, double)
 
@@ -383,7 +384,7 @@ ICommandVar* define_cmdvar(const char* name, T* default_value,
 #define DECLARE_uint32(name) DECLARE_CVar(name, uint32_t)
 
 #define DECLARE_uint64(name) DECLARE_CVar(name, uint64_t)
-
+#define DECLARE_int64(name) DECLARE_CVar(name, int64_t)
 #define DECLARE_double(name) DECLARE_CVar(name, double)
 
 #define DECLARE_string(name) DECLARE_CVar(name, std::string)

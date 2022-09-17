@@ -299,7 +299,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   void* FindWordConstantOffset(unsigned wordvalue);
   void* FindDwordConstantOffset(unsigned bytevalue);
   void* FindQwordConstantOffset(uint64_t bytevalue);
-  bool IsFeatureEnabled(uint32_t feature_flag) const {
+  bool IsFeatureEnabled(uint64_t feature_flag) const {
     return (feature_flags_ & feature_flag) == feature_flag;
   }
 
@@ -395,7 +395,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   XbyakAllocator* allocator_ = nullptr;
   XexModule* guest_module_ = nullptr;
   Xbyak::util::Cpu cpu_;
-  uint32_t feature_flags_ = 0;
+  uint64_t feature_flags_ = 0;
   uint32_t current_guest_function_ = 0;
   Xbyak::Label* epilog_label_ = nullptr;
 

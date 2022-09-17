@@ -334,7 +334,7 @@ void CommandProcessor::EnableReadPointerWriteBack(uint32_t ptr,
 
 void CommandProcessor::UpdateWritePointer(uint32_t value) {
   write_ptr_index_ = value;
-  write_ptr_index_event_->Set();
+  write_ptr_index_event_->SetBoostPriority();
 }
 void CommandProcessor::HandleSpecialRegisterWrite(uint32_t index,
                                                   uint32_t value) {
@@ -665,6 +665,11 @@ uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index,
 
   reader_.set_read_offset(read_index * sizeof(uint32_t));
   reader_.set_write_offset(write_index * sizeof(uint32_t));
+  // prefetch the wraparound range
+  // it likely is already in L3 cache, but in a zen system it may be another
+  // chiplets l3
+  reader_.BeginPrefetchedRead<swcache::PrefetchTag::Level2>(
+      GetCurrentRingReadCount());
   do {
     if (!ExecutePacket()) {
       // This probably should be fatal - but we're going to continue anyways.

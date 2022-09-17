@@ -14,6 +14,11 @@ void COMMAND_PROCESSOR::ExecuteIndirectBuffer(uint32_t ptr,
   new (&reader_)
       RingBuffer(memory_->TranslatePhysical(ptr), count * sizeof(uint32_t));
   reader_.set_write_offset(count * sizeof(uint32_t));
+  // prefetch the wraparound range
+  // it likely is already in L3 cache, but in a zen system it may be another
+  // chiplets l3
+  reader_.BeginPrefetchedRead<swcache::PrefetchTag::Level2>(
+      COMMAND_PROCESSOR::GetCurrentRingReadCount());
   do {
     if (COMMAND_PROCESSOR::ExecutePacket()) {
       continue;
@@ -30,11 +35,6 @@ void COMMAND_PROCESSOR::ExecuteIndirectBuffer(uint32_t ptr,
 }
 
 bool COMMAND_PROCESSOR::ExecutePacket() {
-  // prefetch the wraparound range
-  // it likely is already in L3 cache, but in a zen system it may be another
-  // chiplets l3
-  reader_.BeginPrefetchedRead<swcache::PrefetchTag::Level2>(
-      COMMAND_PROCESSOR::GetCurrentRingReadCount());
   const uint32_t packet = reader_.ReadAndSwap<uint32_t>();
   const uint32_t packet_type = packet >> 30;
 
@@ -495,7 +495,7 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_WAIT_REG_MEM(
         } else {
           xe::threading::Sleep(std::chrono::milliseconds(wait / 0x100));
         }
-        xe::threading::SyncMemory();
+        // xe::threading::SyncMemory();
         ReturnFromWait();
 
         if (!worker_running_) {
@@ -599,27 +599,28 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_COND_WRITE(
     value = register_file_->values[poll_reg_addr].u32;
   }
   bool matched = false;
+  value &= mask;
   switch (wait_info & 0x7) {
     case 0x0:  // Never.
       matched = false;
       break;
     case 0x1:  // Less than reference.
-      matched = (value & mask) < ref;
+      matched = value < ref;
       break;
     case 0x2:  // Less than or equal to reference.
-      matched = (value & mask) <= ref;
+      matched = value <= ref;
       break;
     case 0x3:  // Equal to reference.
-      matched = (value & mask) == ref;
+      matched = value == ref;
       break;
     case 0x4:  // Not equal to reference.
-      matched = (value & mask) != ref;
+      matched = value != ref;
       break;
     case 0x5:  // Greater than or equal to reference.
-      matched = (value & mask) >= ref;
+      matched = value >= ref;
       break;
     case 0x6:  // Greater than reference.
-      matched = (value & mask) > ref;
+      matched = value > ref;
       break;
     case 0x7:  // Always
       matched = true;
@@ -1064,7 +1065,7 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_IM_LOAD_IMMEDIATE(
   assert_true(count - 2 >= size_dwords);
   auto shader = COMMAND_PROCESSOR::LoadShader(
       shader_type, uint32_t(reader_.read_ptr()),
-                 reinterpret_cast<uint32_t*>(reader_.read_ptr()), size_dwords);
+      reinterpret_cast<uint32_t*>(reader_.read_ptr()), size_dwords);
   switch (shader_type) {
     case xenos::ShaderType::kVertex:
       active_vertex_shader_ = shader;

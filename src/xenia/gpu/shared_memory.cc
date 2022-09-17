@@ -388,6 +388,7 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length,
 
   bool any_data_resolved = false;
   uint32_t block_first = page_first >> 6;
+  swcache::PrefetchL1(&system_page_flags_[block_first]);
   uint32_t block_last = page_last >> 6;
   uint32_t range_start = UINT32_MAX;
 

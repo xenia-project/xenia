@@ -103,74 +103,9 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
         "FAQ for system requirements at https://xenia.jp");
     return;
   }
-#if 1
-  feature_flags_ = amd64::GetFeatureFlags();
-#else
-#define TEST_EMIT_FEATURE(emit, ext)                \
-  if ((cvars::x64_extension_mask & emit) == emit) { \
-    feature_flags_ |= (cpu_.has(ext) ? emit : 0);   \
-  }
 
-  TEST_EMIT_FEATURE(kX64EmitAVX2, Xbyak::util::Cpu::tAVX2);
-  TEST_EMIT_FEATURE(kX64EmitFMA, Xbyak::util::Cpu::tFMA);
-  TEST_EMIT_FEATURE(kX64EmitLZCNT, Xbyak::util::Cpu::tLZCNT);
-  TEST_EMIT_FEATURE(kX64EmitBMI1, Xbyak::util::Cpu::tBMI1);
-  TEST_EMIT_FEATURE(kX64EmitBMI2, Xbyak::util::Cpu::tBMI2);
-  TEST_EMIT_FEATURE(kX64EmitMovbe, Xbyak::util::Cpu::tMOVBE);
-  TEST_EMIT_FEATURE(kX64EmitGFNI, Xbyak::util::Cpu::tGFNI);
-  TEST_EMIT_FEATURE(kX64EmitAVX512F, Xbyak::util::Cpu::tAVX512F);
-  TEST_EMIT_FEATURE(kX64EmitAVX512VL, Xbyak::util::Cpu::tAVX512VL);
-  TEST_EMIT_FEATURE(kX64EmitAVX512BW, Xbyak::util::Cpu::tAVX512BW);
-  TEST_EMIT_FEATURE(kX64EmitAVX512DQ, Xbyak::util::Cpu::tAVX512DQ);
-  TEST_EMIT_FEATURE(kX64EmitAVX512VBMI, Xbyak::util::Cpu::tAVX512VBMI);
-  TEST_EMIT_FEATURE(kX64EmitPrefetchW, Xbyak::util::Cpu::tPREFETCHW);
-#undef TEST_EMIT_FEATURE
-  /*
-  fix for xbyak bug/omission, amd cpus are never checked for lzcnt. fixed in
-  latest version of xbyak
-*/
-  unsigned int data[4];
-  Xbyak::util::Cpu::getCpuid(0x80000001, data);
-  unsigned amd_flags = data[2];
-  if (amd_flags & (1U << 5)) {
-    if ((cvars::x64_extension_mask & kX64EmitLZCNT) == kX64EmitLZCNT) {
-      feature_flags_ |= kX64EmitLZCNT;
-    }
-  }
-  // todo: although not reported by cpuid, zen 1 and zen+ also have fma4
-  if (amd_flags & (1U << 16)) {
-    if ((cvars::x64_extension_mask & kX64EmitFMA4) == kX64EmitFMA4) {
-      feature_flags_ |= kX64EmitFMA4;
-    }
-  }
-  if (amd_flags & (1U << 21)) {
-    if ((cvars::x64_extension_mask & kX64EmitTBM) == kX64EmitTBM) {
-      feature_flags_ |= kX64EmitTBM;
-    }
-  }
-  if (amd_flags & (1U << 11)) {
-    if ((cvars::x64_extension_mask & kX64EmitXOP) == kX64EmitXOP) {
-      feature_flags_ |= kX64EmitXOP;
-      XELOGCPU("Cpu support XOP!\n\n");
-    }
-  }
-  if (cpu_.has(Xbyak::util::Cpu::tAMD)) {
-    bool is_zennish = cpu_.displayFamily >= 0x17;
-    /*
-                chrispy: according to agner's tables, all amd architectures that
-       we support (ones with avx) have the same timings for
-       jrcxz/loop/loope/loopne as for other jmps
-        */
-    feature_flags_ |= kX64FastJrcx;
-    feature_flags_ |= kX64FastLoop;
-    if (is_zennish) {
-      // ik that i heard somewhere that this is the case for zen, but i need to
-      // verify. cant find my original source for that.
-      // todo: ask agner?
-      feature_flags_ |= kX64FlagsIndependentVars;
-    }
-  }
-#endif
+  feature_flags_ = amd64::GetFeatureFlags();
+
   may_use_membase32_as_zero_reg_ =
       static_cast<uint32_t>(reinterpret_cast<uintptr_t>(
           processor()->memory()->virtual_membase())) == 0;

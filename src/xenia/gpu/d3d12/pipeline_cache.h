@@ -403,8 +403,8 @@ class PipelineCache {
   // Pipeline creation threads.
   void CreationThread(size_t thread_index);
   void CreateQueuedPipelinesOnProcessorThread();
-  std::mutex creation_request_lock_;
-  std::condition_variable creation_request_cond_;
+  xe_mutex creation_request_lock_;
+  std::condition_variable_any creation_request_cond_;
   // Protected with creation_request_lock_, notify_one creation_request_cond_
   // when set.
   std::deque<Pipeline*> creation_queue_;

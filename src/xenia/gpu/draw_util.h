@@ -475,6 +475,8 @@ inline uint32_t GetD3D10SampleIndexForGuest2xMSAA(
 
 // To avoid passing values that the shader won't understand (even though
 // Direct3D 9 shouldn't pass them anyway).
+XE_NOINLINE
+XE_NOALIAS
 xenos::CopySampleSelect SanitizeCopySampleSelect(
     xenos::CopySampleSelect copy_sample_select, xenos::MsaaSamples msaa_samples,
     bool is_depth);

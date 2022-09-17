@@ -911,11 +911,17 @@ dword_result_t NtSignalAndWaitForSingleObjectEx_entry(dword_t signal_handle,
 DECLARE_XBOXKRNL_EXPORT3(NtSignalAndWaitForSingleObjectEx, kThreading,
                          kImplemented, kBlocking, kHighFrequency);
 
+static void PrefetchForCAS(const void* value) {
+  if (amd64::GetFeatureFlags() & amd64::kX64EmitPrefetchW) {
+    swcache::PrefetchW(value);
+  }
+}
+
 uint32_t xeKeKfAcquireSpinLock(uint32_t* lock) {
   // XELOGD(
   //     "KfAcquireSpinLock({:08X})",
   //     lock_ptr);
-
+  PrefetchForCAS(lock);
   // Lock.
   while (!xe::atomic_cas(0, 1, lock)) {
     // Spin!
@@ -956,6 +962,7 @@ DECLARE_XBOXKRNL_EXPORT2(KfReleaseSpinLock, kThreading, kImplemented,
 void KeAcquireSpinLockAtRaisedIrql_entry(lpdword_t lock_ptr) {
   // Lock.
   auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
+  PrefetchForCAS(lock);
   while (!xe::atomic_cas(0, 1, lock)) {
 #if XE_ARCH_AMD64 == 1
     // todo: this is just a nop if they don't have SMT, which is not great
@@ -973,6 +980,7 @@ DECLARE_XBOXKRNL_EXPORT3(KeAcquireSpinLockAtRaisedIrql, kThreading,
 dword_result_t KeTryToAcquireSpinLockAtRaisedIrql_entry(lpdword_t lock_ptr) {
   // Lock.
   auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
+  PrefetchForCAS(lock);
   if (!xe::atomic_cas(0, 1, lock)) {
     return 0;
   }

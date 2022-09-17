@@ -39,7 +39,7 @@
 #include "xenia/cpu/backend/x64/x64_stack_layout.h"
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/processor.h"
-
+XE_MSVC_OPTIMIZE_SMALL()
 DEFINE_bool(use_fast_dot_product, false,
             "Experimental optimization, much shorter sequence on dot products, "
             "treating inf as overflow instead of using mcxsr"

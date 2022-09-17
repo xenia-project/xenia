@@ -125,8 +125,8 @@ float Float7e3To32(uint32_t f10) {
 // Based on CFloat24 from d3dref9.dll and the 6e4 code from:
 // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
 // 6e4 has a different exponent bias allowing [0,512) values, 20e4 allows [0,2).
-
-uint32_t Float32To20e4(float f32, bool round_to_nearest_even) {
+XE_NOALIAS
+uint32_t Float32To20e4(float f32, bool round_to_nearest_even) noexcept {
   if (!(f32 > 0.0f)) {
     // Positive only, and not -0 or NaN.
     return 0;
@@ -150,8 +150,8 @@ uint32_t Float32To20e4(float f32, bool round_to_nearest_even) {
   }
   return (f32u32 >> 3) & 0xFFFFFF;
 }
-
-float Float20e4To32(uint32_t f24) {
+XE_NOALIAS
+float Float20e4To32(uint32_t f24) noexcept {
   f24 &= 0xFFFFFF;
   if (!f24) {
     return 0.0f;

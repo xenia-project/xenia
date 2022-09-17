@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "xenia/base/mutex.h"
-
+#include "xenia/base/split_map.h"
 namespace xe {
 namespace cpu {
 
@@ -48,7 +48,8 @@ class EntryTable {
  private:
   xe::global_critical_region global_critical_region_;
   // TODO(benvanik): replace with a better data structure.
-  std::unordered_map<uint32_t, Entry*> map_;
+  xe::split_map<uint32_t, Entry*> map_;
+  //std::unordered_map<uint32_t, Entry*> map_;
 };
 
 }  // namespace cpu

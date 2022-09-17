@@ -20,6 +20,8 @@ namespace apu {
 namespace conversion {
 
 #if XE_ARCH_AMD64
+
+#if 0
 inline void sequential_6_BE_to_interleaved_6_LE(float* output,
                                                 const float* input,
                                                 size_t ch_sample_count) {
@@ -41,7 +43,44 @@ inline void sequential_6_BE_to_interleaved_6_LE(float* output,
     out[sample * 6 + 5] = sample2;
   }
 }
+#else
+XE_NOINLINE
+static void _generic_sequential_6_BE_to_interleaved_6_LE(
+    float* XE_RESTRICT output, const float* XE_RESTRICT input,
+    unsigned ch_sample_count) {
+  for (unsigned sample = 0; sample < ch_sample_count; sample++) {
+    for (unsigned channel = 0; channel < 6; channel++) {
+      unsigned int value = *reinterpret_cast<const unsigned int*>(
+          &input[channel * ch_sample_count + sample]);
 
+      *reinterpret_cast<unsigned int*>(&output[sample * 6 + channel]) =
+          xe::byte_swap(value);
+    }
+  }
+}
+XE_NOINLINE
+static void _movbe_sequential_6_BE_to_interleaved_6_LE(
+    float* XE_RESTRICT output, const float* XE_RESTRICT input,
+    unsigned ch_sample_count) {
+  for (unsigned sample = 0; sample < ch_sample_count; sample++) {
+    for (unsigned channel = 0; channel < 6; channel++) {
+      *reinterpret_cast<unsigned int*>(&output[sample * 6 + channel]) =
+          _load_be_u32(reinterpret_cast<const unsigned int*>(
+              &input[channel * ch_sample_count + sample]));
+    }
+  }
+}
+
+inline static void sequential_6_BE_to_interleaved_6_LE(
+    float* output, const float* input, unsigned ch_sample_count) {
+  if (amd64::GetFeatureFlags() & amd64::kX64EmitMovbe) {
+    _movbe_sequential_6_BE_to_interleaved_6_LE(output, input, ch_sample_count);
+  } else {
+    _generic_sequential_6_BE_to_interleaved_6_LE(output, input,
+                                                 ch_sample_count);
+  }
+}
+#endif
 inline void sequential_6_BE_to_interleaved_2_LE(float* output,
                                                 const float* input,
                                                 size_t ch_sample_count) {
