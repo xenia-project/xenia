@@ -280,8 +280,12 @@ void GetTextureTotalSize(xenos::DataDimension dimension,
 // bytes_per_block_log2 is log2_floor according to how Direct3D 9 calculates it,
 // but k_32_32_32 textures are never tiled anyway likely.
 
+XE_NOINLINE
+XE_NOALIAS
 int32_t GetTiledOffset2D(int32_t x, int32_t y, uint32_t pitch,
                          uint32_t bytes_per_block_log2);
+XE_NOINLINE
+XE_NOALIAS
 int32_t GetTiledOffset3D(int32_t x, int32_t y, int32_t z, uint32_t pitch,
                          uint32_t height, uint32_t bytes_per_block_log2);
 // Because (0, 0, 0) within each 32x32x4-block tile is stored in memory first,
@@ -308,9 +312,13 @@ inline uint32_t GetTiledAddressLowerBound3D(uint32_t left, uint32_t top,
 // Supporting the right > pitch and bottom > height (in tiles) cases also, for
 // estimation how far addresses can actually go even potentially beyond the
 // subresource stride.
+XE_NOINLINE
+XE_NOALIAS
 uint32_t GetTiledAddressUpperBound2D(uint32_t right, uint32_t bottom,
                                      uint32_t pitch,
                                      uint32_t bytes_per_block_log2);
+XE_NOINLINE
+XE_NOALIAS
 uint32_t GetTiledAddressUpperBound3D(uint32_t right, uint32_t bottom,
                                      uint32_t back, uint32_t pitch,
                                      uint32_t height,

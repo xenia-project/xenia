@@ -464,7 +464,8 @@ TextureGuestLayout GetGuestTextureLayout(
 
   return layout;
 }
-
+XE_NOINLINE
+XE_NOALIAS
 int32_t GetTiledOffset2D(int32_t x, int32_t y, uint32_t pitch,
                          uint32_t bytes_per_block_log2) {
   // https://github.com/gildor2/UModel/blob/de8fbd3bc922427ea056b7340202dcdcc19ccff5/Unreal/UnTexture.cpp#L489
@@ -481,7 +482,8 @@ int32_t GetTiledOffset2D(int32_t x, int32_t y, uint32_t pitch,
   return ((offset & ~0x1FF) << 3) + ((y & 16) << 7) + ((offset & 0x1C0) << 2) +
          (((((y & 8) >> 2) + (x >> 3)) & 3) << 6) + (offset & 0x3F);
 }
-
+XE_NOINLINE
+XE_NOALIAS
 int32_t GetTiledOffset3D(int32_t x, int32_t y, int32_t z, uint32_t pitch,
                          uint32_t height, uint32_t bytes_per_block_log2) {
   // Reconstructed from disassembly of XGRAPHICS::TileVolume.
@@ -509,7 +511,8 @@ int32_t GetTiledOffset3D(int32_t x, int32_t y, int32_t z, uint32_t pitch,
   address += offset2 & 63;
   return address;
 }
-
+XE_NOINLINE
+XE_NOALIAS
 uint32_t GetTiledAddressUpperBound2D(uint32_t right, uint32_t bottom,
                                      uint32_t pitch,
                                      uint32_t bytes_per_block_log2) {
@@ -538,7 +541,8 @@ uint32_t GetTiledAddressUpperBound2D(uint32_t right, uint32_t bottom,
   }
   return upper_bound;
 }
-
+XE_NOINLINE
+XE_NOALIAS
 uint32_t GetTiledAddressUpperBound3D(uint32_t right, uint32_t bottom,
                                      uint32_t back, uint32_t pitch,
                                      uint32_t height,

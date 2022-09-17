@@ -650,7 +650,8 @@ uint32_t GetNormalizedColorMask(const RegisterFile& regs,
   }
   return normalized_color_mask;
 }
-
+XE_NOINLINE
+XE_NOALIAS
 xenos::CopySampleSelect SanitizeCopySampleSelect(
     xenos::CopySampleSelect copy_sample_select, xenos::MsaaSamples msaa_samples,
     bool is_depth) {
@@ -737,7 +738,7 @@ const ResolveCopyShaderInfo
         {"Resolve Copy Full 64bpp", true, 2, 4, 5, 3},
         {"Resolve Copy Full 128bpp", true, 2, 4, 4, 3},
 };
-
+XE_MSVC_OPTIMIZE_SMALL()
 bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
                     TraceWriter& trace_writer, uint32_t draw_resolution_scale_x,
                     uint32_t draw_resolution_scale_y,
@@ -869,7 +870,8 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
     y1 = y0 + int32_t(xenos::kMaxResolveSize);
   }
   // fails in forza horizon 1
-  assert_true(x0 < x1 && y0 < y1);
+  //x0 is 0, x1 is 0x100, y0 is 0x100, y1 is 0x100
+  assert_true(x0 <= x1 && y0 <= y1);
   if (x0 >= x1 || y0 >= y1) {
     XELOGE("Resolve region is empty");
     return false;
@@ -1108,7 +1110,7 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
   info_out.rb_depth_clear = regs[XE_GPU_REG_RB_DEPTH_CLEAR].u32;
   info_out.rb_color_clear = regs[XE_GPU_REG_RB_COLOR_CLEAR].u32;
   info_out.rb_color_clear_lo = regs[XE_GPU_REG_RB_COLOR_CLEAR_LO].u32;
-
+  #if 0
   XELOGD(
       "Resolve: {},{} <= x,y < {},{}, {} -> {} at 0x{:08X} (potentially "
       "modified memory range 0x{:08X} to 0x{:08X})",
@@ -1119,10 +1121,10 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
                      xenos::ColorRenderTargetFormat(color_edram_info.format)),
       FormatInfo::GetName(dest_format), rb_copy_dest_base, copy_dest_extent_start,
       copy_dest_extent_end);
-
+  #endif
   return true;
 }
-
+XE_MSVC_OPTIMIZE_REVERT()
 ResolveCopyShaderIndex ResolveInfo::GetCopyShader(
     uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y,
     ResolveCopyShaderConstants& constants_out, uint32_t& group_count_x_out,

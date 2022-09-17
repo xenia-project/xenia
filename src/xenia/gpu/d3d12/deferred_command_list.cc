@@ -266,21 +266,8 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
 
 void* DeferredCommandList::WriteCommand(Command command,
                                         size_t arguments_size_bytes) {
-
   size_t arguments_size_elements =
       round_up(arguments_size_bytes, sizeof(uintmax_t), false);
-
-      //(arguments_size_bytes + sizeof(uintmax_t) - 1) / sizeof(uintmax_t);
-  #if 0
-  size_t offset = command_stream_.size();
-  command_stream_.resize(offset + kCommandHeaderSizeElements +
-                         arguments_size_elements);
-  CommandHeader& header =
-      *reinterpret_cast<CommandHeader*>(command_stream_.data() + offset);
-  header.command = command;
-  header.arguments_size_elements = uint32_t(arguments_size_elements);
-  return command_stream_.data() + (offset + kCommandHeaderSizeElements);
-  #else
 
   size_t offset = command_stream_.size();
   constexpr size_t kCommandHeaderSizeBytes =
@@ -290,9 +277,9 @@ void* DeferredCommandList::WriteCommand(Command command,
   CommandHeader& header =
       *reinterpret_cast<CommandHeader*>(command_stream_.data() + offset);
   header.command = command;
-  header.arguments_size_elements = uint32_t(arguments_size_elements) / sizeof(uintmax_t);
+  header.arguments_size_elements =
+      uint32_t(arguments_size_elements) / sizeof(uintmax_t);
   return command_stream_.data() + (offset + kCommandHeaderSizeBytes);
-  #endif
 }
 
 }  // namespace d3d12

@@ -183,7 +183,7 @@ void PipelineCache::Shutdown() {
   // creating them.
   if (!creation_threads_.empty()) {
     {
-      std::lock_guard<std::mutex> lock(creation_request_lock_);
+      std::lock_guard<xe_mutex> lock(creation_request_lock_);
       creation_threads_shutdown_from_ = 0;
     }
     creation_request_cond_.notify_all();
@@ -681,7 +681,7 @@ void PipelineCache::InitializeShaderStorage(
       if (!creation_threads_.empty()) {
         // Submit the pipeline for creation to any available thread.
         {
-          std::lock_guard<std::mutex> lock(creation_request_lock_);
+          std::lock_guard<xe_mutex> lock(creation_request_lock_);
           creation_queue_.push_back(new_pipeline);
         }
         creation_request_cond_.notify_one();
@@ -695,7 +695,7 @@ void PipelineCache::InitializeShaderStorage(
       CreateQueuedPipelinesOnProcessorThread();
       if (creation_threads_.size() > creation_thread_original_count) {
         {
-          std::lock_guard<std::mutex> lock(creation_request_lock_);
+          std::lock_guard<xe_mutex> lock(creation_request_lock_);
           creation_threads_shutdown_from_ = creation_thread_original_count;
           // Assuming the queue is empty because of
           // CreateQueuedPipelinesOnProcessorThread.
@@ -708,7 +708,7 @@ void PipelineCache::InitializeShaderStorage(
         bool await_creation_completion_event;
         {
           // Cleanup so additional threads can be created later again.
-          std::lock_guard<std::mutex> lock(creation_request_lock_);
+          std::lock_guard<xe_mutex> lock(creation_request_lock_);
           creation_threads_shutdown_from_ = SIZE_MAX;
           // If the invocation is blocking, all the shader storage
           // initialization is expected to be done before proceeding, to avoid
@@ -813,7 +813,7 @@ void PipelineCache::EndSubmission() {
     // Await creation of all queued pipelines.
     bool await_creation_completion_event;
     {
-      std::lock_guard<std::mutex> lock(creation_request_lock_);
+      std::lock_guard<xe_mutex> lock(creation_request_lock_);
       // Assuming the creation queue is already empty (because the processor
       // thread also worked on creating the leftover pipelines), so only check
       // if there are threads with pipelines currently being created.
@@ -834,7 +834,7 @@ bool PipelineCache::IsCreatingPipelines() {
   if (creation_threads_.empty()) {
     return false;
   }
-  std::lock_guard<std::mutex> lock(creation_request_lock_);
+  std::lock_guard<xe_mutex> lock(creation_request_lock_);
   return !creation_queue_.empty() || creation_threads_busy_ != 0;
 }
 
@@ -1076,7 +1076,7 @@ bool PipelineCache::ConfigurePipeline(
   if (!creation_threads_.empty()) {
     // Submit the pipeline for creation to any available thread.
     {
-      std::lock_guard<std::mutex> lock(creation_request_lock_);
+      std::lock_guard<xe_mutex> lock(creation_request_lock_);
       creation_queue_.push_back(new_pipeline);
     }
     creation_request_cond_.notify_one();
@@ -3314,7 +3314,7 @@ void PipelineCache::CreationThread(size_t thread_index) {
     // Check if need to shut down or set the completion event and dequeue the
     // pipeline if there is any.
     {
-      std::unique_lock<std::mutex> lock(creation_request_lock_);
+      std::unique_lock<xe_mutex> lock(creation_request_lock_);
       if (thread_index >= creation_threads_shutdown_from_ ||
           creation_queue_.empty()) {
         if (creation_completion_set_event_ && creation_threads_busy_ == 0) {
@@ -3345,7 +3345,7 @@ void PipelineCache::CreationThread(size_t thread_index) {
     // completion event if needed (at the next iteration, or in some other
     // thread).
     {
-      std::lock_guard<std::mutex> lock(creation_request_lock_);
+      std::lock_guard<xe_mutex> lock(creation_request_lock_);
       --creation_threads_busy_;
     }
   }
@@ -3356,7 +3356,7 @@ void PipelineCache::CreateQueuedPipelinesOnProcessorThread() {
   while (true) {
     Pipeline* pipeline_to_create;
     {
-      std::lock_guard<std::mutex> lock(creation_request_lock_);
+      std::lock_guard<xe_mutex> lock(creation_request_lock_);
       if (creation_queue_.empty()) {
         break;
       }

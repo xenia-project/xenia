@@ -299,6 +299,12 @@ class Event : public WaitHandle {
   // the nonsignaled state after releasing the appropriate number of waiting
   // threads.
   virtual void Pulse() = 0;
+  #if XE_PLATFORM_WIN32 ==1
+  //SetEvent, but if there is a waiter we immediately transfer execution to it
+  virtual void SetBoostPriority() = 0;
+  #else
+  void SetBoostPriority() { Set() }
+  #endif
 };
 
 // Models a Win32-like semaphore object.

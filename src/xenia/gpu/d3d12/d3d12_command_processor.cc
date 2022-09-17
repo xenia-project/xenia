@@ -380,7 +380,8 @@ ID3D12RootSignature* D3D12CommandProcessor::GetRootSignature(
   root_signatures_bindful_.emplace(index, root_signature);
   return root_signature;
 }
-
+XE_NOINLINE
+XE_COLD
 uint32_t D3D12CommandProcessor::GetRootBindfulExtraParameterIndices(
     const DxbcShader* vertex_shader, const DxbcShader* pixel_shader,
     RootBindfulExtraParameterIndices& indices_out) {
@@ -2484,7 +2485,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     return false;
   }
   pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
-  bool memexport_used_vertex = vertex_shader->is_valid_memexport_used();
+  const bool memexport_used_vertex = vertex_shader->is_valid_memexport_used();
 
   // Pixel shader analysis.
   bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
@@ -2512,9 +2513,10 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       return true;
     }
   }
-  bool memexport_used_pixel =
+
+  const bool memexport_used_pixel =
       pixel_shader && pixel_shader->is_valid_memexport_used();
-  bool memexport_used = memexport_used_vertex || memexport_used_pixel;
+  const bool memexport_used = memexport_used_vertex || memexport_used_pixel;
 
   if (!BeginSubmission(true)) {
     return false;
@@ -2639,6 +2641,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     previous_viewport_info_args_ = gviargs;
     previous_viewport_info_ = viewport_info;
   }
+  // todo: use SIMD for getscissor + scaling here, should reduce code size more
   draw_util::Scissor scissor;
   draw_util::GetScissor(regs, scissor);
   scissor.offset[0] *= draw_resolution_scale_x;
@@ -2711,102 +2714,13 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   // Gather memexport ranges and ensure the heaps for them are resident, and
   // also load the data surrounding the export and to fill the regions that
   // won't be modified by the shaders.
-  struct MemExportRange {
-    uint32_t base_address_dwords;
-    uint32_t size_dwords;
-  };
-  MemExportRange memexport_ranges[512];
-  uint32_t memexport_range_count = 0;
-  if (memexport_used_vertex) {
-    for (uint32_t constant_index :
-         vertex_shader->memexport_stream_constants()) {
-      const auto& memexport_stream = regs.Get<xenos::xe_gpu_memexport_stream_t>(
-          XE_GPU_REG_SHADER_CONSTANT_000_X + constant_index * 4);
-      if (memexport_stream.index_count == 0) {
-        continue;
-      }
-      uint32_t memexport_format_size =
-          GetSupportedMemExportFormatSize(memexport_stream.format);
-      if (memexport_format_size == 0) {
-        XELOGE("Unsupported memexport format {}",
-               FormatInfo::GetName(
-                   xenos::TextureFormat(uint32_t(memexport_stream.format))));
-        return false;
-      }
-      uint32_t memexport_size_dwords =
-          memexport_stream.index_count * memexport_format_size;
-      // Try to reduce the number of shared memory operations when writing
-      // different elements into the same buffer through different exports
-      // (happens in 4D5307E6).
-      bool memexport_range_reused = false;
-      for (uint32_t i = 0; i < memexport_range_count; ++i) {
-        MemExportRange& memexport_range = memexport_ranges[i];
-        if (memexport_range.base_address_dwords ==
-            memexport_stream.base_address) {
-          memexport_range.size_dwords =
-              std::max(memexport_range.size_dwords, memexport_size_dwords);
-          memexport_range_reused = true;
-          break;
-        }
-      }
-      // Add a new range if haven't expanded an existing one.
-      if (!memexport_range_reused) {
-        MemExportRange& memexport_range =
-            memexport_ranges[memexport_range_count++];
-        memexport_range.base_address_dwords = memexport_stream.base_address;
-        memexport_range.size_dwords = memexport_size_dwords;
-      }
-    }
-  }
-  if (memexport_used_pixel) {
-    for (uint32_t constant_index : pixel_shader->memexport_stream_constants()) {
-      const auto& memexport_stream = regs.Get<xenos::xe_gpu_memexport_stream_t>(
-          XE_GPU_REG_SHADER_CONSTANT_256_X + constant_index * 4);
-      if (memexport_stream.index_count == 0) {
-        continue;
-      }
-      uint32_t memexport_format_size =
-          GetSupportedMemExportFormatSize(memexport_stream.format);
-      if (memexport_format_size == 0) {
-        XELOGE("Unsupported memexport format {}",
-               FormatInfo::GetName(
-                   xenos::TextureFormat(uint32_t(memexport_stream.format))));
-        return false;
-      }
-      uint32_t memexport_size_dwords =
-          memexport_stream.index_count * memexport_format_size;
-      bool memexport_range_reused = false;
-      for (uint32_t i = 0; i < memexport_range_count; ++i) {
-        MemExportRange& memexport_range = memexport_ranges[i];
-        if (memexport_range.base_address_dwords ==
-            memexport_stream.base_address) {
-          memexport_range.size_dwords =
-              std::max(memexport_range.size_dwords, memexport_size_dwords);
-          memexport_range_reused = true;
-          break;
-        }
-      }
-      if (!memexport_range_reused) {
-        MemExportRange& memexport_range =
-            memexport_ranges[memexport_range_count++];
-        memexport_range.base_address_dwords = memexport_stream.base_address;
-        memexport_range.size_dwords = memexport_size_dwords;
-      }
-    }
-  }
-  for (uint32_t i = 0; i < memexport_range_count; ++i) {
-    const MemExportRange& memexport_range = memexport_ranges[i];
-    if (!shared_memory_->RequestRange(memexport_range.base_address_dwords << 2,
-                                      memexport_range.size_dwords << 2)) {
-      XELOGE(
-          "Failed to request memexport stream at 0x{:08X} (size {}) in the "
-          "shared memory",
-          memexport_range.base_address_dwords << 2,
-          memexport_range.size_dwords << 2);
-      return false;
-    }
-  }
 
+  memexport_range_count_ = 0;
+  if (memexport_used_vertex || memexport_used_pixel) {
+    bool retflag;
+    bool retval = GatherMemexportRangesAndMakeResident(retflag);
+    if (retflag) return retval;
+  }
   // Primitive topology.
   D3D_PRIMITIVE_TOPOLOGY primitive_topology;
   if (primitive_processing_result.IsTessellated()) {
@@ -2876,10 +2790,11 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   // Draw.
   if (primitive_processing_result.index_buffer_type ==
       PrimitiveProcessor::ProcessedIndexBufferType::kNone) {
-    if (memexport_used) {
-      shared_memory_->UseForWriting();
-    } else {
+    if (!memexport_used) {
       shared_memory_->UseForReading();
+
+    } else {
+      shared_memory_->UseForWriting();
     }
     SubmitBarriers();
     deferred_command_list_.D3DDrawInstanced(
@@ -2903,22 +2818,11 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
           // If the shared memory is a UAV, it can't be used as an index buffer
           // (UAV is a read/write state, index buffer is a read-only state).
           // Need to copy the indices to a buffer in the index buffer state.
-          scratch_index_buffer = RequestScratchGPUBuffer(
-              index_buffer_view.SizeInBytes, D3D12_RESOURCE_STATE_COPY_DEST);
-          if (scratch_index_buffer == nullptr) {
-            return false;
-          }
-          shared_memory_->UseAsCopySource();
-          SubmitBarriers();
-          deferred_command_list_.D3DCopyBufferRegion(
-              scratch_index_buffer, 0, shared_memory_->GetBuffer(),
-              primitive_processing_result.guest_index_base,
-              index_buffer_view.SizeInBytes);
-          PushTransitionBarrier(scratch_index_buffer,
-                                D3D12_RESOURCE_STATE_COPY_DEST,
-                                D3D12_RESOURCE_STATE_INDEX_BUFFER);
-          index_buffer_view.BufferLocation =
-              scratch_index_buffer->GetGPUVirtualAddress();
+          bool retflag;
+          bool retval = HandleMemexportGuestDMA(
+              scratch_index_buffer, index_buffer_view,
+              primitive_processing_result.guest_index_base, retflag);
+          if (retflag) return retval;
         } else {
           index_buffer_view.BufferLocation =
               shared_memory_->GetGPUAddress() +
@@ -2956,66 +2860,199 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   }
 
   if (memexport_used) {
-    // Make sure this memexporting draw is ordered with other work using shared
-    // memory as a UAV.
-    // TODO(Triang3l): Find some PM4 command that can be used for indication of
-    // when memexports should be awaited?
-    shared_memory_->MarkUAVWritesCommitNeeded();
-    // Invalidate textures in memexported memory and watch for changes.
-    for (uint32_t i = 0; i < memexport_range_count; ++i) {
-      const MemExportRange& memexport_range = memexport_ranges[i];
-      shared_memory_->RangeWrittenByGpu(
-          memexport_range.base_address_dwords << 2,
-          memexport_range.size_dwords << 2, false);
-    }
-    if (cvars::d3d12_readback_memexport) {
-      // Read the exported data on the CPU.
-      uint32_t memexport_total_size = 0;
-      for (uint32_t i = 0; i < memexport_range_count; ++i) {
-        memexport_total_size += memexport_ranges[i].size_dwords << 2;
+    HandleMemexportDrawOrdering_AndReadback();
+  }
+
+  return true;
+}
+XE_COLD
+XE_NOINLINE
+bool D3D12CommandProcessor::HandleMemexportGuestDMA(
+    ID3D12Resource*& scratch_index_buffer,
+    D3D12_INDEX_BUFFER_VIEW& index_buffer_view, uint32_t guest_index_base,
+    // xe::gpu::PrimitiveProcessor::ProcessingResult&
+    // primitive_processing_result,
+    bool& retflag) {
+  retflag = true;
+  scratch_index_buffer = RequestScratchGPUBuffer(
+      index_buffer_view.SizeInBytes, D3D12_RESOURCE_STATE_COPY_DEST);
+  if (scratch_index_buffer == nullptr) {
+    return false;
+  }
+  shared_memory_->UseAsCopySource();
+  SubmitBarriers();
+  deferred_command_list_.D3DCopyBufferRegion(
+      scratch_index_buffer, 0, shared_memory_->GetBuffer(), guest_index_base,
+      index_buffer_view.SizeInBytes);
+  PushTransitionBarrier(scratch_index_buffer, D3D12_RESOURCE_STATE_COPY_DEST,
+                        D3D12_RESOURCE_STATE_INDEX_BUFFER);
+  index_buffer_view.BufferLocation =
+      scratch_index_buffer->GetGPUVirtualAddress();
+  retflag = false;
+  return {};
+}
+XE_NOINLINE
+XE_COLD
+bool D3D12CommandProcessor::GatherMemexportRangesAndMakeResident(
+    bool& retflag) {
+  auto vertex_shader = static_cast<D3D12Shader*>(active_vertex_shader());
+  auto pixel_shader = static_cast<D3D12Shader*>(active_pixel_shader());
+  const xe::gpu::RegisterFile& regs = *register_file_;
+  const bool memexport_used_vertex = vertex_shader->is_valid_memexport_used();
+  const bool memexport_used_pixel =
+      pixel_shader && pixel_shader->is_valid_memexport_used();
+  retflag = true;
+  if (memexport_used_vertex) {
+    for (uint32_t constant_index :
+         vertex_shader->memexport_stream_constants()) {
+      const auto& memexport_stream = regs.Get<xenos::xe_gpu_memexport_stream_t>(
+          XE_GPU_REG_SHADER_CONSTANT_000_X + constant_index * 4);
+      if (memexport_stream.index_count == 0) {
+        continue;
       }
-      if (memexport_total_size != 0) {
-        ID3D12Resource* readback_buffer =
-            RequestReadbackBuffer(memexport_total_size);
-        if (readback_buffer != nullptr) {
-          shared_memory_->UseAsCopySource();
-          SubmitBarriers();
-          ID3D12Resource* shared_memory_buffer = shared_memory_->GetBuffer();
-          uint32_t readback_buffer_offset = 0;
-          for (uint32_t i = 0; i < memexport_range_count; ++i) {
-            const MemExportRange& memexport_range = memexport_ranges[i];
-            uint32_t memexport_range_size = memexport_range.size_dwords << 2;
-            deferred_command_list_.D3DCopyBufferRegion(
-                readback_buffer, readback_buffer_offset, shared_memory_buffer,
-                memexport_range.base_address_dwords << 2, memexport_range_size);
-            readback_buffer_offset += memexport_range_size;
-          }
-          if (AwaitAllQueueOperationsCompletion()) {
-            D3D12_RANGE readback_range;
-            readback_range.Begin = 0;
-            readback_range.End = memexport_total_size;
-            void* readback_mapping;
-            if (SUCCEEDED(readback_buffer->Map(0, &readback_range,
-                                               &readback_mapping))) {
-              const uint32_t* readback_dwords =
-                  reinterpret_cast<const uint32_t*>(readback_mapping);
-              for (uint32_t i = 0; i < memexport_range_count; ++i) {
-                const MemExportRange& memexport_range = memexport_ranges[i];
-                std::memcpy(memory_->TranslatePhysical(
-                                memexport_range.base_address_dwords << 2),
-                            readback_dwords, memexport_range.size_dwords << 2);
-                readback_dwords += memexport_range.size_dwords;
-              }
-              D3D12_RANGE readback_write_range = {};
-              readback_buffer->Unmap(0, &readback_write_range);
+      uint32_t memexport_format_size =
+          GetSupportedMemExportFormatSize(memexport_stream.format);
+      if (memexport_format_size == 0) {
+        XELOGE("Unsupported memexport format {}",
+               FormatInfo::GetName(
+                   xenos::TextureFormat(uint32_t(memexport_stream.format))));
+        return false;
+      }
+      uint32_t memexport_size_dwords =
+          memexport_stream.index_count * memexport_format_size;
+      // Try to reduce the number of shared memory operations when writing
+      // different elements into the same buffer through different exports
+      // (happens in 4D5307E6).
+      bool memexport_range_reused = false;
+      for (uint32_t i = 0; i < memexport_range_count_; ++i) {
+        MemExportRange& memexport_range = memexport_ranges_[i];
+        if (memexport_range.base_address_dwords ==
+            memexport_stream.base_address) {
+          memexport_range.size_dwords =
+              std::max(memexport_range.size_dwords, memexport_size_dwords);
+          memexport_range_reused = true;
+          break;
+        }
+      }
+      // Add a new range if haven't expanded an existing one.
+      if (!memexport_range_reused) {
+        MemExportRange& memexport_range =
+            memexport_ranges_[memexport_range_count_++];
+        memexport_range.base_address_dwords = memexport_stream.base_address;
+        memexport_range.size_dwords = memexport_size_dwords;
+      }
+    }
+  }
+  if (memexport_used_pixel) {
+    for (uint32_t constant_index : pixel_shader->memexport_stream_constants()) {
+      const auto& memexport_stream = regs.Get<xenos::xe_gpu_memexport_stream_t>(
+          XE_GPU_REG_SHADER_CONSTANT_256_X + constant_index * 4);
+      if (memexport_stream.index_count == 0) {
+        continue;
+      }
+      uint32_t memexport_format_size =
+          GetSupportedMemExportFormatSize(memexport_stream.format);
+      if (memexport_format_size == 0) {
+        XELOGE("Unsupported memexport format {}",
+               FormatInfo::GetName(
+                   xenos::TextureFormat(uint32_t(memexport_stream.format))));
+        return false;
+      }
+      uint32_t memexport_size_dwords =
+          memexport_stream.index_count * memexport_format_size;
+      bool memexport_range_reused = false;
+      for (uint32_t i = 0; i < memexport_range_count_; ++i) {
+        MemExportRange& memexport_range = memexport_ranges_[i];
+        if (memexport_range.base_address_dwords ==
+            memexport_stream.base_address) {
+          memexport_range.size_dwords =
+              std::max(memexport_range.size_dwords, memexport_size_dwords);
+          memexport_range_reused = true;
+          break;
+        }
+      }
+      if (!memexport_range_reused) {
+        MemExportRange& memexport_range =
+            memexport_ranges_[memexport_range_count_++];
+        memexport_range.base_address_dwords = memexport_stream.base_address;
+        memexport_range.size_dwords = memexport_size_dwords;
+      }
+    }
+  }
+  for (uint32_t i = 0; i < memexport_range_count_; ++i) {
+    const MemExportRange& memexport_range = memexport_ranges_[i];
+    if (!shared_memory_->RequestRange(memexport_range.base_address_dwords << 2,
+                                      memexport_range.size_dwords << 2)) {
+      XELOGE(
+          "Failed to request memexport stream at 0x{:08X} (size {}) in the "
+          "shared memory",
+          memexport_range.base_address_dwords << 2,
+          memexport_range.size_dwords << 2);
+      return false;
+    }
+  }
+  retflag = false;
+  return {};
+}
+XE_NOINLINE
+XE_COLD
+void D3D12CommandProcessor::HandleMemexportDrawOrdering_AndReadback() {
+  // Make sure this memexporting draw is ordered with other work using shared
+  // memory as a UAV.
+  // TODO(Triang3l): Find some PM4 command that can be used for indication of
+  // when memexports should be awaited?
+  shared_memory_->MarkUAVWritesCommitNeeded();
+  // Invalidate textures in memexported memory and watch for changes.
+  for (uint32_t i = 0; i < memexport_range_count_; ++i) {
+    const MemExportRange& memexport_range = memexport_ranges_[i];
+    shared_memory_->RangeWrittenByGpu(memexport_range.base_address_dwords << 2,
+                                      memexport_range.size_dwords << 2, false);
+  }
+  if (cvars::d3d12_readback_memexport) {
+    // Read the exported data on the CPU.
+    uint32_t memexport_total_size = 0;
+    for (uint32_t i = 0; i < memexport_range_count_; ++i) {
+      memexport_total_size += memexport_ranges_[i].size_dwords << 2;
+    }
+    if (memexport_total_size != 0) {
+      ID3D12Resource* readback_buffer =
+          RequestReadbackBuffer(memexport_total_size);
+      if (readback_buffer != nullptr) {
+        shared_memory_->UseAsCopySource();
+        SubmitBarriers();
+        ID3D12Resource* shared_memory_buffer = shared_memory_->GetBuffer();
+        uint32_t readback_buffer_offset = 0;
+        for (uint32_t i = 0; i < memexport_range_count_; ++i) {
+          const MemExportRange& memexport_range = memexport_ranges_[i];
+          uint32_t memexport_range_size = memexport_range.size_dwords << 2;
+          deferred_command_list_.D3DCopyBufferRegion(
+              readback_buffer, readback_buffer_offset, shared_memory_buffer,
+              memexport_range.base_address_dwords << 2, memexport_range_size);
+          readback_buffer_offset += memexport_range_size;
+        }
+        if (AwaitAllQueueOperationsCompletion()) {
+          D3D12_RANGE readback_range;
+          readback_range.Begin = 0;
+          readback_range.End = memexport_total_size;
+          void* readback_mapping;
+          if (SUCCEEDED(readback_buffer->Map(0, &readback_range,
+                                             &readback_mapping))) {
+            const uint32_t* readback_dwords =
+                reinterpret_cast<const uint32_t*>(readback_mapping);
+            for (uint32_t i = 0; i < memexport_range_count_; ++i) {
+              const MemExportRange& memexport_range = memexport_ranges_[i];
+              std::memcpy(memory_->TranslatePhysical(
+                              memexport_range.base_address_dwords << 2),
+                          readback_dwords, memexport_range.size_dwords << 2);
+              readback_dwords += memexport_range.size_dwords;
             }
+            D3D12_RANGE readback_write_range = {};
+            readback_buffer->Unmap(0, &readback_write_range);
           }
         }
       }
     }
   }
-
-  return true;
 }
 
 void D3D12CommandProcessor::InitializeTrace() {
@@ -3065,23 +3102,33 @@ bool D3D12CommandProcessor::IssueCopy() {
   if (!BeginSubmission(true)) {
     return false;
   }
-  uint32_t written_address, written_length;
-  if (!render_target_cache_->Resolve(*memory_, *shared_memory_, *texture_cache_,
-                                     written_address, written_length)) {
-    return false;
+
+  if (!cvars::d3d12_readback_resolve) {
+    uint32_t written_address, written_length;
+    return render_target_cache_->Resolve(*memory_, *shared_memory_,
+                                         *texture_cache_, written_address,
+                                         written_length);
+  } else {
+    return IssueCopy_ReadbackResolvePath();
   }
-  if (cvars::d3d12_readback_resolve &&
-      !texture_cache_->IsDrawResolutionScaled() && written_length) {
-    // Read the resolved data on the CPU.
-    ID3D12Resource* readback_buffer = RequestReadbackBuffer(written_length);
-    if (readback_buffer != nullptr) {
-      shared_memory_->UseAsCopySource();
-      SubmitBarriers();
-      ID3D12Resource* shared_memory_buffer = shared_memory_->GetBuffer();
-      deferred_command_list_.D3DCopyBufferRegion(
-          readback_buffer, 0, shared_memory_buffer, written_address,
-          written_length);
-      if (AwaitAllQueueOperationsCompletion()) {
+  return true;
+}
+XE_NOINLINE
+bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
+  uint32_t written_address, written_length;
+  if (render_target_cache_->Resolve(*memory_, *shared_memory_, *texture_cache_,
+                                    written_address, written_length)) {
+    if (!texture_cache_->IsDrawResolutionScaled() && written_length) {
+      // Read the resolved data on the CPU.
+      ID3D12Resource* readback_buffer = RequestReadbackBuffer(written_length);
+      if (readback_buffer != nullptr) {
+        shared_memory_->UseAsCopySource();
+        SubmitBarriers();
+        ID3D12Resource* shared_memory_buffer = shared_memory_->GetBuffer();
+        deferred_command_list_.D3DCopyBufferRegion(
+            readback_buffer, 0, shared_memory_buffer, written_address,
+            written_length);
+        if (AwaitAllQueueOperationsCompletion()) {
 #if 1
         D3D12_RANGE readback_range;
         readback_range.Begin = 0;
@@ -3099,23 +3146,25 @@ bool D3D12CommandProcessor::IssueCopy() {
         }
 
 #else
-        dma::XeDMAJob job{};
-        job.destination = memory_->TranslatePhysical(written_address);
-        job.size = written_length;
-        job.source = nullptr;
-        job.userdata1 = (void*)readback_buffer;
-        job.precall = DmaPrefunc;
-        job.postcall = DmaPostfunc;
+          dma::XeDMAJob job{};
+          job.destination = memory_->TranslatePhysical(written_address);
+          job.size = written_length;
+          job.source = nullptr;
+          job.userdata1 = (void*)readback_buffer;
+          job.precall = DmaPrefunc;
+          job.postcall = DmaPostfunc;
 
-        readback_available_ = GetDMAC()->PushDMAJob(&job);
+          readback_available_ = GetDMAC()->PushDMAJob(&job);
 
 #endif
+        }
       }
     }
+  } else {
+    return false;
   }
   return true;
 }
-
 void D3D12CommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
   if (await_submission >= submission_current_) {
     if (submission_open_) {
@@ -4707,195 +4756,11 @@ bool D3D12CommandProcessor::UpdateBindings(
           ~(1u << kRootParameter_Bindless_DescriptorIndicesPixel);
     }
   } else {
-    //
-    // Bindful descriptors path.
-    //
-
-    // See what descriptors need to be updated.
-    // Samplers have already been checked.
-    bool write_textures_vertex =
-        texture_count_vertex &&
-        (!bindful_textures_written_vertex_ ||
-         current_texture_layout_uid_vertex_ != texture_layout_uid_vertex ||
-         !texture_cache_->AreActiveTextureSRVKeysUpToDate(
-             current_texture_srv_keys_vertex_.data(), textures_vertex.data(),
-             texture_count_vertex));
-    bool write_textures_pixel =
-        texture_count_pixel &&
-        (!bindful_textures_written_pixel_ ||
-         current_texture_layout_uid_pixel_ != texture_layout_uid_pixel ||
-         !texture_cache_->AreActiveTextureSRVKeysUpToDate(
-             current_texture_srv_keys_pixel_.data(), textures_pixel->data(),
-             texture_count_pixel));
-    bool write_samplers_vertex =
-        sampler_count_vertex && !bindful_samplers_written_vertex_;
-    bool write_samplers_pixel =
-        sampler_count_pixel && !bindful_samplers_written_pixel_;
-    bool edram_rov_used = render_target_cache_->GetPath() ==
-                          RenderTargetCache::Path::kPixelShaderInterlock;
-
-    // Allocate the descriptors.
-    size_t view_count_partial_update = 0;
-    if (write_textures_vertex) {
-      view_count_partial_update += texture_count_vertex;
-    }
-    if (write_textures_pixel) {
-      view_count_partial_update += texture_count_pixel;
-    }
-    // All the constants + shared memory SRV and UAV + textures.
-    size_t view_count_full_update =
-        2 + texture_count_vertex + texture_count_pixel;
-    if (edram_rov_used) {
-      // + EDRAM UAV.
-      ++view_count_full_update;
-    }
-    D3D12_CPU_DESCRIPTOR_HANDLE view_cpu_handle;
-    D3D12_GPU_DESCRIPTOR_HANDLE view_gpu_handle;
-    uint32_t descriptor_size_view = provider.GetViewDescriptorSize();
-    uint64_t view_heap_index = RequestViewBindfulDescriptors(
-        draw_view_bindful_heap_index_, uint32_t(view_count_partial_update),
-        uint32_t(view_count_full_update), view_cpu_handle, view_gpu_handle);
-    if (view_heap_index ==
-        ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid) {
-      XELOGE("Failed to allocate view descriptors");
-      return false;
-    }
-    size_t sampler_count_partial_update = 0;
-    if (write_samplers_vertex) {
-      sampler_count_partial_update += sampler_count_vertex;
-    }
-    if (write_samplers_pixel) {
-      sampler_count_partial_update += sampler_count_pixel;
-    }
-    D3D12_CPU_DESCRIPTOR_HANDLE sampler_cpu_handle = {};
-    D3D12_GPU_DESCRIPTOR_HANDLE sampler_gpu_handle = {};
-    uint32_t descriptor_size_sampler = provider.GetSamplerDescriptorSize();
-    uint64_t sampler_heap_index =
-        ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid;
-    if (sampler_count_vertex != 0 || sampler_count_pixel != 0) {
-      sampler_heap_index = RequestSamplerBindfulDescriptors(
-          draw_sampler_bindful_heap_index_,
-          uint32_t(sampler_count_partial_update),
-          uint32_t(sampler_count_vertex + sampler_count_pixel),
-          sampler_cpu_handle, sampler_gpu_handle);
-      if (sampler_heap_index ==
-          ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid) {
-        XELOGE("Failed to allocate sampler descriptors");
-        return false;
-      }
-    }
-    if (draw_view_bindful_heap_index_ != view_heap_index) {
-      // Need to update all view descriptors.
-      write_textures_vertex = texture_count_vertex != 0;
-      write_textures_pixel = texture_count_pixel != 0;
-      bindful_textures_written_vertex_ = false;
-      bindful_textures_written_pixel_ = false;
-      // If updating fully, write the shared memory SRV and UAV descriptors and,
-      // if needed, the EDRAM descriptor.
-      gpu_handle_shared_memory_and_edram_ = view_gpu_handle;
-      shared_memory_->WriteRawSRVDescriptor(view_cpu_handle);
-      view_cpu_handle.ptr += descriptor_size_view;
-      view_gpu_handle.ptr += descriptor_size_view;
-      shared_memory_->WriteRawUAVDescriptor(view_cpu_handle);
-      view_cpu_handle.ptr += descriptor_size_view;
-      view_gpu_handle.ptr += descriptor_size_view;
-      if (edram_rov_used) {
-        render_target_cache_->WriteEdramUintPow2UAVDescriptor(view_cpu_handle,
-                                                              2);
-        view_cpu_handle.ptr += descriptor_size_view;
-        view_gpu_handle.ptr += descriptor_size_view;
-      }
-      current_graphics_root_up_to_date_ &=
-          ~(1u << kRootParameter_Bindful_SharedMemoryAndEdram);
-    }
-    if (sampler_heap_index !=
-            ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid &&
-        draw_sampler_bindful_heap_index_ != sampler_heap_index) {
-      write_samplers_vertex = sampler_count_vertex != 0;
-      write_samplers_pixel = sampler_count_pixel != 0;
-      bindful_samplers_written_vertex_ = false;
-      bindful_samplers_written_pixel_ = false;
-    }
-
-    // Write the descriptors.
-    if (write_textures_vertex) {
-      assert_true(current_graphics_root_bindful_extras_.textures_vertex !=
-                  RootBindfulExtraParameterIndices::kUnavailable);
-      gpu_handle_textures_vertex_ = view_gpu_handle;
-      for (size_t i = 0; i < texture_count_vertex; ++i) {
-        texture_cache_->WriteActiveTextureBindfulSRV(textures_vertex[i],
-                                                     view_cpu_handle);
-        view_cpu_handle.ptr += descriptor_size_view;
-        view_gpu_handle.ptr += descriptor_size_view;
-      }
-      current_texture_layout_uid_vertex_ = texture_layout_uid_vertex;
-      current_texture_srv_keys_vertex_.resize(
-          std::max(current_texture_srv_keys_vertex_.size(),
-                   size_t(texture_count_vertex)));
-      texture_cache_->WriteActiveTextureSRVKeys(
-          current_texture_srv_keys_vertex_.data(), textures_vertex.data(),
-          texture_count_vertex);
-      bindful_textures_written_vertex_ = true;
-      current_graphics_root_up_to_date_ &=
-          ~(1u << current_graphics_root_bindful_extras_.textures_vertex);
-    }
-    if (write_textures_pixel) {
-      assert_true(current_graphics_root_bindful_extras_.textures_pixel !=
-                  RootBindfulExtraParameterIndices::kUnavailable);
-      gpu_handle_textures_pixel_ = view_gpu_handle;
-      for (size_t i = 0; i < texture_count_pixel; ++i) {
-        texture_cache_->WriteActiveTextureBindfulSRV((*textures_pixel)[i],
-                                                     view_cpu_handle);
-        view_cpu_handle.ptr += descriptor_size_view;
-        view_gpu_handle.ptr += descriptor_size_view;
-      }
-      current_texture_layout_uid_pixel_ = texture_layout_uid_pixel;
-      current_texture_srv_keys_pixel_.resize(std::max(
-          current_texture_srv_keys_pixel_.size(), size_t(texture_count_pixel)));
-      texture_cache_->WriteActiveTextureSRVKeys(
-          current_texture_srv_keys_pixel_.data(), textures_pixel->data(),
-          texture_count_pixel);
-      bindful_textures_written_pixel_ = true;
-      current_graphics_root_up_to_date_ &=
-          ~(1u << current_graphics_root_bindful_extras_.textures_pixel);
-    }
-    if (write_samplers_vertex) {
-      assert_true(current_graphics_root_bindful_extras_.samplers_vertex !=
-                  RootBindfulExtraParameterIndices::kUnavailable);
-      gpu_handle_samplers_vertex_ = sampler_gpu_handle;
-      for (size_t i = 0; i < sampler_count_vertex; ++i) {
-        texture_cache_->WriteSampler(current_samplers_vertex_[i],
-                                     sampler_cpu_handle);
-        sampler_cpu_handle.ptr += descriptor_size_sampler;
-        sampler_gpu_handle.ptr += descriptor_size_sampler;
-      }
-      // Current samplers have already been updated.
-      bindful_samplers_written_vertex_ = true;
-      current_graphics_root_up_to_date_ &=
-          ~(1u << current_graphics_root_bindful_extras_.samplers_vertex);
-    }
-    if (write_samplers_pixel) {
-      assert_true(current_graphics_root_bindful_extras_.samplers_pixel !=
-                  RootBindfulExtraParameterIndices::kUnavailable);
-      gpu_handle_samplers_pixel_ = sampler_gpu_handle;
-      for (size_t i = 0; i < sampler_count_pixel; ++i) {
-        texture_cache_->WriteSampler(current_samplers_pixel_[i],
-                                     sampler_cpu_handle);
-        sampler_cpu_handle.ptr += descriptor_size_sampler;
-        sampler_gpu_handle.ptr += descriptor_size_sampler;
-      }
-      // Current samplers have already been updated.
-      bindful_samplers_written_pixel_ = true;
-      current_graphics_root_up_to_date_ &=
-          ~(1u << current_graphics_root_bindful_extras_.samplers_pixel);
-    }
-
-    // Wrote new descriptors on the current page.
-    draw_view_bindful_heap_index_ = view_heap_index;
-    if (sampler_heap_index !=
-        ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid) {
-      draw_sampler_bindful_heap_index_ = sampler_heap_index;
-    }
+    bool retflag;
+    bool retval = UpdateBindings_BindfulPath(
+        texture_layout_uid_vertex, textures_vertex, texture_layout_uid_pixel,
+        textures_pixel, sampler_count_vertex, sampler_count_pixel, retflag);
+    if (retflag) return retval;
   }
 
   // Update the root parameters.
@@ -4967,46 +4832,254 @@ bool D3D12CommandProcessor::UpdateBindings(
                                            << kRootParameter_Bindless_ViewHeap;
     }
   } else {
-    if (!(current_graphics_root_up_to_date_ &
-          (1u << kRootParameter_Bindful_SharedMemoryAndEdram))) {
-      deferred_command_list_.D3DSetGraphicsRootDescriptorTable(
-          kRootParameter_Bindful_SharedMemoryAndEdram,
-          gpu_handle_shared_memory_and_edram_);
-      current_graphics_root_up_to_date_ |=
-          1u << kRootParameter_Bindful_SharedMemoryAndEdram;
-    }
-    uint32_t extra_index;
-    extra_index = current_graphics_root_bindful_extras_.textures_pixel;
-    if (extra_index != RootBindfulExtraParameterIndices::kUnavailable &&
-        !(current_graphics_root_up_to_date_ & (1u << extra_index))) {
-      deferred_command_list_.D3DSetGraphicsRootDescriptorTable(
-          extra_index, gpu_handle_textures_pixel_);
-      current_graphics_root_up_to_date_ |= 1u << extra_index;
-    }
-    extra_index = current_graphics_root_bindful_extras_.samplers_pixel;
-    if (extra_index != RootBindfulExtraParameterIndices::kUnavailable &&
-        !(current_graphics_root_up_to_date_ & (1u << extra_index))) {
-      deferred_command_list_.D3DSetGraphicsRootDescriptorTable(
-          extra_index, gpu_handle_samplers_pixel_);
-      current_graphics_root_up_to_date_ |= 1u << extra_index;
-    }
-    extra_index = current_graphics_root_bindful_extras_.textures_vertex;
-    if (extra_index != RootBindfulExtraParameterIndices::kUnavailable &&
-        !(current_graphics_root_up_to_date_ & (1u << extra_index))) {
-      deferred_command_list_.D3DSetGraphicsRootDescriptorTable(
-          extra_index, gpu_handle_textures_vertex_);
-      current_graphics_root_up_to_date_ |= 1u << extra_index;
-    }
-    extra_index = current_graphics_root_bindful_extras_.samplers_vertex;
-    if (extra_index != RootBindfulExtraParameterIndices::kUnavailable &&
-        !(current_graphics_root_up_to_date_ & (1u << extra_index))) {
-      deferred_command_list_.D3DSetGraphicsRootDescriptorTable(
-          extra_index, gpu_handle_samplers_vertex_);
-      current_graphics_root_up_to_date_ |= 1u << extra_index;
-    }
+    UpdateBindings_UpdateRootBindful();
   }
 
   return true;
+}
+XE_COLD
+XE_NOINLINE
+void D3D12CommandProcessor::UpdateBindings_UpdateRootBindful() {
+  if (!(current_graphics_root_up_to_date_ &
+        (1u << kRootParameter_Bindful_SharedMemoryAndEdram))) {
+    deferred_command_list_.D3DSetGraphicsRootDescriptorTable(
+        kRootParameter_Bindful_SharedMemoryAndEdram,
+        gpu_handle_shared_memory_and_edram_);
+    current_graphics_root_up_to_date_ |=
+        1u << kRootParameter_Bindful_SharedMemoryAndEdram;
+  }
+  uint32_t extra_index;
+  extra_index = current_graphics_root_bindful_extras_.textures_pixel;
+  if (extra_index != RootBindfulExtraParameterIndices::kUnavailable &&
+      !(current_graphics_root_up_to_date_ & (1u << extra_index))) {
+    deferred_command_list_.D3DSetGraphicsRootDescriptorTable(
+        extra_index, gpu_handle_textures_pixel_);
+    current_graphics_root_up_to_date_ |= 1u << extra_index;
+  }
+  extra_index = current_graphics_root_bindful_extras_.samplers_pixel;
+  if (extra_index != RootBindfulExtraParameterIndices::kUnavailable &&
+      !(current_graphics_root_up_to_date_ & (1u << extra_index))) {
+    deferred_command_list_.D3DSetGraphicsRootDescriptorTable(
+        extra_index, gpu_handle_samplers_pixel_);
+    current_graphics_root_up_to_date_ |= 1u << extra_index;
+  }
+  extra_index = current_graphics_root_bindful_extras_.textures_vertex;
+  if (extra_index != RootBindfulExtraParameterIndices::kUnavailable &&
+      !(current_graphics_root_up_to_date_ & (1u << extra_index))) {
+    deferred_command_list_.D3DSetGraphicsRootDescriptorTable(
+        extra_index, gpu_handle_textures_vertex_);
+    current_graphics_root_up_to_date_ |= 1u << extra_index;
+  }
+  extra_index = current_graphics_root_bindful_extras_.samplers_vertex;
+  if (extra_index != RootBindfulExtraParameterIndices::kUnavailable &&
+      !(current_graphics_root_up_to_date_ & (1u << extra_index))) {
+    deferred_command_list_.D3DSetGraphicsRootDescriptorTable(
+        extra_index, gpu_handle_samplers_vertex_);
+    current_graphics_root_up_to_date_ |= 1u << extra_index;
+  }
+}
+XE_NOINLINE
+XE_COLD
+bool D3D12CommandProcessor::UpdateBindings_BindfulPath(
+    const size_t texture_layout_uid_vertex,
+    const std::vector<xe::gpu::DxbcShader::TextureBinding>& textures_vertex,
+    const size_t texture_layout_uid_pixel,
+    const std::vector<xe::gpu::DxbcShader::TextureBinding>* textures_pixel,
+    const size_t sampler_count_vertex, const size_t sampler_count_pixel,
+    bool& retflag) {
+  retflag = true;
+  auto& provider = this->GetD3D12Provider();
+  size_t texture_count_pixel = textures_pixel->size();
+  size_t texture_count_vertex = textures_vertex.size();
+  //
+  // Bindful descriptors path.
+  //
+
+  // See what descriptors need to be updated.
+  // Samplers have already been checked.
+  bool write_textures_vertex =
+      texture_count_vertex &&
+      (!bindful_textures_written_vertex_ ||
+       current_texture_layout_uid_vertex_ != texture_layout_uid_vertex ||
+       !texture_cache_->AreActiveTextureSRVKeysUpToDate(
+           current_texture_srv_keys_vertex_.data(), textures_vertex.data(),
+           texture_count_vertex));
+  bool write_textures_pixel =
+      texture_count_pixel &&
+      (!bindful_textures_written_pixel_ ||
+       current_texture_layout_uid_pixel_ != texture_layout_uid_pixel ||
+       !texture_cache_->AreActiveTextureSRVKeysUpToDate(
+           current_texture_srv_keys_pixel_.data(), textures_pixel->data(),
+           texture_count_pixel));
+  bool write_samplers_vertex =
+      sampler_count_vertex && !bindful_samplers_written_vertex_;
+  bool write_samplers_pixel =
+      sampler_count_pixel && !bindful_samplers_written_pixel_;
+  bool edram_rov_used = render_target_cache_->GetPath() ==
+                        RenderTargetCache::Path::kPixelShaderInterlock;
+
+  // Allocate the descriptors.
+  size_t view_count_partial_update = 0;
+  if (write_textures_vertex) {
+    view_count_partial_update += texture_count_vertex;
+  }
+  if (write_textures_pixel) {
+    view_count_partial_update += texture_count_pixel;
+  }
+  // All the constants + shared memory SRV and UAV + textures.
+  size_t view_count_full_update =
+      2 + texture_count_vertex + texture_count_pixel;
+  if (edram_rov_used) {
+    // + EDRAM UAV.
+    ++view_count_full_update;
+  }
+  D3D12_CPU_DESCRIPTOR_HANDLE view_cpu_handle;
+  D3D12_GPU_DESCRIPTOR_HANDLE view_gpu_handle;
+  uint32_t descriptor_size_view = provider.GetViewDescriptorSize();
+  uint64_t view_heap_index = RequestViewBindfulDescriptors(
+      draw_view_bindful_heap_index_, uint32_t(view_count_partial_update),
+      uint32_t(view_count_full_update), view_cpu_handle, view_gpu_handle);
+  if (view_heap_index ==
+      ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid) {
+    XELOGE("Failed to allocate view descriptors");
+    return false;
+  }
+  size_t sampler_count_partial_update = 0;
+  if (write_samplers_vertex) {
+    sampler_count_partial_update += sampler_count_vertex;
+  }
+  if (write_samplers_pixel) {
+    sampler_count_partial_update += sampler_count_pixel;
+  }
+  D3D12_CPU_DESCRIPTOR_HANDLE sampler_cpu_handle = {};
+  D3D12_GPU_DESCRIPTOR_HANDLE sampler_gpu_handle = {};
+  uint32_t descriptor_size_sampler = provider.GetSamplerDescriptorSize();
+  uint64_t sampler_heap_index =
+      ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid;
+  if (sampler_count_vertex != 0 || sampler_count_pixel != 0) {
+    sampler_heap_index = RequestSamplerBindfulDescriptors(
+        draw_sampler_bindful_heap_index_,
+        uint32_t(sampler_count_partial_update),
+        uint32_t(sampler_count_vertex + sampler_count_pixel),
+        sampler_cpu_handle, sampler_gpu_handle);
+    if (sampler_heap_index ==
+        ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid) {
+      XELOGE("Failed to allocate sampler descriptors");
+      return false;
+    }
+  }
+  if (draw_view_bindful_heap_index_ != view_heap_index) {
+    // Need to update all view descriptors.
+    write_textures_vertex = texture_count_vertex != 0;
+    write_textures_pixel = texture_count_pixel != 0;
+    bindful_textures_written_vertex_ = false;
+    bindful_textures_written_pixel_ = false;
+    // If updating fully, write the shared memory SRV and UAV descriptors and,
+    // if needed, the EDRAM descriptor.
+    gpu_handle_shared_memory_and_edram_ = view_gpu_handle;
+    shared_memory_->WriteRawSRVDescriptor(view_cpu_handle);
+    view_cpu_handle.ptr += descriptor_size_view;
+    view_gpu_handle.ptr += descriptor_size_view;
+    shared_memory_->WriteRawUAVDescriptor(view_cpu_handle);
+    view_cpu_handle.ptr += descriptor_size_view;
+    view_gpu_handle.ptr += descriptor_size_view;
+    if (edram_rov_used) {
+      render_target_cache_->WriteEdramUintPow2UAVDescriptor(view_cpu_handle, 2);
+      view_cpu_handle.ptr += descriptor_size_view;
+      view_gpu_handle.ptr += descriptor_size_view;
+    }
+    current_graphics_root_up_to_date_ &=
+        ~(1u << kRootParameter_Bindful_SharedMemoryAndEdram);
+  }
+  if (sampler_heap_index !=
+          ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid &&
+      draw_sampler_bindful_heap_index_ != sampler_heap_index) {
+    write_samplers_vertex = sampler_count_vertex != 0;
+    write_samplers_pixel = sampler_count_pixel != 0;
+    bindful_samplers_written_vertex_ = false;
+    bindful_samplers_written_pixel_ = false;
+  }
+
+  // Write the descriptors.
+  if (write_textures_vertex) {
+    assert_true(current_graphics_root_bindful_extras_.textures_vertex !=
+                RootBindfulExtraParameterIndices::kUnavailable);
+    gpu_handle_textures_vertex_ = view_gpu_handle;
+    for (size_t i = 0; i < texture_count_vertex; ++i) {
+      texture_cache_->WriteActiveTextureBindfulSRV(textures_vertex[i],
+                                                   view_cpu_handle);
+      view_cpu_handle.ptr += descriptor_size_view;
+      view_gpu_handle.ptr += descriptor_size_view;
+    }
+    current_texture_layout_uid_vertex_ = texture_layout_uid_vertex;
+    current_texture_srv_keys_vertex_.resize(std::max(
+        current_texture_srv_keys_vertex_.size(), size_t(texture_count_vertex)));
+    texture_cache_->WriteActiveTextureSRVKeys(
+        current_texture_srv_keys_vertex_.data(), textures_vertex.data(),
+        texture_count_vertex);
+    bindful_textures_written_vertex_ = true;
+    current_graphics_root_up_to_date_ &=
+        ~(1u << current_graphics_root_bindful_extras_.textures_vertex);
+  }
+  if (write_textures_pixel) {
+    assert_true(current_graphics_root_bindful_extras_.textures_pixel !=
+                RootBindfulExtraParameterIndices::kUnavailable);
+    gpu_handle_textures_pixel_ = view_gpu_handle;
+    for (size_t i = 0; i < texture_count_pixel; ++i) {
+      texture_cache_->WriteActiveTextureBindfulSRV((*textures_pixel)[i],
+                                                   view_cpu_handle);
+      view_cpu_handle.ptr += descriptor_size_view;
+      view_gpu_handle.ptr += descriptor_size_view;
+    }
+    current_texture_layout_uid_pixel_ = texture_layout_uid_pixel;
+    current_texture_srv_keys_pixel_.resize(std::max(
+        current_texture_srv_keys_pixel_.size(), size_t(texture_count_pixel)));
+    texture_cache_->WriteActiveTextureSRVKeys(
+        current_texture_srv_keys_pixel_.data(), textures_pixel->data(),
+        texture_count_pixel);
+    bindful_textures_written_pixel_ = true;
+    current_graphics_root_up_to_date_ &=
+        ~(1u << current_graphics_root_bindful_extras_.textures_pixel);
+  }
+  if (write_samplers_vertex) {
+    assert_true(current_graphics_root_bindful_extras_.samplers_vertex !=
+                RootBindfulExtraParameterIndices::kUnavailable);
+    gpu_handle_samplers_vertex_ = sampler_gpu_handle;
+    for (size_t i = 0; i < sampler_count_vertex; ++i) {
+      texture_cache_->WriteSampler(current_samplers_vertex_[i],
+                                   sampler_cpu_handle);
+      sampler_cpu_handle.ptr += descriptor_size_sampler;
+      sampler_gpu_handle.ptr += descriptor_size_sampler;
+    }
+    // Current samplers have already been updated.
+    bindful_samplers_written_vertex_ = true;
+    current_graphics_root_up_to_date_ &=
+        ~(1u << current_graphics_root_bindful_extras_.samplers_vertex);
+  }
+  if (write_samplers_pixel) {
+    assert_true(current_graphics_root_bindful_extras_.samplers_pixel !=
+                RootBindfulExtraParameterIndices::kUnavailable);
+    gpu_handle_samplers_pixel_ = sampler_gpu_handle;
+    for (size_t i = 0; i < sampler_count_pixel; ++i) {
+      texture_cache_->WriteSampler(current_samplers_pixel_[i],
+                                   sampler_cpu_handle);
+      sampler_cpu_handle.ptr += descriptor_size_sampler;
+      sampler_gpu_handle.ptr += descriptor_size_sampler;
+    }
+    // Current samplers have already been updated.
+    bindful_samplers_written_pixel_ = true;
+    current_graphics_root_up_to_date_ &=
+        ~(1u << current_graphics_root_bindful_extras_.samplers_pixel);
+  }
+
+  // Wrote new descriptors on the current page.
+  draw_view_bindful_heap_index_ = view_heap_index;
+  if (sampler_heap_index !=
+      ui::d3d12::D3D12DescriptorHeapPool::kHeapIndexInvalid) {
+    draw_sampler_bindful_heap_index_ = sampler_heap_index;
+  }
+  retflag = false;
+  return {};
 }
 
 uint32_t D3D12CommandProcessor::GetSupportedMemExportFormatSize(
@@ -5043,7 +5116,7 @@ ID3D12Resource* D3D12CommandProcessor::RequestReadbackBuffer(uint32_t size) {
   if (size == 0) {
     return nullptr;
   }
-#if 0
+#if 1
   if (readback_available_) {
     GetDMAC()->WaitJobDone(readback_available_);
     readback_available_ = 0;

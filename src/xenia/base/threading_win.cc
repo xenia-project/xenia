@@ -39,6 +39,8 @@ XE_NTDLL_IMPORT(NtWaitForSingleObject, cls_NtWaitForSingleObject,
                 NtWaitForSingleObjectPointer);
 
 XE_NTDLL_IMPORT(NtSetEvent, cls_NtSetEvent, NtSetEventPointer);
+XE_NTDLL_IMPORT(NtSetEventBoostPriority, cls_NtSetEventBoostPriority,
+                NtSetEventBoostPriorityPointer);
 // difference between NtClearEvent and NtResetEvent is that NtResetEvent returns
 // the events state prior to the call, but we dont need that. might need to
 // check whether one or the other is faster in the kernel though yeah, just
@@ -53,6 +55,7 @@ XE_NTDLL_IMPORT(NtReleaseSemaphore, cls_NtReleaseSemaphore,
 
 XE_NTDLL_IMPORT(NtDelayExecution, cls_NtDelayExecution,
                 NtDelayExecutionPointer);
+
 namespace xe {
 namespace threading {
 
@@ -137,7 +140,7 @@ void MaybeYield() {
 #endif
 #endif
   // memorybarrier is really not necessary here...
-  MemoryBarrier();
+  // MemoryBarrier();
 }
 
 void SyncMemory() { MemoryBarrier(); }
@@ -288,11 +291,19 @@ class Win32Event : public Win32Handle<Event> {
   void Set() override { NtSetEventPointer.invoke(handle_, nullptr); }
   void Reset() override { NtClearEventPointer.invoke(handle_); }
   void Pulse() override { NtPulseEventPointer.invoke(handle_, nullptr); }
+  void SetBoostPriority() override {
+    // no previous state for boostpriority
+    NtSetEventBoostPriorityPointer.invoke(handle_);
+  }
 #else
   void Set() override { SetEvent(handle_); }
   void Reset() override { ResetEvent(handle_); }
   void Pulse() override { PulseEvent(handle_); }
 
+  void SetBoostPriority() override {
+    // no win32 version of boostpriority
+    SetEvent(handle_);
+  }
 #endif
 };
 

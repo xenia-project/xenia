@@ -430,7 +430,7 @@ class PrimitiveProcessor {
       --count;
       uint32_t index = *(source++) & low_bits_mask_guest_endian;
       *(dest++) = index != reset_index_guest_endian
-                      ? xenos::GpuSwap(index, HostSwap)
+                      ? xenos::GpuSwapInline(index, HostSwap)
                       : UINT32_MAX;
     }
     if (count >= kSimdVectorU32Elements) {
@@ -442,10 +442,10 @@ class PrimitiveProcessor {
       __m128i host_swap_shuffle;
       if constexpr (HostSwap != xenos::Endian::kNone) {
         host_swap_shuffle = _mm_set_epi32(
-            int32_t(xenos::GpuSwap(uint32_t(0x0F0E0D0C), HostSwap)),
-            int32_t(xenos::GpuSwap(uint32_t(0x0B0A0908), HostSwap)),
-            int32_t(xenos::GpuSwap(uint32_t(0x07060504), HostSwap)),
-            int32_t(xenos::GpuSwap(uint32_t(0x03020100), HostSwap)));
+            int32_t(xenos::GpuSwapInline(uint32_t(0x0F0E0D0C), HostSwap)),
+            int32_t(xenos::GpuSwapInline(uint32_t(0x0B0A0908), HostSwap)),
+            int32_t(xenos::GpuSwapInline(uint32_t(0x07060504), HostSwap)),
+            int32_t(xenos::GpuSwapInline(uint32_t(0x03020100), HostSwap)));
       }
 #endif  // XE_ARCH_AMD64
       while (count >= kSimdVectorU32Elements) {
@@ -490,7 +490,7 @@ class PrimitiveProcessor {
     while (count--) {
       uint32_t index = *(source++) & low_bits_mask_guest_endian;
       *(dest++) = index != reset_index_guest_endian
-                      ? xenos::GpuSwap(index, HostSwap)
+                      ? xenos::GpuSwapInline(index, HostSwap)
                       : UINT32_MAX;
     }
   }
@@ -510,19 +510,19 @@ class PrimitiveProcessor {
   };
   struct To24Swapping8In16IndexTransform {
     uint32_t operator()(uint32_t index) const {
-      return xenos::GpuSwap(index, xenos::Endian::k8in16) &
+      return xenos::GpuSwapInline(index, xenos::Endian::k8in16) &
              xenos::kVertexIndexMask;
     }
   };
   struct To24Swapping8In32IndexTransform {
     uint32_t operator()(uint32_t index) const {
-      return xenos::GpuSwap(index, xenos::Endian::k8in32) &
+      return xenos::GpuSwapInline(index, xenos::Endian::k8in32) &
              xenos::kVertexIndexMask;
     }
   };
   struct To24Swapping16In32IndexTransform {
     uint32_t operator()(uint32_t index) const {
-      return xenos::GpuSwap(index, xenos::Endian::k16in32) &
+      return xenos::GpuSwapInline(index, xenos::Endian::k16in32) &
              xenos::kVertexIndexMask;
     }
   };

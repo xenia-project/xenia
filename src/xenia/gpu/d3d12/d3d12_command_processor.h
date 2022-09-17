@@ -45,7 +45,10 @@
 namespace xe {
 namespace gpu {
 namespace d3d12 {
-
+struct MemExportRange {
+  uint32_t base_address_dwords;
+  uint32_t size_dwords;
+};
 class D3D12CommandProcessor final : public CommandProcessor {
  public:
 #include "../pm4_command_processor_declare.h"
@@ -287,8 +290,21 @@ class D3D12CommandProcessor final : public CommandProcessor {
   bool IssueDraw(xenos::PrimitiveType primitive_type, uint32_t index_count,
                  IndexBufferInfo* index_buffer_info,
                  bool major_mode_explicit) override;
+  XE_COLD
+  XE_NOINLINE
+  bool HandleMemexportGuestDMA(ID3D12Resource*& scratch_index_buffer,
+                               D3D12_INDEX_BUFFER_VIEW& index_buffer_view,
+                               uint32_t guest_index_base,
+                               bool& retflag);
+  XE_NOINLINE
+  XE_COLD
+  bool GatherMemexportRangesAndMakeResident(bool& retflag);
+  XE_NOINLINE
+  XE_COLD
+  void HandleMemexportDrawOrdering_AndReadback();
   bool IssueCopy() override;
-
+  XE_NOINLINE
+  bool IssueCopy_ReadbackResolvePath();
   void InitializeTrace() override;
 
  private:
@@ -363,6 +379,8 @@ class D3D12CommandProcessor final : public CommandProcessor {
   };
   // Gets the indices of optional root parameters. Returns the total parameter
   // count.
+  XE_NOINLINE
+  XE_COLD
   static uint32_t GetRootBindfulExtraParameterIndices(
       const DxbcShader* vertex_shader, const DxbcShader* pixel_shader,
       RootBindfulExtraParameterIndices& indices_out);
@@ -437,6 +455,18 @@ class D3D12CommandProcessor final : public CommandProcessor {
   bool UpdateBindings(const D3D12Shader* vertex_shader,
                       const D3D12Shader* pixel_shader,
                       ID3D12RootSignature* root_signature);
+  XE_COLD
+  XE_NOINLINE
+  void UpdateBindings_UpdateRootBindful();
+  XE_NOINLINE
+  XE_COLD
+  bool UpdateBindings_BindfulPath(
+      const size_t texture_layout_uid_vertex,
+      const std::vector<xe::gpu::DxbcShader::TextureBinding>& textures_vertex,
+      const size_t texture_layout_uid_pixel,
+      const std::vector<xe::gpu::DxbcShader::TextureBinding>* textures_pixel,
+      const size_t sampler_count_vertex, const size_t sampler_count_pixel,
+      bool& retflag);
 
   // Returns dword count for one element for a memexport format, or 0 if it's
   // not supported by the D3D12 command processor (if it's smaller that 1 dword,
@@ -743,6 +773,9 @@ class D3D12CommandProcessor final : public CommandProcessor {
 
   draw_util::GetViewportInfoArgs previous_viewport_info_args_;
   draw_util::ViewportInfo previous_viewport_info_;
+  // scratch memexport data
+  MemExportRange memexport_ranges_[512];
+  uint32_t memexport_range_count_ = 0;
 };
 
 }  // namespace d3d12

@@ -23,7 +23,7 @@
 #define XE_X64_PROFILER_AVAILABLE 1
 #endif
 
-DECLARE_int32(x64_extension_mask);
+DECLARE_int64(x64_extension_mask);
 
 namespace xe {
 class Exception;

@@ -763,7 +763,8 @@ void XThread::SetActiveCpu(uint8_t cpu_index) {
       thread_->set_affinity_mask(uint64_t(1) << cpu_index);
     }
   } else {
-    XELOGW("Too few processor cores - scheduling will be wonky");
+	  //there no good reason why we need to log this... we don't perfectly emulate the 360's scheduler in any way
+   // XELOGW("Too few processor cores - scheduling will be wonky");
   }
 }
 
