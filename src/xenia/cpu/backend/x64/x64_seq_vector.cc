@@ -679,6 +679,19 @@ struct VECTOR_SUB
                   // src1/src2.
                   e.vpsubd(e.xmm1, src1, src2);
 
+                  if (e.IsFeatureEnabled(kX64EmitAVX512Ortho)) {
+                    // If the result is less or equal to the first operand then
+                    // we did not underflow
+                    Opmask not_underflow = e.k1;
+                    // _mm_cmple_epu32_mask
+                    e.vpcmpud(not_underflow, e.xmm1, src1, 0x2);
+
+                    // Copy over values that did not underflow, write zero
+                    // everywhere else
+                    e.vmovdqa32(dest | not_underflow | e.T_z, e.xmm1);
+                    return;
+                  }
+
                   // If result is greater than either of the inputs, we've
                   // underflowed (only need to check one input)
                   // if (res > src1) then underflowed
@@ -689,6 +702,21 @@ struct VECTOR_SUB
                   e.vpandn(dest, e.xmm0, e.xmm1);
                 } else {
                   e.vpsubd(e.xmm1, src1, src2);
+
+                  if (e.IsFeatureEnabled(kX64EmitAVX512Ortho |
+                                         kX64EmitAVX512DQ)) {
+                    e.vmovdqa32(e.xmm3, src1);
+                    e.vpternlogd(e.xmm3, e.xmm1, src2, 0b00011000);
+
+                    const Opmask saturate = e.k1;
+                    e.vpmovd2m(saturate, e.xmm3);
+
+                    e.vpsrad(e.xmm2, e.xmm1, 31);
+                    e.vpxord(e.xmm2, e.xmm2, e.GetXmmConstPtr(XMMSignMaskI32));
+
+                    e.vpblendmd(dest | saturate, e.xmm1, e.xmm2);
+                    return;
+                  }
 
                   // We can only overflow if the signs of the operands are
                   // opposite. If signs are opposite and result sign isn't the
