@@ -99,6 +99,19 @@ struct VECTOR_CONVERT_F2I
     e.ChangeMxcsrMode(MXCSRMode::Vmx);
     Xmm src1 = GetInputRegOrConstant(e, i.src1, e.xmm3);
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
+      if (e.IsFeatureEnabled(kX64EmitAVX512Ortho)) {
+        Opmask mask = e.k1;
+        // Mask positive values and unordered values
+        // _CMP_NLT_UQ
+        e.vcmpps(mask, i.src1, e.GetXmmConstPtr(XMMZero), 0x15);
+
+        // vcvttps2udq will saturate overflowing positive values and unordered
+        // values to UINT_MAX. Mask registers will write zero everywhere
+        // else (negative values)
+        e.vcvttps2udq(i.dest.reg() | mask | e.T_z, i.src1);
+        return;
+      }
+
       // clamp to min 0
       e.vmaxps(e.xmm0, src1, e.GetXmmConstPtr(XMMZero));
 
@@ -621,6 +634,15 @@ struct VECTOR_ADD
             case INT32_TYPE:
               if (saturate) {
                 if (is_unsigned) {
+                  if (e.IsFeatureEnabled(kX64EmitAVX512Ortho)) {
+                    e.vpaddd(dest, src1, src2);
+                    Opmask saturate = e.k1;
+                    // _mm_cmplt_epu32_mask
+                    e.vpcmpud(saturate, dest, src1, 0x1);
+                    e.vpternlogd(dest | saturate, dest, dest, 0xFF);
+                    return;
+                  }
+
                   // xmm0 is the only temp register that can be used by
                   // src1/src2.
                   e.vpaddd(e.xmm1, src1, src2);
@@ -636,6 +658,20 @@ struct VECTOR_ADD
                   e.vpor(dest, e.xmm1, e.xmm0);
                 } else {
                   e.vpaddd(e.xmm1, src1, src2);
+
+                  if (e.IsFeatureEnabled(kX64EmitAVX512Ortho |
+                                         kX64EmitAVX512DQ)) {
+                    e.vmovdqa32(e.xmm3, src1);
+                    e.vpternlogd(e.xmm3, e.xmm1, src2, 0b00100100);
+
+                    const Opmask saturate = e.k1;
+                    e.vpmovd2m(saturate, e.xmm3);
+
+                    e.vpsrad(e.xmm2, e.xmm1, 31);
+                    e.vpxord(e.xmm2, e.xmm2, e.GetXmmConstPtr(XMMSignMaskI32));
+                    e.vpblendmd(dest | saturate, e.xmm1, e.xmm2); 
+                    return;
+                  }
 
                   // Overflow results if two inputs are the same sign and the
                   // result isn't the same sign. if ((s32b)(~(src1 ^ src2) &
