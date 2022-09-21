@@ -612,6 +612,16 @@ void EmulatorApp::EmulatorThread() {
       xe::FatalError(fmt::format("Failed to launch target: {:08X}", result));
       app_context().RequestDeferredQuit();
       return;
+    } else {
+      auto window = emulator_window_->window();
+      if (window) {
+        window->SetMainMenuItemEnabled(
+            static_cast<int32_t>(MenuIndex::kLanguageRegion), false);
+      } else {
+        XELOGI(
+            "EmulatorApp::EmulatorThread: Failed to disable main menu item {}.",
+            static_cast<int32_t>(MenuIndex::kLanguageRegion));
+      }
     }
   }
 

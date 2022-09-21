@@ -60,7 +60,12 @@ void MenuItem::RemoveChild(MenuItem* child_item) {
   }
 }
 
-MenuItem* MenuItem::child(size_t index) { return children_[index].get(); }
+MenuItem* MenuItem::child(size_t index) {
+  // Return nullptr if the child index is out of range.
+  if (index >= children_.size()) return nullptr;
+
+  return children_[index].get();
+}
 
 void MenuItem::OnSelected() {
   if (callback_) {

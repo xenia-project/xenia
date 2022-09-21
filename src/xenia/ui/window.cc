@@ -13,6 +13,7 @@
 #include <iterator>
 
 #include "third_party/imgui/imgui.h"
+#include "xenia/app/emulator_window.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
@@ -276,6 +277,8 @@ void Window::SetIcon(const void* buffer, size_t size) {
   }
 }
 
+MenuItem* Window::GetMainMenu() { return main_menu_.get(); }
+
 void Window::SetMainMenu(std::unique_ptr<MenuItem> new_main_menu) {
   // The primary reason for this comparison (of two unique pointers) is
   // nullptr == nullptr.
@@ -327,6 +330,18 @@ void Window::SetMainMenuEnabled(bool enabled) {
   if (destruction_receiver.IsWindowDestroyed()) {
     return;
   }
+}
+
+void Window::SetMainMenuItemEnabled(int index, bool enabled) {
+  if (!main_menu_) {
+    return;
+  }
+  WindowDestructionReceiver destruction_receiver(this);
+  main_menu_->child(index)->SetEnabled(enabled);
+  if (destruction_receiver.IsWindowDestroyed()) {
+    return;
+  }
+  CompleteMainMenuItemsUpdate();
 }
 
 void Window::CaptureMouse() {

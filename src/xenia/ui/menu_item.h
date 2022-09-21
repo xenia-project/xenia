@@ -60,6 +60,7 @@ class MenuItem {
   MenuItem* child(size_t index);
 
   virtual void SetEnabled(bool enabled) {}
+  virtual void SetChecked(int idx, bool checked) {}
 
  protected:
   MenuItem(Type type, const std::string& text, const std::string& hotkey,

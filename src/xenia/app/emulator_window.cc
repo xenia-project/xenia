@@ -31,6 +31,7 @@
 #include "xenia/emulator.h"
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/graphics_system.h"
+#include "xenia/kernel/xboxkrnl/xboxkrnl_xconfig.h"
 #include "xenia/ui/file_picker.h"
 #include "xenia/ui/graphics_provider.h"
 #include "xenia/ui/imgui_dialog.h"
@@ -123,6 +124,78 @@ DEFINE_bool(
     "be added to them - disabling may be recommended for 10bpc, but it "
     "depends on the 10bpc displaying capabilities of the actual display used.",
     "Display");
+
+DECLARE_string(console_region);
+DECLARE_int32(user_language);
+DECLARE_int32(user_country);
+
+// Entries for the User Country menu
+// Prefix a full country name entry with '^' to exclude it from the menu
+// clang-format off
+const char* UIGetCountryString(uint8_t id) {
+  static const char* const table[] = {
+      nullptr, nullptr, "^United Arab Emirates", "AE", "Albania", "AL", "^Armenia", "AM", "Argentina", "AR", "Austria", "AT",
+      "Australia", "AU", "^Azerbaijan", "AZ", "Belgium", "BE", "Bulgaria", "BG", "^Bahrain", "BH", "^Brunei", "BN",
+      "Bolivia", "BO", "Brazil", "BR", "Belarus", "BY", "^Belize", "BZ", "Canada", "CA", nullptr, nullptr, "Switzerland", "CH",
+      "Chile", "CL", "China", "CN", "^Colombia", "CO", "^Costa Rica", "CR", "Czechia", "CZ", "Germany", "DE",
+      "Denmark", "DK", "^Dominican Republic", "DO", "^Algeria", "DZ", "Ecuador", "EC", "Estonia", "EE", "Egypt", "EG",
+      "Spain", "ES", "Finland", "FI", "^Faroe Islands", "FO", "France", "FR", "United Kingdom", "GB", "^Georgia", "GE",
+      "Greece", "GR", "^Guatemala", "GT", "Hong Kong", "HK", "^Honduras", "HN", "Croatia", "HR", "Hungary", "HU",
+      "^Indonesia", "ID", "Ireland", "IE", "Israel", "IL", "India", "IN", "^Iraq", "IQ", "^Iran", "IR", "Iceland", "IS",
+      "Italy", "IT", "^Jamaica", "JM", "^Jordan", "JO", "Japan", "JP", "^Kenya", "KE", "^Kyrgyzstan", "KG", "Korea", "KR",
+      "^Kuwait", "KW", "^Kazakhstan", "KZ", "Lebanon", "LB", "Liechtenstein", "LI", "Lithuania", "LT", "Luxembourg", "LU",
+      "Latvia", "LV", "^Libya", "LY", "^Morocco", "MA", "^Monaco", "MC", "^North Macedonia", "MK", "^Mongolia", "MN",
+      "Macao", "MO", "^Maldives", "MV", "Mexico", "MX", "^Malaysia", "MY", "Nicaragua", "NI", "Netherlands", "NL",
+      "Norway", "NO", "New Zealand", "NZ", "^Oman", "OM", "^Panama", "PA", "^Peru", "PE", "Philippines", "PH",
+      "^Pakistan", "PK", "Poland", "PL", "^Puerto Rico", "PR", "Portugal", "PT", "Paraguay", "PY", "^Qatar", "QA",
+      "Romania", "RO", "Russia", "RU", "^Saudi Arabia", "SA", "Sweden", "SE", "Singapore", "SG", "Slovenia", "SI",
+      "Slovakia", "SK", nullptr, nullptr, "^El Salvador", "SV", "^Syria", "SY", "Thailand", "TH", "^Tunisia", "TN",
+      "Turkey", "TR", "^Trinidad and Tobago", "TT", "Taiwan", "TW", "Ukraine", "UA", "United States", "US",
+      "Uruguay", "UY", "^Uzbekistan", "UZ", "^Venezuela", "VE", "^Viet Nam", "VN", "^Yemen", "YE", "South Africa", "ZA",
+      "^Zimbabwe", "ZW", nullptr, nullptr,
+  };
+#pragma warning(suppress : 6385)
+  return id < xe::countof(table) ? table[id] : nullptr;
+}
+
+// Entries for the User Language menu
+static const char* ui_languages_table[] = {
+    "English",             "en",
+    "Japanese",            "jp",
+    "German",              "de",
+    "French",              "fr",
+    "Spanish",             "es",
+    "Italian",             "it",
+    "Korean",              "ko",
+    "Traditional Chinese", "zh",
+    "Portuguese",          "pt",
+    "Polish",              "pl",
+    "Russian",             "ru",
+    "Swedish",             "sv",
+    "Turkish",             "tr",
+    "Norwegian",           "no",
+    "Dutch",               "nl",
+    "Simplified Chinese",  "szh",
+};
+static uint8_t const ui_language_codes[] = {1, 2,  3,  4,  5,  6,  7,  8,
+                                            9, 11, 12, 13, 14, 15, 16, 17};
+
+// Entries for the Console Region menu
+static const char* ui_console_region_table[] = {
+    "Region Free",       "rf",
+    "USA (NTSC-U)",      "us",
+    "Japanese (NTSC-J)", "jp",
+    "Asia (NTSC-HK)",    "asia",
+    "Europe (PAL)",      "eu",
+};
+static uint8_t const ui_console_region_codes[] = {
+    static_cast<uint8_t>(XCConsoleRegion::kRegionFree),
+    static_cast<uint8_t>(XCConsoleRegion::kUS),
+    static_cast<uint8_t>(XCConsoleRegion::kJapan),
+    static_cast<uint8_t>(XCConsoleRegion::kAsia),
+    static_cast<uint8_t>(XCConsoleRegion::kEurope),
+};
+// clang-format on
 
 namespace xe {
 namespace app {
@@ -500,116 +573,162 @@ bool EmulatorWindow::Initialize() {
 
   // Main menu.
   // FIXME: This code is really messy.
+#define ADD_SEPARATOR(menu) \
+  menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
+#define ADD_KSTRING(menu, string, hotkey, callback) \
+  menu->AddChild(                                   \
+      MenuItem::Create(MenuItem::Type::kString, string, hotkey, callback));
+
   auto main_menu = MenuItem::Create(MenuItem::Type::kNormal);
   auto file_menu = MenuItem::Create(MenuItem::Type::kPopup, "&File");
   {
-    file_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, "&Open...", "Ctrl+O",
-                         std::bind(&EmulatorWindow::FileOpen, this)));
+    ADD_KSTRING(file_menu, "&Open", "Ctrl+O",
+                std::bind(&EmulatorWindow::FileOpen, this))
 #ifdef DEBUG
-    file_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, "Close",
-                         std::bind(&EmulatorWindow::FileClose, this)));
+    ADD_KSTRING(file_menu, "Close", "",
+                std::bind(&EmulatorWindow::FileClose, this))
 #endif  // #ifdef DEBUG
-    file_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
-    file_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, "Show content directory...",
-        std::bind(&EmulatorWindow::ShowContentDirectory, this)));
-    file_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
-    file_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, "E&xit", "Alt+F4",
-                         [this]() { window_->RequestClose(); }));
+    ADD_SEPARATOR(file_menu);
+    ADD_KSTRING(file_menu, "Show content directory...", "",
+                std::bind(&EmulatorWindow::ShowContentDirectory, this))
+    ADD_SEPARATOR(file_menu);
+    ADD_KSTRING(file_menu, "E&xit", "Alt+F4",
+                [this]() { window_->RequestClose(); });
   }
   main_menu->AddChild(std::move(file_menu));
 
   // CPU menu.
   auto cpu_menu = MenuItem::Create(MenuItem::Type::kPopup, "&CPU");
   {
-    cpu_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, "&Reset Time Scalar", "Numpad *",
-        std::bind(&EmulatorWindow::CpuTimeScalarReset, this)));
-    cpu_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, "Time Scalar /= 2", "Numpad -",
-        std::bind(&EmulatorWindow::CpuTimeScalarSetHalf, this)));
-    cpu_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, "Time Scalar *= 2", "Numpad +",
-        std::bind(&EmulatorWindow::CpuTimeScalarSetDouble, this)));
+    ADD_KSTRING(cpu_menu, "&Reset Time Scalar", "Numpad *",
+                std::bind(&EmulatorWindow::CpuTimeScalarReset, this));
+    ADD_KSTRING(cpu_menu, "Time Scalar /= 2", "Numpad -",
+                std::bind(&EmulatorWindow::CpuTimeScalarSetHalf, this));
+    ADD_KSTRING(cpu_menu, "Time Scalar *= 2", "Numpad +",
+                std::bind(&EmulatorWindow::CpuTimeScalarSetDouble, this));
   }
-  cpu_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
+  ADD_SEPARATOR(cpu_menu);
   {
-    cpu_menu->AddChild(MenuItem::Create(MenuItem::Type::kString,
-                                        "Toggle Profiler &Display", "F3",
-                                        []() { Profiler::ToggleDisplay(); }));
-    cpu_menu->AddChild(MenuItem::Create(MenuItem::Type::kString,
-                                        "&Pause/Resume Profiler", "`",
-                                        []() { Profiler::TogglePause(); }));
+    ADD_KSTRING(cpu_menu, "Toggle Profiler &Display", "F3",
+                []() { Profiler::ToggleDisplay(); });
+    ADD_KSTRING(cpu_menu, "&Pause/Resume Profiler", "`",
+                []() { Profiler::TogglePause(); });
   }
-  cpu_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
+  ADD_SEPARATOR(cpu_menu);
   {
-    cpu_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, "&Break and Show Guest Debugger",
-        "Pause/Break", std::bind(&EmulatorWindow::CpuBreakIntoDebugger, this)));
-    cpu_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, "&Break into Host Debugger",
-        "Ctrl+Pause/Break",
-        std::bind(&EmulatorWindow::CpuBreakIntoHostDebugger, this)));
+    ADD_KSTRING(cpu_menu, "Break and Show &Guest Debugger", "Pause/Break",
+                std::bind(&EmulatorWindow::CpuBreakIntoDebugger, this));
+    ADD_KSTRING(cpu_menu, "Break into &Host Debugger", "Ctrl+Pause/Break",
+                std::bind(&EmulatorWindow::CpuBreakIntoHostDebugger, this));
   }
   main_menu->AddChild(std::move(cpu_menu));
 
   // GPU menu.
   auto gpu_menu = MenuItem::Create(MenuItem::Type::kPopup, "&GPU");
   {
-    gpu_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, "&Trace Frame", "F4",
-                         std::bind(&EmulatorWindow::GpuTraceFrame, this)));
+    ADD_KSTRING(gpu_menu, "&Trace Frame", "F4",
+                std::bind(&EmulatorWindow::GpuTraceFrame, this));
   }
-  gpu_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
+  ADD_SEPARATOR(gpu_menu);
   {
-    gpu_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, "&Clear Runtime Caches", "F5",
-                         std::bind(&EmulatorWindow::GpuClearCaches, this)));
+    ADD_KSTRING(gpu_menu, "&Clear Runtime Caches", "F5",
+                std::bind(&EmulatorWindow::GpuClearCaches, this));
   }
   main_menu->AddChild(std::move(gpu_menu));
 
   // Display menu.
   auto display_menu = MenuItem::Create(MenuItem::Type::kPopup, "&Display");
   {
-    display_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, "&Post-processing settings", "F6",
-        std::bind(&EmulatorWindow::ToggleDisplayConfigDialog, this)));
+    ADD_KSTRING(display_menu, "&Post-processing settings", "F6",
+                std::bind(&EmulatorWindow::ToggleDisplayConfigDialog, this));
   }
-  display_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
+  ADD_SEPARATOR(display_menu);
   {
-    display_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, "&Fullscreen", "F11",
-                         std::bind(&EmulatorWindow::ToggleFullscreen, this)));
+    ADD_KSTRING(display_menu, "&Fullscreen", "F11",
+                std::bind(&EmulatorWindow::ToggleFullscreen, this));
   }
   main_menu->AddChild(std::move(display_menu));
+
+  // Language/region menu.
+  auto locale_menu =
+      MenuItem::Create(MenuItem::Type::kPopup, "Console &locale settings");
+  {
+    auto language_sub_menu =
+        MenuItem::Create(MenuItem::Type::kPopup, "User &Language", nullptr);
+    auto country_sub_menu =
+        MenuItem::Create(MenuItem::Type::kPopup, "User &Country", nullptr);
+    auto console_region_sub_menu =
+        MenuItem::Create(MenuItem::Type::kPopup, "Console &Region", nullptr);
+
+    {  // Populate User Language menu
+      for (int i = 0; i < xe::countof(ui_language_codes); i++) {
+        ADD_KSTRING(
+            language_sub_menu, ui_languages_table[i * 2],
+            ui_languages_table[i * 2 + 1],
+            std::bind(&EmulatorWindow::SelectLocaleSetting, this,
+                      static_cast<int32_t>(XCRegionSettingType::kUserLanguage),
+                      ui_language_codes[i]));
+        language_sub_menu->SetChecked(
+            i, (ui_language_codes[i] == cvars::user_language));
+      }
+    }
+    {  // Populate User Country menu
+      int cur_menu_item = 0;
+      for (int i = 1; i < 110; i++) {
+        if (UIGetCountryString(i * 2) != nullptr &&
+            UIGetCountryString(i * 2)[0] != '^') {
+          std::string locale = std::string(UIGetCountryString(i * 2));
+          std::string locale_abbrev =
+              std::string(UIGetCountryString(i * 2 + 1));
+          ADD_KSTRING(
+              country_sub_menu, locale, locale_abbrev,
+              std::bind(&EmulatorWindow::SelectLocaleSetting, this,
+                        static_cast<int32_t>(XCRegionSettingType::kUserCountry),
+                        i));
+          country_sub_menu->SetChecked(cur_menu_item,
+                                       (cvars::user_country == i));
+          cur_menu_item++;
+        }
+      }
+    }
+    {  // Populate Console Region menu
+      for (int i = 0; i < xe::countof(ui_console_region_codes); i++) {
+        ADD_KSTRING(
+            console_region_sub_menu, ui_console_region_table[i * 2],
+            ui_console_region_table[i * 2 + 1],
+            std::bind(&EmulatorWindow::SelectLocaleSetting, this,
+                      static_cast<int32_t>(XCRegionSettingType::kConsoleRegion),
+                      ui_console_region_codes[i]));
+        console_region_sub_menu->SetChecked(
+            i, (cvars::console_region ==
+                std::string(ui_console_region_table[i * 2 + 1])));
+      }
+    }
+    locale_menu->AddChild(std::move(language_sub_menu));
+    locale_menu->AddChild(std::move(country_sub_menu));
+    locale_menu->AddChild(std::move(console_region_sub_menu));
+  }
+  main_menu->AddChild(std::move(locale_menu));
 
   // Help menu.
   auto help_menu = MenuItem::Create(MenuItem::Type::kPopup, "&Help");
   {
-    help_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, "FA&Q...", "F1",
-                         std::bind(&EmulatorWindow::ShowFAQ, this)));
-    help_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
-    help_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, "Game &compatibility...",
-                         std::bind(&EmulatorWindow::ShowCompatibility, this)));
-    help_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
-    help_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, "Build commit on GitHub...", "F2",
-        std::bind(&EmulatorWindow::ShowBuildCommit, this)));
-    help_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, "Recent changes on GitHub...", [this]() {
-          LaunchWebBrowser(
-              "https://github.com/xenia-project/xenia/compare/" XE_BUILD_COMMIT
-              "..." XE_BUILD_BRANCH);
-        }));
-    help_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
-    help_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, "&About...",
-        [this]() { LaunchWebBrowser("https://xenia.jp/about/"); }));
+    ADD_KSTRING(help_menu, "FA&Q...", "F1",
+                std::bind(&EmulatorWindow::ShowFAQ, this));
+    ADD_SEPARATOR(help_menu);
+    ADD_KSTRING(help_menu, "Game &compatibility...", "",
+                std::bind(&EmulatorWindow::ShowCompatibility, this));
+    ADD_SEPARATOR(help_menu);
+    ADD_KSTRING(help_menu, "Build commit on GitHub...", "F2",
+                std::bind(&EmulatorWindow::ShowBuildCommit, this));
+    ADD_KSTRING(help_menu, "Recent changes on GitHub...", "", [this]() {
+      LaunchWebBrowser(
+          "https://github.com/xenia-project/xenia/compare/" XE_BUILD_COMMIT
+          "..." XE_BUILD_BRANCH);
+    });
+    ADD_SEPARATOR(help_menu);
+    ADD_KSTRING(help_menu, "&About...", "",
+                [this]() { LaunchWebBrowser("https://xenia.jp/about/"); });
   }
   main_menu->AddChild(std::move(help_menu));
 
@@ -628,6 +747,8 @@ bool EmulatorWindow::Initialize() {
 
   return true;
 }
+#undef ADD_KSTRING
+#undef ADD_SEPARATOR
 
 const char* EmulatorWindow::GetCvarValueForSwapPostEffect(
     gpu::CommandProcessor::SwapPostEffect effect) {
@@ -808,6 +929,9 @@ void EmulatorWindow::FileDrop(const std::filesystem::path& filename) {
   if (XFAILED(result)) {
     // TODO: Display a message box.
     XELOGE("Failed to launch target: {:08X}", result);
+  } else {
+    window_->SetMainMenuItemEnabled(
+        static_cast<int32_t>(MenuIndex::kLanguageRegion), false);
   }
 }
 
@@ -840,6 +964,9 @@ void EmulatorWindow::FileOpen() {
     if (XFAILED(result)) {
       // TODO: Display a message box.
       XELOGE("Failed to launch target: {:08X}", result);
+    } else {
+      window_->SetMainMenuItemEnabled(
+          static_cast<int32_t>(MenuIndex::kLanguageRegion), false);
     }
   }
 }
@@ -847,6 +974,8 @@ void EmulatorWindow::FileOpen() {
 void EmulatorWindow::FileClose() {
   if (emulator_->is_title_open()) {
     emulator_->TerminateTitle();
+    window_->SetMainMenuItemEnabled(
+        static_cast<int32_t>(MenuIndex::kLanguageRegion), false);
   }
 }
 
@@ -935,6 +1064,38 @@ void EmulatorWindow::ToggleDisplayConfigDialog() {
   } else {
     display_config_dialog_.reset();
   }
+}
+
+void EmulatorWindow::SelectLocaleSetting(int setting, int value) {
+  auto cur_menu = window_->GetMainMenu()
+                      ->child(static_cast<int32_t>(MenuIndex::kLanguageRegion))
+                      ->child(setting);
+  switch (static_cast<XCRegionSettingType>(setting)) {
+    case XCRegionSettingType::kUserLanguage:
+      if (cvars::user_language == value) return;
+      cvars::user_language = value;
+      for (int i = 0; i < xe::countof(ui_language_codes); i++) {
+        cur_menu->SetChecked(i, (ui_language_codes[i] == cvars::user_language));
+      }
+      break;
+    case XCRegionSettingType::kUserCountry: {
+      if (cvars::user_country == value) return;
+      cvars::user_country = value;
+      std::string chk_locale = UIGetCountryString(cvars::user_country * 2 + 1);
+      for (int i = 0; i < 110; i++) {
+        if (cur_menu->child(i) == nullptr) break;
+        cur_menu->SetChecked(i, (chk_locale == cur_menu->child(i)->hotkey()));
+      }
+      break;
+    }
+    case XCRegionSettingType::kConsoleRegion:
+      for (int i = 0; i < xe::countof(ui_console_region_codes); i++) {
+        cur_menu->SetChecked(i, (value == ui_console_region_codes[i]));
+      }
+      break;
+  }
+  xe::kernel::xboxkrnl::xcSaveRegionSetting(
+      static_cast<XCRegionSettingType>(setting), value);
 }
 
 void EmulatorWindow::ShowCompatibility() {

@@ -7,6 +7,7 @@
  ******************************************************************************
  */
 
+#include "xenia/kernel/xboxkrnl/xboxkrnl_xconfig.h"
 #include "xenia/base/logging.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/kernel/kernel_state.h"
@@ -37,9 +38,50 @@ DEFINE_int32(user_country, 103,
              " 102=UA 103=US 104=UY 105=UZ 106=VE 107=VN 108=YE 109=ZA\n",
              "XConfig");
 
+DEFINE_string(
+    console_region, "rf",
+    "Console region. [rf, us, eu, jp, asia]\n"
+    "This config variable allows you to change the main region reported\n"
+    "by the console. Only change this from the default rf (region free)\n"
+    "if language settings in game are not working as expected.\n",
+    "XConfig");
+
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {
+
+void xcSaveRegionSetting(XCRegionSettingType type, int32_t setting_value) {
+  switch (type) {
+    case XCRegionSettingType::kUserLanguage:
+      OVERRIDE_int32(user_language, setting_value);
+      break;
+    case XCRegionSettingType::kUserCountry:
+      OVERRIDE_int32(user_country, setting_value);
+      break;
+    case XCRegionSettingType::kConsoleRegion:
+      switch (static_cast<XCConsoleRegion>(setting_value)) {
+        case XCConsoleRegion::kUS:
+          OVERRIDE_string(console_region, "us");
+          break;
+        case XCConsoleRegion::kJapan:
+          OVERRIDE_string(console_region, "jp");
+          break;
+        case XCConsoleRegion::kAsia:
+          OVERRIDE_string(console_region, "asia");
+          break;
+        case XCConsoleRegion::kEurope:
+          OVERRIDE_string(console_region, "eu");
+          break;
+        case XCConsoleRegion::kRegionFree:
+        default:
+          OVERRIDE_string(console_region, "rf");
+          break;
+      }
+      break;
+    default:
+      break;
+  }
+}
 
 X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
                                void* buffer, uint16_t buffer_size,

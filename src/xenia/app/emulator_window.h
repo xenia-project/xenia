@@ -25,6 +25,15 @@
 #include "xenia/ui/windowed_app_context.h"
 #include "xenia/xbox.h"
 
+enum class MenuIndex {
+  kFile,
+  kCpu,
+  kGpu,
+  kDisplay,
+  kLanguageRegion,
+  kHelp,
+};
+
 namespace xe {
 namespace app {
 
@@ -139,6 +148,7 @@ class EmulatorWindow {
   void GpuTraceFrame();
   void GpuClearCaches();
   void ToggleDisplayConfigDialog();
+  void SelectLocaleSetting(int setting, int value);
   void ShowCompatibility();
   void ShowFAQ();
   void ShowBuildCommit();

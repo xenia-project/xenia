@@ -24,6 +24,8 @@
 
 #include "third_party/fmt/include/fmt/format.h"
 
+DECLARE_string(console_region);
+
 namespace xe {
 namespace kernel {
 namespace xam {
@@ -200,8 +202,41 @@ dword_result_t XGetAVPack_entry() {
 }
 DECLARE_XAM_EXPORT1(XGetAVPack, kNone, kStub);
 
-uint32_t xeXGetGameRegion() { return 0xFFFFu; }
+// Going by the theory based on some unreasonable amount of
+// experimentation, I'll say that the top byte is the region here:
+// 00 is most likely USA, 01 Asia, 02 Europe, ???, FF = All regions?
+// And the lower byte is some sort of mask for sub-regions?
+// 0x0101 is the only one that displays the RIOT ACT title screen in
+// 4D5307DC (Crackdown), because this is only a copyrighted title in
+// Japan specifically, 0x01FF displays the standard CRACKDOWN title,
+// so 0x0101 is most likely Japan and 0x01<anything else> is probably
+// different sub regions of Asia?
+// Thus the logic behind these return values is:
+// 0xFFFF - Any region, all sub regions (basically region free)
+// 0x00FF - US, all sub regions
+// 0x0101 - Asia region, Japan sub region
+// 0x01FF - Asia region, all sub regions (Chinese/Hong Kong consoles?)
+// 0x02FF - Europe, all sub regions
+// 0x0300 through 0x06FF - Unknown (World, unused?)
+// 0x07FF - Devkit, according to text displayed on screen in DashLaunch.
+//          Probably not very useful for now? Not added.
+uint32_t xeXGetGameRegion() {
+  if (cvars::console_region == "us") {
+    return 0x00FFu;
+  } else if (cvars::console_region == "jp") {
+    return 0x0101u;
+  } else if (cvars::console_region == "asia") {
+    return 0x01FFu;
+  } else if (cvars::console_region == "eu") {
+    return 0x02FFu;
+  }
 
+  // On any invalid value or "rf", just return region free as before.
+  return 0xFFFFu;
+}
+
+// It seems very likely that this function is supposed to return the console's
+// game region rather than the region of the game currently loaded.
 dword_result_t XGetGameRegion_entry() { return xeXGetGameRegion(); }
 DECLARE_XAM_EXPORT1(XGetGameRegion, kNone, kStub);
 
