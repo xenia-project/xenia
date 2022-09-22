@@ -336,14 +336,13 @@ void ImGuiDrawer::RenderDrawLists(ImDrawData* data,
     batch.index_count = cmd_list->IdxBuffer.size();
     immediate_drawer_->BeginDrawBatch(batch);
 
-    int index_offset = 0;
     for (int j = 0; j < cmd_list->CmdBuffer.size(); ++j) {
       const auto& cmd = cmd_list->CmdBuffer[j];
 
       ImmediateDraw draw;
       draw.primitive_type = ImmediatePrimitiveType::kTriangles;
       draw.count = cmd.ElemCount;
-      draw.index_offset = index_offset;
+      draw.index_offset = cmd.IdxOffset;
       draw.texture = reinterpret_cast<ImmediateTexture*>(cmd.TextureId);
       draw.scissor = true;
       draw.scissor_left = cmd.ClipRect.x;
@@ -351,8 +350,6 @@ void ImGuiDrawer::RenderDrawLists(ImDrawData* data,
       draw.scissor_right = cmd.ClipRect.z;
       draw.scissor_bottom = cmd.ClipRect.w;
       immediate_drawer_->Draw(draw);
-
-      index_offset += cmd.ElemCount;
     }
 
     immediate_drawer_->EndDrawBatch();
