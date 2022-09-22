@@ -261,7 +261,7 @@ void TraceViewer::DrawControllerUI() {
   }
 
   ImGui::SameLine();
-  ImGui::SliderInt("", &target_frame, 0, player_->frame_count() - 1);
+  ImGui::SliderInt("##", &target_frame, 0, player_->frame_count() - 1);
   if (target_frame != player_->current_frame_index() &&
       !player_->is_playing_trace()) {
     player_->SeekFrame(target_frame);
@@ -557,7 +557,7 @@ void TraceViewer::DrawCommandListUI() {
   }
 
   ImGui::PushItemWidth(float(column_width - 15));
-  ImGui::SliderInt("", &target_command, -1, command_count - 1);
+  ImGui::SliderInt("##", &target_command, -1, command_count - 1);
   ImGui::PopItemWidth();
 
   if (target_command != player_->current_command_index() &&
