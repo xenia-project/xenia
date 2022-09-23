@@ -54,7 +54,7 @@
 	url = https://github.com/microsoft/DirectXShaderCompiler.git
 [submodule "third_party/premake-cmake"]
 	path = third_party/premake-cmake
-	url = https://github.com/Enhex/premake-cmake.git
+	url = https://github.com/JoelLinn/premake-cmake.git
 [submodule "third_party/date"]
 	path = third_party/date
 	url = https://github.com/HowardHinnant/date.git

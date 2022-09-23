@@ -669,7 +669,7 @@ struct VECTOR_ADD
 
                     e.vpsrad(e.xmm2, e.xmm1, 31);
                     e.vpxord(e.xmm2, e.xmm2, e.GetXmmConstPtr(XMMSignMaskI32));
-                    e.vpblendmd(dest | saturate, e.xmm1, e.xmm2); 
+                    e.vpblendmd(dest | saturate, e.xmm1, e.xmm2);
                     return;
                   }
 
