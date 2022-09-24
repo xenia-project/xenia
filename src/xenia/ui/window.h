@@ -26,6 +26,16 @@
 #include "xenia/ui/window_listener.h"
 #include "xenia/ui/windowed_app_context.h"
 
+enum class MenuIndex {
+  kFile,
+  kCpu,
+  kGpu,
+  kDisplay,
+  kLanguageRegion,
+  kHelp,
+  kNumMenuItems,
+};
+
 namespace xe {
 namespace ui {
 
@@ -299,9 +309,13 @@ class Window {
   // in the implementation.
   void SetMainMenu(std::unique_ptr<MenuItem> new_main_menu);
   MenuItem* GetMainMenu();
+  MenuItem* GetMenuByIndex(MenuIndex index_);
   void CompleteMainMenuItemsUpdate();
   void SetMainMenuEnabled(bool enabled);
   void SetMainMenuItemEnabled(int index, bool enabled);
+  void SetMenuItemIndex(MenuIndex menu, int index) {
+    menu_item_index[static_cast<uint64_t>(menu)] = index;
+  };
 
   // Desired state stored by the common Window, externally modifiable, read-only
   // in the implementation.
@@ -712,6 +726,8 @@ class Window {
   CursorVisibility cursor_visibility_ = CursorVisibility::kVisible;
 
   bool has_focus_ = false;
+  int8_t menu_item_index[static_cast<uint64_t>(MenuIndex::kNumMenuItems)] = {
+      -1};
 
   Presenter* presenter_ = nullptr;
   std::unique_ptr<Surface> presenter_surface_;

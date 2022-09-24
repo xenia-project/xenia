@@ -279,6 +279,14 @@ void Window::SetIcon(const void* buffer, size_t size) {
 
 MenuItem* Window::GetMainMenu() { return main_menu_.get(); }
 
+MenuItem* Window::GetMenuByIndex(MenuIndex index_) {
+  int32_t index = static_cast<int32_t>(index_);
+  if (index >= xe::countof(menu_item_index) || menu_item_index[index] == -1) {
+    XELOGW("Window::GetMenuByIndex: Invalid menu requested: {}", index);
+  }
+  return main_menu_->child(menu_item_index[index]);
+}
+
 void Window::SetMainMenu(std::unique_ptr<MenuItem> new_main_menu) {
   // The primary reason for this comparison (of two unique pointers) is
   // nullptr == nullptr.
@@ -336,8 +344,13 @@ void Window::SetMainMenuItemEnabled(int index, bool enabled) {
   if (!main_menu_) {
     return;
   }
+  if (index >= xe::countof(menu_item_index) || menu_item_index[index] == -1) {
+    XELOGW("Window::SetMainMenuItemEnabled: Invalid menu item requested: {}",
+           index);
+    return;
+  }
   WindowDestructionReceiver destruction_receiver(this);
-  main_menu_->child(index)->SetEnabled(enabled);
+  main_menu_->child(menu_item_index[index])->SetEnabled(enabled);
   if (destruction_receiver.IsWindowDestroyed()) {
     return;
   }

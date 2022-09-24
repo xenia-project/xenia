@@ -568,19 +568,27 @@ void EmulatorWindow::DisplayConfigDialog::OnDraw(ImGuiIO& io) {
 }
 
 bool EmulatorWindow::Initialize() {
+  uint8_t cur_menu_item = 0;
   window_->AddListener(&window_listener_);
   window_->AddInputListener(&window_listener_, kZOrderEmulatorWindowInput);
 
-  // Main menu.
   // FIXME: This code is really messy.
 #define ADD_SEPARATOR(menu) \
   menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
 #define ADD_KSTRING(menu, string, hotkey, callback) \
   menu->AddChild(                                   \
       MenuItem::Create(MenuItem::Type::kString, string, hotkey, callback));
+#define CREATE_MENU(menu, index, string)                        \
+  auto menu = MenuItem::Create(MenuItem::Type::kPopup, string); \
+  window_->SetMenuItemIndex(index, cur_menu_item++);
+#define CREATE_SUB_MENU(menu, string) \
+  auto menu = MenuItem::Create(MenuItem::Type::kPopup, string);
 
+  // Main menu.
   auto main_menu = MenuItem::Create(MenuItem::Type::kNormal);
-  auto file_menu = MenuItem::Create(MenuItem::Type::kPopup, "&File");
+
+  // File menu.
+  CREATE_MENU(file_menu, MenuIndex::kFile, "&File");
   {
     ADD_KSTRING(file_menu, "&Open", "Ctrl+O",
                 std::bind(&EmulatorWindow::FileOpen, this))
@@ -598,7 +606,7 @@ bool EmulatorWindow::Initialize() {
   main_menu->AddChild(std::move(file_menu));
 
   // CPU menu.
-  auto cpu_menu = MenuItem::Create(MenuItem::Type::kPopup, "&CPU");
+  CREATE_MENU(cpu_menu, MenuIndex::kCpu, "&CPU");
   {
     ADD_KSTRING(cpu_menu, "&Reset Time Scalar", "Numpad *",
                 std::bind(&EmulatorWindow::CpuTimeScalarReset, this));
@@ -624,7 +632,7 @@ bool EmulatorWindow::Initialize() {
   main_menu->AddChild(std::move(cpu_menu));
 
   // GPU menu.
-  auto gpu_menu = MenuItem::Create(MenuItem::Type::kPopup, "&GPU");
+  CREATE_MENU(gpu_menu, MenuIndex::kGpu, "&GPU");
   {
     ADD_KSTRING(gpu_menu, "&Trace Frame", "F4",
                 std::bind(&EmulatorWindow::GpuTraceFrame, this));
@@ -637,7 +645,7 @@ bool EmulatorWindow::Initialize() {
   main_menu->AddChild(std::move(gpu_menu));
 
   // Display menu.
-  auto display_menu = MenuItem::Create(MenuItem::Type::kPopup, "&Display");
+  CREATE_MENU(display_menu, MenuIndex::kDisplay, "&Display");
   {
     ADD_KSTRING(display_menu, "&Post-processing settings", "F6",
                 std::bind(&EmulatorWindow::ToggleDisplayConfigDialog, this));
@@ -650,16 +658,12 @@ bool EmulatorWindow::Initialize() {
   main_menu->AddChild(std::move(display_menu));
 
   // Language/region menu.
-  auto locale_menu =
-      MenuItem::Create(MenuItem::Type::kPopup, "Console &locale settings");
+  CREATE_MENU(locale_menu, MenuIndex::kLanguageRegion,
+              "Console &locale settings");
   {
-    auto language_sub_menu =
-        MenuItem::Create(MenuItem::Type::kPopup, "User &Language", nullptr);
-    auto country_sub_menu =
-        MenuItem::Create(MenuItem::Type::kPopup, "User &Country", nullptr);
-    auto console_region_sub_menu =
-        MenuItem::Create(MenuItem::Type::kPopup, "Console &Region", nullptr);
-
+    CREATE_SUB_MENU(language_sub_menu, "User &Language");
+    CREATE_SUB_MENU(country_sub_menu, "User &Country");
+    CREATE_SUB_MENU(console_region_sub_menu, "Console &Region");
     {  // Populate User Language menu
       for (int i = 0; i < xe::countof(ui_language_codes); i++) {
         ADD_KSTRING(
@@ -711,7 +715,7 @@ bool EmulatorWindow::Initialize() {
   main_menu->AddChild(std::move(locale_menu));
 
   // Help menu.
-  auto help_menu = MenuItem::Create(MenuItem::Type::kPopup, "&Help");
+  CREATE_MENU(help_menu, MenuIndex::kHelp, "&Help");
   {
     ADD_KSTRING(help_menu, "FA&Q...", "F1",
                 std::bind(&EmulatorWindow::ShowFAQ, this));
@@ -747,6 +751,8 @@ bool EmulatorWindow::Initialize() {
 
   return true;
 }
+#undef CREATE_MENU
+#undef CREATE_SUB_MENU
 #undef ADD_KSTRING
 #undef ADD_SEPARATOR
 
@@ -1067,9 +1073,8 @@ void EmulatorWindow::ToggleDisplayConfigDialog() {
 }
 
 void EmulatorWindow::SelectLocaleSetting(int setting, int value) {
-  auto cur_menu = window_->GetMainMenu()
-                      ->child(static_cast<int32_t>(MenuIndex::kLanguageRegion))
-                      ->child(setting);
+  auto cur_menu =
+      window_->GetMenuByIndex(MenuIndex::kLanguageRegion)->child(setting);
   switch (static_cast<XCRegionSettingType>(setting)) {
     case XCRegionSettingType::kUserLanguage:
       if (cvars::user_language == value) return;
