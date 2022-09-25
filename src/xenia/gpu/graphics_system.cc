@@ -32,6 +32,8 @@ DEFINE_bool(
     "Store shaders persistently and load them when loading games to avoid "
     "runtime spikes and freezes when playing the game not for the first time.",
     "GPU");
+DECLARE_double(vsync_num);
+DECLARE_double(vsync_den);
 
 namespace xe {
 namespace gpu {
@@ -94,10 +96,66 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
       reinterpret_cast<cpu::MMIOReadCallback>(ReadRegisterThunk),
       reinterpret_cast<cpu::MMIOWriteCallback>(WriteRegisterThunk));
 
-  // 60hz vsync timer.
+  // Set up VSync timer based on VSync numerator and denominator,
+  // or simply leave it at 1ms if VSync is disabled.
   vsync_worker_running_ = true;
   vsync_worker_thread_ = kernel::object_ref<kernel::XHostThread>(
       new kernel::XHostThread(kernel_state_, 128 * 1024, 0, [this]() {
+#if 1
+        // New timing method based on host tick count.
+        // Results in a frame rate hovering somewhere around 59.92 to 60.06.
+        uint64_t last_tick = static_cast<uint64_t>(clock()) * CLOCKS_PER_SEC,
+                 current_time = 0;
+        uint64_t vsync_duration = 1 * static_cast<uint64_t>(CLOCKS_PER_SEC);
+
+        if (cvars::vsync) {
+          vsync_duration =
+              static_cast<uint64_t>((cvars::vsync_num / cvars::vsync_den) *
+                                    static_cast<double>(CLOCKS_PER_SEC));
+        }
+
+        while (vsync_worker_running_) {
+          current_time = static_cast<uint64_t>(clock()) * CLOCKS_PER_SEC;
+          if (current_time - last_tick >= vsync_duration) {
+            MarkVblank();
+            while (last_tick <= (current_time - vsync_duration)) {
+              last_tick += vsync_duration;
+            }
+            xe::threading::MaybeYield();
+          } else {
+            if (current_time - last_tick + 1000 < vsync_duration)
+              xe::threading::Sleep(std::chrono::milliseconds(1));
+            else
+              xe::threading::MaybeYield();
+          }
+        }
+#elif 0
+        // New timing method based on the guest tick count.
+        // Results in a frame rate hovering somewhere around 56 to 57. (?!)
+        uint64_t vsync_duration = 1000;
+        uint64_t last_frame_time = Clock::QueryGuestTickCount();
+
+        if (cvars::vsync) {
+          vsync_duration = static_cast<uint64_t>(
+              (cvars::vsync_num / cvars::vsync_den) * 1000.0);
+        }
+
+        while (vsync_worker_running_) {
+          uint64_t current_time = Clock::QueryGuestTickCount();
+          uint64_t elapsed = ((current_time - last_frame_time) /
+                             (Clock::guest_tick_frequency() / 1000)) * 1000;
+          if (elapsed >= vsync_duration) {
+            MarkVblank();
+            while (last_frame_time < (current_time - vsync_duration))
+              last_frame_time += vsync_duration;
+            xe::threading::MaybeYield();
+          } else {
+            xe::threading::Sleep(std::chrono::milliseconds(1));
+          }
+        }
+#else
+        // Original VSync timer thread method
+        // Results in a frame rate hovering somewhere around 58.x to 59.x.
         uint64_t vsync_duration = cvars::vsync ? 16 : 1;
         uint64_t last_frame_time = Clock::QueryGuestTickCount();
         while (vsync_worker_running_) {
@@ -110,6 +168,7 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
           }
           xe::threading::Sleep(std::chrono::milliseconds(1));
         }
+#endif
         return 0;
       }));
   // As we run vblank interrupts the debugger must be able to suspend us.

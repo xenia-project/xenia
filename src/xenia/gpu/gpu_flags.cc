@@ -48,3 +48,13 @@ DEFINE_int32(query_occlusion_fake_sample_count, 1000,
              "EVENT_WRITE_ZPD by this number. Setting this to 0 means "
              "everything is reported as occluded.",
              "GPU");
+
+DEFINE_double(
+    vsync_num, 1000.0,
+    "VSync numerator. Leave this at 1000 for \"flat\" VSync rates, such as  "
+    "30, 60, 120. For somewhat NTSC-conforming frame rates, such as 29.97, "
+    "59.94, 119.88, this should be set to 1001.0",
+    "GPU");
+DEFINE_double(vsync_den, 60.0,
+              "VSync denominator, can be considered the \"target VSync rate\".",
+              "GPU");
