@@ -119,6 +119,11 @@ project("xenia-app")
       "xenia-gpu-d3d12-trace-viewer",
       "xenia-ui-window-d3d12-demo",
     })
+  filter({"configurations:Release", "platforms:Windows"})
+    buildoptions({
+      "/Os",
+      "/O1"
+    })
 
   filter("platforms:Windows")
     -- Only create the .user file if it doesn't already exist.

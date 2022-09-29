@@ -11,6 +11,11 @@ project("xenia-vfs")
   })
   defines({
   })
+  filter({"configurations:Release", "platforms:Windows"})
+    buildoptions({
+      "/Os",
+      "/O1"
+    })
   recursive_platform_files()
   removefiles({"vfs_dump.cc"})
 
