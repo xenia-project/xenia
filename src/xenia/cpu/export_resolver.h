@@ -44,57 +44,50 @@ struct ExportTag {
   // packed like so:
   // ll...... cccccccc ........ ..bihssi
 
-  static const int CategoryShift = 16;
+  static constexpr int CategoryShift = 16;
 
   // Export is implemented in some form and can be used.
-  static const type kImplemented = 1u << 0;
+  static constexpr type kImplemented = 1u << 0;
   // Export is a stub and is probably bad.
-  static const type kStub = 1u << 1;
+  static constexpr type kStub = 1u << 1;
   // Export is known to cause problems, or may not be complete.
-  static const type kSketchy = 1u << 2;
+  static constexpr type kSketchy = 1u << 2;
   // Export is called *a lot*.
-  static const type kHighFrequency = 1u << 3;
+  static constexpr type kHighFrequency = 1u << 3;
   // Export is important and should always be logged.
-  static const type kImportant = 1u << 4;
+  static constexpr type kImportant = 1u << 4;
   // Export blocks the calling thread
-  static const type kBlocking = 1u << 5;
-
+  static constexpr type kBlocking = 1u << 5;
+  static constexpr type kIsVariable = 1u << 6;
   // Export will be logged on each call.
-  static const type kLog = 1u << 30;
+  static constexpr type kLog = 1u << 30;
   // Export's result will be logged on each call.
-  static const type kLogResult = 1u << 31;
+  static constexpr type kLogResult = 1u << 31;
 };
 
 // DEPRECATED
 typedef void (*xe_kernel_export_shim_fn)(void*, void*);
 
 typedef void (*ExportTrampoline)(ppc::PPCContext* ppc_context);
-
+#pragma pack(push, 1)
 class Export {
  public:
   enum class Type {
     kFunction = 0,
     kVariable = 1,
   };
-
-  Export(uint16_t ordinal, Type type, const char* name,
-         ExportTag::type tags = 0)
-      : ordinal(ordinal),
-        type(type),
+  constexpr Export(uint16_t ordinal, Type type, const char* name,
+                   ExportTag::type tags = 0)
+      : function_data({nullptr}),
+        name(name ? name : ""),
         tags(tags),
-        function_data({nullptr, nullptr, 0}) {
-    std::strncpy(this->name, name, xe::countof(this->name));
+        ordinal(ordinal)
+
+  {
+    if (type == Type::kVariable) {
+      this->tags |= ExportTag::kIsVariable;
+    }
   }
-
-  uint16_t ordinal;
-  Type type;
-  char name[96];
-  ExportTag::type tags;
-
-  bool is_implemented() const {
-    return (tags & ExportTag::kImplemented) == ExportTag::kImplemented;
-  }
-
   union {
     // Variable data. Only valid when kXEKernelExportFlagVariable is set.
     // This is an address in the client memory space that the variable can
@@ -102,17 +95,26 @@ class Export {
     uint32_t variable_ptr;
 
     struct {
-      // DEPRECATED
-      xe_kernel_export_shim_fn shim;
 
       // Trampoline that is called from the guest-to-host thunk.
       // Expects only PPC context as first arg.
       ExportTrampoline trampoline;
-      uint64_t call_count;
     } function_data;
   };
-};
+  const char* const name;
+  ExportTag::type tags;
+  uint16_t ordinal;
+  // Type type;
 
+  constexpr bool is_implemented() const {
+    return (tags & ExportTag::kImplemented) == ExportTag::kImplemented;
+  }
+  constexpr Type get_type() const {
+    return (this->tags & ExportTag::kIsVariable) ? Type::kVariable
+                                                 : Type::kFunction;
+  }
+};
+#pragma pack(pop)
 class ExportResolver {
  public:
   class Table {

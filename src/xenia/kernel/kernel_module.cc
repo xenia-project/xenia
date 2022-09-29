@@ -94,7 +94,7 @@ uint32_t KernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
     // Export (or its parent library) not found.
     return 0;
   }
-  if (export_entry->type == cpu::Export::Type::kVariable) {
+  if (export_entry->get_type() == cpu::Export::Type::kVariable) {
     if (export_entry->variable_ptr) {
       return export_entry->variable_ptr;
     } else {
@@ -105,8 +105,7 @@ uint32_t KernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
       return 0;
     }
   } else {
-    if (export_entry->function_data.trampoline ||
-        export_entry->function_data.shim) {
+    if (export_entry->function_data.trampoline) {
       auto global_lock = global_critical_region_.Acquire();
 
       // See if the function has been generated already.
@@ -119,9 +118,6 @@ uint32_t KernelModule::GetProcAddressByOrdinal(uint16_t ordinal) {
       if (export_entry->function_data.trampoline) {
         handler = (cpu::GuestFunction::ExternHandler)
                       export_entry->function_data.trampoline;
-      } else {
-        handler =
-            (cpu::GuestFunction::ExternHandler)export_entry->function_data.shim;
       }
 
       uint32_t guest_addr =

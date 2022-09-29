@@ -258,7 +258,6 @@ void DebugWindow::DrawFrame(ImGuiIO& io) {
   ImGui::PopStyleVar();
 
   if (cvars::imgui_debug) {
-    ImGui::ShowDemoWindow();
     ImGui::ShowMetricsWindow();
   }
 }
@@ -1254,7 +1253,7 @@ void DebugWindow::DrawBreakpointsPane() {
         continue;
       }
       auto export_entry = all_exports[call_rankings[i].first];
-      if (export_entry->type != cpu::Export::Type::kFunction ||
+      if (export_entry->get_type() != cpu::Export::Type::kFunction ||
           !export_entry->is_implemented()) {
         continue;
       }

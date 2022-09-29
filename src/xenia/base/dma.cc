@@ -2,7 +2,6 @@
 #include "logging.h"
 #include "mutex.h"
 #include "platform_win.h"
-#include "xbyak/xbyak/xbyak_util.h"
 
 XE_NTDLL_IMPORT(NtDelayExecution, cls_NtDelayExecution,
                 NtDelayExecutionPointer);
@@ -22,7 +21,13 @@ static void xedmaloghelper(const char (&fmt)[N], Ts... args) {
 #define XEDMALOG(...) static_cast<void>(0)
 using xe::swcache::CacheLine;
 static constexpr unsigned NUM_CACHELINES_IN_PAGE = 4096 / sizeof(CacheLine);
-
+#if defined(__clang__)
+XE_FORCEINLINE
+static void mvdir64b(void* to, const void* from) {
+  __asm__("movdir64b %1, %0" : : "r"(to), "m"(*(char*)from) : "memory");
+}
+#define _movdir64b mvdir64b
+#endif
 XE_FORCEINLINE
 static void XeCopy16384StreamingAVX(CacheLine* XE_RESTRICT to,
                                     CacheLine* XE_RESTRICT from) {
@@ -140,6 +145,7 @@ static void vastcpy_impl_avx(CacheLine* XE_RESTRICT physaddr,
     xe::swcache::WriteLineNT(physaddr + i, &line0);
   }
 }
+
 static void vastcpy_impl_movdir64m(CacheLine* XE_RESTRICT physaddr,
                                    CacheLine* XE_RESTRICT rdmapping,
                                    uint32_t written_length) {
@@ -171,24 +177,6 @@ static void vastcpy_impl_movdir64m(CacheLine* XE_RESTRICT physaddr,
   }
 }
 
-static class DMAFeatures {
- public:
-  uint32_t has_fast_rep_movsb : 1;
-  uint32_t has_movdir64b : 1;
-
-  DMAFeatures() {
-    unsigned int data[4];
-    memset(data, 0, sizeof(data));
-    // intel extended features
-    Xbyak::util::Cpu::getCpuidEx(7, 0, data);
-    if (data[2] & (1 << 28)) {
-      has_movdir64b = 1;
-    }
-    if (data[1] & (1 << 9)) {
-      has_fast_rep_movsb = 1;
-    }
-  }
-} dma_x86_features;
 XE_COLD
 static void first_vastcpy(CacheLine* XE_RESTRICT physaddr,
                           CacheLine* XE_RESTRICT rdmapping,
@@ -201,7 +189,7 @@ static void first_vastcpy(CacheLine* XE_RESTRICT physaddr,
                           CacheLine* XE_RESTRICT rdmapping,
                           uint32_t written_length) {
   VastCpyDispatch dispatch_to_use = nullptr;
-  if (dma_x86_features.has_movdir64b) {
+  if (amd64::GetFeatureFlags() & amd64::kX64EmitMovdir64M) {
     XELOGI("Selecting MOVDIR64M vastcpy.");
     dispatch_to_use = vastcpy_impl_movdir64m;
   } else {
@@ -271,10 +259,10 @@ class XeDMACGeneric : public XeDMAC {
   virtual void WaitJobDone(DMACJobHandle handle) override {
     while (WaitForSingleObject((HANDLE)handle, 2) == WAIT_TIMEOUT) {
       // NtAlertThreadByThreadId.invoke<void>(thrd_->system_id());
-    //  while (SignalObjectAndWait(gotjob_event, (HANDLE)handle, 2, false) ==
-  //           WAIT_TIMEOUT) {
-   //    ;
-      }
+      //  while (SignalObjectAndWait(gotjob_event, (HANDLE)handle, 2, false) ==
+      //           WAIT_TIMEOUT) {
+      //    ;
+    }
     //}
 
     // SignalObjectAndWait(gotjob_event, (HANDLE)handle, INFINITE, false);

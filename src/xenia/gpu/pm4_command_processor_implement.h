@@ -9,8 +9,6 @@ void COMMAND_PROCESSOR::ExecuteIndirectBuffer(uint32_t ptr,
   RingBuffer old_reader = reader_;
 
   // Execute commands!
-  // RingBuffer reader(memory_->TranslatePhysical(ptr), count *
-  // sizeof(uint32_t)); reader.set_write_offset(count * sizeof(uint32_t));
   new (&reader_)
       RingBuffer(memory_->TranslatePhysical(ptr), count * sizeof(uint32_t));
   reader_.set_write_offset(count * sizeof(uint32_t));
@@ -429,6 +427,38 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_INDIRECT_BUFFER(
   COMMAND_PROCESSOR::ExecuteIndirectBuffer(GpuToCpu(list_ptr), list_length);
   return true;
 }
+
+XE_NOINLINE
+static bool MatchValueAndRef(uint32_t value, uint32_t ref, uint32_t wait_info) {
+  bool matched = false;
+  switch (wait_info & 0x7) {
+    case 0x0:  // Never.
+      matched = false;
+      break;
+    case 0x1:  // Less than reference.
+      matched = value < ref;
+      break;
+    case 0x2:  // Less than or equal to reference.
+      matched = value <= ref;
+      break;
+    case 0x3:  // Equal to reference.
+      matched = value == ref;
+      break;
+    case 0x4:  // Not equal to reference.
+      matched = value != ref;
+      break;
+    case 0x5:  // Greater than or equal to reference.
+      matched = value >= ref;
+      break;
+    case 0x6:  // Greater than reference.
+      matched = value > ref;
+      break;
+    case 0x7:  // Always
+      matched = true;
+      break;
+  }
+  return matched;
+}
 XE_NOINLINE
 bool COMMAND_PROCESSOR::ExecutePacketType3_WAIT_REG_MEM(
     uint32_t packet, uint32_t count) XE_RESTRICT {
@@ -459,32 +489,8 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_WAIT_REG_MEM(
         value = register_file_->values[poll_reg_addr].u32;
       }
     }
-    switch (wait_info & 0x7) {
-      case 0x0:  // Never.
-        matched = false;
-        break;
-      case 0x1:  // Less than reference.
-        matched = (value & mask) < ref;
-        break;
-      case 0x2:  // Less than or equal to reference.
-        matched = (value & mask) <= ref;
-        break;
-      case 0x3:  // Equal to reference.
-        matched = (value & mask) == ref;
-        break;
-      case 0x4:  // Not equal to reference.
-        matched = (value & mask) != ref;
-        break;
-      case 0x5:  // Greater than or equal to reference.
-        matched = (value & mask) >= ref;
-        break;
-      case 0x6:  // Greater than reference.
-        matched = (value & mask) > ref;
-        break;
-      case 0x7:  // Always
-        matched = true;
-        break;
-    }
+    matched = MatchValueAndRef(value & mask, ref, wait_info);
+
     if (!matched) {
       // Wait.
       if (wait >= 0x100) {
@@ -598,34 +604,8 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_COND_WRITE(
     assert_true(poll_reg_addr < RegisterFile::kRegisterCount);
     value = register_file_->values[poll_reg_addr].u32;
   }
-  bool matched = false;
-  value &= mask;
-  switch (wait_info & 0x7) {
-    case 0x0:  // Never.
-      matched = false;
-      break;
-    case 0x1:  // Less than reference.
-      matched = value < ref;
-      break;
-    case 0x2:  // Less than or equal to reference.
-      matched = value <= ref;
-      break;
-    case 0x3:  // Equal to reference.
-      matched = value == ref;
-      break;
-    case 0x4:  // Not equal to reference.
-      matched = value != ref;
-      break;
-    case 0x5:  // Greater than or equal to reference.
-      matched = value >= ref;
-      break;
-    case 0x6:  // Greater than reference.
-      matched = value > ref;
-      break;
-    case 0x7:  // Always
-      matched = true;
-      break;
-  }
+  bool matched = MatchValueAndRef(value & mask, ref, wait_info);
+
   if (matched) {
     // Write.
     if (wait_info & 0x100) {
@@ -718,9 +698,6 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_EVENT_WRITE_EXT(
   for (unsigned i = 0; i < 6; ++i) {
     destination[i] = extents[i];
   }
-  // xe::copy_and_swap_16_unaligned(memory_->TranslatePhysical(address),
-  // extents,
-  //                                xe::countof(extents));
 
   trace_writer_.WriteMemoryWrite(CpuToGpu(address), sizeof(extents));
   return true;

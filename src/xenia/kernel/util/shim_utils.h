@@ -554,7 +554,6 @@ struct ExportRegistrerHelper {
         new cpu::Export(ORDINAL, xe::cpu::Export::Type::kFunction, name, TAGS);
     struct X {
       static void Trampoline(PPCContext* ppc_context) {
-        ++export_entry->function_data.call_count;
         Param::Init init = {
             ppc_context,
             0,

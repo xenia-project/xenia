@@ -81,7 +81,7 @@ void ExportResolver::SetFunctionMapping(const std::string_view module_name,
   auto export_entry = GetExportByOrdinal(module_name, ordinal);
   assert_not_null(export_entry);
   export_entry->tags |= ExportTag::kImplemented;
-  export_entry->function_data.shim = shim;
+  export_entry->function_data.trampoline = (ExportTrampoline)(void*)shim;
 }
 
 void ExportResolver::SetFunctionMapping(const std::string_view module_name,

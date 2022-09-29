@@ -91,7 +91,7 @@ DECLARE_XAM_EXPORT1(XamInputGetCapabilitiesEx, kInput, kSketchy);
 dword_result_t XamInputGetState_entry(dword_t user_index, dword_t flags,
                                       pointer_t<X_INPUT_STATE> input_state) {
   if (input_state) {
-    memset((void*)input_state.host_address(), 0, sizeof X_INPUT_STATE);
+    memset((void*)input_state.host_address(), 0, sizeof(X_INPUT_STATE));
   }
   if (user_index >= 4) {
     return X_ERROR_DEVICE_NOT_CONNECTED;

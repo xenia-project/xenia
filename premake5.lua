@@ -62,6 +62,12 @@ filter({"configurations:Checked", "platforms:Linux"})
   defines({
     "_GLIBCXX_DEBUG",   -- libstdc++ debug mode
   })
+filter({"configurations:Release", "platforms:Windows"})
+	buildoptions({
+		"/Gw", 
+		"/GS-", 
+		"/Oy"
+	})
 
 filter("configurations:Debug")
   runtime("Release")

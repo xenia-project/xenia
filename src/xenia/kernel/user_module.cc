@@ -783,7 +783,7 @@ void UserModule::Dump() {
           }
         }
         if (kernel_export &&
-            kernel_export->type == cpu::Export::Type::kVariable) {
+            kernel_export->get_type() == cpu::Export::Type::kVariable) {
           sb.AppendFormat("   V {:08X}          {:03X} ({:4}) {} {}\n",
                           info->value_address, info->ordinal, info->ordinal,
                           implemented ? "  " : "!!", name);

@@ -527,56 +527,48 @@ void CommandProcessor::WriteFetchRangeFromRing(xe::RingBuffer* ring,
   WriteRegisterRangeFromRing(ring, base + 0x4800, num_times);
 }
 
-XE_FORCEINLINE
 void CommandProcessor::WriteBoolRangeFromRing(xe::RingBuffer* ring,
                                               uint32_t base,
                                               uint32_t num_times) {
   WriteRegisterRangeFromRing(ring, base + 0x4900, num_times);
 }
 
-XE_FORCEINLINE
 void CommandProcessor::WriteLoopRangeFromRing(xe::RingBuffer* ring,
                                               uint32_t base,
                                               uint32_t num_times) {
   WriteRegisterRangeFromRing(ring, base + 0x4908, num_times);
 }
 
-XE_FORCEINLINE
 void CommandProcessor::WriteREGISTERSRangeFromRing(xe::RingBuffer* ring,
                                                    uint32_t base,
                                                    uint32_t num_times) {
   WriteRegisterRangeFromRing(ring, base + 0x2000, num_times);
 }
 
-XE_FORCEINLINE
 void CommandProcessor::WriteALURangeFromMem(uint32_t start_index,
                                             uint32_t* base,
                                             uint32_t num_registers) {
   WriteRegistersFromMem(start_index + 0x4000, base, num_registers);
 }
 
-XE_FORCEINLINE
 void CommandProcessor::WriteFetchRangeFromMem(uint32_t start_index,
                                               uint32_t* base,
                                               uint32_t num_registers) {
   WriteRegistersFromMem(start_index + 0x4800, base, num_registers);
 }
 
-XE_FORCEINLINE
 void CommandProcessor::WriteBoolRangeFromMem(uint32_t start_index,
                                              uint32_t* base,
                                              uint32_t num_registers) {
   WriteRegistersFromMem(start_index + 0x4900, base, num_registers);
 }
 
-XE_FORCEINLINE
 void CommandProcessor::WriteLoopRangeFromMem(uint32_t start_index,
                                              uint32_t* base,
                                              uint32_t num_registers) {
   WriteRegistersFromMem(start_index + 0x4908, base, num_registers);
 }
 
-XE_FORCEINLINE
 void CommandProcessor::WriteREGISTERSRangeFromMem(uint32_t start_index,
                                                   uint32_t* base,
                                                   uint32_t num_registers) {
