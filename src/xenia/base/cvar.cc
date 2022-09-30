@@ -8,7 +8,7 @@
  */
 
 #include "xenia/base/cvar.h"
-
+#include <iostream>
 #define UTF_CPP_CPLUSPLUS 201703L
 #include "third_party/utfcpp/source/utf8.h"
 
@@ -87,7 +87,7 @@ void ParseLaunchArguments(int& argc, char**& argv,
         configVar->LoadFromLaunchOptions(&result);
       }
     }
-  } catch (const cxxopts::OptionException& e) {
+  } catch (const cxxopts::exceptions::exception& e) {
     xe::AttachConsole();
     if (xe::has_console_attached()) {
       std::cout << e.what() << std::endl;
