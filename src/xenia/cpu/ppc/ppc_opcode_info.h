@@ -133,18 +133,18 @@ enum class PPCOpcodeField : uint32_t {
   kTO,
   kLEV,
 };
-
+#pragma pack(push, 1)
 struct PPCOpcodeDisasmInfo {
   PPCOpcodeGroup group;
   PPCOpcodeFormat format;
   uint32_t opcode;
   const char* name;
   const char* description;
-  std::vector<PPCOpcodeField> reads;
-  std::vector<PPCOpcodeField> writes;
+  // std::vector<PPCOpcodeField> reads;
+  // std::vector<PPCOpcodeField> writes;
   InstrDisasmFn disasm;
 };
-
+#pragma pack(pop)
 PPCOpcode LookupOpcode(uint32_t code);
 
 const PPCOpcodeInfo& GetOpcodeInfo(PPCOpcode opcode);

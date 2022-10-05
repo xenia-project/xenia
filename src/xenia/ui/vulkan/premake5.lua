@@ -10,6 +10,11 @@ project("xenia-ui-vulkan")
     "xenia-base",
     "xenia-ui",
   })
+  filter({"configurations:Release", "platforms:Windows"})
+    buildoptions({
+      "/Os",
+      "/O1"
+    })
   includedirs({
     project_root.."/third_party/Vulkan-Headers/include",
   })

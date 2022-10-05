@@ -10,6 +10,11 @@ project("xenia-cpu")
     "xenia-base",
     "mspack",
   })
+  filter({"configurations:Release", "platforms:Windows"})
+    buildoptions({
+      "/Os",
+      "/O1"
+    })
   includedirs({
     project_root.."/third_party/llvm/include",
   })

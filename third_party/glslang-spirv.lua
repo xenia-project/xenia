@@ -10,6 +10,11 @@ project("glslang-spirv")
   })
   includedirs({
   })
+  filter({"configurations:Release", "platforms:Windows"})
+    buildoptions({
+      "/Os",
+      "/O1"
+    })
   files({
     "glslang/SPIRV/bitutils.h",
     "glslang/SPIRV/disassemble.cpp",

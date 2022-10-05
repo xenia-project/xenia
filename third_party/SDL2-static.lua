@@ -7,6 +7,8 @@ project("SDL2")
 
   defines({
     "HAVE_LIBC",
+	"SDL_LEAN_AND_MEAN=1",
+	"SDL_RENDER_DISABLED=1"
   })
   links({
     "setupapi.lib",

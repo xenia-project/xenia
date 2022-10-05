@@ -1194,11 +1194,11 @@ bool XexModule::SetupLibraryImports(const std::string_view name,
       }
 
       if (kernel_export) {
-        if (kernel_export->type == Export::Type::kFunction) {
+        if (kernel_export->get_type() == Export::Type::kFunction) {
           // Not exactly sure what this should be...
           // Appears to be ignored.
           *record_slot = 0xDEADC0DE;
-        } else if (kernel_export->type == Export::Type::kVariable) {
+        } else if (kernel_export->get_type() == Export::Type::kVariable) {
           // Kernel import variable
           if (kernel_export->is_implemented()) {
             // Implemented - replace with pointer.
@@ -1287,8 +1287,9 @@ bool XexModule::SetupLibraryImports(const std::string_view name,
             handler = (GuestFunction::ExternHandler)
                           kernel_export->function_data.trampoline;
           } else {
-            handler =
-                (GuestFunction::ExternHandler)kernel_export->function_data.shim;
+            //__debugbreak();
+            // handler =
+            //     (GuestFunction::ExternHandler)kernel_export->function_data.shim;
           }
         } else {
           XELOGW("WARNING: Imported kernel function {} is unimplemented!",

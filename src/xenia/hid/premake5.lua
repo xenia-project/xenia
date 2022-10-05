@@ -38,7 +38,11 @@ project("xenia-hid-demo")
   resincludedirs({
     project_root,
   })
-
+  filter({"configurations:Release", "platforms:Windows"})
+    buildoptions({
+      "/Os",
+      "/O1"
+    })
   filter("platforms:not Android-*")
     links({
       "xenia-helper-sdl",

@@ -178,43 +178,33 @@ class CommandProcessor {
           num_times);  // repeatedly write a value to one register, presumably a
                        // register with special handling for writes
 
-  XE_FORCEINLINE
   void WriteALURangeFromRing(xe::RingBuffer* ring, uint32_t base,
                              uint32_t num_times);
 
-  XE_FORCEINLINE
   void WriteFetchRangeFromRing(xe::RingBuffer* ring, uint32_t base,
                                uint32_t num_times);
 
-  XE_FORCEINLINE
   void WriteBoolRangeFromRing(xe::RingBuffer* ring, uint32_t base,
                               uint32_t num_times);
 
-  XE_FORCEINLINE
   void WriteLoopRangeFromRing(xe::RingBuffer* ring, uint32_t base,
                               uint32_t num_times);
 
-  XE_FORCEINLINE
   void WriteREGISTERSRangeFromRing(xe::RingBuffer* ring, uint32_t base,
                                    uint32_t num_times);
 
-  XE_FORCEINLINE
   void WriteALURangeFromMem(uint32_t start_index, uint32_t* base,
                             uint32_t num_registers);
 
-  XE_FORCEINLINE
   void WriteFetchRangeFromMem(uint32_t start_index, uint32_t* base,
                               uint32_t num_registers);
 
-  XE_FORCEINLINE
   void WriteBoolRangeFromMem(uint32_t start_index, uint32_t* base,
                              uint32_t num_registers);
 
-  XE_FORCEINLINE
   void WriteLoopRangeFromMem(uint32_t start_index, uint32_t* base,
                              uint32_t num_registers);
 
-  XE_FORCEINLINE
   void WriteREGISTERSRangeFromMem(uint32_t start_index, uint32_t* base,
                                   uint32_t num_registers);
 

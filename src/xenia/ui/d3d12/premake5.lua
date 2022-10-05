@@ -10,6 +10,11 @@ project("xenia-ui-d3d12")
     "xenia-base",
     "xenia-ui",
   })
+  filter({"configurations:Release", "platforms:Windows"})
+    buildoptions({
+      "/Os",
+      "/O1"
+    })
   local_platform_files()
   files({
     "../shaders/bytecode/d3d12_5_1/*.h",

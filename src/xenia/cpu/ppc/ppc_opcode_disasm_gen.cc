@@ -4948,8 +4948,8 @@ void PrintDisasm_xorx(const PPCDecodeData& d, StringBuffer* str) {
 }
 #define INIT_LIST(...) {__VA_ARGS__}
 #define INSTRUCTION(opcode, mnem, form, group, type, desc, reads, writes, fn) \
-    {PPCOpcodeGroup::group, PPCOpcodeFormat::form, opcode, mnem, desc, INIT_LIST reads, INIT_LIST writes, fn}
-PPCOpcodeDisasmInfo ppc_opcode_disasm_table[] = {
+    {PPCOpcodeGroup::group, PPCOpcodeFormat::form, opcode, mnem, desc,  fn}
+static constexpr PPCOpcodeDisasmInfo ppc_opcode_disasm_table[] = {
   INSTRUCTION(0x7c000014, "addcx"       , kXO     , kI, kGeneral, "Add Carrying"                                                               , (PPCOpcodeField::kRA,PPCOpcodeField::kRB), (PPCOpcodeField::kRD,PPCOpcodeField::kCA,PPCOpcodeField::kOEcond,PPCOpcodeField::kCRcond), PrintDisasm_addcx),
   INSTRUCTION(0x7c000114, "addex"       , kXO     , kI, kGeneral, "Add Extended"                                                               , (PPCOpcodeField::kRA,PPCOpcodeField::kRB,PPCOpcodeField::kCA), (PPCOpcodeField::kRD,PPCOpcodeField::kOEcond,PPCOpcodeField::kCRcond), PrintDisasm_addex),
   INSTRUCTION(0x38000000, "addi"        , kD      , kI, kGeneral, "Add Immediate"                                                              , (PPCOpcodeField::kRA0,PPCOpcodeField::kSIMM), (PPCOpcodeField::kRD), PrintDisasm_addi),
@@ -5414,7 +5414,7 @@ const PPCOpcodeDisasmInfo& GetOpcodeDisasmInfo(PPCOpcode opcode) {
 }
 void RegisterOpcodeDisasm(PPCOpcode opcode, InstrDisasmFn fn) {
   assert_null(ppc_opcode_disasm_table[static_cast<int>(opcode)].disasm);
-  ppc_opcode_disasm_table[static_cast<int>(opcode)].disasm = fn;
+  const_cast<PPCOpcodeDisasmInfo*>( &ppc_opcode_disasm_table[static_cast<int>(opcode)])->disasm = fn;
 }
 
 }  // namespace ppc

@@ -11,6 +11,11 @@ project("imgui")
   includedirs({
     "imgui",
   })
+  filter({"configurations:Release", "platforms:Windows"})
+    buildoptions({
+      "/Os",
+      "/O1"
+    })
   files({
     "imgui/imconfig.h",
     "imgui/imgui.cpp",
