@@ -17,6 +17,7 @@ project("xenia-debug-ui")
       "/Os",
       "/O1"
     })
+  filter{}
   defines({
   })
   includedirs({
