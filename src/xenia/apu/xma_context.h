@@ -201,8 +201,8 @@ class XmaContext {
   uint32_t id_ = 0;
   uint32_t guest_ptr_ = 0;
   xe_mutex lock_;
-  bool is_allocated_ = false;
-  bool is_enabled_ = false;
+  volatile bool is_allocated_ = false;
+  volatile bool is_enabled_ = false;
   // bool is_dirty_ = true;
 
   // ffmpeg structures

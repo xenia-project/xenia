@@ -8,14 +8,7 @@
  */
 
 #include "xenia/gpu/texture_info.h"
-
-#include <algorithm>
-#include <cmath>
-#include <cstring>
-
 #include "xenia/base/logging.h"
-#include "xenia/base/math.h"
-#include "xenia/base/memory.h"
 #include "xenia/base/xxhash.h"
 
 namespace xe {

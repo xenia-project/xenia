@@ -11,16 +11,7 @@
 #define XENIA_GPU_SHADER_TRANSLATOR_H_
 
 #include <memory>
-#include <set>
-#include <string>
-#include <vector>
-
-#include "xenia/base/math.h"
-#include "xenia/base/string_buffer.h"
-#include "xenia/gpu/registers.h"
 #include "xenia/gpu/shader.h"
-#include "xenia/gpu/ucode.h"
-#include "xenia/gpu/xenos.h"
 
 namespace xe {
 namespace gpu {

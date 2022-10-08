@@ -36,6 +36,7 @@ class XEvent : public XObject {
   int32_t Set(uint32_t priority_increment, bool wait);
   int32_t Pulse(uint32_t priority_increment, bool wait);
   int32_t Reset();
+  void Query(uint32_t* out_type, uint32_t* out_state);
   void Clear();
 
   bool Save(ByteStream* stream) override;

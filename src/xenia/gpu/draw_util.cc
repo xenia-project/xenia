@@ -9,21 +9,14 @@
 
 #include "xenia/gpu/draw_util.h"
 
-#include <algorithm>
-#include <cmath>
 #include <cstring>
 
-#include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
 #include "xenia/gpu/gpu_flags.h"
-#include "xenia/gpu/registers.h"
 #include "xenia/gpu/texture_cache.h"
-#include "xenia/gpu/texture_info.h"
-#include "xenia/gpu/texture_util.h"
-#include "xenia/gpu/xenos.h"
 #include "xenia/ui/graphics_util.h"
 
 // Very prominent in 545407F2.

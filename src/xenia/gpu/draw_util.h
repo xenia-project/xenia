@@ -16,7 +16,6 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/gpu/register_file.h"
-#include "xenia/gpu/registers.h"
 #include "xenia/gpu/shader.h"
 #include "xenia/gpu/trace_writer.h"
 #include "xenia/gpu/xenos.h"

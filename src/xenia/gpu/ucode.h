@@ -10,11 +10,6 @@
 #ifndef XENIA_GPU_UCODE_H_
 #define XENIA_GPU_UCODE_H_
 
-#include <cstdint>
-
-#include "xenia/base/assert.h"
-#include "xenia/base/math.h"
-#include "xenia/base/platform.h"
 #include "xenia/gpu/xenos.h"
 
 // The XNA Game Studio 3.1 contains Graphics.ShaderCompiler.AssembleFromSource,

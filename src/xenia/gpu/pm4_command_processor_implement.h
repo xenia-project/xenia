@@ -75,33 +75,45 @@ bool COMMAND_PROCESSOR::ExecutePacket() {
   }
 }
 XE_NOINLINE
+XE_COLD
+bool COMMAND_PROCESSOR::ExecutePacketType0_CountOverflow(uint32_t count) {
+  XELOGE("ExecutePacketType0 overflow (read count {:08X}, packet count {:08X})",
+         COMMAND_PROCESSOR::GetCurrentRingReadCount(),
+         count * sizeof(uint32_t));
+  return false;
+}
+    /*
+	Todo: optimize this function this one along with execute packet type III are the most frequently called functions for PM4
+*/
+XE_NOINLINE
 bool COMMAND_PROCESSOR::ExecutePacketType0(uint32_t packet) XE_RESTRICT {
   // Type-0 packet.
   // Write count registers in sequence to the registers starting at
   // (base_index << 2).
 
   uint32_t count = ((packet >> 16) & 0x3FFF) + 1;
-  if (COMMAND_PROCESSOR::GetCurrentRingReadCount() < count * sizeof(uint32_t)) {
-    XELOGE(
-        "ExecutePacketType0 overflow (read count {:08X}, packet count {:08X})",
-        COMMAND_PROCESSOR::GetCurrentRingReadCount(), count * sizeof(uint32_t));
-    return false;
-  }
 
-  trace_writer_.WritePacketStart(uint32_t(reader_.read_ptr() - 4), 1 + count);
 
-  uint32_t base_index = (packet & 0x7FFF);
-  uint32_t write_one_reg = (packet >> 15) & 0x1;
+  if (COMMAND_PROCESSOR::GetCurrentRingReadCount() >=
+      count * sizeof(uint32_t)) {
+    trace_writer_.WritePacketStart(uint32_t(reader_.read_ptr() - 4), 1 + count);
 
-  if (!write_one_reg) {
-    COMMAND_PROCESSOR::WriteRegisterRangeFromRing(&reader_, base_index, count);
+    uint32_t base_index = (packet & 0x7FFF);
+    uint32_t write_one_reg = (packet >> 15) & 0x1;
 
+    if (!write_one_reg) {
+      COMMAND_PROCESSOR::WriteRegisterRangeFromRing(&reader_, base_index,
+                                                    count);
+
+    } else {
+      COMMAND_PROCESSOR::WriteOneRegisterFromRing(base_index, count);
+    }
+
+    trace_writer_.WritePacketEnd();
+    return true;
   } else {
-    COMMAND_PROCESSOR::WriteOneRegisterFromRing(base_index, count);
+    return COMMAND_PROCESSOR::ExecutePacketType0_CountOverflow(count);
   }
-
-  trace_writer_.WritePacketEnd();
-  return true;
 }
 XE_NOINLINE
 bool COMMAND_PROCESSOR::ExecutePacketType1(uint32_t packet) XE_RESTRICT {
@@ -430,6 +442,11 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_INDIRECT_BUFFER(
 
 XE_NOINLINE
 static bool MatchValueAndRef(uint32_t value, uint32_t ref, uint32_t wait_info) {
+  /*
+	Todo: should subtract values from each other twice with the sides inverted and then create a mask from the sign bits 
+	then use the wait_info value in order to select the bits that correctly implement the condition
+	If neither subtraction has the signbit set then that means the value is equal
+  */
   bool matched = false;
   switch (wait_info & 0x7) {
     case 0x0:  // Never.
@@ -1058,6 +1075,10 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_IM_LOAD_IMMEDIATE(
   return true;
 }
 
+/*
+        todo: shouldn't this do something?
+*/
+
 bool COMMAND_PROCESSOR::ExecutePacketType3_INVALIDATE_STATE(
     uint32_t packet, uint32_t count) XE_RESTRICT {
   // selective invalidation of state pointers
@@ -1098,4 +1119,77 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_VIZ_QUERY(
   }
 
   return true;
+}
+
+uint32_t COMMAND_PROCESSOR::ExecutePrimaryBuffer(uint32_t read_index,
+                                                uint32_t write_index) {
+  SCOPE_profile_cpu_f("gpu");
+#if XE_ENABLE_TRACE_WRITER_INSTRUMENTATION == 1
+  // If we have a pending trace stream open it now. That way we ensure we get
+  // all commands.
+  if (!trace_writer_.is_open() && trace_state_ == TraceState::kStreaming) {
+    uint32_t title_id = kernel_state_->GetExecutableModule()
+                            ? kernel_state_->GetExecutableModule()->title_id()
+                            : 0;
+    auto file_name = fmt::format("{:08X}_stream.xtr", title_id);
+    auto path = trace_stream_path_ / file_name;
+    trace_writer_.Open(path, title_id);
+    InitializeTrace();
+  }
+#endif
+  // Adjust pointer base.
+  uint32_t start_ptr = primary_buffer_ptr_ + read_index * sizeof(uint32_t);
+  start_ptr = (primary_buffer_ptr_ & ~0x1FFFFFFF) | (start_ptr & 0x1FFFFFFF);
+  uint32_t end_ptr = primary_buffer_ptr_ + write_index * sizeof(uint32_t);
+  end_ptr = (primary_buffer_ptr_ & ~0x1FFFFFFF) | (end_ptr & 0x1FFFFFFF);
+
+  trace_writer_.WritePrimaryBufferStart(start_ptr, write_index - read_index);
+
+  // Execute commands!
+
+  RingBuffer old_reader = reader_;
+  new (&reader_) RingBuffer(memory_->TranslatePhysical(primary_buffer_ptr_),
+                            primary_buffer_size_);
+
+  reader_.set_read_offset(read_index * sizeof(uint32_t));
+  reader_.set_write_offset(write_index * sizeof(uint32_t));
+  // prefetch the wraparound range
+  // it likely is already in L3 cache, but in a zen system it may be another
+  // chiplets l3
+  reader_.BeginPrefetchedRead<swcache::PrefetchTag::Level2>(
+      GetCurrentRingReadCount());
+  do {
+    if (!COMMAND_PROCESSOR::ExecutePacket()) {
+      // This probably should be fatal - but we're going to continue anyways.
+      XELOGE("**** PRIMARY RINGBUFFER: Failed to execute packet.");
+      assert_always();
+      break;
+    }
+  } while (reader_.read_count());
+
+  COMMAND_PROCESSOR::OnPrimaryBufferEnd();
+
+  trace_writer_.WritePrimaryBufferEnd();
+
+  reader_ = old_reader;
+  return write_index;
+}
+
+void COMMAND_PROCESSOR::ExecutePacket(uint32_t ptr, uint32_t count) {
+  // Execute commands!
+  RingBuffer old_reader = reader_;
+
+  new (&reader_)
+      RingBuffer{memory_->TranslatePhysical(ptr), count * sizeof(uint32_t)};
+
+  reader_.set_write_offset(count * sizeof(uint32_t));
+
+  do {
+    if (!COMMAND_PROCESSOR::ExecutePacket()) {
+      XELOGE("**** ExecutePacket: Failed to execute packet.");
+      assert_always();
+      break;
+    }
+  } while (reader_.read_count());
+  reader_ = old_reader;
 }

@@ -2672,45 +2672,66 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   // validity is tracked.
   const Shader::ConstantRegisterMap& constant_map_vertex =
       vertex_shader->constant_register_map();
-  for (uint32_t i = 0; i < xe::countof(constant_map_vertex.vertex_fetch_bitmap);
-       ++i) {
-    uint32_t vfetch_bits_remaining = constant_map_vertex.vertex_fetch_bitmap[i];
-    uint32_t j;
-    while (xe::bit_scan_forward(vfetch_bits_remaining, &j)) {
-      vfetch_bits_remaining &= ~(uint32_t(1) << j);
-      uint32_t vfetch_index = i * 32 + j;
-      const auto& vfetch_constant = regs.Get<xenos::xe_gpu_vertex_fetch_t>(
-          XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + vfetch_index * 2);
-      switch (vfetch_constant.type) {
-        case xenos::FetchConstantType::kVertex:
-          break;
-        case xenos::FetchConstantType::kInvalidVertex:
-          if (cvars::gpu_allow_invalid_fetch_constants) {
+  {
+    uint32_t vfetch_addresses[96];
+    uint32_t vfetch_sizes[96];
+    uint32_t vfetch_current_queued = 0;
+    for (uint32_t i = 0;
+         i < xe::countof(constant_map_vertex.vertex_fetch_bitmap); ++i) {
+      uint32_t vfetch_bits_remaining =
+          constant_map_vertex.vertex_fetch_bitmap[i];
+      uint32_t j;
+      while (xe::bit_scan_forward(vfetch_bits_remaining, &j)) {
+        vfetch_bits_remaining = xe::clear_lowest_bit(vfetch_bits_remaining);
+        uint32_t vfetch_index = i * 32 + j;
+        const auto& vfetch_constant = regs.Get<xenos::xe_gpu_vertex_fetch_t>(
+            XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + vfetch_index * 2);
+        switch (vfetch_constant.type) {
+          case xenos::FetchConstantType::kVertex:
             break;
-          }
-          XELOGW(
-              "Vertex fetch constant {} ({:08X} {:08X}) has \"invalid\" type! "
-              "This is incorrect behavior, but you can try bypassing this by "
-              "launching Xenia with --gpu_allow_invalid_fetch_constants=true.",
-              vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
-          return false;
-        default:
-          XELOGW(
-              "Vertex fetch constant {} ({:08X} {:08X}) is completely invalid!",
-              vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
-          return false;
+          case xenos::FetchConstantType::kInvalidVertex:
+            if (cvars::gpu_allow_invalid_fetch_constants) {
+              break;
+            }
+            XELOGW(
+                "Vertex fetch constant {} ({:08X} {:08X}) has \"invalid\" "
+                "type! "
+                "This is incorrect behavior, but you can try bypassing this by "
+                "launching Xenia with "
+                "--gpu_allow_invalid_fetch_constants=true.",
+                vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
+            return false;
+          default:
+            XELOGW(
+                "Vertex fetch constant {} ({:08X} {:08X}) is completely "
+                "invalid!",
+                vfetch_index, vfetch_constant.dword_0, vfetch_constant.dword_1);
+            return false;
+        }
+        vfetch_addresses[vfetch_current_queued] = vfetch_constant.address;
+        vfetch_sizes[vfetch_current_queued++] = vfetch_constant.size;
       }
-      if (!shared_memory_->RequestRange(vfetch_constant.address << 2,
-                                        vfetch_constant.size << 2)) {
-        XELOGE(
-            "Failed to request vertex buffer at 0x{:08X} (size {}) in the "
-            "shared memory",
-            vfetch_constant.address << 2, vfetch_constant.size << 2);
-        return false;
+    }
+
+    if (vfetch_current_queued) {
+      // so far, i have never seen vfetch_current_queued > 4. 1 is most common, 2 happens occasionally. did not test many games though
+      // pre-acquire the critical region so we're not repeatedly re-acquiring it
+      // in requestrange
+      auto shared_memory_request_range_hoisted =
+          global_critical_region::Acquire();
+
+      for (uint32_t i = 0; i < vfetch_current_queued; ++i) {
+        if (!shared_memory_->RequestRange(vfetch_addresses[i] << 2,
+                                          vfetch_sizes[i] << 2)) {
+          XELOGE(
+              "Failed to request vertex buffer at 0x{:08X} (size {}) in the "
+              "shared memory",
+              vfetch_addresses[i] << 2, vfetch_sizes[i] << 2);
+          return false;
+        }
       }
     }
   }
-
   // Gather memexport ranges and ensure the heaps for them are resident, and
   // also load the data surrounding the export and to fill the regions that
   // won't be modified by the shaders.
@@ -3076,24 +3097,6 @@ void D3D12CommandProcessor::InitializeTrace() {
     shared_memory_->InitializeTraceCompleteDownloads();
   }
 }
-static void DmaPrefunc(dma::XeDMAJob* job) {
-  D3D12_RANGE readback_range;
-  readback_range.Begin = 0;
-  readback_range.End = job->size;
-  void* readback_mapping;
-  ID3D12Resource* readback_buffer = (ID3D12Resource*)job->userdata1;
-
-  HRESULT mapres = readback_buffer->Map(0, &readback_range, &readback_mapping);
-  xenia_assert(SUCCEEDED(mapres));
-
-  job->source = (uint8_t*)readback_mapping;
-}
-
-static void DmaPostfunc(dma::XeDMAJob* job) {
-  D3D12_RANGE readback_write_range = {};
-  ID3D12Resource* readback_buffer = (ID3D12Resource*)job->userdata1;
-  readback_buffer->Unmap(0, &readback_write_range);
-}
 
 bool D3D12CommandProcessor::IssueCopy() {
 #if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
@@ -3102,7 +3105,6 @@ bool D3D12CommandProcessor::IssueCopy() {
   if (!BeginSubmission(true)) {
     return false;
   }
-
   if (!cvars::d3d12_readback_resolve) {
     uint32_t written_address, written_length;
     return render_target_cache_->Resolve(*memory_, *shared_memory_,
@@ -3129,34 +3131,21 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
             readback_buffer, 0, shared_memory_buffer, written_address,
             written_length);
         if (AwaitAllQueueOperationsCompletion()) {
-#if 1
-        D3D12_RANGE readback_range;
-        readback_range.Begin = 0;
-        readback_range.End = written_length;
-        void* readback_mapping;
-        if (SUCCEEDED(
-                readback_buffer->Map(0, &readback_range, &readback_mapping))) {
-          // chrispy: this memcpy needs to be optimized as much as possible
+          D3D12_RANGE readback_range;
+          readback_range.Begin = 0;
+          readback_range.End = written_length;
+          void* readback_mapping;
+          if (SUCCEEDED(readback_buffer->Map(0, &readback_range,
+                                             &readback_mapping))) {
+            // chrispy: this memcpy needs to be optimized as much as possible
 
-          auto physaddr = memory_->TranslatePhysical(written_address);
-          dma::vastcpy(physaddr, (uint8_t*)readback_mapping, written_length);
-          // XEDmaCpy(physaddr, readback_mapping, written_length);
-          D3D12_RANGE readback_write_range = {};
-          readback_buffer->Unmap(0, &readback_write_range);
-        }
-
-#else
-          dma::XeDMAJob job{};
-          job.destination = memory_->TranslatePhysical(written_address);
-          job.size = written_length;
-          job.source = nullptr;
-          job.userdata1 = (void*)readback_buffer;
-          job.precall = DmaPrefunc;
-          job.postcall = DmaPostfunc;
-
-          readback_available_ = GetDMAC()->PushDMAJob(&job);
-
-#endif
+            auto physaddr = memory_->TranslatePhysical(written_address);
+            memory::vastcpy(physaddr, (uint8_t*)readback_mapping,
+                            written_length);
+            // XEDmaCpy(physaddr, readback_mapping, written_length);
+            D3D12_RANGE readback_write_range = {};
+            readback_buffer->Unmap(0, &readback_write_range);
+          }
         }
       }
     }
@@ -3833,7 +3822,8 @@ XE_NOINLINE void D3D12CommandProcessor::UpdateSystemConstantValues_Impl(
     uint32_t user_clip_plane_index;
     while (xe::bit_scan_forward(user_clip_planes_remaining,
                                 &user_clip_plane_index)) {
-      user_clip_planes_remaining &= ~(UINT32_C(1) << user_clip_plane_index);
+      user_clip_planes_remaining =
+          xe::clear_lowest_bit(user_clip_planes_remaining);
       const float* user_clip_plane =
           &regs[XE_GPU_REG_PA_CL_UCP_0_X + user_clip_plane_index * 4].f32;
       if (std::memcmp(user_clip_plane_write_ptr, user_clip_plane,
@@ -3917,7 +3907,7 @@ XE_NOINLINE void D3D12CommandProcessor::UpdateSystemConstantValues_Impl(
   uint32_t textures_remaining = used_texture_mask;
   uint32_t texture_index;
   while (xe::bit_scan_forward(textures_remaining, &texture_index)) {
-    textures_remaining &= ~(uint32_t(1) << texture_index);
+    textures_remaining = xe::clear_lowest_bit(textures_remaining);
     uint32_t& texture_signs_uint =
         system_constants_.texture_swizzled_signs[texture_index >> 2];
     uint32_t texture_signs_shift = (texture_index & 3) * 8;
@@ -5116,12 +5106,6 @@ ID3D12Resource* D3D12CommandProcessor::RequestReadbackBuffer(uint32_t size) {
   if (size == 0) {
     return nullptr;
   }
-#if 1
-  if (readback_available_) {
-    GetDMAC()->WaitJobDone(readback_available_);
-    readback_available_ = 0;
-  }
-#endif
   size = xe::align(size, kReadbackBufferSizeIncrement);
   if (size > readback_buffer_size_) {
     const ui::d3d12::D3D12Provider& provider = GetD3D12Provider();

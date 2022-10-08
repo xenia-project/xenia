@@ -55,7 +55,7 @@ XE_NTDLL_IMPORT(NtReleaseSemaphore, cls_NtReleaseSemaphore,
 
 XE_NTDLL_IMPORT(NtDelayExecution, cls_NtDelayExecution,
                 NtDelayExecutionPointer);
-
+XE_NTDLL_IMPORT(NtQueryEvent, cls_NtQueryEvent, NtQueryEventPointer);
 namespace xe {
 namespace threading {
 
@@ -255,20 +255,20 @@ std::pair<WaitResult, size_t> WaitMultiple(WaitHandle* wait_handles[],
                                            size_t wait_handle_count,
                                            bool wait_all, bool is_alertable,
                                            std::chrono::milliseconds timeout) {
-  std::vector<HANDLE> handles(
-      wait_handle_count);  // max handles is like 64, so it would make more
-                           // sense to just do a fixed size array here
+  xenia_assert(wait_handle_count <= 64);
+  HANDLE handles[64];
+
   for (size_t i = 0; i < wait_handle_count; ++i) {
     handles[i] = wait_handles[i]->native_handle();
   }
   DWORD result = WaitForMultipleObjectsEx(
-      DWORD(handles.size()), handles.data(), wait_all ? TRUE : FALSE,
+      static_cast<DWORD>(wait_handle_count), handles, wait_all ? TRUE : FALSE,
       DWORD(timeout.count()), is_alertable ? TRUE : FALSE);
-  if (result >= WAIT_OBJECT_0 && result < WAIT_OBJECT_0 + handles.size()) {
+  if (result >= WAIT_OBJECT_0 && result < WAIT_OBJECT_0 + wait_handle_count) {
     return std::pair<WaitResult, size_t>(WaitResult::kSuccess,
                                          result - WAIT_OBJECT_0);
   } else if (result >= WAIT_ABANDONED_0 &&
-             result < WAIT_ABANDONED_0 + handles.size()) {
+             result < WAIT_ABANDONED_0 + wait_handle_count) {
     return std::pair<WaitResult, size_t>(WaitResult::kAbandoned,
                                          result - WAIT_ABANDONED_0);
   }
@@ -293,7 +293,15 @@ class Win32Event : public Win32Handle<Event> {
   void Pulse() override { NtPulseEventPointer.invoke(handle_, nullptr); }
   void SetBoostPriority() override {
     // no previous state for boostpriority
-    NtSetEventBoostPriorityPointer.invoke(handle_);
+    // Boost priority is unimplemented under wine probably because it's not used
+    // anywhere in user mode except by us. Maybe some Windows internals uses it
+    // see:
+    // https://discord.com/channels/308194948048486401/308207592482668545/1027178776599216228
+    if (NtSetEventBoostPriorityPointer) {
+      NtSetEventBoostPriorityPointer.invoke(handle_);
+    } else {
+      NtSetEventPointer.invoke(handle_, nullptr);
+    }
   }
 #else
   void Set() override { SetEvent(handle_); }
@@ -305,6 +313,11 @@ class Win32Event : public Win32Handle<Event> {
     SetEvent(handle_);
   }
 #endif
+
+  EventInfo Query() { EventInfo result{};
+    NtQueryEventPointer.invoke(handle_, 0, &result, sizeof(EventInfo), nullptr);
+    return result;
+  }
 };
 
 std::unique_ptr<Event> Event::CreateManualResetEvent(bool initial_state) {

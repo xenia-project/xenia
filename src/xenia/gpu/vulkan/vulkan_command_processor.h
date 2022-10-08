@@ -46,6 +46,9 @@ namespace gpu {
 namespace vulkan {
 
 class VulkanCommandProcessor final : public CommandProcessor {
+ protected:
+#include "../pm4_command_processor_declare.h"
+
  public:
   // Single-descriptor layouts for use within a single frame.
   enum class SingleTransientDescriptorLayout {
@@ -53,7 +56,6 @@ class VulkanCommandProcessor final : public CommandProcessor {
     kStorageBufferCompute,
     kCount,
   };
-#include "../pm4_command_processor_declare.h"
 
   class ScratchBufferAcquisition {
    public:

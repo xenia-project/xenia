@@ -46,10 +46,9 @@ class ObjectTable {
   // Restores a XObject reference with a handle. Mainly for internal use - do
   // not use.
   X_STATUS RestoreHandle(X_HANDLE handle, XObject* object);
-
   template <typename T>
-  object_ref<T> LookupObject(X_HANDLE handle) {
-    auto object = LookupObject(handle, false);
+  object_ref<T> LookupObject(X_HANDLE handle, bool already_locked = false) {
+    auto object = LookupObject(handle, already_locked);
     if (T::kObjectType == XObject::Type::Socket) {
       object = LookupObject((handle | 0xF8000000), false);
     }
@@ -110,7 +109,8 @@ class ObjectTable {
 
 // Generic lookup
 template <>
-object_ref<XObject> ObjectTable::LookupObject<XObject>(X_HANDLE handle);
+object_ref<XObject> ObjectTable::LookupObject<XObject>(
+    X_HANDLE handle, bool already_locked);
 
 }  // namespace util
 }  // namespace kernel

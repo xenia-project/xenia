@@ -9,23 +9,16 @@
 
 #include "xenia/gpu/command_processor.h"
 
-#include <algorithm>
 #include <cinttypes>
-#include <cmath>
-#include <cstring>
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/byte_stream.h"
-#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
-#include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
-#include "xenia/base/ring_buffer.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/gpu/sampler_info.h"
 #include "xenia/gpu/texture_info.h"
-#include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
 
@@ -46,11 +39,6 @@ CommandProcessor::CommandProcessor(GraphicsSystem* graphics_system,
       write_ptr_index_event_(xe::threading::Event::CreateAutoResetEvent(false)),
       write_ptr_index_(0) {
   assert_not_null(write_ptr_index_event_);
-#if 0
-  dmac_ = dma::CreateDMAC();
-#else
-  dmac_ = nullptr;
-#endif
 }
 
 CommandProcessor::~CommandProcessor() = default;
@@ -625,78 +613,6 @@ void CommandProcessor::PrepareForWait() { trace_writer_.Flush(); }
 
 void CommandProcessor::ReturnFromWait() {}
 
-uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index,
-                                                uint32_t write_index) {
-  SCOPE_profile_cpu_f("gpu");
-#if XE_ENABLE_TRACE_WRITER_INSTRUMENTATION == 1
-  // If we have a pending trace stream open it now. That way we ensure we get
-  // all commands.
-  if (!trace_writer_.is_open() && trace_state_ == TraceState::kStreaming) {
-    uint32_t title_id = kernel_state_->GetExecutableModule()
-                            ? kernel_state_->GetExecutableModule()->title_id()
-                            : 0;
-    auto file_name = fmt::format("{:08X}_stream.xtr", title_id);
-    auto path = trace_stream_path_ / file_name;
-    trace_writer_.Open(path, title_id);
-    InitializeTrace();
-  }
-#endif
-  // Adjust pointer base.
-  uint32_t start_ptr = primary_buffer_ptr_ + read_index * sizeof(uint32_t);
-  start_ptr = (primary_buffer_ptr_ & ~0x1FFFFFFF) | (start_ptr & 0x1FFFFFFF);
-  uint32_t end_ptr = primary_buffer_ptr_ + write_index * sizeof(uint32_t);
-  end_ptr = (primary_buffer_ptr_ & ~0x1FFFFFFF) | (end_ptr & 0x1FFFFFFF);
-
-  trace_writer_.WritePrimaryBufferStart(start_ptr, write_index - read_index);
-
-  // Execute commands!
-
-  RingBuffer old_reader = reader_;
-  new (&reader_) RingBuffer(memory_->TranslatePhysical(primary_buffer_ptr_),
-                            primary_buffer_size_);
-
-  reader_.set_read_offset(read_index * sizeof(uint32_t));
-  reader_.set_write_offset(write_index * sizeof(uint32_t));
-  // prefetch the wraparound range
-  // it likely is already in L3 cache, but in a zen system it may be another
-  // chiplets l3
-  reader_.BeginPrefetchedRead<swcache::PrefetchTag::Level2>(
-      GetCurrentRingReadCount());
-  do {
-    if (!ExecutePacket()) {
-      // This probably should be fatal - but we're going to continue anyways.
-      XELOGE("**** PRIMARY RINGBUFFER: Failed to execute packet.");
-      assert_always();
-      break;
-    }
-  } while (reader_.read_count());
-
-  OnPrimaryBufferEnd();
-
-  trace_writer_.WritePrimaryBufferEnd();
-
-  reader_ = old_reader;
-  return write_index;
-}
-
-void CommandProcessor::ExecutePacket(uint32_t ptr, uint32_t count) {
-  // Execute commands!
-  RingBuffer old_reader = reader_;
-
-  new (&reader_)
-      RingBuffer{memory_->TranslatePhysical(ptr), count * sizeof(uint32_t)};
-
-  reader_.set_write_offset(count * sizeof(uint32_t));
-
-  do {
-    if (!ExecutePacket()) {
-      XELOGE("**** ExecutePacket: Failed to execute packet.");
-      assert_always();
-      break;
-    }
-  } while (reader_.read_count());
-  reader_ = old_reader;
-}
 
 void CommandProcessor::InitializeTrace() {
   // Write the initial register values, to be loaded directly into the

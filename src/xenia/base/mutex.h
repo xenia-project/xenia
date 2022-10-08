@@ -133,6 +133,7 @@ using global_unique_lock_type = std::unique_lock<global_mutex_type>;
 // };
 class global_critical_region {
  public:
+  constexpr global_critical_region() {}
   static global_mutex_type& mutex();
 
   // Acquires a lock on the global critical section.
@@ -144,18 +145,18 @@ class global_critical_region {
   }
 
   // Acquires a lock on the global critical section.
-  inline global_unique_lock_type Acquire() {
+  static inline global_unique_lock_type Acquire() {
     return global_unique_lock_type(mutex());
   }
 
   // Acquires a deferred lock on the global critical section.
-  inline global_unique_lock_type AcquireDeferred() {
+  static inline global_unique_lock_type AcquireDeferred() {
     return global_unique_lock_type(mutex(), std::defer_lock);
   }
 
   // Tries to acquire a lock on the glboal critical section.
   // Check owns_lock() to see if the lock was successfully acquired.
-  inline global_unique_lock_type TryAcquire() {
+  static inline global_unique_lock_type TryAcquire() {
     return global_unique_lock_type(mutex(), std::try_to_lock);
   }
 };

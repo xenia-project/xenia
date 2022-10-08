@@ -11,7 +11,6 @@
 #define XENIA_GPU_SAMPLER_INFO_H_
 
 #include "xenia/gpu/shader.h"
-#include "xenia/gpu/xenos.h"
 
 namespace xe {
 namespace gpu {

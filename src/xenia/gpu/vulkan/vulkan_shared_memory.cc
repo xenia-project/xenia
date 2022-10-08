@@ -377,7 +377,7 @@ bool VulkanSharedMemory::AllocateSparseHostGpuMemoryRange(
 
 bool VulkanSharedMemory::UploadRanges(
     const std::pair<uint32_t, uint32_t>* upload_page_ranges,
-    unsigned num_upload_ranges) {
+    uint32_t num_upload_ranges) {
   if (!num_upload_ranges) {
     return true;
   }

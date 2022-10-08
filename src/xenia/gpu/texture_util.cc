@@ -8,13 +8,6 @@
  */
 
 #include "xenia/gpu/texture_util.h"
-
-#include <algorithm>
-#include <cstring>
-
-#include "xenia/base/assert.h"
-#include "xenia/base/math.h"
-
 namespace xe {
 namespace gpu {
 namespace texture_util {

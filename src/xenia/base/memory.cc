@@ -10,6 +10,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/platform.h"
+#include "xenia/base/logging.h"
 
 #if XE_ARCH_ARM64
 #include <arm_neon.h>
@@ -31,6 +32,180 @@ bool IsWritableExecutableMemoryPreferred() {
          cvars::writable_executable_memory;
 }
 
+using xe::swcache::CacheLine;
+
+static constexpr unsigned NUM_CACHELINES_IN_PAGE = 4096 / sizeof(CacheLine);
+
+#if defined(__clang__)
+XE_FORCEINLINE
+static void mvdir64b(void* to, const void* from) {
+  __asm__("movdir64b %1, %0" : : "r"(to), "m"(*(char*)from) : "memory");
+}
+#define _movdir64b mvdir64b
+#endif
+XE_FORCEINLINE
+static void XeCopy16384StreamingAVX(CacheLine* XE_RESTRICT to,
+                                    CacheLine* XE_RESTRICT from) {
+  uint32_t num_lines_for_8k = 4096 / XE_HOST_CACHE_LINE_SIZE;
+
+  CacheLine* dest1 = to;
+  CacheLine* src1 = from;
+
+  CacheLine* dest2 = to + NUM_CACHELINES_IN_PAGE;
+  CacheLine* src2 = from + NUM_CACHELINES_IN_PAGE;
+
+  CacheLine* dest3 = to + (NUM_CACHELINES_IN_PAGE * 2);
+  CacheLine* src3 = from + (NUM_CACHELINES_IN_PAGE * 2);
+
+  CacheLine* dest4 = to + (NUM_CACHELINES_IN_PAGE * 3);
+  CacheLine* src4 = from + (NUM_CACHELINES_IN_PAGE * 3);
+#pragma loop(no_vector)
+  for (uint32_t i = 0; i < num_lines_for_8k; ++i) {
+    xe::swcache::CacheLine line0, line1, line2, line3;
+
+    xe::swcache::ReadLine(&line0, src1 + i);
+    xe::swcache::ReadLine(&line1, src2 + i);
+    xe::swcache::ReadLine(&line2, src3 + i);
+    xe::swcache::ReadLine(&line3, src4 + i);
+    XE_MSVC_REORDER_BARRIER();
+    xe::swcache::WriteLineNT(dest1 + i, &line0);
+    xe::swcache::WriteLineNT(dest2 + i, &line1);
+
+    xe::swcache::WriteLineNT(dest3 + i, &line2);
+    xe::swcache::WriteLineNT(dest4 + i, &line3);
+  }
+  XE_MSVC_REORDER_BARRIER();
+}
+XE_FORCEINLINE
+static void XeCopy16384Movdir64M(CacheLine* XE_RESTRICT to,
+                                 CacheLine* XE_RESTRICT from) {
+  uint32_t num_lines_for_8k = 4096 / XE_HOST_CACHE_LINE_SIZE;
+
+  CacheLine* dest1 = to;
+  CacheLine* src1 = from;
+
+  CacheLine* dest2 = to + NUM_CACHELINES_IN_PAGE;
+  CacheLine* src2 = from + NUM_CACHELINES_IN_PAGE;
+
+  CacheLine* dest3 = to + (NUM_CACHELINES_IN_PAGE * 2);
+  CacheLine* src3 = from + (NUM_CACHELINES_IN_PAGE * 2);
+
+  CacheLine* dest4 = to + (NUM_CACHELINES_IN_PAGE * 3);
+  CacheLine* src4 = from + (NUM_CACHELINES_IN_PAGE * 3);
+#pragma loop(no_vector)
+  for (uint32_t i = 0; i < num_lines_for_8k; ++i) {
+    _movdir64b(dest1 + i, src1 + i);
+    _movdir64b(dest2 + i, src2 + i);
+    _movdir64b(dest3 + i, src3 + i);
+    _movdir64b(dest4 + i, src4 + i);
+  }
+  XE_MSVC_REORDER_BARRIER();
+}
+using VastCpyDispatch = void (*)(CacheLine* XE_RESTRICT physaddr,
+                                 CacheLine* XE_RESTRICT rdmapping,
+                                 uint32_t written_length);
+static void vastcpy_impl_avx(CacheLine* XE_RESTRICT physaddr,
+                             CacheLine* XE_RESTRICT rdmapping,
+                             uint32_t written_length) {
+  static constexpr unsigned NUM_LINES_FOR_16K = 16384 / XE_HOST_CACHE_LINE_SIZE;
+
+  while (written_length >= 16384) {
+    XeCopy16384StreamingAVX(physaddr, rdmapping);
+
+    physaddr += NUM_LINES_FOR_16K;
+    rdmapping += NUM_LINES_FOR_16K;
+
+    written_length -= 16384;
+  }
+
+  if (!written_length) {
+    return;
+  }
+  uint32_t num_written_lines = written_length / XE_HOST_CACHE_LINE_SIZE;
+
+  uint32_t i = 0;
+
+  for (; i + 1 < num_written_lines; i += 2) {
+    xe::swcache::CacheLine line0, line1;
+
+    xe::swcache::ReadLine(&line0, rdmapping + i);
+
+    xe::swcache::ReadLine(&line1, rdmapping + i + 1);
+    XE_MSVC_REORDER_BARRIER();
+    xe::swcache::WriteLineNT(physaddr + i, &line0);
+    xe::swcache::WriteLineNT(physaddr + i + 1, &line1);
+  }
+
+  if (i < num_written_lines) {
+    xe::swcache::CacheLine line0;
+
+    xe::swcache::ReadLine(&line0, rdmapping + i);
+    xe::swcache::WriteLineNT(physaddr + i, &line0);
+  }
+}
+
+static void vastcpy_impl_movdir64m(CacheLine* XE_RESTRICT physaddr,
+                                   CacheLine* XE_RESTRICT rdmapping,
+                                   uint32_t written_length) {
+  static constexpr unsigned NUM_LINES_FOR_16K = 16384 / XE_HOST_CACHE_LINE_SIZE;
+
+  while (written_length >= 16384) {
+    XeCopy16384Movdir64M(physaddr, rdmapping);
+
+    physaddr += NUM_LINES_FOR_16K;
+    rdmapping += NUM_LINES_FOR_16K;
+
+    written_length -= 16384;
+  }
+
+  if (!written_length) {
+    return;
+  }
+  uint32_t num_written_lines = written_length / XE_HOST_CACHE_LINE_SIZE;
+
+  uint32_t i = 0;
+
+  for (; i + 1 < num_written_lines; i += 2) {
+    _movdir64b(physaddr + i, rdmapping + i);
+    _movdir64b(physaddr + i + 1, rdmapping + i + 1);
+  }
+
+  if (i < num_written_lines) {
+    _movdir64b(physaddr + i, rdmapping + i);
+  }
+}
+
+XE_COLD
+static void first_vastcpy(CacheLine* XE_RESTRICT physaddr,
+                          CacheLine* XE_RESTRICT rdmapping,
+                          uint32_t written_length);
+
+static VastCpyDispatch vastcpy_dispatch = first_vastcpy;
+
+XE_COLD
+static void first_vastcpy(CacheLine* XE_RESTRICT physaddr,
+                          CacheLine* XE_RESTRICT rdmapping,
+                          uint32_t written_length) {
+  VastCpyDispatch dispatch_to_use = nullptr;
+  if (amd64::GetFeatureFlags() & amd64::kX64EmitMovdir64M) {
+    XELOGI("Selecting MOVDIR64M vastcpy.");
+    dispatch_to_use = vastcpy_impl_movdir64m;
+  } else {
+    XELOGI("Selecting generic AVX vastcpy.");
+    dispatch_to_use = vastcpy_impl_avx;
+  }
+
+  vastcpy_dispatch =
+      dispatch_to_use;  // all future calls will go through our selected path
+  return vastcpy_dispatch(physaddr, rdmapping, written_length);
+}
+
+XE_NOINLINE
+void vastcpy(uint8_t* XE_RESTRICT physaddr, uint8_t* XE_RESTRICT rdmapping,
+             uint32_t written_length) {
+  return vastcpy_dispatch((CacheLine*)physaddr, (CacheLine*)rdmapping,
+                          written_length);
+}
 }  // namespace memory
 
 // TODO(benvanik): fancy AVX versions.
