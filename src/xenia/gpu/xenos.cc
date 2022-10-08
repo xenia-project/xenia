@@ -9,10 +9,6 @@
 
 #include "xenia/gpu/xenos.h"
 
-#include <cmath>
-
-#include "xenia/base/math.h"
-
 namespace xe {
 namespace gpu {
 namespace xenos {

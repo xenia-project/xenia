@@ -192,10 +192,12 @@ class XObject {
 
   static object_ref<XObject> GetNativeObject(KernelState* kernel_state,
                                              void* native_ptr,
-                                             int32_t as_type = -1);
+                                             int32_t as_type = -1,
+                                             bool already_locked = false);
   template <typename T>
   static object_ref<T> GetNativeObject(KernelState* kernel_state,
-                                       void* native_ptr, int32_t as_type = -1);
+                                       void* native_ptr, int32_t as_type = -1,
+                                       bool already_locked = false);
 
  protected:
   bool SaveObject(ByteStream* stream);
@@ -362,9 +364,11 @@ object_ref<T> retain_object(T* ptr) {
 
 template <typename T>
 object_ref<T> XObject::GetNativeObject(KernelState* kernel_state,
-                                       void* native_ptr, int32_t as_type) {
+                                       void* native_ptr, int32_t as_type,
+                                       bool already_locked) {
   return object_ref<T>(reinterpret_cast<T*>(
-      GetNativeObject(kernel_state, native_ptr, as_type).release()));
+      GetNativeObject(kernel_state, native_ptr, as_type, already_locked)
+          .release()));
 }
 
 }  // namespace kernel

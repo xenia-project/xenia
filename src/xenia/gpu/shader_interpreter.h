@@ -14,12 +14,9 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "xenia/base/assert.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/shader.h"
 #include "xenia/gpu/trace_writer.h"
-#include "xenia/gpu/ucode.h"
-#include "xenia/gpu/xenos.h"
 #include "xenia/memory.h"
 
 namespace xe {

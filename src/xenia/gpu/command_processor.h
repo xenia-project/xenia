@@ -19,11 +19,8 @@
 #include <string>
 #include <vector>
 
-#include "xenia/base/dma.h"
 #include "xenia/base/ring_buffer.h"
-#include "xenia/base/threading.h"
 #include "xenia/gpu/register_file.h"
-#include "xenia/gpu/registers.h"
 #include "xenia/gpu/trace_writer.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/xthread.h"
@@ -82,7 +79,6 @@ class CommandProcessor {
   CommandProcessor(GraphicsSystem* graphics_system,
                    kernel::KernelState* kernel_state);
   virtual ~CommandProcessor();
-  dma::XeDMAC* GetDMAC() const { return dmac_; }
   uint32_t counter() const { return counter_; }
   void increment_counter() { counter_++; }
 
@@ -135,7 +131,7 @@ class CommandProcessor {
 
   void UpdateWritePointer(uint32_t value);
 
-  void ExecutePacket(uint32_t ptr, uint32_t count);
+  
 
   bool is_paused() const { return paused_; }
   void Pause();
@@ -172,7 +168,7 @@ class CommandProcessor {
                                           uint32_t num_registers);
 
   XE_NOINLINE
-  virtual void WriteOneRegisterFromRing(
+  void WriteOneRegisterFromRing(
       uint32_t base,
       uint32_t
           num_times);  // repeatedly write a value to one register, presumably a
@@ -221,7 +217,7 @@ class CommandProcessor {
   virtual void PrepareForWait();
   virtual void ReturnFromWait();
 
-  uint32_t ExecutePrimaryBuffer(uint32_t start_index, uint32_t end_index);
+  
   virtual void OnPrimaryBufferEnd() {}
 
 #include "pm4_command_processor_declare.h"
@@ -300,7 +296,6 @@ class CommandProcessor {
   reg::DC_LUT_30_COLOR gamma_ramp_256_entry_table_[256] = {};
   reg::DC_LUT_PWL_DATA gamma_ramp_pwl_rgb_[128][3] = {};
   uint32_t gamma_ramp_rw_component_ = 0;
-  dma::XeDMAC* dmac_ = nullptr;
 };
 
 }  // namespace gpu

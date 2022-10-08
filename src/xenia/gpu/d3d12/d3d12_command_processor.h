@@ -21,7 +21,6 @@
 #include <utility>
 
 #include "xenia/base/assert.h"
-#include "xenia/base/dma.h"
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/d3d12/d3d12_graphics_system.h"
 #include "xenia/gpu/d3d12/d3d12_primitive_processor.h"
@@ -50,8 +49,10 @@ struct MemExportRange {
   uint32_t size_dwords;
 };
 class D3D12CommandProcessor final : public CommandProcessor {
- public:
+ protected:
 #include "../pm4_command_processor_declare.h"
+
+ public:
   explicit D3D12CommandProcessor(D3D12GraphicsSystem* graphics_system,
                                  kernel::KernelState* kernel_state);
   ~D3D12CommandProcessor();
@@ -232,8 +233,8 @@ class D3D12CommandProcessor final : public CommandProcessor {
                                                  uint32_t base,
                                                  uint32_t num_registers);
   XE_NOINLINE
-  virtual void WriteOneRegisterFromRing(uint32_t base,
-                                        uint32_t num_times) override;
+  void WriteOneRegisterFromRing(uint32_t base,
+                                        uint32_t num_times);
 
   XE_FORCEINLINE
   void WriteALURangeFromRing(xe::RingBuffer* ring, uint32_t base,
@@ -677,7 +678,6 @@ class D3D12CommandProcessor final : public CommandProcessor {
 
   static constexpr uint32_t kReadbackBufferSizeIncrement = 16 * 1024 * 1024;
   ID3D12Resource* readback_buffer_ = nullptr;
-  dma::DMACJobHandle readback_available_ = 0;
   uint32_t readback_buffer_size_ = 0;
 
   std::atomic<bool> pix_capture_requested_ = false;

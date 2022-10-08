@@ -264,8 +264,9 @@ ObjectTable::ObjectTableEntry* ObjectTable::LookupTable(X_HANDLE handle) {
 
 // Generic lookup
 template <>
-object_ref<XObject> ObjectTable::LookupObject<XObject>(X_HANDLE handle) {
-  auto object = ObjectTable::LookupObject(handle, false);
+object_ref<XObject> ObjectTable::LookupObject<XObject>(
+    X_HANDLE handle, bool already_locked) {
+  auto object = ObjectTable::LookupObject(handle, already_locked);
   auto result = object_ref<XObject>(reinterpret_cast<XObject*>(object));
   return result;
 }

@@ -62,7 +62,9 @@ int XmaContext::Setup(uint32_t id, Memory* memory, uint32_t guest_ptr) {
   // Allocate ffmpeg stuff:
   av_packet_ = av_packet_alloc();
   assert_not_null(av_packet_);
-
+  //chrispy: preallocate this buffer so that ffmpeg isn't reallocating it for every packet, 
+  //these allocations were causing RtlSubsegmentInitialize
+  av_packet_->buf = av_buffer_alloc(128 * 1024);
   // find the XMA2 audio decoder
   av_codec_ = avcodec_find_decoder(AV_CODEC_ID_XMAFRAMES);
   if (!av_codec_) {
@@ -91,18 +93,20 @@ int XmaContext::Setup(uint32_t id, Memory* memory, uint32_t guest_ptr) {
 }
 
 bool XmaContext::Work() {
-  std::lock_guard<xe_mutex> lock(lock_);
-  if (!is_allocated() || !is_enabled()) {
+  
+  if (!is_enabled() || !is_allocated()) {
     return false;
   }
+  {
+    std::lock_guard<xe_mutex> lock(lock_);
+    set_is_enabled(false);
 
-  set_is_enabled(false);
-
-  auto context_ptr = memory()->TranslateVirtual(guest_ptr());
-  XMA_CONTEXT_DATA data(context_ptr);
-  Decode(&data);
-  data.Store(context_ptr);
-  return true;
+    auto context_ptr = memory()->TranslateVirtual(guest_ptr());
+    XMA_CONTEXT_DATA data(context_ptr);
+    Decode(&data);
+    data.Store(context_ptr);
+    return true;
+  }
 }
 
 void XmaContext::Enable() {

@@ -24,7 +24,6 @@
 #include "xenia/base/string_buffer.h"
 #include "xenia/gpu/registers.h"
 #include "xenia/gpu/ucode.h"
-#include "xenia/gpu/xenos.h"
 
 namespace xe {
 namespace gpu {

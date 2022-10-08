@@ -10,12 +10,6 @@
 #ifndef XENIA_GPU_SHARED_MEMORY_H_
 #define XENIA_GPU_SHARED_MEMORY_H_
 
-#include <cstdint>
-#include <mutex>
-#include <utility>
-#include <vector>
-
-#include "xenia/base/mutex.h"
 #include "xenia/memory.h"
 
 namespace xe {
@@ -141,7 +135,7 @@ class SharedMemory {
   // overall bounds of pages to be uploaded.
   virtual bool UploadRanges(
       const std::pair<uint32_t, uint32_t>* upload_page_ranges,
-      unsigned num_upload_ranges) = 0;
+      uint32_t num_upload_ranges) = 0;
 
   const std::vector<std::pair<uint32_t, uint32_t>>& trace_download_ranges() {
     return trace_download_ranges_;
@@ -183,14 +177,10 @@ class SharedMemory {
   FixedVMemVector<MAX_UPLOAD_RANGES * sizeof(std::pair<uint32_t, uint32_t>)>
       upload_ranges_;
 
-  // GPU-written memory downloading for traces. <Start address, length>.
-  std::vector<std::pair<uint32_t, uint32_t>> trace_download_ranges_;
-  uint32_t trace_download_page_count_ = 0;
-
   // Mutex between the guest memory subsystem and the command processor, to be
   // locked when checking or updating validity of pages/ranges and when firing
   // watches.
-  xe::global_critical_region global_critical_region_;
+  static constexpr xe::global_critical_region global_critical_region_{};
 
   // ***************************************************************************
   // Things below should be fully protected by global_critical_region.
@@ -266,6 +256,11 @@ class SharedMemory {
   uint32_t watch_node_current_pool_allocated_ = 0;
   WatchRange* watch_range_first_free_ = nullptr;
   WatchNode* watch_node_first_free_ = nullptr;
+
+  // GPU-written memory downloading for traces. <Start address, length>.
+  std::vector<std::pair<uint32_t, uint32_t>> trace_download_ranges_;
+  uint32_t trace_download_page_count_ = 0;
+
   // Triggers the watches (global and per-range), removing triggered range
   // watches.
   void FireWatches(uint32_t page_first, uint32_t page_last,

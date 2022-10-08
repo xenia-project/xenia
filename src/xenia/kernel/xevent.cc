@@ -71,7 +71,12 @@ int32_t XEvent::Reset() {
   event_->Reset();
   return 1;
 }
+void XEvent::Query(uint32_t* out_type, uint32_t* out_state) {
+  auto [type, state] = event_->Query();
 
+  *out_type = type;
+  *out_state = state;
+}
 void XEvent::Clear() { event_->Reset(); }
 
 bool XEvent::Save(ByteStream* stream) {

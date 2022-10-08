@@ -17,9 +17,9 @@
 #include <string>
 #include <string_view>
 
-#include "xenia/base/assert.h"
+
 #include "xenia/base/byte_order.h"
-#include "xenia/base/platform.h"
+
 
 namespace xe {
 namespace memory {
@@ -141,6 +141,10 @@ size_t hash_combine(size_t seed, const T& v, const Ts&... vs) {
   seed ^= hasher(v) + 0x9E3779B9 + (seed << 6) + (seed >> 2);
   return hash_combine(seed, vs...);
 }
+// must be divisible by cache line size
+XE_NOINLINE
+void vastcpy(uint8_t* XE_RESTRICT physaddr, uint8_t* XE_RESTRICT rdmapping,
+             uint32_t written_length);
 
 }  // namespace memory
 

@@ -13,13 +13,6 @@
 #include <cmath>
 #include <cstring>
 
-#include "xenia/base/assert.h"
-#include "xenia/base/byte_order.h"
-#include "xenia/base/math.h"
-#include "xenia/gpu/registers.h"
-#include "xenia/gpu/trace_writer.h"
-#include "xenia/gpu/xenos.h"
-
 namespace xe {
 namespace gpu {
 

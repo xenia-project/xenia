@@ -44,8 +44,18 @@ template <typename T>
 constexpr bool is_pow2(T value) {
   return (value & (value - 1)) == 0;
 }
+/*
+	Use this in place of the shift + and not sequence that is being used currently in bit iteration code. This is more efficient 
+	because it does not introduce a dependency on to the previous bit scanning operation. The shift and not sequence does get translated to a single instruction (the bit test and reset instruction),
+	but this code can be executed alongside the scan
+*/
+template<typename T>
+constexpr T clear_lowest_bit(T value) {
+  static_assert(std::is_integral_v<T>);
 
-// Rounds up the given value to the given alignment.
+  return (value - static_cast<T>(1)) & value;
+}
+    // Rounds up the given value to the given alignment.
 template <typename T>
 constexpr T align(T value, T alignment) {
   return (value + alignment - 1) & ~(alignment - 1);

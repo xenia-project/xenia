@@ -1,9 +1,14 @@
 
 
 void ExecuteIndirectBuffer(uint32_t ptr, uint32_t count) XE_RESTRICT;
-
+virtual uint32_t ExecutePrimaryBuffer(uint32_t start_index, uint32_t end_index) XE_RESTRICT;
 virtual bool ExecutePacket();
-XE_NOINLINE
+
+public:
+void ExecutePacket(uint32_t ptr, uint32_t count);
+
+protected:
+ XE_NOINLINE
 bool ExecutePacketType0( uint32_t packet) XE_RESTRICT;
 XE_NOINLINE
 bool ExecutePacketType1( uint32_t packet) XE_RESTRICT;
@@ -104,3 +109,6 @@ uint32_t GetCurrentRingReadCount();
 XE_NOINLINE
 XE_COLD
 bool ExecutePacketType3_CountOverflow(uint32_t count);
+XE_NOINLINE
+XE_COLD
+bool ExecutePacketType0_CountOverflow(uint32_t count);

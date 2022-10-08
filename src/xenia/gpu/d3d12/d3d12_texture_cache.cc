@@ -491,7 +491,7 @@ void D3D12TextureCache::RequestTextures(uint32_t used_texture_mask) {
   uint32_t textures_remaining = used_texture_mask;
   uint32_t index;
   while (xe::bit_scan_forward(textures_remaining, &index)) {
-    textures_remaining &= ~(uint32_t(1) << index);
+    textures_remaining = xe::clear_lowest_bit(textures_remaining);
     const TextureBinding* binding = GetValidTextureBinding(index);
     if (!binding) {
       continue;

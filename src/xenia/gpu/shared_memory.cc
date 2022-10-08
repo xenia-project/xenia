@@ -10,15 +10,11 @@
 #include "xenia/gpu/shared_memory.h"
 
 #include <algorithm>
-#include <utility>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/bit_range.h"
 #include "xenia/base/logging.h"
-#include "xenia/base/math.h"
-#include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
-#include "xenia/memory.h"
 
 namespace xe {
 namespace gpu {

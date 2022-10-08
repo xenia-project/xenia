@@ -15,6 +15,8 @@ project("glslang-spirv")
       "/Os",
       "/O1"
     })
+  filter {}
+
   files({
     "glslang/SPIRV/bitutils.h",
     "glslang/SPIRV/disassemble.cpp",

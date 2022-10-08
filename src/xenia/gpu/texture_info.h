@@ -13,7 +13,6 @@
 #include <array>
 #include <cstring>
 #include <memory>
-#include "xenia/base/assert.h"
 #include "xenia/gpu/xenos.h"
 
 namespace xe {

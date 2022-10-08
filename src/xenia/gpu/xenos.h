@@ -10,13 +10,10 @@
 #ifndef XENIA_GPU_XENOS_H_
 #define XENIA_GPU_XENOS_H_
 
-#include <algorithm>
 
-#include "xenia/base/assert.h"
-#include "xenia/base/byte_order.h"
-#include "xenia/base/math.h"
 #include "xenia/base/memory.h"
-#include "xenia/base/platform.h"
+#include "xenia/base/math.h"
+
 
 namespace xe {
 namespace gpu {

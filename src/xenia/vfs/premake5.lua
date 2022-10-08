@@ -16,6 +16,8 @@ project("xenia-vfs")
       "/Os",
       "/O1"
     })
+  filter {}
+
   recursive_platform_files()
   removefiles({"vfs_dump.cc"})
 

@@ -15,6 +15,7 @@ project("xenia-ui-d3d12")
       "/Os",
       "/O1"
     })
+  filter {}
   local_platform_files()
   files({
     "../shaders/bytecode/d3d12_5_1/*.h",

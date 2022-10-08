@@ -183,20 +183,13 @@ inline uint32_t RingBuffer::ReadAndSwap<uint32_t>() {
   xenia_assert(this->capacity_ >= 4);
 
   ring_size_t next_read_offset = read_offset + 4;
-#if 0
-  size_t zerotest = next_read_offset - this->capacity_;
-  // unpredictable branch, use bit arith instead
-  // todo: it would be faster to use lzcnt, but we need to figure out if all
-  // machines we support support it
-  next_read_offset &= -static_cast<ptrdiff_t>(!!zerotest);
-#else
+
   if (XE_UNLIKELY(next_read_offset == this->capacity_)) {
     next_read_offset = 0;
     // todo: maybe prefetch next? or should that happen much earlier?
   }
-#endif
   this->read_offset_ = next_read_offset;
-  unsigned int ring_value = *(uint32_t*)&this->buffer_[read_offset];
+  uint32_t ring_value = *(uint32_t*)&this->buffer_[read_offset];
   return xe::byte_swap(ring_value);
 }
 }  // namespace xe

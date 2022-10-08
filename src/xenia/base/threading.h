@@ -271,7 +271,10 @@ inline std::pair<WaitResult, size_t> WaitAny(
   return WaitAny(wait_handles.data(), wait_handles.size(), is_alertable,
                  timeout);
 }
-
+struct EventInfo {
+  uint32_t type;
+  uint32_t state;
+};
 // Models a Win32-like event object.
 // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682396(v=vs.85).aspx
 class Event : public WaitHandle {
@@ -299,6 +302,8 @@ class Event : public WaitHandle {
   // the nonsignaled state after releasing the appropriate number of waiting
   // threads.
   virtual void Pulse() = 0;
+	
+  virtual EventInfo Query() = 0;
   #if XE_PLATFORM_WIN32 ==1
   //SetEvent, but if there is a waiter we immediately transfer execution to it
   virtual void SetBoostPriority() = 0;

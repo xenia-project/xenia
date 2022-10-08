@@ -54,7 +54,15 @@ DECLARE_XBOXKRNL_EXPORT1(XAudioEnableDucker, kAudio, kStub);
 
 dword_result_t XAudioRegisterRenderDriverClient_entry(lpdword_t callback_ptr,
                                                       lpdword_t driver_ptr) {
+  if (!callback_ptr) {
+    return X_E_INVALIDARG;
+  }
+
   uint32_t callback = callback_ptr[0];
+
+  if (!callback) {
+    return X_E_INVALIDARG;
+  }
   uint32_t callback_arg = callback_ptr[1];
 
   auto audio_system = kernel_state()->emulator()->audio_system();

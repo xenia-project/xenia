@@ -16,6 +16,8 @@ project("capstone")
 		"/Os",
 		"/O1"
 	})
+  filter {}
+
   includedirs({
     "capstone",
     "capstone/include",

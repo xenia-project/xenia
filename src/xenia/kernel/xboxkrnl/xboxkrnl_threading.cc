@@ -515,7 +515,26 @@ dword_result_t NtPulseEvent_entry(dword_t handle,
 }
 DECLARE_XBOXKRNL_EXPORT2(NtPulseEvent, kThreading, kImplemented,
                          kHighFrequency);
+dword_result_t NtQueryEvent_entry(dword_t handle, lpdword_t out_struc) {
+  X_STATUS result = X_STATUS_SUCCESS;
 
+  auto ev = kernel_state()->object_table()->LookupObject<XEvent>(handle);
+  if (ev) {
+    uint32_t type_tmp, state_tmp;
+
+    ev->Query(&type_tmp, &state_tmp);
+
+    out_struc[0] = type_tmp;
+    out_struc[1] = state_tmp;
+
+  } else {
+    result = X_STATUS_INVALID_HANDLE;
+  }
+
+  return result;
+}
+DECLARE_XBOXKRNL_EXPORT2(NtQueryEvent, kThreading, kImplemented,
+                         kHighFrequency);
 uint32_t xeNtClearEvent(uint32_t handle) {
   X_STATUS result = X_STATUS_SUCCESS;
 
@@ -832,23 +851,25 @@ dword_result_t KeWaitForMultipleObjects_entry(
     lpqword_t timeout_ptr, lpvoid_t wait_block_array_ptr) {
   assert_true(wait_type <= 1);
 
-  std::vector<object_ref<XObject>> objects;
-  for (uint32_t n = 0; n < count; n++) {
-    auto object_ptr = kernel_memory()->TranslateVirtual(objects_ptr[n]);
-    auto object_ref =
-        XObject::GetNativeObject<XObject>(kernel_state(), object_ptr);
-    if (!object_ref) {
-      return X_STATUS_INVALID_PARAMETER;
+  assert_true(count <= 64);
+  object_ref<XObject> objects[64];
+  {
+    auto crit = global_critical_region::AcquireDirect();
+    for (uint32_t n = 0; n < count; n++) {
+      auto object_ptr = kernel_memory()->TranslateVirtual(objects_ptr[n]);
+      auto object_ref = XObject::GetNativeObject<XObject>(kernel_state(),
+                                                          object_ptr, -1, true);
+      if (!object_ref) {
+        return X_STATUS_INVALID_PARAMETER;
+      }
+
+      objects[n] = std::move(object_ref);
     }
-
-    objects.push_back(std::move(object_ref));
   }
-
   uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
-  return XObject::WaitMultiple(uint32_t(objects.size()),
-                               reinterpret_cast<XObject**>(objects.data()),
-                               wait_type, wait_reason, processor_mode,
-                               alertable, timeout_ptr ? &timeout : nullptr);
+  return XObject::WaitMultiple(
+      uint32_t(count), reinterpret_cast<XObject**>(&objects[0]), wait_type,
+      wait_reason, processor_mode, alertable, timeout_ptr ? &timeout : nullptr);
 }
 DECLARE_XBOXKRNL_EXPORT3(KeWaitForMultipleObjects, kThreading, kImplemented,
                          kBlocking, kHighFrequency);
@@ -859,19 +880,32 @@ uint32_t xeNtWaitForMultipleObjectsEx(uint32_t count, xe::be<uint32_t>* handles,
                                       uint64_t* timeout_ptr) {
   assert_true(wait_type <= 1);
 
-  std::vector<object_ref<XObject>> objects;
-  for (uint32_t n = 0; n < count; n++) {
-    uint32_t object_handle = handles[n];
-    auto object =
-        kernel_state()->object_table()->LookupObject<XObject>(object_handle);
-    if (!object) {
-      return X_STATUS_INVALID_PARAMETER;
+  assert_true(count <= 64);
+  object_ref<XObject> objects[64];
+
+  /*
+        Reserving to squash the constant reallocations, in a benchmark of one
+     particular game over a period of five minutes roughly 11% of CPU time was
+     spent inside a helper function to Windows' heap allocation function. 7% of
+     that time was traced back to here
+
+         edit: actually switched to fixed size array, as there can never be more
+     than 64 events specified
+  */
+  {
+    auto crit = global_critical_region::AcquireDirect();
+    for (uint32_t n = 0; n < count; n++) {
+      uint32_t object_handle = handles[n];
+      auto object = kernel_state()->object_table()->LookupObject<XObject>(
+          object_handle, true);
+      if (!object) {
+        return X_STATUS_INVALID_PARAMETER;
+      }
+      objects[n] = std::move(object);
     }
-    objects.push_back(std::move(object));
   }
 
-  return XObject::WaitMultiple(count,
-                               reinterpret_cast<XObject**>(objects.data()),
+  return XObject::WaitMultiple(count, reinterpret_cast<XObject**>(&objects[0]),
                                wait_type, 6, wait_mode, alertable, timeout_ptr);
 }
 
@@ -879,6 +913,9 @@ dword_result_t NtWaitForMultipleObjectsEx_entry(
     dword_t count, lpdword_t handles, dword_t wait_type, dword_t wait_mode,
     dword_t alertable, lpqword_t timeout_ptr) {
   uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
+  if (!count || count > 64 || wait_type != 1 && wait_type) {
+    return X_STATUS_INVALID_PARAMETER;
+  }
   return xeNtWaitForMultipleObjectsEx(count, handles, wait_type, wait_mode,
                                       alertable,
                                       timeout_ptr ? &timeout : nullptr);
@@ -892,11 +929,14 @@ dword_result_t NtSignalAndWaitForSingleObjectEx_entry(dword_t signal_handle,
                                                       dword_t r6,
                                                       lpqword_t timeout_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
+  // pre-lock for these two handle lookups
+  global_critical_region::mutex().lock();
 
-  auto signal_object =
-      kernel_state()->object_table()->LookupObject<XObject>(signal_handle);
+  auto signal_object = kernel_state()->object_table()->LookupObject<XObject>(
+      signal_handle, true);
   auto wait_object =
-      kernel_state()->object_table()->LookupObject<XObject>(wait_handle);
+      kernel_state()->object_table()->LookupObject<XObject>(wait_handle, true);
+  global_critical_region::mutex().unlock();
   if (signal_object && wait_object) {
     uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
     result =
