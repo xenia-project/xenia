@@ -13,6 +13,8 @@ project("fmt")
       "/Os",
       "/O1"
     })
+  filter {}
+
   includedirs({
     "fmt/include",
   })

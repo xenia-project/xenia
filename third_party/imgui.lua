@@ -16,6 +16,7 @@ project("imgui")
       "/Os",
       "/O1"
     })
+  filter{}
   files({
     "imgui/imconfig.h",
     "imgui/imgui.cpp",
