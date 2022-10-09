@@ -905,6 +905,11 @@ class PosixEvent : public PosixConditionHandle<Event> {
   ~PosixEvent() override = default;
   void Set() override { handle_.Signal(); }
   void Reset() override { handle_.Reset(); }
+  EventInfo Query() {
+	  EventInfo result{};
+	  assert_always();
+	  return result;
+  }
   void Pulse() override {
     using namespace std::chrono_literals;
     handle_.Signal();
