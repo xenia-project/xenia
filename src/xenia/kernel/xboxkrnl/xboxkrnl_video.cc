@@ -21,6 +21,8 @@
 #include "xenia/xbox.h"
 
 DEFINE_int32(internal_display_resolution, 8,
+             "Allow game that support different resolutions to be rendered "
+             "in specific resolution."
              "   0=640x480\n"
              "   1=640x576\n"
              "   2=720x480\n"
