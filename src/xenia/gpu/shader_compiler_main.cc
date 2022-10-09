@@ -54,9 +54,11 @@ DEFINE_string(
     "GPU");
 DEFINE_bool(shader_output_bindless_resources, false,
             "Output host shader with bindless resources used.", "GPU");
-DEFINE_bool(shader_output_dxbc_rov, false,
-            "Output ROV-based output-merger code in DXBC pixel shaders.",
-            "GPU");
+DEFINE_bool(
+    shader_output_pixel_shader_interlock, false,
+    "Output host shader with a render backend implementation based on pixel "
+    "shader interlock.",
+    "GPU");
 
 namespace xe {
 namespace gpu {
@@ -124,12 +126,15 @@ int shader_compiler_main(const std::vector<std::string>& args) {
   SpirvShaderTranslator::Features spirv_features(true);
   if (cvars::shader_output_type == "spirv" ||
       cvars::shader_output_type == "spirvtext") {
-    translator = std::make_unique<SpirvShaderTranslator>(spirv_features);
+    translator = std::make_unique<SpirvShaderTranslator>(
+        spirv_features, true, true,
+        cvars::shader_output_pixel_shader_interlock);
   } else if (cvars::shader_output_type == "dxbc" ||
              cvars::shader_output_type == "dxbctext") {
     translator = std::make_unique<DxbcShaderTranslator>(
         ui::GraphicsProvider::GpuVendorID(0),
-        cvars::shader_output_bindless_resources, cvars::shader_output_dxbc_rov);
+        cvars::shader_output_bindless_resources,
+        cvars::shader_output_pixel_shader_interlock);
   } else {
     // Just output microcode disassembly generated during microcode information
     // gathering.

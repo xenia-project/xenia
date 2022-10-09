@@ -67,9 +67,6 @@ const VkDescriptorPoolSize
         {VK_DESCRIPTOR_TYPE_SAMPLER, kLinkedTypeDescriptorPoolSetCount},
 };
 
-// No specific reason for 32768 descriptors, just the "too much" amount from
-// Direct3D 12 PIX warnings. 2x descriptors for textures because of unsigned and
-// signed bindings.
 VulkanCommandProcessor::VulkanCommandProcessor(
     VulkanGraphicsSystem* graphics_system, kernel::KernelState* kernel_state)
     : CommandProcessor(graphics_system, kernel_state),
@@ -105,6 +102,32 @@ void VulkanCommandProcessor::TracePlaybackWroteMemory(uint32_t base_ptr,
 }
 
 void VulkanCommandProcessor::RestoreEdramSnapshot(const void* snapshot) {}
+
+std::string VulkanCommandProcessor::GetWindowTitleText() const {
+  std::ostringstream title;
+  title << "Vulkan";
+  if (render_target_cache_) {
+    switch (render_target_cache_->GetPath()) {
+      case RenderTargetCache::Path::kHostRenderTargets:
+        title << " - FBO";
+        break;
+      case RenderTargetCache::Path::kPixelShaderInterlock:
+        title << " - FSI";
+        break;
+      default:
+        break;
+    }
+    uint32_t draw_resolution_scale_x =
+        texture_cache_ ? texture_cache_->draw_resolution_scale_x() : 1;
+    uint32_t draw_resolution_scale_y =
+        texture_cache_ ? texture_cache_->draw_resolution_scale_y() : 1;
+    if (draw_resolution_scale_x > 1 || draw_resolution_scale_y > 1) {
+      title << ' ' << draw_resolution_scale_x << 'x' << draw_resolution_scale_y;
+    }
+  }
+  title << " - HEAVILY INCOMPLETE, early development";
+  return title.str();
+}
 
 bool VulkanCommandProcessor::SetupContext() {
   if (!CommandProcessor::SetupContext()) {
@@ -146,7 +169,7 @@ bool VulkanCommandProcessor::SetupContext() {
                          size_t(16384)),
                 size_t(uniform_buffer_alignment)));
 
-  // Descriptor set layouts.
+  // Descriptor set layouts that don't depend on the setup of other subsystems.
   VkShaderStageFlags guest_shader_stages =
       guest_shader_vertex_stages_ | VK_SHADER_STAGE_FRAGMENT_BIT;
   // Empty.
@@ -161,37 +184,6 @@ bool VulkanCommandProcessor::SetupContext() {
           device, &descriptor_set_layout_create_info, nullptr,
           &descriptor_set_layout_empty_) != VK_SUCCESS) {
     XELOGE("Failed to create an empty Vulkan descriptor set layout");
-    return false;
-  }
-  // Shared memory and EDRAM.
-  uint32_t shared_memory_binding_count_log2 =
-      SpirvShaderTranslator::GetSharedMemoryStorageBufferCountLog2(
-          provider.device_properties().limits.maxStorageBufferRange);
-  uint32_t shared_memory_binding_count = UINT32_C(1)
-                                         << shared_memory_binding_count_log2;
-  VkDescriptorSetLayoutBinding
-      descriptor_set_layout_bindings_shared_memory_and_edram[1];
-  descriptor_set_layout_bindings_shared_memory_and_edram[0].binding = 0;
-  descriptor_set_layout_bindings_shared_memory_and_edram[0].descriptorType =
-      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-  descriptor_set_layout_bindings_shared_memory_and_edram[0].descriptorCount =
-      shared_memory_binding_count;
-  descriptor_set_layout_bindings_shared_memory_and_edram[0].stageFlags =
-      guest_shader_stages;
-  descriptor_set_layout_bindings_shared_memory_and_edram[0].pImmutableSamplers =
-      nullptr;
-  // TODO(Triang3l): EDRAM storage image binding for the fragment shader
-  // interlocks case.
-  descriptor_set_layout_create_info.bindingCount = uint32_t(
-      xe::countof(descriptor_set_layout_bindings_shared_memory_and_edram));
-  descriptor_set_layout_create_info.pBindings =
-      descriptor_set_layout_bindings_shared_memory_and_edram;
-  if (dfn.vkCreateDescriptorSetLayout(
-          device, &descriptor_set_layout_create_info, nullptr,
-          &descriptor_set_layout_shared_memory_and_edram_) != VK_SUCCESS) {
-    XELOGE(
-        "Failed to create a Vulkan descriptor set layout for the shared memory "
-        "and the EDRAM");
     return false;
   }
   // Guest draw constants.
@@ -289,13 +281,67 @@ bool VulkanCommandProcessor::SetupContext() {
     return false;
   }
 
+  uint32_t shared_memory_binding_count_log2 =
+      SpirvShaderTranslator::GetSharedMemoryStorageBufferCountLog2(
+          provider.device_properties().limits.maxStorageBufferRange);
+  uint32_t shared_memory_binding_count = UINT32_C(1)
+                                         << shared_memory_binding_count_log2;
+
   // Requires the transient descriptor set layouts.
   // TODO(Triang3l): Get the actual draw resolution scale when the texture cache
   // supports resolution scaling.
   render_target_cache_ = std::make_unique<VulkanRenderTargetCache>(
       *register_file_, *memory_, trace_writer_, 1, 1, *this);
-  if (!render_target_cache_->Initialize()) {
+  if (!render_target_cache_->Initialize(shared_memory_binding_count)) {
     XELOGE("Failed to initialize the render target cache");
+    return false;
+  }
+
+  // Shared memory and EDRAM descriptor set layout.
+  bool edram_fragment_shader_interlock =
+      render_target_cache_->GetPath() ==
+      RenderTargetCache::Path::kPixelShaderInterlock;
+  VkDescriptorSetLayoutBinding
+      shared_memory_and_edram_descriptor_set_layout_bindings[2];
+  shared_memory_and_edram_descriptor_set_layout_bindings[0].binding = 0;
+  shared_memory_and_edram_descriptor_set_layout_bindings[0].descriptorType =
+      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+  shared_memory_and_edram_descriptor_set_layout_bindings[0].descriptorCount =
+      shared_memory_binding_count;
+  shared_memory_and_edram_descriptor_set_layout_bindings[0].stageFlags =
+      guest_shader_stages;
+  shared_memory_and_edram_descriptor_set_layout_bindings[0].pImmutableSamplers =
+      nullptr;
+  VkDescriptorSetLayoutCreateInfo
+      shared_memory_and_edram_descriptor_set_layout_create_info;
+  shared_memory_and_edram_descriptor_set_layout_create_info.sType =
+      VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+  shared_memory_and_edram_descriptor_set_layout_create_info.pNext = nullptr;
+  shared_memory_and_edram_descriptor_set_layout_create_info.flags = 0;
+  shared_memory_and_edram_descriptor_set_layout_create_info.pBindings =
+      shared_memory_and_edram_descriptor_set_layout_bindings;
+  if (edram_fragment_shader_interlock) {
+    // EDRAM.
+    shared_memory_and_edram_descriptor_set_layout_bindings[1].binding = 1;
+    shared_memory_and_edram_descriptor_set_layout_bindings[1].descriptorType =
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    shared_memory_and_edram_descriptor_set_layout_bindings[1].descriptorCount =
+        1;
+    shared_memory_and_edram_descriptor_set_layout_bindings[1].stageFlags =
+        VK_SHADER_STAGE_FRAGMENT_BIT;
+    shared_memory_and_edram_descriptor_set_layout_bindings[1]
+        .pImmutableSamplers = nullptr;
+    shared_memory_and_edram_descriptor_set_layout_create_info.bindingCount = 2;
+  } else {
+    shared_memory_and_edram_descriptor_set_layout_create_info.bindingCount = 1;
+  }
+  if (dfn.vkCreateDescriptorSetLayout(
+          device, &shared_memory_and_edram_descriptor_set_layout_create_info,
+          nullptr,
+          &descriptor_set_layout_shared_memory_and_edram_) != VK_SUCCESS) {
+    XELOGE(
+        "Failed to create a Vulkan descriptor set layout for the shared memory "
+        "and the EDRAM");
     return false;
   }
 
@@ -320,9 +366,8 @@ bool VulkanCommandProcessor::SetupContext() {
   // Shared memory and EDRAM common bindings.
   VkDescriptorPoolSize descriptor_pool_sizes[1];
   descriptor_pool_sizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-  descriptor_pool_sizes[0].descriptorCount = shared_memory_binding_count;
-  // TODO(Triang3l): EDRAM storage image binding for the fragment shader
-  // interlocks case.
+  descriptor_pool_sizes[0].descriptorCount =
+      shared_memory_binding_count + uint32_t(edram_fragment_shader_interlock);
   VkDescriptorPoolCreateInfo descriptor_pool_create_info;
   descriptor_pool_create_info.sType =
       VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -369,20 +414,45 @@ bool VulkanCommandProcessor::SetupContext() {
         shared_memory_binding_range * i;
     shared_memory_descriptor_buffer_info.range = shared_memory_binding_range;
   }
-  VkWriteDescriptorSet write_descriptor_sets[1];
-  write_descriptor_sets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-  write_descriptor_sets[0].pNext = nullptr;
-  write_descriptor_sets[0].dstSet = shared_memory_and_edram_descriptor_set_;
-  write_descriptor_sets[0].dstBinding = 0;
-  write_descriptor_sets[0].dstArrayElement = 0;
-  write_descriptor_sets[0].descriptorCount = shared_memory_binding_count;
-  write_descriptor_sets[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-  write_descriptor_sets[0].pImageInfo = nullptr;
-  write_descriptor_sets[0].pBufferInfo = shared_memory_descriptor_buffers_info;
-  write_descriptor_sets[0].pTexelBufferView = nullptr;
-  // TODO(Triang3l): EDRAM storage image binding for the fragment shader
-  // interlocks case.
-  dfn.vkUpdateDescriptorSets(device, 1, write_descriptor_sets, 0, nullptr);
+  VkWriteDescriptorSet write_descriptor_sets[2];
+  VkWriteDescriptorSet& write_descriptor_set_shared_memory =
+      write_descriptor_sets[0];
+  write_descriptor_set_shared_memory.sType =
+      VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  write_descriptor_set_shared_memory.pNext = nullptr;
+  write_descriptor_set_shared_memory.dstSet =
+      shared_memory_and_edram_descriptor_set_;
+  write_descriptor_set_shared_memory.dstBinding = 0;
+  write_descriptor_set_shared_memory.dstArrayElement = 0;
+  write_descriptor_set_shared_memory.descriptorCount =
+      shared_memory_binding_count;
+  write_descriptor_set_shared_memory.descriptorType =
+      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+  write_descriptor_set_shared_memory.pImageInfo = nullptr;
+  write_descriptor_set_shared_memory.pBufferInfo =
+      shared_memory_descriptor_buffers_info;
+  write_descriptor_set_shared_memory.pTexelBufferView = nullptr;
+  VkDescriptorBufferInfo edram_descriptor_buffer_info;
+  if (edram_fragment_shader_interlock) {
+    edram_descriptor_buffer_info.buffer = render_target_cache_->edram_buffer();
+    edram_descriptor_buffer_info.offset = 0;
+    edram_descriptor_buffer_info.range = VK_WHOLE_SIZE;
+    VkWriteDescriptorSet& write_descriptor_set_edram = write_descriptor_sets[1];
+    write_descriptor_set_edram.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_descriptor_set_edram.pNext = nullptr;
+    write_descriptor_set_edram.dstSet = shared_memory_and_edram_descriptor_set_;
+    write_descriptor_set_edram.dstBinding = 1;
+    write_descriptor_set_edram.dstArrayElement = 0;
+    write_descriptor_set_edram.descriptorCount = 1;
+    write_descriptor_set_edram.descriptorType =
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    write_descriptor_set_edram.pImageInfo = nullptr;
+    write_descriptor_set_edram.pBufferInfo = &edram_descriptor_buffer_info;
+    write_descriptor_set_edram.pTexelBufferView = nullptr;
+  }
+  dfn.vkUpdateDescriptorSets(device,
+                             1 + uint32_t(edram_fragment_shader_interlock),
+                             write_descriptor_sets, 0, nullptr);
 
   // Swap objects.
 
@@ -1041,6 +1111,9 @@ void VulkanCommandProcessor::ShutdownContext() {
   }
   descriptor_set_layouts_textures_.clear();
 
+  ui::vulkan::util::DestroyAndNullHandle(
+      dfn.vkDestroyDescriptorSetLayout, device,
+      descriptor_set_layout_shared_memory_and_edram_);
   for (VkDescriptorSetLayout& descriptor_set_layout_single_transient :
        descriptor_set_layouts_single_transient_) {
     ui::vulkan::util::DestroyAndNullHandle(
@@ -1050,9 +1123,6 @@ void VulkanCommandProcessor::ShutdownContext() {
   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout,
                                          device,
                                          descriptor_set_layout_constants_);
-  ui::vulkan::util::DestroyAndNullHandle(
-      dfn.vkDestroyDescriptorSetLayout, device,
-      descriptor_set_layout_shared_memory_and_edram_);
   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyDescriptorSetLayout,
                                          device, descriptor_set_layout_empty_);
 
@@ -2401,7 +2471,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // Update system constants before uploading them.
   UpdateSystemConstantValues(primitive_polygonal, primitive_processing_result,
                              shader_32bit_index_dma, viewport_info,
-                             used_texture_mask);
+                             used_texture_mask, normalized_depth_control,
+                             normalized_color_mask);
 
   // Update uniform buffers and descriptor sets after binding the pipeline with
   // the new layout.
@@ -2461,6 +2532,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // After all commands that may dispatch, copy or insert barriers, submit the
   // barriers (may end the render pass), and (re)enter the render pass before
   // drawing.
+  // TODO(Triang3l): Handle disabled variableMultisampleRate by restarting the
+  // render pass with no attachments if the sample count becomes different.
   SubmitBarriersAndEnterRenderTargetCacheRenderPass(
       render_target_cache_->last_update_render_pass(),
       render_target_cache_->last_update_framebuffer());
@@ -3180,175 +3253,180 @@ void VulkanCommandProcessor::UpdateDynamicState(
   scissor_rect.extent.height = scissor.extent[1];
   SetScissor(scissor_rect);
 
-  // Depth bias.
-  // TODO(Triang3l): Disable the depth bias for the fragment shader interlock RB
-  // implementation.
-  float depth_bias_constant_factor, depth_bias_slope_factor;
-  draw_util::GetPreferredFacePolygonOffset(regs, primitive_polygonal,
-                                           depth_bias_slope_factor,
-                                           depth_bias_constant_factor);
-  depth_bias_constant_factor *=
-      regs.Get<reg::RB_DEPTH_INFO>().depth_format ==
-              xenos::DepthRenderTargetFormat::kD24S8
-          ? draw_util::kD3D10PolygonOffsetFactorUnorm24
-          : draw_util::kD3D10PolygonOffsetFactorFloat24;
-  // With non-square resolution scaling, make sure the worst-case impact is
-  // reverted (slope only along the scaled axis), thus max. More bias is better
-  // than less bias, because less bias means Z fighting with the background is
-  // more likely.
-  depth_bias_slope_factor *=
-      xenos::kPolygonOffsetScaleSubpixelUnit *
-      float(std::max(render_target_cache_->draw_resolution_scale_x(),
-                     render_target_cache_->draw_resolution_scale_y()));
-  // std::memcmp instead of != so in case of NaN, every draw won't be
-  // invalidating it.
-  dynamic_depth_bias_update_needed_ |=
-      std::memcmp(&dynamic_depth_bias_constant_factor_,
-                  &depth_bias_constant_factor, sizeof(float)) != 0;
-  dynamic_depth_bias_update_needed_ |=
-      std::memcmp(&dynamic_depth_bias_slope_factor_, &depth_bias_slope_factor,
-                  sizeof(float)) != 0;
-  if (dynamic_depth_bias_update_needed_) {
-    dynamic_depth_bias_constant_factor_ = depth_bias_constant_factor;
-    dynamic_depth_bias_slope_factor_ = depth_bias_slope_factor;
-    deferred_command_buffer_.CmdVkSetDepthBias(
-        dynamic_depth_bias_constant_factor_, 0.0f,
-        dynamic_depth_bias_slope_factor_);
-    dynamic_depth_bias_update_needed_ = false;
-  }
+  if (render_target_cache_->GetPath() ==
+      RenderTargetCache::Path::kHostRenderTargets) {
+    // Depth bias.
+    float depth_bias_constant_factor, depth_bias_slope_factor;
+    draw_util::GetPreferredFacePolygonOffset(regs, primitive_polygonal,
+                                             depth_bias_slope_factor,
+                                             depth_bias_constant_factor);
+    depth_bias_constant_factor *=
+        regs.Get<reg::RB_DEPTH_INFO>().depth_format ==
+                xenos::DepthRenderTargetFormat::kD24S8
+            ? draw_util::kD3D10PolygonOffsetFactorUnorm24
+            : draw_util::kD3D10PolygonOffsetFactorFloat24;
+    // With non-square resolution scaling, make sure the worst-case impact is
+    // reverted (slope only along the scaled axis), thus max. More bias is
+    // better than less bias, because less bias means Z fighting with the
+    // background is more likely.
+    depth_bias_slope_factor *=
+        xenos::kPolygonOffsetScaleSubpixelUnit *
+        float(std::max(render_target_cache_->draw_resolution_scale_x(),
+                       render_target_cache_->draw_resolution_scale_y()));
+    // std::memcmp instead of != so in case of NaN, every draw won't be
+    // invalidating it.
+    dynamic_depth_bias_update_needed_ |=
+        std::memcmp(&dynamic_depth_bias_constant_factor_,
+                    &depth_bias_constant_factor, sizeof(float)) != 0;
+    dynamic_depth_bias_update_needed_ |=
+        std::memcmp(&dynamic_depth_bias_slope_factor_, &depth_bias_slope_factor,
+                    sizeof(float)) != 0;
+    if (dynamic_depth_bias_update_needed_) {
+      dynamic_depth_bias_constant_factor_ = depth_bias_constant_factor;
+      dynamic_depth_bias_slope_factor_ = depth_bias_slope_factor;
+      deferred_command_buffer_.CmdVkSetDepthBias(
+          dynamic_depth_bias_constant_factor_, 0.0f,
+          dynamic_depth_bias_slope_factor_);
+      dynamic_depth_bias_update_needed_ = false;
+    }
 
-  // Blend constants.
-  float blend_constants[] = {
-      regs[XE_GPU_REG_RB_BLEND_RED].f32,
-      regs[XE_GPU_REG_RB_BLEND_GREEN].f32,
-      regs[XE_GPU_REG_RB_BLEND_BLUE].f32,
-      regs[XE_GPU_REG_RB_BLEND_ALPHA].f32,
-  };
-  dynamic_blend_constants_update_needed_ |=
-      std::memcmp(dynamic_blend_constants_, blend_constants,
-                  sizeof(float) * 4) != 0;
-  if (dynamic_blend_constants_update_needed_) {
-    std::memcpy(dynamic_blend_constants_, blend_constants, sizeof(float) * 4);
-    deferred_command_buffer_.CmdVkSetBlendConstants(dynamic_blend_constants_);
-    dynamic_blend_constants_update_needed_ = false;
-  }
+    // Blend constants.
+    float blend_constants[] = {
+        regs[XE_GPU_REG_RB_BLEND_RED].f32,
+        regs[XE_GPU_REG_RB_BLEND_GREEN].f32,
+        regs[XE_GPU_REG_RB_BLEND_BLUE].f32,
+        regs[XE_GPU_REG_RB_BLEND_ALPHA].f32,
+    };
+    dynamic_blend_constants_update_needed_ |=
+        std::memcmp(dynamic_blend_constants_, blend_constants,
+                    sizeof(float) * 4) != 0;
+    if (dynamic_blend_constants_update_needed_) {
+      std::memcpy(dynamic_blend_constants_, blend_constants, sizeof(float) * 4);
+      deferred_command_buffer_.CmdVkSetBlendConstants(dynamic_blend_constants_);
+      dynamic_blend_constants_update_needed_ = false;
+    }
 
-  // Stencil masks and references.
-  // Due to pretty complex conditions involving registers not directly related
-  // to stencil (primitive type, culling), changing the values only when stencil
-  // is actually needed. However, due to the way dynamic state needs to be set
-  // in Vulkan, which doesn't take into account whether the state actually has
-  // effect on drawing, and because the masks and the references are always
-  // dynamic in Xenia guest pipelines, they must be set in the command buffer
-  // before any draw.
-  if (normalized_depth_control.stencil_enable) {
-    Register stencil_ref_mask_front_reg, stencil_ref_mask_back_reg;
-    if (primitive_polygonal && normalized_depth_control.backface_enable) {
-      const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
-      const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
-          device_portability_subset_features =
-              provider.device_portability_subset_features();
-      if (!device_portability_subset_features ||
-          device_portability_subset_features->separateStencilMaskRef) {
-        // Choose the back face values only if drawing only back faces.
-        stencil_ref_mask_front_reg =
-            regs.Get<reg::PA_SU_SC_MODE_CNTL>().cull_front
-                ? XE_GPU_REG_RB_STENCILREFMASK_BF
-                : XE_GPU_REG_RB_STENCILREFMASK;
-        stencil_ref_mask_back_reg = stencil_ref_mask_front_reg;
+    // Stencil masks and references.
+    // Due to pretty complex conditions involving registers not directly related
+    // to stencil (primitive type, culling), changing the values only when
+    // stencil is actually needed. However, due to the way dynamic state needs
+    // to be set in Vulkan, which doesn't take into account whether the state
+    // actually has effect on drawing, and because the masks and the references
+    // are always dynamic in Xenia guest pipelines, they must be set in the
+    // command buffer before any draw.
+    if (normalized_depth_control.stencil_enable) {
+      Register stencil_ref_mask_front_reg, stencil_ref_mask_back_reg;
+      if (primitive_polygonal && normalized_depth_control.backface_enable) {
+        const ui::vulkan::VulkanProvider& provider = GetVulkanProvider();
+        const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
+            device_portability_subset_features =
+                provider.device_portability_subset_features();
+        if (!device_portability_subset_features ||
+            device_portability_subset_features->separateStencilMaskRef) {
+          // Choose the back face values only if drawing only back faces.
+          stencil_ref_mask_front_reg =
+              regs.Get<reg::PA_SU_SC_MODE_CNTL>().cull_front
+                  ? XE_GPU_REG_RB_STENCILREFMASK_BF
+                  : XE_GPU_REG_RB_STENCILREFMASK;
+          stencil_ref_mask_back_reg = stencil_ref_mask_front_reg;
+        } else {
+          stencil_ref_mask_front_reg = XE_GPU_REG_RB_STENCILREFMASK;
+          stencil_ref_mask_back_reg = XE_GPU_REG_RB_STENCILREFMASK_BF;
+        }
       } else {
         stencil_ref_mask_front_reg = XE_GPU_REG_RB_STENCILREFMASK;
-        stencil_ref_mask_back_reg = XE_GPU_REG_RB_STENCILREFMASK_BF;
+        stencil_ref_mask_back_reg = XE_GPU_REG_RB_STENCILREFMASK;
       }
-    } else {
-      stencil_ref_mask_front_reg = XE_GPU_REG_RB_STENCILREFMASK;
-      stencil_ref_mask_back_reg = XE_GPU_REG_RB_STENCILREFMASK;
+      auto stencil_ref_mask_front =
+          regs.Get<reg::RB_STENCILREFMASK>(stencil_ref_mask_front_reg);
+      auto stencil_ref_mask_back =
+          regs.Get<reg::RB_STENCILREFMASK>(stencil_ref_mask_back_reg);
+      // Compare mask.
+      dynamic_stencil_compare_mask_front_update_needed_ |=
+          dynamic_stencil_compare_mask_front_ !=
+          stencil_ref_mask_front.stencilmask;
+      dynamic_stencil_compare_mask_front_ = stencil_ref_mask_front.stencilmask;
+      dynamic_stencil_compare_mask_back_update_needed_ |=
+          dynamic_stencil_compare_mask_back_ !=
+          stencil_ref_mask_back.stencilmask;
+      dynamic_stencil_compare_mask_back_ = stencil_ref_mask_back.stencilmask;
+      // Write mask.
+      dynamic_stencil_write_mask_front_update_needed_ |=
+          dynamic_stencil_write_mask_front_ !=
+          stencil_ref_mask_front.stencilwritemask;
+      dynamic_stencil_write_mask_front_ =
+          stencil_ref_mask_front.stencilwritemask;
+      dynamic_stencil_write_mask_back_update_needed_ |=
+          dynamic_stencil_write_mask_back_ !=
+          stencil_ref_mask_back.stencilwritemask;
+      dynamic_stencil_write_mask_back_ = stencil_ref_mask_back.stencilwritemask;
+      // Reference.
+      dynamic_stencil_reference_front_update_needed_ |=
+          dynamic_stencil_reference_front_ != stencil_ref_mask_front.stencilref;
+      dynamic_stencil_reference_front_ = stencil_ref_mask_front.stencilref;
+      dynamic_stencil_reference_back_update_needed_ |=
+          dynamic_stencil_reference_back_ != stencil_ref_mask_back.stencilref;
+      dynamic_stencil_reference_back_ = stencil_ref_mask_back.stencilref;
     }
-    auto stencil_ref_mask_front =
-        regs.Get<reg::RB_STENCILREFMASK>(stencil_ref_mask_front_reg);
-    auto stencil_ref_mask_back =
-        regs.Get<reg::RB_STENCILREFMASK>(stencil_ref_mask_back_reg);
-    // Compare mask.
-    dynamic_stencil_compare_mask_front_update_needed_ |=
-        dynamic_stencil_compare_mask_front_ !=
-        stencil_ref_mask_front.stencilmask;
-    dynamic_stencil_compare_mask_front_ = stencil_ref_mask_front.stencilmask;
-    dynamic_stencil_compare_mask_back_update_needed_ |=
-        dynamic_stencil_compare_mask_back_ != stencil_ref_mask_back.stencilmask;
-    dynamic_stencil_compare_mask_back_ = stencil_ref_mask_back.stencilmask;
-    // Write mask.
-    dynamic_stencil_write_mask_front_update_needed_ |=
-        dynamic_stencil_write_mask_front_ !=
-        stencil_ref_mask_front.stencilwritemask;
-    dynamic_stencil_write_mask_front_ = stencil_ref_mask_front.stencilwritemask;
-    dynamic_stencil_write_mask_back_update_needed_ |=
-        dynamic_stencil_write_mask_back_ !=
-        stencil_ref_mask_back.stencilwritemask;
-    dynamic_stencil_write_mask_back_ = stencil_ref_mask_back.stencilwritemask;
-    // Reference.
-    dynamic_stencil_reference_front_update_needed_ |=
-        dynamic_stencil_reference_front_ != stencil_ref_mask_front.stencilref;
-    dynamic_stencil_reference_front_ = stencil_ref_mask_front.stencilref;
-    dynamic_stencil_reference_back_update_needed_ |=
-        dynamic_stencil_reference_back_ != stencil_ref_mask_back.stencilref;
-    dynamic_stencil_reference_back_ = stencil_ref_mask_back.stencilref;
-  }
-  // Using VK_STENCIL_FACE_FRONT_AND_BACK for higher safety when running on the
-  // Vulkan portability subset without separateStencilMaskRef.
-  if (dynamic_stencil_compare_mask_front_update_needed_ ||
-      dynamic_stencil_compare_mask_back_update_needed_) {
-    if (dynamic_stencil_compare_mask_front_ ==
-        dynamic_stencil_compare_mask_back_) {
-      deferred_command_buffer_.CmdVkSetStencilCompareMask(
-          VK_STENCIL_FACE_FRONT_AND_BACK, dynamic_stencil_compare_mask_front_);
-    } else {
-      if (dynamic_stencil_compare_mask_front_update_needed_) {
+    // Using VK_STENCIL_FACE_FRONT_AND_BACK for higher safety when running on
+    // the Vulkan portability subset without separateStencilMaskRef.
+    if (dynamic_stencil_compare_mask_front_update_needed_ ||
+        dynamic_stencil_compare_mask_back_update_needed_) {
+      if (dynamic_stencil_compare_mask_front_ ==
+          dynamic_stencil_compare_mask_back_) {
         deferred_command_buffer_.CmdVkSetStencilCompareMask(
-            VK_STENCIL_FACE_FRONT_BIT, dynamic_stencil_compare_mask_front_);
+            VK_STENCIL_FACE_FRONT_AND_BACK,
+            dynamic_stencil_compare_mask_front_);
+      } else {
+        if (dynamic_stencil_compare_mask_front_update_needed_) {
+          deferred_command_buffer_.CmdVkSetStencilCompareMask(
+              VK_STENCIL_FACE_FRONT_BIT, dynamic_stencil_compare_mask_front_);
+        }
+        if (dynamic_stencil_compare_mask_back_update_needed_) {
+          deferred_command_buffer_.CmdVkSetStencilCompareMask(
+              VK_STENCIL_FACE_BACK_BIT, dynamic_stencil_compare_mask_back_);
+        }
       }
-      if (dynamic_stencil_compare_mask_back_update_needed_) {
-        deferred_command_buffer_.CmdVkSetStencilCompareMask(
-            VK_STENCIL_FACE_BACK_BIT, dynamic_stencil_compare_mask_back_);
-      }
+      dynamic_stencil_compare_mask_front_update_needed_ = false;
+      dynamic_stencil_compare_mask_back_update_needed_ = false;
     }
-    dynamic_stencil_compare_mask_front_update_needed_ = false;
-    dynamic_stencil_compare_mask_back_update_needed_ = false;
-  }
-  if (dynamic_stencil_write_mask_front_update_needed_ ||
-      dynamic_stencil_write_mask_back_update_needed_) {
-    if (dynamic_stencil_write_mask_front_ == dynamic_stencil_write_mask_back_) {
-      deferred_command_buffer_.CmdVkSetStencilWriteMask(
-          VK_STENCIL_FACE_FRONT_AND_BACK, dynamic_stencil_write_mask_front_);
-    } else {
-      if (dynamic_stencil_write_mask_front_update_needed_) {
+    if (dynamic_stencil_write_mask_front_update_needed_ ||
+        dynamic_stencil_write_mask_back_update_needed_) {
+      if (dynamic_stencil_write_mask_front_ ==
+          dynamic_stencil_write_mask_back_) {
         deferred_command_buffer_.CmdVkSetStencilWriteMask(
-            VK_STENCIL_FACE_FRONT_BIT, dynamic_stencil_write_mask_front_);
+            VK_STENCIL_FACE_FRONT_AND_BACK, dynamic_stencil_write_mask_front_);
+      } else {
+        if (dynamic_stencil_write_mask_front_update_needed_) {
+          deferred_command_buffer_.CmdVkSetStencilWriteMask(
+              VK_STENCIL_FACE_FRONT_BIT, dynamic_stencil_write_mask_front_);
+        }
+        if (dynamic_stencil_write_mask_back_update_needed_) {
+          deferred_command_buffer_.CmdVkSetStencilWriteMask(
+              VK_STENCIL_FACE_BACK_BIT, dynamic_stencil_write_mask_back_);
+        }
       }
-      if (dynamic_stencil_write_mask_back_update_needed_) {
-        deferred_command_buffer_.CmdVkSetStencilWriteMask(
-            VK_STENCIL_FACE_BACK_BIT, dynamic_stencil_write_mask_back_);
-      }
+      dynamic_stencil_write_mask_front_update_needed_ = false;
+      dynamic_stencil_write_mask_back_update_needed_ = false;
     }
-    dynamic_stencil_write_mask_front_update_needed_ = false;
-    dynamic_stencil_write_mask_back_update_needed_ = false;
-  }
-  if (dynamic_stencil_reference_front_update_needed_ ||
-      dynamic_stencil_reference_back_update_needed_) {
-    if (dynamic_stencil_reference_front_ == dynamic_stencil_reference_back_) {
-      deferred_command_buffer_.CmdVkSetStencilReference(
-          VK_STENCIL_FACE_FRONT_AND_BACK, dynamic_stencil_reference_front_);
-    } else {
-      if (dynamic_stencil_reference_front_update_needed_) {
+    if (dynamic_stencil_reference_front_update_needed_ ||
+        dynamic_stencil_reference_back_update_needed_) {
+      if (dynamic_stencil_reference_front_ == dynamic_stencil_reference_back_) {
         deferred_command_buffer_.CmdVkSetStencilReference(
-            VK_STENCIL_FACE_FRONT_BIT, dynamic_stencil_reference_front_);
+            VK_STENCIL_FACE_FRONT_AND_BACK, dynamic_stencil_reference_front_);
+      } else {
+        if (dynamic_stencil_reference_front_update_needed_) {
+          deferred_command_buffer_.CmdVkSetStencilReference(
+              VK_STENCIL_FACE_FRONT_BIT, dynamic_stencil_reference_front_);
+        }
+        if (dynamic_stencil_reference_back_update_needed_) {
+          deferred_command_buffer_.CmdVkSetStencilReference(
+              VK_STENCIL_FACE_BACK_BIT, dynamic_stencil_reference_back_);
+        }
       }
-      if (dynamic_stencil_reference_back_update_needed_) {
-        deferred_command_buffer_.CmdVkSetStencilReference(
-            VK_STENCIL_FACE_BACK_BIT, dynamic_stencil_reference_back_);
-      }
+      dynamic_stencil_reference_front_update_needed_ = false;
+      dynamic_stencil_reference_back_update_needed_ = false;
     }
-    dynamic_stencil_reference_front_update_needed_ = false;
-    dynamic_stencil_reference_back_update_needed_ = false;
   }
 
   // TODO(Triang3l): VK_EXT_extended_dynamic_state and
@@ -3359,23 +3437,67 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
     bool primitive_polygonal,
     const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
     bool shader_32bit_index_dma, const draw_util::ViewportInfo& viewport_info,
-    uint32_t used_texture_mask) {
+    uint32_t used_texture_mask, reg::RB_DEPTHCONTROL normalized_depth_control,
+    uint32_t normalized_color_mask) {
 #if XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
 
   const RegisterFile& regs = *register_file_;
   auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
+  auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
   float rb_alpha_ref = regs[XE_GPU_REG_RB_ALPHA_REF].f32;
   auto rb_colorcontrol = regs.Get<reg::RB_COLORCONTROL>();
+  auto rb_depth_info = regs.Get<reg::RB_DEPTH_INFO>();
+  auto rb_stencilrefmask = regs.Get<reg::RB_STENCILREFMASK>();
+  auto rb_stencilrefmask_bf =
+      regs.Get<reg::RB_STENCILREFMASK>(XE_GPU_REG_RB_STENCILREFMASK_BF);
+  auto rb_surface_info = regs.Get<reg::RB_SURFACE_INFO>();
   auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
   int32_t vgt_indx_offset = int32_t(regs[XE_GPU_REG_VGT_INDX_OFFSET].u32);
 
-  // Get the color info register values for each render target.
+  bool edram_fragment_shader_interlock =
+      render_target_cache_->GetPath() ==
+      RenderTargetCache::Path::kPixelShaderInterlock;
+  uint32_t draw_resolution_scale_x = texture_cache_->draw_resolution_scale_x();
+  uint32_t draw_resolution_scale_y = texture_cache_->draw_resolution_scale_y();
+
+  // Get the color info register values for each render target. Also, for FSI,
+  // exclude components that don't exist in the format from the write mask.
+  // Don't exclude fully overlapping render targets, however - two render
+  // targets with the same base address are used in the lighting pass of
+  // 4D5307E6, for example, with the needed one picked with dynamic control
+  // flow.
   reg::RB_COLOR_INFO color_infos[xenos::kMaxColorRenderTargets];
+  float rt_clamp[4][4];
+  // Two UINT32_MAX if no components actually existing in the RT are written.
+  uint32_t rt_keep_masks[4][2];
   for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
-    color_infos[i] = regs.Get<reg::RB_COLOR_INFO>(
+    auto color_info = regs.Get<reg::RB_COLOR_INFO>(
         reg::RB_COLOR_INFO::rt_register_indices[i]);
+    color_infos[i] = color_info;
+    if (edram_fragment_shader_interlock) {
+      RenderTargetCache::GetPSIColorFormatInfo(
+          color_info.color_format, (normalized_color_mask >> (i * 4)) & 0b1111,
+          rt_clamp[i][0], rt_clamp[i][1], rt_clamp[i][2], rt_clamp[i][3],
+          rt_keep_masks[i][0], rt_keep_masks[i][1]);
+    }
+  }
+
+  // Disable depth and stencil if it aliases a color render target (for
+  // instance, during the XBLA logo in 58410954, though depth writing is already
+  // disabled there).
+  bool depth_stencil_enabled = normalized_depth_control.stencil_enable ||
+                               normalized_depth_control.z_enable;
+  if (edram_fragment_shader_interlock && depth_stencil_enabled) {
+    for (uint32_t i = 0; i < 4; ++i) {
+      if (rb_depth_info.depth_base == color_infos[i].color_base &&
+          (rt_keep_masks[i][0] != UINT32_MAX ||
+           rt_keep_masks[i][1] != UINT32_MAX)) {
+        depth_stencil_enabled = false;
+        break;
+      }
+    }
   }
 
   bool dirty = false;
@@ -3419,6 +3541,13 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
   if (draw_util::IsPrimitiveLine(regs)) {
     flags |= SpirvShaderTranslator::kSysFlag_PrimitiveLine;
   }
+  // MSAA sample count.
+  flags |= uint32_t(rb_surface_info.msaa_samples)
+           << SpirvShaderTranslator::kSysFlag_MsaaSamples_Shift;
+  // Depth format.
+  if (rb_depth_info.depth_format == xenos::DepthRenderTargetFormat::kD24FS8) {
+    flags |= SpirvShaderTranslator::kSysFlag_DepthFloat24;
+  }
   // Alpha test.
   xenos::CompareFunction alpha_test_function =
       rb_colorcontrol.alpha_test_enable ? rb_colorcontrol.alpha_func
@@ -3431,6 +3560,30 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
     if (color_infos[i].color_format ==
         xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
       flags |= SpirvShaderTranslator::kSysFlag_ConvertColor0ToGamma << i;
+    }
+  }
+  if (edram_fragment_shader_interlock && depth_stencil_enabled) {
+    flags |= SpirvShaderTranslator::kSysFlag_FSIDepthStencil;
+    if (normalized_depth_control.z_enable) {
+      flags |= uint32_t(normalized_depth_control.zfunc)
+               << SpirvShaderTranslator::kSysFlag_FSIDepthPassIfLess_Shift;
+      if (normalized_depth_control.z_write_enable) {
+        flags |= SpirvShaderTranslator::kSysFlag_FSIDepthWrite;
+      }
+    } else {
+      // In case stencil is used without depth testing - always pass, and
+      // don't modify the stored depth.
+      flags |= SpirvShaderTranslator::kSysFlag_FSIDepthPassIfLess |
+               SpirvShaderTranslator::kSysFlag_FSIDepthPassIfEqual |
+               SpirvShaderTranslator::kSysFlag_FSIDepthPassIfGreater;
+    }
+    if (normalized_depth_control.stencil_enable) {
+      flags |= SpirvShaderTranslator::kSysFlag_FSIStencilTest;
+    }
+    // Hint - if not applicable to the shader, will not have effect.
+    if (alpha_test_function == xenos::CompareFunction::kAlways &&
+        !rb_colorcontrol.alpha_to_mask_enable) {
+      flags |= SpirvShaderTranslator::kSysFlag_FSIDepthStencilEarlyWrite;
     }
   }
   dirty |= system_constants_.flags != flags;
@@ -3492,10 +3645,10 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
     // to radius conversion to avoid multiplying the per-vertex diameter by an
     // additional constant in the shader.
     float point_screen_diameter_to_ndc_radius_x =
-        (/* 0.5f * 2.0f * */ float(texture_cache_->draw_resolution_scale_x())) /
+        (/* 0.5f * 2.0f * */ float(draw_resolution_scale_x)) /
         std::max(viewport_info.xy_extent[0], uint32_t(1));
     float point_screen_diameter_to_ndc_radius_y =
-        (/* 0.5f * 2.0f * */ float(texture_cache_->draw_resolution_scale_y())) /
+        (/* 0.5f * 2.0f * */ float(draw_resolution_scale_y)) /
         std::max(viewport_info.xy_extent[1], uint32_t(1));
     dirty |= system_constants_.point_screen_diameter_to_ndc_radius[0] !=
              point_screen_diameter_to_ndc_radius_x;
@@ -3560,7 +3713,25 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
   dirty |= system_constants_.alpha_test_reference != rb_alpha_ref;
   system_constants_.alpha_test_reference = rb_alpha_ref;
 
-  // Color exponent bias.
+  uint32_t edram_tile_dwords_scaled =
+      xenos::kEdramTileWidthSamples * xenos::kEdramTileHeightSamples *
+      (draw_resolution_scale_x * draw_resolution_scale_y);
+
+  // EDRAM pitch for FSI render target writing.
+  if (edram_fragment_shader_interlock) {
+    // Align, then multiply by 32bpp tile size in dwords.
+    uint32_t edram_32bpp_tile_pitch_dwords_scaled =
+        ((rb_surface_info.surface_pitch *
+          (rb_surface_info.msaa_samples >= xenos::MsaaSamples::k4X ? 2 : 1)) +
+         (xenos::kEdramTileWidthSamples - 1)) /
+        xenos::kEdramTileWidthSamples * edram_tile_dwords_scaled;
+    dirty |= system_constants_.edram_32bpp_tile_pitch_dwords_scaled !=
+             edram_32bpp_tile_pitch_dwords_scaled;
+    system_constants_.edram_32bpp_tile_pitch_dwords_scaled =
+        edram_32bpp_tile_pitch_dwords_scaled;
+  }
+
+  // Color exponent bias and FSI render target writing.
   for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
     reg::RB_COLOR_INFO color_info = color_infos[i];
     // Exponent bias is in bits 20:25 of RB_COLOR_INFO.
@@ -3581,6 +3752,148 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
         UINT32_C(0x3F800000) + (color_exp_bias << 23);
     dirty |= system_constants_.color_exp_bias[i] != color_exp_bias_scale;
     system_constants_.color_exp_bias[i] = color_exp_bias_scale;
+    if (edram_fragment_shader_interlock) {
+      dirty |=
+          system_constants_.edram_rt_keep_mask[i][0] != rt_keep_masks[i][0];
+      system_constants_.edram_rt_keep_mask[i][0] = rt_keep_masks[i][0];
+      dirty |=
+          system_constants_.edram_rt_keep_mask[i][1] != rt_keep_masks[i][1];
+      system_constants_.edram_rt_keep_mask[i][1] = rt_keep_masks[i][1];
+      if (rt_keep_masks[i][0] != UINT32_MAX ||
+          rt_keep_masks[i][1] != UINT32_MAX) {
+        uint32_t rt_base_dwords_scaled =
+            color_info.color_base * edram_tile_dwords_scaled;
+        dirty |= system_constants_.edram_rt_base_dwords_scaled[i] !=
+                 rt_base_dwords_scaled;
+        system_constants_.edram_rt_base_dwords_scaled[i] =
+            rt_base_dwords_scaled;
+        uint32_t format_flags =
+            RenderTargetCache::AddPSIColorFormatFlags(color_info.color_format);
+        dirty |= system_constants_.edram_rt_format_flags[i] != format_flags;
+        system_constants_.edram_rt_format_flags[i] = format_flags;
+        uint32_t blend_factors_ops =
+            regs[reg::RB_BLENDCONTROL::rt_register_indices[i]].u32 & 0x1FFF1FFF;
+        dirty |= system_constants_.edram_rt_blend_factors_ops[i] !=
+                 blend_factors_ops;
+        system_constants_.edram_rt_blend_factors_ops[i] = blend_factors_ops;
+        // Can't do float comparisons here because NaNs would result in always
+        // setting the dirty flag.
+        dirty |= std::memcmp(system_constants_.edram_rt_clamp[i], rt_clamp[i],
+                             4 * sizeof(float)) != 0;
+        std::memcpy(system_constants_.edram_rt_clamp[i], rt_clamp[i],
+                    4 * sizeof(float));
+      }
+    }
+  }
+
+  if (edram_fragment_shader_interlock) {
+    uint32_t depth_base_dwords_scaled =
+        rb_depth_info.depth_base * edram_tile_dwords_scaled;
+    dirty |= system_constants_.edram_depth_base_dwords_scaled !=
+             depth_base_dwords_scaled;
+    system_constants_.edram_depth_base_dwords_scaled = depth_base_dwords_scaled;
+
+    // For non-polygons, front polygon offset is used, and it's enabled if
+    // POLY_OFFSET_PARA_ENABLED is set, for polygons, separate front and back
+    // are used.
+    float poly_offset_front_scale = 0.0f, poly_offset_front_offset = 0.0f;
+    float poly_offset_back_scale = 0.0f, poly_offset_back_offset = 0.0f;
+    if (primitive_polygonal) {
+      if (pa_su_sc_mode_cntl.poly_offset_front_enable) {
+        poly_offset_front_scale =
+            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
+        poly_offset_front_offset =
+            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
+      }
+      if (pa_su_sc_mode_cntl.poly_offset_back_enable) {
+        poly_offset_back_scale =
+            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
+        poly_offset_back_offset =
+            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET].f32;
+      }
+    } else {
+      if (pa_su_sc_mode_cntl.poly_offset_para_enable) {
+        poly_offset_front_scale =
+            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
+        poly_offset_front_offset =
+            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
+        poly_offset_back_scale = poly_offset_front_scale;
+        poly_offset_back_offset = poly_offset_front_offset;
+      }
+    }
+    // With non-square resolution scaling, make sure the worst-case impact is
+    // reverted (slope only along the scaled axis), thus max. More bias is
+    // better than less bias, because less bias means Z fighting with the
+    // background is more likely.
+    float poly_offset_scale_factor =
+        xenos::kPolygonOffsetScaleSubpixelUnit *
+        std::max(draw_resolution_scale_x, draw_resolution_scale_y);
+    poly_offset_front_scale *= poly_offset_scale_factor;
+    poly_offset_back_scale *= poly_offset_scale_factor;
+    dirty |= system_constants_.edram_poly_offset_front_scale !=
+             poly_offset_front_scale;
+    system_constants_.edram_poly_offset_front_scale = poly_offset_front_scale;
+    dirty |= system_constants_.edram_poly_offset_front_offset !=
+             poly_offset_front_offset;
+    system_constants_.edram_poly_offset_front_offset = poly_offset_front_offset;
+    dirty |= system_constants_.edram_poly_offset_back_scale !=
+             poly_offset_back_scale;
+    system_constants_.edram_poly_offset_back_scale = poly_offset_back_scale;
+    dirty |= system_constants_.edram_poly_offset_back_offset !=
+             poly_offset_back_offset;
+    system_constants_.edram_poly_offset_back_offset = poly_offset_back_offset;
+
+    if (depth_stencil_enabled && normalized_depth_control.stencil_enable) {
+      uint32_t stencil_front_reference_masks =
+          rb_stencilrefmask.value & 0xFFFFFF;
+      dirty |= system_constants_.edram_stencil_front_reference_masks !=
+               stencil_front_reference_masks;
+      system_constants_.edram_stencil_front_reference_masks =
+          stencil_front_reference_masks;
+      uint32_t stencil_func_ops =
+          (normalized_depth_control.value >> 8) & ((1 << 12) - 1);
+      dirty |=
+          system_constants_.edram_stencil_front_func_ops != stencil_func_ops;
+      system_constants_.edram_stencil_front_func_ops = stencil_func_ops;
+
+      if (primitive_polygonal && normalized_depth_control.backface_enable) {
+        uint32_t stencil_back_reference_masks =
+            rb_stencilrefmask_bf.value & 0xFFFFFF;
+        dirty |= system_constants_.edram_stencil_back_reference_masks !=
+                 stencil_back_reference_masks;
+        system_constants_.edram_stencil_back_reference_masks =
+            stencil_back_reference_masks;
+        uint32_t stencil_func_ops_bf =
+            (normalized_depth_control.value >> 20) & ((1 << 12) - 1);
+        dirty |= system_constants_.edram_stencil_back_func_ops !=
+                 stencil_func_ops_bf;
+        system_constants_.edram_stencil_back_func_ops = stencil_func_ops_bf;
+      } else {
+        dirty |= std::memcmp(system_constants_.edram_stencil_back,
+                             system_constants_.edram_stencil_front,
+                             2 * sizeof(uint32_t)) != 0;
+        std::memcpy(system_constants_.edram_stencil_back,
+                    system_constants_.edram_stencil_front,
+                    2 * sizeof(uint32_t));
+      }
+    }
+
+    dirty |= system_constants_.edram_blend_constant[0] !=
+             regs[XE_GPU_REG_RB_BLEND_RED].f32;
+    system_constants_.edram_blend_constant[0] =
+        regs[XE_GPU_REG_RB_BLEND_RED].f32;
+    dirty |= system_constants_.edram_blend_constant[1] !=
+             regs[XE_GPU_REG_RB_BLEND_GREEN].f32;
+    system_constants_.edram_blend_constant[1] =
+        regs[XE_GPU_REG_RB_BLEND_GREEN].f32;
+    dirty |= system_constants_.edram_blend_constant[2] !=
+             regs[XE_GPU_REG_RB_BLEND_BLUE].f32;
+    system_constants_.edram_blend_constant[2] =
+        regs[XE_GPU_REG_RB_BLEND_BLUE].f32;
+    dirty |= system_constants_.edram_blend_constant[3] !=
+             regs[XE_GPU_REG_RB_BLEND_ALPHA].f32;
+    system_constants_.edram_blend_constant[3] =
+        regs[XE_GPU_REG_RB_BLEND_ALPHA].f32;
   }
 
   if (dirty) {

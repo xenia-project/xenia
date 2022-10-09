@@ -123,7 +123,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
           : spv::NoType;
 
   // In case the paired scalar instruction (if processed first) terminates the
-  // block (like via OpKill).
+  // block.
   EnsureBuildPointAvailable();
 
   // Lookup table for variants of instructions with similar structure.
@@ -838,9 +838,15 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       SpirvCreateSelectionMerge(merge_block.getId());
       builder_->createConditionalBranch(condition, &kill_block, &merge_block);
       builder_->setBuildPoint(&kill_block);
-      // TODO(Triang3l): Demote to helper invocation to keep derivatives if
-      // needed (and return 1 if killed in this case).
-      builder_->createNoResultOp(spv::OpKill);
+      // Kill without influencing the control flow in the translated shader.
+      if (var_main_kill_pixel_ != spv::NoResult) {
+        builder_->createStore(builder_->makeBoolConstant(true),
+                              var_main_kill_pixel_);
+      }
+      if (features_.demote_to_helper_invocation) {
+        builder_->createNoResultOp(spv::OpDemoteToHelperInvocationEXT);
+      }
+      builder_->createBranch(&merge_block);
       builder_->setBuildPoint(&merge_block);
       return const_float_0_;
     }
@@ -938,7 +944,7 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
   }
 
   // In case the paired vector instruction (if processed first) terminates the
-  // block (like via OpKill).
+  // block.
   EnsureBuildPointAvailable();
 
   // Lookup table for variants of instructions with similar structure.
@@ -1393,9 +1399,15 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
       SpirvCreateSelectionMerge(merge_block.getId());
       builder_->createConditionalBranch(condition, &kill_block, &merge_block);
       builder_->setBuildPoint(&kill_block);
-      // TODO(Triang3l): Demote to helper invocation to keep derivatives if
-      // needed (and return 1 if killed in this case).
-      builder_->createNoResultOp(spv::OpKill);
+      // Kill without influencing the control flow in the translated shader.
+      if (var_main_kill_pixel_ != spv::NoResult) {
+        builder_->createStore(builder_->makeBoolConstant(true),
+                              var_main_kill_pixel_);
+      }
+      if (features_.demote_to_helper_invocation) {
+        builder_->createNoResultOp(spv::OpDemoteToHelperInvocationEXT);
+      }
+      builder_->createBranch(&merge_block);
       builder_->setBuildPoint(&merge_block);
       return const_float_0_;
     }
