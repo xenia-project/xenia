@@ -308,7 +308,7 @@ class Event : public WaitHandle {
   //SetEvent, but if there is a waiter we immediately transfer execution to it
   virtual void SetBoostPriority() = 0;
   #else
-  void SetBoostPriority() { Set() }
+  void SetBoostPriority() { Set(); }
   #endif
 };
 
