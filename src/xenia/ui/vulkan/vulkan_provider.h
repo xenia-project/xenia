@@ -133,6 +133,8 @@ class VulkanProvider : public GraphicsProvider {
   struct DeviceExtensions {
     bool ext_fragment_shader_interlock;
     bool ext_memory_budget;
+    // Core since 1.3.0.
+    bool ext_shader_demote_to_helper_invocation;
     bool ext_shader_stencil_export;
     // Core since 1.1.0.
     bool khr_bind_memory2;
@@ -197,6 +199,14 @@ class VulkanProvider : public GraphicsProvider {
   const VkPhysicalDeviceFloatControlsPropertiesKHR&
   device_float_controls_properties() const {
     return device_float_controls_properties_;
+  }
+  const VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT&
+  device_fragment_shader_interlock_features() const {
+    return device_fragment_shader_interlock_features_;
+  }
+  const VkPhysicalDeviceShaderDemoteToHelperInvocationFeaturesEXT&
+  device_shader_demote_to_helper_invocation_features() const {
+    return device_shader_demote_to_helper_invocation_features_;
   }
 
   struct Queue {
@@ -320,6 +330,10 @@ class VulkanProvider : public GraphicsProvider {
   uint32_t queue_family_graphics_compute_;
   uint32_t queue_family_sparse_binding_;
   VkPhysicalDeviceFloatControlsPropertiesKHR device_float_controls_properties_;
+  VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT
+      device_fragment_shader_interlock_features_;
+  VkPhysicalDeviceShaderDemoteToHelperInvocationFeaturesEXT
+      device_shader_demote_to_helper_invocation_features_;
 
   VkDevice device_ = VK_NULL_HANDLE;
   DeviceFunctions dfn_ = {};

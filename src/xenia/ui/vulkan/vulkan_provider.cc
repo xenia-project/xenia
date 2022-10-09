@@ -696,6 +696,7 @@ bool VulkanProvider::Initialize() {
         device_extensions_.khr_shader_float_controls = true;
         device_extensions_.khr_spirv_1_4 = true;
         if (device_properties_.apiVersion >= VK_MAKE_API_VERSION(0, 1, 3, 0)) {
+          device_extensions_.ext_shader_demote_to_helper_invocation = true;
           device_extensions_.khr_maintenance4 = true;
         }
       }
@@ -709,6 +710,8 @@ bool VulkanProvider::Initialize() {
         {"VK_EXT_fragment_shader_interlock",
          offsetof(DeviceExtensions, ext_fragment_shader_interlock)},
         {"VK_EXT_memory_budget", offsetof(DeviceExtensions, ext_memory_budget)},
+        {"VK_EXT_shader_demote_to_helper_invocation",
+         offsetof(DeviceExtensions, ext_shader_demote_to_helper_invocation)},
         {"VK_EXT_shader_stencil_export",
          offsetof(DeviceExtensions, ext_shader_stencil_export)},
         {"VK_KHR_bind_memory2", offsetof(DeviceExtensions, khr_bind_memory2)},
@@ -816,6 +819,16 @@ bool VulkanProvider::Initialize() {
   // Get additional device properties.
   std::memset(&device_float_controls_properties_, 0,
               sizeof(device_float_controls_properties_));
+  device_float_controls_properties_.sType =
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FLOAT_CONTROLS_PROPERTIES_KHR;
+  std::memset(&device_fragment_shader_interlock_features_, 0,
+              sizeof(device_fragment_shader_interlock_features_));
+  device_fragment_shader_interlock_features_.sType =
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT;
+  std::memset(&device_shader_demote_to_helper_invocation_features_, 0,
+              sizeof(device_shader_demote_to_helper_invocation_features_));
+  device_shader_demote_to_helper_invocation_features_.sType =
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DEMOTE_TO_HELPER_INVOCATION_FEATURES_EXT;
   if (instance_extensions_.khr_get_physical_device_properties2) {
     VkPhysicalDeviceProperties2KHR device_properties_2;
     device_properties_2.sType =
@@ -824,8 +837,6 @@ bool VulkanProvider::Initialize() {
     VkPhysicalDeviceProperties2KHR* device_properties_2_last =
         &device_properties_2;
     if (device_extensions_.khr_shader_float_controls) {
-      device_float_controls_properties_.sType =
-          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FLOAT_CONTROLS_PROPERTIES_KHR;
       device_float_controls_properties_.pNext = nullptr;
       device_properties_2_last->pNext = &device_float_controls_properties_;
       device_properties_2_last =
@@ -835,6 +846,28 @@ bool VulkanProvider::Initialize() {
     if (device_properties_2_last != &device_properties_2) {
       ifn_.vkGetPhysicalDeviceProperties2KHR(physical_device_,
                                              &device_properties_2);
+    }
+    VkPhysicalDeviceFeatures2KHR device_features_2;
+    device_features_2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR;
+    device_features_2.pNext = nullptr;
+    VkPhysicalDeviceFeatures2KHR* device_features_2_last = &device_features_2;
+    if (device_extensions_.ext_fragment_shader_interlock) {
+      device_fragment_shader_interlock_features_.pNext = nullptr;
+      device_features_2_last->pNext =
+          &device_fragment_shader_interlock_features_;
+      device_features_2_last = reinterpret_cast<VkPhysicalDeviceFeatures2KHR*>(
+          &device_fragment_shader_interlock_features_);
+    }
+    if (device_extensions_.ext_shader_demote_to_helper_invocation) {
+      device_shader_demote_to_helper_invocation_features_.pNext = nullptr;
+      device_features_2_last->pNext =
+          &device_shader_demote_to_helper_invocation_features_;
+      device_features_2_last = reinterpret_cast<VkPhysicalDeviceFeatures2KHR*>(
+          &device_shader_demote_to_helper_invocation_features_);
+    }
+    if (device_features_2_last != &device_features_2) {
+      ifn_.vkGetPhysicalDeviceFeatures2KHR(physical_device_,
+                                           &device_features_2);
     }
   }
 
@@ -887,6 +920,21 @@ bool VulkanProvider::Initialize() {
     device_create_info_last->pNext = &device_portability_subset_features_;
     device_create_info_last = reinterpret_cast<VkDeviceCreateInfo*>(
         &device_portability_subset_features_);
+  }
+  if (device_extensions_.ext_fragment_shader_interlock) {
+    // TODO(Triang3l): Enable only needed fragment shader interlock features.
+    device_fragment_shader_interlock_features_.pNext = nullptr;
+    device_create_info_last->pNext =
+        &device_fragment_shader_interlock_features_;
+    device_create_info_last = reinterpret_cast<VkDeviceCreateInfo*>(
+        &device_fragment_shader_interlock_features_);
+  }
+  if (device_extensions_.ext_shader_demote_to_helper_invocation) {
+    device_shader_demote_to_helper_invocation_features_.pNext = nullptr;
+    device_create_info_last->pNext =
+        &device_shader_demote_to_helper_invocation_features_;
+    device_create_info_last = reinterpret_cast<VkDeviceCreateInfo*>(
+        &device_shader_demote_to_helper_invocation_features_);
   }
   if (ifn_.vkCreateDevice(physical_device_, &device_create_info, nullptr,
                           &device_) != VK_SUCCESS) {
@@ -995,8 +1043,30 @@ bool VulkanProvider::Initialize() {
   XELOGVK("Vulkan device extensions:");
   XELOGVK("* VK_EXT_fragment_shader_interlock: {}",
           device_extensions_.ext_fragment_shader_interlock ? "yes" : "no");
+  if (device_extensions_.ext_fragment_shader_interlock) {
+    XELOGVK(
+        "  * Sample interlock: {}",
+        device_fragment_shader_interlock_features_.fragmentShaderSampleInterlock
+            ? "yes"
+            : "no");
+    XELOGVK(
+        "  * Pixel interlock: {}",
+        device_fragment_shader_interlock_features_.fragmentShaderPixelInterlock
+            ? "yes"
+            : "no");
+  }
   XELOGVK("* VK_EXT_memory_budget: {}",
           device_extensions_.ext_memory_budget ? "yes" : "no");
+  XELOGVK(
+      "* VK_EXT_shader_demote_to_helper_invocation: {}",
+      device_extensions_.ext_shader_demote_to_helper_invocation ? "yes" : "no");
+  if (device_extensions_.ext_shader_demote_to_helper_invocation) {
+    XELOGVK("  * Demote to helper invocation: {}",
+            device_shader_demote_to_helper_invocation_features_
+                    .shaderDemoteToHelperInvocation
+                ? "yes"
+                : "no");
+  }
   XELOGVK("* VK_EXT_shader_stencil_export: {}",
           device_extensions_.ext_shader_stencil_export ? "yes" : "no");
   XELOGVK("* VK_KHR_bind_memory2: {}",

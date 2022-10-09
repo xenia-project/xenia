@@ -207,6 +207,134 @@ DEFINE_bool(
 namespace xe {
 namespace gpu {
 
+void RenderTargetCache::GetPSIColorFormatInfo(
+    xenos::ColorRenderTargetFormat format, uint32_t write_mask,
+    float& clamp_rgb_low, float& clamp_alpha_low, float& clamp_rgb_high,
+    float& clamp_alpha_high, uint32_t& keep_mask_low,
+    uint32_t& keep_mask_high) {
+  keep_mask_low = keep_mask_high = 0;
+  switch (format) {
+    case xenos::ColorRenderTargetFormat::k_8_8_8_8:
+    case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA: {
+      clamp_rgb_low = clamp_alpha_low = 0.0f;
+      clamp_rgb_high = clamp_alpha_high = 1.0f;
+      for (uint32_t i = 0; i < 4; ++i) {
+        if (!(write_mask & (1 << i))) {
+          keep_mask_low |= uint32_t(0xFF) << (i * 8);
+        }
+      }
+    } break;
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10:
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10: {
+      clamp_rgb_low = clamp_alpha_low = 0.0f;
+      clamp_rgb_high = clamp_alpha_high = 1.0f;
+      for (uint32_t i = 0; i < 3; ++i) {
+        if (!(write_mask & (1 << i))) {
+          keep_mask_low |= uint32_t(0x3FF) << (i * 10);
+        }
+      }
+      if (!(write_mask & 0b1000)) {
+        keep_mask_low |= uint32_t(3) << 30;
+      }
+    } break;
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
+    case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16: {
+      clamp_rgb_low = clamp_alpha_low = 0.0f;
+      clamp_rgb_high = 31.875f;
+      clamp_alpha_high = 1.0f;
+      for (uint32_t i = 0; i < 3; ++i) {
+        if (!(write_mask & (1 << i))) {
+          keep_mask_low |= uint32_t(0x3FF) << (i * 10);
+        }
+      }
+      if (!(write_mask & 0b1000)) {
+        keep_mask_low |= uint32_t(3) << 30;
+      }
+    } break;
+    case xenos::ColorRenderTargetFormat::k_16_16:
+    case xenos::ColorRenderTargetFormat::k_16_16_16_16:
+      // Alpha clamping affects blending source, so it's non-zero for alpha for
+      // k_16_16 (the render target is fixed-point). There's one deviation from
+      // how Direct3D 11.3 functional specification defines SNorm conversion
+      // (NaN should be 0, not the lowest negative number), and that needs to be
+      // handled separately.
+      clamp_rgb_low = clamp_alpha_low = -32.0f;
+      clamp_rgb_high = clamp_alpha_high = 32.0f;
+      if (!(write_mask & 0b0001)) {
+        keep_mask_low |= 0xFFFFu;
+      }
+      if (!(write_mask & 0b0010)) {
+        keep_mask_low |= 0xFFFF0000u;
+      }
+      if (format == xenos::ColorRenderTargetFormat::k_16_16_16_16) {
+        if (!(write_mask & 0b0100)) {
+          keep_mask_high |= 0xFFFFu;
+        }
+        if (!(write_mask & 0b1000)) {
+          keep_mask_high |= 0xFFFF0000u;
+        }
+      } else {
+        write_mask &= 0b0011;
+      }
+      break;
+    case xenos::ColorRenderTargetFormat::k_16_16_FLOAT:
+    case xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
+      // No NaNs on the Xbox 360 GPU, though can't use the extended range with
+      // Direct3D and Vulkan conversions.
+      // TODO(Triang3l): Use the extended-range encoding in all implementations.
+      clamp_rgb_low = clamp_alpha_low = -65504.0f;
+      clamp_rgb_high = clamp_alpha_high = 65504.0f;
+      if (!(write_mask & 0b0001)) {
+        keep_mask_low |= 0xFFFFu;
+      }
+      if (!(write_mask & 0b0010)) {
+        keep_mask_low |= 0xFFFF0000u;
+      }
+      if (format == xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT) {
+        if (!(write_mask & 0b0100)) {
+          keep_mask_high |= 0xFFFFu;
+        }
+        if (!(write_mask & 0b1000)) {
+          keep_mask_high |= 0xFFFF0000u;
+        }
+      } else {
+        write_mask &= 0b0011;
+      }
+      break;
+    case xenos::ColorRenderTargetFormat::k_32_FLOAT:
+      // No clamping - let min/max always pick the original value.
+      clamp_rgb_low = clamp_alpha_low = clamp_rgb_high = clamp_alpha_high =
+          std::nanf("");
+      write_mask &= 0b0001;
+      if (!(write_mask & 0b0001)) {
+        keep_mask_low = ~uint32_t(0);
+      }
+      break;
+    case xenos::ColorRenderTargetFormat::k_32_32_FLOAT:
+      // No clamping - let min/max always pick the original value.
+      clamp_rgb_low = clamp_alpha_low = clamp_rgb_high = clamp_alpha_high =
+          std::nanf("");
+      write_mask &= 0b0011;
+      if (!(write_mask & 0b0001)) {
+        keep_mask_low = ~uint32_t(0);
+      }
+      if (!(write_mask & 0b0010)) {
+        keep_mask_high = ~uint32_t(0);
+      }
+      break;
+    default:
+      assert_unhandled_case(format);
+      // Disable invalid render targets.
+      write_mask = 0;
+      break;
+  }
+  // Special case handled in the shaders for empty write mask to completely skip
+  // a disabled render target: all keep bits are set.
+  if (!write_mask) {
+    keep_mask_low = keep_mask_high = ~uint32_t(0);
+  }
+}
+
 uint32_t RenderTargetCache::Transfer::GetRangeRectangles(
     uint32_t start_tiles, uint32_t end_tiles, uint32_t base_tiles,
     uint32_t pitch_tiles, xenos::MsaaSamples msaa_samples, bool is_64bpp,

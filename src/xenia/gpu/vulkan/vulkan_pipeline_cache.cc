@@ -15,6 +15,7 @@
 #include <cstring>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "third_party/glslang/SPIRV/SpvBuilder.h"
@@ -53,8 +54,32 @@ bool VulkanPipelineCache::Initialize() {
   const ui::vulkan::VulkanProvider& provider =
       command_processor_.GetVulkanProvider();
 
+  bool edram_fragment_shader_interlock =
+      render_target_cache_.GetPath() ==
+      RenderTargetCache::Path::kPixelShaderInterlock;
+
   shader_translator_ = std::make_unique<SpirvShaderTranslator>(
-      SpirvShaderTranslator::Features(provider));
+      SpirvShaderTranslator::Features(provider),
+      render_target_cache_.msaa_2x_attachments_supported(),
+      render_target_cache_.msaa_2x_no_attachments_supported(),
+      edram_fragment_shader_interlock);
+
+  if (edram_fragment_shader_interlock) {
+    std::vector<uint8_t> depth_only_fragment_shader_code =
+        shader_translator_->CreateDepthOnlyFragmentShader();
+    depth_only_fragment_shader_ = ui::vulkan::util::CreateShaderModule(
+        provider,
+        reinterpret_cast<const uint32_t*>(
+            depth_only_fragment_shader_code.data()),
+        depth_only_fragment_shader_code.size());
+    if (depth_only_fragment_shader_ == VK_NULL_HANDLE) {
+      XELOGE(
+          "VulkanPipelineCache: Failed to create the depth/stencil-only "
+          "fragment shader for the fragment shader interlock render backend "
+          "implementation");
+      return false;
+    }
+  }
 
   return true;
 }
@@ -75,6 +100,8 @@ void VulkanPipelineCache::Shutdown() {
   pipelines_.clear();
 
   // Destroy all internal shaders.
+  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyShaderModule, device,
+                                         depth_only_fragment_shader_);
   for (const auto& geometry_shader_pair : geometry_shaders_) {
     if (geometry_shader_pair.second != VK_NULL_HANDLE) {
       dfn.vkDestroyShaderModule(device, geometry_shader_pair.second, nullptr);
@@ -179,15 +206,18 @@ VulkanPipelineCache::GetCurrentPixelShaderModification(
     modification.pixel.param_gen_point = 0;
   }
 
-  using DepthStencilMode =
-      SpirvShaderTranslator::Modification::DepthStencilMode;
-  if (shader.implicit_early_z_write_allowed() &&
-      (!shader.writes_color_target(0) ||
-       !draw_util::DoesCoverageDependOnAlpha(
-           regs.Get<reg::RB_COLORCONTROL>()))) {
-    modification.pixel.depth_stencil_mode = DepthStencilMode::kEarlyHint;
-  } else {
-    modification.pixel.depth_stencil_mode = DepthStencilMode::kNoModifiers;
+  if (render_target_cache_.GetPath() ==
+      RenderTargetCache::Path::kHostRenderTargets) {
+    using DepthStencilMode =
+        SpirvShaderTranslator::Modification::DepthStencilMode;
+    if (shader.implicit_early_z_write_allowed() &&
+        (!shader.writes_color_target(0) ||
+         !draw_util::DoesCoverageDependOnAlpha(
+             regs.Get<reg::RB_COLORCONTROL>()))) {
+      modification.pixel.depth_stencil_mode = DepthStencilMode::kEarlyHint;
+    } else {
+      modification.pixel.depth_stencil_mode = DepthStencilMode::kNoModifiers;
+    }
   }
 
   return modification;
@@ -303,7 +333,11 @@ bool VulkanPipelineCache::ConfigurePipeline(
     }
   }
   VkRenderPass render_pass =
-      render_target_cache_.GetRenderPass(render_pass_key);
+      render_target_cache_.GetPath() ==
+              RenderTargetCache::Path::kPixelShaderInterlock
+          ? render_target_cache_.GetFragmentShaderInterlockRenderPass()
+          : render_target_cache_.GetHostRenderTargetsRenderPass(
+                render_pass_key);
   if (render_pass == VK_NULL_HANDLE) {
     return false;
   }
@@ -603,123 +637,127 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
     description_out.polygon_mode = PipelinePolygonMode::kFill;
   }
 
-  // TODO(Triang3l): Skip depth / stencil and color state for the fragment
-  // shader interlock RB implementation.
-
-  if (render_pass_key.depth_and_color_used & 1) {
-    if (normalized_depth_control.z_enable) {
-      description_out.depth_write_enable =
-          normalized_depth_control.z_write_enable;
-      description_out.depth_compare_op = normalized_depth_control.zfunc;
-    } else {
-      description_out.depth_compare_op = xenos::CompareFunction::kAlways;
-    }
-    if (normalized_depth_control.stencil_enable) {
-      description_out.stencil_test_enable = 1;
-      description_out.stencil_front_fail_op =
-          normalized_depth_control.stencilfail;
-      description_out.stencil_front_pass_op =
-          normalized_depth_control.stencilzpass;
-      description_out.stencil_front_depth_fail_op =
-          normalized_depth_control.stencilzfail;
-      description_out.stencil_front_compare_op =
-          normalized_depth_control.stencilfunc;
-      if (primitive_polygonal && normalized_depth_control.backface_enable) {
-        description_out.stencil_back_fail_op =
-            normalized_depth_control.stencilfail_bf;
-        description_out.stencil_back_pass_op =
-            normalized_depth_control.stencilzpass_bf;
-        description_out.stencil_back_depth_fail_op =
-            normalized_depth_control.stencilzfail_bf;
-        description_out.stencil_back_compare_op =
-            normalized_depth_control.stencilfunc_bf;
+  if (render_target_cache_.GetPath() ==
+      RenderTargetCache::Path::kHostRenderTargets) {
+    if (render_pass_key.depth_and_color_used & 1) {
+      if (normalized_depth_control.z_enable) {
+        description_out.depth_write_enable =
+            normalized_depth_control.z_write_enable;
+        description_out.depth_compare_op = normalized_depth_control.zfunc;
       } else {
-        description_out.stencil_back_fail_op =
-            description_out.stencil_front_fail_op;
-        description_out.stencil_back_pass_op =
-            description_out.stencil_front_pass_op;
-        description_out.stencil_back_depth_fail_op =
-            description_out.stencil_front_depth_fail_op;
-        description_out.stencil_back_compare_op =
-            description_out.stencil_front_compare_op;
+        description_out.depth_compare_op = xenos::CompareFunction::kAlways;
+      }
+      if (normalized_depth_control.stencil_enable) {
+        description_out.stencil_test_enable = 1;
+        description_out.stencil_front_fail_op =
+            normalized_depth_control.stencilfail;
+        description_out.stencil_front_pass_op =
+            normalized_depth_control.stencilzpass;
+        description_out.stencil_front_depth_fail_op =
+            normalized_depth_control.stencilzfail;
+        description_out.stencil_front_compare_op =
+            normalized_depth_control.stencilfunc;
+        if (primitive_polygonal && normalized_depth_control.backface_enable) {
+          description_out.stencil_back_fail_op =
+              normalized_depth_control.stencilfail_bf;
+          description_out.stencil_back_pass_op =
+              normalized_depth_control.stencilzpass_bf;
+          description_out.stencil_back_depth_fail_op =
+              normalized_depth_control.stencilzfail_bf;
+          description_out.stencil_back_compare_op =
+              normalized_depth_control.stencilfunc_bf;
+        } else {
+          description_out.stencil_back_fail_op =
+              description_out.stencil_front_fail_op;
+          description_out.stencil_back_pass_op =
+              description_out.stencil_front_pass_op;
+          description_out.stencil_back_depth_fail_op =
+              description_out.stencil_front_depth_fail_op;
+          description_out.stencil_back_compare_op =
+              description_out.stencil_front_compare_op;
+        }
       }
     }
-  }
 
-  // Color blending and write masks (filled only for the attachments present in
-  // the render pass object).
-  uint32_t render_pass_color_rts = render_pass_key.depth_and_color_used >> 1;
-  if (device_features.independentBlend) {
-    uint32_t render_pass_color_rts_remaining = render_pass_color_rts;
-    uint32_t color_rt_index;
-    while (xe::bit_scan_forward(render_pass_color_rts_remaining,
-                                &color_rt_index)) {
-      render_pass_color_rts_remaining &= ~(uint32_t(1) << color_rt_index);
-      WritePipelineRenderTargetDescription(
-          regs.Get<reg::RB_BLENDCONTROL>(
-              reg::RB_BLENDCONTROL::rt_register_indices[color_rt_index]),
-          (normalized_color_mask >> (color_rt_index * 4)) & 0b1111,
-          description_out.render_targets[color_rt_index]);
-    }
-  } else {
-    // Take the blend control for the first render target that the guest wants
-    // to write to (consider it the most important) and use it for all render
-    // targets, if any.
-    // TODO(Triang3l): Implement an option for independent blending via multiple
-    // draw calls with different pipelines maybe? Though independent blending
-    // support is pretty wide, with a quite prominent exception of Adreno 4xx
-    // apparently.
-    uint32_t render_pass_color_rts_remaining = render_pass_color_rts;
-    uint32_t render_pass_first_color_rt_index;
-    if (xe::bit_scan_forward(render_pass_color_rts_remaining,
-                             &render_pass_first_color_rt_index)) {
-      render_pass_color_rts_remaining &=
-          ~(uint32_t(1) << render_pass_first_color_rt_index);
-      PipelineRenderTarget& render_pass_first_color_rt =
-          description_out.render_targets[render_pass_first_color_rt_index];
-      uint32_t common_blend_rt_index;
-      if (xe::bit_scan_forward(normalized_color_mask, &common_blend_rt_index)) {
-        common_blend_rt_index >>= 2;
-        // If a common write mask will be used for multiple render targets, use
-        // the original RB_COLOR_MASK instead of the normalized color mask as
-        // the normalized color mask has non-existent components forced to
-        // written (don't need reading to be preserved), while the number of
-        // components may vary between render targets. The attachments in the
-        // pass that must not be written to at all will be excluded via a shader
-        // modification.
-        WritePipelineRenderTargetDescription(
-            regs.Get<reg::RB_BLENDCONTROL>(
-                reg::RB_BLENDCONTROL::rt_register_indices
-                    [common_blend_rt_index]),
-            (((normalized_color_mask &
-               ~(uint32_t(0b1111) << (4 * common_blend_rt_index)))
-                  ? regs[XE_GPU_REG_RB_COLOR_MASK].u32
-                  : normalized_color_mask) >>
-             (4 * common_blend_rt_index)) &
-                0b1111,
-            render_pass_first_color_rt);
-      } else {
-        // No render targets are written to, though the render pass still may
-        // contain color attachments - set them to not written and not blending.
-        render_pass_first_color_rt.src_color_blend_factor =
-            PipelineBlendFactor::kOne;
-        render_pass_first_color_rt.dst_color_blend_factor =
-            PipelineBlendFactor::kZero;
-        render_pass_first_color_rt.color_blend_op = xenos::BlendOp::kAdd;
-        render_pass_first_color_rt.src_alpha_blend_factor =
-            PipelineBlendFactor::kOne;
-        render_pass_first_color_rt.dst_alpha_blend_factor =
-            PipelineBlendFactor::kZero;
-        render_pass_first_color_rt.alpha_blend_op = xenos::BlendOp::kAdd;
-      }
-      // Reuse the same blending settings for all render targets in the pass,
-      // for description consistency.
+    // Color blending and write masks (filled only for the attachments present
+    // in the render pass object).
+    uint32_t render_pass_color_rts = render_pass_key.depth_and_color_used >> 1;
+    if (device_features.independentBlend) {
+      uint32_t render_pass_color_rts_remaining = render_pass_color_rts;
       uint32_t color_rt_index;
       while (xe::bit_scan_forward(render_pass_color_rts_remaining,
                                   &color_rt_index)) {
         render_pass_color_rts_remaining &= ~(uint32_t(1) << color_rt_index);
-        description_out.render_targets[color_rt_index] =
-            render_pass_first_color_rt;
+        WritePipelineRenderTargetDescription(
+            regs.Get<reg::RB_BLENDCONTROL>(
+                reg::RB_BLENDCONTROL::rt_register_indices[color_rt_index]),
+            (normalized_color_mask >> (color_rt_index * 4)) & 0b1111,
+            description_out.render_targets[color_rt_index]);
+      }
+    } else {
+      // Take the blend control for the first render target that the guest wants
+      // to write to (consider it the most important) and use it for all render
+      // targets, if any.
+      // TODO(Triang3l): Implement an option for independent blending via
+      // replaying the render pass for each set of render targets with unique
+      // blending parameters, with depth / stencil saved before the first and
+      // restored before each of the rest maybe? Though independent blending
+      // support is pretty wide, with a quite prominent exception of Adreno 4xx
+      // apparently.
+      uint32_t render_pass_color_rts_remaining = render_pass_color_rts;
+      uint32_t render_pass_first_color_rt_index;
+      if (xe::bit_scan_forward(render_pass_color_rts_remaining,
+                               &render_pass_first_color_rt_index)) {
+        render_pass_color_rts_remaining &=
+            ~(uint32_t(1) << render_pass_first_color_rt_index);
+        PipelineRenderTarget& render_pass_first_color_rt =
+            description_out.render_targets[render_pass_first_color_rt_index];
+        uint32_t common_blend_rt_index;
+        if (xe::bit_scan_forward(normalized_color_mask,
+                                 &common_blend_rt_index)) {
+          common_blend_rt_index >>= 2;
+          // If a common write mask will be used for multiple render targets,
+          // use the original RB_COLOR_MASK instead of the normalized color mask
+          // as the normalized color mask has non-existent components forced to
+          // written (don't need reading to be preserved), while the number of
+          // components may vary between render targets. The attachments in the
+          // pass that must not be written to at all will be excluded via a
+          // shader modification.
+          WritePipelineRenderTargetDescription(
+              regs.Get<reg::RB_BLENDCONTROL>(
+                  reg::RB_BLENDCONTROL::rt_register_indices
+                      [common_blend_rt_index]),
+              (((normalized_color_mask &
+                 ~(uint32_t(0b1111) << (4 * common_blend_rt_index)))
+                    ? regs[XE_GPU_REG_RB_COLOR_MASK].u32
+                    : normalized_color_mask) >>
+               (4 * common_blend_rt_index)) &
+                  0b1111,
+              render_pass_first_color_rt);
+        } else {
+          // No render targets are written to, though the render pass still may
+          // contain color attachments - set them to not written and not
+          // blending.
+          render_pass_first_color_rt.src_color_blend_factor =
+              PipelineBlendFactor::kOne;
+          render_pass_first_color_rt.dst_color_blend_factor =
+              PipelineBlendFactor::kZero;
+          render_pass_first_color_rt.color_blend_op = xenos::BlendOp::kAdd;
+          render_pass_first_color_rt.src_alpha_blend_factor =
+              PipelineBlendFactor::kOne;
+          render_pass_first_color_rt.dst_alpha_blend_factor =
+              PipelineBlendFactor::kZero;
+          render_pass_first_color_rt.alpha_blend_op = xenos::BlendOp::kAdd;
+        }
+        // Reuse the same blending settings for all render targets in the pass,
+        // for description consistency.
+        uint32_t color_rt_index;
+        while (xe::bit_scan_forward(render_pass_color_rts_remaining,
+                                    &color_rt_index)) {
+          render_pass_color_rts_remaining &= ~(uint32_t(1) << color_rt_index);
+          description_out.render_targets[color_rt_index] =
+              render_pass_first_color_rt;
+        }
       }
     }
   }
@@ -1929,6 +1967,10 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
       command_processor_.GetVulkanProvider();
   const VkPhysicalDeviceFeatures& device_features = provider.device_features();
 
+  bool edram_fragment_shader_interlock =
+      render_target_cache_.GetPath() ==
+      RenderTargetCache::Path::kPixelShaderInterlock;
+
   std::array<VkPipelineShaderStageCreateInfo, 3> shader_stages;
   uint32_t shader_stage_count = 0;
 
@@ -1962,24 +2004,32 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
     shader_stage_geometry.pName = "main";
     shader_stage_geometry.pSpecializationInfo = nullptr;
   }
-  // Pixel shader.
+  // Fragment shader.
+  VkPipelineShaderStageCreateInfo& shader_stage_fragment =
+      shader_stages[shader_stage_count++];
+  shader_stage_fragment.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  shader_stage_fragment.pNext = nullptr;
+  shader_stage_fragment.flags = 0;
+  shader_stage_fragment.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  shader_stage_fragment.module = VK_NULL_HANDLE;
+  shader_stage_fragment.pName = "main";
+  shader_stage_fragment.pSpecializationInfo = nullptr;
   if (creation_arguments.pixel_shader) {
     assert_true(creation_arguments.pixel_shader->is_translated());
     if (!creation_arguments.pixel_shader->is_valid()) {
       return false;
     }
-    VkPipelineShaderStageCreateInfo& shader_stage_fragment =
-        shader_stages[shader_stage_count++];
-    shader_stage_fragment.sType =
-        VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    shader_stage_fragment.pNext = nullptr;
-    shader_stage_fragment.flags = 0;
-    shader_stage_fragment.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
     shader_stage_fragment.module =
         creation_arguments.pixel_shader->shader_module();
     assert_true(shader_stage_fragment.module != VK_NULL_HANDLE);
-    shader_stage_fragment.pName = "main";
-    shader_stage_fragment.pSpecializationInfo = nullptr;
+  } else {
+    if (edram_fragment_shader_interlock) {
+      shader_stage_fragment.module = depth_only_fragment_shader_;
+    }
+  }
+  if (shader_stage_fragment.module == VK_NULL_HANDLE) {
+    --shader_stage_count;
   }
 
   VkPipelineVertexInputStateCreateInfo vertex_input_state = {};
@@ -2087,11 +2137,11 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   // formula, though Z has no effect on anything if a depth attachment is not
   // used (the guest shader can't access Z), enabling only when there's a
   // depth / stencil attachment for correctness.
-  // TODO(Triang3l): Disable the depth bias for the fragment shader interlock RB
-  // implementation.
   rasterization_state.depthBiasEnable =
-      (description.render_pass_key.depth_and_color_used & 0b1) ? VK_TRUE
-                                                               : VK_FALSE;
+      (!edram_fragment_shader_interlock &&
+       (description.render_pass_key.depth_and_color_used & 0b1))
+          ? VK_TRUE
+          : VK_FALSE;
   // TODO(Triang3l): Wide lines.
   rasterization_state.lineWidth = 1.0f;
 
@@ -2101,6 +2151,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
       VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
   if (description.render_pass_key.msaa_samples == xenos::MsaaSamples::k2X &&
       !render_target_cache_.IsMsaa2xSupported(
+          !edram_fragment_shader_interlock &&
           description.render_pass_key.depth_and_color_used != 0)) {
     // Using sample 0 as 0 and 3 as 1 for 2x instead (not exactly the same
     // sample locations, but still top-left and bottom-right - however, this can
@@ -2119,126 +2170,131 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   depth_stencil_state.sType =
       VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
   depth_stencil_state.pNext = nullptr;
-  if (description.depth_write_enable ||
-      description.depth_compare_op != xenos::CompareFunction::kAlways) {
-    depth_stencil_state.depthTestEnable = VK_TRUE;
-    depth_stencil_state.depthWriteEnable =
-        description.depth_write_enable ? VK_TRUE : VK_FALSE;
-    depth_stencil_state.depthCompareOp = VkCompareOp(
-        uint32_t(VK_COMPARE_OP_NEVER) + uint32_t(description.depth_compare_op));
-  }
-  if (description.stencil_test_enable) {
-    depth_stencil_state.stencilTestEnable = VK_TRUE;
-    depth_stencil_state.front.failOp =
-        VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
-                    uint32_t(description.stencil_front_fail_op));
-    depth_stencil_state.front.passOp =
-        VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
-                    uint32_t(description.stencil_front_pass_op));
-    depth_stencil_state.front.depthFailOp =
-        VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
-                    uint32_t(description.stencil_front_depth_fail_op));
-    depth_stencil_state.front.compareOp =
-        VkCompareOp(uint32_t(VK_COMPARE_OP_NEVER) +
-                    uint32_t(description.stencil_front_compare_op));
-    depth_stencil_state.back.failOp =
-        VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
-                    uint32_t(description.stencil_back_fail_op));
-    depth_stencil_state.back.passOp =
-        VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
-                    uint32_t(description.stencil_back_pass_op));
-    depth_stencil_state.back.depthFailOp =
-        VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
-                    uint32_t(description.stencil_back_depth_fail_op));
-    depth_stencil_state.back.compareOp =
-        VkCompareOp(uint32_t(VK_COMPARE_OP_NEVER) +
-                    uint32_t(description.stencil_back_compare_op));
-  }
-
-  VkPipelineColorBlendAttachmentState
-      color_blend_attachments[xenos::kMaxColorRenderTargets] = {};
-  uint32_t color_rts_used =
-      description.render_pass_key.depth_and_color_used >> 1;
-  {
-    static const VkBlendFactor kBlendFactorMap[] = {
-        VK_BLEND_FACTOR_ZERO,
-        VK_BLEND_FACTOR_ONE,
-        VK_BLEND_FACTOR_SRC_COLOR,
-        VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR,
-        VK_BLEND_FACTOR_DST_COLOR,
-        VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR,
-        VK_BLEND_FACTOR_SRC_ALPHA,
-        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-        VK_BLEND_FACTOR_DST_ALPHA,
-        VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA,
-        VK_BLEND_FACTOR_CONSTANT_COLOR,
-        VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR,
-        VK_BLEND_FACTOR_CONSTANT_ALPHA,
-        VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA,
-        VK_BLEND_FACTOR_SRC_ALPHA_SATURATE,
-    };
-    // 8 entries for safety since 3 bits from the guest are passed directly.
-    static const VkBlendOp kBlendOpMap[] = {VK_BLEND_OP_ADD,
-                                            VK_BLEND_OP_SUBTRACT,
-                                            VK_BLEND_OP_MIN,
-                                            VK_BLEND_OP_MAX,
-                                            VK_BLEND_OP_REVERSE_SUBTRACT,
-                                            VK_BLEND_OP_ADD,
-                                            VK_BLEND_OP_ADD,
-                                            VK_BLEND_OP_ADD};
-    uint32_t color_rts_remaining = color_rts_used;
-    uint32_t color_rt_index;
-    while (xe::bit_scan_forward(color_rts_remaining, &color_rt_index)) {
-      color_rts_remaining &= ~(uint32_t(1) << color_rt_index);
-      VkPipelineColorBlendAttachmentState& color_blend_attachment =
-          color_blend_attachments[color_rt_index];
-      const PipelineRenderTarget& color_rt =
-          description.render_targets[color_rt_index];
-      if (color_rt.src_color_blend_factor != PipelineBlendFactor::kOne ||
-          color_rt.dst_color_blend_factor != PipelineBlendFactor::kZero ||
-          color_rt.color_blend_op != xenos::BlendOp::kAdd ||
-          color_rt.src_alpha_blend_factor != PipelineBlendFactor::kOne ||
-          color_rt.dst_alpha_blend_factor != PipelineBlendFactor::kZero ||
-          color_rt.alpha_blend_op != xenos::BlendOp::kAdd) {
-        color_blend_attachment.blendEnable = VK_TRUE;
-        color_blend_attachment.srcColorBlendFactor =
-            kBlendFactorMap[uint32_t(color_rt.src_color_blend_factor)];
-        color_blend_attachment.dstColorBlendFactor =
-            kBlendFactorMap[uint32_t(color_rt.dst_color_blend_factor)];
-        color_blend_attachment.colorBlendOp =
-            kBlendOpMap[uint32_t(color_rt.color_blend_op)];
-        color_blend_attachment.srcAlphaBlendFactor =
-            kBlendFactorMap[uint32_t(color_rt.src_alpha_blend_factor)];
-        color_blend_attachment.dstAlphaBlendFactor =
-            kBlendFactorMap[uint32_t(color_rt.dst_alpha_blend_factor)];
-        color_blend_attachment.alphaBlendOp =
-            kBlendOpMap[uint32_t(color_rt.alpha_blend_op)];
-      }
-      color_blend_attachment.colorWriteMask =
-          VkColorComponentFlags(color_rt.color_write_mask);
-      if (!device_features.independentBlend) {
-        // For non-independent blend, the pAttachments element for the first
-        // actually used color will be replicated into all.
-        break;
-      }
+  if (!edram_fragment_shader_interlock) {
+    if (description.depth_write_enable ||
+        description.depth_compare_op != xenos::CompareFunction::kAlways) {
+      depth_stencil_state.depthTestEnable = VK_TRUE;
+      depth_stencil_state.depthWriteEnable =
+          description.depth_write_enable ? VK_TRUE : VK_FALSE;
+      depth_stencil_state.depthCompareOp =
+          VkCompareOp(uint32_t(VK_COMPARE_OP_NEVER) +
+                      uint32_t(description.depth_compare_op));
+    }
+    if (description.stencil_test_enable) {
+      depth_stencil_state.stencilTestEnable = VK_TRUE;
+      depth_stencil_state.front.failOp =
+          VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
+                      uint32_t(description.stencil_front_fail_op));
+      depth_stencil_state.front.passOp =
+          VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
+                      uint32_t(description.stencil_front_pass_op));
+      depth_stencil_state.front.depthFailOp =
+          VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
+                      uint32_t(description.stencil_front_depth_fail_op));
+      depth_stencil_state.front.compareOp =
+          VkCompareOp(uint32_t(VK_COMPARE_OP_NEVER) +
+                      uint32_t(description.stencil_front_compare_op));
+      depth_stencil_state.back.failOp =
+          VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
+                      uint32_t(description.stencil_back_fail_op));
+      depth_stencil_state.back.passOp =
+          VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
+                      uint32_t(description.stencil_back_pass_op));
+      depth_stencil_state.back.depthFailOp =
+          VkStencilOp(uint32_t(VK_STENCIL_OP_KEEP) +
+                      uint32_t(description.stencil_back_depth_fail_op));
+      depth_stencil_state.back.compareOp =
+          VkCompareOp(uint32_t(VK_COMPARE_OP_NEVER) +
+                      uint32_t(description.stencil_back_compare_op));
     }
   }
+
   VkPipelineColorBlendStateCreateInfo color_blend_state = {};
   color_blend_state.sType =
       VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-  color_blend_state.attachmentCount = 32 - xe::lzcnt(color_rts_used);
-  color_blend_state.pAttachments = color_blend_attachments;
-  if (color_rts_used && !device_features.independentBlend) {
-    // "If the independent blending feature is not enabled, all elements of
-    //  pAttachments must be identical."
-    uint32_t first_color_rt_index;
-    xe::bit_scan_forward(color_rts_used, &first_color_rt_index);
-    for (uint32_t i = 0; i < color_blend_state.attachmentCount; ++i) {
-      if (i == first_color_rt_index) {
-        continue;
+  VkPipelineColorBlendAttachmentState
+      color_blend_attachments[xenos::kMaxColorRenderTargets] = {};
+  if (!edram_fragment_shader_interlock) {
+    uint32_t color_rts_used =
+        description.render_pass_key.depth_and_color_used >> 1;
+    {
+      static const VkBlendFactor kBlendFactorMap[] = {
+          VK_BLEND_FACTOR_ZERO,
+          VK_BLEND_FACTOR_ONE,
+          VK_BLEND_FACTOR_SRC_COLOR,
+          VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR,
+          VK_BLEND_FACTOR_DST_COLOR,
+          VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR,
+          VK_BLEND_FACTOR_SRC_ALPHA,
+          VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+          VK_BLEND_FACTOR_DST_ALPHA,
+          VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA,
+          VK_BLEND_FACTOR_CONSTANT_COLOR,
+          VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR,
+          VK_BLEND_FACTOR_CONSTANT_ALPHA,
+          VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA,
+          VK_BLEND_FACTOR_SRC_ALPHA_SATURATE,
+      };
+      // 8 entries for safety since 3 bits from the guest are passed directly.
+      static const VkBlendOp kBlendOpMap[] = {VK_BLEND_OP_ADD,
+                                              VK_BLEND_OP_SUBTRACT,
+                                              VK_BLEND_OP_MIN,
+                                              VK_BLEND_OP_MAX,
+                                              VK_BLEND_OP_REVERSE_SUBTRACT,
+                                              VK_BLEND_OP_ADD,
+                                              VK_BLEND_OP_ADD,
+                                              VK_BLEND_OP_ADD};
+      uint32_t color_rts_remaining = color_rts_used;
+      uint32_t color_rt_index;
+      while (xe::bit_scan_forward(color_rts_remaining, &color_rt_index)) {
+        color_rts_remaining &= ~(uint32_t(1) << color_rt_index);
+        VkPipelineColorBlendAttachmentState& color_blend_attachment =
+            color_blend_attachments[color_rt_index];
+        const PipelineRenderTarget& color_rt =
+            description.render_targets[color_rt_index];
+        if (color_rt.src_color_blend_factor != PipelineBlendFactor::kOne ||
+            color_rt.dst_color_blend_factor != PipelineBlendFactor::kZero ||
+            color_rt.color_blend_op != xenos::BlendOp::kAdd ||
+            color_rt.src_alpha_blend_factor != PipelineBlendFactor::kOne ||
+            color_rt.dst_alpha_blend_factor != PipelineBlendFactor::kZero ||
+            color_rt.alpha_blend_op != xenos::BlendOp::kAdd) {
+          color_blend_attachment.blendEnable = VK_TRUE;
+          color_blend_attachment.srcColorBlendFactor =
+              kBlendFactorMap[uint32_t(color_rt.src_color_blend_factor)];
+          color_blend_attachment.dstColorBlendFactor =
+              kBlendFactorMap[uint32_t(color_rt.dst_color_blend_factor)];
+          color_blend_attachment.colorBlendOp =
+              kBlendOpMap[uint32_t(color_rt.color_blend_op)];
+          color_blend_attachment.srcAlphaBlendFactor =
+              kBlendFactorMap[uint32_t(color_rt.src_alpha_blend_factor)];
+          color_blend_attachment.dstAlphaBlendFactor =
+              kBlendFactorMap[uint32_t(color_rt.dst_alpha_blend_factor)];
+          color_blend_attachment.alphaBlendOp =
+              kBlendOpMap[uint32_t(color_rt.alpha_blend_op)];
+        }
+        color_blend_attachment.colorWriteMask =
+            VkColorComponentFlags(color_rt.color_write_mask);
+        if (!device_features.independentBlend) {
+          // For non-independent blend, the pAttachments element for the first
+          // actually used color will be replicated into all.
+          break;
+        }
       }
-      color_blend_attachments[i] =
-          color_blend_attachments[first_color_rt_index];
+    }
+    color_blend_state.attachmentCount = 32 - xe::lzcnt(color_rts_used);
+    color_blend_state.pAttachments = color_blend_attachments;
+    if (color_rts_used && !device_features.independentBlend) {
+      // "If the independent blending feature is not enabled, all elements of
+      //  pAttachments must be identical."
+      uint32_t first_color_rt_index;
+      xe::bit_scan_forward(color_rts_used, &first_color_rt_index);
+      for (uint32_t i = 0; i < color_blend_state.attachmentCount; ++i) {
+        if (i == first_color_rt_index) {
+          continue;
+        }
+        color_blend_attachments[i] =
+            color_blend_attachments[first_color_rt_index];
+      }
     }
   }
 
@@ -2255,16 +2311,18 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
   // invalidated (again, even if it has no effect).
   dynamic_states[dynamic_state.dynamicStateCount++] = VK_DYNAMIC_STATE_VIEWPORT;
   dynamic_states[dynamic_state.dynamicStateCount++] = VK_DYNAMIC_STATE_SCISSOR;
-  dynamic_states[dynamic_state.dynamicStateCount++] =
-      VK_DYNAMIC_STATE_DEPTH_BIAS;
-  dynamic_states[dynamic_state.dynamicStateCount++] =
-      VK_DYNAMIC_STATE_BLEND_CONSTANTS;
-  dynamic_states[dynamic_state.dynamicStateCount++] =
-      VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK;
-  dynamic_states[dynamic_state.dynamicStateCount++] =
-      VK_DYNAMIC_STATE_STENCIL_WRITE_MASK;
-  dynamic_states[dynamic_state.dynamicStateCount++] =
-      VK_DYNAMIC_STATE_STENCIL_REFERENCE;
+  if (!edram_fragment_shader_interlock) {
+    dynamic_states[dynamic_state.dynamicStateCount++] =
+        VK_DYNAMIC_STATE_DEPTH_BIAS;
+    dynamic_states[dynamic_state.dynamicStateCount++] =
+        VK_DYNAMIC_STATE_BLEND_CONSTANTS;
+    dynamic_states[dynamic_state.dynamicStateCount++] =
+        VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK;
+    dynamic_states[dynamic_state.dynamicStateCount++] =
+        VK_DYNAMIC_STATE_STENCIL_WRITE_MASK;
+    dynamic_states[dynamic_state.dynamicStateCount++] =
+        VK_DYNAMIC_STATE_STENCIL_REFERENCE;
+  }
 
   VkGraphicsPipelineCreateInfo pipeline_create_info;
   pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;

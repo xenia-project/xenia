@@ -235,6 +235,7 @@ namespace shader_playground {
           outputType = "dxbctext";
           break;
         case 2:
+        case 3:
           outputType = "spirvtext";
           break;
       }
@@ -269,8 +270,9 @@ namespace shader_playground {
         "--vertex_shader_output_type=" + vertexShaderType,
         "--dxbc_source_map=true",
       };
-      if (translationComboBox.SelectedIndex == 1) {
-        startArguments.Add("--shader_output_dxbc_rov=true");
+      if (translationComboBox.SelectedIndex == 1 ||
+          translationComboBox.SelectedIndex == 3) {
+        startArguments.Add("--shader_output_pixel_shader_interlock=true");
       }
 
       startInfo = new ProcessStartInfo(compilerPath_);

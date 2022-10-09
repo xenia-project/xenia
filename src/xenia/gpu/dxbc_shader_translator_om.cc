@@ -14,138 +14,12 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
 #include "xenia/gpu/draw_util.h"
+#include "xenia/gpu/render_target_cache.h"
 #include "xenia/gpu/texture_cache.h"
 
 namespace xe {
 namespace gpu {
 using namespace ucode;
-
-void DxbcShaderTranslator::ROV_GetColorFormatSystemConstants(
-    xenos::ColorRenderTargetFormat format, uint32_t write_mask,
-    float& clamp_rgb_low, float& clamp_alpha_low, float& clamp_rgb_high,
-    float& clamp_alpha_high, uint32_t& keep_mask_low,
-    uint32_t& keep_mask_high) {
-  keep_mask_low = keep_mask_high = 0;
-  switch (format) {
-    case xenos::ColorRenderTargetFormat::k_8_8_8_8:
-    case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA: {
-      clamp_rgb_low = clamp_alpha_low = 0.0f;
-      clamp_rgb_high = clamp_alpha_high = 1.0f;
-      for (uint32_t i = 0; i < 4; ++i) {
-        if (!(write_mask & (1 << i))) {
-          keep_mask_low |= uint32_t(0xFF) << (i * 8);
-        }
-      }
-    } break;
-    case xenos::ColorRenderTargetFormat::k_2_10_10_10:
-    case xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10: {
-      clamp_rgb_low = clamp_alpha_low = 0.0f;
-      clamp_rgb_high = clamp_alpha_high = 1.0f;
-      for (uint32_t i = 0; i < 3; ++i) {
-        if (!(write_mask & (1 << i))) {
-          keep_mask_low |= uint32_t(0x3FF) << (i * 10);
-        }
-      }
-      if (!(write_mask & 0b1000)) {
-        keep_mask_low |= uint32_t(3) << 30;
-      }
-    } break;
-    case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
-    case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16: {
-      clamp_rgb_low = clamp_alpha_low = 0.0f;
-      clamp_rgb_high = 31.875f;
-      clamp_alpha_high = 1.0f;
-      for (uint32_t i = 0; i < 3; ++i) {
-        if (!(write_mask & (1 << i))) {
-          keep_mask_low |= uint32_t(0x3FF) << (i * 10);
-        }
-      }
-      if (!(write_mask & 0b1000)) {
-        keep_mask_low |= uint32_t(3) << 30;
-      }
-    } break;
-    case xenos::ColorRenderTargetFormat::k_16_16:
-    case xenos::ColorRenderTargetFormat::k_16_16_16_16:
-      // Alpha clamping affects blending source, so it's non-zero for alpha for
-      // k_16_16 (the render target is fixed-point). There's one deviation from
-      // how Direct3D 11.3 functional specification defines SNorm conversion
-      // (NaN should be 0, not the lowest negative number), but NaN handling in
-      // output shouldn't be very important.
-      clamp_rgb_low = clamp_alpha_low = -32.0f;
-      clamp_rgb_high = clamp_alpha_high = 32.0f;
-      if (!(write_mask & 0b0001)) {
-        keep_mask_low |= 0xFFFFu;
-      }
-      if (!(write_mask & 0b0010)) {
-        keep_mask_low |= 0xFFFF0000u;
-      }
-      if (format == xenos::ColorRenderTargetFormat::k_16_16_16_16) {
-        if (!(write_mask & 0b0100)) {
-          keep_mask_high |= 0xFFFFu;
-        }
-        if (!(write_mask & 0b1000)) {
-          keep_mask_high |= 0xFFFF0000u;
-        }
-      } else {
-        write_mask &= 0b0011;
-      }
-      break;
-    case xenos::ColorRenderTargetFormat::k_16_16_FLOAT:
-    case xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT:
-      // No NaNs on the Xbox 360 GPU, though can't use the extended range with
-      // f32tof16.
-      clamp_rgb_low = clamp_alpha_low = -65504.0f;
-      clamp_rgb_high = clamp_alpha_high = 65504.0f;
-      if (!(write_mask & 0b0001)) {
-        keep_mask_low |= 0xFFFFu;
-      }
-      if (!(write_mask & 0b0010)) {
-        keep_mask_low |= 0xFFFF0000u;
-      }
-      if (format == xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT) {
-        if (!(write_mask & 0b0100)) {
-          keep_mask_high |= 0xFFFFu;
-        }
-        if (!(write_mask & 0b1000)) {
-          keep_mask_high |= 0xFFFF0000u;
-        }
-      } else {
-        write_mask &= 0b0011;
-      }
-      break;
-    case xenos::ColorRenderTargetFormat::k_32_FLOAT:
-      // No clamping - let min/max always pick the original value.
-      clamp_rgb_low = clamp_alpha_low = clamp_rgb_high = clamp_alpha_high =
-          std::nanf("");
-      write_mask &= 0b0001;
-      if (!(write_mask & 0b0001)) {
-        keep_mask_low = ~uint32_t(0);
-      }
-      break;
-    case xenos::ColorRenderTargetFormat::k_32_32_FLOAT:
-      // No clamping - let min/max always pick the original value.
-      clamp_rgb_low = clamp_alpha_low = clamp_rgb_high = clamp_alpha_high =
-          std::nanf("");
-      write_mask &= 0b0011;
-      if (!(write_mask & 0b0001)) {
-        keep_mask_low = ~uint32_t(0);
-      }
-      if (!(write_mask & 0b0010)) {
-        keep_mask_high = ~uint32_t(0);
-      }
-      break;
-    default:
-      assert_unhandled_case(format);
-      // Disable invalid render targets.
-      write_mask = 0;
-      break;
-  }
-  // Special case handled in the shaders for empty write mask to completely skip
-  // a disabled render target: all keep bits are set.
-  if (!write_mask) {
-    keep_mask_low = keep_mask_high = ~uint32_t(0);
-  }
-}
 
 void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   bool any_color_targets_written = current_shader().writes_color_targets() != 0;
@@ -484,8 +358,8 @@ void DxbcShaderTranslator::StartPixelShader_LoadROVParameters() {
   {
     // Copy the 4x AA coverage to system_temp_rov_params_.x, making top-right
     // the sample [2] and bottom-left the sample [1] (the opposite of Direct3D
-    // 12), because on the Xbox 360, 2x MSAA doubles the storage width, 4x MSAA
-    // doubles the storage height.
+    // 12), because on the Xbox 360, 2x MSAA doubles the storage height, 4x MSAA
+    // doubles the storage width.
     // Flip samples in bits 0:1 to bits 29:30.
     a_.OpBFRev(dxbc::Dest::R(system_temp_rov_params_, 0b0001),
                dxbc::Src::VCoverage());
@@ -1304,7 +1178,7 @@ void DxbcShaderTranslator::ROV_UnpackColor(
   // k_8_8_8_8_GAMMA
   // ***************************************************************************
   for (uint32_t i = 0; i < 2; ++i) {
-    a_.OpCase(dxbc::Src::LU(ROV_AddColorFormatFlags(
+    a_.OpCase(dxbc::Src::LU(RenderTargetCache::AddPSIColorFormatFlags(
         i ? xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA
           : xenos::ColorRenderTargetFormat::k_8_8_8_8)));
     // Unpack the components.
@@ -1328,9 +1202,9 @@ void DxbcShaderTranslator::ROV_UnpackColor(
   // k_2_10_10_10
   // k_2_10_10_10_AS_10_10_10_10
   // ***************************************************************************
-  a_.OpCase(dxbc::Src::LU(
-      ROV_AddColorFormatFlags(xenos::ColorRenderTargetFormat::k_2_10_10_10)));
-  a_.OpCase(dxbc::Src::LU(ROV_AddColorFormatFlags(
+  a_.OpCase(dxbc::Src::LU(RenderTargetCache::AddPSIColorFormatFlags(
+      xenos::ColorRenderTargetFormat::k_2_10_10_10)));
+  a_.OpCase(dxbc::Src::LU(RenderTargetCache::AddPSIColorFormatFlags(
       xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10)));
   {
     // Unpack the components.
@@ -1350,9 +1224,9 @@ void DxbcShaderTranslator::ROV_UnpackColor(
   // k_2_10_10_10_FLOAT_AS_16_16_16_16
   // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
   // ***************************************************************************
-  a_.OpCase(dxbc::Src::LU(ROV_AddColorFormatFlags(
+  a_.OpCase(dxbc::Src::LU(RenderTargetCache::AddPSIColorFormatFlags(
       xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT)));
-  a_.OpCase(dxbc::Src::LU(ROV_AddColorFormatFlags(
+  a_.OpCase(dxbc::Src::LU(RenderTargetCache::AddPSIColorFormatFlags(
       xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16)));
   {
     // Unpack the alpha.
@@ -1381,7 +1255,7 @@ void DxbcShaderTranslator::ROV_UnpackColor(
   // k_16_16_16_16 (64bpp)
   // ***************************************************************************
   for (uint32_t i = 0; i < 2; ++i) {
-    a_.OpCase(dxbc::Src::LU(ROV_AddColorFormatFlags(
+    a_.OpCase(dxbc::Src::LU(RenderTargetCache::AddPSIColorFormatFlags(
         i ? xenos::ColorRenderTargetFormat::k_16_16_16_16
           : xenos::ColorRenderTargetFormat::k_16_16)));
     dxbc::Dest color_components_dest(
@@ -1404,7 +1278,7 @@ void DxbcShaderTranslator::ROV_UnpackColor(
   // k_16_16_16_16_FLOAT (64bpp)
   // ***************************************************************************
   for (uint32_t i = 0; i < 2; ++i) {
-    a_.OpCase(dxbc::Src::LU(ROV_AddColorFormatFlags(
+    a_.OpCase(dxbc::Src::LU(RenderTargetCache::AddPSIColorFormatFlags(
         i ? xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT
           : xenos::ColorRenderTargetFormat::k_16_16_FLOAT)));
     dxbc::Dest color_components_dest(
@@ -1465,7 +1339,7 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(
   // k_8_8_8_8_GAMMA
   // ***************************************************************************
   for (uint32_t i = 0; i < 2; ++i) {
-    a_.OpCase(dxbc::Src::LU(ROV_AddColorFormatFlags(
+    a_.OpCase(dxbc::Src::LU(RenderTargetCache::AddPSIColorFormatFlags(
         i ? xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA
           : xenos::ColorRenderTargetFormat::k_8_8_8_8)));
     for (uint32_t j = 0; j < 4; ++j) {
@@ -1496,9 +1370,9 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(
   // k_2_10_10_10
   // k_2_10_10_10_AS_10_10_10_10
   // ***************************************************************************
-  a_.OpCase(dxbc::Src::LU(
-      ROV_AddColorFormatFlags(xenos::ColorRenderTargetFormat::k_2_10_10_10)));
-  a_.OpCase(dxbc::Src::LU(ROV_AddColorFormatFlags(
+  a_.OpCase(dxbc::Src::LU(RenderTargetCache::AddPSIColorFormatFlags(
+      xenos::ColorRenderTargetFormat::k_2_10_10_10)));
+  a_.OpCase(dxbc::Src::LU(RenderTargetCache::AddPSIColorFormatFlags(
       xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10)));
   for (uint32_t i = 0; i < 4; ++i) {
     // Denormalize and convert to fixed-point.
@@ -1518,9 +1392,9 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(
   // k_2_10_10_10_FLOAT_AS_16_16_16_16
   // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
   // ***************************************************************************
-  a_.OpCase(dxbc::Src::LU(ROV_AddColorFormatFlags(
+  a_.OpCase(dxbc::Src::LU(RenderTargetCache::AddPSIColorFormatFlags(
       xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT)));
-  a_.OpCase(dxbc::Src::LU(ROV_AddColorFormatFlags(
+  a_.OpCase(dxbc::Src::LU(RenderTargetCache::AddPSIColorFormatFlags(
       xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT_AS_16_16_16_16)));
   {
     // Convert red directly to the destination, which may be the same as the
@@ -1550,7 +1424,7 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(
   // k_16_16_16_16 (64bpp)
   // ***************************************************************************
   for (uint32_t i = 0; i < 2; ++i) {
-    a_.OpCase(dxbc::Src::LU(ROV_AddColorFormatFlags(
+    a_.OpCase(dxbc::Src::LU(RenderTargetCache::AddPSIColorFormatFlags(
         i ? xenos::ColorRenderTargetFormat::k_16_16_16_16
           : xenos::ColorRenderTargetFormat::k_16_16)));
     for (uint32_t j = 0; j < (uint32_t(2) << i); ++j) {
@@ -1582,7 +1456,7 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(
   // k_16_16_16_16_FLOAT (64bpp)
   // ***************************************************************************
   for (uint32_t i = 0; i < 2; ++i) {
-    a_.OpCase(dxbc::Src::LU(ROV_AddColorFormatFlags(
+    a_.OpCase(dxbc::Src::LU(RenderTargetCache::AddPSIColorFormatFlags(
         i ? xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT
           : xenos::ColorRenderTargetFormat::k_16_16_FLOAT)));
     for (uint32_t j = 0; j < (uint32_t(2) << i); ++j) {
@@ -2230,7 +2104,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
     // Load whether the render target is 64bpp to system_temp_rov_params_.y to
     // get the needed relative sample address.
     a_.OpAnd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
-             rt_format_flags_src, dxbc::Src::LU(kRTFormatFlag_64bpp));
+             rt_format_flags_src,
+             dxbc::Src::LU(RenderTargetCache::kPSIColorFormatFlag_64bpp));
     // Choose the relative sample address for the render target to
     // system_temp_rov_params_.y.
     a_.OpMovC(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
@@ -2287,7 +2162,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       // Get if the blending source color is fixed-point for clamping if it is.
       // temp.x = whether color is fixed-point.
       a_.OpAnd(temp_x_dest, rt_format_flags_src,
-               dxbc::Src::LU(kRTFormatFlag_FixedPointColor));
+               dxbc::Src::LU(
+                   RenderTargetCache::kPSIColorFormatFlag_FixedPointColor));
       // Check if the blending source color is fixed-point and needs clamping.
       // temp.x = free.
       a_.OpIf(true, temp_x_src);
@@ -2306,7 +2182,8 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       // Get if the blending source alpha is fixed-point for clamping if it is.
       // temp.x = whether alpha is fixed-point.
       a_.OpAnd(temp_x_dest, rt_format_flags_src,
-               dxbc::Src::LU(kRTFormatFlag_FixedPointAlpha));
+               dxbc::Src::LU(
+                   RenderTargetCache::kPSIColorFormatFlag_FixedPointAlpha));
       // Check if the blending source alpha is fixed-point and needs clamping.
       // temp.x = free.
       a_.OpIf(true, temp_x_src);
@@ -2387,7 +2264,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
         // Get if the format is 64bpp to temp.w.
         // temp.w = whether the render target is 64bpp.
         a_.OpAnd(temp_w_dest, rt_format_flags_src,
-                 dxbc::Src::LU(kRTFormatFlag_64bpp));
+                 dxbc::Src::LU(RenderTargetCache::kPSIColorFormatFlag_64bpp));
         // Check if the format is 64bpp.
         // temp.w = free.
         a_.OpIf(true, temp_w_src);
@@ -2478,8 +2355,10 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
               // Get if the render target color is fixed-point and the source
               // color factor needs clamping to temp.x.
               // temp.x = whether color is fixed-point.
-              a_.OpAnd(temp_x_dest, rt_format_flags_src,
-                       dxbc::Src::LU(kRTFormatFlag_FixedPointColor));
+              a_.OpAnd(
+                  temp_x_dest, rt_format_flags_src,
+                  dxbc::Src::LU(
+                      RenderTargetCache::kPSIColorFormatFlag_FixedPointColor));
               // Check if the source color factor needs clamping.
               a_.OpIf(true, temp_x_src);
               {
@@ -2558,8 +2437,10 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
               // Get if the render target color is fixed-point and the
               // destination color factor needs clamping to temp.x.
               // temp.x = whether color is fixed-point.
-              a_.OpAnd(temp_x_dest, rt_format_flags_src,
-                       dxbc::Src::LU(kRTFormatFlag_FixedPointColor));
+              a_.OpAnd(
+                  temp_x_dest, rt_format_flags_src,
+                  dxbc::Src::LU(
+                      RenderTargetCache::kPSIColorFormatFlag_FixedPointColor));
               // Check if the destination color factor needs clamping.
               a_.OpIf(true, temp_x_src);
               {
@@ -2701,8 +2582,10 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
               // Get if the render target alpha is fixed-point and the source
               // alpha factor needs clamping to temp.y.
               // temp.y = whether alpha is fixed-point.
-              a_.OpAnd(temp_y_dest, rt_format_flags_src,
-                       dxbc::Src::LU(kRTFormatFlag_FixedPointAlpha));
+              a_.OpAnd(
+                  temp_y_dest, rt_format_flags_src,
+                  dxbc::Src::LU(
+                      RenderTargetCache::kPSIColorFormatFlag_FixedPointAlpha));
               // Check if the source alpha factor needs clamping.
               a_.OpIf(true, temp_y_src);
               {
@@ -2769,9 +2652,11 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
               // destination alpha factor needs clamping.
               // alpha_is_fixed_temp.x = whether alpha is fixed-point.
               uint32_t alpha_is_fixed_temp = PushSystemTemp();
-              a_.OpAnd(dxbc::Dest::R(alpha_is_fixed_temp, 0b0001),
-                       rt_format_flags_src,
-                       dxbc::Src::LU(kRTFormatFlag_FixedPointAlpha));
+              a_.OpAnd(
+                  dxbc::Dest::R(alpha_is_fixed_temp, 0b0001),
+                  rt_format_flags_src,
+                  dxbc::Src::LU(
+                      RenderTargetCache::kPSIColorFormatFlag_FixedPointAlpha));
               // Check if the destination alpha factor needs clamping.
               a_.OpIf(true,
                       dxbc::Src::R(alpha_is_fixed_temp, dxbc::Src::kXXXX));
@@ -2925,7 +2810,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       // Get if the format is 64bpp to temp.z.
       // temp.z = whether the render target is 64bpp.
       a_.OpAnd(temp_z_dest, rt_format_flags_src,
-               dxbc::Src::LU(kRTFormatFlag_64bpp));
+               dxbc::Src::LU(RenderTargetCache::kPSIColorFormatFlag_64bpp));
       // Check if the format is 64bpp.
       // temp.z = free.
       a_.OpIf(true, temp_z_src);
@@ -2954,16 +2839,29 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToROV() {
       // Close the sample covered check.
       a_.OpEndIf();
 
-      // Go to the next sample (samples are at +0, +(80*scale_x), +1,
-      // +(80*scale_x+1), so need to do +(80*scale_x), -(80*scale_x-1),
-      // +(80*scale_x) and -(80*scale_x+1) after each sample).
+      // Go to the next sample (samples are at +0, +(80*scale_x), +dwpp,
+      // +(80*scale_x+dwpp), so need to do +(80*scale_x), -(80*scale_x-dwpp),
+      // +(80*scale_x) and -(80*scale_x+dwpp) after each sample).
       // Though no need to do this for the last sample as for the next render
       // target, the address will be recalculated.
       if (j < 3) {
-        a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
-                  dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
-                  dxbc::Src::LI((j & 1) ? -int32_t(tile_width) + 2 - j
-                                        : int32_t(tile_width)));
+        if (j & 1) {
+          // temp.z = whether the render target is 64bpp.
+          a_.OpAnd(temp_z_dest, rt_format_flags_src,
+                   dxbc::Src::LU(RenderTargetCache::kPSIColorFormatFlag_64bpp));
+          // temp.z = offset from the current sample to the next.
+          a_.OpMovC(temp_z_dest, temp_z_src,
+                    dxbc::Src::LI(-int32_t(tile_width) + 2 * (2 - int32_t(j))),
+                    dxbc::Src::LI(-int32_t(tile_width) + (2 - int32_t(j))));
+          // temp.z = free.
+          a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
+                    dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
+                    temp_z_src);
+        } else {
+          a_.OpIAdd(dxbc::Dest::R(system_temp_rov_params_, 0b0010),
+                    dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kYYYY),
+                    dxbc::Src::LU(tile_width));
+        }
       }
     }
 
@@ -2987,6 +2885,17 @@ void DxbcShaderTranslator::CompletePixelShader() {
 
   if (current_shader().writes_color_target(0) &&
       !IsForceEarlyDepthStencilGlobalFlagEnabled()) {
+    if (edram_rov_used_) {
+      // Check if the render target 0 was written to on the execution path.
+      uint32_t rt_0_written_temp = PushSystemTemp();
+      a_.OpAnd(dxbc::Dest::R(rt_0_written_temp, 0b0001),
+               dxbc::Src::R(system_temp_rov_params_, dxbc::Src::kXXXX),
+               dxbc::Src::LU(1 << 8));
+      a_.OpIf(true, dxbc::Src::R(rt_0_written_temp, dxbc::Src::kXXXX));
+      // Release rt_0_written_temp.
+      PopSystemTemp();
+    }
+
     // Alpha test.
     // X - mask, then masked result (SGPR for loading, VGPR for masking).
     // Y - operation result (SGPR for mask operations, VGPR for alpha
@@ -3057,10 +2966,15 @@ void DxbcShaderTranslator::CompletePixelShader() {
     a_.OpEndIf();
     // Release alpha_test_temp.
     PopSystemTemp();
-  }
 
-  // Discard samples with alpha to coverage.
-  CompletePixelShader_AlphaToMask();
+    // Discard samples with alpha to coverage.
+    CompletePixelShader_AlphaToMask();
+
+    if (edram_rov_used_) {
+      // Close the render target 0 written check.
+      a_.OpEndIf();
+    }
+  }
 
   // Write the values to the render targets. Not applying the exponent bias yet
   // because the original 0 to 1 alpha value is needed for alpha to coverage,

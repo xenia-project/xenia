@@ -3189,15 +3189,14 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   // flow.
   reg::RB_COLOR_INFO color_infos[4];
   float rt_clamp[4][4];
+  // Two UINT32_MAX if no components actually existing in the RT are written.
   uint32_t rt_keep_masks[4][2];
   for (uint32_t i = 0; i < 4; ++i) {
     auto color_info = regs.Get<reg::RB_COLOR_INFO>(
         reg::RB_COLOR_INFO::rt_register_indices[i]);
     color_infos[i] = color_info;
     if (edram_rov_used) {
-      // Get the mask for keeping previous color's components unmodified,
-      // or two UINT32_MAX if no colors actually existing in the RT are written.
-      DxbcShaderTranslator::ROV_GetColorFormatSystemConstants(
+      RenderTargetCache::GetPSIColorFormatInfo(
           color_info.color_format, (normalized_color_mask >> (i * 4)) & 0b1111,
           rt_clamp[i][0], rt_clamp[i][1], rt_clamp[i][2], rt_clamp[i][3],
           rt_keep_masks[i][0], rt_keep_masks[i][1]);
@@ -3506,8 +3505,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
                  rt_base_dwords_scaled;
         system_constants_.edram_rt_base_dwords_scaled[i] =
             rt_base_dwords_scaled;
-        uint32_t format_flags = DxbcShaderTranslator::ROV_AddColorFormatFlags(
-            color_info.color_format);
+        uint32_t format_flags =
+            RenderTargetCache::AddPSIColorFormatFlags(color_info.color_format);
         dirty |= system_constants_.edram_rt_format_flags[i] != format_flags;
         system_constants_.edram_rt_format_flags[i] = format_flags;
         // Can't do float comparisons here because NaNs would result in always

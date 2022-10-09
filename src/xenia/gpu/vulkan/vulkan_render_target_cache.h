@@ -43,6 +43,10 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
       // true 4x MSAA passes (framebuffers because render target cache render
       // targets are different for 2x and 4x guest MSAA, pipelines because the
       // sample mask will have 2 samples excluded for 2x-as-4x).
+      // This has effect only on the attachments, but even in cases when there
+      // are no attachments, it can be used to the sample count between
+      // subsystems, for instance, to specify the desired number of samples to
+      // use when there are no attachments in pipelines.
       xenos::MsaaSamples msaa_samples : xenos::kMsaaSamplesBits;  // 2
       // << 0 is depth, << 1...4 is color.
       uint32_t depth_and_color_used : 1 + xenos::kMaxColorRenderTargets;  // 7
@@ -81,8 +85,9 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   static_assert_size(RenderPassKey, sizeof(uint32_t));
 
   struct Framebuffer {
-    VkFramebuffer framebuffer;
-    VkExtent2D host_extent;
+    VkFramebuffer framebuffer = VK_NULL_HANDLE;
+    VkExtent2D host_extent{};
+    Framebuffer() = default;
     Framebuffer(VkFramebuffer framebuffer, const VkExtent2D& host_extent)
         : framebuffer(framebuffer), host_extent(host_extent) {}
   };
@@ -96,15 +101,16 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
   // Transient descriptor set layouts must be initialized in the command
   // processor.
-  bool Initialize();
+  bool Initialize(uint32_t shared_memory_binding_count);
   void Shutdown(bool from_destructor = false);
   void ClearCache() override;
 
   void CompletedSubmissionUpdated();
   void EndSubmission();
 
-  // TODO(Triang3l): Fragment shader interlock.
-  Path GetPath() const override { return Path::kHostRenderTargets; }
+  Path GetPath() const override { return path_; }
+
+  VkBuffer edram_buffer() const { return edram_buffer_; }
 
   // Performs the resolve to a shared memory area according to the current
   // register values, and also clears the render targets if needed. Must be in a
@@ -161,7 +167,11 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   // Returns the render pass object, or VK_NULL_HANDLE if failed to create.
   // A render pass managed by the render target cache may be ended and resumed
   // at any time (to allow for things like copying and texture loading).
-  VkRenderPass GetRenderPass(RenderPassKey key);
+  VkRenderPass GetHostRenderTargetsRenderPass(RenderPassKey key);
+  VkRenderPass GetFragmentShaderInterlockRenderPass() const {
+    assert_true(GetPath() == Path::kPixelShaderInterlock);
+    return fsi_render_pass_;
+  }
 
   VkFormat GetDepthVulkanFormat(xenos::DepthRenderTargetFormat format) const;
   VkFormat GetColorVulkanFormat(xenos::ColorRenderTargetFormat format) const;
@@ -177,6 +187,8 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
 
   bool IsHostDepthEncodingDifferent(
       xenos::DepthRenderTargetFormat format) const override;
+
+  void RequestPixelShaderInterlockBarrier() override;
 
  private:
   enum class EdramBufferUsage {
@@ -251,6 +263,8 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   VulkanCommandProcessor& command_processor_;
   TraceWriter& trace_writer_;
 
+  Path path_ = Path::kHostRenderTargets;
+
   // Accessible in fragment and compute shaders.
   VkDescriptorSetLayout descriptor_set_layout_storage_buffer_ = VK_NULL_HANDLE;
   VkDescriptorSetLayout descriptor_set_layout_sampled_image_ = VK_NULL_HANDLE;
@@ -276,9 +290,18 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   std::array<VkPipeline, size_t(draw_util::ResolveCopyShaderIndex::kCount)>
       resolve_copy_pipelines_{};
 
-  // RenderPassKey::key -> VkRenderPass.
-  // VK_NULL_HANDLE if failed to create.
-  std::unordered_map<uint32_t, VkRenderPass> render_passes_;
+  // On the fragment shader interlock path, the render pass key is used purely
+  // for passing parameters to pipeline setup - there's always only one render
+  // pass.
+  RenderPassKey last_update_render_pass_key_;
+  VkRenderPass last_update_render_pass_ = VK_NULL_HANDLE;
+  // The pitch is not used on the fragment shader interlock path.
+  uint32_t last_update_framebuffer_pitch_tiles_at_32bpp_ = 0;
+  // The attachments are not used on the fragment shader interlock path.
+  const RenderTarget* const*
+      last_update_framebuffer_attachments_[1 + xenos::kMaxColorRenderTargets] =
+          {};
+  const Framebuffer* last_update_framebuffer_ = VK_NULL_HANDLE;
 
   // For host render targets.
 
@@ -809,7 +832,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   };
 
   // Returns the framebuffer object, or VK_NULL_HANDLE if failed to create.
-  const Framebuffer* GetFramebuffer(
+  const Framebuffer* GetHostRenderTargetsFramebuffer(
       RenderPassKey render_pass_key, uint32_t pitch_tiles_at_32bpp,
       const RenderTarget* const* depth_and_color_render_targets);
 
@@ -845,16 +868,12 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   bool msaa_2x_attachments_supported_ = false;
   bool msaa_2x_no_attachments_supported_ = false;
 
+  // VK_NULL_HANDLE if failed to create.
+  std::unordered_map<RenderPassKey, VkRenderPass, RenderPassKey::Hasher>
+      render_passes_;
+
   std::unordered_map<FramebufferKey, Framebuffer, FramebufferKey::Hasher>
       framebuffers_;
-
-  RenderPassKey last_update_render_pass_key_;
-  VkRenderPass last_update_render_pass_ = VK_NULL_HANDLE;
-  uint32_t last_update_framebuffer_pitch_tiles_at_32bpp_ = 0;
-  const RenderTarget* const*
-      last_update_framebuffer_attachments_[1 + xenos::kMaxColorRenderTargets] =
-          {};
-  const Framebuffer* last_update_framebuffer_ = VK_NULL_HANDLE;
 
   // Set 0 - EDRAM storage buffer, set 1 - source depth sampled image (and
   // unused stencil from the transfer descriptor set), HostDepthStoreConstants
@@ -895,6 +914,15 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
   // Temporary storage for DumpRenderTargets.
   std::vector<ResolveCopyDumpRectangle> dump_rectangles_;
   std::vector<DumpInvocation> dump_invocations_;
+
+  // For pixel (fragment) shader interlock.
+
+  VkRenderPass fsi_render_pass_ = VK_NULL_HANDLE;
+  Framebuffer fsi_framebuffer_;
+
+  VkPipelineLayout resolve_fsi_clear_pipeline_layout_ = VK_NULL_HANDLE;
+  VkPipeline resolve_fsi_clear_32bpp_pipeline_ = VK_NULL_HANDLE;
+  VkPipeline resolve_fsi_clear_64bpp_pipeline_ = VK_NULL_HANDLE;
 };
 
 }  // namespace vulkan
