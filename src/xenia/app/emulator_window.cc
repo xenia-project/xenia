@@ -845,7 +845,7 @@ void EmulatorWindow::FileOpen() {
       xe::ui::ImGuiDialog::ShowMessageBox(
           imgui_drawer_.get(), "Error: Failed to Launch",
           fmt::format("Failed to launch target {}",
-                      abs_path.filename().string() +
+                      xe::path_to_utf8(abs_path.filename()) +
                           "; file format is unrecognized or corrupted."));
       XELOGE("Failed to launch target: {:08X}", result);
     }
