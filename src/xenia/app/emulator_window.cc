@@ -809,7 +809,7 @@ void EmulatorWindow::FileDrop(const std::filesystem::path& filename) {
     xe::ui::ImGuiDialog::ShowMessageBox(
         imgui_drawer_.get(), "Error: Failed to Launch",
         fmt::format("Failed to launch target {}",
-                    filename.filename().string() +
+                    xe::path_to_utf8(filename.filename()) +
                         "; file format is unrecognized or corrupted."));
     XELOGE("Failed to launch target: {:08X}", result);
   }
