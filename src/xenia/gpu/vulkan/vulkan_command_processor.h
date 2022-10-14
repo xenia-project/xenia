@@ -16,6 +16,7 @@
 #include <deque>
 #include <functional>
 #include <memory>
+#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -259,6 +260,9 @@ class VulkanCommandProcessor final : public CommandProcessor {
   void SetViewport(const VkViewport& viewport);
   void SetScissor(const VkRect2D& scissor);
 
+  // Returns the text to display in the GPU backend name in the window title.
+  std::string GetWindowTitleText() const;
+
  protected:
   bool SetupContext() override;
   void ShutdownContext() override;
@@ -443,7 +447,8 @@ class VulkanCommandProcessor final : public CommandProcessor {
       bool primitive_polygonal,
       const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
       bool shader_32bit_index_dma, const draw_util::ViewportInfo& viewport_info,
-      uint32_t used_texture_mask);
+      uint32_t used_texture_mask, reg::RB_DEPTHCONTROL normalized_depth_control,
+      uint32_t normalized_color_mask);
   bool UpdateBindings(const VulkanShader* vertex_shader,
                       const VulkanShader* pixel_shader);
   // Allocates a descriptor set and fills one or two VkWriteDescriptorSet
@@ -520,12 +525,12 @@ class VulkanCommandProcessor final : public CommandProcessor {
 
   // Descriptor set layouts used by different shaders.
   VkDescriptorSetLayout descriptor_set_layout_empty_ = VK_NULL_HANDLE;
-  VkDescriptorSetLayout descriptor_set_layout_shared_memory_and_edram_ =
-      VK_NULL_HANDLE;
   VkDescriptorSetLayout descriptor_set_layout_constants_ = VK_NULL_HANDLE;
   std::array<VkDescriptorSetLayout,
              size_t(SingleTransientDescriptorLayout::kCount)>
       descriptor_set_layouts_single_transient_{};
+  VkDescriptorSetLayout descriptor_set_layout_shared_memory_and_edram_ =
+      VK_NULL_HANDLE;
 
   // Descriptor set layouts are referenced by pipeline_layouts_.
   std::unordered_map<TextureDescriptorSetLayoutKey, VkDescriptorSetLayout,
@@ -655,6 +660,9 @@ class VulkanCommandProcessor final : public CommandProcessor {
   // declared as dynamic in the pipeline) invalidates such dynamic state.
   VkViewport dynamic_viewport_;
   VkRect2D dynamic_scissor_;
+  // Dynamic fixed-function depth bias, blend constants, stencil state are
+  // applicable only to the render target implementations where they are
+  // actually involved.
   float dynamic_depth_bias_constant_factor_;
   float dynamic_depth_bias_slope_factor_;
   float dynamic_blend_constants_[4];

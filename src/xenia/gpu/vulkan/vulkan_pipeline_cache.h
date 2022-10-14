@@ -314,6 +314,10 @@ class VulkanPipelineCache {
                      GeometryShaderKey::Hasher>
       geometry_shaders_;
 
+  // Empty depth-only pixel shader for writing to depth buffer using fragment
+  // shader interlock when no Xenos pixel shader provided.
+  VkShaderModule depth_only_fragment_shader_ = VK_NULL_HANDLE;
+
   std::unordered_map<PipelineDescription, Pipeline, PipelineDescription::Hasher>
       pipelines_;
 

@@ -1898,30 +1898,14 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           builder_->setBuildPoint(&block_dimension_stacked_start);
           if (use_computed_lod) {
             // Extract 2D gradients for stacked textures which are 2D arrays.
-            {
-              std::unique_ptr<spv::Instruction> shuffle_op =
-                  std::make_unique<spv::Instruction>(builder_->getUniqueId(),
-                                                     type_float2_,
-                                                     spv::OpVectorShuffle);
-              shuffle_op->addIdOperand(gradients_h);
-              shuffle_op->addIdOperand(gradients_h);
-              shuffle_op->addImmediateOperand(0);
-              shuffle_op->addImmediateOperand(1);
-              texture_parameters.gradX = shuffle_op->getResultId();
-              builder_->getBuildPoint()->addInstruction(std::move(shuffle_op));
-            }
-            {
-              std::unique_ptr<spv::Instruction> shuffle_op =
-                  std::make_unique<spv::Instruction>(builder_->getUniqueId(),
-                                                     type_float2_,
-                                                     spv::OpVectorShuffle);
-              shuffle_op->addIdOperand(gradients_v);
-              shuffle_op->addIdOperand(gradients_v);
-              shuffle_op->addImmediateOperand(0);
-              shuffle_op->addImmediateOperand(1);
-              texture_parameters.gradY = shuffle_op->getResultId();
-              builder_->getBuildPoint()->addInstruction(std::move(shuffle_op));
-            }
+            uint_vector_temp_.clear();
+            uint_vector_temp_.reserve(2);
+            uint_vector_temp_.push_back(0);
+            uint_vector_temp_.push_back(1);
+            texture_parameters.gradX = builder_->createRvalueSwizzle(
+                spv::NoPrecision, type_float2_, gradients_h, uint_vector_temp_);
+            texture_parameters.gradY = builder_->createRvalueSwizzle(
+                spv::NoPrecision, type_float2_, gradients_v, uint_vector_temp_);
           }
           // Check if linear filtering is needed.
           bool vol_mag_filter_is_fetch_const =
