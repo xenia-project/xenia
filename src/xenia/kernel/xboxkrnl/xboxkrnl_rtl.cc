@@ -188,6 +188,12 @@ void RtlInitAnsiString_entry(pointer_t<X_ANSI_STRING> destination,
   destination->pointer = source.guest_address();
 }
 DECLARE_XBOXKRNL_EXPORT1(RtlInitAnsiString, kNone, kImplemented);
+//https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlupcaseunicodechar
+dword_result_t RtlUpcaseUnicodeChar_entry(dword_t SourceCharacter) {
+  return std::use_facet<std::ctype<char16_t>>(std::locale()).toupper(SourceCharacter);
+}
+DECLARE_XBOXKRNL_EXPORT1(RtlUpcaseUnicodeChar, kNone, kImplemented);
+
 
 // https://msdn.microsoft.com/en-us/library/ff561899
 void RtlFreeAnsiString_entry(pointer_t<X_ANSI_STRING> string) {
