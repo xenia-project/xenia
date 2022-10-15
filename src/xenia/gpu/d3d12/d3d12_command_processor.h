@@ -680,9 +680,6 @@ class D3D12CommandProcessor final : public CommandProcessor {
   ID3D12Resource* readback_buffer_ = nullptr;
   uint32_t readback_buffer_size_ = 0;
 
-  std::atomic<bool> pix_capture_requested_ = false;
-  bool pix_capturing_;
-
   // The current fixed-function drawing state.
   D3D12_VIEWPORT ff_viewport_;
   D3D12_RECT ff_scissor_;
@@ -776,6 +773,9 @@ class D3D12CommandProcessor final : public CommandProcessor {
   // scratch memexport data
   MemExportRange memexport_ranges_[512];
   uint32_t memexport_range_count_ = 0;
+
+  std::atomic<bool> pix_capture_requested_ = false;
+  bool pix_capturing_;
 };
 
 }  // namespace d3d12

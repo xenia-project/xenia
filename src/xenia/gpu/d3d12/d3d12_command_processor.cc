@@ -4357,7 +4357,7 @@ bool D3D12CommandProcessor::UpdateBindings(
       uint32_t float_constant_index;
       while (xe::bit_scan_forward(float_constant_map_entry,
                                   &float_constant_index)) {
-        float_constant_map_entry &= ~(1ull << float_constant_index);
+        float_constant_map_entry = xe::clear_lowest_bit(float_constant_map_entry);
         std::memcpy(float_constants,
                     &regs[XE_GPU_REG_SHADER_CONSTANT_000_X + (i << 8) +
                           (float_constant_index << 2)]
@@ -4388,7 +4388,7 @@ bool D3D12CommandProcessor::UpdateBindings(
         uint32_t float_constant_index;
         while (xe::bit_scan_forward(float_constant_map_entry,
                                     &float_constant_index)) {
-          float_constant_map_entry &= ~(1ull << float_constant_index);
+          float_constant_map_entry = xe::clear_lowest_bit(float_constant_map_entry);
           std::memcpy(float_constants,
                       &regs[XE_GPU_REG_SHADER_CONSTANT_256_X + (i << 8) +
                             (float_constant_index << 2)]
