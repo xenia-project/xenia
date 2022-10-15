@@ -1872,7 +1872,12 @@ Value* HIRBuilder::AndNot(Value* value1, Value* value2) {
   ASSERT_NON_FLOAT_TYPE(value1);
   ASSERT_NON_FLOAT_TYPE(value2);
   ASSERT_TYPES_EQUAL(value1, value2);
+// e.andn(i.dest.reg().cvt64(), i.src2.reg().cvt64(), temp.cvt64());
+#if 1
 
+  return this->And(this->Not(value2), value1);
+
+#else
   if (value1 == value2) {
     return LoadZero(value1->type);
   } else if (value1->IsConstantZero()) {
@@ -1886,6 +1891,7 @@ Value* HIRBuilder::AndNot(Value* value1, Value* value2) {
   i->set_src2(value2);
   i->src3.value = NULL;
   return i->dest;
+#endif
 }
 
 Value* HIRBuilder::Or(Value* value1, Value* value2) {
