@@ -267,19 +267,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
   };
   static_assert(kSysFlag_Count <= 32, "Too many flags in the system constants");
 
-  // Appended to the format in the format constant.
-  enum : uint32_t {
-    // Starting from bit 4 because the format itself needs 4 bits.
-    kRTFormatFlag_64bpp_Shift = 4,
-    // Requires clamping of blending sources and factors.
-    kRTFormatFlag_FixedPointColor_Shift,
-    kRTFormatFlag_FixedPointAlpha_Shift,
-
-    kRTFormatFlag_64bpp = 1u << kRTFormatFlag_64bpp_Shift,
-    kRTFormatFlag_FixedPointColor = 1u << kRTFormatFlag_FixedPointColor_Shift,
-    kRTFormatFlag_FixedPointAlpha = 1u << kRTFormatFlag_FixedPointAlpha_Shift,
-  };
-
   // IF SYSTEM CONSTANTS ARE CHANGED OR ADDED, THE FOLLOWING MUST BE UPDATED:
   // - SystemConstants::Index enum.
   // - system_constant_rdef_.
@@ -383,7 +370,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
 
     uint32_t edram_rt_base_dwords_scaled[4];
 
-    // RT format combined with kRTFormatFlags.
+    // RT format combined with RenderTargetCache::kPSIColorFormatFlag values
+    // (pass via RenderTargetCache::AddPSIColorFormatFlags).
     uint32_t edram_rt_format_flags[4];
 
     // Format info - values to clamp the color to before blending or storing.
@@ -523,40 +511,6 @@ class DxbcShaderTranslator : public ShaderTranslator {
     kSharedMemory,
     kEdram,
   };
-
-  // Returns the format with internal flags for passing via the
-  // edram_rt_format_flags system constant.
-  static constexpr uint32_t ROV_AddColorFormatFlags(
-      xenos::ColorRenderTargetFormat format) {
-    uint32_t format_flags = uint32_t(format);
-    if (format == xenos::ColorRenderTargetFormat::k_16_16_16_16 ||
-        format == xenos::ColorRenderTargetFormat::k_16_16_16_16_FLOAT ||
-        format == xenos::ColorRenderTargetFormat::k_32_32_FLOAT) {
-      format_flags |= kRTFormatFlag_64bpp;
-    }
-    if (format == xenos::ColorRenderTargetFormat::k_8_8_8_8 ||
-        format == xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA ||
-        format == xenos::ColorRenderTargetFormat::k_2_10_10_10 ||
-        format == xenos::ColorRenderTargetFormat::k_16_16 ||
-        format == xenos::ColorRenderTargetFormat::k_16_16_16_16 ||
-        format == xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10) {
-      format_flags |=
-          kRTFormatFlag_FixedPointColor | kRTFormatFlag_FixedPointAlpha;
-    } else if (format == xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT ||
-               format == xenos::ColorRenderTargetFormat::
-                             k_2_10_10_10_FLOAT_AS_16_16_16_16) {
-      format_flags |= kRTFormatFlag_FixedPointAlpha;
-    }
-    return format_flags;
-  }
-  // Returns the bits that need to be added to the RT flags constant - needs to
-  // be done externally, not in SetColorFormatConstants, because the flags
-  // contain other state.
-  static void ROV_GetColorFormatSystemConstants(
-      xenos::ColorRenderTargetFormat format, uint32_t write_mask,
-      float& clamp_rgb_low, float& clamp_alpha_low, float& clamp_rgb_high,
-      float& clamp_alpha_high, uint32_t& keep_mask_low,
-      uint32_t& keep_mask_high);
 
   uint64_t GetDefaultVertexShaderModification(
       uint32_t dynamic_addressable_register_count,
@@ -772,6 +726,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
   // Whether it's possible and worth skipping running the translated shader for
   // 2x2 quads.
   bool ROV_IsDepthStencilEarly() const {
+    assert_true(edram_rov_used_);
     return !is_depth_only_pixel_shader_ && !current_shader().writes_depth() &&
            !current_shader().is_valid_memexport_used();
   }

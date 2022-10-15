@@ -96,6 +96,9 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kSysFlag_WNotReciprocal_Shift,
     kSysFlag_PrimitivePolygonal_Shift,
     kSysFlag_PrimitiveLine_Shift,
+    kSysFlag_MsaaSamples_Shift,
+    kSysFlag_DepthFloat24_Shift =
+        kSysFlag_MsaaSamples_Shift + xenos::kMsaaSamplesBits,
     kSysFlag_AlphaPassIfLess_Shift,
     kSysFlag_AlphaPassIfEqual_Shift,
     kSysFlag_AlphaPassIfGreater_Shift,
@@ -103,6 +106,26 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kSysFlag_ConvertColor1ToGamma_Shift,
     kSysFlag_ConvertColor2ToGamma_Shift,
     kSysFlag_ConvertColor3ToGamma_Shift,
+
+    kSysFlag_FSIDepthStencil_Shift,
+    kSysFlag_FSIDepthPassIfLess_Shift,
+    kSysFlag_FSIDepthPassIfEqual_Shift,
+    kSysFlag_FSIDepthPassIfGreater_Shift,
+    // 1 to write new depth to the depth buffer, 0 to keep the old one if the
+    // depth test passes.
+    kSysFlag_FSIDepthWrite_Shift,
+    kSysFlag_FSIStencilTest_Shift,
+    // If the depth / stencil test has failed, but resulted in a stencil value
+    // that is different than the one currently in the depth buffer, write it
+    // anyway and don't run the rest of the shader (to check if the sample may
+    // be discarded some way) - use when alpha test and alpha to coverage are
+    // disabled. Ignored by the shader if not applicable to it (like if it has
+    // kill instructions or writes the depth output).
+    // TODO(Triang3l): Investigate replacement with an alpha-to-mask flag,
+    // checking `(flags & (alpha test | alpha to mask)) == (always | disabled)`,
+    // taking into account the potential relation with occlusion queries (but
+    // should be safe at least temporarily).
+    kSysFlag_FSIDepthStencilEarlyWrite_Shift,
 
     kSysFlag_Count,
 
@@ -127,6 +150,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kSysFlag_WNotReciprocal = 1u << kSysFlag_WNotReciprocal_Shift,
     kSysFlag_PrimitivePolygonal = 1u << kSysFlag_PrimitivePolygonal_Shift,
     kSysFlag_PrimitiveLine = 1u << kSysFlag_PrimitiveLine_Shift,
+    kSysFlag_DepthFloat24 = 1u << kSysFlag_DepthFloat24_Shift,
     kSysFlag_AlphaPassIfLess = 1u << kSysFlag_AlphaPassIfLess_Shift,
     kSysFlag_AlphaPassIfEqual = 1u << kSysFlag_AlphaPassIfEqual_Shift,
     kSysFlag_AlphaPassIfGreater = 1u << kSysFlag_AlphaPassIfGreater_Shift,
@@ -134,6 +158,14 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kSysFlag_ConvertColor1ToGamma = 1u << kSysFlag_ConvertColor1ToGamma_Shift,
     kSysFlag_ConvertColor2ToGamma = 1u << kSysFlag_ConvertColor2ToGamma_Shift,
     kSysFlag_ConvertColor3ToGamma = 1u << kSysFlag_ConvertColor3ToGamma_Shift,
+    kSysFlag_FSIDepthStencil = 1u << kSysFlag_FSIDepthStencil_Shift,
+    kSysFlag_FSIDepthPassIfLess = 1u << kSysFlag_FSIDepthPassIfLess_Shift,
+    kSysFlag_FSIDepthPassIfEqual = 1u << kSysFlag_FSIDepthPassIfEqual_Shift,
+    kSysFlag_FSIDepthPassIfGreater = 1u << kSysFlag_FSIDepthPassIfGreater_Shift,
+    kSysFlag_FSIDepthWrite = 1u << kSysFlag_FSIDepthWrite_Shift,
+    kSysFlag_FSIStencilTest = 1u << kSysFlag_FSIStencilTest_Shift,
+    kSysFlag_FSIDepthStencilEarlyWrite =
+        1u << kSysFlag_FSIDepthStencilEarlyWrite_Shift,
   };
   static_assert(kSysFlag_Count <= 32, "Too many flags in the system constants");
 
@@ -171,9 +203,55 @@ class SpirvShaderTranslator : public ShaderTranslator {
     uint32_t texture_swizzles[16];
 
     float alpha_test_reference;
-    float padding_alpha_test_reference[3];
+    uint32_t edram_32bpp_tile_pitch_dwords_scaled;
+    uint32_t edram_depth_base_dwords_scaled;
+    float padding_edram_depth_base_dwords_scaled;
 
     float color_exp_bias[4];
+
+    float edram_poly_offset_front_scale;
+    float edram_poly_offset_back_scale;
+    float edram_poly_offset_front_offset;
+    float edram_poly_offset_back_offset;
+
+    union {
+      struct {
+        uint32_t edram_stencil_front_reference_masks;
+        uint32_t edram_stencil_front_func_ops;
+
+        uint32_t edram_stencil_back_reference_masks;
+        uint32_t edram_stencil_back_func_ops;
+      };
+      struct {
+        uint32_t edram_stencil_front[2];
+        uint32_t edram_stencil_back[2];
+      };
+    };
+
+    uint32_t edram_rt_base_dwords_scaled[4];
+
+    // RT format combined with RenderTargetCache::kPSIColorFormatFlag values
+    // (pass via RenderTargetCache::AddPSIColorFormatFlags).
+    uint32_t edram_rt_format_flags[4];
+
+    // Render target blending options - RB_BLENDCONTROL, with only the relevant
+    // options (factors and operations - AND 0x1FFF1FFF). If 0x00010001
+    // (1 * src + 0 * dst), blending is disabled for the render target.
+    uint32_t edram_rt_blend_factors_ops[4];
+
+    // Format info - mask to apply to the old packed RT data, and to apply as
+    // inverted to the new packed data, before storing (more or less the inverse
+    // of the write mask packed like render target channels). This can be used
+    // to bypass unpacking if blending is not used. If 0 and not blending,
+    // reading the old data from the EDRAM buffer is not required.
+    uint32_t edram_rt_keep_mask[4][2];
+
+    // Format info - values to clamp the color to before blending or storing.
+    // Low color, low alpha, high color, high alpha.
+    float edram_rt_clamp[4][4];
+
+    // The constant blend factor for the respective modes.
+    float edram_blend_constant[4];
   };
 
   enum ConstantBuffer : uint32_t {
@@ -248,12 +326,22 @@ class SpirvShaderTranslator : public ShaderTranslator {
     uint32_t max_storage_buffer_range;
     bool clip_distance;
     bool cull_distance;
+    bool demote_to_helper_invocation;
+    bool fragment_shader_sample_interlock;
     bool full_draw_index_uint32;
     bool image_view_format_swizzle;
     bool signed_zero_inf_nan_preserve_float32;
     bool denorm_flush_to_zero_float32;
   };
-  SpirvShaderTranslator(const Features& features);
+
+  SpirvShaderTranslator(const Features& features,
+                        bool native_2x_msaa_with_attachments,
+                        bool native_2x_msaa_no_attachments,
+                        bool edram_fragment_shader_interlock)
+      : features_(features),
+        native_2x_msaa_with_attachments_(native_2x_msaa_with_attachments),
+        native_2x_msaa_no_attachments_(native_2x_msaa_no_attachments),
+        edram_fragment_shader_interlock_(edram_fragment_shader_interlock) {}
 
   uint64_t GetDefaultVertexShaderModification(
       uint32_t dynamic_addressable_register_count,
@@ -276,6 +364,10 @@ class SpirvShaderTranslator : public ShaderTranslator {
     return GetSharedMemoryStorageBufferCountLog2(
         features_.max_storage_buffer_range);
   }
+
+  // Creates a special fragment shader without color outputs - this resets the
+  // state of the translator.
+  std::vector<uint8_t> CreateDepthOnlyFragmentShader();
 
   // Common functions useful not only for the translator, but also for EDRAM
   // emulation via conventional render targets.
@@ -385,10 +477,10 @@ class SpirvShaderTranslator : public ShaderTranslator {
   }
 
   bool IsExecutionModeEarlyFragmentTests() const {
-    // TODO(Triang3l): Not applicable to fragment shader interlock.
     return is_pixel_shader() &&
            GetSpirvShaderModification().pixel.depth_stencil_mode ==
                Modification::DepthStencilMode::kEarlyHint &&
+           !edram_fragment_shader_interlock_ &&
            current_shader().implicit_early_z_write_allowed();
   }
 
@@ -528,7 +620,72 @@ class SpirvShaderTranslator : public ShaderTranslator {
                           spv::Id image_unsigned, spv::Id image_signed,
                           spv::Id sampler, spv::Id is_all_signed);
 
+  spv::Id LoadMsaaSamplesFromFlags();
+  // Whether it's possible and worth skipping running the translated shader for
+  // 2x2 quads.
+  bool FSI_IsDepthStencilEarly() const {
+    assert_true(edram_fragment_shader_interlock_);
+    return !is_depth_only_fragment_shader_ &&
+           !current_shader().writes_depth() &&
+           !current_shader().is_valid_memexport_used();
+  }
+  void FSI_LoadSampleMask(spv::Id msaa_samples);
+  void FSI_LoadEdramOffsets(spv::Id msaa_samples);
+  // The address must be a signed int. Whether the render target is 64bpp, if
+  // present at all, must be a bool (if it's NoResult, 32bpp will be assumed).
+  spv::Id FSI_AddSampleOffset(spv::Id sample_0_address, uint32_t sample_index,
+                              spv::Id is_64bpp = spv::NoResult);
+  // Updates main_fsi_sample_mask_. Must be called outside non-uniform control
+  // flow because of taking derivatives of the fragment depth.
+  void FSI_DepthStencilTest(spv::Id msaa_samples,
+                            bool sample_mask_potentially_narrowed_previouly);
+  // Returns the first and the second 32 bits as two uints.
+  std::array<spv::Id, 2> FSI_ClampAndPackColor(spv::Id color_float4,
+                                               spv::Id format_with_flags);
+  std::array<spv::Id, 4> FSI_UnpackColor(std::array<spv::Id, 2> color_packed,
+                                         spv::Id format_with_flags);
+  // The bounds must have the same number of components as the color or alpha.
+  spv::Id FSI_FlushNaNClampAndInBlending(spv::Id color_or_alpha,
+                                         spv::Id is_fixed_point,
+                                         spv::Id min_value, spv::Id max_value);
+  spv::Id FSI_ApplyColorBlendFactor(spv::Id value, spv::Id is_fixed_point,
+                                    spv::Id clamp_min_value,
+                                    spv::Id clamp_max_value, spv::Id factor,
+                                    spv::Id source_color, spv::Id source_alpha,
+                                    spv::Id dest_color, spv::Id dest_alpha,
+                                    spv::Id constant_color,
+                                    spv::Id constant_alpha);
+  spv::Id FSI_ApplyAlphaBlendFactor(spv::Id value, spv::Id is_fixed_point,
+                                    spv::Id clamp_min_value,
+                                    spv::Id clamp_max_value, spv::Id factor,
+                                    spv::Id source_alpha, spv::Id dest_alpha,
+                                    spv::Id constant_alpha);
+  // If source_color_clamped, dest_color, constant_color_clamped are
+  // spv::NoResult, will blend the alpha. Otherwise, will blend the color.
+  // The result will be unclamped (color packing is supposed to clamp it).
+  spv::Id FSI_BlendColorOrAlphaWithUnclampedResult(
+      spv::Id is_fixed_point, spv::Id clamp_min_value, spv::Id clamp_max_value,
+      spv::Id source_color_clamped, spv::Id source_alpha_clamped,
+      spv::Id dest_color, spv::Id dest_alpha, spv::Id constant_color_clamped,
+      spv::Id constant_alpha_clamped, spv::Id equation, spv::Id source_factor,
+      spv::Id dest_factor);
+
   Features features_;
+  bool native_2x_msaa_with_attachments_;
+  bool native_2x_msaa_no_attachments_;
+
+  // For safety with different drivers (even though fragment shader interlock in
+  // SPIR-V only has one control flow requirement - that both begin and end must
+  // be dynamically executed exactly once in this order), adhering to the more
+  // strict control flow limitations of OpenGL (GLSL) fragment shader interlock,
+  // that begin and end are called only on the outermost level of the control
+  // flow of the main function, and that there are no returns before either
+  // (there's a single return from the shader).
+  bool edram_fragment_shader_interlock_;
+
+  // Is currently writing the empty depth-only pixel shader, such as for depth
+  // and stencil testing with fragment shader interlock.
+  bool is_depth_only_fragment_shader_ = false;
 
   std::unique_ptr<spv::Builder> builder_;
 
@@ -621,7 +778,23 @@ class SpirvShaderTranslator : public ShaderTranslator {
     kSystemConstantTextureSwizzledSigns,
     kSystemConstantTextureSwizzles,
     kSystemConstantAlphaTestReference,
+    kSystemConstantEdram32bppTilePitchDwordsScaled,
+    kSystemConstantEdramDepthBaseDwordsScaled,
     kSystemConstantColorExpBias,
+    kSystemConstantEdramPolyOffsetFrontScale,
+    kSystemConstantEdramPolyOffsetBackScale,
+    kSystemConstantEdramPolyOffsetFrontOffset,
+    kSystemConstantEdramPolyOffsetBackOffset,
+    kSystemConstantEdramStencilFront,
+    kSystemConstantEdramStencilBack,
+    kSystemConstantEdramRTBaseDwordsScaled,
+    kSystemConstantEdramRTFormatFlags,
+    kSystemConstantEdramRTBlendFactorsOps,
+    // Accessed as float4[2], not float2[4], due to std140 array stride
+    // alignment.
+    kSystemConstantEdramRTKeepMask,
+    kSystemConstantEdramRTClamp,
+    kSystemConstantEdramBlendConstant,
   };
   spv::Id uniform_system_constants_;
   spv::Id uniform_float_constants_;
@@ -629,6 +802,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id uniform_fetch_constants_;
 
   spv::Id buffers_shared_memory_;
+  spv::Id buffer_edram_;
 
   // Not using combined images and samplers because
   // maxPerStageDescriptorSamplers is often lower than
@@ -647,6 +821,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id input_fragment_coordinates_;
   // PS, only when needed - bool.
   spv::Id input_front_facing_;
+  // PS, only when needed - int[1].
+  spv::Id input_sample_mask_;
 
   // VS output or PS input, only the ones that are needed (spv::NoResult for the
   // unneeded interpolators), indexed by the guest interpolator index - float4.
@@ -671,7 +847,10 @@ class SpirvShaderTranslator : public ShaderTranslator {
   };
   spv::Id output_per_vertex_;
 
-  std::array<spv::Id, xenos::kMaxColorRenderTargets> output_fragment_data_;
+  // With fragment shader interlock, variables in the main function.
+  // Otherwise, framebuffer color attachment outputs.
+  std::array<spv::Id, xenos::kMaxColorRenderTargets>
+      output_or_var_fragment_data_;
 
   std::vector<spv::Id> main_interface_;
   spv::Function* function_main_;
@@ -698,6 +877,40 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id var_main_registers_;
   // VS only - float3 (special exports).
   spv::Id var_main_point_size_edge_flag_kill_vertex_;
+  // PS, only when needed - bool.
+  spv::Id var_main_kill_pixel_;
+  // PS, only when writing to color render targets with fragment shader
+  // interlock - uint.
+  // Whether color buffers have been written to, if not written on the taken
+  // execution path, don't export according to Direct3D 9 register documentation
+  // (some games rely on this behavior).
+  spv::Id var_main_fsi_color_written_;
+  // Loaded by FSI_LoadSampleMask.
+  // Can be modified on the outermost control flow level in the main function.
+  // 0:3 - Per-sample coverage at the current stage of the shader's execution.
+  //       Affected by things like gl_SampleMaskIn, early or late depth /
+  //       stencil (always resets bits for failing, no matter if need to defer
+  //       writing), alpha to coverage.
+  // 4:7 - Depth write deferred mask - when early depth / stencil resulted in a
+  //       different value for the sample (like different stencil if the test
+  //       failed), but can't write it before running the shader because it's
+  //       not known if the sample will be discarded by the shader, alphatest or
+  //       AtoC.
+  // Early depth / stencil rejection of the pixel is possible when both 0:3 and
+  // 4:7 are zero.
+  spv::Id main_fsi_sample_mask_;
+  // Loaded by FSI_LoadEdramOffsets.
+  // Including the depth render target base.
+  spv::Id main_fsi_address_depth_;
+  // Not including the render target base.
+  spv::Id main_fsi_offset_32bpp_;
+  spv::Id main_fsi_offset_64bpp_;
+  // Loaded by FSI_DepthStencilTest for early depth / stencil, the depth /
+  // stencil values to write at the end of the shader if the specified in
+  // main_fsi_sample_mask_ and if the samples were not discarded later after the
+  // early test.
+  std::array<spv::Id, 4> main_fsi_late_write_depth_stencil_;
+  spv::Block* main_fsi_early_depth_stencil_execute_quad_merge_;
   spv::Block* main_loop_header_;
   spv::Block* main_loop_continue_;
   spv::Block* main_loop_merge_;

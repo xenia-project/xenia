@@ -191,9 +191,10 @@
       this.translationComboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
       this.translationComboBox.FormattingEnabled = true;
       this.translationComboBox.Items.AddRange(new object[] {
-            "DXBC (RTV/DSV RB)",
-            "DXBC (ROV RB)",
-            "SPIR-V"});
+            "DXBC (render target RB)",
+            "DXBC (rasterizer-ordered view RB)",
+            "SPIR-V (framebuffer RB)",
+            "SPIR-V (fragment shader interlock RB)"});
       this.translationComboBox.Location = new System.Drawing.Point(1224, 0);
       this.translationComboBox.Margin = new System.Windows.Forms.Padding(3, 0, 3, 0);
       this.translationComboBox.Name = "translationComboBox";
