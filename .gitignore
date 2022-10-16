@@ -101,3 +101,5 @@ node_modules/.bin/
 /third_party/binutils/binutils*
 /third_party/vasm/
 /tools/shader-playground/*.dll
+/profile_print_times.py
+/profile_times.txt
