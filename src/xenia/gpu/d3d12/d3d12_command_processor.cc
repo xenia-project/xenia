@@ -4877,7 +4877,7 @@ bool D3D12CommandProcessor::UpdateBindings_BindfulPath(
     bool& retflag) {
   retflag = true;
   auto& provider = this->GetD3D12Provider();
-  size_t texture_count_pixel = textures_pixel->size();
+  size_t texture_count_pixel = textures_pixel ? textures_pixel->size() : 0;
   size_t texture_count_vertex = textures_vertex.size();
   //
   // Bindful descriptors path.
