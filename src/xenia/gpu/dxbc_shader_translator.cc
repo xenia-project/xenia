@@ -693,15 +693,14 @@ void DxbcShaderTranslator::StartPixelShader() {
     if (i == param_gen_interpolator) {
       continue;
     }
-    a_.OpMov(
-        uses_register_dynamic_addressing ? dxbc::Dest::X(0, i)
-                                         : dxbc::Dest::R(i),
-        (i < xenos::kMaxInterpolators &&
-         (interpolator_mask & (UINT32_C(1) << i)))
-            ? dxbc::Src::V1D(
-                  in_reg_ps_interpolators_ +
-                  xe::bit_count((interpolator_mask & (UINT32_C(1) << i)) - 1))
-            : dxbc::Src::LF(0.0f));
+    a_.OpMov(uses_register_dynamic_addressing ? dxbc::Dest::X(0, i)
+                                              : dxbc::Dest::R(i),
+             (i < xenos::kMaxInterpolators &&
+              (interpolator_mask & (UINT32_C(1) << i)))
+                 ? dxbc::Src::V1D(in_reg_ps_interpolators_ +
+                                  xe::bit_count(interpolator_mask &
+                                                ((UINT32_C(1) << i) - 1)))
+                 : dxbc::Src::LF(0.0f));
   }
 
   // Write the pixel parameters to the specified interpolator register
