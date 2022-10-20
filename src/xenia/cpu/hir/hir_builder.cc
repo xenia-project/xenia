@@ -1877,9 +1877,7 @@ Value* HIRBuilder::AndNot(Value* value1, Value* value2) {
     return this->And(this->Not(value2), value1);
   } else if (value1 == value2) {
     return LoadZero(value1->type);
-  } else if (value1->IsConstantZero()) {
-    return value1;
-  } else if (value2->IsConstantZero()) {
+  } else if (value1->IsConstantZero() || value2->IsConstantZero()) {
     return value1;
   } else {
     Instr* i = AppendInstr(OPCODE_AND_NOT_info, 0, AllocValue(value1->type));
