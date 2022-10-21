@@ -405,9 +405,10 @@ void X64Emitter::EmitProfilerEpilogue() {
   if (cvars::instrument_call_times) {
     uint64_t* profiler_entry =
         backend()->GetProfilerRecordForFunction(current_guest_function_);
+
     mov(ecx, 0x7ffe0014);
     mov(rdx, qword[rcx]);
-    mov(rbx, (uintptr_t)profiler_entry);
+    mov(r10, (uintptr_t)profiler_entry);
     sub(rdx, qword[rsp + StackLayout::GUEST_PROFILER_START]);
 
     // atomic add our time to the profiler entry
@@ -416,7 +417,8 @@ void X64Emitter::EmitProfilerEpilogue() {
     // this a few cycles less intrusive, but its good enough for now
     //  actually... lets just try without atomics lol
     // lock();
-    add(qword[rbx], rdx);
+    add(qword[r10], rdx);
+
   }
 #endif
 }

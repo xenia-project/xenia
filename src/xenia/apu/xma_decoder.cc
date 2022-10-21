@@ -177,14 +177,7 @@ void XmaDecoder::WorkerThreadMain() {
     } else {
       idle_loop_count = 0;
     }
-
-    if (idle_loop_count > 500) {
-      // Idle for an extended period. Introduce a 20ms wait.
-      xe::threading::Wait(work_event_.get(), false,
-                          std::chrono::milliseconds(20));
-    }
-
-    xe::threading::MaybeYield();
+    xe::threading::Wait(work_event_.get(), false);
   }
 }
 
@@ -316,7 +309,7 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
       }
     }
     // Signal the decoder thread to start processing.
-    work_event_->Set();
+    work_event_->SetBoostPriority();
   } else if (r >= XmaRegister::Context0Lock && r <= XmaRegister::Context9Lock) {
     // Context lock command.
     // This requests a lock by flagging the context.

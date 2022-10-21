@@ -100,7 +100,7 @@ struct X_KTHREAD {
   uint8_t unk_58[0x4];                // 0x58
   xe::be<uint32_t> stack_base;        // 0x5C
   xe::be<uint32_t> stack_limit;       // 0x60
-  uint8_t unk_64[0x4];                // 0x64
+  xe::be<uint32_t> stack_kernel;       // 0x64
   xe::be<uint32_t> tls_address;       // 0x68
   uint8_t unk_6C;                     // 0x6C
   uint8_t unk_6D[0x7];                // 0x6D

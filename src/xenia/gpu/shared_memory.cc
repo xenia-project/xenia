@@ -150,8 +150,8 @@ SharedMemory::WatchHandle SharedMemory::WatchMemoryRange(
       watch_page_first << page_size_log2_ >> kWatchBucketSizeLog2;
   uint32_t bucket_last =
       watch_page_last << page_size_log2_ >> kWatchBucketSizeLog2;
-
-  auto global_lock = global_critical_region_.Acquire();
+  //chrispy: Not required the global lock is always held by the caller
+ // auto global_lock = global_critical_region_.Acquire();
 
   // Allocate the range.
   WatchRange* range = watch_range_first_free_;
