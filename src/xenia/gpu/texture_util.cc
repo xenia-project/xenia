@@ -355,90 +355,76 @@ TextureGuestLayout GetGuestTextureLayout(
     // be smaller (especially in the 1280x720 linear k_8_8_8_8 case in 4E4D083E,
     // for which memory exactly for 1280x720 is allocated, and aligning the
     // height to 32 would cause access of an unallocated page) or bigger than
-    // the stride. For tiled textures, this is the dimensions aligned to 32x32x4
-    // blocks (or x1 for the missing dimensions).
-    uint32_t level_width_blocks =
-        xe::align(std::max(width_texels >> level, uint32_t(1)),
-                  format_info->block_width) /
-        format_info->block_width;
-    uint32_t level_height_blocks =
-        xe::align(std::max(height_texels >> level, uint32_t(1)),
-                  format_info->block_height) /
-        format_info->block_height;
-    uint32_t level_depth = std::max(depth >> level, uint32_t(1));
-    if (is_tiled) {
+    // the stride.
+    if (level == layout.packed_level) {
+      // Calculate the portion of the mip tail actually used by the needed mips.
+      // The actually used region may be significantly smaller than the full
+      // 32x32-texel-aligned (and, for mips, calculated from the base dimensions
+      // rounded to powers of two - 58410A7A has an 80x260 tiled texture with
+      // packed mips at level 3 containing a mip ending at Y = 36, while
+      // 260 >> 3 == 32, but 512 >> 3 == 64) tail. A 2x2 texture (for example,
+      // in 494707D4, there's a 2x2 k_8_8_8_8 linear texture with packed mips),
+      // for instance, would have its 2x2 base at (16, 0) and its 1x1 mip at
+      // (8, 0) - and we need 2 or 1 rows in these cases, not 32 - the 32 rows
+      // in a linear texture (with 256-byte pitch alignment) would span two 4 KB
+      // pages rather than one.
+      level_layout.x_extent_blocks = 0;
+      level_layout.y_extent_blocks = 0;
+      level_layout.z_extent = 0;
+      uint32_t packed_sublevel_last = is_base ? 0 : max_level;
+      for (uint32_t packed_sublevel = layout.packed_level;
+           packed_sublevel <= packed_sublevel_last; ++packed_sublevel) {
+        uint32_t packed_sublevel_x_blocks;
+        uint32_t packed_sublevel_y_blocks;
+        uint32_t packed_sublevel_z;
+        GetPackedMipOffset(width_texels, height_texels, depth, format,
+                           packed_sublevel, packed_sublevel_x_blocks,
+                           packed_sublevel_y_blocks, packed_sublevel_z);
+        level_layout.x_extent_blocks = std::max(
+            level_layout.x_extent_blocks,
+            packed_sublevel_x_blocks +
+                xe::align(
+                    std::max(width_texels >> packed_sublevel, uint32_t(1)),
+                    format_info->block_width) /
+                    format_info->block_width);
+        level_layout.y_extent_blocks = std::max(
+            level_layout.y_extent_blocks,
+            packed_sublevel_y_blocks +
+                xe::align(
+                    std::max(height_texels >> packed_sublevel, uint32_t(1)),
+                    format_info->block_height) /
+                    format_info->block_height);
+        level_layout.z_extent =
+            std::max(level_layout.z_extent,
+                     packed_sublevel_z +
+                         std::max(depth >> packed_sublevel, uint32_t(1)));
+      }
+    } else {
       level_layout.x_extent_blocks =
-          xe::align(level_width_blocks, xenos::kTextureTileWidthHeight);
+          xe::align(std::max(width_texels >> level, uint32_t(1)),
+                    format_info->block_width) /
+          format_info->block_width;
       level_layout.y_extent_blocks =
-          xe::align(level_height_blocks, xenos::kTextureTileWidthHeight);
+          xe::align(std::max(height_texels >> level, uint32_t(1)),
+                    format_info->block_height) /
+          format_info->block_height;
+      level_layout.z_extent = std::max(depth >> level, uint32_t(1));
+    }
+    if (is_tiled) {
       uint32_t bytes_per_block_log2 = xe::log2_floor(bytes_per_block);
       if (dimension == xenos::DataDimension::k3D) {
-        level_layout.z_extent =
-            xe::align(level_depth, xenos::kTextureTileDepth);
-        // 32-block-row x 4 slice portions laid out sequentially (4-slice-major,
-        // 32-block-row-minor), address extent within a 32x32x4 tile depends on
-        // the pitch. Origins of 32x32x4 tiles grow monotonically, first along
-        // Z, then along Y, then along X.
         level_layout.array_slice_data_extent_bytes =
             GetTiledAddressUpperBound3D(
                 level_layout.x_extent_blocks, level_layout.y_extent_blocks,
                 level_layout.z_extent, row_pitch_blocks_tile_aligned,
                 level_layout.y_extent_blocks, bytes_per_block_log2);
       } else {
-        level_layout.z_extent = 1;
-        // Origins of 32x32 tiles grow monotonically, first along Y, then along
-        // X.
         level_layout.array_slice_data_extent_bytes =
             GetTiledAddressUpperBound2D(
                 level_layout.x_extent_blocks, level_layout.y_extent_blocks,
                 row_pitch_blocks_tile_aligned, bytes_per_block_log2);
       }
     } else {
-      if (level == layout.packed_level) {
-        // Calculate the portion of the mip tail actually used by the needed
-        // mips. The actually used region may be significantly smaller than the
-        // full 32x32-texel-aligned tail. A 2x2 texture (for example, in
-        // 494707D4, there's a 2x2 k_8_8_8_8 linear texture with packed mips),
-        // for instance, would have its 2x2 base at (16, 0) and its 1x1 mip at
-        // (8, 0) - and we need 2 or 1 rows in these cases, not 32 - the 32 rows
-        // would span two 4 KB pages rather than one, taking the 256-byte pitch
-        // alignment in linear textures into account.
-        level_layout.x_extent_blocks = 0;
-        level_layout.y_extent_blocks = 0;
-        level_layout.z_extent = 0;
-        uint32_t packed_sublevel_last = is_base ? 0 : max_level;
-        for (uint32_t packed_sublevel = layout.packed_level;
-             packed_sublevel <= packed_sublevel_last; ++packed_sublevel) {
-          uint32_t packed_sublevel_x_blocks;
-          uint32_t packed_sublevel_y_blocks;
-          uint32_t packed_sublevel_z;
-          GetPackedMipOffset(width_texels, height_texels, depth, format,
-                             packed_sublevel, packed_sublevel_x_blocks,
-                             packed_sublevel_y_blocks, packed_sublevel_z);
-          level_layout.x_extent_blocks = std::max(
-              level_layout.x_extent_blocks,
-              packed_sublevel_x_blocks +
-                  xe::align(
-                      std::max(width_texels >> packed_sublevel, uint32_t(1)),
-                      format_info->block_width) /
-                      format_info->block_width);
-          level_layout.y_extent_blocks = std::max(
-              level_layout.y_extent_blocks,
-              packed_sublevel_y_blocks +
-                  xe::align(
-                      std::max(height_texels >> packed_sublevel, uint32_t(1)),
-                      format_info->block_height) /
-                      format_info->block_height);
-          level_layout.z_extent =
-              std::max(level_layout.z_extent,
-                       packed_sublevel_z +
-                           std::max(depth >> packed_sublevel, uint32_t(1)));
-        }
-      } else {
-        level_layout.x_extent_blocks = level_width_blocks;
-        level_layout.y_extent_blocks = level_height_blocks;
-        level_layout.z_extent = level_depth;
-      }
       level_layout.array_slice_data_extent_bytes =
           z_stride_bytes * (level_layout.z_extent - 1) +
           level_layout.row_pitch_bytes * (level_layout.y_extent_blocks - 1) +
