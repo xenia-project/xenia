@@ -14,6 +14,7 @@
 #include <atomic>
 #include <deque>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -128,11 +129,19 @@ class D3D12CommandProcessor : public CommandProcessor {
       uint32_t count, ui::d3d12::util::DescriptorCpuGpuHandlePair* handles_out);
   // These are needed often, so they are always allocated.
   enum class SystemBindlessView : uint32_t {
-    kSharedMemoryRawSRV,
+    // Both may be bound as one root parameter.
+    kSharedMemoryRawSRVAndNullRawUAVStart,
+    kSharedMemoryRawSRV = kSharedMemoryRawSRVAndNullRawUAVStart,
+    kNullRawUAV,
+
+    // Both may be bound as one root parameter.
+    kNullRawSRVAndSharedMemoryRawUAVStart,
+    kNullRawSRV = kNullRawSRVAndSharedMemoryRawUAVStart,
+    kSharedMemoryRawUAV,
+
     kSharedMemoryR32UintSRV,
     kSharedMemoryR32G32UintSRV,
     kSharedMemoryR32G32B32A32UintSRV,
-    kSharedMemoryRawUAV,
     kSharedMemoryR32UintUAV,
     kSharedMemoryR32G32UintUAV,
     kSharedMemoryR32G32B32A32UintUAV,
@@ -253,10 +262,10 @@ class D3D12CommandProcessor : public CommandProcessor {
     kRootParameter_Bindful_SystemConstants,  // +2 = 6 in all.
     // Pretty rarely used and rarely changed - flow control constants.
     kRootParameter_Bindful_BoolLoopConstants,  // +2 = 8 in all.
-    // Never changed except for when starting a new descriptor heap - shared
-    // memory byte address buffer, and, if ROV is used for EDRAM, EDRAM R32_UINT
-    // UAV.
-    // SRV/UAV descriptor table.
+    // Changed only when starting a new descriptor heap or when switching
+    // between shared memory as SRV and UAV - shared memory byte address buffer
+    // (as SRV and as UAV, either may be null if not used), and, if ROV is used
+    // for EDRAM, EDRAM R32_UINT UAV.
     kRootParameter_Bindful_SharedMemoryAndEdram,  // +1 = 9 in all.
 
     kRootParameter_Bindful_Count_Base,
@@ -280,10 +289,14 @@ class D3D12CommandProcessor : public CommandProcessor {
     kRootParameter_Bindless_DescriptorIndicesVertex,  // +2 = 6 in VS.
     kRootParameter_Bindless_SystemConstants,          // +2 = 8 in all.
     kRootParameter_Bindless_BoolLoopConstants,        // +2 = 10 in all.
+    // Changed only when switching between shared memory as SRV and UAV - shared
+    // memory byte address buffer (as SRV and as UAV, either may be null if not
+    // used).
+    kRootParameter_Bindless_SharedMemory,  // +1 = 11 in all.
     // Unbounded sampler descriptor table - changed in case of overflow.
-    kRootParameter_Bindless_SamplerHeap,  // +1 = 11 in all.
+    kRootParameter_Bindless_SamplerHeap,  // +1 = 12 in all.
     // Unbounded SRV/UAV descriptor table - never changed.
-    kRootParameter_Bindless_ViewHeap,  // +1 = 12 in all.
+    kRootParameter_Bindless_ViewHeap,  // +1 = 13 in all.
 
     kRootParameter_Bindless_Count,
   };
@@ -362,7 +375,8 @@ class D3D12CommandProcessor : public CommandProcessor {
                                   uint32_t normalized_color_mask);
   bool UpdateBindings(const D3D12Shader* vertex_shader,
                       const D3D12Shader* pixel_shader,
-                      ID3D12RootSignature* root_signature);
+                      ID3D12RootSignature* root_signature,
+                      bool shared_memory_is_uav);
 
   // Returns dword count for one element for a memexport format, or 0 if it's
   // not supported by the D3D12 command processor (if it's smaller that 1 dword,
@@ -622,6 +636,13 @@ class D3D12CommandProcessor : public CommandProcessor {
   ConstantBufferBinding cbuffer_binding_descriptor_indices_vertex_;
   ConstantBufferBinding cbuffer_binding_descriptor_indices_pixel_;
 
+  // Whether the latest shared memory and EDRAM buffer binding contains the
+  // shared memory UAV rather than the SRV.
+  // Separate descriptor tables for the SRV and the UAV, even though only one is
+  // accessed dynamically in the shaders, are used to prevent a validation
+  // message about missing resource states in PIX.
+  std::optional<bool> current_shared_memory_binding_is_uav_;
+
   // Pages with the descriptors currently used for handling Xenos draw calls.
   uint64_t draw_view_bindful_heap_index_;
   uint64_t draw_sampler_bindful_heap_index_;
@@ -654,7 +675,8 @@ class D3D12CommandProcessor : public CommandProcessor {
   std::vector<uint32_t> current_sampler_bindless_indices_pixel_;
 
   // Latest bindful descriptor handles used for handling Xenos draw calls.
-  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_shared_memory_and_edram_;
+  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_shared_memory_srv_and_edram_;
+  D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_shared_memory_uav_and_edram_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_textures_vertex_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_textures_pixel_;
   D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_samplers_vertex_;

@@ -1000,6 +1000,36 @@ bool D3D12CommandProcessor::SetupContext() {
       parameter.Descriptor.RegisterSpace = 0;
       parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     }
+    // Shared memory SRV and UAV.
+    D3D12_DESCRIPTOR_RANGE root_shared_memory_view_ranges[2];
+    {
+      auto& parameter =
+          root_parameters_bindless[kRootParameter_Bindless_SharedMemory];
+      parameter.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+      parameter.DescriptorTable.NumDescriptorRanges =
+          uint32_t(xe::countof(root_shared_memory_view_ranges));
+      parameter.DescriptorTable.pDescriptorRanges =
+          root_shared_memory_view_ranges;
+      parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+      {
+        auto& range = root_shared_memory_view_ranges[0];
+        range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+        range.NumDescriptors = 1;
+        range.BaseShaderRegister =
+            UINT(DxbcShaderTranslator::SRVMainRegister::kSharedMemory);
+        range.RegisterSpace = UINT(DxbcShaderTranslator::SRVSpace::kMain);
+        range.OffsetInDescriptorsFromTableStart = 0;
+      }
+      {
+        auto& range = root_shared_memory_view_ranges[1];
+        range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+        range.NumDescriptors = 1;
+        range.BaseShaderRegister =
+            UINT(DxbcShaderTranslator::UAVRegister::kSharedMemory);
+        range.RegisterSpace = 0;
+        range.OffsetInDescriptorsFromTableStart = 1;
+      }
+    }
     // Sampler heap.
     D3D12_DESCRIPTOR_RANGE root_bindless_sampler_range;
     {
@@ -1019,7 +1049,7 @@ bool D3D12CommandProcessor::SetupContext() {
       root_bindless_sampler_range.OffsetInDescriptorsFromTableStart = 0;
     }
     // View heap.
-    D3D12_DESCRIPTOR_RANGE root_bindless_view_ranges[6];
+    D3D12_DESCRIPTOR_RANGE root_bindless_view_ranges[4];
     {
       auto& parameter =
           root_parameters_bindless[kRootParameter_Bindless_ViewHeap];
@@ -1028,34 +1058,6 @@ bool D3D12CommandProcessor::SetupContext() {
       parameter.DescriptorTable.NumDescriptorRanges = 0;
       parameter.DescriptorTable.pDescriptorRanges = root_bindless_view_ranges;
       parameter.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-      // Shared memory SRV.
-      {
-        assert_true(parameter.DescriptorTable.NumDescriptorRanges <
-                    xe::countof(root_bindless_view_ranges));
-        auto& range = root_bindless_view_ranges[parameter.DescriptorTable
-                                                    .NumDescriptorRanges++];
-        range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-        range.NumDescriptors = 1;
-        range.BaseShaderRegister =
-            UINT(DxbcShaderTranslator::SRVMainRegister::kSharedMemory);
-        range.RegisterSpace = UINT(DxbcShaderTranslator::SRVSpace::kMain);
-        range.OffsetInDescriptorsFromTableStart =
-            UINT(SystemBindlessView::kSharedMemoryRawSRV);
-      }
-      // Shared memory UAV.
-      {
-        assert_true(parameter.DescriptorTable.NumDescriptorRanges <
-                    xe::countof(root_bindless_view_ranges));
-        auto& range = root_bindless_view_ranges[parameter.DescriptorTable
-                                                    .NumDescriptorRanges++];
-        range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-        range.NumDescriptors = 1;
-        range.BaseShaderRegister =
-            UINT(DxbcShaderTranslator::UAVRegister::kSharedMemory);
-        range.RegisterSpace = 0;
-        range.OffsetInDescriptorsFromTableStart =
-            UINT(SystemBindlessView::kSharedMemoryRawUAV);
-      }
       // EDRAM.
       if (render_target_cache_->GetPath() ==
           RenderTargetCache::Path::kPixelShaderInterlock) {
@@ -1418,6 +1420,20 @@ bool D3D12CommandProcessor::SetupContext() {
   if (bindless_resources_used_) {
     // Create the system bindless descriptors once all resources are
     // initialized.
+    // kNullRawSRV.
+    ui::d3d12::util::CreateBufferRawSRV(
+        device,
+        provider.OffsetViewDescriptor(
+            view_bindless_heap_cpu_start_,
+            uint32_t(SystemBindlessView::kNullRawSRV)),
+        nullptr, 0);
+    // kNullRawUAV.
+    ui::d3d12::util::CreateBufferRawUAV(
+        device,
+        provider.OffsetViewDescriptor(
+            view_bindless_heap_cpu_start_,
+            uint32_t(SystemBindlessView::kNullRawUAV)),
+        nullptr, 0);
     // kNullTexture2DArray.
     D3D12_SHADER_RESOURCE_VIEW_DESC null_srv_desc;
     null_srv_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -2272,7 +2288,8 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       used_texture_mask, normalized_depth_control, normalized_color_mask);
 
   // Update constant buffers, descriptors and root parameters.
-  if (!UpdateBindings(vertex_shader, pixel_shader, root_signature)) {
+  if (!UpdateBindings(vertex_shader, pixel_shader, root_signature,
+                      memexport_used)) {
     return false;
   }
   // Must not call anything that can change the descriptor heap from now on!
@@ -2890,6 +2907,7 @@ bool D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
     cbuffer_binding_float_pixel_.up_to_date = false;
     cbuffer_binding_bool_loop_.up_to_date = false;
     cbuffer_binding_fetch_.up_to_date = false;
+    current_shared_memory_binding_is_uav_.reset();
     if (bindless_resources_used_) {
       cbuffer_binding_descriptor_indices_vertex_.up_to_date = false;
       cbuffer_binding_descriptor_indices_pixel_.up_to_date = false;
@@ -3649,9 +3667,10 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
   cbuffer_binding_system_.up_to_date &= !dirty;
 }
 
-bool D3D12CommandProcessor::UpdateBindings(
-    const D3D12Shader* vertex_shader, const D3D12Shader* pixel_shader,
-    ID3D12RootSignature* root_signature) {
+bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
+                                           const D3D12Shader* pixel_shader,
+                                           ID3D12RootSignature* root_signature,
+                                           bool shared_memory_is_uav) {
   const ui::d3d12::D3D12Provider& provider = GetD3D12Provider();
   ID3D12Device* device = provider.GetDevice();
   const RegisterFile& regs = *register_file_;
@@ -3688,6 +3707,9 @@ bool D3D12CommandProcessor::UpdateBindings(
   uint32_t root_parameter_bool_loop_constants =
       bindless_resources_used_ ? kRootParameter_Bindless_BoolLoopConstants
                                : kRootParameter_Bindful_BoolLoopConstants;
+  uint32_t root_parameter_shared_memory_and_bindful_edram =
+      bindless_resources_used_ ? kRootParameter_Bindless_SharedMemory
+                               : kRootParameter_Bindful_SharedMemoryAndEdram;
 
   //
   // Update root constant buffers that are common for bindful and bindless.
@@ -3851,6 +3873,13 @@ bool D3D12CommandProcessor::UpdateBindings(
   //
   // Update descriptors.
   //
+
+  if (!current_shared_memory_binding_is_uav_.has_value() ||
+      current_shared_memory_binding_is_uav_.value() != shared_memory_is_uav) {
+    current_shared_memory_binding_is_uav_ = shared_memory_is_uav;
+    current_graphics_root_up_to_date_ &=
+        ~(1u << root_parameter_shared_memory_and_bindful_edram);
+  }
 
   // Get textures and samplers used by the vertex shader, check if the last used
   // samplers are compatible and update them.
@@ -4180,12 +4209,14 @@ bool D3D12CommandProcessor::UpdateBindings(
     if (write_textures_pixel) {
       view_count_partial_update += texture_count_pixel;
     }
-    // All the constants + shared memory SRV and UAV + textures.
+    // Shared memory SRV and null UAV + null SRV and shared memory UAV +
+    // textures.
     size_t view_count_full_update =
-        2 + texture_count_vertex + texture_count_pixel;
+        4 + texture_count_vertex + texture_count_pixel;
     if (edram_rov_used) {
-      // + EDRAM UAV.
-      ++view_count_full_update;
+      // + EDRAM UAV in two tables (with the shared memory SRV and with the
+      // shared memory UAV).
+      view_count_full_update += 2;
     }
     D3D12_CPU_DESCRIPTOR_HANDLE view_cpu_handle;
     D3D12_GPU_DESCRIPTOR_HANDLE view_gpu_handle;
@@ -4230,8 +4261,23 @@ bool D3D12CommandProcessor::UpdateBindings(
       bindful_textures_written_pixel_ = false;
       // If updating fully, write the shared memory SRV and UAV descriptors and,
       // if needed, the EDRAM descriptor.
-      gpu_handle_shared_memory_and_edram_ = view_gpu_handle;
+      // SRV + null UAV + EDRAM.
+      gpu_handle_shared_memory_srv_and_edram_ = view_gpu_handle;
       shared_memory_->WriteRawSRVDescriptor(view_cpu_handle);
+      view_cpu_handle.ptr += descriptor_size_view;
+      view_gpu_handle.ptr += descriptor_size_view;
+      ui::d3d12::util::CreateBufferRawUAV(device, view_cpu_handle, nullptr, 0);
+      view_cpu_handle.ptr += descriptor_size_view;
+      view_gpu_handle.ptr += descriptor_size_view;
+      if (edram_rov_used) {
+        render_target_cache_->WriteEdramUintPow2UAVDescriptor(view_cpu_handle,
+                                                              2);
+        view_cpu_handle.ptr += descriptor_size_view;
+        view_gpu_handle.ptr += descriptor_size_view;
+      }
+      // Null SRV + UAV + EDRAM.
+      gpu_handle_shared_memory_uav_and_edram_ = view_gpu_handle;
+      ui::d3d12::util::CreateBufferRawSRV(device, view_cpu_handle, nullptr, 0);
       view_cpu_handle.ptr += descriptor_size_view;
       view_gpu_handle.ptr += descriptor_size_view;
       shared_memory_->WriteRawUAVDescriptor(view_cpu_handle);
@@ -4372,6 +4418,31 @@ bool D3D12CommandProcessor::UpdateBindings(
     current_graphics_root_up_to_date_ |= 1u
                                          << root_parameter_bool_loop_constants;
   }
+  if (!(current_graphics_root_up_to_date_ &
+        (1u << root_parameter_shared_memory_and_bindful_edram))) {
+    assert_true(current_shared_memory_binding_is_uav_.has_value());
+    D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle_shared_memory_and_bindful_edram;
+    if (bindless_resources_used_) {
+      gpu_handle_shared_memory_and_bindful_edram =
+          provider.OffsetViewDescriptor(
+              view_bindless_heap_gpu_start_,
+              uint32_t(current_shared_memory_binding_is_uav_.value()
+                           ? SystemBindlessView ::
+                                 kNullRawSRVAndSharedMemoryRawUAVStart
+                           : SystemBindlessView ::
+                                 kSharedMemoryRawSRVAndNullRawUAVStart));
+    } else {
+      gpu_handle_shared_memory_and_bindful_edram =
+          current_shared_memory_binding_is_uav_.value()
+              ? gpu_handle_shared_memory_uav_and_edram_
+              : gpu_handle_shared_memory_srv_and_edram_;
+    }
+    deferred_command_list_.D3DSetGraphicsRootDescriptorTable(
+        root_parameter_shared_memory_and_bindful_edram,
+        gpu_handle_shared_memory_and_bindful_edram);
+    current_graphics_root_up_to_date_ |=
+        1u << root_parameter_shared_memory_and_bindful_edram;
+  }
   if (bindless_resources_used_) {
     if (!(current_graphics_root_up_to_date_ &
           (1u << kRootParameter_Bindless_DescriptorIndicesPixel))) {
@@ -4405,14 +4476,6 @@ bool D3D12CommandProcessor::UpdateBindings(
                                            << kRootParameter_Bindless_ViewHeap;
     }
   } else {
-    if (!(current_graphics_root_up_to_date_ &
-          (1u << kRootParameter_Bindful_SharedMemoryAndEdram))) {
-      deferred_command_list_.D3DSetGraphicsRootDescriptorTable(
-          kRootParameter_Bindful_SharedMemoryAndEdram,
-          gpu_handle_shared_memory_and_edram_);
-      current_graphics_root_up_to_date_ |=
-          1u << kRootParameter_Bindful_SharedMemoryAndEdram;
-    }
     uint32_t extra_index;
     extra_index = current_graphics_root_bindful_extras_.textures_pixel;
     if (extra_index != RootBindfulExtraParameterIndices::kUnavailable &&
