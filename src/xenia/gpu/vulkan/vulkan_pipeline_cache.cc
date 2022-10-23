@@ -581,6 +581,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
       primitive_processing_result.host_primitive_reset_enabled;
 
   description_out.depth_clamp_enable =
+      device_features.depthClamp &&
       regs.Get<reg::PA_CL_CLIP_CNTL>().clip_disable;
 
   // TODO(Triang3l): Tessellation.
@@ -822,6 +823,10 @@ bool VulkanPipelineCache::ArePipelineRequirementsMet(
 
   if (!device_features.geometryShader &&
       description.geometry_shader != PipelineGeometryShader::kNone) {
+    return false;
+  }
+
+  if (!device_features.depthClamp && description.depth_clamp_enable) {
     return false;
   }
 
