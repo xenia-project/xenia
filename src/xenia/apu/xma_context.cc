@@ -178,7 +178,7 @@ void XmaContext::SwapInputBuffer(XMA_CONTEXT_DATA* data) {
     data->input_buffer_1_valid = 0;
   }
   data->current_buffer ^= 1;
-  data->input_buffer_read_offset = 0;
+  data->input_buffer_read_offset = kBitsPerHeader;
 }
 
 bool XmaContext::TrySetupNextLoop(XMA_CONTEXT_DATA* data,
@@ -324,9 +324,6 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
 
   // No available data.
   if (!data->input_buffer_0_valid && !data->input_buffer_1_valid) {
-    // 4156081D checks specifically for offset 0x20 when both input buffers
-    // are invalid.
-    data->input_buffer_read_offset = kBitsPerHeader;
     return;
   }
 
@@ -627,7 +624,7 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
       // assert_true(frame_is_split == (frame_idx == -1));
 
       //			dump_raw(av_frame_, id());
-      ConvertFrame((const uint8_t**)av_frame_->data, bool(data->is_stereo),
+      ConvertFrame((const uint8_t**)av_frame_->data, bool(av_frame_->channels > 1),
                    raw_frame_.data());
       // decoded_consumed_samples_ += kSamplesPerFrame;
 
@@ -639,14 +636,9 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
 
       total_samples += id_ == 0 ? kSamplesPerFrame : 0;
 
-      uint32_t offset = data->input_buffer_read_offset;
-      // if (offset % (kBytesPerSample * 8) == 0) {
-      //  offset = xma::GetPacketFrameOffset(packet);
-      //}
+      uint32_t offset = std::max(kBitsPerHeader, data->input_buffer_read_offset);
       offset = static_cast<uint32_t>(
           GetNextFrame(current_input_buffer, current_input_size, offset));
-      // assert_true((offset == 0) ==
-      //            (frame_is_split || (frame_idx + 1 >= frame_count)));
       if (frame_idx + 1 >= frame_count) {
         // Skip to next packet (no split frame)
         packets_skip_ = xma::GetPacketSkipCount(packet) + 1;
@@ -661,6 +653,8 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
             if (!reuse_input_buffer) {
               SwapInputBuffer(data);
             }
+            data->input_buffer_read_offset =
+                std::max(kBitsPerHeader, data->input_buffer_read_offset);
             return;
           }
         }
@@ -679,6 +673,8 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
           if (!reuse_input_buffer) {
             SwapInputBuffer(data);
           }
+          data->input_buffer_read_offset =
+              std::max(kBitsPerHeader, data->input_buffer_read_offset);
           break;
         }
         offset =
