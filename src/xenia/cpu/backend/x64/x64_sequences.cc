@@ -698,6 +698,26 @@ struct SELECT_F64
     : Sequence<SELECT_F64, I<OPCODE_SELECT, F64Op, I8Op, F64Op, F64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // dest = src1 != 0 ? src2 : src3
+
+    if (e.IsFeatureEnabled(kX64EmitAVX512Ortho)) {
+      e.movzx(e.rax, i.src1);
+      e.vmovq(e.xmm0, e.rax);
+      e.vptestmq(e.k1, e.xmm0, e.xmm0);
+
+      const Xmm src2 = i.src2.is_constant ? e.xmm1 : i.src2;
+      if (i.src2.is_constant) {
+        e.LoadConstantXmm(src2, i.src2.constant());
+      }
+
+      const Xmm src3 = i.src3.is_constant ? e.xmm2 : i.src3;
+      if (i.src3.is_constant) {
+        e.LoadConstantXmm(src3, i.src3.constant());
+      }
+
+      e.vpblendmq(i.dest.reg() | e.k1, src3, src2);
+      return;
+    }
+
     e.movzx(e.eax, i.src1);
     e.vmovd(e.xmm1, e.eax);
     e.vpxor(e.xmm0, e.xmm0);
