@@ -35,6 +35,7 @@
 #include "xenia/cpu/backend/x64/x64_emitter.h"
 #include "xenia/cpu/backend/x64/x64_op.h"
 #include "xenia/cpu/backend/x64/x64_tracers.h"
+#include "xenia/cpu/backend/x64/x64_util.h"
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/processor.h"
 
@@ -745,19 +746,28 @@ struct SELECT_V128_V128
     : Sequence<SELECT_V128_V128,
                I<OPCODE_SELECT, V128Op, V128Op, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    Xmm src1 = i.src1.is_constant ? e.xmm0 : i.src1;
+    const Xmm src1 = i.src1.is_constant ? e.xmm0 : i.src1;
     if (i.src1.is_constant) {
       e.LoadConstantXmm(src1, i.src1.constant());
     }
 
-    Xmm src2 = i.src2.is_constant ? e.xmm1 : i.src2;
+    const Xmm src2 = i.src2.is_constant ? e.xmm1 : i.src2;
     if (i.src2.is_constant) {
       e.LoadConstantXmm(src2, i.src2.constant());
     }
 
-    Xmm src3 = i.src3.is_constant ? e.xmm2 : i.src3;
+    const Xmm src3 = i.src3.is_constant ? e.xmm2 : i.src3;
     if (i.src3.is_constant) {
       e.LoadConstantXmm(src3, i.src3.constant());
+    }
+
+    if (e.IsFeatureEnabled(kX64EmitAVX512Ortho)) {
+      e.vmovdqa(e.xmm3, src1);
+      e.vpternlogd(e.xmm3, src2, src3,
+                   (~TernaryOperand::a & TernaryOperand::b) |
+                       (TernaryOperand::c & TernaryOperand::a));
+      e.vmovdqa(i.dest, e.xmm3);
+      return;
     }
 
     // src1 ? src2 : src3;
