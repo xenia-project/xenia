@@ -421,7 +421,7 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
       while (packets_skip_ > 0) {
         packets_skip_--;
         packet_idx++;
-        if (packet_idx >= current_input_packet_count) {
+        if (packet_idx > current_input_packet_count) {
           if (!reuse_input_buffer) {
             // Last packet. Try setup once more.
             reuse_input_buffer = TrySetupNextLoop(data, true);
@@ -639,13 +639,14 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
       uint32_t offset = std::max(kBitsPerHeader, data->input_buffer_read_offset);
       offset = static_cast<uint32_t>(
           GetNextFrame(current_input_buffer, current_input_size, offset));
+
       if (frame_idx + 1 >= frame_count) {
         // Skip to next packet (no split frame)
         packets_skip_ = xma::GetPacketSkipCount(packet) + 1;
         while (packets_skip_ > 0) {
           packets_skip_--;
           packet_idx++;
-          if (packet_idx >= current_input_packet_count) {
+          if (packet_idx > current_input_packet_count) {
             if (!reuse_input_buffer) {
               // Last packet. Try setup once more.
               reuse_input_buffer = TrySetupNextLoop(data, true);
@@ -664,7 +665,7 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
       }
       if (offset == 0 || frame_idx == -1) {
         // Next packet but we already skipped to it
-        if (packet_idx >= current_input_packet_count) {
+        if (packet_idx > current_input_packet_count) {
           // Buffer is fully used
           if (!reuse_input_buffer) {
             // Last packet. Try setup once more.
