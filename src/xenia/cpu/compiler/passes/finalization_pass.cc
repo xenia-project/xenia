@@ -46,8 +46,8 @@ bool FinalizationPass::Run(HIRBuilder* builder) {
       if (!label->name) {
         const size_t label_len = 6 + 4;
         char* name = reinterpret_cast<char*>(arena->Alloc(label_len + 1, 1));
-        assert_true(label->id <= 9999);
-        auto end = fmt::format_to_n(name, label_len, "_label{}", label->id);
+        assert_true(label->id <= 65535);
+        auto end = fmt::format_to_n(name, label_len, "_label{:04X}", label->id);
         name[end.size] = '\0';
         label->name = name;
       }
