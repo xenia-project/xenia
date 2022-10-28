@@ -94,12 +94,12 @@ void ImGuiDrawer::RemoveDialog(ImGuiDialog* dialog) {
       presenter_->RemoveUIDrawerFromUIThread(this);
     }
     window_->RemoveInputListener(this);
-    // Clear all input since no input will be received anymore, and when the
-    // drawer becomes active again, it'd have an outdated input state otherwise
-    // which will be persistent until new events actualize individual input
-    // properties.
-    ClearInput();
   }
+  // Clear all input since no input will be received anymore, and when the
+  // drawer becomes active again, it'd have an outdated input state otherwise
+  // which will be persistent until new events actualize individual input
+  // properties.
+  ClearInput();
 }
 
 void ImGuiDrawer::Initialize() {
