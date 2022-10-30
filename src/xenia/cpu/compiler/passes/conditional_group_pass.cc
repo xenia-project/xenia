@@ -49,7 +49,6 @@ bool ConditionalGroupPass::Initialize(Compiler* compiler) {
 bool ConditionalGroupPass::Run(HIRBuilder* builder) {
   bool dirty;
   do {
-    assert_true(loops < 20);  // arbitrary number
     dirty = false;
     for (size_t i = 0; i < passes_.size(); ++i) {
       scratch_arena()->Reset();
