@@ -170,8 +170,10 @@ CommandVar<T>::CommandVar(const char* name, T* default_value,
                           const char* description)
     : name_(name),
       default_value_(*default_value),
-      description_(description),
-      current_value_(default_value) {}
+      current_value_(default_value),
+      commandline_value_(),
+      description_(description)
+      {}
 
 template <class T>
 ConfigVar<T>::ConfigVar(const char* name, T* default_value,
