@@ -912,7 +912,7 @@ dword_result_t NtWaitForMultipleObjectsEx_entry(
     dword_t count, lpdword_t handles, dword_t wait_type, dword_t wait_mode,
     dword_t alertable, lpqword_t timeout_ptr) {
   uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
-  if (!count || count > 64 || wait_type != 1 && wait_type) {
+  if (!count || count > 64 || (wait_type != 1 && wait_type)) {
     return X_STATUS_INVALID_PARAMETER;
   }
   return xeNtWaitForMultipleObjectsEx(count, handles, wait_type, wait_mode,
@@ -997,8 +997,6 @@ void xeKeKfReleaseSpinLock(uint32_t* lock, dword_t old_irql) {
 
 void KfReleaseSpinLock_entry(lpdword_t lock_ptr, dword_t old_irql,
                              const ppc_context_t& ppc_ctx) {
-  auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
-
   assert_true(*lock_ptr == static_cast<uint32_t>(ppc_ctx->r[13]));
 
   *lock_ptr = 0;
@@ -1052,7 +1050,6 @@ void KeReleaseSpinLockFromRaisedIrql_entry(lpdword_t lock_ptr,
                                            const ppc_context_t& ppc_ctx) {
   // Unlock.
   assert_true(*lock_ptr == static_cast<uint32_t>(ppc_ctx->r[13]));
-  auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
   *lock_ptr = 0;
 }
 DECLARE_XBOXKRNL_EXPORT2(KeReleaseSpinLockFromRaisedIrql, kThreading,
@@ -1404,7 +1401,7 @@ pointer_result_t InterlockedPushEntrySList_entry(
   assert_not_null(entry);
 
   alignas(8) X_SLIST_HEADER old_hdr = *plist_ptr;
-  alignas(8) X_SLIST_HEADER new_hdr = {0};
+  alignas(8) X_SLIST_HEADER new_hdr = {{0}, 0, 0};
   uint32_t old_head = 0;
   do {
     old_hdr = *plist_ptr;
@@ -1428,8 +1425,8 @@ pointer_result_t InterlockedPopEntrySList_entry(
   assert_not_null(plist_ptr);
 
   uint32_t popped = 0;
-  alignas(8) X_SLIST_HEADER old_hdr = {0};
-  alignas(8) X_SLIST_HEADER new_hdr = {0};
+  alignas(8) X_SLIST_HEADER old_hdr = {{0}, 0, 0};
+  alignas(8) X_SLIST_HEADER new_hdr = {{0}, 0, 0};
   do {
     old_hdr = *plist_ptr;
     auto next = kernel_memory()->TranslateVirtual<X_SINGLE_LIST_ENTRY*>(
@@ -1456,7 +1453,7 @@ pointer_result_t InterlockedFlushSList_entry(
   assert_not_null(plist_ptr);
 
   alignas(8) X_SLIST_HEADER old_hdr = *plist_ptr;
-  alignas(8) X_SLIST_HEADER new_hdr = {0};
+  alignas(8) X_SLIST_HEADER new_hdr = {{0}, 0, 0};
   uint32_t first = 0;
   do {
     old_hdr = *plist_ptr;

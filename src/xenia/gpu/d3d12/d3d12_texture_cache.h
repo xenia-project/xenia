@@ -87,7 +87,7 @@ class D3D12TextureCache final : public TextureCache {
 
   ~D3D12TextureCache();
 
-  void ClearCache();
+  void ClearCache() override;
 
   void BeginSubmission(uint64_t new_submission_index) override;
   void BeginFrame() override;

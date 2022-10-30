@@ -614,7 +614,7 @@ bool EmulatorWindow::Initialize() {
         MenuItem::Type::kString, "Build commit on GitHub...", "F2",
         std::bind(&EmulatorWindow::ShowBuildCommit, this)));
     help_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, "Recent changes on GitHub...", [this]() {
+        MenuItem::Type::kString, "Recent changes on GitHub...", []() {
           LaunchWebBrowser(
               "https://github.com/xenia-project/xenia/compare/" XE_BUILD_COMMIT
               "..." XE_BUILD_BRANCH);
@@ -622,7 +622,7 @@ bool EmulatorWindow::Initialize() {
     help_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
     help_menu->AddChild(MenuItem::Create(
         MenuItem::Type::kString, "&About...",
-        [this]() { LaunchWebBrowser("https://xenia.jp/about/"); }));
+        []() { LaunchWebBrowser("https://xenia.jp/about/"); }));
   }
   main_menu->AddChild(std::move(help_menu));
 

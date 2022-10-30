@@ -808,7 +808,7 @@ static const hir::Instr* GetFirstPrecedingInstrWithPossibleFlagEffects(
 go_further:
   i = i->GetNonFakePrev();
   if (!i) {
-    return false;
+    return nullptr;
   }
   iop = i->opcode->num;
   // context/local loads are just movs from mem. we know they will not spoil the
@@ -989,7 +989,7 @@ struct COMPARE_EQ_F32
     if (!HasPrecedingCmpOfSameValues(i.instr)) {
       EmitCommutativeBinaryXmmOp(
           e, i,
-          [&i](X64Emitter& e, I8Op dest, const Xmm& src1, const Xmm& src2) {
+          [](X64Emitter& e, I8Op dest, const Xmm& src1, const Xmm& src2) {
             e.vcomiss(src1, src2);
           });
     }
