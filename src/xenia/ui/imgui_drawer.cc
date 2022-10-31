@@ -62,11 +62,11 @@ void ImGuiDrawer::AddDialog(ImGuiDialog* dialog) {
       dialogs_.cend()) {
     return;
   }
-  if (dialog_loop_next_index_ == SIZE_MAX && dialogs_.empty()) {
-    // First dialog added. dialog_loop_next_index_ == SIZE_MAX is also checked
-    // because in a situation of removing the only dialog, then adding a dialog,
-    // from within a dialog's Draw function, the removal would not cause the
-    // listener and the drawer to be removed (it's deferred in this case).
+  if (dialogs_.empty() && !IsDrawingDialogs()) {
+    // First dialog added. !IsDrawingDialogs() is also checked because in a
+    // situation of removing the only dialog, then adding a dialog, from within
+    // a dialog's Draw function, re-registering the ImGuiDrawer may result in
+    // ImGui being drawn multiple times in the current frame.
     window_->AddInputListener(this, z_order_);
     if (presenter_) {
       presenter_->AddUIDrawerFromUIThread(this, z_order_);
@@ -81,7 +81,7 @@ void ImGuiDrawer::RemoveDialog(ImGuiDialog* dialog) {
   if (it == dialogs_.cend()) {
     return;
   }
-  if (dialog_loop_next_index_ != SIZE_MAX) {
+  if (IsDrawingDialogs()) {
     // Actualize the next dialog index after the erasure from the vector.
     size_t existing_index = size_t(std::distance(dialogs_.cbegin(), it));
     if (dialog_loop_next_index_ > existing_index) {
@@ -89,17 +89,7 @@ void ImGuiDrawer::RemoveDialog(ImGuiDialog* dialog) {
     }
   }
   dialogs_.erase(it);
-  if (dialog_loop_next_index_ == SIZE_MAX && dialogs_.empty()) {
-    if (presenter_) {
-      presenter_->RemoveUIDrawerFromUIThread(this);
-    }
-    window_->RemoveInputListener(this);
-    // Clear all input since no input will be received anymore, and when the
-    // drawer becomes active again, it'd have an outdated input state otherwise
-    // which will be persistent until new events actualize individual input
-    // properties.
-    ClearInput();
-  }
+  DetachIfLastDialogRemoved();
 }
 
 void ImGuiDrawer::Initialize() {
@@ -301,7 +291,7 @@ void ImGuiDrawer::Draw(UIDrawContext& ui_draw_context) {
 
   ImGui::NewFrame();
 
-  assert_true(dialog_loop_next_index_ == SIZE_MAX);
+  assert_true(!IsDrawingDialogs());
   dialog_loop_next_index_ = 0;
   while (dialog_loop_next_index_ < dialogs_.size()) {
     dialogs_[dialog_loop_next_index_++]->Draw();
@@ -319,11 +309,11 @@ void ImGuiDrawer::Draw(UIDrawContext& ui_draw_context) {
     io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
   }
 
-  if (dialogs_.empty()) {
-    // All dialogs have removed themselves during the draw, detach.
-    presenter_->RemoveUIDrawerFromUIThread(this);
-    window_->RemoveInputListener(this);
-  } else {
+  // Detaching is deferred if the last dialog is removed during drawing, perform
+  // it now if needed.
+  DetachIfLastDialogRemoved();
+
+  if (!dialogs_.empty()) {
     // Repaint (and handle input) continuously if still active.
     presenter_->RequestUIPaintFromUIThread();
   }
@@ -555,6 +545,25 @@ void ImGuiDrawer::SwitchToPhysicalMouseAndUpdateMousePosition(
   }
   reset_mouse_position_after_next_frame_ = false;
   UpdateMousePosition(float(e.x()), float(e.y()));
+}
+
+void ImGuiDrawer::DetachIfLastDialogRemoved() {
+  // IsDrawingDialogs() is also checked because in a situation of removing the
+  // only dialog, then adding a dialog, from within a dialog's Draw function,
+  // re-registering the ImGuiDrawer may result in ImGui being drawn multiple
+  // times in the current frame.
+  if (!dialogs_.empty() || IsDrawingDialogs()) {
+    return;
+  }
+  if (presenter_) {
+    presenter_->RemoveUIDrawerFromUIThread(this);
+  }
+  window_->RemoveInputListener(this);
+  // Clear all input since no input will be received anymore, and when the
+  // drawer becomes active again, it'd have an outdated input state otherwise
+  // which will be persistent until new events actualize individual input
+  // properties.
+  ClearInput();
 }
 
 }  // namespace ui

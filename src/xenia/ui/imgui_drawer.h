@@ -74,6 +74,9 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
   void UpdateMousePosition(float x, float y);
   void SwitchToPhysicalMouseAndUpdateMousePosition(const MouseEvent& e);
 
+  bool IsDrawingDialogs() const { return dialog_loop_next_index_ != SIZE_MAX; }
+  void DetachIfLastDialogRemoved();
+
   Window* window_;
   size_t z_order_;
 
