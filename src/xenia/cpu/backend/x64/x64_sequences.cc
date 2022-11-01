@@ -54,10 +54,6 @@ DEFINE_bool(inline_loadclock, false,
             "Directly read cached guest clock without calling the LoadClock "
             "method (it gets repeatedly updated by calls from other threads)",
             "CPU");
-DEFINE_bool(delay_via_maybeyield, false,
-            "implement the db16cyc instruction via MaybeYield, may improve "
-            "scheduling of guest threads",
-            "x64");
 namespace xe {
 namespace cpu {
 namespace backend {
@@ -808,7 +804,7 @@ static const hir::Instr* GetFirstPrecedingInstrWithPossibleFlagEffects(
 go_further:
   i = i->GetNonFakePrev();
   if (!i) {
-    return nullptr;
+    return false;
   }
   iop = i->opcode->num;
   // context/local loads are just movs from mem. we know they will not spoil the
@@ -989,7 +985,7 @@ struct COMPARE_EQ_F32
     if (!HasPrecedingCmpOfSameValues(i.instr)) {
       EmitCommutativeBinaryXmmOp(
           e, i,
-          [](X64Emitter& e, I8Op dest, const Xmm& src1, const Xmm& src2) {
+          [&i](X64Emitter& e, I8Op dest, const Xmm& src1, const Xmm& src2) {
             e.vcomiss(src1, src2);
           });
     }
@@ -1069,11 +1065,7 @@ struct COMPARE_NE_I32
             e.cmp(src1, src2);
           },
           [](X64Emitter& e, const Reg32& src1, int32_t constant) {
-            if (constant == 0 && e.CanUseMembaseLow32As0()) {
-              e.cmp(src1, e.GetMembaseReg().cvt32());
-            } else {
-              e.cmp(src1, constant);
-            }
+            e.cmp(src1, constant);
           });
     }
     CompareNeDoSetne(e, i.instr, i.dest);
@@ -2611,16 +2603,25 @@ void EmitAndNotXX(X64Emitter& e, const ARGS& i) {
     // src1 constant.
     // `and` instruction only supports up to 32-bit immediate constants
     // 64-bit constants will need a temp register
-	  //only possible with 64 bit inputs, andc is the only instruction that generates this
-    auto temp = GetTempReg<typename decltype(i.src1)::reg_type>(e);
-    e.mov(temp, i.src1.constant());
+    if (i.dest.reg().getBit() == 64) {
+      auto temp = GetTempReg<typename decltype(i.src1)::reg_type>(e);
+      e.mov(temp, i.src1.constant());
 
-    if (e.IsFeatureEnabled(kX64EmitBMI1)) {
-      e.andn(i.dest.reg().cvt64(), i.src2.reg().cvt64(), temp.cvt64());
+      if (e.IsFeatureEnabled(kX64EmitBMI1)) {
+        if (i.dest.reg().getBit() == 64) {
+          e.andn(i.dest.reg().cvt64(), i.src2.reg().cvt64(), temp.cvt64());
+        } else {
+          e.andn(i.dest.reg().cvt32(), i.src2.reg().cvt32(), temp.cvt32());
+        }
+      } else {
+        e.mov(i.dest, i.src2);
+        e.not_(i.dest);
+        e.and_(i.dest, temp);
+      }
     } else {
       e.mov(i.dest, i.src2);
       e.not_(i.dest);
-      e.and_(i.dest, temp);
+      e.and_(i.dest, uint32_t(i.src1.constant()));
     }
   } else if (i.src2.is_constant) {
     // src2 constant.
@@ -2637,7 +2638,13 @@ void EmitAndNotXX(X64Emitter& e, const ARGS& i) {
   } else {
     // neither are constant
     if (e.IsFeatureEnabled(kX64EmitBMI1)) {
-      e.andn(i.dest.reg().cvt64(), i.src2.reg().cvt64(), i.src1.reg().cvt64());
+      if (i.dest.reg().getBit() == 64) {
+        e.andn(i.dest.reg().cvt64(), i.src2.reg().cvt64(),
+               i.src1.reg().cvt64());
+      } else {
+        e.andn(i.dest.reg().cvt32(), i.src2.reg().cvt32(),
+               i.src1.reg().cvt32());
+      }
     } else {
       if (i.dest == i.src2) {
         e.not_(i.dest);
@@ -2975,52 +2982,15 @@ struct SHR_I64 : Sequence<SHR_I64, I<OPCODE_SHR, I64Op, I64Op, I8Op>> {
 };
 struct SHR_V128 : Sequence<SHR_V128, I<OPCODE_SHR, V128Op, V128Op, I8Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    /*
-          godbolt link:
-    https://godbolt.org/#z:OYLghAFBqd5QCxAYwPYBMCmBRdBLAF1QCcAaPECAMzwBtMA7AQwFtMQByARg9KtQYEAysib0QXACx8BBAKoBnTAAUAHpwAMvAFYTStJg1DIApACYAQuYukl9ZATwDKjdAGFUtAK4sGIMwAcpK4AMngMmAByPgBGmMQgAGwaAJykAA6oCoRODB7evv5BmdmOAmER0SxxCclpdpgOuUIETMQE%2BT5%2BgbaY9mUMLW0EFVGx8Umptq3tnYU9CjMj4WPVE3UAlLaoXsTI7BzmAMzhyN5YANQmR26qAYnhBMThAHQI19gmGgCCx6fnmCuNxihA%2BX1%2BZhODDOXku1zci3wgjeYJ%2B4L%2BVAuGnRkLwmKwNAi6AgAH0SQBxSJyNxkjbgi4XAgAT3SmAJDI5nIutAEwG5vO5tGuVh%2BDOZrPZXgY2WARP5RnlfK8tCFRxF3wZxwJKwuZMeiUkisV9KukO1EV1JMeRzMF0eJq1mEJgL1gi4iQuCgQJAIDrNTp1roIAQZyAQbT9R3NgIAst8ANLYEIhCAMHwbC5plimo7HC7JyPRi4AMRjABUSQbTWYVeYzDijn08Rdo8SSTGhDSAGrYABKdNFjJZbKdXK5QartbVJvFI8xUplconhuVqvVmv9zouccTydT6czPhzebwBsLAYtpYrVbrAEkz2Z62jIU38Re2RdSSSLAB5Xshb5IgAERpEkBw1IcJVHMcOWXQVhRnYdJWlPBZQ/ODVwQwdHS3HckxTLMMyzY9ITtM9sM3HUr0rQ06xCOsGz6JRI3iYgSGrKUAGsGFQAB3BgLjQFh0joeIGOfRsGHwKhwVnZDFw/R4Li8e1px%2BOTRwXVC5TDNplN04gsO%2BDT5xQtD0E9b12mUr0fSMkzlLMuUeQVZVeSM2SkOgmDBPDYgOUeAJ7K8zEGQUiyDI5bJBCCtTjJCxzwt8vSGRUmLgqg0KfNs6y7TdRIMrnKLtI/HKCDCx53UK%2BSSossrUsqgq4ocny8vKgLBBtarvKSpTis6%2BtmoSrTzLazk0oILqhsywVWq5fVJG6zEVTmzlooIM9pqK1dVoawRNvVcEAHojouZRhjwMRaCZFt3ws2cFBeC4ywQTAbraQEvCUCzeNegSCFe26hJE%2Bh/PQVBMAUTNUHK7i%2BOO07DCZAHwj5JgYh2cqAcBWcLkwVR9nScrCCh7IAC9MBeBsi2/ABNMtsD24NqffXUAHU/yApmqokmmgI53suYmrredZkkAEUBaFhaG2bMAwFbUkO27PtwJwwMQh/SJyU17XLUqwJGKkvF0R%2BE6LkiAQAFpFkMdA2gsjHPEwQxIMhp6Xrei4Ppsj9fsYRlAawYHRP80QGB48qvswBHA8BW2pId6snaFR83YuOJRGji5UExbHPTwCmLhYPBFhYJgCDDDOvCxwGSmyGJ6FjgA3MQvEh73iEBARrqxb2pIuLgnqETBATEBRUAuMAOF/H8Qmn9O4h5XiqfUhLAt1WeQi4Ja2vdTefznwb1Qc61bW/Q%2BQkWrb2QWg%2B59iw6JLxKTRxJNnb2An82aEElPJmjeFh6afBvqORqFwpa7zPhcfmnMoEDXzFrck8Dypb2FDBc2Xh0isj2EwJQFwt52ihl9LwV0bqGhiMjSGRtpL/yKnfSWcC4oYlfpiMkyB0jeAUJwr6dDb6CAzqgTw6Cxzm14oCXihgsaT2zinPKOddgXDcBcdIbFgDEFYAoGhJszanSEKgNggkBDN0YHgRg%2Bxi5MGQGxKGRBLGcUBOkC6YhvbIH2AoJQUMGB4H2IZUWW4AJCArJ/ICEBVAZGGCSWcGYOQQHJpgXOYSNhHXiYkpx7QonDgzFbQeatcRvmdG2OmDMSSc1VqaAqZgPRkiASUspvYgRAWuFzGpt5yQkmwMBW8gEGwMiLJrNmJIQlhIiRk6JHJAnBOAiM9JBBMmsjyUcPprMAASbSVlDOmeE2Z8zMAxOxBJJiMcJLLK3Gs8kGzhnbMieM/M3wgmbNCdcsZWTem3QCd/R5MyblZI5AciEklaH%2BJ1LU7ADARmZhiZ%2BAAVFAYp2BoV0iqUk6wDANiLKLFLcF4TIWxNhaSKWiLzCJBRZYNFGLWawMFti0guKYVwqpUBIlyLVBIosOS02AL%2Bk/lBUkhkoKaUDK%2BeE%2BF6KWYfKlnyiBnNBWfKuaQd%2BnMxXAotJrRlfLGWysGfKkkjLlVctWbeXlrL%2BXAJpecy5WyFWgv1erC0azJUmuldSkZFrhUKqlrayi9rbzqpNZq116z3W6s9RSrcoKuBSoIWaiFuTWrm0oQQQEXBPxoClI4BUVA2LZg0GGkFwCzBRoFbGsweaLSgqOEWmNOKLhHDLYCUFkgq0MxpQySQ9bo0MwAKzNrBbGrtHbQUkqdZ2vtNbEiDuAQAdl7a2i4U7J0MwCLO2NARF3YBSCumtKR11cA0FK4tOK927sjU6w9tKuBcF3YWs91aL2lvFfmhmXBK23pbRCl9u6m1vrHRe9tj7y3AK4D2n9rbgMdqlqeqFWLY1XoA4CKWN7oMypLVC0Rp0UbEB%2BiQCyuc445xiNoRoBBaUjSJPB51QFX3IZdTWutFGpbfpo0BOd/6VUIc5iB5jc6B0Mc5sO7jsaJ18cFjOkdMGa0Ls5ebHivEC6jXLtYrIn584KFYICGINcLi8UIAgeTAl8ZJpQgIDtQhz10vpRAQKzKBOoq9VGVmQgJO0rRXiqAjUbOkvZfZosQgA04tc5Zs%2BnnWV2bVuxi4QhNbGpiWZu9Qr5WBR845gZnMpVOZQ%2BEhLVrGrJa3FFn8fqMx%2Bec9lp55ABp5Z1EINZMWGRxffeEt1iWYpVYtDV28jrYvOeazl/KbXAQdaK5F/zpBevlbPgNyLEao0Nd/QyODEW5tIY5HNudD6lsVtm%2BZ2tpnG3bbvW2vbwCuOrZ27xzbwCBNncOxcYTl2GZiahWt2NUmHvYGXSOl7Na10Ubm5ur7O2d1/Yjfup132L25pB0BqD9XzOXuO8%2Blb03DtcA2wa/LEbqNw9R/R97Uh0vw7Yxj6rEbTso8axei7JP2uQdm85hbpnEP08y7Si46O7WDaltj%2BrDPdt/cYyz2jbPiec8i1Lcn4vWcMmp2LjLgtru8%2Bl3dpnnMnurb52934uiLjkkYPECuY8VFMDwP5PDqAcF20epFz0rQpJQ34P5ae4Vp4UbJEIZQ3xby9ndGSCACBUIIFpcvGJUArP9YZP7wPGZ4TwgZGuq4U7lEQAmgniAIeO3u8997m0fuA/ACD/yXiof3OVcj/nhAMebhx/dDHpPn4Jq1/T3xKbWeve9gNHnwPweW%2BR9Lxtdt5fo9AjcHHm0dfk/C1Lc34vmeSQe/b2jgIXeC89%2BL5%2BfvS%2BMxR4L1X0fNw7uD5MPXlPC0Ngz9bySbPPvEgr8LyH2JUBG8Ts/BXvfceLgJ%2BP5PpLn4M9u6v3b1zxJB33v17z71PzL1APfwP1r0Tx/36wvzn2v07xAIrzXyhTDwmgNG3zfxHzH1LXgIb0myQIAOvyXzvwwIgMb0CHPzwNjwPxwKIMgIH3P3/zRB%2BC%2BlRmN2QAcXQCiXxhJDQBwwUCiUaUSlqjag8h%2BEWGIC8AcAuBMWQDMDEOP3XA5CoB5ArguBxSZA8inSaWYWfkxB3h%2BHBi8EbkBGDgMXSC/Dvi7gUGVBIxbB2EsO9l%2BzRCnXUKUmbmPguHNmIBSBNCDH3mblzDVH8NOmIEvRNB8OvgsEiIuGICCkHB8K7XQQCL3WCKtHykUKagSMyNMIgnMLcJiCsU4iEPDHCAyNOhMC7QsG4WsA0HeC7S5jqIsCtj3RaKaUHBKPoEUMfkSPaMaMsDMGaLqLaPqOsC6ImM5QZGbhDGaXcKMgZGbAgHcMaSWI0BeA0AuHAk1C8JNHmNtC2JWMTx6IgiOQdEOMHHmKWSWIdTSyYF%2Bzik5DWM/EeMFggGeJjyqSxFUCnWLGLFzU2KOC5n%2BTHGJWJQ32blojBIuDWXVR%2BNpWbi7XELVUlWRI%2BN9UxK/z%2BI0FUCBKJIzHli2In2/0QSRLXQzH2I5DUKOI5F8PEM6I0DMB3lePmkxHWIgBmx%2BIqX%2BOPVBPBL2IZIOPULHHBlFLpJuIgh8lhIuGhSWOPilM5ERMlQWKry5lhLOJ8neNRJHz7lpJ8npNuNanlO/yWK4C8B1NajVLSw1PEO1I5ONIMJVMZPuPhM%2BNCQ1JtLHH1MVPhOVNNLHCtitl8N9OlIuJ8l%2BlEk/E/BmwdOhIJMFOaS2JFOdK5AxPtK/3hNRIjOPyjK5Gbg9CWLCP5IJKBOwGLAjK9IgETNzPyKlPeOeINO2N2KNK5FrPrK1JLPrwJICA0EHIjLKN4MqJNwElLMfilNrJHIqN0nCE1IRM62zN%2BI9H7MHOLCIIJKOGLGwGxAzILIZKuNNJNNlI5FnLHPCHEOeJrOXK%2BIvPnNcweLvNCT5KTLuA3K3NUB3L3IjKZKWKfycnQhyIICb1rLfPxIBKBJBLBCOEZkHxyT3UfBtMPNNJbKWIfKqIYDONQoglhRDU5gVI2AcKcMdKDIgi7gIF2AEhvOYVdMOWNhkh%2BD6kcJiBJACDMHqMSBSCOH3RCI9GhSYC4FpSUiYDMBEoESYCOAkvKiYGkDGiYC7Rku9kSGUqYC11PNWIEQWJqKSKyNSIERItoF9AiICNzAMvKmbiyNMqiPMogh8JiJsqSKOCKK0ssrR10uIF4tiO0pfU8rMCCIssUKkH8pSO1wggWOvJ3nqPrFaLOPeO%2BJOIP0TJPykoNKEvaNzFaIn0/DkvSuiosEWmyuYMUqBEZgyvqPSOKopO%2BJLLgu9gKoKmqtSqnTKoavaKnQmJpOuPFLtC5O9iSuUUisQpFODIuGABhkngAgsCTBJACptKst2KWIqosCysMN6ubI9KGr3QuBGo7IZAmrsWmtmvmozKspTWWoKqKvWoZObLhO2pTT2qlMOqmu%2BBmpCDmqCLOrRyivaKqputNObLRI%2BGCpOMsEHlGrPIOsmruXes%2BoWpfV%2Bq4tmIzObLqsZisvuPBpTX2vGphuOo%2BtOt6qsrhK5hWs6ritRv6vUrapJtNASJxuevxrepOq%2Bo2upqSoxpDFxrEsdKnMBupo9Ixp2p5o9LJoKrWptLutpsvUhrHDysuvaOuqlupuBuSp%2Bp5rVvFr%2BpRvZrjKYDqu2qWR5rqu1uRspr1vWJprjzpp5tasVvqIpoBrPIStKpyTEozGhVyo9HdrrQVNytavdoQs/DppyXOs9pDsRrDsFK9rrJ%2BrDpzMZltA7NPIJs%2BpAClKMvKlOIPPorPOPLPM0q5BWtiraPhLEojKzvEPZN6oZBWrWuvPCNrvavqOuuvPiKlJWv%2BuvPSIzLrsaomOvMbLGvJsHuWs6tzsLNwoZALrFIZKrstJwrzoZEouoqSMhicP0IuPBDkQUA0R0xTyAoskwBiBNSLs1E4KPsUPEJPtUH5KgAuur1gOyVySMjkVPsdKnjABzvVDIw/GiK4AsiWNvrKpBuTJkjilXuIAEg/uhIAfQC3uk0VMvqShcj5DQaSNoB0wYBYEPtQYFAwfCHSBrlIyvrYmcL/osnLgUE4jr16soaNAwbOBdi7iAfhMAt6kEA2CIZrjpCMLPOYY%2BiAaTyWMEdYYYLcCmifnCs5CgYEjJE0zoAzRJHIcN3oCoAHwgDEbZFpXIaRUSGoc4kQY4O%2BAYaUiTUWEjQYYwcIYYGIYIDofBDkcwewdwZ4ecOTKYAvT4cOjzuhSOk5TMYEXBkICujwckKUhxQMi9teiZE03QHQCZEcdNLkTDEaE4kIHEKoHHhjiprCQNJ3UT2btDFel4MyaWKeHbgjIZBOmcaJoZOno5GhVificSfELSbKZMukbeKoC0dKYyYcaKbdIUZUmMvCBJClC7isXDEsIgB8YaeXo5Gcd4rZvRDzttkcGQAuE0NQG0PDFoCoDMB2YrnCdGh0OSbPOcZJBYBYCEObgIA8RJCoBtFJBubuYIHSAQBJHSAUFedueQHueyFz2yCXw4Yia4dZTFToouI2Z8QkNGnqmOYIDMH2d6aRe2YufnswCougdtwrh8SELwRMrcAYbKg%2BD%2BfeZBcCBJCBcLWuf%2BfuZ%2Be%2BYQApaUDmQ8WoC2F1BjBjBJGLF7B/DkGAhJEiB/A6QAA1lEKT2xeX%2BXBXhWywxWAAtPsH8dFeZzwi49F1QRgAQEkVFo5rQggU5uUc5oZkx8aK%2BhQWUcQu%2B98gcoc/hy1pKfGdIcQvlaEiAFy/A2AqHKmz8eWV1i5nyZxxEEAEAEEOZUQRYeEJF8l61icp%2B5RWvFCvO26gRZAYSQxm%2B1QN11M9hlyiRlMnc3alNEALEG0k6V13agCzN9IbNz19k/fNwY9DVs8hh9etAaURwKipNNhrmO%2BnJLRrNvBTie%2Bpt%2BEVt6Qs89FlgJwvAThMxfyJY2F5AQlmNm4ONuCqAOthtv4wgmqiAAAP13dHdXNyTbbmI0KNcEnuaiWEnEINaRYgC7i7cWEIBrjZDbdkexbXoBbmQIAfa9rnbGcXbEn4bWe3pfEYs5QxArZMfpDJBYCXx0N1YYH1bEEOefaQ6XzwDNfPv8OQaho5DfbtweYZP8YZJw8CDw9RZJFdYEEYDmQbfhPpZpexa4Ho5EndC9a4DkB9eTb9d6uo4CDw8XFEJY5aTebZc48wG45JXXMHLkG/dgmudw7xlzcY8EBJGDi7jYG08k91Gk44647wB48fubcHiE6o7U5o%2B2aNfo804iG09OD06Y%2BudHfELY5k9M5eb44E/Z3oyddU%2BQ7s4pjYi7j5CWO8%2BxfC9QBpbM8CDmZtJE7w9dahmi7ebtgS9BZxTo4Y%2Bc%2BY7PZS9s9E9uh4mIHLloAk888y/%2BeEkwAAEdTOeP0vaU4vIvL2LWQv1OsAKuquauaGSQbQvO3mpQnFeCeQWuSU%2BuSABuPOaHaVZvKvx4FvaGajmwKyiTaVM4DFAQtuiSiSnoIgRwLJHcM56ApJm5uRDc/EZGOQq3c2hTa0LOa8ISeu7Ou5GuVIHDHO5kNEjBMA1vRv6vWRmu5OzOSU2uLh8unP3PDGVOGRUuNP0gdPGg3ODPR2Pw6uSRsuqXl0vufvIY/uVHDBgAgfDHaUCv3PdPMB9OiuaHEfLRQuyudMAZHPMhCvcf0BtAvo%2B2QeaWLDpuIVXW0frE6f4esf0AmeROjEGATF2g2QSQ2fvQa4SeAfyfufefFgBf/3PnvnfmVeOetO5kmAee%2Bev3p3ORkfxOBe8fEvPtaVxO1uuuzybftIFARucfxvyipuIeeOOvMBgAnePefHIjy4HELhtfypxOr2kfSu8PCfTdifDNSfAevfWOxu7Hff4v/eSVA/g/17vvk/RDU%2BNeKfiuMzkey%2ByegekWcjxf6e7epIcukuk/fua/0/xL7Pdm5lqeXPoQMeGf1vgv4%2BWe8Ok1iBnhLCVHMBHh4hVFsWhDjF4h%2Becfo2PnRD8etGV/Ff%2BCVfMZ1fa%2Bte%2Bew%2BTpvRe4vRR5iZBA%2BhaBS5GB8E8Abm2RLok1L%2BvBgByfFgPwUYoZtC2OcfZnup0n7T96ATzXPP3zmQ0BVAWCO3gk186FpQBeAGfl3Hn7EBF%2BUbXfn2yp6qB/ux/evq5wl5cNp2NncfpYiwBo9%2BuW/WqCSDi4dwcelhK7qZ2XTICZ%2BzzFQlAKeZ4BYB6QEPrKE97d9lu83QxsNwfSj916OLeRm8w3748DeEAcuJQOEE0DzIdA%2BIBDAUCu9YOedI6ER05BEBwY5bZ/qolQAmJA4pccEJR1FDI8dWPEdDkixRaYcvwLPDFua3u5j91O9fdGINzHY48fOEPF5gSUBKHcgSXgV3tbwT76ZRBPzAXv4JEiBCPyg5JIdZ1NLI9TB8QHZrxDT7k9YhJnAIYWgJKSBghe5QcmEJK7kCpQWAYgJkOyGAg/BeQ%2BIQUO/IBAHWSQsoVX0iHpDqhy8Wfo4WMq5DQKwvIIUSXaHCdIhi4UQfvHqGDC8%2BEARTikLd6lc8WGSQzK4CV7l8BhnHH5hAESBdou0GgSQDsSoAy9IhovWnvTwz5SdbmcQvAH5344SNAuJw8gaLyIH08phmfa4Q0Mh4QB/ODw49Fbw%2B5lcC%2BAwuLq32XRPD1OkbSOJF114NdweIkZdAX3a7qDOu5QlDlQFx4xBvoTzEgEIQfY49su2wqgLSjY6yCHe8grwViJd7hDAReHDEd4KV7z91ELidfkSyZbb96RWIpXo7jxHpAmeugt0lYiopkJaUaaWgBZGzglwGAR0cuHfXCA/8zeOcTEHW36F2I6wbAYgOTzrB5QJmr8boXxFqFHRxmXQmoeXwo4BNUhkQyODkRJAmiehGw9fsJGMqIDqAmI7EUyI0S0BaUdog0eXwhF2dxmlQjIfaNr6wjOEffRoa6IZH8EPRYgUhlUNNG19/RZXY0Qr0TGA8BeqgXEdv2tGpjgxvo2vjt0IDQig%2BNIjwYECL5E9S%2BeAtYfwQdEfDeRwAOZESLdHcjcRdbJ3ksD%2B61jahZYq4Ah1uLmw0haYnobiKDH6i5MOPbMQ73Dy2iRxBYwHhJV1EJiQxgPPscj3b4p8axr8OscfzQG38MBlFbHg2I37siZxm46sUZiwC7i1xaIuzhiP3GT9MBx4q4eu035gjOWAI8sWV3OFMd4gzffgtvwvHdidxtQ2fugOfHoBcBqPX8ZVi/HAC7OsEvtjiOIBH8MxfgoXvkNdGPiF%2BR4qCUDCH7xB1xSwwwDDFeioSmAvEKgMqHAkHjMBuvIlnIO2FIS2xqEzvuTz7FkD1O%2BzExKIWtEwClecA9foy1EKfNvikccibjyok0ScJh47FiSJ5Z8sBWQrICCKzFbYBJWRBGVkpPlaqTFWJIFVgK35FHRsY%2BCH2JgOZDjUbECgWlEyGoSWjyBwE1YaBPL7vDXxE3TiKX0jFOTtx14sCbJMgnIiIupYu8WVx9G8Q3JRnW5h5K8m3DC0eYicbUKCkkAQpHQioXqMyGRS2OMUl0YGIymrjyeyU1EWlPU7hTfcY4/KXxCylvNpxoLMqapUcgriqpwmCDg5PU6utXO1U25vb1BY%2BSrx6w2vu6GgkN8h%2BKbCQdX1zbcCdW/bKKdz34KzCeJxPfiTwMEl8CUenUlqb1ROiyZPQfQYjJ6FZDIBLotARQm3GOSLDyB3CRoMdJJCtxvAdQhsT1KS71TvR84rIVnSZ5XSjpYgW6WdIF61SkuX0m6XdPbgkisuLfbfqLwEn4SJho7EkLXmInkDoZKEmlodOOkZcGxTA9AM3BYEQAoZK0mGWjJ%2BkgzMAr0/MRFNvwVSmpFMvsc42Rk8igZ48HCpq3BDYFJAYhEDgPiICgs2ZYhC3MJWUgLQ%2BZ6QDnDKXGhCyo4j9LmBAH5nllVAVABWYrIVlM9eZ7ld1hbjBprl5ZSsxWSrIlmMh3WXgFNF7Ssp6z9o7M8qLxDFoqY5ZOs3WTaVVkXBfB7DbOnBRBrj54Jss2CiAi5hSMGSrs6WbLJNlXp6aTsm0s7OlnZ1IKds5WQ7P1kRT3WrskBIzA9kSCNZoDN2fCT9mmkA5DeY2TnBFm/EEiRjDMhHJtneza04g7pks1/a4sZZ6QfORrKLnaYLq4NEudI1wrHBXAOicKg5FkLyFZK9/WUHgh%2BEv4lCFBDLmLMci5A3Ba0SpgoQI4MhtWEZdFnoT7o99tCZMFeTe14iptnac8uQgvKnlvEBoYhHgRGTPhny15zdS%2BcTC3nrzb5doXeZPRtL9yj5zdKfGIS8CqAIyn8qONfKlJ/zlI98j%2BY/K8DPzeqh5DMuiw4FK1daDJPooCCoBngYq8CwGjFDPlBR6iVUC2gyVTxfysFFgHBfvI6igVb8xMHBRYCwUkLuY5C5SJQuoVS1T5xMLqK3TQXtswFrCwquwpPkD4z5KCiwKXTjnmyv5AioRRmTfnZ1j5HIR2cvF/n6yK8e8pes7RNByILcBuIgIZDBLNId%2B3bRQo0AnnQkYgGYUjrPJrlSCi8z3GIC8GXgVJoSFeKxW8EDzKLVFQiE6eoo0SaLSSYJXRTr3HnUstEfxYxXLx14EdnGti7xVzGsW2KLS9eBxZEozhOKC8LiwcP4uXxQwPFFcEgHUWwC%2BLLKBigJUYpMUCBQl0itJTS29jiFoUf/G0kwCSV6YclGFepbUpsV8QrgXaH2YkrkUZlnGTAFxRyXKWBKPQmSzRY0p8WmLBlRSsxQyGqUB4MZXMWZaXHaWMwYgNpZxosq0QckoF6hQZQXI0XZLkUEygpekqmWmKCOuypgFUpqUZk6lDiqEvCWsWKKblrSycVUiaXdLeqvS/pTsuOU0toSIyg5U1FCRHLkAhioJcGyaZ/8rlcy/kqsp6W1yBIGy75SaF2UArDISePJfotBWFLwVISqRcTV%2BX/9oVFg55XcpEYPLmlzymJeSqiUvK1lCK72MitSWEr/lluUZTSsxWTLcVBHDZcSsnnKI4VnyhlUiq2WuloWWKigl0zmKrsEJZXbACB0NxCAEAxALsKCxt57ABZ%2BCmPnsAPbSLzY3wWgCwCyCDyTp8ou3O4k7jxxwwLAXOQLM0zlQ7BVsUjlIlXhnlzYXoVgMTAy71ENApAJ2ngsChiEPVNq8QnvWUJyyJ6vVMQNpBHlwFylllM6Sl2k6aKgeQEufnRMopvj4QqXAMrkuJQkyuWYauDAeUhCqImAwAcuIJAMCuQGAbEFUCSB5AW4GS53cPMTGrq90EieHMBuglDJ4AIVnIEmS8C8CEKu1HS/4g3QAqDrh17RUdYzG3Jj1M5jMYNYMwtJjVdoPkOsmdKHWEKrMu1ONDkvHULrLOEAEMDkmXVQtIFizeYluunU%2Brllh61oo6RvWEKlqY6%2BdY%2BornLr6VFitjloUAnnj01T4zNRv2zUJ9c1EAfNWdIvXXFt61gyIRY0n5zM3BXEz7hvX6HTC2JCIuYdrIvS0pu%2B0lC4PJSUp3ZaUU6WlEEAuBpArOF6AWWjgvQEapAVOJns43lXKhFVyq1VW3zQ3OEpM0LPhJpCvqRRE0mAJQmITJAVwngKAz9n7jrLEZpxFMCAIaC9qpJemjwdVm2xt4IAvACs0GM4PU5FrSMga7VcoUxYyEdV9yoCEEIWq/KY%2BWmnTUDyzr0kxVBK7Fcvls3abNCqa5VU5poUSrqW7m%2BzTSwQBChDizmvBVfX67RrxC%2B5Xqi2qUhdr4SwGdBAlrnU9qrYeAUgJFvv7WBrA/arkF6A83gCs626mdfevfVl0uYWWvANU0siFavNxAErfUSq0LquYs6w9evLCh2bPNQW2gI1vZRzdo1LWz8Hh0Qox43135JRaaQK2Bbitt6iwK%2BrnUTaP18JZrRIq63gCvQDWubc1uW3CkD1TdBktNu61ehet22gbdlt23/EByNpYTaJts3EBptL42aUdvAEQ9l0BmhUgFOA1EtQN4/cDcShe31boNKTKhHdssjVc7NT27zutqB5va4kGq2lNCi%2B1L8QNNwHNeSwB0w6etwOs8ptse1sNk5K7czWtoh3abjxzbACqes9A6rEZ6nbQKgBWAzS8dkO4RsohO347v1a9aHXVtxn07GdiO5HVGx%2B1o6wNGOqpIDt6FOEcdncn4Mj2bh714ZemuzkWry2hsYdxAeHaCrw2XsDCHALYLQE4BdpeAfgDgFoFICoBOAo%2BSwNYE9A7A9gdQyEDwFIAEBNAeurYJxBACSBEgLwSQCkD3QpANARwAcgFUSA9ADdHASQMbtd3m7OAvABQCAF9Uu7Tdeu0gHAFgBIAQ4oMcgJQEz0TAzgZPKJHIQYCcQ%2BASjeIPHogAxBo9IIZgMQCZCcAndQkenj%2BAYDXRo9WAcuEYHEDJ7SA%2BAV9o4F4nR78YjQT9g3t4Dz9w9Zu%2B/jEA0R16PAWAaPZJpYBj6tgmhctQoC7BmJeIP4VkCbqd38BBAIgMQOwEY0H75ASgNQNHt0DCVq1xgHLZYH0AoD49kALYBbgGDx6OAVsH8Nkx167Vy4ewd4GCTJjy94gtoG2AQAQZglZQ1pa3aMSYBx69pTQZwHjKkhzA/AwlUICsCqA1A9AJQHIAIDQO4Gsg%2BBhgKMGwMTBhKDQJA4MCWCEHKDiBgYEMHaBkHxgCQSg7Qc8BdA9AtsZg1gdYMSAtgE8XYPsD0BPBR4K%2B/QIbqj096LdHAO4IkCthVh89CoCAJU2L3b4rdVgB/RcFwCEB2IxwAWR4GEihwcwV6XgEnq0DopSAr0M3hMDmakAPdXaMwC8CnQvpJARwJw5ICKEcUihkhiPdIbN2yG49Ce53a7q2Bp7EAIATGPY2z079jDoMSIOpk4CqAqwLABQM3C2ZWUUgLwKQJ%2BA/iRBsAGwXgK/00V4B0AegM/UfvECn7ZAigFQOoB73X7SAvEDROkAkPh6jdmW6PbIZ/A1x7GSonQvcEUOGhlDfIVQ0XtoafgjDIMf8QYaKOhHk9Vhj3dsSnQpAu0RQ9w1Ol91skqkRwaQOHsj1dGZDse2wCEYsNu6/DZgAI7wCCMLHLDWwBXtkGcCSAgAA%3D%3D%3D
-    */
-    // https://github.com/xenia-canary/xenia-canary/blob/968f656d96b3ca9c14d6467423df77d3583f7d18/src/xenia/cpu/backend/x64/x64_sequences.cc
-    /*
-        todo: this is a naive version, we can do far more optimizations for
-    constant src2
-    */
-    bool consts2 = false;
-
-    if (i.src1.is_constant) {
-      e.LoadConstantXmm(e.xmm0, i.src1.constant());
-    } else {
-      e.vmovdqa(e.xmm0, i.src1);
-    }
+    // TODO(benvanik): native version (with shift magic).
     if (i.src2.is_constant) {
-      consts2 = true;
-      e.mov(e.r8d, i.src2.constant() & 7);
-      e.mov(e.eax, 8 - (i.src2.constant() & 7));
+      e.mov(e.GetNativeParam(1), i.src2.constant());
     } else {
-      e.movzx(e.r8d, i.src2);
-      e.and_(e.r8d, 7);
+      e.mov(e.GetNativeParam(1), i.src2);
     }
-
-    e.vpshufd(e.xmm1, e.xmm0, 27);
-    e.vpcmpeqd(e.xmm3, e.xmm3, e.xmm3);
-    e.vpshufb(e.xmm0, e.xmm0, e.GetXmmConstPtr(XMMVSRShlByteshuf));
-    if (!consts2) {
-      e.mov(e.eax, 8);
-    }
-    e.vmovd(e.xmm2, e.r8d);
-    if (!consts2) {
-      e.sub(e.eax, e.r8d);
-    }
-    e.vpsrlw(e.xmm1, e.xmm1, e.xmm2);
-    e.vpsrlw(e.xmm2, e.xmm3, e.xmm2);
-    e.vpshufb(e.xmm2, e.xmm2, e.GetXmmConstPtr(XMMVSRMask));
-    e.vpand(e.xmm1, e.xmm1, e.xmm2);
-    e.vmovd(e.xmm2, e.eax);
-    e.vpsllw(e.xmm0, e.xmm0, e.xmm2);
-    e.vpsllw(e.xmm2, e.xmm3, e.xmm2);
-    e.vpshufb(e.xmm2, e.xmm2, e.GetXmmConstPtr(XMMZero));
-    e.vpand(e.xmm0, e.xmm0, e.xmm2);
-    e.vpor(e.xmm0, e.xmm0, e.xmm1);
-    e.vpshufd(i.dest, e.xmm0, 27);
+    e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
+    e.CallNativeSafe(reinterpret_cast<void*>(EmulateShrV128));
+    e.vmovaps(i.dest, e.xmm0);
   }
   static __m128i EmulateShrV128(void*, __m128i src1, uint8_t src2) {
     // Almost all instances are shamt = 1, but non-constant.
@@ -3268,8 +3238,6 @@ struct SET_ROUNDING_MODE_I32
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_SET_ROUNDING_MODE, SET_ROUNDING_MODE_I32);
-
-static void MaybeYieldForwarder(void* ctx) { xe::threading::MaybeYield(); }
 // ============================================================================
 // OPCODE_DELAY_EXECUTION
 // ============================================================================
@@ -3277,11 +3245,7 @@ struct DELAY_EXECUTION
     : Sequence<DELAY_EXECUTION, I<OPCODE_DELAY_EXECUTION, VoidOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // todo: what if they dont have smt?
-    if (cvars::delay_via_maybeyield) {
-      e.CallNativeSafe((void*)MaybeYieldForwarder);
-    } else {
-      e.pause();
-    }
+    e.pause();
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_DELAY_EXECUTION, DELAY_EXECUTION);

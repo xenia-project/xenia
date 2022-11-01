@@ -620,23 +620,23 @@ static void Prefetch(const void* addr) {
 }
 
 template <>
-XE_MAYBE_UNUSED void Prefetch<PrefetchTag::Write>(const void* addr) {
+void Prefetch<PrefetchTag::Write>(const void* addr) {
   PrefetchW(addr);
 }
 template <>
-XE_MAYBE_UNUSED void Prefetch<PrefetchTag::Nontemporal>(const void* addr) {
+void Prefetch<PrefetchTag::Nontemporal>(const void* addr) {
   PrefetchNTA(addr);
 }
 template <>
-XE_MAYBE_UNUSED void Prefetch<PrefetchTag::Level3>(const void* addr) {
+void Prefetch<PrefetchTag::Level3>(const void* addr) {
   PrefetchL3(addr);
 }
 template <>
-XE_MAYBE_UNUSED void Prefetch<PrefetchTag::Level2>(const void* addr) {
+void Prefetch<PrefetchTag::Level2>(const void* addr) {
   PrefetchL2(addr);
 }
 template <>
-XE_MAYBE_UNUSED void Prefetch<PrefetchTag::Level1>(const void* addr) {
+void Prefetch<PrefetchTag::Level1>(const void* addr) {
   PrefetchL1(addr);
 }
 // todo: does aarch64 have streaming stores/loads?

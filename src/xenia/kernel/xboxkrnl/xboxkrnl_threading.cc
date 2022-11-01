@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <vector>
+
 #include "xenia/base/atomic.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
@@ -912,7 +913,7 @@ dword_result_t NtWaitForMultipleObjectsEx_entry(
     dword_t count, lpdword_t handles, dword_t wait_type, dword_t wait_mode,
     dword_t alertable, lpqword_t timeout_ptr) {
   uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
-  if (!count || count > 64 || (wait_type != 1 && wait_type)) {
+  if (!count || count > 64 || wait_type != 1 && wait_type) {
     return X_STATUS_INVALID_PARAMETER;
   }
   return xeNtWaitForMultipleObjectsEx(count, handles, wait_type, wait_mode,
@@ -963,7 +964,7 @@ uint32_t xeKeKfAcquireSpinLock(uint32_t* lock, uint64_t r13 = 1) {
   PrefetchForCAS(lock);
   assert_true(*lock != static_cast<uint32_t>(r13));
   // Lock.
-  while (!xe::atomic_cas(0, xe::byte_swap(static_cast<uint32_t>(r13)), lock)) {
+  while (!xe::atomic_cas(0, static_cast<uint32_t>(r13), lock)) {
     // Spin!
     // TODO(benvanik): error on deadlock?
     xe::threading::MaybeYield();
@@ -977,7 +978,7 @@ uint32_t xeKeKfAcquireSpinLock(uint32_t* lock, uint64_t r13 = 1) {
 }
 
 dword_result_t KfAcquireSpinLock_entry(lpdword_t lock_ptr,
-                                       const ppc_context_t& ppc_context) {
+                                       ppc_context_t& ppc_context) {
   auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
   return xeKeKfAcquireSpinLock(lock, ppc_context->r[13]);
 }
@@ -996,7 +997,9 @@ void xeKeKfReleaseSpinLock(uint32_t* lock, dword_t old_irql) {
 }
 
 void KfReleaseSpinLock_entry(lpdword_t lock_ptr, dword_t old_irql,
-                             const ppc_context_t& ppc_ctx) {
+                             ppc_context_t& ppc_ctx) {
+  auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
+
   assert_true(*lock_ptr == static_cast<uint32_t>(ppc_ctx->r[13]));
 
   *lock_ptr = 0;
@@ -1011,14 +1014,14 @@ DECLARE_XBOXKRNL_EXPORT2(KfReleaseSpinLock, kThreading, kImplemented,
                          kHighFrequency);
 // todo: this is not accurate
 void KeAcquireSpinLockAtRaisedIrql_entry(lpdword_t lock_ptr,
-                                         const ppc_context_t& ppc_ctx) {
+                                         ppc_context_t& ppc_ctx) {
   // Lock.
   auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
   // must not be our own thread
   assert_true(*lock_ptr != static_cast<uint32_t>(ppc_ctx->r[13]));
 
   PrefetchForCAS(lock);
-  while (!xe::atomic_cas(0, xe::byte_swap(static_cast<uint32_t>(ppc_ctx->r[13])), lock)) {
+  while (!xe::atomic_cas(0, static_cast<uint32_t>(ppc_ctx->r[13]), lock)) {
 #if XE_ARCH_AMD64 == 1
     // todo: this is just a nop if they don't have SMT, which is not great
     // either...
@@ -1033,12 +1036,12 @@ DECLARE_XBOXKRNL_EXPORT3(KeAcquireSpinLockAtRaisedIrql, kThreading,
                          kImplemented, kBlocking, kHighFrequency);
 
 dword_result_t KeTryToAcquireSpinLockAtRaisedIrql_entry(
-    lpdword_t lock_ptr, const ppc_context_t& ppc_ctx) {
+    lpdword_t lock_ptr, ppc_context_t& ppc_ctx) {
   // Lock.
   auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
   assert_true(*lock_ptr != static_cast<uint32_t>(ppc_ctx->r[13]));
   PrefetchForCAS(lock);
-  if (!xe::atomic_cas(0, xe::byte_swap(static_cast<uint32_t>(ppc_ctx->r[13])), lock)) {
+  if (!xe::atomic_cas(0, static_cast<uint32_t>(ppc_ctx->r[13]), lock)) {
     return 0;
   }
   return 1;
@@ -1047,9 +1050,10 @@ DECLARE_XBOXKRNL_EXPORT4(KeTryToAcquireSpinLockAtRaisedIrql, kThreading,
                          kImplemented, kBlocking, kHighFrequency, kSketchy);
 
 void KeReleaseSpinLockFromRaisedIrql_entry(lpdword_t lock_ptr,
-                                           const ppc_context_t& ppc_ctx) {
+                                           ppc_context_t& ppc_ctx) {
   // Unlock.
   assert_true(*lock_ptr == static_cast<uint32_t>(ppc_ctx->r[13]));
+  auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
   *lock_ptr = 0;
 }
 DECLARE_XBOXKRNL_EXPORT2(KeReleaseSpinLockFromRaisedIrql, kThreading,
@@ -1279,8 +1283,7 @@ void ExInitializeReadWriteLock_entry(pointer_t<X_ERWLOCK> lock_ptr) {
 }
 DECLARE_XBOXKRNL_EXPORT1(ExInitializeReadWriteLock, kThreading, kImplemented);
 
-void ExAcquireReadWriteLockExclusive_entry(pointer_t<X_ERWLOCK> lock_ptr,
-                                           const ppc_context_t& ppc_context) {
+void ExAcquireReadWriteLockExclusive_entry(pointer_t<X_ERWLOCK> lock_ptr, ppc_context_t& ppc_context) {
   auto old_irql = xeKeKfAcquireSpinLock(&lock_ptr->spin_lock, ppc_context->r[13]);
 
   int32_t lock_count = ++lock_ptr->lock_count;
@@ -1298,7 +1301,7 @@ DECLARE_XBOXKRNL_EXPORT2(ExAcquireReadWriteLockExclusive, kThreading,
                          kImplemented, kBlocking);
 
 dword_result_t ExTryToAcquireReadWriteLockExclusive_entry(
-    pointer_t<X_ERWLOCK> lock_ptr, const ppc_context_t& ppc_context) {
+    pointer_t<X_ERWLOCK> lock_ptr, ppc_context_t& ppc_context) {
   auto old_irql =
       xeKeKfAcquireSpinLock(&lock_ptr->spin_lock, ppc_context->r[13]);
 
@@ -1317,7 +1320,7 @@ DECLARE_XBOXKRNL_EXPORT1(ExTryToAcquireReadWriteLockExclusive, kThreading,
                          kImplemented);
 
 void ExAcquireReadWriteLockShared_entry(pointer_t<X_ERWLOCK> lock_ptr,
-                                        const ppc_context_t& ppc_context) {
+                                        ppc_context_t& ppc_context) {
   auto old_irql = xeKeKfAcquireSpinLock(&lock_ptr->spin_lock, ppc_context->r[13]);
 
   int32_t lock_count = ++lock_ptr->lock_count;
@@ -1337,7 +1340,7 @@ DECLARE_XBOXKRNL_EXPORT2(ExAcquireReadWriteLockShared, kThreading, kImplemented,
                          kBlocking);
 
 dword_result_t ExTryToAcquireReadWriteLockShared_entry(
-    pointer_t<X_ERWLOCK> lock_ptr, const ppc_context_t& ppc_context) {
+    pointer_t<X_ERWLOCK> lock_ptr, ppc_context_t& ppc_context) {
   auto old_irql =
       xeKeKfAcquireSpinLock(&lock_ptr->spin_lock, ppc_context->r[13]);
 
@@ -1358,7 +1361,7 @@ DECLARE_XBOXKRNL_EXPORT1(ExTryToAcquireReadWriteLockShared, kThreading,
                          kImplemented);
 
 void ExReleaseReadWriteLock_entry(pointer_t<X_ERWLOCK> lock_ptr,
-                                  const ppc_context_t& ppc_context) {
+                                  ppc_context_t& ppc_context) {
   auto old_irql =
       xeKeKfAcquireSpinLock(&lock_ptr->spin_lock, ppc_context->r[13]);
 
@@ -1401,7 +1404,7 @@ pointer_result_t InterlockedPushEntrySList_entry(
   assert_not_null(entry);
 
   alignas(8) X_SLIST_HEADER old_hdr = *plist_ptr;
-  alignas(8) X_SLIST_HEADER new_hdr = {{0}, 0, 0};
+  alignas(8) X_SLIST_HEADER new_hdr = {0};
   uint32_t old_head = 0;
   do {
     old_hdr = *plist_ptr;
@@ -1425,8 +1428,8 @@ pointer_result_t InterlockedPopEntrySList_entry(
   assert_not_null(plist_ptr);
 
   uint32_t popped = 0;
-  alignas(8) X_SLIST_HEADER old_hdr = {{0}, 0, 0};
-  alignas(8) X_SLIST_HEADER new_hdr = {{0}, 0, 0};
+  alignas(8) X_SLIST_HEADER old_hdr = {0};
+  alignas(8) X_SLIST_HEADER new_hdr = {0};
   do {
     old_hdr = *plist_ptr;
     auto next = kernel_memory()->TranslateVirtual<X_SINGLE_LIST_ENTRY*>(
@@ -1453,7 +1456,7 @@ pointer_result_t InterlockedFlushSList_entry(
   assert_not_null(plist_ptr);
 
   alignas(8) X_SLIST_HEADER old_hdr = *plist_ptr;
-  alignas(8) X_SLIST_HEADER new_hdr = {{0}, 0, 0};
+  alignas(8) X_SLIST_HEADER new_hdr = {0};
   uint32_t first = 0;
   do {
     old_hdr = *plist_ptr;

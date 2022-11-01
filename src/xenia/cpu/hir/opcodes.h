@@ -11,7 +11,7 @@
 #define XENIA_CPU_HIR_OPCODES_H_
 
 #include <cstdint>
-#include "xenia/base/platform.h"
+
 namespace xe {
 namespace cpu {
 namespace hir {
@@ -361,16 +361,13 @@ enum OpcodeSignature {
 #define GET_OPCODE_SIG_TYPE_SRC1(sig) (OpcodeSignatureType)((sig >> 3) & 0x7)
 #define GET_OPCODE_SIG_TYPE_SRC2(sig) (OpcodeSignatureType)((sig >> 6) & 0x7)
 #define GET_OPCODE_SIG_TYPE_SRC3(sig) (OpcodeSignatureType)((sig >> 9) & 0x7)
-XE_MAYBE_UNUSED
 static bool IsOpcodeBinaryValue(uint32_t signature) {
   return (signature & ~(0x7)) ==
          ((OPCODE_SIG_TYPE_V << 3) | (OPCODE_SIG_TYPE_V << 6));
 }
-XE_MAYBE_UNUSED
 static bool IsOpcodeUnaryValue(uint32_t signature) {
   return (signature & ~(0x7)) == ((OPCODE_SIG_TYPE_V << 3));
 }
-XE_MAYBE_UNUSED
 static void UnpackOpcodeSig(uint32_t sig, OpcodeSignatureType& dest,
                             OpcodeSignatureType& src1,
                             OpcodeSignatureType& src2,
