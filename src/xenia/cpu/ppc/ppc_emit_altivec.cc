@@ -2014,7 +2014,8 @@ int InstrEmit_vupkhsh(PPCHIRBuilder& f, const InstrData& i) {
   return InstrEmit_vupkhsh_(f, i.VX.VD, i.VX.VB);
 }
 int InstrEmit_vupkhsh128(PPCHIRBuilder& f, const InstrData& i) {
-  assert_zero(VX128_VA128);
+  uint32_t va = VX128_VA128;
+  assert_zero(va);
   return InstrEmit_vupkhsh_(f, VX128_VD128, VX128_VB128);
 }
 
@@ -2031,7 +2032,8 @@ int InstrEmit_vupklsh(PPCHIRBuilder& f, const InstrData& i) {
   return InstrEmit_vupklsh_(f, i.VX.VD, i.VX.VB);
 }
 int InstrEmit_vupklsh128(PPCHIRBuilder& f, const InstrData& i) {
-  assert_zero(VX128_VA128);
+  uint32_t va = VX128_VA128;
+  assert_zero(va);
   return InstrEmit_vupklsh_(f, VX128_VD128, VX128_VB128);
 }
 

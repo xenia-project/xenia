@@ -117,7 +117,7 @@ void set_name(const std::string_view name) {
 
 // checked ntoskrnl, it does not modify delay, so we can place this as a
 // constant and avoid creating a stack variable
-static const LARGE_INTEGER sleepdelay0_for_maybeyield{{0LL}};
+static const LARGE_INTEGER sleepdelay0_for_maybeyield{0LL};
 
 void MaybeYield() {
 #if 0
@@ -314,8 +314,7 @@ class Win32Event : public Win32Handle<Event> {
   }
 #endif
 
-  EventInfo Query() override {
-    EventInfo result{};
+  EventInfo Query() { EventInfo result{};
     NtQueryEventPointer.invoke(handle_, 0, &result, sizeof(EventInfo), nullptr);
     return result;
   }
@@ -430,7 +429,7 @@ class Win32Timer : public Win32Handle<Timer> {
   }
   bool SetRepeatingAt(GClock_::time_point due_time,
                       std::chrono::milliseconds period,
-                      std::function<void()> opt_callback = nullptr) override {
+                      std::function<void()> opt_callback = nullptr) {
     return SetRepeatingAt(date::clock_cast<WClock_>(due_time), period,
                           std::move(opt_callback));
   }

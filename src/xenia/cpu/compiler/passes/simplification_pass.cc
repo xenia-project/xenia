@@ -23,6 +23,52 @@ using namespace xe::cpu::hir;
 using xe::cpu::hir::HIRBuilder;
 using xe::cpu::hir::Instr;
 using xe::cpu::hir::Value;
+using vmask_portion_t = uint64_t;
+template <uint32_t Ndwords>
+struct Valuemask_t {
+  vmask_portion_t bits[Ndwords];
+
+  static Valuemask_t create_empty(vmask_portion_t fill = 0) {
+    Valuemask_t result;
+    for (uint32_t i = 0; i < Ndwords; ++i) {
+      result.bits[i] = fill;
+    }
+    return result;
+  }
+  template <typename TCallable>
+  Valuemask_t operate(TCallable&& oper) const {
+    Valuemask_t result = create_empty();
+
+    for (uint32_t i = 0; i < Ndwords; ++i) {
+      result.bits[i] = oper(bits[i]);
+    }
+    return result;
+  }
+  template <typename TCallable>
+  Valuemask_t operate(TCallable&& oper, Valuemask_t other) const {
+    Valuemask_t result = create_empty();
+
+    for (uint32_t i = 0; i < Ndwords; ++i) {
+      result.bits[i] = oper(bits[i], other.bits[i]);
+    }
+    return result;
+  }
+  Valuemask_t operator&(ValueMask other) const {
+    return operate([](vmask_portion_t x, vmask_portion_t y) { return x & y; },
+                   other);
+  }
+  Valuemask_t operator|(ValueMask other) const {
+    return operate([](vmask_portion_t x, vmask_portion_t y) { return x | y; },
+                   other);
+  }
+  Valuemask_t operator^(ValueMask other) const {
+    return operate([](vmask_portion_t x, vmask_portion_t y) { return x ^ y; },
+                   other);
+  }
+  Valuemask_t operator~() const {
+    return operate([](vmask_portion_t x) { return ~x; }, other);
+  }
+};
 
 SimplificationPass::SimplificationPass() : ConditionalGroupSubpass() {}
 
@@ -30,13 +76,17 @@ SimplificationPass::~SimplificationPass() {}
 
 bool SimplificationPass::Run(HIRBuilder* builder, bool& result) {
   result = false;
+  bool iter_result = false;
 
-  result |= SimplifyBitArith(builder);
-  result |= EliminateConversions(builder);
-  result |= SimplifyAssignments(builder);
-  result |= SimplifyBasicArith(builder);
-  result |= SimplifyVectorOps(builder);
-
+  do {
+    iter_result = false;
+    iter_result |= SimplifyBitArith(builder);
+    iter_result |= EliminateConversions(builder);
+    iter_result |= SimplifyAssignments(builder);
+    iter_result |= SimplifyBasicArith(builder);
+    iter_result |= SimplifyVectorOps(builder);
+    result |= iter_result;
+  } while (iter_result);
   return true;
 }
 // simplifications that apply to both or and xor
@@ -685,9 +735,7 @@ bool SimplificationPass::CheckAdd(hir::Instr* i, hir::HIRBuilder* builder) {
     auto [added_constant_neg, added_var_neg] =
         i->BinaryValueArrangeAsConstAndVar();
 
-    if (!added_constant_neg) {
-      return false;
-    }
+    if (!added_constant_neg) return false;
     if (added_constant_neg->AsUint64() &
         GetScalarSignbitMask(added_constant_neg->type)) {
       // adding a value that has its signbit set!
@@ -834,6 +882,11 @@ bool SimplificationPass::CheckScalarConstCmp(hir::Instr* i,
 
     } else if (cmpop == OPCODE_COMPARE_UGT) {
       // impossible, cannot be greater than mask
+
+      /* i->Replace(&OPCODE_ASSIGN_info, 0);
+      i->set_src1(builder->LoadZeroInt8());
+      return true;
+      */
       constant_replacement = builder->LoadZeroInt8();
 
     } else if (cmpop == OPCODE_COMPARE_ULE) {  // less than or equal to mask =
@@ -861,9 +914,9 @@ bool SimplificationPass::CheckIsTrueIsFalse(hir::Instr* i,
   bool istrue = i->opcode == &OPCODE_COMPARE_NE_info;
   bool isfalse = i->opcode == &OPCODE_COMPARE_EQ_info;
 
-  auto [input_constant, input] = i->BinaryValueArrangeAsConstAndVar();
+  auto [input_cosntant, input] = i->BinaryValueArrangeAsConstAndVar();
 
-  if (!input_constant || input_constant->AsUint64() != 0) {
+  if (!input_cosntant || input_cosntant->AsUint64() != 0) {
     return false;
   }
 
@@ -904,6 +957,12 @@ bool SimplificationPass::CheckIsTrueIsFalse(hir::Instr* i,
     }
   }
 
+  /* Instr* input_def = input->def;
+   if (!input_def) {
+     return false;
+   }
+
+   input_def = input_def->GetDestDefSkipAssigns();*/
   return false;
 }
 bool SimplificationPass::CheckSHRByConst(hir::Instr* i,

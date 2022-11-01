@@ -433,7 +433,7 @@ void VdSwap_entry(
     return;
   }
   gpu_fetch.base_address = frontbuffer_physical_address >> 12;
-  XE_MAYBE_UNUSED
+
   auto texture_format = gpu::xenos::TextureFormat(texture_format_ptr.value());
   auto color_space = *color_space_ptr;
   assert_true(texture_format == gpu::xenos::TextureFormat::k_8_8_8_8 ||

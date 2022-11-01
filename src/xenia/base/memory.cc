@@ -59,7 +59,7 @@ static void XeCopy16384StreamingAVX(CacheLine* XE_RESTRICT to,
 
   CacheLine* dest4 = to + (NUM_CACHELINES_IN_PAGE * 3);
   CacheLine* src4 = from + (NUM_CACHELINES_IN_PAGE * 3);
-  
+#pragma loop(no_vector)
   for (uint32_t i = 0; i < num_lines_for_8k; ++i) {
     xe::swcache::CacheLine line0, line1, line2, line3;
 
@@ -92,6 +92,7 @@ static void XeCopy16384Movdir64M(CacheLine* XE_RESTRICT to,
 
   CacheLine* dest4 = to + (NUM_CACHELINES_IN_PAGE * 3);
   CacheLine* src4 = from + (NUM_CACHELINES_IN_PAGE * 3);
+#pragma loop(no_vector)
   for (uint32_t i = 0; i < num_lines_for_8k; ++i) {
     _movdir64b(dest1 + i, src1 + i);
     _movdir64b(dest2 + i, src2 + i);

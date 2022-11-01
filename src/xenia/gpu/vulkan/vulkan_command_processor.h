@@ -48,9 +48,8 @@ namespace vulkan {
 
 class VulkanCommandProcessor final : public CommandProcessor {
  protected:
-#define OVERRIDING_BASE_CMDPROCESSOR
 #include "../pm4_command_processor_declare.h"
-#undef OVERRIDING_BASE_CMDPROCESSOR
+
  public:
   // Single-descriptor layouts for use within a single frame.
   enum class SingleTransientDescriptorLayout {

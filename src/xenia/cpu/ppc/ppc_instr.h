@@ -21,7 +21,13 @@ namespace xe {
 namespace cpu {
 namespace ppc {
 
-struct PPCOpcodeBits {
+// DEPRECATED
+// TODO(benvanik): move code to PPCDecodeData.
+struct InstrData {
+  PPCOpcode opcode;
+  const PPCOpcodeInfo* opcode_info;
+  uint32_t address;
+
   union {
     uint32_t code;
 
@@ -321,14 +327,6 @@ struct PPCOpcodeBits {
     struct {
     } XDSS;
   };
-};
-
-// DEPRECATED
-// TODO(benvanik): move code to PPCDecodeData.
-struct InstrData : public PPCOpcodeBits {
-  PPCOpcode opcode;
-  const PPCOpcodeInfo* opcode_info;
-  uint32_t address;
 };
 
 }  // namespace ppc
