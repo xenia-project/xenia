@@ -46,10 +46,6 @@ DEFINE_bool(ignore_undefined_externs, true,
 DEFINE_bool(emit_source_annotations, false,
             "Add extra movs and nops to make disassembly easier to read.",
             "CPU");
-DEFINE_bool(resolve_rel32_guest_calls, true,
-            "Experimental optimization, directly call already resolved "
-            "functions via x86 rel32 call/jmp",
-            "CPU");
 
 DEFINE_bool(enable_incorrect_roundingmode_behavior, false,
             "Disables the FPU/VMX MXCSR sharing workaround, potentially "
@@ -78,7 +74,6 @@ using namespace xe::literals;
 
 static const size_t kMaxCodeSize = 1_MiB;
 
-static const size_t kStashOffset = 32;
 // static const size_t kStashOffsetHigh = 32 + 32;
 
 const uint32_t X64Emitter::gpr_reg_map_[X64Emitter::GPR_COUNT] = {
@@ -141,55 +136,6 @@ bool X64Emitter::Emit(GuestFunction* function, HIRBuilder* builder,
 
   return true;
 }
-#pragma pack(push, 1)
-struct RGCEmitted {
-  uint8_t ff_;
-  uint32_t rgcid_;
-};
-#pragma pack(pop)
-
-#if 0
-void X64Emitter::InjectCallAddresses(void* new_execute_address) {
-  for (auto&& callsite : call_sites_) {
-    RGCEmitted* hunter = (RGCEmitted*)new_execute_address;
-    while (hunter->ff_ != 0xFF || hunter->rgcid_ != callsite.offset_) {
-      hunter =
-          reinterpret_cast<RGCEmitted*>(reinterpret_cast<char*>(hunter) + 1);
-    }
-
-    hunter->ff_ = callsite.is_jump_ ? 0xE9 : 0xE8;
-    hunter->rgcid_ =
-        static_cast<uint32_t>(static_cast<intptr_t>(callsite.destination_) -
-                              reinterpret_cast<intptr_t>(hunter + 1));
-  }
-}
-
-#else
-void X64Emitter::InjectCallAddresses(void* new_execute_address) {
-#if 0
-	RGCEmitted* hunter = (RGCEmitted*)new_execute_address;
-
-  std::map<uint32_t, ResolvableGuestCall*> id_to_rgc{};
-
-  for (auto&& callsite : call_sites_) {
-    id_to_rgc[callsite.offset_] = &callsite;
-  }
-#else
-  RGCEmitted* hunter = (RGCEmitted*)new_execute_address;
-  for (auto&& callsite : call_sites_) {
-    while (hunter->ff_ != 0xFF || hunter->rgcid_ != callsite.offset_) {
-      hunter =
-          reinterpret_cast<RGCEmitted*>(reinterpret_cast<char*>(hunter) + 1);
-    }
-
-    hunter->ff_ = callsite.is_jump_ ? 0xE9 : 0xE8;
-    hunter->rgcid_ =
-        static_cast<uint32_t>(static_cast<intptr_t>(callsite.destination_) -
-                              reinterpret_cast<intptr_t>(hunter + 1));
-  }
-#endif
-}
-#endif
 void* X64Emitter::Emplace(const EmitFunctionInfo& func_info,
                           GuestFunction* function) {
   // To avoid changing xbyak, we do a switcharoo here.
@@ -207,10 +153,6 @@ void* X64Emitter::Emplace(const EmitFunctionInfo& func_info,
   if (function) {
     code_cache_->PlaceGuestCode(function->address(), top_, func_info, function,
                                 new_execute_address, new_write_address);
-
-    if (cvars::resolve_rel32_guest_calls) {
-      InjectCallAddresses(new_execute_address);
-    }
   } else {
     code_cache_->PlaceHostCode(0, top_, func_info, new_execute_address,
                                new_write_address);
@@ -219,7 +161,6 @@ void* X64Emitter::Emplace(const EmitFunctionInfo& func_info,
   ready();
   top_ = old_address;
   reset();
-  call_sites_.clear();
   tail_code_.clear();
   for (auto&& cached_label : label_cache_) {
     delete cached_label;
@@ -336,7 +277,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
     // Mark block labels.
     auto label = block->label_head;
     while (label) {
-      L(label->name);
+      L(std::to_string(label->id));
       label = label->next;
     }
 
@@ -418,7 +359,6 @@ void X64Emitter::EmitProfilerEpilogue() {
     //  actually... lets just try without atomics lol
     // lock();
     add(qword[r10], rdx);
-
   }
 #endif
 }
@@ -534,44 +474,23 @@ void X64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
   auto fn = static_cast<X64Function*>(function);
   // Resolve address to the function to call and store in rax.
 
-  if (cvars::resolve_rel32_guest_calls && fn->machine_code()) {
-    ResolvableGuestCall rgc;
-    rgc.destination_ = uint32_t(uint64_t(fn->machine_code()));
-    rgc.offset_ = current_rgc_id_;
-    current_rgc_id_++;
-
+  if (fn->machine_code()) {
     if (!(instr->flags & hir::CALL_TAIL)) {
       mov(rcx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
 
-      db(0xFF);
-      rgc.is_jump_ = false;
-
-      dd(rgc.offset_);
+      call((void*)fn->machine_code());
 
     } else {
       // tail call
       EmitTraceUserCallReturn();
-
-      rgc.is_jump_ = true;
+      EmitProfilerEpilogue();
       // Pass the callers return address over.
       mov(rcx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
 
       add(rsp, static_cast<uint32_t>(stack_size()));
-      db(0xFF);
-      dd(rgc.offset_);
+      jmp((void*)fn->machine_code(), T_NEAR);
     }
-    call_sites_.push_back(rgc);
     return;
-  }
-
-  if (fn->machine_code()) {
-    // TODO(benvanik): is it worth it to do this? It removes the need for
-    // a ResolveFunction call, but makes the table less useful.
-    assert_zero(uint64_t(fn->machine_code()) & 0xFFFFFFFF00000000);
-    // todo: this should be changed so that we can actually do a call to
-    // fn->machine_code. the code will be emitted near us, so 32 bit rel jmp
-    // should be possible
-    mov(eax, uint32_t(uint64_t(fn->machine_code())));
   } else if (code_cache_->has_indirection_table()) {
     // Load the pointer to the indirection table maintained in X64CodeCache.
     // The target dword will either contain the address of the generated code
@@ -1017,7 +936,10 @@ static const vec128_t xmm_consts[] = {
     /*XMMSTVLShuffle*/
     v128_setr_bytes(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15),
     /* XMMSTVRSwapMask*/
-    vec128b((uint8_t)0x83)};
+    vec128b((uint8_t)0x83), /*XMMVSRShlByteshuf*/
+    v128_setr_bytes(13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3, 0x80),
+    // XMMVSRMask
+    vec128b(1)};
 
 void* X64Emitter::FindByteConstantOffset(unsigned bytevalue) {
   for (auto& vec : xmm_consts) {

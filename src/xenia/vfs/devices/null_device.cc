@@ -21,7 +21,7 @@ namespace vfs {
 
 NullDevice::NullDevice(const std::string& mount_path,
                        const std::initializer_list<std::string>& null_paths)
-    : Device(mount_path), null_paths_(null_paths), name_("NullDevice") {}
+    : Device(mount_path), name_("NullDevice"), null_paths_(null_paths) {}
 
 NullDevice::~NullDevice() = default;
 

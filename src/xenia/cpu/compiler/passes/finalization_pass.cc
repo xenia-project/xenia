@@ -41,18 +41,6 @@ bool FinalizationPass::Run(HIRBuilder* builder) {
     block->ordinal = block_ordinal++;
 
     // Ensure all labels have names.
-    auto label = block->label_head;
-    while (label) {
-      if (!label->name) {
-        const size_t label_len = 6 + 4;
-        char* name = reinterpret_cast<char*>(arena->Alloc(label_len + 1, 1));
-        assert_true(label->id <= 9999);
-        auto end = fmt::format_to_n(name, label_len, "_label{}", label->id);
-        name[end.size] = '\0';
-        label->name = name;
-      }
-      label = label->next;
-    }
 
     // Remove unneeded jumps.
     auto tail = block->instr_tail;

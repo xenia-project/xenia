@@ -50,8 +50,9 @@ struct MemExportRange {
 };
 class D3D12CommandProcessor final : public CommandProcessor {
  protected:
+#define OVERRIDING_BASE_CMDPROCESSOR
 #include "../pm4_command_processor_declare.h"
-
+#undef OVERRIDING_BASE_CMDPROCESSOR
  public:
   explicit D3D12CommandProcessor(D3D12GraphicsSystem* graphics_system,
                                  kernel::KernelState* kernel_state);

@@ -5152,6 +5152,7 @@ void D3D12CommandProcessor::WriteGammaRampSRV(
 #define COMMAND_PROCESSOR D3D12CommandProcessor
 
 #include "../pm4_command_processor_implement.h"
+#undef COMMAND_PROCESSOR
 }  // namespace d3d12
 }  // namespace gpu
 }  // namespace xe

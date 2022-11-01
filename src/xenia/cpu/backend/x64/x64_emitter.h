@@ -172,7 +172,9 @@ enum XmmConst {
   XMMLVLShuffle,
   XMMLVRCmp16,
   XMMSTVLShuffle,
-  XMMSTVRSwapMask  // swapwordmask with bit 7 set
+  XMMSTVRSwapMask,  // swapwordmask with bit 7 set
+  XMMVSRShlByteshuf,
+  XMMVSRMask
 
 };
 using amdfx::xopcompare_e;
@@ -190,13 +192,6 @@ class XbyakAllocator : public Xbyak::Allocator {
   virtual bool useProtect() const { return false; }
 };
 
-class ResolvableGuestCall {
- public:
-  bool is_jump_;
-  uintptr_t destination_;
-  // rgcid
-  unsigned offset_;
-};
 class X64Emitter;
 using TailEmitCallback = std::function<void(X64Emitter& e, Xbyak::Label& lbl)>;
 struct TailEmitter {
@@ -220,7 +215,6 @@ class X64Emitter : public Xbyak::CodeGenerator {
             uint32_t debug_info_flags, FunctionDebugInfo* debug_info,
             void** out_code_address, size_t* out_code_size,
             std::vector<SourceMapEntry>* out_source_map);
-  void InjectCallAddresses(void* new_execute_addr);
 
  public:
   // Reserved:  rsp, rsi, rdi
@@ -230,7 +224,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   //            xmm4-xmm15 (save to get xmm3)
   static const int GPR_COUNT = 7;
   static const int XMM_COUNT = 12;
-
+  static constexpr size_t kStashOffset = 32;
   static void SetupReg(const hir::Value* v, Xbyak::Reg8& r) {
     auto idx = gpr_reg_map_[v->reg.index];
     r = Xbyak::Reg8(idx);
@@ -410,8 +404,6 @@ class X64Emitter : public Xbyak::CodeGenerator {
 
   static const uint32_t gpr_reg_map_[GPR_COUNT];
   static const uint32_t xmm_reg_map_[XMM_COUNT];
-  uint32_t current_rgc_id_ = 0xEEDDF00F;
-  std::vector<ResolvableGuestCall> call_sites_;
   /*
     set to true if the low 32 bits of membase == 0.
     only really advantageous if you are storing 32 bit 0 to a displaced address,
