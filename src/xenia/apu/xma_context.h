@@ -221,6 +221,7 @@ class XmaContext {
   // std::vector<uint8_t> partial_frame_buffer_;
   uint32_t packets_skip_ = 0;
 
+  bool is_stream_done_ = false;
   // bool split_frame_pending_ = false;
   uint32_t split_frame_len_ = 0;
   uint32_t split_frame_len_partial_ = 0;
