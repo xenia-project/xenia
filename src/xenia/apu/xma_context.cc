@@ -428,6 +428,8 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
           "XmaContext {}: Error - Provided input offset exceed input buffer "
           "size! ({} > {})",
           id(), data->input_buffer_read_offset, current_input_size * 8);
+      SwapInputBuffer(data);
+      return;
     }
     // if we had a buffer swap try to skip packets first
     if (packets_skip_ > 0) {
