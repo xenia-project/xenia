@@ -404,6 +404,7 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
 
     if (is_stream_done_) {
       is_stream_done_ = false;
+      packets_skip_ = 0;
       SwapInputBuffer(data);
       return;
     }
@@ -659,6 +660,12 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
       offset = static_cast<uint32_t>(
           GetNextFrame(current_input_buffer, current_input_size, offset));
 
+      XELOGAPU(
+          "XmaContext {}: Next Offset: {} (Frame: {}/{} Packet: {}/{} Packet "
+          "Skip: {} - {})",
+          id(), offset, frame_idx, frame_count, packet_idx,
+          current_input_packet_count, xma::GetPacketSkipCount(packet),
+          data->input_buffer_read_offset);
       if (frame_idx + 1 >= frame_count) {
         // Skip to next packet (no split frame)
         packets_skip_ = xma::GetPacketSkipCount(packet) + 1;
