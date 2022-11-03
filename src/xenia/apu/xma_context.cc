@@ -446,7 +446,11 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
             reuse_input_buffer = TrySetupNextLoop(data, true);
           }
           if (!reuse_input_buffer) {
-            is_stream_done_ = true;
+            if (current_input_packet_count == 1) {
+              SwapInputBuffer(data);
+            } else {
+              is_stream_done_ = true;
+            }
           }
           return;
         }
@@ -584,7 +588,11 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
               reuse_input_buffer = TrySetupNextLoop(data, true);
             }
             if (!reuse_input_buffer) {
-              is_stream_done_ = true;
+              if (current_input_packet_count == 1) {
+                SwapInputBuffer(data);
+              } else {
+                is_stream_done_ = true;
+              }
             }
             return;
           }
@@ -678,7 +686,11 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
               reuse_input_buffer = TrySetupNextLoop(data, true);
             }
             if (!reuse_input_buffer) {
-              is_stream_done_ = true;
+              if (current_input_packet_count == 1) {
+                SwapInputBuffer(data);
+              } else {
+                is_stream_done_ = true;
+              }
               if (output_rb.write_offset() == output_rb.read_offset()) {
                 data->output_buffer_valid = 0;
               }
@@ -699,7 +711,11 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
             reuse_input_buffer = TrySetupNextLoop(data, true);
           }
           if (!reuse_input_buffer) {
-            is_stream_done_ = true;
+            if (current_input_packet_count == 1) {
+              SwapInputBuffer(data);
+            } else {
+              is_stream_done_ = true;
+            }
           }
           break;
         }
