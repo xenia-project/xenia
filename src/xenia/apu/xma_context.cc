@@ -851,6 +851,12 @@ std::tuple<int, bool> XmaContext::GetPacketFrameCount(uint8_t* packet) {
     if (stream.Read(1) == 0) {
       return {frame_count, false};
     }
+    // There is a case when frame ends EXACTLY at the end of packet.
+    // In such case we shouldn't increase frame count by additional not existing
+    // frame and don't mark it as splitted, but as a normal frame
+    if (!stream.BitsRemaining()) {
+      return {frame_count, false};
+    }
   }
 }
 
