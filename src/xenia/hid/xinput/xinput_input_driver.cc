@@ -46,9 +46,6 @@ XInputInputDriver::~XInputInputDriver() {
 X_STATUS XInputInputDriver::Setup() {
   HMODULE module = LoadLibraryW(L"xinput1_4.dll");
   if (!module) {
-    module = LoadLibraryW(L"xinput1_3.dll");
-  }
-  if (!module) {
     return X_STATUS_DLL_NOT_FOUND;
   }
 

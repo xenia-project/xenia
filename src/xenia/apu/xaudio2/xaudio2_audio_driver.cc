@@ -71,13 +71,8 @@ bool XAudio2AudioDriver::Initialize() {
     }
   }
   if (!xaudio2_module_) {
-    xaudio2_module_ = static_cast<void*>(LoadLibraryW(L"XAudio2_7.dll"));
-    if (xaudio2_module_) {
-      api_minor_version_ = 7;
-    } else {
-      XELOGE("Failed to load XAudio 2.8 or 2.7 library DLL");
-      return false;
-    }
+    XELOGE("Failed to load XAudio 2.8 library DLL");
+    return false;
   }
 
   // We need to be able to accept frames from any non-STA thread - primarily
