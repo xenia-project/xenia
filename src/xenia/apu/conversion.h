@@ -71,8 +71,6 @@ inline void sequential_6_BE_to_interleaved_2_LE(float* output,
                                                 const float* input,
                                                 size_t ch_sample_count) {
   assert_true(ch_sample_count % 4 == 0);
-  const uint32_t* in = reinterpret_cast<const uint32_t*>(input);
-  uint32_t* out = reinterpret_cast<uint32_t*>(output);
   const __m128i byte_swap_shuffle =
       _mm_set_epi8(12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3);
   const __m128 half = _mm_set1_ps(0.5f);

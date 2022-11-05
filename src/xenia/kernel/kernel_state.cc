@@ -421,6 +421,9 @@ X_RESULT KernelState::FinishLoadingUserModule(
   emulator_->patcher()->ApplyPatchesForTitle(memory_, module->title_id(),
                                              module->hash());
   emulator_->on_patch_apply();
+  if (module->xex_module()) {
+    module->xex_module()->Precompile();
+  }
 
   if (module->is_dll_module() && module->entry_point() && call_entry) {
     // Call DllMain(DLL_PROCESS_ATTACH):

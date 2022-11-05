@@ -16,7 +16,7 @@
 #include "xenia/cpu/ppc/ppc_hir_builder.h"
 
 DEFINE_bool(
-    disable_prefetch_and_cachecontrol, false,
+    disable_prefetch_and_cachecontrol, true,
     "Disables translating ppc prefetch/cache flush instructions to host "
     "prefetch/cacheflush instructions. This may improve performance as these "
     "instructions were written with the Xbox 360's cache in mind, and modern "

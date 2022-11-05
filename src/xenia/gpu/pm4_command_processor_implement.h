@@ -4,32 +4,38 @@ void COMMAND_PROCESSOR::ExecuteIndirectBuffer(uint32_t ptr,
                                               uint32_t count) XE_RESTRICT {
   SCOPE_profile_cpu_f("gpu");
 
+
   trace_writer_.WriteIndirectBufferStart(ptr, count * sizeof(uint32_t));
+  if (count != 0) {
+    RingBuffer old_reader = reader_;
 
-  RingBuffer old_reader = reader_;
+    // Execute commands!
+    new (&reader_)
+        RingBuffer(memory_->TranslatePhysical(ptr), count * sizeof(uint32_t));
+    reader_.set_write_offset(count * sizeof(uint32_t));
+    // prefetch the wraparound range
+    // it likely is already in L3 cache, but in a zen system it may be another
+    // chiplets l3
+    reader_.BeginPrefetchedRead<swcache::PrefetchTag::Level2>(
+        COMMAND_PROCESSOR::GetCurrentRingReadCount());
+    do {
+      if (COMMAND_PROCESSOR::ExecutePacket()) {
+        continue;
+      } else {
+        // Return up a level if we encounter a bad packet.
+        XELOGE("**** INDIRECT RINGBUFFER: Failed to execute packet.");
+        assert_always();
+        // break;
+      }
+    } while (reader_.read_count());
 
-  // Execute commands!
-  new (&reader_)
-      RingBuffer(memory_->TranslatePhysical(ptr), count * sizeof(uint32_t));
-  reader_.set_write_offset(count * sizeof(uint32_t));
-  // prefetch the wraparound range
-  // it likely is already in L3 cache, but in a zen system it may be another
-  // chiplets l3
-  reader_.BeginPrefetchedRead<swcache::PrefetchTag::Level2>(
-      COMMAND_PROCESSOR::GetCurrentRingReadCount());
-  do {
-    if (COMMAND_PROCESSOR::ExecutePacket()) {
-      continue;
-    } else {
-      // Return up a level if we encounter a bad packet.
-      XELOGE("**** INDIRECT RINGBUFFER: Failed to execute packet.");
-      assert_always();
-      // break;
-    }
-  } while (reader_.read_count());
+    trace_writer_.WriteIndirectBufferEnd();
+    reader_ = old_reader;
+  } else {
+	  //rare, but i've seen it happen! (and then a division by 0 occurs)
+    return;
+  }
 
-  trace_writer_.WriteIndirectBufferEnd();
-  reader_ = old_reader;
 }
 
 bool COMMAND_PROCESSOR::ExecutePacket() {

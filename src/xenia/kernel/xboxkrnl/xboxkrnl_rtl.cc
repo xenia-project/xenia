@@ -28,7 +28,11 @@
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {
-
+struct X_STRING {
+  unsigned short length;
+  unsigned short pad;
+  uint32_t ptr;
+};
 // https://msdn.microsoft.com/en-us/library/ff561778
 dword_result_t RtlCompareMemory_entry(lpvoid_t source1, lpvoid_t source2,
                                       dword_t length) {
@@ -142,38 +146,80 @@ dword_result_t RtlLowerChar_entry(dword_t in) {
 }
 DECLARE_XBOXKRNL_EXPORT1(RtlLowerChar, kNone, kImplemented);
 
-dword_result_t RtlCompareString_entry(lpstring_t string_1, lpstring_t string_2,
-                                      dword_t case_insensitive) {
-  int ret = case_insensitive ? xe_strcasecmp(string_1, string_2)
-                             : std::strcmp(string_1, string_2);
-
-  return ret;
+static int RtlCompareStringN_impl(uint8_t* string_1, unsigned int string_1_len,
+                                  uint8_t* string_2, unsigned int string_2_len,
+                                  int case_insensitive) {
+  if (string_1_len == 0xFFFFFFFF) {
+    uint8_t* string1_strlen_iter = string_1;
+    while (*string1_strlen_iter++)
+      ;
+    string_1_len =
+        static_cast<unsigned int>(string1_strlen_iter - string_1 - 1);
+  }
+  if (string_2_len == 0xFFFFFFFF) {
+    uint8_t* string2_strlen_iter = string_2;
+    while (*string2_strlen_iter++)
+      ;
+    string_2_len =
+        static_cast<unsigned int>(string2_strlen_iter - string_2 - 1);
+  }
+  uint8_t* string1_end = &string_1[std::min(string_2_len, string_1_len)];
+  if (case_insensitive) {
+    while (string_1 < string1_end) {
+      unsigned c1 = *string_1++;
+      unsigned c2 = *string_2++;
+      if (c1 != c2) {
+        unsigned cu1 = rtl_upper_table[c1];
+        unsigned cu2 = rtl_upper_table[c2];
+        if (cu1 != cu2) {
+          return cu1 - cu2;
+        }
+      }
+    }
+  } else {
+    while (string_1 < string1_end) {
+      unsigned c1 = *string_1++;
+      unsigned c2 = *string_2++;
+      if (c1 != c2) {
+        return c1 - c2;
+      }
+    }
+  }
+  // why? not sure, but its the original logic
+  return string_1_len - string_2_len;
 }
-DECLARE_XBOXKRNL_EXPORT1(RtlCompareString, kNone, kImplemented);
-
 dword_result_t RtlCompareStringN_entry(lpstring_t string_1,
                                        dword_t string_1_len,
                                        lpstring_t string_2,
                                        dword_t string_2_len,
                                        dword_t case_insensitive) {
-  uint32_t len1 = string_1_len;
-  uint32_t len2 = string_2_len;
-
-  if (string_1_len == 0xFFFF) {
-    len1 = uint32_t(std::strlen(string_1));
-  }
-  if (string_2_len == 0xFFFF) {
-    len2 = uint32_t(std::strlen(string_2));
-  }
-  auto len = std::min(string_1_len, string_2_len);
-
-  int ret = case_insensitive ? xe_strncasecmp(string_1, string_2, len)
-                             : std::strncmp(string_1, string_2, len);
-
-  return ret;
+  return RtlCompareStringN_impl(
+      reinterpret_cast<uint8_t*>(string_1.host_address()), string_1_len,
+      reinterpret_cast<uint8_t*>(string_2.host_address()), string_2_len,
+      case_insensitive);
 }
+
 DECLARE_XBOXKRNL_EXPORT1(RtlCompareStringN, kNone, kImplemented);
 
+dword_result_t RtlCompareString_entry(lpvoid_t string_1, lpvoid_t string_2,
+                                      dword_t case_insensitive) {
+  X_STRING* xs1 = string_1.as<X_STRING*>();
+  X_STRING* xs2 = string_2.as<X_STRING*>();
+
+  unsigned length_1 = xe::load_and_swap<uint16_t>(&xs1->length);
+  unsigned length_2 = xe::load_and_swap<uint16_t>(&xs2->length);
+
+  uint32_t ptr_1 = xe::load_and_swap<uint32_t>(&xs1->ptr);
+
+  uint32_t ptr_2 = xe::load_and_swap<uint32_t>(&xs2->ptr);
+
+  auto kmem = kernel_memory();
+
+  return RtlCompareStringN_impl(
+      kmem->TranslateVirtual<uint8_t*>(ptr_1), length_1,
+      kmem->TranslateVirtual<uint8_t*>(ptr_2), length_2, case_insensitive);
+}
+DECLARE_XBOXKRNL_EXPORT1(RtlCompareString, kNone, kImplemented);
 // https://msdn.microsoft.com/en-us/library/ff561918
 void RtlInitAnsiString_entry(pointer_t<X_ANSI_STRING> destination,
                              lpstring_t source) {
@@ -188,12 +234,12 @@ void RtlInitAnsiString_entry(pointer_t<X_ANSI_STRING> destination,
   destination->pointer = source.guest_address();
 }
 DECLARE_XBOXKRNL_EXPORT1(RtlInitAnsiString, kNone, kImplemented);
-//https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlupcaseunicodechar
+// https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlupcaseunicodechar
 dword_result_t RtlUpcaseUnicodeChar_entry(dword_t SourceCharacter) {
-  return std::use_facet<std::ctype<char16_t>>(std::locale()).toupper(SourceCharacter);
+  return std::use_facet<std::ctype<char16_t>>(std::locale())
+      .toupper(SourceCharacter);
 }
 DECLARE_XBOXKRNL_EXPORT1(RtlUpcaseUnicodeChar, kNone, kImplemented);
-
 
 // https://msdn.microsoft.com/en-us/library/ff561899
 void RtlFreeAnsiString_entry(pointer_t<X_ANSI_STRING> string) {
@@ -206,8 +252,8 @@ void RtlFreeAnsiString_entry(pointer_t<X_ANSI_STRING> string) {
 DECLARE_XBOXKRNL_EXPORT1(RtlFreeAnsiString, kNone, kImplemented);
 
 // https://msdn.microsoft.com/en-us/library/ff561934
-void RtlInitUnicodeString_entry(pointer_t<X_UNICODE_STRING> destination,
-                                lpu16string_t source) {
+pointer_result_t RtlInitUnicodeString_entry(
+    pointer_t<X_UNICODE_STRING> destination, lpu16string_t source) {
   if (source) {
     destination->length = (uint16_t)source.value().size() * 2;
     destination->maximum_length = (uint16_t)(source.value().size() + 1) * 2;
@@ -215,6 +261,7 @@ void RtlInitUnicodeString_entry(pointer_t<X_UNICODE_STRING> destination,
   } else {
     destination->reset();
   }
+  return destination.guest_address();
 }
 DECLARE_XBOXKRNL_EXPORT1(RtlInitUnicodeString, kNone, kImplemented);
 
@@ -671,6 +718,26 @@ dword_result_t RtlComputeCrc32_entry(dword_t seed, lpvoid_t buffer,
 }
 DECLARE_XBOXKRNL_EXPORT1(RtlComputeCrc32, kNone, kImplemented);
 
+static void RtlRip_entry(const ppc_context_t& ctx) {
+  uint32_t arg1 = static_cast<uint32_t>(ctx->r[3]);
+  uint32_t arg2 = static_cast<uint32_t>(ctx->r[4]);
+  const char* msg_str1 = "";
+
+  const char* msg_str2 = "";
+
+  if (arg1) {
+    msg_str1 = ctx->TranslateVirtual<const char*>(arg1);
+  }
+
+  if (arg2) {
+    msg_str2 = ctx->TranslateVirtual<const char*>(arg2);
+  }
+
+  XELOGE("RtlRip called, arg1 = {}, arg2 = {}\n", msg_str1, msg_str2);
+
+  //we should break here... not sure what to do exactly
+}
+DECLARE_XBOXKRNL_EXPORT1(RtlRip, kNone, kImportant);
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe

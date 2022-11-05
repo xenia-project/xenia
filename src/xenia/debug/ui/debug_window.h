@@ -33,7 +33,7 @@ namespace ui {
 
 class DebugWindow : public cpu::DebugListener {
  public:
-  ~DebugWindow();
+ virtual ~DebugWindow();
 
   static std::unique_ptr<DebugWindow> Create(
       Emulator* emulator, xe::ui::WindowedAppContext& app_context);

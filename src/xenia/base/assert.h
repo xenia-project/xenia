@@ -21,8 +21,11 @@ namespace xe {
                 "bad definition for " #type ": must be " #size " bytes")
 
 // We rely on assert being compiled out in NDEBUG.
+#if defined(NDEBUG)
+#define xenia_assert static_cast<void>
+#else
 #define xenia_assert assert
-
+#endif
 #define __XENIA_EXPAND(x) x
 #define __XENIA_ARGC(...)                                                     \
   __XENIA_EXPAND(__XENIA_ARGC_IMPL(__VA_ARGS__, 15, 14, 13, 12, 11, 10, 9, 8, \

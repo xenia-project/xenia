@@ -25,46 +25,46 @@ static void EmitFusedBranch(X64Emitter& e, const T& i) {
   bool valid = i.instr->prev && i.instr->prev->dest == i.src1.value;
   auto opcode = valid ? i.instr->prev->opcode->num : -1;
   if (valid) {
-    auto name = i.src2.value->name;
+    std::string name = i.src2.value->GetIdString();
     switch (opcode) {
       case OPCODE_COMPARE_EQ:
-        e.je(name, e.T_NEAR);
+        e.je(std::move(name), e.T_NEAR);
         break;
       case OPCODE_COMPARE_NE:
-        e.jne(name, e.T_NEAR);
+        e.jne(std::move(name), e.T_NEAR);
         break;
       case OPCODE_COMPARE_SLT:
-        e.jl(name, e.T_NEAR);
+        e.jl(std::move(name), e.T_NEAR);
         break;
       case OPCODE_COMPARE_SLE:
-        e.jle(name, e.T_NEAR);
+        e.jle(std::move(name), e.T_NEAR);
         break;
       case OPCODE_COMPARE_SGT:
-        e.jg(name, e.T_NEAR);
+        e.jg(std::move(name), e.T_NEAR);
         break;
       case OPCODE_COMPARE_SGE:
-        e.jge(name, e.T_NEAR);
+        e.jge(std::move(name), e.T_NEAR);
         break;
       case OPCODE_COMPARE_ULT:
-        e.jb(name, e.T_NEAR);
+        e.jb(std::move(name), e.T_NEAR);
         break;
       case OPCODE_COMPARE_ULE:
-        e.jbe(name, e.T_NEAR);
+        e.jbe(std::move(name), e.T_NEAR);
         break;
       case OPCODE_COMPARE_UGT:
-        e.ja(name, e.T_NEAR);
+        e.ja(std::move(name), e.T_NEAR);
         break;
       case OPCODE_COMPARE_UGE:
-        e.jae(name, e.T_NEAR);
+        e.jae(std::move(name), e.T_NEAR);
         break;
       default:
         e.test(i.src1, i.src1);
-        e.jnz(name, e.T_NEAR);
+        e.jnz(std::move(name), e.T_NEAR);
         break;
     }
   } else {
     e.test(i.src1, i.src1);
-    e.jnz(i.src2.value->name, e.T_NEAR);
+    e.jnz(i.src2.value->GetIdString(), e.T_NEAR);
   }
 }
 // ============================================================================
@@ -490,7 +490,7 @@ EMITTER_OPCODE_TABLE(OPCODE_SET_RETURN_ADDRESS, SET_RETURN_ADDRESS);
 // ============================================================================
 struct BRANCH : Sequence<BRANCH, I<OPCODE_BRANCH, VoidOp, LabelOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
-    e.jmp(i.src1.value->name, e.T_NEAR);
+    e.jmp(i.src1.value->GetIdString(), e.T_NEAR);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_BRANCH, BRANCH);
@@ -534,7 +534,7 @@ struct BRANCH_TRUE_F32
     Xmm input = GetInputRegOrConstant(e, i.src1, e.xmm0);
     e.vmovd(e.eax, input);
     e.test(e.eax, e.eax);
-    e.jnz(i.src2.value->name, e.T_NEAR);
+    e.jnz(i.src2.value->GetIdString(), e.T_NEAR);
   }
 };
 struct BRANCH_TRUE_F64
@@ -543,7 +543,7 @@ struct BRANCH_TRUE_F64
     Xmm input = GetInputRegOrConstant(e, i.src1, e.xmm0);
     e.vmovq(e.rax, input);
     e.test(e.rax, e.rax);
-    e.jnz(i.src2.value->name, e.T_NEAR);
+    e.jnz(i.src2.value->GetIdString(), e.T_NEAR);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_BRANCH_TRUE, BRANCH_TRUE_I8, BRANCH_TRUE_I16,
@@ -557,7 +557,7 @@ struct BRANCH_FALSE_I8
     : Sequence<BRANCH_FALSE_I8, I<OPCODE_BRANCH_FALSE, VoidOp, I8Op, LabelOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.test(i.src1, i.src1);
-    e.jz(i.src2.value->name, e.T_NEAR);
+    e.jz(i.src2.value->GetIdString(), e.T_NEAR);
   }
 };
 struct BRANCH_FALSE_I16
@@ -565,7 +565,7 @@ struct BRANCH_FALSE_I16
                I<OPCODE_BRANCH_FALSE, VoidOp, I16Op, LabelOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.test(i.src1, i.src1);
-    e.jz(i.src2.value->name, e.T_NEAR);
+    e.jz(i.src2.value->GetIdString(), e.T_NEAR);
   }
 };
 struct BRANCH_FALSE_I32
@@ -573,7 +573,7 @@ struct BRANCH_FALSE_I32
                I<OPCODE_BRANCH_FALSE, VoidOp, I32Op, LabelOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.test(i.src1, i.src1);
-    e.jz(i.src2.value->name, e.T_NEAR);
+    e.jz(i.src2.value->GetIdString(), e.T_NEAR);
   }
 };
 struct BRANCH_FALSE_I64
@@ -581,7 +581,7 @@ struct BRANCH_FALSE_I64
                I<OPCODE_BRANCH_FALSE, VoidOp, I64Op, LabelOp>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.test(i.src1, i.src1);
-    e.jz(i.src2.value->name, e.T_NEAR);
+    e.jz(i.src2.value->GetIdString(), e.T_NEAR);
   }
 };
 struct BRANCH_FALSE_F32
@@ -591,7 +591,7 @@ struct BRANCH_FALSE_F32
     Xmm input = GetInputRegOrConstant(e, i.src1, e.xmm0);
     e.vmovd(e.eax, input);
     e.test(e.eax, e.eax);
-    e.jz(i.src2.value->name, e.T_NEAR);
+    e.jz(i.src2.value->GetIdString(), e.T_NEAR);
   }
 };
 struct BRANCH_FALSE_F64
@@ -601,7 +601,7 @@ struct BRANCH_FALSE_F64
     Xmm input = GetInputRegOrConstant(e, i.src1, e.xmm0);
     e.vmovq(e.rax, input);
     e.test(e.rax, e.rax);
-    e.jz(i.src2.value->name, e.T_NEAR);
+    e.jz(i.src2.value->GetIdString(), e.T_NEAR);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_BRANCH_FALSE, BRANCH_FALSE_I8, BRANCH_FALSE_I16,

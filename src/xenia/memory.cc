@@ -316,9 +316,10 @@ void Memory::Reset() {
   heaps_.v90000000.Reset();
   heaps_.physical.Reset();
 }
+//clang does not like non-standard layout offsetof
+#if XE_COMPILER_MSVC == 1 && XE_COMPILER_CLANG_CL==0
 XE_NOALIAS
 const BaseHeap* Memory::LookupHeap(uint32_t address) const {
-#if 1
 #define HEAP_INDEX(name) \
   offsetof(Memory, heaps_.name) - offsetof(Memory, heaps_)
 
@@ -354,8 +355,11 @@ const BaseHeap* Memory::LookupHeap(uint32_t address) const {
     heap_select = nullptr;
   }
   return reinterpret_cast<const BaseHeap*>(selected_heap_offset + heap_select);
-
+}
 #else
+XE_NOALIAS
+const BaseHeap* Memory::LookupHeap(uint32_t address) const {
+
   if (address < 0x40000000) {
     return &heaps_.v00000000;
   } else if (address < 0x7F000000) {
@@ -375,9 +379,8 @@ const BaseHeap* Memory::LookupHeap(uint32_t address) const {
   } else {
     return nullptr;
   }
-#endif
 }
-
+#endif
 BaseHeap* Memory::LookupHeapByType(bool physical, uint32_t page_size) {
   if (physical) {
     if (page_size <= 4096) {
@@ -1069,7 +1072,7 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
   if (start_page_number == UINT_MAX || end_page_number == UINT_MAX) {
     // Out of memory.
     XELOGE("BaseHeap::Alloc failed to find contiguous range");
-    assert_always("Heap exhausted!");
+    //assert_always("Heap exhausted!");
     return false;
   }
 

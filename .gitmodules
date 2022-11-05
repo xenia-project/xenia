@@ -36,7 +36,7 @@
 	url = https://github.com/skystrife/cpptoml.git
 [submodule "third_party/cxxopts"]
 	path = third_party/cxxopts
-	url = https://github.com/chrisps/cxxopts.git
+	url = https://github.com/jarro2783/cxxopts.git
 [submodule "third_party/SDL2"]
 	path = third_party/SDL2
 	url = https://github.com/libsdl-org/SDL.git

@@ -46,6 +46,7 @@ struct PPCDecodeData {
     uint32_t LEV() const { return bits_.LEV; }
 
    private:
+	   XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -74,6 +75,7 @@ struct PPCDecodeData {
     uint32_t L() const { return bits_.RT & 0x1; }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -95,6 +97,7 @@ struct PPCDecodeData {
     int32_t ds() const { return static_cast<int32_t>(XEEXTS16(DS() << 2)); }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -174,6 +177,7 @@ struct PPCDecodeData {
     uint32_t CRFS() const { return bits_.RA >> 2; }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -200,6 +204,7 @@ struct PPCDecodeData {
     uint32_t CRFS() const { return CRBA() >> 2; }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -223,6 +228,7 @@ struct PPCDecodeData {
     }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -244,6 +250,7 @@ struct PPCDecodeData {
     bool Rc() const { return bits_.Rc ? true : false; }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -266,6 +273,7 @@ struct PPCDecodeData {
     bool Rc() const { return bits_.Rc ? true : false; }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -289,6 +297,7 @@ struct PPCDecodeData {
     bool Rc() const { return bits_.Rc ? true : false; }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -314,6 +323,7 @@ struct PPCDecodeData {
     bool Rc() const { return bits_.Rc ? true : false; }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -339,6 +349,7 @@ struct PPCDecodeData {
     bool Rc() const { return bits_.Rc ? true : false; }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -363,6 +374,7 @@ struct PPCDecodeData {
     bool Rc() const { return bits_.Rc ? true : false; }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -389,6 +401,7 @@ struct PPCDecodeData {
     bool Rc() const { return bits_.Rc ? true : false; }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -412,6 +425,7 @@ struct PPCDecodeData {
     int32_t SIMM() const { return static_cast<int32_t>(XEEXTS16(VA())); }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -431,6 +445,7 @@ struct PPCDecodeData {
     bool Rc() const { return bits_.Rc ? true : false; }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -452,6 +467,7 @@ struct PPCDecodeData {
     uint32_t SHB() const { return VC() & 0xF; }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -473,6 +489,7 @@ struct PPCDecodeData {
     uint32_t VB() const { return bits_.VB128l | (bits_.VB128h << 5); }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -498,6 +515,7 @@ struct PPCDecodeData {
     uint32_t RB() const { return bits_.RB; }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -521,6 +539,7 @@ struct PPCDecodeData {
     uint32_t VC() const { return bits_.VC; }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -546,6 +565,7 @@ struct PPCDecodeData {
     int32_t SIMM() const { return static_cast<int32_t>(XEEXTS16(bits_.UIMM)); }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -567,6 +587,7 @@ struct PPCDecodeData {
     uint32_t z() const { return bits_.z; }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -592,6 +613,7 @@ struct PPCDecodeData {
     uint32_t SH() const { return bits_.SH; }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -618,6 +640,7 @@ struct PPCDecodeData {
     bool Rc() const { return bits_.Rc ? true : false; }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;
@@ -642,6 +665,7 @@ struct PPCDecodeData {
     uint32_t UIMM() const { return bits_.PERMl | (bits_.PERMh << 5); }
 
    private:
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;

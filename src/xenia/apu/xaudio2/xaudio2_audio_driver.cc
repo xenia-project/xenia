@@ -28,16 +28,16 @@ class XAudio2AudioDriver::VoiceCallback : public api::IXAudio2VoiceCallback {
       : semaphore_(semaphore) {}
   ~VoiceCallback() {}
 
-  void OnStreamEnd() {}
-  void OnVoiceProcessingPassEnd() {}
-  void OnVoiceProcessingPassStart(uint32_t samples_required) {}
-  void OnBufferEnd(void* context) {
+  void OnStreamEnd() noexcept {}
+  void OnVoiceProcessingPassEnd() noexcept {}
+  void OnVoiceProcessingPassStart(uint32_t samples_required) noexcept {}
+  void OnBufferEnd(void* context) noexcept {
     auto ret = semaphore_->Release(1, nullptr);
     assert_true(ret);
   }
-  void OnBufferStart(void* context) {}
-  void OnLoopEnd(void* context) {}
-  void OnVoiceError(void* context, HRESULT result) {}
+  void OnBufferStart(void* context) noexcept {}
+  void OnLoopEnd(void* context) noexcept {}
+  void OnVoiceError(void* context, HRESULT result) noexcept {}
 
  private:
   xe::threading::Semaphore* semaphore_ = nullptr;

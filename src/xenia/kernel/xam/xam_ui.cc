@@ -55,6 +55,7 @@ class XamDialog : public xe::ui::ImGuiDialog {
   XamDialog(xe::ui::ImGuiDrawer* imgui_drawer)
       : xe::ui::ImGuiDialog(imgui_drawer) {}
 
+  virtual ~XamDialog() {}
   void OnClose() override {
     if (close_callback_) {
       close_callback_();
@@ -254,6 +255,7 @@ class MessageBoxDialog : public XamDialog {
       Close();
     }
   }
+  virtual ~MessageBoxDialog() {}
 
  private:
   bool has_opened_ = false;
@@ -264,8 +266,7 @@ class MessageBoxDialog : public XamDialog {
   uint32_t chosen_button_ = 0;
 };
 
-// https://www.se7ensins.com/forums/threads/working-xshowmessageboxui.844116/
-dword_result_t XamShowMessageBoxUI_entry(
+static dword_result_t XamShowMessageBoxUi(
     dword_t user_index, lpu16string_t title_ptr, lpu16string_t text_ptr,
     dword_t button_count, lpdword_t button_ptrs, dword_t active_button,
     dword_t flags, lpdword_t result_ptr, pointer_t<XAM_OVERLAPPED> overlapped) {
@@ -321,8 +322,28 @@ dword_result_t XamShowMessageBoxUI_entry(
   }
   return result;
 }
+
+// https://www.se7ensins.com/forums/threads/working-xshowmessageboxui.844116/
+dword_result_t XamShowMessageBoxUI_entry(
+    dword_t user_index, lpu16string_t title_ptr, lpu16string_t text_ptr,
+    dword_t button_count, lpdword_t button_ptrs, dword_t active_button,
+    dword_t flags, lpdword_t result_ptr, pointer_t<XAM_OVERLAPPED> overlapped) {
+  return XamShowMessageBoxUi(user_index, title_ptr, text_ptr, button_count,
+                             button_ptrs, active_button, flags, result_ptr,
+                             overlapped);
+}
 DECLARE_XAM_EXPORT1(XamShowMessageBoxUI, kUI, kImplemented);
 
+dword_result_t XamShowMessageBoxUIEx_entry(
+    dword_t user_index, lpu16string_t title_ptr, lpu16string_t text_ptr,
+    dword_t button_count, lpdword_t button_ptrs, dword_t active_button,
+    dword_t flags, dword_t unknown_unused, lpdword_t result_ptr,
+    pointer_t<XAM_OVERLAPPED> overlapped) {
+  return XamShowMessageBoxUi(user_index, title_ptr, text_ptr, button_count,
+                             button_ptrs, active_button, flags, result_ptr,
+                             overlapped);
+}
+DECLARE_XAM_EXPORT1(XamShowMessageBoxUIEx, kUI, kImplemented);
 class KeyboardInputDialog : public XamDialog {
  public:
   KeyboardInputDialog(xe::ui::ImGuiDrawer* imgui_drawer, std::string title,
@@ -347,6 +368,7 @@ class KeyboardInputDialog : public XamDialog {
     xe::string_util::copy_truncating(text_buffer_.data(), default_text_,
                                      text_buffer_.size());
   }
+  virtual ~KeyboardInputDialog() {}
 
   const std::string& text() const { return text_; }
   bool cancelled() const { return cancelled_; }

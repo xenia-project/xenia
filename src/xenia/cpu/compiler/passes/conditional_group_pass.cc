@@ -48,9 +48,7 @@ bool ConditionalGroupPass::Initialize(Compiler* compiler) {
 
 bool ConditionalGroupPass::Run(HIRBuilder* builder) {
   bool dirty;
-  int loops = 0;
   do {
-    assert_true(loops < 20);  // arbitrary number
     dirty = false;
     for (size_t i = 0; i < passes_.size(); ++i) {
       scratch_arena()->Reset();
@@ -68,7 +66,6 @@ bool ConditionalGroupPass::Run(HIRBuilder* builder) {
         dirty |= result;
       }
     }
-    loops++;
   } while (dirty);
   return true;
 }
