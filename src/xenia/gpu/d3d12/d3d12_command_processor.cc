@@ -2042,10 +2042,6 @@ D3D12CommandProcessor::WriteRegisterRangeFromRing_WithKnownBound(
   RingBuffer::ReadRange range =
       ring->BeginRead(num_registers * sizeof(uint32_t));
 
-  constexpr auto bounds_has_reg =
-      bounds_may_have_reg<register_lower_bound, register_upper_bound>;
-  constexpr auto bounds_has_bounds =
-      bounds_may_have_bounds<register_lower_bound, register_upper_bound>;
 
   XE_LIKELY_IF(!range.second) {
     WriteRegisterRangeFromMem_WithKnownBound<register_lower_bound,
@@ -5152,6 +5148,7 @@ void D3D12CommandProcessor::WriteGammaRampSRV(
 #define COMMAND_PROCESSOR D3D12CommandProcessor
 
 #include "../pm4_command_processor_implement.h"
+#undef COMMAND_PROCESSOR
 }  // namespace d3d12
 }  // namespace gpu
 }  // namespace xe

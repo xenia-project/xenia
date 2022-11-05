@@ -67,8 +67,6 @@ class split_map {
   void InsertAt(TKey k, TValue v, uint32_t idx) {
     uint32_t old_size = size();
 
-    bool needs_shiftup = idx != old_size;
-
     values_.insert(values_.begin() + idx, v);
     keys_.insert(keys_.begin() + idx, k);
   }

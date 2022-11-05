@@ -144,9 +144,11 @@
 #define XE_MSVC_OPTIMIZE_SMALL()
 #define XE_MSVC_OPTIMIZE_REVERT()
 #endif
+
 #if XE_COMPILER_HAS_GNU_EXTENSIONS == 1
 #define XE_LIKELY_IF(...) if (XE_LIKELY(__VA_ARGS__))
 #define XE_UNLIKELY_IF(...) if (XE_UNLIKELY(__VA_ARGS__))
+#define XE_MAYBE_UNUSED		__attribute__((unused))
 #else
 #if __cplusplus >= 202002
 #define XE_LIKELY_IF(...) if (!!(__VA_ARGS__)) [[likely]]
@@ -155,6 +157,7 @@
 #define XE_LIKELY_IF(...) if (!!(__VA_ARGS__))
 #define XE_UNLIKELY_IF(...) if (!!(__VA_ARGS__))
 #endif
+#define XE_MAYBE_UNUSED		
 #endif
 // only use __restrict if MSVC, for clang/gcc we can use -fstrict-aliasing which
 // acts as __restrict across the board todo: __restrict is part of the type

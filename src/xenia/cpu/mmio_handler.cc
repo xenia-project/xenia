@@ -185,7 +185,7 @@ bool MMIOHandler::TryDecodeLoadStore(const uint8_t* p,
   uint8_t rex_b = rex & 0b0001;
   uint8_t rex_x = rex & 0b0010;
   uint8_t rex_r = rex & 0b0100;
-  uint8_t rex_w = rex & 0b1000;
+  //uint8_t rex_w = rex & 0b1000;
 
   // http://www.sandpile.org/x86/opc_rm.htm
   // http://www.sandpile.org/x86/opc_sib.htm
@@ -418,7 +418,6 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
     // Quick kill anything outside our mapping.
     return false;
   }
-  uint64_t hostip = ex->pc();
 
   void* fault_host_address = reinterpret_cast<void*>(ex->fault_address());
 

@@ -25,6 +25,7 @@ namespace xe {
 */
 
 class alignas(4096) xe_global_mutex {
+	XE_MAYBE_UNUSED
   char detail[64];
 
  public:
@@ -38,6 +39,7 @@ class alignas(4096) xe_global_mutex {
 using global_mutex_type = xe_global_mutex;
 
 class alignas(64) xe_fast_mutex {
+	XE_MAYBE_UNUSED
   char detail[64];
 
  public:
@@ -62,8 +64,6 @@ class xe_unlikely_mutex {
   ~xe_unlikely_mutex() { mut = 0; }
 
   void lock() {
-    uint32_t lock_expected = 0;
-
     if (XE_LIKELY(_tryget())) {
       return;
     } else {

@@ -195,7 +195,8 @@ void XCustomRegisterDynamicActions_entry() {
 DECLARE_XAM_EXPORT1(XCustomRegisterDynamicActions, kNone, kStub);
 
 dword_result_t XGetAVPack_entry() {
-  // Value from https://github.com/Free60Project/libxenon/blob/920146f/libxenon/drivers/xenos/xenos_videomodes.h
+  // Value from
+  // https://github.com/Free60Project/libxenon/blob/920146f/libxenon/drivers/xenos/xenos_videomodes.h
   // DWORD
   // Not sure what the values are for this, but 6 is VGA.
   // Other likely values are 3/4/8 for HDMI or something.
@@ -321,11 +322,16 @@ void XamLoaderTerminateTitle_entry() {
 }
 DECLARE_XAM_EXPORT1(XamLoaderTerminateTitle, kNone, kSketchy);
 
-dword_result_t XamAlloc_entry(dword_t unk, dword_t size, lpdword_t out_ptr) {
-  assert_true(unk == 0);
+dword_result_t XamAlloc_entry(dword_t flags, dword_t size, lpdword_t out_ptr) {
+  if (flags & 0x00100000) {  // HEAP_ZERO_memory used unless this flag
+    // do nothing!
+    // maybe we ought to fill it with nonzero garbage, but otherwise this is a
+    // flag we can safely ignore
+  }
 
   // Allocate from the heap. Not sure why XAM does this specially, perhaps
   // it keeps stuff in a separate heap?
+  //chrispy: there is a set of different heaps it uses, an array of them. the top 4 bits of the 32 bit flags seems to select the heap
   uint32_t ptr = kernel_state()->memory()->SystemHeapAlloc(size);
   *out_ptr = ptr;
 

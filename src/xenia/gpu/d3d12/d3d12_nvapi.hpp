@@ -108,15 +108,4 @@ inline nvapi_state_t::~nvapi_state_t() {
     call_deinit_interface();
   }
 }
-inline void init_nvapi() {
-  /// HMODULE moddy = LoadLibraryA("nvapi64.dll");
-
-  // FARPROC quif = GetProcAddress(moddy, "nvapi_QueryInterface");
-
-  nvapi_state_t nvapi{};
-
-  auto queryvisible = nvapi.query_interface<void>(0x26322BC3);
-  return;
-}
-
 }  // namespace lightweight_nvapi

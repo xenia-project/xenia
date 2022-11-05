@@ -31,14 +31,17 @@
 #include "third_party/crypto/rijndael-alg-fst.c"
 #include "third_party/crypto/rijndael-alg-fst.h"
 #include "third_party/pe/pe_image.h"
-
+#include "xenia/cpu/ppc/ppc_decode_data.h"
+#include "xenia/cpu/ppc/ppc_instr.h"
 DEFINE_bool(disable_instruction_infocache, false,
             "Disables caching records of called instructions/mmio accesses.",
             "CPU");
-DEFINE_bool(disable_function_precompilation, true,
-            "Disables pre-compiling guest functions that we know we've called "
-            "on previous runs",
-            "CPU");
+
+DEFINE_bool(
+    disable_early_precompilation, false,
+    "Disables pre-compiling guest functions that we know we've called/that "
+    "we've recognized as being functions via simple heuristics.",
+    "CPU");
 
 static const uint8_t xe_xex2_retail_key[16] = {
     0x20, 0xB1, 0x85, 0xA5, 0x9D, 0x28, 0xFD, 0xC3,
@@ -1057,29 +1060,6 @@ bool XexModule::LoadContinue() {
       library_offset += library->size;
     }
   }
-  sha1::SHA1 final_image_sha_;
-
-  final_image_sha_.reset();
-
-  unsigned high_code = this->high_address_ - this->low_address_;
-
-  final_image_sha_.processBytes(memory()->TranslateVirtual(this->low_address_),
-                                high_code);
-  final_image_sha_.finalize(image_sha_bytes_);
-
-  char fmtbuf[16];
-
-  for (unsigned i = 0; i < 16; ++i) {
-    sprintf_s(fmtbuf, "%X", image_sha_bytes_[i]);
-    image_sha_str_ += &fmtbuf[0];
-  }
-
-  info_cache_.Init(this);
-  // Find __savegprlr_* and __restgprlr_* and the others.
-  // We can flag these for special handling (inlining/etc).
-  if (!FindSaveRest()) {
-    return false;
-  }
 
   // Load a specified module map and diff.
   if (cvars::load_module_map.size()) {
@@ -1112,6 +1092,32 @@ bool XexModule::LoadContinue() {
   return true;
 }
 
+void XexModule::Precompile() {
+  sha1::SHA1 final_image_sha_;
+
+  final_image_sha_.reset();
+
+  unsigned high_code = this->high_address_ - this->low_address_;
+
+  final_image_sha_.processBytes(memory()->TranslateVirtual(this->low_address_),
+                                high_code);
+  final_image_sha_.finalize(image_sha_bytes_);
+
+  char fmtbuf[16];
+
+  for (unsigned i = 0; i < 16; ++i) {
+    sprintf_s(fmtbuf, "%X", image_sha_bytes_[i]);
+    image_sha_str_ += &fmtbuf[0];
+  }
+
+  // Find __savegprlr_* and __restgprlr_* and the others.
+  // We can flag these for special handling (inlining/etc).
+  if (!FindSaveRest()) {
+    return;
+  }
+  info_cache_.Init(this);
+  PrecompileDiscoveredFunctions();
+}
 bool XexModule::Unload() {
   if (!loaded_) {
     return true;
@@ -1363,9 +1369,25 @@ InfoCacheFlags* XexModule::GetInstructionAddressFlags(uint32_t guest_addr) {
 
   return info_cache_.LookupFlags(guest_addr);
 }
+void XexModule::PrecompileDiscoveredFunctions() {
+  if (cvars::disable_early_precompilation) {
+	return;
+  }
+  auto others = PreanalyzeCode();
 
+  for (auto&& other : others) {
+    if (other < low_address_ || other >= high_address_) {
+      continue;
+    }
+    auto sym = processor_->LookupFunction(other);
+
+    if (!sym || sym->status() != Symbol::Status::kDefined) {
+      processor_->ResolveFunction(other);
+    }
+  }
+}
 void XexModule::PrecompileKnownFunctions() {
-  if (cvars::disable_function_precompilation) {
+  if (cvars::disable_early_precompilation) {
     return;
   }
   uint32_t start = 0;
@@ -1374,11 +1396,159 @@ void XexModule::PrecompileKnownFunctions() {
   if (!flags) {
     return;
   }
+  //maybe should pre-acquire global crit?
   for (uint32_t i = 0; i < end; i++) {
     if (flags[i].was_resolved) {
-      processor_->ResolveFunction(low_address_ + (i * 4));
+      uint32_t addr = low_address_ + (i * 4);
+      auto sym = processor_->LookupFunction(addr);
+
+      if (!sym || sym->status() != Symbol::Status::kDefined) {
+        processor_->ResolveFunction(addr);
+      }
     }
   }
+}
+
+static uint32_t GetBLCalledFunction(XexModule* xexmod, uint32_t current_base,
+                                    ppc::PPCOpcodeBits wrd) {
+  int32_t displ = static_cast<int32_t>(ppc::XEEXTS26(wrd.I.LI << 2));
+
+  if (wrd.I.AA) {
+    return static_cast<uint32_t>(displ);
+  } else {
+    return static_cast<uint32_t>(static_cast<int32_t>(current_base) + displ);
+  }
+}
+static bool IsOpcodeBL(unsigned w) {
+  return (w >> (32 - 6)) == 18 && ppc::PPCOpcodeBits{w}.I.LK;
+}
+
+std::vector<uint32_t> XexModule::PreanalyzeCode() {
+  uint32_t low_8_aligned = xe::align<uint32_t>(low_address_, 8);
+  uint32_t high_8_aligned = high_address_ & ~(8U - 1);
+
+  uint32_t n_possible_8byte_addresses = (high_8_aligned - low_8_aligned) / 8;
+  uint32_t* funcstart_candidate_stack =
+      new uint32_t[n_possible_8byte_addresses];
+  uint32_t* funcstart_candstack2 = new uint32_t[n_possible_8byte_addresses];
+
+  uint32_t stack_pos = 0;
+  {
+    // all functions seem to start on 8 byte boundaries, except for obvious ones
+    // like the save/rest funcs
+    uint32_t* range_start =
+        (uint32_t*)memory()->TranslateVirtual(low_8_aligned);
+    uint32_t* range_end = (uint32_t*)memory()->TranslateVirtual(
+        high_8_aligned);  // align down to multiple of 8
+
+    const uint8_t mfspr_r12_lr[4] = {0x7D, 0x88, 0x02, 0xA6};
+
+    // a blr instruction, with 4 zero bytes afterwards to pad the next address
+    // to 8 byte alignment
+    // if we see this prior to our address, we can assume we are a function
+    // start
+    const uint8_t blr[4] = {0x4E, 0x80, 0x0, 0x20};
+
+    uint32_t blr32 = *reinterpret_cast<const uint32_t*>(&blr[0]);
+
+    uint32_t mfspr_r12_lr32 =
+        *reinterpret_cast<const uint32_t*>(&mfspr_r12_lr[0]);
+    /*
+                First pass: detect save of the link register at an eight byte
+       aligned address
+        */
+    for (uint32_t* first_pass = range_start; first_pass < range_end;
+         first_pass += 2) {
+      if (*first_pass == mfspr_r12_lr32) {
+        // Push our newly discovered function start into our list
+        // All addresses in the list are sorted until the second pass
+        funcstart_candidate_stack[stack_pos++] =
+            static_cast<uint32_t>(reinterpret_cast<uintptr_t>(first_pass) -
+                                  reinterpret_cast<uintptr_t>(range_start)) +
+            low_8_aligned;
+      } else if (first_pass[-1] == 0 && *first_pass != 0) {
+        // originally i checked for blr followed by 0, but some functions are
+        // actually aligned to greater boundaries. something that appears to be
+        // longjmp (it occurs in most games, so standard library, and loads ctx,
+        // so longjmp) is aligned to 16 bytes in most games
+        uint32_t* check_iter = &first_pass[-2];
+
+        while (!*check_iter) {
+          --check_iter;
+        }
+
+        XE_LIKELY_IF(*check_iter == blr32) {
+          funcstart_candidate_stack[stack_pos++] =
+              static_cast<uint32_t>(reinterpret_cast<uintptr_t>(first_pass) -
+                                    reinterpret_cast<uintptr_t>(range_start)) +
+              low_8_aligned;
+        }
+      }
+    }
+    uint32_t current_guestaddr = low_8_aligned;
+    // Second pass: detect branch with link instructions and decode the target
+    // address. We can safely assume that if bl is to address, that address is
+    // the start of the function
+    for (uint32_t* second_pass = range_start; second_pass < range_end;
+         second_pass++, current_guestaddr += 4) {
+      uint32_t current_call = xe::byte_swap(*second_pass);
+
+      if (IsOpcodeBL(current_call)) {
+        funcstart_candidate_stack[stack_pos++] = GetBLCalledFunction(
+            this, current_guestaddr, ppc::PPCOpcodeBits{current_call});
+      }
+    }
+
+    auto pdata = this->GetPESection(".pdata");
+
+    if (pdata) {
+      uint32_t* pdata_base =
+          (uint32_t*)this->memory()->TranslateVirtual(pdata->address);
+
+      uint32_t n_pdata_entries = pdata->raw_size / 8;
+
+      for (uint32_t i = 0; i < n_pdata_entries; ++i) {
+        uint32_t funcaddr = xe::load_and_swap<uint32_t>(&pdata_base[i * 2]);
+        if (funcaddr >= low_address_ && funcaddr <= high_address_) {
+          funcstart_candidate_stack[stack_pos++] = funcaddr;
+        } else {
+          // we hit 0 for func addr, that means we're done
+          break;
+        }
+      }
+    }
+  }
+
+  // Sort the list of function starts and then ensure that all addresses are
+  // unique
+  uint32_t n_known_funcaddrs = 0;
+  {
+    // make addresses unique
+
+    std::sort(funcstart_candidate_stack, funcstart_candidate_stack + stack_pos);
+
+    uint32_t read_pos = 0;
+    uint32_t write_pos = 0;
+    uint32_t previous_addr = ~0u;
+    while (read_pos < stack_pos) {
+      uint32_t current_addr = funcstart_candidate_stack[read_pos++];
+
+      if (current_addr != previous_addr) {
+        previous_addr = current_addr;
+        funcstart_candstack2[write_pos++] = current_addr;
+      }
+    }
+    n_known_funcaddrs = write_pos;
+  }
+
+  delete[] funcstart_candidate_stack;
+
+  std::vector<uint32_t> result;
+  result.resize(n_known_funcaddrs);
+  memcpy(&result[0], funcstart_candstack2,
+         sizeof(uint32_t) * n_known_funcaddrs);
+  delete[] funcstart_candstack2;
+  return result;
 }
 bool XexModule::FindSaveRest() {
   // Special stack save/restore functions.
@@ -1552,6 +1722,8 @@ bool XexModule::FindSaveRest() {
 
   auto page_size = base_address_ <= 0x90000000 ? 64 * 1024 : 4 * 1024;
   auto sec_header = xex_security_info();
+  std::vector<uint32_t> resolve_on_exit{};
+  resolve_on_exit.reserve(256);
   for (uint32_t i = 0, page = 0; i < sec_header->page_descriptor_count; i++) {
     // Byteswap the bitfield manually.
     xex2_page_descriptor desc;
@@ -1586,13 +1758,20 @@ bool XexModule::FindSaveRest() {
 
   // Add function stubs.
   char name[32];
+
+  auto AddXexFunction = [this, &resolve_on_exit](uint32_t address,
+                                                 Function** function) {
+    DeclareFunction(address, function);
+    resolve_on_exit.push_back(address);
+  };
   if (gplr_start) {
     uint32_t address = gplr_start;
     for (int n = 14; n <= 31; n++) {
       auto format_result =
           fmt::format_to_n(name, xe::countof(name), "__savegprlr_{}", n);
       Function* function;
-      DeclareFunction(address, &function);
+
+      AddXexFunction(address, &function);
       function->set_end_address(address + (31 - n) * 4 + 2 * 4);
       function->set_name(std::string_view(name, format_result.size));
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
@@ -1608,7 +1787,7 @@ bool XexModule::FindSaveRest() {
       auto format_result =
           fmt::format_to_n(name, xe::countof(name), "__restgprlr_{}", n);
       Function* function;
-      DeclareFunction(address, &function);
+      AddXexFunction(address, &function);
       function->set_end_address(address + (31 - n) * 4 + 3 * 4);
       function->set_name(std::string_view(name, format_result.size));
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
@@ -1625,7 +1804,7 @@ bool XexModule::FindSaveRest() {
       auto format_result =
           fmt::format_to_n(name, xe::countof(name), "__savefpr_{}", n);
       Function* function;
-      DeclareFunction(address, &function);
+      AddXexFunction(address, &function);
       function->set_end_address(address + (31 - n) * 4 + 1 * 4);
       function->set_name(std::string_view(name, format_result.size));
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
@@ -1641,7 +1820,7 @@ bool XexModule::FindSaveRest() {
       auto format_result =
           fmt::format_to_n(name, xe::countof(name), "__restfpr_{}", n);
       Function* function;
-      DeclareFunction(address, &function);
+      AddXexFunction(address, &function);
       function->set_end_address(address + (31 - n) * 4 + 1 * 4);
       function->set_name(std::string_view(name, format_result.size));
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
@@ -1663,7 +1842,7 @@ bool XexModule::FindSaveRest() {
       auto format_result =
           fmt::format_to_n(name, xe::countof(name), "__savevmx_{}", n);
       Function* function;
-      DeclareFunction(address, &function);
+      AddXexFunction(address, &function);
       function->set_name(std::string_view(name, format_result.size));
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveVmx;
@@ -1677,7 +1856,7 @@ bool XexModule::FindSaveRest() {
       auto format_result =
           fmt::format_to_n(name, xe::countof(name), "__savevmx_{}", n);
       Function* function;
-      DeclareFunction(address, &function);
+      AddXexFunction(address, &function);
       function->set_name(std::string_view(name, format_result.size));
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagSaveVmx;
@@ -1691,7 +1870,7 @@ bool XexModule::FindSaveRest() {
       auto format_result =
           fmt::format_to_n(name, xe::countof(name), "__restvmx_{}", n);
       Function* function;
-      DeclareFunction(address, &function);
+      AddXexFunction(address, &function);
       function->set_name(std::string_view(name, format_result.size));
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestVmx;
@@ -1705,7 +1884,7 @@ bool XexModule::FindSaveRest() {
       auto format_result =
           fmt::format_to_n(name, xe::countof(name), "__restvmx_{}", n);
       Function* function;
-      DeclareFunction(address, &function);
+      AddXexFunction(address, &function);
       function->set_name(std::string_view(name, format_result.size));
       // TODO(benvanik): set type  fn->type = FunctionSymbol::User;
       // TODO(benvanik): set flags fn->flags |= FunctionSymbol::kFlagRestVmx;
@@ -1715,7 +1894,15 @@ bool XexModule::FindSaveRest() {
       address += 2 * 4;
     }
   }
-
+  if (!cvars::disable_early_precompilation) {
+    for (auto&& to_ensure_precompiled : resolve_on_exit) {
+      // we want to make sure an address for these functions is available before
+      // any other functions are compiled for code generation purposes but we do
+      // it outside of our loops, because we also want to make sure we've marked
+      // up the symbol with info about it being save/rest and whatnot
+      processor_->ResolveFunction(to_ensure_precompiled);
+    }
+  }
   return true;
 }
 

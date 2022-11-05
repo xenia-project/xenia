@@ -285,7 +285,8 @@ class PhysicalHeap : public BaseHeap {
   uint32_t GetPhysicalAddress(uint32_t address) const;
 
   uint32_t SystemPagenumToGuestPagenum(uint32_t num) const {
-    return ((num << system_page_shift_) - host_address_offset()) >> page_size_shift_;
+    return ((num << system_page_shift_) - host_address_offset()) >>
+           page_size_shift_;
   }
 
   uint32_t GuestPagenumToSystemPagenum(uint32_t num) {
@@ -294,6 +295,7 @@ class PhysicalHeap : public BaseHeap {
     num >>= system_page_shift_;
     return num;
   }
+
  protected:
   VirtualHeap* parent_heap_;
 
@@ -351,12 +353,21 @@ class Memory {
   // Note that the contents at the specified host address are big-endian.
   template <typename T = uint8_t*>
   inline T TranslateVirtual(uint32_t guest_address) const {
+#if XE_PLATFORM_WIN32 == 1
+    uint8_t* host_address = virtual_membase_ + guest_address;
+    if (guest_address >= 0xE0000000) {
+      host_address += 0x1000;
+    }
+    return reinterpret_cast<T>(host_address);
+#else
     uint8_t* host_address = virtual_membase_ + guest_address;
     const auto heap = LookupHeap(guest_address);
     if (heap) {
       host_address += heap->host_address_offset();
     }
     return reinterpret_cast<T>(host_address);
+
+#endif
   }
 
   // Base address of physical memory in the host address space.

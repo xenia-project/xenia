@@ -941,7 +941,6 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
           ImGui::NextColumn();
           break;
         case xenos::VertexFormat::k_2_10_10_10: {
-          auto e0 = LOADEL(uint32_t, 0);
           ImGui::Text("??");
           ImGui::NextColumn();
           ImGui::Text("??");
@@ -1066,8 +1065,6 @@ void ProgressBar(float frac, float width, float height = 0,
   }
   frac = xe::saturate_unsigned(frac);
 
-  const auto fontAtlas = ImGui::GetIO().Fonts;
-
   auto pos = ImGui::GetCursorScreenPos();
   auto col = ImGui::ColorConvertFloat4ToU32(color);
   auto border_col = ImGui::ColorConvertFloat4ToU32(border_color);
@@ -1137,7 +1134,6 @@ void TraceViewer::DrawStateUI() {
   std::memset(&draw_info, 0, sizeof(draw_info));
   switch (opcode) {
     case PM4_DRAW_INDX: {
-      uint32_t dword0 = xe::load_and_swap<uint32_t>(packet_head + 4);
       uint32_t dword1 = xe::load_and_swap<uint32_t>(packet_head + 8);
       draw_info.index_count = dword1 >> 16;
       draw_info.prim_type = static_cast<xenos::PrimitiveType>(dword1 & 0x3F);
@@ -1187,7 +1183,6 @@ void TraceViewer::DrawStateUI() {
   auto enable_mode =
       static_cast<ModeControl>(regs[XE_GPU_REG_RB_MODECONTROL].u32 & 0x7);
 
-  const char* mode_name = "Unknown";
   switch (enable_mode) {
     case ModeControl::kIgnore:
       ImGui::Text("Ignored Command %d", player_->current_command_index());

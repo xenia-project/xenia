@@ -1,8 +1,15 @@
 
 
-void ExecuteIndirectBuffer(uint32_t ptr, uint32_t count) XE_RESTRICT;
-virtual uint32_t ExecutePrimaryBuffer(uint32_t start_index, uint32_t end_index) XE_RESTRICT;
-virtual bool ExecutePacket();
+#if defined(OVERRIDING_BASE_CMDPROCESSOR)
+#define	PM4_OVERRIDE		override
+#else
+#define PM4_OVERRIDE
+#endif
+void ExecuteIndirectBuffer(uint32_t ptr,
+                           uint32_t count) XE_RESTRICT;
+virtual uint32_t ExecutePrimaryBuffer(uint32_t start_index, uint32_t end_index)
+    XE_RESTRICT PM4_OVERRIDE;
+virtual bool ExecutePacket() PM4_OVERRIDE;
 
 public:
 void ExecutePacket(uint32_t ptr, uint32_t count);
@@ -112,3 +119,5 @@ bool ExecutePacketType3_CountOverflow(uint32_t count);
 XE_NOINLINE
 XE_COLD
 bool ExecutePacketType0_CountOverflow(uint32_t count);
+
+#undef PM4_OVERRIDE

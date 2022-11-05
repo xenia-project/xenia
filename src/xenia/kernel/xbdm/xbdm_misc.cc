@@ -13,11 +13,12 @@
 #include "xenia/kernel/xbdm/xbdm_private.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
-
+//chrispy: no idea what a real valid value is for this
+static constexpr const char DmXboxName[] = "Xbox360Name";
 namespace xe {
-namespace kernel {
+  namespace kernel {
 namespace xbdm {
-
+#define XBDM_SUCCESSFULL 0x02DA0000
 #define MAKE_DUMMY_STUB_PTR(x)             \
   dword_result_t x##_entry() { return 0; } \
   DECLARE_XBDM_EXPORT1(x, kDebug, kStub)
@@ -36,11 +37,27 @@ MAKE_DUMMY_STUB_STATUS(DmFreePool);
 dword_result_t DmGetXbeInfo_entry() {
   // TODO(gibbed): 4D5307DC appears to expect this as success?
   // Unknown arguments -- let's hope things don't explode.
-  return 0x02DA0000;
+  return XBDM_SUCCESSFULL;
 }
 DECLARE_XBDM_EXPORT1(DmGetXbeInfo, kDebug, kStub);
 
-MAKE_DUMMY_STUB_STATUS(DmGetXboxName);
+dword_result_t DmGetXboxName_entry(const ppc_context_t& ctx) {
+  uint64_t arg1 = ctx->r[3];
+  uint64_t arg2 = ctx->r[4];
+  if (!arg1 || !arg2) {
+    return 0x80070057;
+  }
+  char* name_out = ctx->TranslateVirtualGPR<char*>(arg1);
+
+  uint32_t* max_name_chars_ptr = ctx->TranslateVirtualGPR<uint32_t*>(arg2);
+
+  uint32_t max_name_chars = xe::load_and_swap<uint32_t>(max_name_chars_ptr);
+  strncpy(name_out, DmXboxName, sizeof(DmXboxName));
+
+
+  return XBDM_SUCCESSFULL;
+}
+DECLARE_XBDM_EXPORT1(DmGetXboxName, kDebug, kImplemented)
 
 dword_result_t DmIsDebuggerPresent_entry() { return 0; }
 DECLARE_XBDM_EXPORT1(DmIsDebuggerPresent, kDebug, kStub);
@@ -49,15 +66,15 @@ void DmSendNotificationString_entry(lpdword_t unk0_ptr) {}
 DECLARE_XBDM_EXPORT1(DmSendNotificationString, kDebug, kStub);
 
 dword_result_t DmRegisterCommandProcessor_entry(lpdword_t name_ptr,
-                                          lpdword_t handler_fn) {
+                                                lpdword_t handler_fn) {
   // Return success to prevent some games from crashing
   return X_STATUS_SUCCESS;
 }
 DECLARE_XBDM_EXPORT1(DmRegisterCommandProcessor, kDebug, kStub);
 
 dword_result_t DmRegisterCommandProcessorEx_entry(lpdword_t name_ptr,
-                                            lpdword_t handler_fn,
-                                            dword_t unk3) {
+                                                  lpdword_t handler_fn,
+                                                  dword_t unk3) {
   // Return success to prevent some games from stalling
   return X_STATUS_SUCCESS;
 }
@@ -65,9 +82,12 @@ DECLARE_XBDM_EXPORT1(DmRegisterCommandProcessorEx, kDebug, kStub);
 
 MAKE_DUMMY_STUB_STATUS(DmStartProfiling);
 MAKE_DUMMY_STUB_STATUS(DmStopProfiling);
-
-dword_result_t DmCaptureStackBackTrace_entry(lpdword_t unk0_ptr,
-                                             lpdword_t unk1_ptr) {
+// two arguments, first is num frames i think, second is some kind of pointer to
+// where to capture
+dword_result_t DmCaptureStackBackTrace_entry(const ppc_context_t& ctx) {
+  uint32_t nframes = static_cast<uint32_t>(ctx->r[3]);
+  uint8_t* unknown_addr =
+      ctx->TranslateVirtual(static_cast<uint32_t>(ctx->r[4]));
   return X_STATUS_INVALID_PARAMETER;
 }
 DECLARE_XBDM_EXPORT1(DmCaptureStackBackTrace, kDebug, kStub);
@@ -82,7 +102,10 @@ dword_result_t DmWalkLoadedModules_entry(lpdword_t unk0_ptr,
 }
 DECLARE_XBDM_EXPORT1(DmWalkLoadedModules, kDebug, kStub);
 
-void DmMapDevkitDrive_entry() {}
+void DmMapDevkitDrive_entry(const ppc_context_t& ctx) {
+  // games check for nonzero result, failure if nz
+  ctx->r[3] = 0ULL;
+}
 DECLARE_XBDM_EXPORT1(DmMapDevkitDrive, kDebug, kStub);
 
 dword_result_t DmFindPdbSignature_entry(lpdword_t unk0_ptr,

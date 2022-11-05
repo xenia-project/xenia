@@ -149,7 +149,7 @@ class Win32FileHandle : public FileHandle {
       return false;
     }
   }
-  bool SetLength(size_t length) {
+  bool SetLength(size_t length) override {
     LARGE_INTEGER position;
     position.QuadPart = length;
     if (!SetFilePointerEx(handle_, position, nullptr, SEEK_SET)) {

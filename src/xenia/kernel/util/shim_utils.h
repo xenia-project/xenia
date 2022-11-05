@@ -36,7 +36,7 @@ using PPCContext = xe::cpu::ppc::PPCContext;
       (xe::cpu::xe_kernel_export_shim_fn)export_name##_entry);
 
 #define SHIM_MEM_ADDR(a) \
-  ((a) ? ppc_context->kernel_state->memory()->TranslateVirtual(a) : nullptr)
+  ((a) ? ppc_context->TranslateVirtual(a) : nullptr)
 
 #define SHIM_MEM_8(a) xe::load_and_swap<uint8_t>(SHIM_MEM_ADDR(a))
 #define SHIM_MEM_16(a) xe::load_and_swap<uint16_t>(SHIM_MEM_ADDR(a))
@@ -159,7 +159,7 @@ class Param {
       uint32_t stack_ptr =
           uint32_t(init.ppc_context->r[1]) + 0x54 + (ordinal_ - 8) * 8;
       *out_value = xe::load_and_swap<V>(
-          init.ppc_context->kernel_state->memory()->TranslateVirtual(
+          init.ppc_context->TranslateVirtual(
               stack_ptr));
     }
   }
@@ -212,7 +212,7 @@ class PointerParam : public ParamBase<uint32_t> {
   PointerParam(Init& init) : ParamBase(init) {
     host_ptr_ =
         value_
-            ? init.ppc_context->kernel_state->memory()->TranslateVirtual(value_)
+            ? init.ppc_context->TranslateVirtual(value_)
             : nullptr;
   }
   PointerParam(void* host_ptr) : ParamBase(), host_ptr_(host_ptr) {}
@@ -251,8 +251,7 @@ template <typename T>
 class PrimitivePointerParam : public ParamBase<uint32_t> {
  public:
   PrimitivePointerParam(Init& init) : ParamBase(init) {
-    host_ptr_ = value_ ? init.ppc_context->kernel_state->memory()
-                             ->TranslateVirtual<xe::be<T>*>(value_)
+    host_ptr_ = value_ ? init.ppc_context->TranslateVirtual<xe::be<T>*>(value_)
                        : nullptr;
   }
   PrimitivePointerParam(T* host_ptr) : ParamBase() {
@@ -285,7 +284,7 @@ class StringPointerParam : public ParamBase<uint32_t> {
   StringPointerParam(Init& init) : ParamBase(init) {
     host_ptr_ =
         value_
-            ? init.ppc_context->kernel_state->memory()->TranslateVirtual<CHAR*>(
+            ? init.ppc_context->TranslateVirtual<CHAR*>(
                   value_)
             : nullptr;
   }
@@ -311,7 +310,7 @@ class TypedPointerParam : public ParamBase<uint32_t> {
  public:
   TypedPointerParam(Init& init) : ParamBase(init) {
     host_ptr_ =
-        value_ ? init.ppc_context->kernel_state->memory()->TranslateVirtual<T*>(
+        value_ ? init.ppc_context->TranslateVirtual<T*>(
                      value_)
                : nullptr;
   }

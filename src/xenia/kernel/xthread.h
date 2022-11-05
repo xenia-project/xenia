@@ -41,8 +41,7 @@ struct XAPC {
   // KAPC is 0x28(40) bytes? (what's passed to ExAllocatePoolWithTag)
   // This is 4b shorter than NT - looks like the reserved dword at +4 is gone.
   // NOTE: stored in guest memory.
-  uint8_t type;                      // +0
-  uint8_t unk1;                      // +1
+  uint16_t type;                      // +0
   uint8_t processor_mode;            // +2
   uint8_t enqueued;                  // +3
   xe::be<uint32_t> thread_ptr;       // +4
@@ -57,7 +56,6 @@ struct XAPC {
 
   void Initialize() {
     type = 18;  // ApcObject
-    unk1 = 0;
     processor_mode = 0;
     enqueued = 0;
     thread_ptr = 0;
