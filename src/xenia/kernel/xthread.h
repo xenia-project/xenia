@@ -101,7 +101,12 @@ struct X_KTHREAD {
   xe::be<uint32_t> stack_kernel;       // 0x64
   xe::be<uint32_t> tls_address;       // 0x68
   uint8_t unk_6C;                     // 0x6C
-  uint8_t unk_6D[0x7];                // 0x6D
+  //0x70 = priority?
+  uint8_t unk_6D[0x3];                // 0x6D
+  uint8_t priority;					  // 0x70
+  uint8_t fpu_exceptions_on;		  // 0x71
+  uint8_t unk_72;
+  uint8_t unk_73;
   xe::be<uint32_t> unk_74;            // 0x74
   xe::be<uint32_t> unk_78;            // 0x78
   xe::be<uint32_t> unk_7C;            // 0x7C

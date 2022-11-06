@@ -20,9 +20,32 @@ namespace xe {
   static_assert(sizeof(type) == size,  \
                 "bad definition for " #type ": must be " #size " bytes")
 
-// We rely on assert being compiled out in NDEBUG.
+/*
+ * chrispy: we need to ensure our expression is not eliminated by the
+ * preprocessor before the compiler runs, otherwise clang & gcc will warn about
+ * unused variables and terminate compilation
+ *
+ * Initial approach was to do "#define xenia_assert static_cast<void>" in
+ * release, however, code is generated in this case for the expression, which
+ * isnt desirable (we have assert expressions w/ side effects in a few places)
+ *
+ * so instead, when compiling for msvc we do __noop (which takes varargs and
+ * generates no code), and under clang/gcc we do __builtin_constant_p, which
+ * also does not evaluate the args
+ *
+ */
 #if defined(NDEBUG)
+
+#if XE_COMPILER_MSVC == 1
+#define xenia_assert __noop
+#elif XE_COMPILER_HAS_GNU_EXTENSIONS == 1
+#define xenia_assert __builtin_constant_p
+#else
+#warning \
+    "Compiler does not have MSVC or GNU extensions, falling back to static_cast<void> for assert expr which may cause expressions with sideeffects to be evaluated"
 #define xenia_assert static_cast<void>
+#endif
+
 #else
 #define xenia_assert assert
 #endif

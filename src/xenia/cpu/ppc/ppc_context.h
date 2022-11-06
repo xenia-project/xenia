@@ -377,6 +377,9 @@ typedef struct alignas(64) PPCContext_s {
   uint64_t r[32];   // 0x20 General purpose registers
   uint64_t ctr;     // 0x18 Count register
   uint64_t lr;      // 0x10 Link register
+
+  uint64_t msr;		//machine state register
+
   double f[32];     // 0x120 Floating-point registers
   vec128_t v[128];  // 0x220 VMX128 vector registers
   vec128_t vscr_vec;
