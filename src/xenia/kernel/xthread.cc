@@ -717,6 +717,9 @@ void XThread::RundownAPCs() {
 int32_t XThread::QueryPriority() { return thread_->priority(); }
 
 void XThread::SetPriority(int32_t increment) {
+  if (is_guest_thread()) {
+    guest_object<X_KTHREAD>()->priority = static_cast<uint8_t>(increment);
+  }
   priority_ = increment;
   int32_t target_priority = 0;
   if (increment > 0x22) {

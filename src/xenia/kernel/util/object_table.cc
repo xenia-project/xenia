@@ -149,7 +149,7 @@ X_STATUS ObjectTable::DuplicateHandle(X_HANDLE handle, X_HANDLE* out_handle) {
 X_STATUS ObjectTable::RetainHandle(X_HANDLE handle) {
   auto global_lock = global_critical_region_.Acquire();
 
-  ObjectTableEntry* entry = LookupTable(handle);
+  ObjectTableEntry* entry = LookupTableInLock(handle);
   if (!entry) {
     return X_STATUS_INVALID_HANDLE;
   }
@@ -161,7 +161,10 @@ X_STATUS ObjectTable::RetainHandle(X_HANDLE handle) {
 X_STATUS ObjectTable::ReleaseHandle(X_HANDLE handle) {
   auto global_lock = global_critical_region_.Acquire();
 
-  ObjectTableEntry* entry = LookupTable(handle);
+  return ReleaseHandleInLock(handle);
+}
+X_STATUS ObjectTable::ReleaseHandleInLock(X_HANDLE handle) {
+  ObjectTableEntry* entry = LookupTableInLock(handle);
   if (!entry) {
     return X_STATUS_INVALID_HANDLE;
   }
@@ -175,7 +178,6 @@ X_STATUS ObjectTable::ReleaseHandle(X_HANDLE handle) {
   // (but not a failure code)
   return X_STATUS_SUCCESS;
 }
-
 X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
   X_STATUS result = X_STATUS_SUCCESS;
 
@@ -183,13 +185,13 @@ X_STATUS ObjectTable::RemoveHandle(X_HANDLE handle) {
   if (!handle) {
     return X_STATUS_INVALID_HANDLE;
   }
+  auto global_lock = global_critical_region_.Acquire();
 
-  ObjectTableEntry* entry = LookupTable(handle);
+  ObjectTableEntry* entry = LookupTableInLock(handle);
   if (!entry) {
     return X_STATUS_INVALID_HANDLE;
   }
 
-  auto global_lock = global_critical_region_.Acquire();
   if (entry->object) {
     auto object = entry->object;
     entry->object = nullptr;
@@ -246,12 +248,15 @@ void ObjectTable::PurgeAllObjects() {
 }
 
 ObjectTable::ObjectTableEntry* ObjectTable::LookupTable(X_HANDLE handle) {
+  auto global_lock = global_critical_region_.Acquire();
+  return LookupTableInLock(handle);
+}
+
+ObjectTable::ObjectTableEntry* ObjectTable::LookupTableInLock(X_HANDLE handle) {
   handle = TranslateHandle(handle);
   if (!handle) {
     return nullptr;
   }
-
-  auto global_lock = global_critical_region_.Acquire();
 
   // Lower 2 bits are ignored.
   uint32_t slot = GetHandleSlot(handle);
@@ -264,8 +269,8 @@ ObjectTable::ObjectTableEntry* ObjectTable::LookupTable(X_HANDLE handle) {
 
 // Generic lookup
 template <>
-object_ref<XObject> ObjectTable::LookupObject<XObject>(
-    X_HANDLE handle, bool already_locked) {
+object_ref<XObject> ObjectTable::LookupObject<XObject>(X_HANDLE handle,
+                                                       bool already_locked) {
   auto object = ObjectTable::LookupObject(handle, already_locked);
   auto result = object_ref<XObject>(reinterpret_cast<XObject*>(object));
   return result;
@@ -320,15 +325,14 @@ void ObjectTable::GetObjectsByType(XObject::Type type,
 }
 
 X_HANDLE ObjectTable::TranslateHandle(X_HANDLE handle) {
-  if (handle == 0xFFFFFFFF) {
-    // CurrentProcess
-    // assert_always();
+  // chrispy: reordered these by likelihood, most likely case is that handle is
+  // not a special handle
+  XE_LIKELY_IF(handle < 0xFFFFFFFE) { return handle; }
+  else if (handle == 0xFFFFFFFF) {
     return 0;
-  } else if (handle == 0xFFFFFFFE) {
-    // CurrentThread
+  }
+  else {
     return XThread::GetCurrentThreadHandle();
-  } else {
-    return handle;
   }
 }
 

@@ -38,6 +38,7 @@ class ObjectTable {
   X_STATUS DuplicateHandle(X_HANDLE orig, X_HANDLE* out_handle);
   X_STATUS RetainHandle(X_HANDLE handle);
   X_STATUS ReleaseHandle(X_HANDLE handle);
+  X_STATUS ReleaseHandleInLock(X_HANDLE handle);
   X_STATUS RemoveHandle(X_HANDLE handle);
 
   bool Save(ByteStream* stream);
@@ -87,7 +88,7 @@ class ObjectTable {
     int handle_ref_count = 0;
     XObject* object = nullptr;
   };
-
+  ObjectTableEntry* LookupTableInLock(X_HANDLE handle);
   ObjectTableEntry* LookupTable(X_HANDLE handle);
   XObject* LookupObject(X_HANDLE handle, bool already_locked);
   void GetObjectsByType(XObject::Type type,

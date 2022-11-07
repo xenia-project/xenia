@@ -789,34 +789,24 @@ int InstrEmit_mtspr(PPCHIRBuilder& f, const InstrData& i) {
 // code requires it. Sequences of mtmsr/lwar/stcw/mtmsr come up a lot, and
 // without the lock here threads can livelock.
 
+
+//0x400 = debug singlestep i think
+//ive seen 0x8000 used in kernel code 
 int InstrEmit_mfmsr(PPCHIRBuilder& f, const InstrData& i) {
   // bit 48 = EE; interrupt enabled
   // bit 62 = RI; recoverable interrupt
   // return 8000h if unlocked (interrupts enabled), else 0
-#if 0
-  f.MemoryBarrier();
-  if (cvars::disable_global_lock || true) {
-    f.StoreGPR(i.X.RT, f.LoadConstantUint64(0));
-
-  } else {
-    f.CallExtern(f.builtins()->check_global_lock);
-    f.StoreGPR(i.X.RT,
-               f.LoadContext(offsetof(PPCContext, scratch), INT64_TYPE));
-  }
-#else
-  f.StoreGPR(i.X.RT, f.LoadConstantUint64(0));
-#endif
+  f.StoreGPR(i.X.RT, f.LoadContext(offsetof(PPCContext, msr), INT64_TYPE));
   return 0;
 }
 
 int InstrEmit_mtmsr(PPCHIRBuilder& f, const InstrData& i) {
-  f.StoreContext(
-      offsetof(PPCContext, scratch),
-      f.ZeroExtend(f.ZeroExtend(f.LoadGPR(i.X.RT), INT64_TYPE), INT64_TYPE));
+  f.StoreContext(offsetof(PPCContext, msr), f.LoadGPR(i.X.RT));
   return 0;
 }
 
 int InstrEmit_mtmsrd(PPCHIRBuilder& f, const InstrData& i) {
+	//todo: this is moving msr under a mask, so only writing EE and RI
   f.StoreContext(offsetof(PPCContext, scratch),
                  f.ZeroExtend(f.LoadGPR(i.X.RT), INT64_TYPE));
   return 0;
