@@ -29,6 +29,7 @@ constexpr fourcc_t kXEX1Signature = make_fourcc("XEX1");
 constexpr fourcc_t kXEX2Signature = make_fourcc("XEX2");
 constexpr fourcc_t kElfSignature = make_fourcc(0x7F, 'E', 'L', 'F');
 
+
 class Runtime;
 struct InfoCacheFlags {
   uint32_t was_resolved : 1;  // has this address ever been called/requested
@@ -38,8 +39,13 @@ struct InfoCacheFlags {
   uint32_t reserved : 29;
 };
 struct XexInfoCache {
+	//increment this to invalidate all user infocaches
+  static constexpr uint32_t CURRENT_INFOCACHE_VERSION = 1;
+
   struct InfoCacheFlagsHeader {
-    unsigned char reserved[256];  // put xenia version here
+    uint32_t version;
+
+    unsigned char reserved[252];  
 
     InfoCacheFlags* LookupFlags(unsigned offset) {
       return &reinterpret_cast<InfoCacheFlags*>(&this[1])[offset];
@@ -51,6 +57,18 @@ struct XexInfoCache {
   std::unique_ptr<MappedMemory> executable_addr_flags_;
 
   void Init(class XexModule*);
+  InfoCacheFlagsHeader* GetHeader() {
+    if (!executable_addr_flags_) {
+      return nullptr;
+    }
+    uint8_t* data = executable_addr_flags_->data();
+
+    if (!data) {
+      return nullptr;
+    }
+    return reinterpret_cast<InfoCacheFlagsHeader*>(data);
+  }
+
   InfoCacheFlags* LookupFlags(unsigned offset) {
     offset /= 4;
     if (!executable_addr_flags_) {

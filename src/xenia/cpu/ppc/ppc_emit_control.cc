@@ -789,6 +789,9 @@ int InstrEmit_mtspr(PPCHIRBuilder& f, const InstrData& i) {
 // code requires it. Sequences of mtmsr/lwar/stcw/mtmsr come up a lot, and
 // without the lock here threads can livelock.
 
+
+//0x400 = debug singlestep i think
+//ive seen 0x8000 used in kernel code 
 int InstrEmit_mfmsr(PPCHIRBuilder& f, const InstrData& i) {
   // bit 48 = EE; interrupt enabled
   // bit 62 = RI; recoverable interrupt

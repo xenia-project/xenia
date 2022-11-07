@@ -263,6 +263,12 @@ Function* Processor::ResolveFunction(uint32_t address) {
       return nullptr;
     }
 
+
+    if (!DemandFunction(function)) {
+      entry->status = Entry::STATUS_FAILED;
+      return nullptr;
+    }
+	//only add it to the list of resolved functions if resolving succeeded
     auto module_for = function->module();
 
     auto xexmod = dynamic_cast<XexModule*>(module_for);
@@ -273,10 +279,6 @@ Function* Processor::ResolveFunction(uint32_t address) {
       }
     }
 
-    if (!DemandFunction(function)) {
-      entry->status = Entry::STATUS_FAILED;
-      return nullptr;
-    }
     entry->function = function;
     entry->end_address = function->end_address();
     status = entry->status = Entry::STATUS_READY;

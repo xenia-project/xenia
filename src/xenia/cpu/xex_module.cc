@@ -1328,6 +1328,7 @@ void XexInfoCache::Init(XexModule* xexmod) {
   if (cvars::disable_instruction_infocache) {
     return;
   }
+
   auto emu = xexmod->kernel_state_->emulator();
   std::filesystem::path infocache_path = emu->cache_root();
 
@@ -1341,13 +1342,16 @@ void XexInfoCache::Init(XexModule* xexmod) {
   unsigned num_codebytes = xexmod->high_address_ - xexmod->low_address_;
   num_codebytes += 3;  // round up to nearest multiple of 4
   num_codebytes &= ~3;
+
   bool did_exist = true;
   if (!std::filesystem::exists(infocache_path)) {
+  recreate:
     xe::filesystem::CreateEmptyFile(infocache_path);
     did_exist = false;
   }
 
   // todo: prepopulate with stuff from pdata, dll exports
+
   this->executable_addr_flags_ = std::move(xe::MappedMemory::Open(
       infocache_path, xe::MappedMemory::Mode::kReadWrite, 0,
       sizeof(InfoCacheFlagsHeader) +
@@ -1355,11 +1359,17 @@ void XexInfoCache::Init(XexModule* xexmod) {
            (num_codebytes /
             4))));  // one infocacheflags entry for each PPC instr-sized addr
 
-  if (did_exist) {
-    xexmod->PrecompileKnownFunctions();
+  if (!did_exist) {
+    GetHeader()->version = CURRENT_INFOCACHE_VERSION;
+
+  } else {
+    if (GetHeader()->version != CURRENT_INFOCACHE_VERSION) {
+      this->executable_addr_flags_->Close();
+      std::filesystem::remove(infocache_path);
+      goto recreate;
+    }
   }
 }
-
 InfoCacheFlags* XexModule::GetInstructionAddressFlags(uint32_t guest_addr) {
   if (guest_addr < low_address_ || guest_addr > high_address_) {
     return nullptr;
@@ -1371,7 +1381,7 @@ InfoCacheFlags* XexModule::GetInstructionAddressFlags(uint32_t guest_addr) {
 }
 void XexModule::PrecompileDiscoveredFunctions() {
   if (cvars::disable_early_precompilation) {
-	return;
+    return;
   }
   auto others = PreanalyzeCode();
 
@@ -1396,7 +1406,7 @@ void XexModule::PrecompileKnownFunctions() {
   if (!flags) {
     return;
   }
-  //maybe should pre-acquire global crit?
+  // maybe should pre-acquire global crit?
   for (uint32_t i = 0; i < end; i++) {
     if (flags[i].was_resolved) {
       uint32_t addr = low_address_ + (i * 4);
@@ -1425,8 +1435,20 @@ static bool IsOpcodeBL(unsigned w) {
 
 std::vector<uint32_t> XexModule::PreanalyzeCode() {
   uint32_t low_8_aligned = xe::align<uint32_t>(low_address_, 8);
-  uint32_t high_8_aligned = high_address_ & ~(8U - 1);
+  
 
+
+  uint32_t highest_exec_addr = 0;
+
+  for (auto&& sec : pe_sections_) {
+    if ((sec.flags & kXEPESectionContainsCode)) {
+
+
+	  highest_exec_addr =
+          std::max<uint32_t>(highest_exec_addr, sec.address + sec.size);
+	}
+  }
+  uint32_t high_8_aligned = highest_exec_addr & ~(8U - 1);
   uint32_t n_possible_8byte_addresses = (high_8_aligned - low_8_aligned) / 8;
   uint32_t* funcstart_candidate_stack =
       new uint32_t[n_possible_8byte_addresses];
@@ -1453,6 +1475,10 @@ std::vector<uint32_t> XexModule::PreanalyzeCode() {
 
     uint32_t mfspr_r12_lr32 =
         *reinterpret_cast<const uint32_t*>(&mfspr_r12_lr[0]);
+
+	auto add_new_func = [funcstart_candidate_stack, &stack_pos](uint32_t addr) {
+      funcstart_candidate_stack[stack_pos++] = addr;
+    };
     /*
                 First pass: detect save of the link register at an eight byte
        aligned address
@@ -1462,10 +1488,10 @@ std::vector<uint32_t> XexModule::PreanalyzeCode() {
       if (*first_pass == mfspr_r12_lr32) {
         // Push our newly discovered function start into our list
         // All addresses in the list are sorted until the second pass
-        funcstart_candidate_stack[stack_pos++] =
+        add_new_func(
             static_cast<uint32_t>(reinterpret_cast<uintptr_t>(first_pass) -
                                   reinterpret_cast<uintptr_t>(range_start)) +
-            low_8_aligned;
+            low_8_aligned);
       } else if (first_pass[-1] == 0 && *first_pass != 0) {
         // originally i checked for blr followed by 0, but some functions are
         // actually aligned to greater boundaries. something that appears to be
@@ -1478,10 +1504,10 @@ std::vector<uint32_t> XexModule::PreanalyzeCode() {
         }
 
         XE_LIKELY_IF(*check_iter == blr32) {
-          funcstart_candidate_stack[stack_pos++] =
+          add_new_func(
               static_cast<uint32_t>(reinterpret_cast<uintptr_t>(first_pass) -
                                     reinterpret_cast<uintptr_t>(range_start)) +
-              low_8_aligned;
+              low_8_aligned);
         }
       }
     }
@@ -1494,8 +1520,14 @@ std::vector<uint32_t> XexModule::PreanalyzeCode() {
       uint32_t current_call = xe::byte_swap(*second_pass);
 
       if (IsOpcodeBL(current_call)) {
-        funcstart_candidate_stack[stack_pos++] = GetBLCalledFunction(
+        uint32_t called_function = GetBLCalledFunction(
             this, current_guestaddr, ppc::PPCOpcodeBits{current_call});
+        // must be 8 byte aligned and in range
+        if ((called_function & (8 - 1)) == 0 &&
+            called_function >= low_address_ &&
+            called_function < high_address_) {
+          add_new_func(called_function);
+        }
       }
     }
 
@@ -1509,8 +1541,8 @@ std::vector<uint32_t> XexModule::PreanalyzeCode() {
 
       for (uint32_t i = 0; i < n_pdata_entries; ++i) {
         uint32_t funcaddr = xe::load_and_swap<uint32_t>(&pdata_base[i * 2]);
-        if (funcaddr >= low_address_ && funcaddr <= high_address_) {
-          funcstart_candidate_stack[stack_pos++] = funcaddr;
+        if (funcaddr >= low_address_ && funcaddr <= highest_exec_addr) {
+          add_new_func(funcaddr);
         } else {
           // we hit 0 for func addr, that means we're done
           break;
