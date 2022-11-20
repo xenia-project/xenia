@@ -148,14 +148,16 @@ bool Win32FilePicker::Show(Window* parent_window) {
 
   if (type() == Type::kFile) {
     // Set the file types to display only. Notice that this is a 1-based array.
-    std::vector<std::pair<std::u16string, std::u16string>> file_pairs;
+    using u16sPair = std::pair<std::u16string, std::u16string>;
+    std::vector<std::unique_ptr<u16sPair>> file_pairs;
     std::vector<COMDLG_FILTERSPEC> file_types;
     for (const auto& extension : this->extensions()) {
       const auto& file_pair =
-          file_pairs.emplace_back(std::move(xe::to_utf16(extension.first)),
-                                  std::move(xe::to_utf16(extension.second)));
-      file_types.push_back({(LPCWSTR)file_pair.first.c_str(),
-                            (LPCWSTR)file_pair.second.c_str()});
+          file_pairs.emplace_back(std::make_unique<u16sPair>(
+              xe::to_utf16(extension.first), xe::to_utf16(extension.second)));
+      file_types.push_back(
+          {reinterpret_cast<LPCWSTR>(file_pair->first.c_str()),
+           reinterpret_cast<LPCWSTR>(file_pair->second.c_str())});
     }
     hr = file_dialog->SetFileTypes(static_cast<UINT>(file_types.size()),
                                    file_types.data());
