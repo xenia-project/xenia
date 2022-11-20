@@ -821,8 +821,7 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
   int display_start, display_end;
   ImGui::CalcListClipping(vertex_count, ImGui::GetTextLineHeight(),
                           &display_start, &display_end);
-  ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
-                       (display_start)*ImGui::GetTextLineHeight());
+  ImGui::Dummy(ImVec2(0, (display_start)*ImGui::GetTextLineHeight()));
   ImGui::Columns(column_count);
   if (display_start <= 1) {
     for (size_t el_index = 0; el_index < vertex_binding.attributes.size();
@@ -1009,8 +1008,8 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
     }
   }
   ImGui::Columns(1);
-  ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (vertex_count - display_end) *
-                                                    ImGui::GetTextLineHeight());
+  ImGui::Dummy(
+      ImVec2(0, (vertex_count - display_end) * ImGui::GetTextLineHeight()));
   ImGui::PopStyleVar();
   ImGui::EndChild();
 }
@@ -1648,8 +1647,7 @@ void TraceViewer::DrawStateUI() {
       ImGui::CalcListClipping(int(vertices.size() / 4),
                               ImGui::GetTextLineHeight(), &display_start,
                               &display_end);
-      ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
-                           (display_start)*ImGui::GetTextLineHeight());
+      ImGui::Dummy(ImVec2(0, (display_start)*ImGui::GetTextLineHeight()));
 
       ImGui::Columns(int(el_size), "#vsvertices", true);
       for (size_t i = display_start; i < display_end; i++) {
@@ -1670,9 +1668,8 @@ void TraceViewer::DrawStateUI() {
       }
       ImGui::Columns(1);
 
-      ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
-                           ((vertices.size() / 4) - display_end) *
-                               ImGui::GetTextLineHeight());
+      ImGui::Dummy(ImVec2(0, ((vertices.size() / 4) - display_end) *
+                                 ImGui::GetTextLineHeight()));
       ImGui::EndChild();
     } else {
       ImGui::Text("No vertex shader output");
@@ -1716,8 +1713,7 @@ void TraceViewer::DrawStateUI() {
       ImGui::CalcListClipping(1 + draw_info.index_count,
                               ImGui::GetTextLineHeight(), &display_start,
                               &display_end);
-      ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
-                           (display_start)*ImGui::GetTextLineHeight());
+      ImGui::Dummy(ImVec2(0, (display_start)*ImGui::GetTextLineHeight()));
       ImGui::Columns(2, "#indices", true);
       ImGui::SetColumnOffset(1, 60);
       if (display_start <= 1) {
@@ -1752,9 +1748,8 @@ void TraceViewer::DrawStateUI() {
         ImGui::NextColumn();
       }
       ImGui::Columns(1);
-      ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
-                           (draw_info.index_count - display_end) *
-                               ImGui::GetTextLineHeight());
+      ImGui::Dummy(ImVec2(0, (draw_info.index_count - display_end) *
+                                 ImGui::GetTextLineHeight()));
       ImGui::PopStyleVar();
       ImGui::EndChild();
     }
