@@ -25,7 +25,7 @@ def command_ndk_build(platform, configuration, target):
 
 def xenia_base_tests_filters():
     # https://github.com/xenia-project/xenia/issues/2036
-    return 'exclude:"Wait on Timer" exclude:"Wait on Multiple Timers"'
+    return 'exclude:"Wait on Timer" exclude:"Wait on Multiple Timers" exclude:"HighResolutionTimer"'
 
 # Run lint in a separate pipeline so that it will try building even if lint fails
 def pipeline_lint():
