@@ -736,8 +736,8 @@ void TraceViewer::DrawTextureInfo(
   ImGui::Columns(2);
   if (texture) {
     ImVec2 button_size(256, 256);
-    if (ImGui::ImageButton(ImTextureID(texture), button_size, ImVec2(0, 0),
-                           ImVec2(1, 1))) {
+    if (ImGui::ImageButton("#texture_info_image", ImTextureID(texture),
+                           button_size, ImVec2(0, 0), ImVec2(1, 1))) {
       // show viewer
     }
   } else {
@@ -1470,19 +1470,21 @@ void TraceViewer::DrawStateUI() {
         ImVec2 button_pos = ImGui::GetCursorScreenPos();
         ImVec2 button_size(256, 256);
         ImTextureID tex = 0;
+        ImGui::PushID(i);
         if (write_mask) {
           auto color_target = GetColorRenderTarget(surface_pitch, surface_msaa,
                                                    color_base, color_format);
           tex = ImTextureID(color_target);
-          if (ImGui::ImageButton(tex, button_size, ImVec2(0, 0),
+          if (ImGui::ImageButton("#color_image", tex, button_size, ImVec2(0, 0),
                                  ImVec2(1, 1))) {
             // show viewer
           }
         } else {
-          ImGui::ImageButton(ImTextureID(0), button_size, ImVec2(0, 0),
-                             ImVec2(1, 1), -1, ImVec4(0, 0, 0, 0),
+          ImGui::ImageButton("#color_image", ImTextureID(0), button_size,
+                             ImVec2(0, 0), ImVec2(1, 1), ImVec4(0, 0, 0, 0),
                              ImVec4(0, 0, 0, 0));
         }
+        ImGui::PopID();
         if (ImGui::IsItemHovered()) {
           ImGui::BeginTooltip();
           ImGui::Text("Color Target %d (%s), base %.4X, pitch %d, format %s", i,
@@ -1593,8 +1595,8 @@ void TraceViewer::DrawStateUI() {
 
       auto button_pos = ImGui::GetCursorScreenPos();
       ImVec2 button_size(256, 256);
-      ImGui::ImageButton(ImTextureID(depth_target), button_size, ImVec2(0, 0),
-                         ImVec2(1, 1));
+      ImGui::ImageButton("#depth_stencil_image", ImTextureID(depth_target),
+                         button_size, ImVec2(0, 0), ImVec2(1, 1));
       if (ImGui::IsItemHovered()) {
         ImGui::BeginTooltip();
 
