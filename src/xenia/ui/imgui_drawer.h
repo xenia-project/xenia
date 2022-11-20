@@ -23,6 +23,7 @@
 struct ImDrawData;
 struct ImGuiContext;
 struct ImGuiIO;
+enum ImGuiKey : int;
 
 namespace xe {
 namespace ui {
@@ -76,6 +77,8 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
 
   bool IsDrawingDialogs() const { return dialog_loop_next_index_ != SIZE_MAX; }
   void DetachIfLastDialogRemoved();
+
+  std::optional<ImGuiKey> VirtualKeyToImGuiKey(VirtualKey vkey);
 
   Window* window_;
   size_t z_order_;
