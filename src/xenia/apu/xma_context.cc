@@ -633,9 +633,8 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
     */
     if (ret < 0) {
       XELOGE("XmaContext {}: Error during decoding", id());
-      data->input_buffer_0_valid = 0;
-      data->input_buffer_1_valid = 0;
-
+      data->parser_error_status = 4;  // TODO(Gliniak): Find all parsing errors
+                                      // and create enumerator from them
       assert_always();
       return;  // TODO bail out
     }

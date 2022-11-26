@@ -81,7 +81,7 @@ struct XMA_CONTEXT_DATA {
   // DWORD 3
   uint32_t loop_start : 26;  // XMASetLoopData LoopStartOffset
                              // frame offset in bits
-  uint32_t unk_dword_3 : 6;  // ? ParserErrorStatus/ParserErrorSet(?)
+  uint32_t parser_error_status : 6;  // ? ParserErrorStatus/ParserErrorSet(?)
 
   // DWORD 4
   uint32_t loop_end : 26;        // XMASetLoopData LoopEndOffset
