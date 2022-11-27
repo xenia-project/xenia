@@ -492,10 +492,20 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
       }
 
       if (frame_count > 0) {
-        assert_true(xma::GetPacketFrameOffset(packet) - 32 ==
-                    split_frame_len_ - split_frame_len_partial_);
+        //assert_true(xma::GetPacketFrameOffset(packet) - 32 ==
+        //            split_frame_len_ - split_frame_len_partial_);
       }
 
+      if (split_frame_len_partial_ > split_frame_len_) {
+        XELOGAPU(
+            "XmaContext {}: Invalid split frame lengths {}! frame_length: {} "
+            "partial_length: {}",
+            id(), split_frame_len_, split_frame_len_partial_);
+        split_frame_len_ = 0;
+        split_frame_len_partial_ = 0;
+        SwapInputBuffer(data);
+        return;
+      }
       auto offset = stream.Copy(
           xma_frame_.data() + 1 +
               ((split_frame_len_partial_ + split_frame_padding_start_) / 8),
