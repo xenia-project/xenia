@@ -213,6 +213,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   func_info.stack_size = stack_size;
   stack_size_ = stack_size;
 
+  PushStackpoint();
   sub(rsp, (uint32_t)stack_size);
 
   code_offsets.prolog_stack_alloc = getSize();
@@ -271,6 +272,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   */
   // Body.
   auto block = builder->first_block();
+  synchronize_stack_on_next_instruction_ = false;
   while (block) {
     ForgetMxcsrMode();  // at start of block, mxcsr mode is undefined
 
@@ -287,6 +289,12 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
     // Process instructions.
     const Instr* instr = block->instr_head;
     while (instr) {
+      if (synchronize_stack_on_next_instruction_) {
+        if (instr->GetOpcodeNum() != hir::OPCODE_SOURCE_OFFSET) {
+          synchronize_stack_on_next_instruction_ = false;
+          EnsureSynchronizedGuestAndHostStack();
+        }
+      }
       const Instr* new_tail = instr;
       if (!SelectSequence(this, instr, &new_tail)) {
         // No sequence found!
@@ -314,6 +322,7 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   EmitProfilerEpilogue();
 
   add(rsp, (uint32_t)stack_size);
+  PopStackpoint();
   ret();
   // todo: do some kind of sorting by alignment?
   for (auto&& tail_item : tail_code_) {
@@ -453,12 +462,186 @@ void X64Emitter::UnimplementedInstr(const hir::Instr* i) {
 
 // This is used by the X64ThunkEmitter's ResolveFunctionThunk.
 uint64_t ResolveFunction(void* raw_context, uint64_t target_address) {
-  auto thread_state =
-      reinterpret_cast<ppc::PPCContext_s*>(raw_context)->thread_state;
+  auto guest_context = reinterpret_cast<ppc::PPCContext_s*>(raw_context);
+
+  auto thread_state = guest_context->thread_state;
 
   // TODO(benvanik): required?
   assert_not_zero(target_address);
 
+  /*
+          todo: refactor this!
+
+         The purpose of this code is to allow guest longjmp to call into
+     the body of an existing host function. There are a lot of conditions we
+     have to check here to ensure that we do not mess up a normal call to a
+     function
+
+         The address must be within an XexModule (may need to make some changes
+     to instructionaddressflags to remove this limitation) The target address
+     must be a known return site. The guest address must be part of a function
+     that was already translated.
+
+  */
+
+  if (cvars::enable_host_guest_stack_synchronization) {
+    auto processor = thread_state->processor();
+    auto module_for_address =
+        processor->LookupModule(static_cast<uint32_t>(target_address));
+
+    if (module_for_address) {
+      XexModule* xexmod = dynamic_cast<XexModule*>(module_for_address);
+      if (xexmod) {
+        InfoCacheFlags* flags = xexmod->GetInstructionAddressFlags(
+            static_cast<uint32_t>(target_address));
+        if (flags) {
+          if (flags->is_return_site) {
+            auto ones_with_address = processor->FindFunctionsWithAddress(
+                static_cast<uint32_t>(target_address));
+            if (ones_with_address.size() != 0) {
+              // this loop to find a host address for the guest address is
+              // necessary because FindFunctionsWithAddress works via a range
+              // check, but if the function consists of multiple blocks
+              // scattered around with "holes" of instructions that cannot be
+              // reached in between those holes the instructions that cannot be
+              // reached will incorrectly be considered members of the function
+
+              X64Function* candidate = nullptr;
+              uintptr_t host_address = 0;
+              for (auto&& entry : ones_with_address) {
+                X64Function* xfunc = static_cast<X64Function*>(entry);
+
+                host_address = xfunc->MapGuestAddressToMachineCode(
+                    static_cast<uint32_t>(target_address));
+                // host address does exist within the function, and that host
+                // function is not the start of the function, it is instead
+                // somewhere within its existing body
+                // i originally did not have this (xfunc->machine_code() !=
+                // reinterpret_cast<const uint8_t*>(host_address))) condition
+                // here when i distributed builds for testing, no issues arose
+                // related to it but i wanted to be more explicit
+                if (host_address &&
+                    xfunc->machine_code() !=
+                        reinterpret_cast<const uint8_t*>(host_address)) {
+                  candidate = xfunc;
+                  break;
+                }
+              }
+              // we found an existing X64Function, and a return site within that
+              // function that has a host address w/ native code
+              if (candidate && host_address) {
+                X64Backend* backend =
+                    static_cast<X64Backend*>(processor->backend());
+                // grab the backend context, next we have to check whether the
+                // guest and host stack are out of sync if they arent, its fine
+                // for the backend to create a new function for the guest
+                // address we're resolving if they are, it means that the reason
+                // we're resolving this address is because context is being
+                // restored (probably by longjmp)
+                X64BackendContext* backend_context =
+                    backend->BackendContextForGuestContext(guest_context);
+
+                uint32_t current_stackpoint_index =
+                    backend_context->current_stackpoint_depth;
+
+                --current_stackpoint_index;
+
+                X64BackendStackpoint* stackpoints =
+                    backend_context->stackpoints;
+
+                uint32_t current_guest_stackpointer =
+                    static_cast<uint32_t>(guest_context->r[1]);
+                uint32_t num_frames_bigger = 0;
+
+                /*
+                        if the current guest stack pointer is bigger than the
+                   recorded pointer for this stack thats fine, plenty of
+                   functions restore the original stack pointer early
+
+                        if more than 1... we're longjmping and sure of it at
+                   this point (jumping to a return site that has already been
+                   emitted)
+                */
+                while (current_stackpoint_index != 0xFFFFFFFF) {
+                  if (current_guest_stackpointer >
+                      stackpoints[current_stackpoint_index].guest_stack_) {
+                    --current_stackpoint_index;
+                    ++num_frames_bigger;
+
+                  } else {
+                    break;
+                  }
+                }
+                /*
+                                        DEFINITELY a longjmp, return original
+                   host address. returning the existing host address is going to
+                   set off some extra machinery we have set up to support this
+
+                                        to break it down, our caller (us being
+                   this ResolveFunction that this comment is in) is
+                   X64Backend::resolve_function_thunk_ which is implemented in
+                   x64_backend.cc X64HelperEmitter::EmitResolveFunctionThunk, or
+                   a call from the resolver table
+
+                                        the x64 fastcall abi dictates that the
+                   stack must always be 16 byte aligned. We select our stack
+                   size for functions to ensure that we keep rsp aligned to 16
+                   bytes
+
+                                        but by calling into the body of an
+                   existing function we've pushed our return address onto the
+                   stack (dont worry about this return address, it gets
+                   discarded in a later step)
+
+                                        this means that the stack is no longer
+                   16 byte aligned, (rsp % 16) now == 8, and this is the only
+                   time outside of the prolog or epilog of a function that this
+                   will be the case
+
+                                        so, after all direct or indirect
+                   function calls we set
+                   X64Emitter::synchronize_stack_on_next_instruction_ to true.
+                                        On the next instruction that is not
+                   OPCODE_SOURCE_OFFSET we will emit a check when we see
+                   synchronize_stack_on_next_instruction_ is true. We have to
+                   skip OPCODE_SOURCE_OFFSET because its not a "real"
+                   instruction and if we emit on it the return address of the
+                   function call will point to AFTER our check, so itll never be
+                   executed.
+
+                                        our check is just going to do test esp,
+                   15 to see if the stack is misaligned. (using esp instead of
+                   rsp saves 1 byte). We tail emit the handling for when the
+                   check succeeds because in 99.99999% of function calls it will
+                   be aligned, in the end the runtime cost of these checks is 5
+                   bytes for the test instruction which ought to be one cycle
+                   and 5 bytes for the jmp with no cycles taken for the jump
+                   which will be predicted not taken.
+
+                  Our handling for the check is implemented in X64HelperEmitter::EmitGuestAndHostSynchronizeStackHelper. we don't call it directly though,
+				  instead we go through backend()->synchronize_guest_and_host_stack_helper_for_size(num_bytes_needed_to_represent_stack_size). we place the stack size after the
+				  call instruction so we can load it in the helper and readjust the return address to point after the literal value. 
+
+				  The helper is going to search the array of stackpoints to find the first one that is greater than or equal to the current stack pointer, when it finds
+				  the entry it will set the currently host rsp to the host stack pointer value in the entry, and then subtract the stack size of the caller from that.
+				  the current stackpoint index is adjusted to point to the one after the stackpoint we restored to.
+
+				  The helper then jumps back to the function that was longjmp'ed to, with the host stack in its proper state. it just works!
+
+
+
+                 */
+
+                if (num_frames_bigger > 1) {
+                  return host_address;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
   auto fn = thread_state->processor()->ResolveFunction(
       static_cast<uint32_t>(target_address));
   assert_not_null(fn);
@@ -479,7 +662,7 @@ void X64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
       mov(rcx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
 
       call((void*)fn->machine_code());
-
+      synchronize_stack_on_next_instruction_ = true;
     } else {
       // tail call
       EmitTraceUserCallReturn();
@@ -488,8 +671,10 @@ void X64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
       mov(rcx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
 
       add(rsp, static_cast<uint32_t>(stack_size()));
+      PopStackpoint();
       jmp((void*)fn->machine_code(), T_NEAR);
     }
+
     return;
   } else if (code_cache_->has_indirection_table()) {
     // Load the pointer to the indirection table maintained in X64CodeCache.
@@ -513,12 +698,14 @@ void X64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
     mov(rcx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
 
     add(rsp, static_cast<uint32_t>(stack_size()));
+    PopStackpoint();
     jmp(rax);
   } else {
     // Return address is from the previous SET_RETURN_ADDRESS.
     mov(rcx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
 
     call(rax);
+    synchronize_stack_on_next_instruction_ = true;
   }
 }
 
@@ -557,12 +744,14 @@ void X64Emitter::CallIndirect(const hir::Instr* instr,
     mov(rcx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
 
     add(rsp, static_cast<uint32_t>(stack_size()));
+    PopStackpoint();
     jmp(rax);
   } else {
     // Return address is from the previous SET_RETURN_ADDRESS.
     mov(rcx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
 
     call(rax);
+    synchronize_stack_on_next_instruction_ = true;
   }
 }
 
@@ -1457,6 +1646,126 @@ Xbyak::Address X64Emitter::GetBackendFlagsPtr() const {
   Xbyak::Address pt = GetBackendCtxPtr(offsetof(X64BackendContext, flags));
   pt.setBit(32);
   return pt;
+}
+
+void X64Emitter::HandleStackpointOverflowError(ppc::PPCContext* context) {
+  // context->lr
+  // todo: show lr in message?
+  xe::FatalError(
+      "Overflowed stackpoints! Please report this error for this title to "
+      "Xenia developers.");
+}
+
+void X64Emitter::PushStackpoint() {
+  if (!cvars::enable_host_guest_stack_synchronization) {
+    return;
+  }
+  // push the current host and guest stack pointers
+  // this is done before a stack frame is set up or any guest instructions are
+  // executed this code is probably the most intrusive part of the stackpoint
+  mov(rbx, GetBackendCtxPtr(offsetof(X64BackendContext, stackpoints)));
+  mov(eax,
+      GetBackendCtxPtr(offsetof(X64BackendContext, current_stackpoint_depth)));
+
+  mov(r8, qword[GetContextReg() + offsetof(ppc::PPCContext, r[1])]);
+
+  imul(r9d, eax, sizeof(X64BackendStackpoint));
+  add(rbx, r9);
+
+  mov(qword[rbx + offsetof(X64BackendStackpoint, host_stack_)], rsp);
+  mov(dword[rbx + offsetof(X64BackendStackpoint, guest_stack_)], r8d);
+  if (IsFeatureEnabled(kX64FlagsIndependentVars)) {
+    inc(eax);
+  } else {
+    add(eax, 1);
+  }
+
+  mov(GetBackendCtxPtr(offsetof(X64BackendContext, current_stackpoint_depth)),
+      eax);
+
+  cmp(eax, (uint32_t)cvars::max_stackpoints);
+
+  Xbyak::Label& overflowed_stackpoints =
+      AddToTail([](X64Emitter& e, Xbyak::Label& our_tail_label) {
+        e.L(our_tail_label);
+        // we never subtracted anything from rsp, so our stack is misaligned and
+        // will fault in guesttohostthunk
+        // e.sub(e.rsp, 8);
+        e.push(e.rax);  // easier realign, 1 byte opcode vs 4 bytes for sub
+
+        e.CallNativeSafe((void*)X64Emitter::HandleStackpointOverflowError);
+      });
+  jge(overflowed_stackpoints, T_NEAR);
+}
+void X64Emitter::PopStackpoint() {
+  if (!cvars::enable_host_guest_stack_synchronization) {
+    return;
+  }
+  // todo: maybe verify that rsp and r1 == the stackpoint?
+  Xbyak::Address stackpoint_pos_pointer =
+      GetBackendCtxPtr(offsetof(X64BackendContext, current_stackpoint_depth));
+  stackpoint_pos_pointer.setBit(32);
+  dec(stackpoint_pos_pointer);
+}
+
+void X64Emitter::EnsureSynchronizedGuestAndHostStack() {
+  if (!cvars::enable_host_guest_stack_synchronization) {
+    return;
+  }
+  // chrispy: keeping this old slower test here in case in the future changes
+  // need to be made
+  // that result in the stack not being 8 byte misaligned on context reentry
+
+#if 0
+	Xbyak::Label skip{};
+	mov(r8, qword[GetContextReg() + offsetof(ppc::PPCContext, r[1])]);
+  mov(rbx, GetBackendCtxPtr(offsetof(X64BackendContext, stackpoints)));
+  imul(eax,
+       GetBackendCtxPtr(offsetof(X64BackendContext, current_stackpoint_depth)),
+       sizeof(X64BackendStackpoint));
+  sub(eax, sizeof(X64BackendStackpoint));
+  add(rbx, rax);
+
+  cmp(r8d, dword[rbx + offsetof(X64BackendStackpoint, guest_stack_)]);
+   jle(skip, T_NEAR);
+  Xbyak::Label skip{};
+  mov(r11d, stack_size());
+  call(backend_->synchronize_guest_and_host_stack_helper());
+  L(skip);
+#endif
+
+  Xbyak::Label& return_from_sync = this->NewCachedLabel();
+
+  // if we got here somehow from setjmp or the like we ought to have a
+  // misaligned stack right now! this provides us with a very fast pretest for
+  // this condition
+  test(esp, 15);
+
+  Xbyak::Label& sync_label = this->AddToTail(
+      [&return_from_sync](X64Emitter& e, Xbyak::Label& our_tail_label) {
+        e.L(our_tail_label);
+
+        uint32_t stack32 = static_cast<uint32_t>(e.stack_size());
+        auto backend = e.backend();
+
+        if (stack32 < 256) {
+          e.call(backend->synchronize_guest_and_host_stack_helper_for_size(1));
+          e.db(stack32);
+
+        } else if (stack32 < 65536) {
+          e.call(backend->synchronize_guest_and_host_stack_helper_for_size(2));
+          e.dw(stack32);
+        } else {
+          // ought to be impossible, a host stack bigger than 65536??
+          e.call(backend->synchronize_guest_and_host_stack_helper_for_size(4));
+          e.dd(stack32);
+        }
+        e.jmp(return_from_sync, T_NEAR);
+      });
+
+  jnz(sync_label, T_NEAR);
+
+  L(return_from_sync);
 }
 }  // namespace x64
 }  // namespace backend

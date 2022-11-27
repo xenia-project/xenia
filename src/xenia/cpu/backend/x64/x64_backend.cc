@@ -31,7 +31,16 @@ DEFINE_bool(record_mmio_access_exceptions, true,
             "For guest addresses records whether we caught any mmio accesses "
             "for them. This info can then be used on a subsequent run to "
             "instruct the recompiler to emit checks",
-            "CPU");
+            "x64");
+
+DEFINE_int64(max_stackpoints, 65536,
+             "Max number of host->guest stack mappings we can record.", "x64");
+
+DEFINE_bool(enable_host_guest_stack_synchronization, true,
+            "Records entries for guest/host stack mappings at function starts "
+            "and checks for reentry at return sites. Has slight performance "
+            "impact, but fixes crashes in games that use setjmp/longjmp.",
+            "x64");
 #if XE_X64_PROFILER_AVAILABLE == 1
 DECLARE_bool(instrument_call_times);
 #endif
@@ -41,15 +50,29 @@ namespace cpu {
 namespace backend {
 namespace x64 {
 
-class X64ThunkEmitter : public X64Emitter {
+class X64HelperEmitter : public X64Emitter {
  public:
-  X64ThunkEmitter(X64Backend* backend, XbyakAllocator* allocator);
-  ~X64ThunkEmitter() override;
+  struct _code_offsets {
+    size_t prolog;
+    size_t prolog_stack_alloc;
+    size_t body;
+    size_t epilog;
+    size_t tail;
+  };
+  X64HelperEmitter(X64Backend* backend, XbyakAllocator* allocator);
+  ~X64HelperEmitter() override;
   HostToGuestThunk EmitHostToGuestThunk();
   GuestToHostThunk EmitGuestToHostThunk();
   ResolveFunctionThunk EmitResolveFunctionThunk();
+  void* EmitGuestAndHostSynchronizeStackHelper();
+  // 1 for loading byte, 2 for halfword and 4 for word.
+  // these specialized versions save space in the caller
+  void* EmitGuestAndHostSynchronizeStackSizeLoadThunk(
+      void* sync_func, unsigned stack_element_size);
 
  private:
+  void* EmitCurrentForOffsets(const _code_offsets& offsets,
+                              size_t stack_size = 0);
   // The following four functions provide save/load functionality for registers.
   // They assume at least StackLayout::THUNK_STACK_SIZE bytes have been
   // allocated on the stack.
@@ -184,10 +207,25 @@ bool X64Backend::Initialize(Processor* processor) {
 
   // Generate thunks used to transition between jitted code and host code.
   XbyakAllocator allocator;
-  X64ThunkEmitter thunk_emitter(this, &allocator);
+  X64HelperEmitter thunk_emitter(this, &allocator);
   host_to_guest_thunk_ = thunk_emitter.EmitHostToGuestThunk();
   guest_to_host_thunk_ = thunk_emitter.EmitGuestToHostThunk();
   resolve_function_thunk_ = thunk_emitter.EmitResolveFunctionThunk();
+
+  if (cvars::enable_host_guest_stack_synchronization) {
+    synchronize_guest_and_host_stack_helper_ =
+        thunk_emitter.EmitGuestAndHostSynchronizeStackHelper();
+
+    synchronize_guest_and_host_stack_helper_size8_ =
+        thunk_emitter.EmitGuestAndHostSynchronizeStackSizeLoadThunk(
+            synchronize_guest_and_host_stack_helper_, 1);
+    synchronize_guest_and_host_stack_helper_size16_ =
+        thunk_emitter.EmitGuestAndHostSynchronizeStackSizeLoadThunk(
+            synchronize_guest_and_host_stack_helper_, 2);
+    synchronize_guest_and_host_stack_helper_size32_ =
+        thunk_emitter.EmitGuestAndHostSynchronizeStackSizeLoadThunk(
+            synchronize_guest_and_host_stack_helper_, 4);
+  }
 
   // Set the code cache to use the ResolveFunction thunk for default
   // indirections.
@@ -203,9 +241,10 @@ bool X64Backend::Initialize(Processor* processor) {
 
   // Setup exception callback
   ExceptionHandler::Install(&ExceptionCallbackThunk, this);
-
-  processor->memory()->SetMMIOExceptionRecordingCallback(
-      ForwardMMIOAccessForRecording, (void*)this);
+  if (cvars::record_mmio_access_exceptions) {
+    processor->memory()->SetMMIOExceptionRecordingCallback(
+        ForwardMMIOAccessForRecording, (void*)this);
+  }
 
 #if XE_X64_PROFILER_AVAILABLE == 1
   if (cvars::instrument_call_times) {
@@ -509,23 +548,32 @@ bool X64Backend::ExceptionCallback(Exception* ex) {
   return processor()->OnThreadBreakpointHit(ex);
 }
 
-X64ThunkEmitter::X64ThunkEmitter(X64Backend* backend, XbyakAllocator* allocator)
+X64HelperEmitter::X64HelperEmitter(X64Backend* backend,
+                                   XbyakAllocator* allocator)
     : X64Emitter(backend, allocator) {}
 
-X64ThunkEmitter::~X64ThunkEmitter() {}
+X64HelperEmitter::~X64HelperEmitter() {}
+void* X64HelperEmitter::EmitCurrentForOffsets(const _code_offsets& code_offsets,
+                                              size_t stack_size) {
+  EmitFunctionInfo func_info = {};
+  func_info.code_size.total = getSize();
+  func_info.code_size.prolog = code_offsets.body - code_offsets.prolog;
+  func_info.code_size.body = code_offsets.epilog - code_offsets.body;
+  func_info.code_size.epilog = code_offsets.tail - code_offsets.epilog;
+  func_info.code_size.tail = getSize() - code_offsets.tail;
+  func_info.prolog_stack_alloc_offset =
+      code_offsets.prolog_stack_alloc - code_offsets.prolog;
+  func_info.stack_size = stack_size;
 
-HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
+  void* fn = Emplace(func_info);
+  return fn;
+}
+HostToGuestThunk X64HelperEmitter::EmitHostToGuestThunk() {
   // rcx = target
   // rdx = arg0 (context)
   // r8 = arg1 (guest return address)
 
-  struct _code_offsets {
-    size_t prolog;
-    size_t prolog_stack_alloc;
-    size_t body;
-    size_t epilog;
-    size_t tail;
-  } code_offsets = {};
+  _code_offsets code_offsets = {};
 
   const size_t stack_size = StackLayout::THUNK_STACK_SIZE;
 
@@ -576,19 +624,13 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   return (HostToGuestThunk)fn;
 }
 
-GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
+GuestToHostThunk X64HelperEmitter::EmitGuestToHostThunk() {
   // rcx = target function
   // rdx = arg0
   // r8  = arg1
   // r9  = arg2
 
-  struct _code_offsets {
-    size_t prolog;
-    size_t prolog_stack_alloc;
-    size_t body;
-    size_t epilog;
-    size_t tail;
-  } code_offsets = {};
+  _code_offsets code_offsets = {};
 
   const size_t stack_size = StackLayout::THUNK_STACK_SIZE;
 
@@ -635,17 +677,11 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
 // X64Emitter handles actually resolving functions.
 uint64_t ResolveFunction(void* raw_context, uint64_t target_address);
 
-ResolveFunctionThunk X64ThunkEmitter::EmitResolveFunctionThunk() {
+ResolveFunctionThunk X64HelperEmitter::EmitResolveFunctionThunk() {
   // ebx = target PPC address
   // rcx = context
 
-  struct _code_offsets {
-    size_t prolog;
-    size_t prolog_stack_alloc;
-    size_t body;
-    size_t epilog;
-    size_t tail;
-  } code_offsets = {};
+  _code_offsets code_offsets = {};
 
   const size_t stack_size = StackLayout::THUNK_STACK_SIZE;
 
@@ -688,8 +724,116 @@ ResolveFunctionThunk X64ThunkEmitter::EmitResolveFunctionThunk() {
   void* fn = Emplace(func_info);
   return (ResolveFunctionThunk)fn;
 }
+// r11 = size of callers stack, r8 = return address w/ adjustment
+//i'm not proud of this code, but it shouldn't be executed frequently at all
+void* X64HelperEmitter::EmitGuestAndHostSynchronizeStackHelper() {
+  _code_offsets code_offsets = {};
+  code_offsets.prolog = getSize();
+  mov(rbx, GetBackendCtxPtr(offsetof(X64BackendContext, stackpoints)));
+  mov(eax,
+      GetBackendCtxPtr(offsetof(X64BackendContext, current_stackpoint_depth)));
 
-void X64ThunkEmitter::EmitSaveVolatileRegs() {
+  lea(ecx, ptr[eax - 1]);
+  mov(r9d, ptr[GetContextReg() + offsetof(ppc::PPCContext, r[1])]);
+
+  Xbyak::Label looper{};
+  Xbyak::Label loopout{};
+  Xbyak::Label signed_underflow{};
+  xor_(r12d, r12d);
+
+  //todo: should use Loop instruction here if hasFastLoop, 
+  //currently xbyak does not support it but its super easy to modify xbyak to have it
+  L(looper);
+  imul(edx, ecx, sizeof(X64BackendStackpoint));
+  mov(r10d, ptr[rbx + rdx + offsetof(X64BackendStackpoint, guest_stack_)]);
+
+  cmp(r10d, r9d);
+
+  jge(loopout, T_NEAR);
+
+  inc(r12d);
+
+  if (IsFeatureEnabled(kX64FlagsIndependentVars)) {
+    dec(ecx);
+  } else {
+    sub(ecx, 1);
+  }
+  js(signed_underflow, T_NEAR);  // should be impossible!!
+
+
+  jmp(looper, T_NEAR);
+  L(loopout);
+  Xbyak::Label skip_adjust{};
+  cmp(r12d, 1);//should never happen?
+  jle(skip_adjust, T_NEAR);
+  mov(rsp, ptr[rbx + rdx + offsetof(X64BackendStackpoint, host_stack_)]);
+  if (IsFeatureEnabled(kX64FlagsIndependentVars)) {
+    inc(ecx);
+  } else {
+    add(ecx, 1);
+  }
+
+  // this->DebugBreak();
+  sub(rsp, r11);  // adjust stack
+
+  mov(GetBackendCtxPtr(offsetof(X64BackendContext, current_stackpoint_depth)),
+      ecx);  // set next stackpoint index to be after the one we restored to
+  L(skip_adjust);
+
+  jmp(r8);  // return to caller
+  code_offsets.prolog_stack_alloc = getSize();
+  code_offsets.body = getSize();
+  code_offsets.epilog = getSize();
+  code_offsets.tail = getSize();
+
+  L(signed_underflow);
+  //find a good, compact way to signal error here
+  // maybe an invalid opcode that we execute, then detect in an exception handler?
+  
+  this->DebugBreak();
+  // stack unwinding, take first entry
+  //actually, no reason to have this
+
+  /*mov(rsp, ptr[rbx + offsetof(X64BackendStackpoint, host_stack_)]);
+  mov(ptr[rbx + offsetof(X64BackendStackpoint, guest_stack_)], r9d);
+  sub(rsp, r11);
+  xor_(eax, eax);
+  inc(eax);
+  mov(GetBackendCtxPtr(offsetof(X64BackendContext, current_stackpoint_depth)),
+      eax);
+
+  jmp(r8);*/
+  //  this->DebugBreak();  // err, add an xe::FatalError to call for this
+
+  return EmitCurrentForOffsets(code_offsets);
+}
+
+void* X64HelperEmitter::EmitGuestAndHostSynchronizeStackSizeLoadThunk(
+    void* sync_func, unsigned stack_element_size) {
+  _code_offsets code_offsets = {};
+  code_offsets.prolog = getSize();
+  pop(r8);  // return address
+
+  switch (stack_element_size) {
+    case 4:
+      mov(r11d, ptr[r8]);
+      break;
+    case 2:
+      movzx(r11d, word[r8]);
+      break;
+    case 1:
+      movzx(r11d, byte[r8]);
+      break;
+  }
+  add(r8, stack_element_size);
+  jmp(sync_func, T_NEAR);
+  code_offsets.prolog_stack_alloc = getSize();
+  code_offsets.body = getSize();
+  code_offsets.epilog = getSize();
+  code_offsets.tail = getSize();
+  return EmitCurrentForOffsets(code_offsets);
+}
+void X64HelperEmitter::EmitSaveVolatileRegs() {
   // Save off volatile registers.
   // mov(qword[rsp + offsetof(StackLayout::Thunk, r[0])], rax);
   mov(qword[rsp + offsetof(StackLayout::Thunk, r[1])], rcx);
@@ -711,7 +855,7 @@ void X64ThunkEmitter::EmitSaveVolatileRegs() {
   vmovaps(qword[rsp + offsetof(StackLayout::Thunk, xmm[5])], xmm5);
 }
 
-void X64ThunkEmitter::EmitLoadVolatileRegs() {
+void X64HelperEmitter::EmitLoadVolatileRegs() {
   // mov(rax, qword[rsp + offsetof(StackLayout::Thunk, r[0])]);
   mov(rcx, qword[rsp + offsetof(StackLayout::Thunk, r[1])]);
   mov(rdx, qword[rsp + offsetof(StackLayout::Thunk, r[2])]);
@@ -732,7 +876,7 @@ void X64ThunkEmitter::EmitLoadVolatileRegs() {
   vmovaps(xmm5, qword[rsp + offsetof(StackLayout::Thunk, xmm[5])]);
 }
 
-void X64ThunkEmitter::EmitSaveNonvolatileRegs() {
+void X64HelperEmitter::EmitSaveNonvolatileRegs() {
   mov(qword[rsp + offsetof(StackLayout::Thunk, r[0])], rbx);
   mov(qword[rsp + offsetof(StackLayout::Thunk, r[1])], rbp);
 #if XE_PLATFORM_WIN32
@@ -760,7 +904,7 @@ void X64ThunkEmitter::EmitSaveNonvolatileRegs() {
 #endif
 }
 
-void X64ThunkEmitter::EmitLoadNonvolatileRegs() {
+void X64HelperEmitter::EmitLoadNonvolatileRegs() {
   mov(rbx, qword[rsp + offsetof(StackLayout::Thunk, r[0])]);
   mov(rbp, qword[rsp + offsetof(StackLayout::Thunk, r[1])]);
 #if XE_PLATFORM_WIN32
@@ -788,16 +932,41 @@ void X64ThunkEmitter::EmitLoadNonvolatileRegs() {
 }
 void X64Backend::InitializeBackendContext(void* ctx) {
   X64BackendContext* bctx = BackendContextForGuestContext(ctx);
-  bctx->ResolveFunction_Ptr = reinterpret_cast<void*>(&ResolveFunction);
   bctx->mxcsr_fpu =
       DEFAULT_FPU_MXCSR;  // idk if this is right, check on rgh what the
                           // rounding on ppc is at startup
+
+  /*
+          todo: stackpoint arrays should be pooled virtual memory at the very
+     least there may be some fancy virtual address tricks we can do here
+
+  */
+
+  bctx->stackpoints = cvars::enable_host_guest_stack_synchronization
+                          ? new X64BackendStackpoint[cvars::max_stackpoints]
+                          : nullptr;
+  bctx->current_stackpoint_depth = 0;
   bctx->mxcsr_vmx = DEFAULT_VMX_MXCSR;
   bctx->flags = 0;
   // https://media.discordapp.net/attachments/440280035056943104/1000765256643125308/unknown.png
   bctx->Ox1000 = 0x1000;
   bctx->guest_tick_count = Clock::GetGuestTickCountPointer();
 }
+void X64Backend::DeinitializeBackendContext(void* ctx) {
+  X64BackendContext* bctx = BackendContextForGuestContext(ctx);
+
+  if (bctx->stackpoints) {
+    delete[] bctx->stackpoints;
+    bctx->stackpoints = nullptr;
+  }
+}
+
+void X64Backend::PrepareForReentry(void* ctx) {
+  X64BackendContext* bctx = BackendContextForGuestContext(ctx);
+
+  bctx->current_stackpoint_depth = 0;
+}
+
 const uint32_t mxcsr_table[8] = {
     0x1F80, 0x7F80, 0x5F80, 0x3F80, 0x9F80, 0xFF80, 0xDF80, 0xBF80,
 };

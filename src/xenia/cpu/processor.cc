@@ -263,12 +263,11 @@ Function* Processor::ResolveFunction(uint32_t address) {
       return nullptr;
     }
 
-
     if (!DemandFunction(function)) {
       entry->status = Entry::STATUS_FAILED;
       return nullptr;
     }
-	//only add it to the list of resolved functions if resolving succeeded
+    //only add it to the list of resolved functions if resolving succeeded
     auto module_for = function->module();
 
     auto xexmod = dynamic_cast<XexModule*>(module_for);
@@ -291,23 +290,23 @@ Function* Processor::ResolveFunction(uint32_t address) {
     return nullptr;
   }
 }
-
+Module* Processor::LookupModule(uint32_t address) {
+  auto global_lock = global_critical_region_.Acquire();
+  // TODO(benvanik): sort by code address (if contiguous) so can bsearch.
+  // TODO(benvanik): cache last module low/high, as likely to be in there.
+  for (const auto& module : modules_) {
+    if (module->ContainsAddress(address)) {
+      return module.get();
+    }
+  }
+  return nullptr;
+}
 Function* Processor::LookupFunction(uint32_t address) {
   // TODO(benvanik): fast reject invalid addresses/log errors.
 
   // Find the module that contains the address.
-  Module* code_module = nullptr;
-  {
-    auto global_lock = global_critical_region_.Acquire();
-    // TODO(benvanik): sort by code address (if contiguous) so can bsearch.
-    // TODO(benvanik): cache last module low/high, as likely to be in there.
-    for (const auto& module : modules_) {
-      if (module->ContainsAddress(address)) {
-        code_module = module.get();
-        break;
-      }
-    }
-  }
+  Module* code_module = LookupModule(address);
+
   if (!code_module) {
     // No module found that could contain the address.
     return nullptr;

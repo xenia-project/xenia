@@ -28,6 +28,9 @@ namespace xe {
 namespace memory {
 
 size_t page_size() {
+#if XE_ARCH_AMD64 == 1
+  return 4096;
+#else
   static size_t value = 0;
   if (!value) {
     SYSTEM_INFO si;
@@ -35,9 +38,13 @@ size_t page_size() {
     value = si.dwPageSize;
   }
   return value;
+#endif
 }
 
 size_t allocation_granularity() {
+#if XE_ARCH_AMD64 == 1 && XE_PLATFORM_WIN32 == 1
+  return 65536;
+#else
   static size_t value = 0;
   if (!value) {
     SYSTEM_INFO si;
@@ -45,6 +52,7 @@ size_t allocation_granularity() {
     value = si.dwAllocationGranularity;
   }
   return value;
+#endif
 }
 
 DWORD ToWin32ProtectFlags(PageAccess access) {

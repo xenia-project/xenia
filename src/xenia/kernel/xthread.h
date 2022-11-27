@@ -121,7 +121,7 @@ struct X_KTHREAD {
   uint8_t unk_B4[0x8];                // 0xB4
   uint8_t suspend_count;              // 0xBC
   uint8_t unk_BD;                     // 0xBD
-  uint8_t unk_BE;                     // 0xBE
+  uint8_t terminated;                     // 0xBE
   uint8_t current_cpu;                // 0xBF
   uint8_t unk_C0[0x10];               // 0xC0
   xe::be<uint32_t> stack_alloc_base;  // 0xD0

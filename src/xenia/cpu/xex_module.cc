@@ -38,9 +38,10 @@ DEFINE_bool(disable_instruction_infocache, false,
             "CPU");
 
 DEFINE_bool(
-    disable_early_precompilation, false,
-    "Disables pre-compiling guest functions that we know we've called/that "
-    "we've recognized as being functions via simple heuristics.",
+    enable_early_precompilation, false,
+    "Enable pre-compiling guest functions that we know we've called/that "
+    "we've recognized as being functions via simple heuristics, good for error "
+    "finding/stress testing with the JIT",
     "CPU");
 
 static const uint8_t xe_xex2_retail_key[16] = {
@@ -1115,6 +1116,7 @@ void XexModule::Precompile() {
   if (!FindSaveRest()) {
     return;
   }
+
   info_cache_.Init(this);
   PrecompileDiscoveredFunctions();
 }
@@ -1343,22 +1345,26 @@ void XexInfoCache::Init(XexModule* xexmod) {
   num_codebytes += 3;  // round up to nearest multiple of 4
   num_codebytes &= ~3;
 
-  bool did_exist = true;
-  if (!std::filesystem::exists(infocache_path)) {
-  recreate:
-    xe::filesystem::CreateEmptyFile(infocache_path);
-    did_exist = false;
-  }
+  auto try_open = [this, &infocache_path, num_codebytes]() {
+    bool did_exist = true;
 
-  // todo: prepopulate with stuff from pdata, dll exports
+    if (!std::filesystem::exists(infocache_path)) {
+      xe::filesystem::CreateEmptyFile(infocache_path);
+      did_exist = false;
+    }
 
-  this->executable_addr_flags_ = std::move(xe::MappedMemory::Open(
-      infocache_path, xe::MappedMemory::Mode::kReadWrite, 0,
-      sizeof(InfoCacheFlagsHeader) +
-          (sizeof(InfoCacheFlags) *
-           (num_codebytes /
-            4))));  // one infocacheflags entry for each PPC instr-sized addr
+    // todo: prepopulate with stuff from pdata, dll exports
 
+    this->executable_addr_flags_ = std::move(xe::MappedMemory::Open(
+        infocache_path, xe::MappedMemory::Mode::kReadWrite, 0,
+        sizeof(InfoCacheFlagsHeader) +
+            (sizeof(InfoCacheFlags) *
+             (num_codebytes /
+              4))));  // one infocacheflags entry for each PPC instr-sized addr
+    return did_exist;
+  };
+
+  bool did_exist = try_open();
   if (!did_exist) {
     GetHeader()->version = CURRENT_INFOCACHE_VERSION;
 
@@ -1366,7 +1372,7 @@ void XexInfoCache::Init(XexModule* xexmod) {
     if (GetHeader()->version != CURRENT_INFOCACHE_VERSION) {
       this->executable_addr_flags_->Close();
       std::filesystem::remove(infocache_path);
-      goto recreate;
+      try_open();
     }
   }
 }
@@ -1380,7 +1386,7 @@ InfoCacheFlags* XexModule::GetInstructionAddressFlags(uint32_t guest_addr) {
   return info_cache_.LookupFlags(guest_addr);
 }
 void XexModule::PrecompileDiscoveredFunctions() {
-  if (cvars::disable_early_precompilation) {
+  if (!cvars::enable_early_precompilation) {
     return;
   }
   auto others = PreanalyzeCode();
@@ -1397,7 +1403,7 @@ void XexModule::PrecompileDiscoveredFunctions() {
   }
 }
 void XexModule::PrecompileKnownFunctions() {
-  if (cvars::disable_early_precompilation) {
+  if (!cvars::enable_early_precompilation) {
     return;
   }
   uint32_t start = 0;
@@ -1435,18 +1441,14 @@ static bool IsOpcodeBL(unsigned w) {
 
 std::vector<uint32_t> XexModule::PreanalyzeCode() {
   uint32_t low_8_aligned = xe::align<uint32_t>(low_address_, 8);
-  
-
 
   uint32_t highest_exec_addr = 0;
 
   for (auto&& sec : pe_sections_) {
     if ((sec.flags & kXEPESectionContainsCode)) {
-
-
-	  highest_exec_addr =
+      highest_exec_addr =
           std::max<uint32_t>(highest_exec_addr, sec.address + sec.size);
-	}
+    }
   }
   uint32_t high_8_aligned = highest_exec_addr & ~(8U - 1);
   uint32_t n_possible_8byte_addresses = (high_8_aligned - low_8_aligned) / 8;
@@ -1476,7 +1478,7 @@ std::vector<uint32_t> XexModule::PreanalyzeCode() {
     uint32_t mfspr_r12_lr32 =
         *reinterpret_cast<const uint32_t*>(&mfspr_r12_lr[0]);
 
-	auto add_new_func = [funcstart_candidate_stack, &stack_pos](uint32_t addr) {
+    auto add_new_func = [funcstart_candidate_stack, &stack_pos](uint32_t addr) {
       funcstart_candidate_stack[stack_pos++] = addr;
     };
     /*
@@ -1926,7 +1928,7 @@ bool XexModule::FindSaveRest() {
       address += 2 * 4;
     }
   }
-  if (!cvars::disable_early_precompilation) {
+  if (cvars::enable_early_precompilation) {
     for (auto&& to_ensure_precompiled : resolve_on_exit) {
       // we want to make sure an address for these functions is available before
       // any other functions are compiled for code generation purposes but we do

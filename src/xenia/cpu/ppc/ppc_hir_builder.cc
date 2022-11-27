@@ -27,16 +27,11 @@
 #include "xenia/cpu/ppc/ppc_frontend.h"
 #include "xenia/cpu/ppc/ppc_opcode_info.h"
 #include "xenia/cpu/processor.h"
-
+#include "xenia/cpu/xex_module.h"
 DEFINE_bool(
     break_on_unimplemented_instructions, true,
     "Break to the host debugger (or crash if no debugger attached) if an "
     "unimplemented PowerPC instruction is encountered.",
-    "CPU");
-
-DEFINE_bool(
-    emit_useless_fpscr_updates, false,
-    "Emit useless fpscr update instructions (pre-10/30/2022 behavior). ",
     "CPU");
 
 namespace xe {
@@ -94,8 +89,9 @@ bool PPCHIRBuilder::Emit(GuestFunction* function, uint32_t flags) {
 
   function_ = function;
   start_address_ = function_->address();
-  //chrispy: i've seen this one happen, not sure why but i think from trying to precompile twice
-  //i've also seen ones with a start and end address that are the same...
+  // chrispy: i've seen this one happen, not sure why but i think from trying to
+  // precompile twice i've also seen ones with a start and end address that are
+  // the same...
   assert_true(function_->address() <= function_->end_address());
   instr_count_ = (function_->end_address() - function_->address()) / 4 + 1;
 
@@ -250,7 +246,8 @@ void PPCHIRBuilder::MaybeBreakOnInstruction(uint32_t address) {
 }
 
 void PPCHIRBuilder::AnnotateLabel(uint32_t address, Label* label) {
-	//chrispy: label->name is unused, it would be nice to be able to remove the field and this code
+  // chrispy: label->name is unused, it would be nice to be able to remove the
+  // field and this code
   char name_buffer[13];
   auto format_result = fmt::format_to_n(name_buffer, 12, "loc_{:08X}", address);
   name_buffer[format_result.size] = '\0';
@@ -457,37 +454,38 @@ void PPCHIRBuilder::UpdateFPSCR(Value* result, bool update_cr1) {
   // TODO(benvanik): detect overflow and nan cases.
   // fx and vx are the most important.
   /*
-          chrispy: stubbed this out because right now all it does is waste
-     memory and CPU time
+    chrispy: i stubbed this out at one point because all it does is waste
+     memory and CPU time, however, this introduced issues with raiden
+    (substitute w/ titleid later) which probably means they stash stuff in the
+    fpscr?
+
   */
-  if (cvars::emit_useless_fpscr_updates) {
-    Value* fx = LoadConstantInt8(0);
-    Value* fex = LoadConstantInt8(0);
-    Value* vx = LoadConstantInt8(0);
-    Value* ox = LoadConstantInt8(0);
 
-    if (update_cr1) {
-      // Store into the CR1 field.
-      // We do this instead of just calling CopyFPSCRToCR1 so that we don't
-      // have to read back the bits and do shifting work.
-      StoreContext(offsetof(PPCContext, cr1.cr1_fx), fx);
-      StoreContext(offsetof(PPCContext, cr1.cr1_fex), fex);
-      StoreContext(offsetof(PPCContext, cr1.cr1_vx), vx);
-      StoreContext(offsetof(PPCContext, cr1.cr1_ox), ox);
-    }
+  Value* fx = LoadConstantInt8(0);
+  Value* fex = LoadConstantInt8(0);
+  Value* vx = LoadConstantInt8(0);
+  Value* ox = LoadConstantInt8(0);
 
-    // Generate our new bits.
-    Value* new_bits = Shl(ZeroExtend(fx, INT32_TYPE), 31);
-    new_bits = Or(new_bits, Shl(ZeroExtend(fex, INT32_TYPE), 30));
-    new_bits = Or(new_bits, Shl(ZeroExtend(vx, INT32_TYPE), 29));
-    new_bits = Or(new_bits, Shl(ZeroExtend(ox, INT32_TYPE), 28));
-
-    // Mix into fpscr while preserving sticky bits (FX and OX).
-    Value* bits = LoadFPSCR();
-    bits = Or(And(bits, LoadConstantUint32(0x9FFFFFFF)), new_bits);
-    StoreFPSCR(bits);
+  if (update_cr1) {
+    // Store into the CR1 field.
+    // We do this instead of just calling CopyFPSCRToCR1 so that we don't
+    // have to read back the bits and do shifting work.
+    StoreContext(offsetof(PPCContext, cr1.cr1_fx), fx);
+    StoreContext(offsetof(PPCContext, cr1.cr1_fex), fex);
+    StoreContext(offsetof(PPCContext, cr1.cr1_vx), vx);
+    StoreContext(offsetof(PPCContext, cr1.cr1_ox), ox);
   }
 
+  // Generate our new bits.
+  Value* new_bits = Shl(ZeroExtend(fx, INT32_TYPE), 31);
+  new_bits = Or(new_bits, Shl(ZeroExtend(fex, INT32_TYPE), 30));
+  new_bits = Or(new_bits, Shl(ZeroExtend(vx, INT32_TYPE), 29));
+  new_bits = Or(new_bits, Shl(ZeroExtend(ox, INT32_TYPE), 28));
+
+  // Mix into fpscr while preserving sticky bits (FX and OX).
+  Value* bits = LoadFPSCR();
+  bits = Or(And(bits, LoadConstantUint32(0x9FFFFFFF)), new_bits);
+  StoreFPSCR(bits);
 }
 
 void PPCHIRBuilder::CopyFPSCRToCR1() {
@@ -587,7 +585,24 @@ void PPCHIRBuilder::StoreReserved(Value* val) {
 Value* PPCHIRBuilder::LoadReserved() {
   return LoadContext(offsetof(PPCContext, reserved_val), INT64_TYPE);
 }
+void PPCHIRBuilder::SetReturnAddress(Value* value) {
+  /*
+     Record the address as being a possible target of a return. This is
+     needed for longjmp emulation. See x64_emitter.cc's ResolveFunction
+  */
+  Module* mod = this->function_->module();
+  if (value && value->IsConstant()) {
+    if (mod) {
+      XexModule* xexmod = dynamic_cast<XexModule*>(mod);
+      if (xexmod) {
+        auto flags = xexmod->GetInstructionAddressFlags(value->AsUint32());
+        flags->is_return_site = true;
+      }
+    }
+  }
 
+  HIRBuilder::SetReturnAddress(value);
+}
 }  // namespace ppc
 }  // namespace cpu
 }  // namespace xe

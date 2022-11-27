@@ -110,8 +110,13 @@ uint32_t GuestFunction::MapGuestAddressToMachineCodeOffset(
 uintptr_t GuestFunction::MapGuestAddressToMachineCode(
     uint32_t guest_address) const {
   auto entry = LookupGuestAddress(guest_address);
-  return reinterpret_cast<uintptr_t>(machine_code()) +
-         (entry ? entry->code_offset : 0);
+
+  if (entry) {
+    return reinterpret_cast<uintptr_t>(machine_code()) + entry->code_offset;
+  } else {
+    return 0;
+  
+  }
 }
 
 uint32_t GuestFunction::MapMachineCodeToGuestAddress(

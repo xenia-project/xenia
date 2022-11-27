@@ -115,6 +115,7 @@ class Processor {
   void RemoveFunctionByAddress(uint32_t address);
 
   Function* LookupFunction(uint32_t address);
+  Module* LookupModule(uint32_t address);
   Function* LookupFunction(Module* module, uint32_t address);
   Function* ResolveFunction(uint32_t address);
 

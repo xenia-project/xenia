@@ -508,7 +508,16 @@ dword_result_t RtlInitializeCriticalSectionAndSpinCount_entry(
 DECLARE_XBOXKRNL_EXPORT1(RtlInitializeCriticalSectionAndSpinCount, kNone,
                          kImplemented);
 
+static void CriticalSectionPrefetchW(const void* vp) {
+#if XE_ARCH_AMD64 == 1
+  if (amd64::GetFeatureFlags() & amd64::kX64EmitPrefetchW) {
+    swcache::PrefetchW(vp);
+  }
+#endif
+}
+
 void RtlEnterCriticalSection_entry(pointer_t<X_RTL_CRITICAL_SECTION> cs) {
+  CriticalSectionPrefetchW(&cs->lock_count);
   uint32_t cur_thread = XThread::GetCurrentThread()->guest_object();
   uint32_t spin_count = cs->header.absolute * 256;
 
@@ -544,6 +553,7 @@ DECLARE_XBOXKRNL_EXPORT2(RtlEnterCriticalSection, kNone, kImplemented,
 
 dword_result_t RtlTryEnterCriticalSection_entry(
     pointer_t<X_RTL_CRITICAL_SECTION> cs) {
+  CriticalSectionPrefetchW(&cs->lock_count);
   uint32_t thread = XThread::GetCurrentThread()->guest_object();
 
   if (xe::atomic_cas(-1, 0, &cs->lock_count)) {

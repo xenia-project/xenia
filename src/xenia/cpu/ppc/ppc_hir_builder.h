@@ -80,7 +80,8 @@ class PPCHIRBuilder : public hir::HIRBuilder {
 
   void StoreReserved(Value* val);
   Value* LoadReserved();
-
+  //calls original impl in hirbuilder, but also records the is_return_site bit into flags in the guestmodule
+  void SetReturnAddress(Value* value);
  private:
   void MaybeBreakOnInstruction(uint32_t address);
   void AnnotateLabel(uint32_t address, Label* label);

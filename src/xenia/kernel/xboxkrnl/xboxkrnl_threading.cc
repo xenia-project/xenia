@@ -7,6 +7,7 @@
  ******************************************************************************
  */
 
+#include "xenia/kernel/xboxkrnl/xboxkrnl_threading.h"
 #include <algorithm>
 #include <vector>
 #include "xenia/base/atomic.h"
@@ -18,7 +19,6 @@
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
-#include "xenia/kernel/xboxkrnl/xboxkrnl_threading.h"
 #include "xenia/kernel/xevent.h"
 #include "xenia/kernel/xmutant.h"
 #include "xenia/kernel/xsemaphore.h"
@@ -165,8 +165,16 @@ dword_result_t NtResumeThread_entry(dword_t handle,
   uint32_t suspend_count = 0;
 
   auto thread = kernel_state()->object_table()->LookupObject<XThread>(handle);
+
   if (thread) {
-    result = thread->Resume(&suspend_count);
+    if (thread->type() == XObject::Type::Thread) {
+      result = thread->Resume(&suspend_count);
+
+    } else {
+      return X_STATUS_OBJECT_TYPE_MISMATCH;
+    }
+  } else {
+    return X_STATUS_INVALID_HANDLE;
   }
   if (suspend_count_ptr) {
     *suspend_count_ptr = suspend_count;
@@ -190,15 +198,27 @@ dword_result_t KeResumeThread_entry(lpvoid_t thread_ptr) {
 DECLARE_XBOXKRNL_EXPORT1(KeResumeThread, kThreading, kImplemented);
 
 dword_result_t NtSuspendThread_entry(dword_t handle,
-                                     lpdword_t suspend_count_ptr) {
+                                     lpdword_t suspend_count_ptr,
+                                     const ppc_context_t& context) {
   X_RESULT result = X_STATUS_SUCCESS;
   uint32_t suspend_count = 0;
 
   auto thread = kernel_state()->object_table()->LookupObject<XThread>(handle);
   if (thread) {
-    result = thread->Suspend(&suspend_count);
+    if (thread->type() == XObject::Type::Thread) {
+      auto current_pcr = context->TranslateVirtualGPR<X_KPCR*>(context->r[13]);
+
+      if (current_pcr->current_thread == thread->guest_object() ||
+          !thread->guest_object<X_KTHREAD>()->terminated) {
+        result = thread->Suspend(&suspend_count);
+      } else {
+        return X_STATUS_THREAD_IS_TERMINATING;
+      }
+    } else {
+      return X_STATUS_OBJECT_TYPE_MISMATCH;
+    }
   } else {
-    result = X_STATUS_INVALID_HANDLE;
+    return X_STATUS_INVALID_HANDLE;
   }
 
   if (suspend_count_ptr) {
@@ -213,23 +233,23 @@ void KeSetCurrentStackPointers_entry(lpvoid_t stack_ptr,
                                      pointer_t<X_KTHREAD> thread,
                                      lpvoid_t stack_alloc_base,
                                      lpvoid_t stack_base,
-                                     lpvoid_t stack_limit) {
+                                     lpvoid_t stack_limit, const ppc_context_t& context) {
   auto current_thread = XThread::GetCurrentThread();
-  auto context = current_thread->thread_state()->context();
-  auto pcr = kernel_memory()->TranslateVirtual<X_KPCR*>(
-      static_cast<uint32_t>(context->r[13]));
 
+  auto pcr = context->TranslateVirtualGPR<X_KPCR*>(context->r[13]);
+	
   thread->stack_alloc_base = stack_alloc_base.value();
   thread->stack_base = stack_base.value();
   thread->stack_limit = stack_limit.value();
   pcr->stack_base_ptr = stack_base.guest_address();
   pcr->stack_end_ptr = stack_limit.guest_address();
   context->r[1] = stack_ptr.guest_address();
-
+  
   // If a fiber is set, and the thread matches, reenter to avoid issues with
   // host stack overflowing.
   if (thread->fiber_ptr &&
       current_thread->guest_object() == thread.guest_address()) {
+    context->processor->backend()->PrepareForReentry(context.value());
     current_thread->Reenter(static_cast<uint32_t>(context->lr));
   }
 }
@@ -1018,7 +1038,8 @@ void KeAcquireSpinLockAtRaisedIrql_entry(lpdword_t lock_ptr,
   assert_true(*lock_ptr != static_cast<uint32_t>(ppc_ctx->r[13]));
 
   PrefetchForCAS(lock);
-  while (!xe::atomic_cas(0, xe::byte_swap(static_cast<uint32_t>(ppc_ctx->r[13])), lock)) {
+  while (!xe::atomic_cas(
+      0, xe::byte_swap(static_cast<uint32_t>(ppc_ctx->r[13])), lock)) {
 #if XE_ARCH_AMD64 == 1
     // todo: this is just a nop if they don't have SMT, which is not great
     // either...
@@ -1038,7 +1059,8 @@ dword_result_t KeTryToAcquireSpinLockAtRaisedIrql_entry(
   auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
   assert_true(*lock_ptr != static_cast<uint32_t>(ppc_ctx->r[13]));
   PrefetchForCAS(lock);
-  if (!xe::atomic_cas(0, xe::byte_swap(static_cast<uint32_t>(ppc_ctx->r[13])), lock)) {
+  if (!xe::atomic_cas(0, xe::byte_swap(static_cast<uint32_t>(ppc_ctx->r[13])),
+                      lock)) {
     return 0;
   }
   return 1;
@@ -1281,7 +1303,8 @@ DECLARE_XBOXKRNL_EXPORT1(ExInitializeReadWriteLock, kThreading, kImplemented);
 
 void ExAcquireReadWriteLockExclusive_entry(pointer_t<X_ERWLOCK> lock_ptr,
                                            const ppc_context_t& ppc_context) {
-  auto old_irql = xeKeKfAcquireSpinLock(&lock_ptr->spin_lock, ppc_context->r[13]);
+  auto old_irql =
+      xeKeKfAcquireSpinLock(&lock_ptr->spin_lock, ppc_context->r[13]);
 
   int32_t lock_count = ++lock_ptr->lock_count;
   if (!lock_count) {
@@ -1318,7 +1341,8 @@ DECLARE_XBOXKRNL_EXPORT1(ExTryToAcquireReadWriteLockExclusive, kThreading,
 
 void ExAcquireReadWriteLockShared_entry(pointer_t<X_ERWLOCK> lock_ptr,
                                         const ppc_context_t& ppc_context) {
-  auto old_irql = xeKeKfAcquireSpinLock(&lock_ptr->spin_lock, ppc_context->r[13]);
+  auto old_irql =
+      xeKeKfAcquireSpinLock(&lock_ptr->spin_lock, ppc_context->r[13]);
 
   int32_t lock_count = ++lock_ptr->lock_count;
   if (!lock_count ||

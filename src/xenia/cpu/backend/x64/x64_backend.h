@@ -24,7 +24,8 @@
 #endif
 
 DECLARE_int64(x64_extension_mask);
-
+DECLARE_int64(max_stackpoints);
+DECLARE_bool(enable_host_guest_stack_synchronization);
 namespace xe {
 class Exception;
 }  // namespace xe
@@ -41,14 +42,25 @@ typedef void* (*HostToGuestThunk)(void* target, void* arg0, void* arg1);
 typedef void* (*GuestToHostThunk)(void* target, void* arg0, void* arg1);
 typedef void (*ResolveFunctionThunk)();
 
+struct X64BackendStackpoint {
+  uint64_t host_stack_;
+  unsigned guest_stack_;
+  // pad to 16 bytes so we never end up having a 64 bit load/store for
+  // host_stack_ straddling two lines. Consider this field reserved for future
+  // use
+  unsigned unused_;
+};
 // located prior to the ctx register
 // some things it would be nice to have be per-emulator instance instead of per
 // context (somehow placing a global X64BackendCtx prior to membase, so we can
 // negatively index the membase reg)
 struct X64BackendContext {
-  void* ResolveFunction_Ptr;  // cached pointer to resolvefunction
+  // guest_tick_count is used if inline_loadclock is used
   uint64_t* guest_tick_count;
+  // records mapping of host_stack to guest_stack
+  X64BackendStackpoint* stackpoints;
 
+  unsigned int current_stackpoint_depth;
   unsigned int mxcsr_fpu;  // currently, the way we implement rounding mode
                            // affects both vmx and the fpu
   unsigned int mxcsr_vmx;
@@ -81,6 +93,19 @@ class X64Backend : public Backend {
     return resolve_function_thunk_;
   }
 
+  void* synchronize_guest_and_host_stack_helper() const {
+    return synchronize_guest_and_host_stack_helper_;
+  }
+  void* synchronize_guest_and_host_stack_helper_for_size(size_t sz) const {
+    switch (sz) {
+      case 1:
+        return synchronize_guest_and_host_stack_helper_size8_;
+      case 2:
+        return synchronize_guest_and_host_stack_helper_size16_;
+      default:
+        return synchronize_guest_and_host_stack_helper_size32_;
+    }
+  }
   bool Initialize(Processor* processor) override;
 
   void CommitExecutableRange(uint32_t guest_low, uint32_t guest_high) override;
@@ -97,7 +122,8 @@ class X64Backend : public Backend {
   void InstallBreakpoint(Breakpoint* breakpoint, Function* fn) override;
   void UninstallBreakpoint(Breakpoint* breakpoint) override;
   virtual void InitializeBackendContext(void* ctx) override;
-
+  virtual void DeinitializeBackendContext(void* ctx) override;
+  virtual void PrepareForReentry(void* ctx) override;
   X64BackendContext* BackendContextForGuestContext(void* ctx) {
     return reinterpret_cast<X64BackendContext*>(
         reinterpret_cast<intptr_t>(ctx) - sizeof(X64BackendContext));
@@ -120,7 +146,12 @@ class X64Backend : public Backend {
   HostToGuestThunk host_to_guest_thunk_;
   GuestToHostThunk guest_to_host_thunk_;
   ResolveFunctionThunk resolve_function_thunk_;
+  void* synchronize_guest_and_host_stack_helper_ = nullptr;
 
+  // loads stack sizes 1 byte, 2 bytes or 4 bytes
+  void* synchronize_guest_and_host_stack_helper_size8_ = nullptr;
+  void* synchronize_guest_and_host_stack_helper_size16_ = nullptr;
+  void* synchronize_guest_and_host_stack_helper_size32_ = nullptr;
 #if XE_X64_PROFILER_AVAILABLE == 1
   GuestProfilerData profiler_data_;
 #endif

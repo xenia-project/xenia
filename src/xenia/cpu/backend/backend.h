@@ -67,7 +67,22 @@ class Backend {
   // up until the start of ctx may be used by the backend to store whatever data
   // they want
   virtual void InitializeBackendContext(void* ctx) {}
+
+  /*
+	Free any dynamically allocated data/resources that the backendcontext uses
+  */
+  virtual void DeinitializeBackendContext(void* ctx) {}
   virtual void SetGuestRoundingMode(void* ctx, unsigned int mode){};
+  /*
+        called by KeSetCurrentStackPointers in xboxkrnl_threading.cc just prior
+  to calling XThread::Reenter this is an opportunity for a backend to clear any
+  data related to the guest stack
+
+        in the case of the X64 backend, it means we reset the stackpoint index
+  to 0, since its a new stack and all of our old entries are invalid now
+
+  * */
+  virtual void PrepareForReentry(void* ctx) {}
 
  protected:
   Processor* processor_ = nullptr;
