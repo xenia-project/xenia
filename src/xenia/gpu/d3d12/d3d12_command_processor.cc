@@ -1911,21 +1911,8 @@ void D3D12CommandProcessor::WriteRegisterRangeFromRing_WraparoundCase(
 void D3D12CommandProcessor::WriteRegisterRangeFromRing(xe::RingBuffer* ring,
                                                        uint32_t base,
                                                        uint32_t num_registers) {
-  RingBuffer::ReadRange range =
-      ring->BeginRead(num_registers * sizeof(uint32_t));
-
-  XE_LIKELY_IF(!range.second) {
-    uint32_t num_regs_firstrange =
-        static_cast<uint32_t>(range.first_length / sizeof(uint32_t));
-
-    D3D12CommandProcessor::WriteRegistersFromMem(
-        base, reinterpret_cast<uint32_t*>(const_cast<uint8_t*>(range.first)),
-        num_regs_firstrange);
-    ring->EndRead(range);
-  }
-  else {
-    return WriteRegisterRangeFromRing_WraparoundCase(ring, base, num_registers);
-  }
+  WriteRegisterRangeFromRing_WithKnownBound<0, 0xFFFF>(ring, base,
+                                                       num_registers);
 }
 
 template <uint32_t register_lower_bound, uint32_t register_upper_bound>
@@ -2041,7 +2028,6 @@ D3D12CommandProcessor::WriteRegisterRangeFromRing_WithKnownBound(
     xe::RingBuffer* ring, uint32_t base, uint32_t num_registers) {
   RingBuffer::ReadRange range =
       ring->BeginRead(num_registers * sizeof(uint32_t));
-
 
   XE_LIKELY_IF(!range.second) {
     WriteRegisterRangeFromMem_WithKnownBound<register_lower_bound,
@@ -2710,9 +2696,9 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     }
 
     if (vfetch_current_queued) {
-      // so far, i have never seen vfetch_current_queued > 4. 1 is most common, 2 happens occasionally. did not test many games though
-      // pre-acquire the critical region so we're not repeatedly re-acquiring it
-      // in requestrange
+      // so far, i have never seen vfetch_current_queued > 4. 1 is most common,
+      // 2 happens occasionally. did not test many games though pre-acquire the
+      // critical region so we're not repeatedly re-acquiring it in requestrange
       auto shared_memory_request_range_hoisted =
           global_critical_region::Acquire();
 
@@ -4351,7 +4337,8 @@ bool D3D12CommandProcessor::UpdateBindings(
       uint32_t float_constant_index;
       while (xe::bit_scan_forward(float_constant_map_entry,
                                   &float_constant_index)) {
-        float_constant_map_entry = xe::clear_lowest_bit(float_constant_map_entry);
+        float_constant_map_entry =
+            xe::clear_lowest_bit(float_constant_map_entry);
         std::memcpy(float_constants,
                     &regs[XE_GPU_REG_SHADER_CONSTANT_000_X + (i << 8) +
                           (float_constant_index << 2)]
@@ -4382,7 +4369,8 @@ bool D3D12CommandProcessor::UpdateBindings(
         uint32_t float_constant_index;
         while (xe::bit_scan_forward(float_constant_map_entry,
                                     &float_constant_index)) {
-          float_constant_map_entry = xe::clear_lowest_bit(float_constant_map_entry);
+          float_constant_map_entry =
+              xe::clear_lowest_bit(float_constant_map_entry);
           std::memcpy(float_constants,
                       &regs[XE_GPU_REG_SHADER_CONSTANT_256_X + (i << 8) +
                             (float_constant_index << 2)]

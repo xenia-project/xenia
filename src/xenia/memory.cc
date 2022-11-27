@@ -316,8 +316,8 @@ void Memory::Reset() {
   heaps_.v90000000.Reset();
   heaps_.physical.Reset();
 }
-//clang does not like non-standard layout offsetof
-#if XE_COMPILER_MSVC == 1 && XE_COMPILER_CLANG_CL==0
+// clang does not like non-standard layout offsetof
+#if XE_COMPILER_MSVC == 1 && XE_COMPILER_CLANG_CL == 0
 XE_NOALIAS
 const BaseHeap* Memory::LookupHeap(uint32_t address) const {
 #define HEAP_INDEX(name) \
@@ -359,7 +359,6 @@ const BaseHeap* Memory::LookupHeap(uint32_t address) const {
 #else
 XE_NOALIAS
 const BaseHeap* Memory::LookupHeap(uint32_t address) const {
-
   if (address < 0x40000000) {
     return &heaps_.v00000000;
   } else if (address < 0x7F000000) {
@@ -964,6 +963,14 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size,
 
   return true;
 }
+template<typename T>
+static inline T QuickMod(T value, uint32_t modv) {
+  if (xe::is_pow2(modv)) {
+    return value & (modv - 1);
+  } else {
+    return value % modv;
+  }
+}
 
 bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
                           uint32_t size, uint32_t alignment,
@@ -976,8 +983,9 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
   low_address = std::max(heap_base_, xe::align(low_address, alignment));
   high_address = std::min(heap_base_ + (heap_size_ - 1),
                           xe::align(high_address, alignment));
-  uint32_t low_page_number = (low_address - heap_base_) / page_size_;
-  uint32_t high_page_number = (high_address - heap_base_) / page_size_;
+
+  uint32_t low_page_number = (low_address - heap_base_) >> page_size_shift_;
+  uint32_t high_page_number = (high_address - heap_base_) >> page_size_shift_;
   low_page_number = std::min(uint32_t(page_table_.size()) - 1, low_page_number);
   high_page_number =
       std::min(uint32_t(page_table_.size()) - 1, high_page_number);
@@ -995,8 +1003,10 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
   // TODO(benvanik): optimized searching (free list buckets, bitmap, etc).
   uint32_t start_page_number = UINT_MAX;
   uint32_t end_page_number = UINT_MAX;
-  uint32_t page_scan_stride = alignment / page_size_;
-  high_page_number = high_page_number - (high_page_number % page_scan_stride);
+  // chrispy:todo, page_scan_stride is probably always a power of two...
+  uint32_t page_scan_stride = alignment >> page_size_shift_;
+  high_page_number =
+      high_page_number - QuickMod(high_page_number, page_scan_stride);
   if (top_down) {
     for (int64_t base_page_number =
              high_page_number - xe::round_up(page_count, page_scan_stride);
@@ -1024,7 +1034,7 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
             base_page_number = -1;
           } else {
             base_page_number = page_number - page_count;
-            base_page_number -= base_page_number % page_scan_stride;
+            base_page_number -= QuickMod(base_page_number, page_scan_stride);
             base_page_number += page_scan_stride;  // cancel out loop logic
           }
           break;
@@ -1072,7 +1082,7 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
   if (start_page_number == UINT_MAX || end_page_number == UINT_MAX) {
     // Out of memory.
     XELOGE("BaseHeap::Alloc failed to find contiguous range");
-    //assert_always("Heap exhausted!");
+    // assert_always("Heap exhausted!");
     return false;
   }
 
@@ -1084,15 +1094,15 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
                           ? xe::memory::AllocationType::kCommit
                           : xe::memory::AllocationType::kReserve;
     void* result = xe::memory::AllocFixed(
-        TranslateRelative(start_page_number * page_size_),
-        page_count * page_size_, alloc_type, ToPageAccess(protect));
+        TranslateRelative(start_page_number << page_size_shift_),
+        page_count << page_size_shift_, alloc_type, ToPageAccess(protect));
     if (!result) {
       XELOGE("BaseHeap::Alloc failed to alloc range from host");
       return false;
     }
 
     if (cvars::scribble_heap && (protect & kMemoryProtectWrite)) {
-      std::memset(result, 0xCD, page_count * page_size_);
+      std::memset(result, 0xCD, page_count << page_size_shift_);
     }
   }
 
@@ -1108,7 +1118,7 @@ bool BaseHeap::AllocRange(uint32_t low_address, uint32_t high_address,
     unreserved_page_count_--;
   }
 
-  *out_address = heap_base_ + (start_page_number * page_size_);
+  *out_address = heap_base_ + (start_page_number << page_size_shift_);
   return true;
 }
 
@@ -1719,8 +1729,7 @@ XE_NOINLINE void PhysicalHeap::EnableAccessCallbacksInner(
   uint32_t first_guest_page = SystemPagenumToGuestPagenum(system_page_first);
   uint32_t last_guest_page = SystemPagenumToGuestPagenum(system_page_last);
 
-  uint32_t guest_one =
-      SystemPagenumToGuestPagenum(1);
+  uint32_t guest_one = SystemPagenumToGuestPagenum(1);
 
   uint32_t system_one = GuestPagenumToSystemPagenum(1);
   for (; i <= system_page_last; ++i) {
@@ -1755,7 +1764,6 @@ XE_NOINLINE void PhysicalHeap::EnableAccessCallbacksInner(
 #endif
 
     uint32_t guest_page_number = SystemPagenumToGuestPagenum(i);
-    //swcache::PrefetchL1(&page_table_ptr[guest_page_number + 8]);
     xe::memory::PageAccess current_page_access =
         ToPageAccess(page_table_ptr[guest_page_number].current_protect);
     bool protect_system_page = false;

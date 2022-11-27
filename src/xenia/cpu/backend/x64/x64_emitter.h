@@ -299,6 +299,11 @@ class X64Emitter : public Xbyak::CodeGenerator {
 
   Xbyak::Label& AddToTail(TailEmitCallback callback, uint32_t alignment = 0);
   Xbyak::Label& NewCachedLabel();
+
+  void PushStackpoint();
+  void PopStackpoint();
+
+  void EnsureSynchronizedGuestAndHostStack();
   FunctionDebugInfo* debug_info() const { return debug_info_; }
 
   size_t stack_size() const { return stack_size_; }
@@ -381,13 +386,14 @@ class X64Emitter : public Xbyak::CodeGenerator {
   bool Emit(hir::HIRBuilder* builder, EmitFunctionInfo& func_info);
   void EmitGetCurrentThreadId();
   void EmitTraceUserCallReturn();
-
+  static void HandleStackpointOverflowError(ppc::PPCContext* context);
  protected:
   Processor* processor_ = nullptr;
   X64Backend* backend_ = nullptr;
   X64CodeCache* code_cache_ = nullptr;
   XbyakAllocator* allocator_ = nullptr;
   XexModule* guest_module_ = nullptr;
+  bool synchronize_stack_on_next_instruction_ = false;
   Xbyak::util::Cpu cpu_;
   uint64_t feature_flags_ = 0;
   uint32_t current_guest_function_ = 0;

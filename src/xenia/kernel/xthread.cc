@@ -33,8 +33,15 @@ DEFINE_bool(ignore_thread_priorities, true,
 DEFINE_bool(ignore_thread_affinities, true,
             "Ignores game-specified thread affinities.", "Kernel");
 
+
+#if 0
+DEFINE_int64(stack_size_multiplier_hack, 1,
+             "A hack for games with setjmp/longjmp issues.", "Kernel");
+DEFINE_int64(main_xthread_stack_size_multiplier_hack, 1,
+             "A hack for games with setjmp/longjmp issues.", "Kernel");
+#endif
 namespace xe {
-namespace kernel {
+  namespace kernel {
 
 const uint32_t XAPC::kSize;
 const uint32_t XAPC::kDummyKernelRoutine;
@@ -373,8 +380,23 @@ X_STATUS XThread::Create() {
   RetainHandle();
 
   xe::threading::Thread::CreationParameters params;
-  params.stack_size = 16_MiB;  // Allocate a big host stack.
+  
+
+
   params.create_suspended = true;
+
+  #if 0
+  uint64_t stack_size_mult = cvars::stack_size_multiplier_hack;
+  
+  if (main_thread_) {
+    stack_size_mult =
+        static_cast<uint64_t>(cvars::main_xthread_stack_size_multiplier_hack);
+
+  } 
+  #else
+  uint64_t stack_size_mult = 1;
+  #endif
+  params.stack_size = 16_MiB * stack_size_mult;  // Allocate a big host stack.
   thread_ = xe::threading::Thread::Create(params, [this]() {
     // Set thread ID override. This is used by logging.
     xe::threading::set_current_thread_id(handle());
@@ -433,6 +455,9 @@ X_STATUS XThread::Create() {
 X_STATUS XThread::Exit(int exit_code) {
   // This may only be called on the thread itself.
   assert_true(XThread::GetCurrentThread() == this);
+  //TODO(chrispy): not sure if this order is correct, should it come after apcs?
+  guest_object<X_KTHREAD>()->terminated = 1;
+ 
 
   // TODO(benvanik): dispatch events? waiters? etc?
   RundownAPCs();

@@ -41,10 +41,23 @@ DECLARE_XAM_EXPORT1(XamEnableInactivityProcessing, kInput, kStub);
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetcapabilities(v=vs.85).aspx
 dword_result_t XamInputGetCapabilities_entry(
-    dword_t user_index, dword_t flags, pointer_t<X_INPUT_CAPABILITIES> caps) {
+    dword_t user_index, dword_t _flags, pointer_t<X_INPUT_CAPABILITIES> caps) {
+  unsigned flags = _flags;
+	//chrispy: actually, it appears that caps is never checked for null, it is memset at the start regardless
   if (!caps) {
     return X_ERROR_BAD_ARGUMENTS;
   }
+  if ((flags & 0x40000000) != 0) {
+	//should trap
+  }
+
+  if ((flags & 4) != 0) {
+  //should trap
+  }
+  if (!flags) {
+    flags = 3;
+  }
+
 
   if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
     // Ignore any query for other types of devices.
@@ -118,7 +131,7 @@ dword_result_t XamInputGetState_entry(dword_t user_index, dword_t flags,
 DECLARE_XAM_EXPORT2(XamInputGetState, kInput, kImplemented, kHighFrequency);
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputsetstate(v=vs.85).aspx
-dword_result_t XamInputSetState_entry(dword_t user_index, dword_t unk,
+dword_result_t XamInputSetState_entry(dword_t user_index, dword_t flags, /* flags, as far as i can see, is not used*/
                                       pointer_t<X_INPUT_VIBRATION> vibration) {
   if (user_index >= 4) {
     return X_E_DEVICE_NOT_CONNECTED;

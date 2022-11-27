@@ -29,23 +29,27 @@ constexpr fourcc_t kXEX1Signature = make_fourcc("XEX1");
 constexpr fourcc_t kXEX2Signature = make_fourcc("XEX2");
 constexpr fourcc_t kElfSignature = make_fourcc(0x7F, 'E', 'L', 'F');
 
-
 class Runtime;
 struct InfoCacheFlags {
   uint32_t was_resolved : 1;  // has this address ever been called/requested
                               // via resolvefunction?
   uint32_t accessed_mmio : 1;
   uint32_t is_syscall_func : 1;
-  uint32_t reserved : 29;
+  uint32_t is_return_site : 1;  // address can be reached from another function
+                                // by returning
+  uint32_t reserved : 28;
 };
+static_assert(sizeof(InfoCacheFlags) == 4,
+              "InfoCacheFlags size should be equal to sizeof ppc instruction.");
+
 struct XexInfoCache {
-	//increment this to invalidate all user infocaches
-  static constexpr uint32_t CURRENT_INFOCACHE_VERSION = 1;
+  // increment this to invalidate all user infocaches
+  static constexpr uint32_t CURRENT_INFOCACHE_VERSION = 4;
 
   struct InfoCacheFlagsHeader {
     uint32_t version;
 
-    unsigned char reserved[252];  
+    unsigned char reserved[252];
 
     InfoCacheFlags* LookupFlags(unsigned offset) {
       return &reinterpret_cast<InfoCacheFlags*>(&this[1])[offset];
@@ -228,7 +232,8 @@ class XexModule : public xe::cpu::Module {
 
   InfoCacheFlags* GetInstructionAddressFlags(uint32_t guest_addr);
 
-  virtual void Precompile() override; 
+  virtual void Precompile() override;
+
  protected:
   std::unique_ptr<Function> CreateFunction(uint32_t address) override;
 

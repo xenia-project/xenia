@@ -56,6 +56,8 @@ Entry::Status EntryTable::GetOrCreate(uint32_t address, Entry** out_entry) {
   if (entry) {
     // If we aren't ready yet spin and wait.
     if (entry->status == Entry::STATUS_COMPILING) {
+      // chrispy: i think this is dead code, if we are compiling we're holding
+      // the global lock, arent we? so we wouldnt be executing here
       // Still compiling, so spin.
       do {
         global_lock.unlock();

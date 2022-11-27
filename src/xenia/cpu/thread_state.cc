@@ -78,7 +78,7 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
   // Allocate with 64b alignment.
 
   context_ = reinterpret_cast<ppc::PPCContext*>(
-      AllocateContext());
+	  AllocateContext());
   processor->backend()->InitializeBackendContext(context_);
   assert_true(((uint64_t)context_ & 0x3F) == 0);
   std::memset(context_, 0, sizeof(ppc::PPCContext));
@@ -105,9 +105,9 @@ ThreadState::~ThreadState() {
     thread_state_ = nullptr;
   }
   if (context_) {
+    processor_->backend()->DeinitializeBackendContext(context_);
     FreeContext(reinterpret_cast<void*>(context_));
   }
-  // memory::AlignedFree(context_);
 }
 
 void ThreadState::Bind(ThreadState* thread_state) {

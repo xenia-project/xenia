@@ -410,34 +410,7 @@ static float ArchReciprocal(float den) {
   return _mm_cvtss_f32(_mm_rcp_ss(_mm_set_ss(den)));
 }
 
-#if 0
-using ArchFloatMask = float;
-
-XE_FORCEINLINE
-static ArchFloatMask ArchCmpneqFloatMask(float x, float y) {
-  return _mm_cvtss_f32(_mm_cmpneq_ss(_mm_set_ss(x), _mm_set_ss(y)));
-}
-XE_FORCEINLINE
-static ArchFloatMask ArchORFloatMask(ArchFloatMask x, ArchFloatMask y) {
-  return _mm_cvtss_f32(_mm_or_ps(_mm_set_ss(x), _mm_set_ss(y)));
-}
-XE_FORCEINLINE
-static ArchFloatMask ArchXORFloatMask(ArchFloatMask x, ArchFloatMask y) {
-  return _mm_cvtss_f32(_mm_xor_ps(_mm_set_ss(x), _mm_set_ss(y)));
-}
-
-XE_FORCEINLINE
-static ArchFloatMask ArchANDFloatMask(ArchFloatMask x, ArchFloatMask y) {
-  return _mm_cvtss_f32(_mm_and_ps(_mm_set_ss(x), _mm_set_ss(y)));
-}
-
-XE_FORCEINLINE
-static uint32_t ArchFloatMaskSignbit(ArchFloatMask x) {
-  return static_cast<uint32_t>(_mm_movemask_ps(_mm_set_ss(x)));
-}
-
-constexpr ArchFloatMask floatmask_zero = .0f;
-#else
+ 
 using ArchFloatMask = __m128;
 
 XE_FORCEINLINE
@@ -464,7 +437,7 @@ static uint32_t ArchFloatMaskSignbit(ArchFloatMask x) {
 }
 
 constexpr ArchFloatMask floatmask_zero{.0f};
-#endif
+ 
 #else
 static float ArchMin(float x, float y) { return std::min<float>(x, y); }
 static float ArchMax(float x, float y) { return std::max<float>(x, y); }
@@ -610,17 +583,17 @@ union IDivExtraInfo {
   } info;
 };
 // returns magicnum multiplier
-static uint32_t PregenerateUint32Div(uint32_t _denom, uint32_t& out_extra) {
-  IDivExtraInfo extra;
+static constexpr uint32_t PregenerateUint32Div(uint32_t _denom, uint32_t& out_extra) {
+  IDivExtraInfo extra{};
 
   uint32_t d = _denom;
-  int p;
-  uint32_t nc, delta, q1, r1, q2, r2;
+  int p=0;
+  uint32_t nc=0, delta=0, q1=0, r1=0, q2=0, r2=0;
   struct {
     unsigned M;
     int a;
     int s;
-  } magu;
+  } magu{};
   magu.a = 0;
   nc = -1 - ((uint32_t) - (int32_t)d) % d;
   p = 31;
@@ -660,13 +633,13 @@ static uint32_t PregenerateUint32Div(uint32_t _denom, uint32_t& out_extra) {
   return static_cast<uint64_t>(q2 + 1);
 }
 
-static inline uint32_t ApplyUint32Div(uint32_t num, uint32_t mul,
+static constexpr uint32_t ApplyUint32Div(uint32_t num, uint32_t mul,
                                       uint32_t extradata) {
-  IDivExtraInfo extra;
+  IDivExtraInfo extra{};
 
   extra.value_ = extradata;
 
-  uint32_t result = ((uint64_t)(num) * (uint64_t)mul) >> 32;
+  uint32_t result = static_cast<uint32_t>((static_cast<uint64_t>(num) * static_cast<uint64_t>(mul)) >> 32);
   if (extra.info.add_) {
     uint32_t addend = result + num;
     addend = ((addend < result ? 0x80000000 : 0) | addend);
@@ -675,7 +648,7 @@ static inline uint32_t ApplyUint32Div(uint32_t num, uint32_t mul,
   return result >> extra.info.shift_;
 }
 
-static inline uint32_t ApplyUint32UMod(uint32_t num, uint32_t mul,
+static constexpr uint32_t ApplyUint32UMod(uint32_t num, uint32_t mul,
                                        uint32_t extradata, uint32_t original) {
   uint32_t dived = ApplyUint32Div(num, mul, extradata);
   unsigned result = num - (dived * original);
@@ -686,12 +659,12 @@ static inline uint32_t ApplyUint32UMod(uint32_t num, uint32_t mul,
 struct MagicDiv {
   uint32_t multiplier_;
   uint32_t extradata_;
-  MagicDiv() : multiplier_(0), extradata_(0) {}
-  MagicDiv(uint32_t original) {
+  constexpr MagicDiv() : multiplier_(0), extradata_(0) {}
+  constexpr MagicDiv(uint32_t original) : MagicDiv() {
     multiplier_ = PregenerateUint32Div(original, extradata_);
   }
 
-  uint32_t Apply(uint32_t numerator) const {
+  constexpr uint32_t Apply(uint32_t numerator) const {
     return ApplyUint32Div(numerator, multiplier_, extradata_);
   }
 };
