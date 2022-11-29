@@ -16,6 +16,7 @@
 #include <string>
 #include <utility>
 
+#include "third_party/cpptoml/include/cpptoml.h"
 #include "third_party/fmt/include/fmt/format.h"
 #include "third_party/imgui/imgui.h"
 #include "xenia/base/assert.h"
@@ -124,6 +125,11 @@ DEFINE_bool(
     "depends on the 10bpc displaying capabilities of the actual display used.",
     "Display");
 
+DEFINE_int32(recent_titles_entry_amount, 10,
+             "Allows user to define how many titles is saved in list of "
+             "recently played titles.",
+             "General");
+
 namespace xe {
 namespace app {
 
@@ -132,6 +138,7 @@ using xe::ui::KeyEvent;
 using xe::ui::MenuItem;
 using xe::ui::UIEvent;
 
+const std::string kRecentlyPlayedTitlesFilename = "recent.toml";
 const std::string kBaseTitle = "Xenia";
 
 EmulatorWindow::EmulatorWindow(Emulator* emulator,
@@ -159,6 +166,8 @@ EmulatorWindow::EmulatorWindow(Emulator* emulator,
 #endif
                 XE_BUILD_BRANCH "@" XE_BUILD_COMMIT_SHORT " on " XE_BUILD_DATE
                 ")";
+
+  LoadRecentlyLaunchedTitles();
 }
 
 std::unique_ptr<EmulatorWindow> EmulatorWindow::Create(
@@ -502,10 +511,14 @@ bool EmulatorWindow::Initialize() {
   // FIXME: This code is really messy.
   auto main_menu = MenuItem::Create(MenuItem::Type::kNormal);
   auto file_menu = MenuItem::Create(MenuItem::Type::kPopup, "&File");
+  auto recent_menu = MenuItem::Create(MenuItem::Type::kPopup, "&Open Recent");
+  FillRecentlyLaunchedTitlesMenu(recent_menu.get());
   {
     file_menu->AddChild(
         MenuItem::Create(MenuItem::Type::kString, "&Open...", "Ctrl+O",
                          std::bind(&EmulatorWindow::FileOpen, this)));
+    file_menu->AddChild(std::move(recent_menu));
+
 #ifdef DEBUG
     file_menu->AddChild(
         MenuItem::Create(MenuItem::Type::kString, "Close",
@@ -840,6 +853,8 @@ void EmulatorWindow::FileOpen() {
     if (XFAILED(result)) {
       // TODO: Display a message box.
       XELOGE("Failed to launch target: {:08X}", result);
+    } else {
+      AddRecentlyLaunchedTitle(abs_path, emulator_->title_name());
     }
   }
 }
@@ -1014,6 +1029,114 @@ void EmulatorWindow::SetInitializingShaderStorage(bool initializing) {
   }
   initializing_shader_storage_ = initializing;
   UpdateTitle();
+}
+
+void EmulatorWindow::RunRecentlyPlayedTitle(
+    std::filesystem::path path_to_file) {
+  if (path_to_file.empty()) {
+    return;
+  }
+
+  auto abs_path = std::filesystem::absolute(path_to_file);
+  auto result = emulator_->LaunchPath(abs_path);
+  if (XFAILED(result)) {
+    // TODO: Display a message box.
+    XELOGE("Failed to launch target: {:08X}", result);
+    return;
+  }
+  AddRecentlyLaunchedTitle(path_to_file, emulator_->title_name());
+}
+
+void EmulatorWindow::FillRecentlyLaunchedTitlesMenu(
+    xe::ui::MenuItem* recent_menu) {
+  for (const RecentTitleEntry& entry : recently_launched_titles_) {
+    std::string item_text = !entry.title_name.empty()
+                                ? entry.title_name
+                                : entry.path_to_file.string();
+    recent_menu->AddChild(
+        MenuItem::Create(MenuItem::Type::kString, item_text,
+                         std::bind(&EmulatorWindow::RunRecentlyPlayedTitle,
+                                   this, entry.path_to_file)));
+  }
+}
+
+void EmulatorWindow::LoadRecentlyLaunchedTitles() {
+  std::ifstream file(kRecentlyPlayedTitlesFilename);
+  if (!file.is_open()) {
+    return;
+  }
+
+  std::shared_ptr<cpptoml::table> parsed_file;
+  try {
+    cpptoml::parser p(file);
+    parsed_file = p.parse();
+  } catch (cpptoml::parse_exception exception) {
+    // TODO(Gliniak): Better handling of errors, but good enough for now.
+    return;
+  }
+
+  if (parsed_file->is_table()) {
+    for (const auto& [index, entry] : *parsed_file->as_table()) {
+      if (!entry->is_table()) {
+        continue;
+      }
+
+      const std::shared_ptr<cpptoml::table> entry_table = entry->as_table();
+
+      std::string title_name = *entry_table->get_as<std::string>("title_name");
+      std::string path = *entry_table->get_as<std::string>("path");
+      std::time_t last_run_time =
+          *entry_table->get_as<uint64_t>("last_run_time");
+
+      if (path.empty()) {
+        continue;
+      }
+
+      recently_launched_titles_.push_back({title_name, path, last_run_time});
+    }
+  }
+}
+
+void EmulatorWindow::AddRecentlyLaunchedTitle(
+    std::filesystem::path path_to_file, std::string title_name) {
+  // Check if game is already on list and pop it to front
+  auto entry_index = std::find_if(recently_launched_titles_.cbegin(),
+                                  recently_launched_titles_.cend(),
+                                  [&title_name](const RecentTitleEntry& entry) {
+                                    return entry.title_name == title_name;
+                                  });
+  if (entry_index != recently_launched_titles_.cend()) {
+    recently_launched_titles_.erase(entry_index);
+  }
+
+  recently_launched_titles_.insert(recently_launched_titles_.cbegin(),
+                                   {title_name, path_to_file, time(nullptr)});
+  // Serialize to toml
+  auto toml_table = cpptoml::make_table();
+
+  uint8_t index = 0;
+  for (const RecentTitleEntry& entry : recently_launched_titles_) {
+    auto entry_table = cpptoml::make_table();
+
+    // Fill entry under specific index.
+    std::string str_path = xe::path_to_utf8(entry.path_to_file);
+    entry_table->insert("title_name", entry.title_name);
+    entry_table->insert("path", str_path);
+    entry_table->insert("last_run_time", entry.last_run_time);
+    entry_table->end();
+
+    toml_table->insert(std::to_string(index++), entry_table);
+
+    if (index >= cvars::recent_titles_entry_amount) {
+      break;
+    }
+  }
+  toml_table->end();
+
+  // Open and write serialized data.
+  std::ofstream file(kRecentlyPlayedTitlesFilename, std::ofstream::trunc);
+  file << *toml_table;
+  file.close();
 }
 
 }  // namespace app
