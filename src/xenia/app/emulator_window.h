@@ -152,6 +152,7 @@ class EmulatorWindow {
   void ShowFAQ();
   void ShowBuildCommit();
 
+  void RunPreviouslyPlayedTitle();
   void RunRecentlyPlayedTitle(std::filesystem::path path_to_file);
   void FillRecentlyLaunchedTitlesMenu(xe::ui::MenuItem* recent_menu);
   void ReadRecentlyLaunchedTitles();
