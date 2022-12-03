@@ -1180,17 +1180,11 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                         member_out_gl_per_vertex_position, "gl_Position");
   builder.addMemberDecoration(type_struct_out_gl_per_vertex,
                               member_out_gl_per_vertex_position,
-                              spv::DecorationInvariant);
-  builder.addMemberDecoration(type_struct_out_gl_per_vertex,
-                              member_out_gl_per_vertex_position,
                               spv::DecorationBuiltIn, spv::BuiltInPosition);
   if (clip_distance_count) {
     builder.addMemberName(type_struct_out_gl_per_vertex,
                           member_out_gl_per_vertex_clip_distance,
                           "gl_ClipDistance");
-    builder.addMemberDecoration(type_struct_out_gl_per_vertex,
-                                member_out_gl_per_vertex_clip_distance,
-                                spv::DecorationInvariant);
     builder.addMemberDecoration(
         type_struct_out_gl_per_vertex, member_out_gl_per_vertex_clip_distance,
         spv::DecorationBuiltIn, spv::BuiltInClipDistance);
@@ -1199,6 +1193,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   spv::Id out_gl_per_vertex =
       builder.createVariable(spv::NoPrecision, spv::StorageClassOutput,
                              type_struct_out_gl_per_vertex, "");
+  builder.addDecoration(out_gl_per_vertex, spv::DecorationInvariant);
   main_interface.push_back(out_gl_per_vertex);
 
   // Begin the main function.
