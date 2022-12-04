@@ -70,7 +70,8 @@ struct XAPC {
 // Processor Control Region
 struct X_KPCR {
   xe::be<uint32_t> tls_ptr;         // 0x0
-  uint8_t unk_04[0x2C];             // 0x4
+  xe::be<uint32_t> msr_mask;		// 0x4
+  uint8_t unk_08[0x28];             // 0x8
   xe::be<uint32_t> pcr_ptr;         // 0x30
   uint8_t unk_34[0x3C];             // 0x34
   xe::be<uint32_t> stack_base_ptr;  // 0x70 Stack base address (high addr)

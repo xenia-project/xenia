@@ -664,6 +664,22 @@ struct MagicDiv {
     multiplier_ = PregenerateUint32Div(original, extradata_);
   }
 
+  constexpr uint32_t GetRightShift() const {
+    IDivExtraInfo extra{};
+
+    extra.value_ = extradata_;
+    return extra.info.shift_;
+  }
+
+  constexpr bool AddFlag() const {
+    IDivExtraInfo extra{};
+
+    extra.value_ = extradata_;
+    return extra.info.shift_;
+  }
+
+  constexpr uint32_t GetMultiplier() const { return multiplier_;
+  }
   constexpr uint32_t Apply(uint32_t numerator) const {
     return ApplyUint32Div(numerator, multiplier_, extradata_);
   }

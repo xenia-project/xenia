@@ -11,6 +11,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/reset_scope.h"
@@ -22,6 +23,10 @@
 #include "xenia/cpu/ppc/ppc_opcode_info.h"
 #include "xenia/cpu/ppc/ppc_scanner.h"
 #include "xenia/cpu/processor.h"
+#include "xenia/cpu/xex_module.h"
+
+DEFINE_bool(dump_translated_hir_functions, false, "dumps translated hir",
+            "CPU");
 
 namespace xe {
 namespace cpu {
@@ -107,10 +112,44 @@ class HirBuilderScope {
   ~HirBuilderScope() {
     if (builder_) {
       builder_->RemoveCurrent();
-	}
+    }
   }
 };
+void PPCTranslator::DumpHIR(GuestFunction* function, PPCHIRBuilder* builder) {
+  if (cvars::dump_translated_hir_functions) {
+    StringBuffer buffer{};
+    builder_->Dump(&buffer);
 
+    XexModule* mod = dynamic_cast<XexModule*>(function->module());
+
+    std::wstring folder_name = L"hirdump";
+
+    if (mod) {
+      xex2_opt_execution_info* opt_exec_info = nullptr;
+      if (mod->GetOptHeader(XEX_HEADER_EXECUTION_INFO, &opt_exec_info)) {
+        folder_name =
+            L"hirdump_title_" + std::to_wstring(opt_exec_info->title_id);
+      }
+    }
+    std::filesystem::path folder_path{folder_name};
+
+    if (!std::filesystem::exists(folder_path)) {
+      std::filesystem::create_directory(folder_path);
+    }
+
+    {
+      wchar_t tmpbuf[64];
+      _snwprintf(tmpbuf, 64, L"%X", function->address());
+      folder_path.append(&tmpbuf[0]);
+    }
+
+    FILE* f = fopen(folder_path.generic_u8string().c_str(), "w");
+    if (f) {
+      fputs(buffer.buffer(), f);
+      fclose(f);
+    }
+  }
+}
 bool PPCTranslator::Translate(GuestFunction* function,
                               uint32_t debug_info_flags) {
   SCOPE_profile_cpu_f("cpu");
@@ -202,6 +241,8 @@ bool PPCTranslator::Translate(GuestFunction* function,
     debug_info->set_hir_disasm(xe_strdup(string_buffer_.buffer()));
     string_buffer_.Reset();
   }
+
+  DumpHIR(function, builder_.get());
 
   // Assemble to backend machine code.
   if (!assembler_->Assemble(function, builder_.get(), debug_info_flags,

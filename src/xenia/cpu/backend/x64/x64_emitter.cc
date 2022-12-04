@@ -486,6 +486,7 @@ uint64_t ResolveFunction(void* raw_context, uint64_t target_address) {
 
   if (cvars::enable_host_guest_stack_synchronization) {
     auto processor = thread_state->processor();
+
     auto module_for_address =
         processor->LookupModule(static_cast<uint32_t>(target_address));
 
@@ -498,6 +499,7 @@ uint64_t ResolveFunction(void* raw_context, uint64_t target_address) {
           if (flags->is_return_site) {
             auto ones_with_address = processor->FindFunctionsWithAddress(
                 static_cast<uint32_t>(target_address));
+
             if (ones_with_address.size() != 0) {
               // this loop to find a host address for the guest address is
               // necessary because FindFunctionsWithAddress works via a range
@@ -618,21 +620,42 @@ uint64_t ResolveFunction(void* raw_context, uint64_t target_address) {
                    and 5 bytes for the jmp with no cycles taken for the jump
                    which will be predicted not taken.
 
-                  Our handling for the check is implemented in X64HelperEmitter::EmitGuestAndHostSynchronizeStackHelper. we don't call it directly though,
-				  instead we go through backend()->synchronize_guest_and_host_stack_helper_for_size(num_bytes_needed_to_represent_stack_size). we place the stack size after the
-				  call instruction so we can load it in the helper and readjust the return address to point after the literal value. 
+                  Our handling for the check is implemented in
+                  X64HelperEmitter::EmitGuestAndHostSynchronizeStackHelper. we
+                  don't call it directly though, instead we go through
+                  backend()->synchronize_guest_and_host_stack_helper_for_size(num_bytes_needed_to_represent_stack_size).
+                  we place the stack size after the call instruction so we can
+                  load it in the helper and readjust the return address to point
+                  after the literal value.
 
-				  The helper is going to search the array of stackpoints to find the first one that is greater than or equal to the current stack pointer, when it finds
-				  the entry it will set the currently host rsp to the host stack pointer value in the entry, and then subtract the stack size of the caller from that.
-				  the current stackpoint index is adjusted to point to the one after the stackpoint we restored to.
+                                  The helper is going to search the array of
+                  stackpoints to find the first one that is greater than or
+                  equal to the current stack pointer, when it finds the entry it
+                  will set the currently host rsp to the host stack pointer
+                  value in the entry, and then subtract the stack size of the
+                  caller from that. the current stackpoint index is adjusted to
+                  point to the one after the stackpoint we restored to.
 
-				  The helper then jumps back to the function that was longjmp'ed to, with the host stack in its proper state. it just works!
+                                  The helper then jumps back to the function
+                  that was longjmp'ed to, with the host stack in its proper
+                  state. it just works!
 
 
 
                  */
 
                 if (num_frames_bigger > 1) {
+                  /*
+                   * can't do anything about this right now :(
+                   * epic mickey is quite slow due to having to call resolve on
+                   * every longjmp, and it longjmps a lot but if we add an
+                   * indirection we lose our stack misalignment check
+                   */
+                  /* reinterpret_cast<X64CodeCache*>(backend->code_cache())
+      ->AddIndirection(static_cast<uint32_t>(target_address),
+                       static_cast<uint32_t>(host_address));
+                        */
+
                   return host_address;
                 }
               }
@@ -1649,6 +1672,9 @@ Xbyak::Address X64Emitter::GetBackendFlagsPtr() const {
 }
 
 void X64Emitter::HandleStackpointOverflowError(ppc::PPCContext* context) {
+  if (debugging::IsDebuggerAttached()) {
+    debugging::Break();
+  }
   // context->lr
   // todo: show lr in message?
   xe::FatalError(
@@ -1674,6 +1700,9 @@ void X64Emitter::PushStackpoint() {
 
   mov(qword[rbx + offsetof(X64BackendStackpoint, host_stack_)], rsp);
   mov(dword[rbx + offsetof(X64BackendStackpoint, guest_stack_)], r8d);
+  mov(r8d, qword[GetContextReg() + offsetof(ppc::PPCContext, lr)]);
+  mov(dword[rbx + offsetof(X64BackendStackpoint, guest_return_address_)], r8d);
+
   if (IsFeatureEnabled(kX64FlagsIndependentVars)) {
     inc(eax);
   } else {
@@ -1716,24 +1745,6 @@ void X64Emitter::EnsureSynchronizedGuestAndHostStack() {
   // need to be made
   // that result in the stack not being 8 byte misaligned on context reentry
 
-#if 0
-	Xbyak::Label skip{};
-	mov(r8, qword[GetContextReg() + offsetof(ppc::PPCContext, r[1])]);
-  mov(rbx, GetBackendCtxPtr(offsetof(X64BackendContext, stackpoints)));
-  imul(eax,
-       GetBackendCtxPtr(offsetof(X64BackendContext, current_stackpoint_depth)),
-       sizeof(X64BackendStackpoint));
-  sub(eax, sizeof(X64BackendStackpoint));
-  add(rbx, rax);
-
-  cmp(r8d, dword[rbx + offsetof(X64BackendStackpoint, guest_stack_)]);
-   jle(skip, T_NEAR);
-  Xbyak::Label skip{};
-  mov(r11d, stack_size());
-  call(backend_->synchronize_guest_and_host_stack_helper());
-  L(skip);
-#endif
-
   Xbyak::Label& return_from_sync = this->NewCachedLabel();
 
   // if we got here somehow from setjmp or the like we ought to have a
@@ -1747,7 +1758,6 @@ void X64Emitter::EnsureSynchronizedGuestAndHostStack() {
 
         uint32_t stack32 = static_cast<uint32_t>(e.stack_size());
         auto backend = e.backend();
-
         if (stack32 < 256) {
           e.call(backend->synchronize_guest_and_host_stack_helper_for_size(1));
           e.db(stack32);

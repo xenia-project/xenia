@@ -37,13 +37,29 @@ struct XTASK_MESSAGE {
   be<uint32_t> unknown_14;
   be<uint32_t> task_handle;
 };
+
+struct XAM_TASK_ARGS {
+  be<uint32_t> value1;
+  be<uint32_t> value2;
+  // i think there might be another value here, it might be padding
+};
 static_assert_size(XTASK_MESSAGE, 0x1C);
 
 dword_result_t XamTaskSchedule_entry(lpvoid_t callback,
                                      pointer_t<XTASK_MESSAGE> message,
-                                     lpdword_t unknown, lpdword_t handle_ptr) {
+                                     dword_t optional_ptr, lpdword_t handle_ptr,
+                                     const ppc_context_t& ctx) {
   // TODO(gibbed): figure out what this is for
   *handle_ptr = 12345;
+
+  if (optional_ptr) {
+    auto option = ctx->TranslateVirtual<XAM_TASK_ARGS*>(optional_ptr);
+
+    auto v1 = option->value1;
+    auto v2 = option->value2; //typically 0?
+
+    XELOGI("Got xam task args: v1 = {:08X}, v2 = {:08X}", v1, v2);
+  }
 
   uint32_t stack_size = kernel_state()->GetExecutableModule()->stack_size();
 

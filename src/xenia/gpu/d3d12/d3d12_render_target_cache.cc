@@ -43,6 +43,7 @@ DEFINE_bool(
     "Allow stencil reference output usage on Direct3D 12 on Intel GPUs - not "
     "working on UHD Graphics 630 as of March 2021 (driver 27.20.0100.8336).",
     "GPU");
+DEFINE_bool(no_discard_stencil_in_transfer_pipelines, false, "bleh", "GPU");
 // TODO(Triang3l): Make ROV the default when it's optimized better (for
 // instance, using static shader modifications to pass render target
 // parameters).
@@ -2940,7 +2941,7 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
   // r0.xy = destination pixel XY index within the 32bpp tile
   // r0.zw = 32bpp tile XY index
   a.OpUDiv(dxbc::Dest::R(0, 0b1100), dxbc::Dest::R(0, 0b0011),
-           dxbc::Src::R(0, 0b01000100),
+           dxbc::Src::R(0, dxbc::Src::kXYXY),
            dxbc::Src::LU(dest_tile_width_pixels, dest_tile_height_pixels,
                          dest_tile_width_pixels, dest_tile_height_pixels));
 
@@ -4189,12 +4190,14 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
         break;
       case TransferOutput::kStencilBit:
         // Discard the sample if the needed stencil bit is not set.
-        assert_true(cbuffer_index_stencil_mask != UINT32_MAX);
-        a.OpAnd(dxbc::Dest::R(0, 0b0001), dxbc::Src::R(1, dxbc::Src::kXXXX),
-                dxbc::Src::CB(cbuffer_index_stencil_mask,
-                              kTransferCBVRegisterStencilMask, 0,
-                              dxbc::Src::kXXXX));
-        a.OpDiscard(false, dxbc::Src::R(0, dxbc::Src::kXXXX));
+        if (!cvars::no_discard_stencil_in_transfer_pipelines) {
+          assert_true(cbuffer_index_stencil_mask != UINT32_MAX);
+          a.OpAnd(dxbc::Dest::R(0, 0b0001), dxbc::Src::R(1, dxbc::Src::kXXXX),
+                  dxbc::Src::CB(cbuffer_index_stencil_mask,
+                                kTransferCBVRegisterStencilMask, 0,
+                                dxbc::Src::kXXXX));
+          a.OpDiscard(false, dxbc::Src::R(0, dxbc::Src::kXXXX));
+        }
         break;
     }
   }

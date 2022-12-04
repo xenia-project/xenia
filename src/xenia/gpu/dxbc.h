@@ -1046,6 +1046,7 @@ struct Src : OperandAddress {
     kYYYY = 0b01010101,
     kZZZZ = 0b10101010,
     kWWWW = 0b11111111,
+    kXYXY = 0b01000100
   };
 
   // Ignored for 0-component and 1-component operand types.

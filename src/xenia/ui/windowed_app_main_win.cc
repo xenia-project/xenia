@@ -18,13 +18,17 @@
 #include "xenia/ui/windowed_app_context_win.h"
 
 DEFINE_bool(enable_console, false, "Open a console window with the main window",
-            "General");
+            "Logging");
+
+static uintptr_t g_xenia_exe_base = 0;
+static size_t g_xenia_exe_size = 0;
 #if XE_ARCH_AMD64 == 1
 DEFINE_bool(enable_rdrand_ntdll_patch, true,
             "Hot-patches ntdll at the start of the process to not use rdrand "
             "as part of the RNG for heap randomization. Can reduce CPU usage "
             "significantly, but is untested on all Windows versions.",
             "Win32");
+
 // begin ntdll hack
 #include <psapi.h>
 static bool g_didfailtowrite = false;
@@ -77,36 +81,194 @@ static void do_ntdll_hack_this_process() {
 }
 #endif
 // end ntdll hack
-LONG _UnhandledExceptionFilter(_EXCEPTION_POINTERS* ExceptionInfo) {
-  PVOID exception_addr = ExceptionInfo->ExceptionRecord->ExceptionAddress;
+struct HostExceptionReport {
+  _EXCEPTION_POINTERS* const ExceptionInfo;
+  size_t Report_Scratchpos;
 
-  DWORD64 last_stackpointer = ExceptionInfo->ContextRecord->Rsp;
+  const DWORD last_win32_error;
+  const NTSTATUS last_ntstatus;
 
-  DWORD64 last_rip = ExceptionInfo->ContextRecord->Rip;
+  const int errno_value;
+  char Report_Scratchbuffer[2048];
 
-  DWORD except_code = ExceptionInfo->ExceptionRecord->ExceptionCode;
+  unsigned int address_format_ring_index;
 
-  DWORD last_error = GetLastError();
+  char formatted_addresses[16][128];
 
-  NTSTATUS stat = __readgsdword(0x1250);
+  void AddString(const char* s);
+  static char* ChompNewlines(char* s);
 
-  int last_errno_value = errno;
+  HostExceptionReport(_EXCEPTION_POINTERS* _ExceptionInfo)
+      : ExceptionInfo(_ExceptionInfo),
+        Report_Scratchpos(0u),
+        last_win32_error(GetLastError()),
+        last_ntstatus(__readgsdword(0x1250)),
+        errno_value(errno),
+        address_format_ring_index(0)
 
+  {
+    memset(Report_Scratchbuffer, 0, sizeof(Report_Scratchbuffer));
+  }
 
+  void DisplayExceptionMessage() {
+    MessageBoxA(nullptr, Report_Scratchbuffer, "Unhandled Exception in Xenia",
+                MB_ICONERROR);
+  }
 
-  char except_message_buf[1024];
+  const char* GetFormattedAddress(uintptr_t address);
 
+  const char* GetFormattedAddress(PVOID address) {
+    return GetFormattedAddress(reinterpret_cast<uintptr_t>(address));
+  }
+};
+char* HostExceptionReport::ChompNewlines(char* s) {
+  if (!s) {
+    return nullptr;
+  }
+  unsigned read_pos = 0;
+  unsigned write_pos = 0;
+
+  while (true) {
+    char current = s[read_pos++];
+    if (current == '\n') {
+      continue;
+    }
+    s[write_pos++] = current;
+    if (!current) {
+      break;
+    }
+  }
+  return s;
+}
+void HostExceptionReport::AddString(const char* s) {
+  size_t ln = strlen(s);
+
+  for (size_t i = 0; i < ln; ++i) {
+    Report_Scratchbuffer[i + Report_Scratchpos] = s[i];
+  }
+  Report_Scratchpos += ln;
+}
+
+const char* HostExceptionReport::GetFormattedAddress(uintptr_t address) {
+  char(&current_buffer)[128] =
+      formatted_addresses[address_format_ring_index++ % 16];
+
+  if (address >= g_xenia_exe_base &&
+      address - g_xenia_exe_base < g_xenia_exe_size) {
+    uintptr_t offset = address - g_xenia_exe_base;
+
+    sprintf_s(current_buffer, "xenia_canary.exe+%llX", offset);
+  } else {
+    sprintf_s(current_buffer, "0x%llX", address);
+  }
+  return current_buffer;
+}
+using ExceptionInfoCategoryHandler = bool (*)(HostExceptionReport* report);
+static char* Ntstatus_msg(NTSTATUS status) {
+  char* statusmsg = nullptr;
+  FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_HMODULE |
+                     FORMAT_MESSAGE_IGNORE_INSERTS,
+                 GetModuleHandleA("ntdll.dll"), status,
+                 MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&statusmsg,
+                 0, NULL);
+  return statusmsg;
+}
+static bool exception_pointers_handler(HostExceptionReport* report) {
+  PVOID exception_addr =
+      report->ExceptionInfo->ExceptionRecord->ExceptionAddress;
+
+  DWORD64 last_stackpointer = report->ExceptionInfo->ContextRecord->Rsp;
+
+  DWORD64 last_rip = report->ExceptionInfo->ContextRecord->Rip;
+  DWORD except_code = report->ExceptionInfo->ExceptionRecord->ExceptionCode;
+
+  char except_message_buf[256];
   sprintf_s(except_message_buf,
-            "Exception encountered!\nException address: %p\nStackpointer: "
-            "%p\nInstruction pointer: %p\nExceptionCode: 0x%X\nLast Win32 "
-            "Error: 0x%X\nLast NTSTATUS: 0x%X\nLast errno value: 0x%X\n",
-            exception_addr, (void*)last_stackpointer, (void*)last_rip, except_code,
-            last_error, stat, last_errno_value);
-  MessageBoxA(nullptr, except_message_buf, "Unhandled Exception", MB_ICONERROR);
+            "Exception encountered!\nException address: %s\nStackpointer: "
+            "%s\nInstruction pointer: %s\nExceptionCode: 0x%X (%s)\n",
+            report->GetFormattedAddress(exception_addr),
+            report->GetFormattedAddress(last_stackpointer),
+            report->GetFormattedAddress(last_rip), except_code,
+            HostExceptionReport::ChompNewlines(Ntstatus_msg(except_code)));
+
+  report->AddString(except_message_buf);
+
+  return true;
+}
+
+static bool exception_win32_error_handle(HostExceptionReport* report) {
+  if (!report->last_win32_error) {
+    return false;  // no error, nothing to do
+  }
+  // todo: formatmessage
+  char win32_error_buf[512];
+  // its ok if we dont free statusmsg, we're exiting anyway
+  char* statusmsg = nullptr;
+  FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
+                     FORMAT_MESSAGE_IGNORE_INSERTS,
+                 NULL, report->last_win32_error,
+                 MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&statusmsg,
+                 0, NULL);
+  sprintf_s(win32_error_buf, "Last Win32 Error: 0x%X (%s)\n",
+            report->last_win32_error,
+            HostExceptionReport::ChompNewlines(statusmsg));
+  report->AddString(win32_error_buf);
+  return true;
+}
+static bool exception_ntstatus_error_handle(HostExceptionReport* report) {
+  if (!report->last_ntstatus) {
+    return false;
+  }
+  // todo: formatmessage
+  char win32_error_buf[512];
+
+  sprintf_s(win32_error_buf, "Last NTSTATUS: 0x%X (%s)\n",
+            report->last_ntstatus, Ntstatus_msg(report->last_ntstatus));
+  report->AddString(win32_error_buf);
+  return true;
+}
+
+static bool exception_cerror_handle(HostExceptionReport* report) {
+  if (!report->errno_value) {
+    return false;
+  }
+  char errno_buffer[512];
+  sprintf_s(errno_buffer, "Last errno value: 0x%X (%s)\n", report->errno_value,
+            strerror(report->errno_value));
+
+  report->AddString(errno_buffer);
+  return true;
+}
+
+static ExceptionInfoCategoryHandler host_exception_category_handlers[] = {
+    exception_pointers_handler, exception_win32_error_handle,
+    exception_ntstatus_error_handle, exception_cerror_handle};
+
+LONG _UnhandledExceptionFilter(_EXCEPTION_POINTERS* ExceptionInfo) {
+  HostExceptionReport report{ExceptionInfo};
+  for (auto&& handler : host_exception_category_handlers) {
+    __try {
+      if (!handler(&report)) {
+        continue;
+      }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+      report.AddString("<Nested Exception Encountered>\n");
+    }
+  }
+  report.DisplayExceptionMessage();
+
   return EXCEPTION_CONTINUE_SEARCH;
 }
 int WINAPI wWinMain(HINSTANCE hinstance, HINSTANCE hinstance_prev,
                     LPWSTR command_line, int show_cmd) {
+  MODULEINFO modinfo;
+
+  GetModuleInformation(GetCurrentProcess(), (HMODULE)hinstance, &modinfo,
+                       sizeof(MODULEINFO));
+
+  g_xenia_exe_base = reinterpret_cast<uintptr_t>(hinstance);
+  g_xenia_exe_size = modinfo.SizeOfImage;
+
   int result;
   SetUnhandledExceptionFilter(_UnhandledExceptionFilter);
   {
