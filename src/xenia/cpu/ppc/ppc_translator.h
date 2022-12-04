@@ -31,7 +31,9 @@ class PPCTranslator {
   ~PPCTranslator();
 
   bool Translate(GuestFunction* function, uint32_t debug_info_flags);
+  void DumpHIR(GuestFunction* function, PPCHIRBuilder* builder);
   void Reset();
+
  private:
   void DumpSource(GuestFunction* function, StringBuffer* string_buffer);
 

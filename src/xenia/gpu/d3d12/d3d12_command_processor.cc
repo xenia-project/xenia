@@ -3124,7 +3124,6 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
             auto physaddr = memory_->TranslatePhysical(written_address);
             memory::vastcpy(physaddr, (uint8_t*)readback_mapping,
                             written_length);
-            // XEDmaCpy(physaddr, readback_mapping, written_length);
             D3D12_RANGE readback_write_range = {};
             readback_buffer->Unmap(0, &readback_write_range);
           }
@@ -3152,9 +3151,7 @@ void D3D12CommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
               direct_queue->Signal(queue_operations_since_submission_fence_,
                                    fence_value) &&
               SUCCEEDED(queue_operations_since_submission_fence_
-                            ->SetEventOnCompletion(fence_value,
-                                                   fence_completion_event_)))) {
-        WaitForSingleObject(fence_completion_event_, INFINITE);
+                            ->SetEventOnCompletion(fence_value, nullptr)))) {
         queue_operations_done_since_submission_signal_ = false;
       } else {
         XELOGE(
@@ -3170,9 +3167,8 @@ void D3D12CommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
   uint64_t submission_completed_before = submission_completed_;
   submission_completed_ = submission_fence_->GetCompletedValue();
   if (submission_completed_ < await_submission) {
-    if (SUCCEEDED(submission_fence_->SetEventOnCompletion(
-            await_submission, fence_completion_event_))) {
-      WaitForSingleObject(fence_completion_event_, INFINITE);
+    if (SUCCEEDED(submission_fence_->SetEventOnCompletion(await_submission,
+                                                          nullptr))) {
       submission_completed_ = submission_fence_->GetCompletedValue();
     }
   }

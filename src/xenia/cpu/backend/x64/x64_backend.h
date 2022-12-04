@@ -48,7 +48,7 @@ struct X64BackendStackpoint {
   // pad to 16 bytes so we never end up having a 64 bit load/store for
   // host_stack_ straddling two lines. Consider this field reserved for future
   // use
-  unsigned unused_;
+  unsigned guest_return_address_;
 };
 // located prior to the ctx register
 // some things it would be nice to have be per-emulator instance instead of per

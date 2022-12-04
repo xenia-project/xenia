@@ -75,12 +75,7 @@ bool D3D12SubmissionTracker::AwaitSubmissionCompletion(
     fence_value = submission_signal_queued_;
   }
   if (fence_->GetCompletedValue() < fence_value) {
-    if (FAILED(fence_->SetEventOnCompletion(fence_value,
-                                            fence_completion_event_))) {
-      return false;
-    }
-    if (WaitForSingleObject(fence_completion_event_, INFINITE) !=
-        WAIT_OBJECT_0) {
+    if (FAILED(fence_->SetEventOnCompletion(fence_value, nullptr))) {
       return false;
     }
   }

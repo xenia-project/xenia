@@ -609,6 +609,10 @@ dword_result_t ExAllocatePoolTypeWithTag_entry(dword_t size, dword_t tag,
   return addr;
 }
 DECLARE_XBOXKRNL_EXPORT1(ExAllocatePoolTypeWithTag, kMemory, kImplemented);
+dword_result_t ExAllocatePoolWithTag_entry(dword_t numbytes, dword_t tag) {
+  return ExAllocatePoolTypeWithTag_entry(numbytes, tag, 0);
+}
+DECLARE_XBOXKRNL_EXPORT1(ExAllocatePoolWithTag, kMemory, kImplemented);
 
 dword_result_t ExAllocatePool_entry(dword_t size) {
   const uint32_t none = 0x656E6F4E;  // 'None'

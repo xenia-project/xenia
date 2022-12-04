@@ -21,6 +21,9 @@ namespace debugging {
 // The state may change at any time (attach after launch, etc), so do not
 // cache this value. Determining if the debugger is attached is expensive,
 // though, so avoid calling it frequently.
+// chrispy: no longer expensive to check on windows, we're directly using the
+// teb/peb now to find this
+
 bool IsDebuggerAttached();
 
 // Breaks into the debugger if it is attached.

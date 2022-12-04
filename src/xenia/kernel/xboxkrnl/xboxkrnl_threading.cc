@@ -237,7 +237,7 @@ void KeSetCurrentStackPointers_entry(lpvoid_t stack_ptr,
   auto current_thread = XThread::GetCurrentThread();
 
   auto pcr = context->TranslateVirtualGPR<X_KPCR*>(context->r[13]);
-	
+	//also supposed to load msr mask, and the current msr with that, and store
   thread->stack_alloc_base = stack_alloc_base.value();
   thread->stack_base = stack_base.value();
   thread->stack_limit = stack_limit.value();
@@ -500,6 +500,10 @@ uint32_t xeNtSetEvent(uint32_t handle, xe::be<uint32_t>* previous_state_ptr) {
 
   auto ev = kernel_state()->object_table()->LookupObject<XEvent>(handle);
   if (ev) {
+	  //d3 ros does this
+    if (ev->type() != XObject::Type::Event) {
+      return X_STATUS_OBJECT_TYPE_MISMATCH;
+	}
     int32_t was_signalled = ev->Set(0, false);
     if (previous_state_ptr) {
       *previous_state_ptr = static_cast<uint32_t>(was_signalled);

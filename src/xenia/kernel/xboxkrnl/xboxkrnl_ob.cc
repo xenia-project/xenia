@@ -52,9 +52,11 @@ dword_result_t ObOpenObjectByName_entry(lpunknown_t obj_attributes_ptr,
   return result;
 }
 DECLARE_XBOXKRNL_EXPORT1(ObOpenObjectByName, kNone, kImplemented);
-
+// chrispy: investigate this, pretty certain it does not properly emulate the
+// original
 dword_result_t ObOpenObjectByPointer_entry(lpvoid_t object_ptr,
                                            lpdword_t out_handle_ptr) {
+  *out_handle_ptr = 0;
   auto object = XObject::GetNativeObject<XObject>(kernel_state(), object_ptr);
   if (!object) {
     return X_STATUS_UNSUCCESSFUL;
@@ -71,7 +73,8 @@ dword_result_t ObLookupThreadByThreadId_entry(dword_t thread_id,
                                               lpdword_t out_object_ptr) {
   auto thread = kernel_state()->GetThreadByID(thread_id);
   if (!thread) {
-    return X_STATUS_NOT_FOUND;
+    *out_object_ptr = 0;
+    return X_STATUS_INVALID_PARAMETER;
   }
 
   // Retain the object. Will be released in ObDereferenceObject.
@@ -80,16 +83,18 @@ dword_result_t ObLookupThreadByThreadId_entry(dword_t thread_id,
   return X_STATUS_SUCCESS;
 }
 DECLARE_XBOXKRNL_EXPORT1(ObLookupThreadByThreadId, kNone, kImplemented);
-
+// These values come from how Xenia handles uninitialized kernel data exports.
+// D###BEEF where ### is the ordinal.
+const static std::unordered_map<XObject::Type, uint32_t> object_types = {
+    {XObject::Type::Event, 0xD00EBEEF},
+    {XObject::Type::Semaphore, 0xD017BEEF},
+    {XObject::Type::Thread, 0xD01BBEEF}};
 dword_result_t ObReferenceObjectByHandle_entry(dword_t handle,
                                                dword_t object_type_ptr,
                                                lpdword_t out_object_ptr) {
-  // These values come from how Xenia handles uninitialized kernel data exports.
-  // D###BEEF where ### is the ordinal.
-  const static std::unordered_map<XObject::Type, uint32_t> object_types = {
-      {XObject::Type::Event, 0xD00EBEEF},
-      {XObject::Type::Semaphore, 0xD017BEEF},
-      {XObject::Type::Thread, 0xD01BBEEF}};
+  // chrispy: gotta preinit this to 0, kernel is expected to do that
+  *out_object_ptr = 0;
+
   auto object = kernel_state()->object_table()->LookupObject<XObject>(handle);
   if (!object) {
     return X_STATUS_INVALID_HANDLE;
@@ -132,21 +137,42 @@ dword_result_t ObReferenceObjectByName_entry(lpstring_t name,
 }
 DECLARE_XBOXKRNL_EXPORT1(ObReferenceObjectByName, kNone, kImplemented);
 
-dword_result_t ObDereferenceObject_entry(dword_t native_ptr) {
+void ObDereferenceObject_entry(dword_t native_ptr, const ppc_context_t& ctx) {
   // Check if a dummy value from ObReferenceObjectByHandle.
   if (native_ptr == 0xDEADF00D) {
-    return 0;
+    return;
   }
 
   auto object = XObject::GetNativeObject<XObject>(
       kernel_state(), kernel_memory()->TranslateVirtual(native_ptr));
   if (object) {
     object->ReleaseHandle();
-  }
 
-  return 0;
+  } else {
+    if (native_ptr) {
+      XELOGW("Unregistered guest object provided to ObDereferenceObject {:08X}",
+             native_ptr.value());
+    }
+  }
+  return;
 }
 DECLARE_XBOXKRNL_EXPORT1(ObDereferenceObject, kNone, kImplemented);
+
+void ObReferenceObject_entry(dword_t native_ptr) {
+  // Check if a dummy value from ObReferenceObjectByHandle.
+  auto object = XObject::GetNativeObject<XObject>(
+      kernel_state(), kernel_memory()->TranslateVirtual(native_ptr));
+  if (object) {
+    object->RetainHandle();
+  } else {
+    if (native_ptr) {
+      XELOGW("Unregistered guest object provided to ObReferenceObject {:08X}",
+             native_ptr.value());
+    }
+  }
+  return;
+}
+DECLARE_XBOXKRNL_EXPORT1(ObReferenceObject, kNone, kImplemented);
 
 dword_result_t ObCreateSymbolicLink_entry(pointer_t<X_ANSI_STRING> path_ptr,
                                           pointer_t<X_ANSI_STRING> target_ptr) {
