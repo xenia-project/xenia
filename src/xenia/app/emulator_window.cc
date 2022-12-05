@@ -813,6 +813,10 @@ void EmulatorWindow::OnKeyDown(ui::KeyEvent& e) {
       ShowBuildCommit();
     } break;
 
+    case ui::VirtualKey::kF9: {
+      RunPreviouslyPlayedTitle();
+    } break;
+
     default:
       return;
   }
@@ -1079,6 +1083,12 @@ void EmulatorWindow::SetInitializingShaderStorage(bool initializing) {
   UpdateTitle();
 }
 
+void EmulatorWindow::RunPreviouslyPlayedTitle() {
+  if (!emulator()->is_title_open() && recently_launched_titles_.size() >= 1) {
+    RunRecentlyPlayedTitle(recently_launched_titles_[0].path_to_file);
+  }
+}
+
 void EmulatorWindow::RunRecentlyPlayedTitle(
     std::filesystem::path path_to_file) {
   if (path_to_file.empty()) {
@@ -1097,10 +1107,18 @@ void EmulatorWindow::RunRecentlyPlayedTitle(
 
 void EmulatorWindow::FillRecentlyLaunchedTitlesMenu(
     xe::ui::MenuItem* recent_menu) {
+  unsigned int index = 0;
   for (const auto& [title_name, path] : recently_launched_titles_) {
-    recent_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, title_name,
-        std::bind(&EmulatorWindow::RunRecentlyPlayedTitle, this, path)));
+    if (index == 0) {
+      recent_menu->AddChild(MenuItem::Create(
+          MenuItem::Type::kString, title_name, "F9",
+          std::bind(&EmulatorWindow::RunRecentlyPlayedTitle, this, path)));
+    } else {
+      recent_menu->AddChild(MenuItem::Create(
+          MenuItem::Type::kString, title_name,
+          std::bind(&EmulatorWindow::RunRecentlyPlayedTitle, this, path)));
+    }
+    index++;
   }
 }
 
