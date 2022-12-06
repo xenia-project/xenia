@@ -60,7 +60,7 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
                  uint32_t xapi_thread_startup, uint32_t start_address,
                  uint32_t start_context, uint32_t creation_flags,
                  bool guest_thread, bool main_thread)
-    : XObject(kernel_state, kObjectType),
+    : XObject(kernel_state, kObjectType, !guest_thread),
       thread_id_(++next_xthread_id_),
       guest_thread_(guest_thread),
       main_thread_(main_thread),
@@ -77,10 +77,6 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
   // Adjust stack size - min of 16k.
   if (creation_params_.stack_size < 16 * 1024) {
     creation_params_.stack_size = 16 * 1024;
-  }
-
-  if (!guest_thread_) {
-    host_object_ = true;
   }
 
   // The kernel does not take a reference. We must unregister in the dtor.

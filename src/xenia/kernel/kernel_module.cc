@@ -21,16 +21,13 @@ namespace kernel {
 
 KernelModule::KernelModule(KernelState* kernel_state,
                            const std::string_view path)
-    : XModule(kernel_state, ModuleType::kKernelModule) {
+    : XModule(kernel_state, ModuleType::kKernelModule, true) {
   emulator_ = kernel_state->emulator();
   memory_ = emulator_->memory();
   export_resolver_ = kernel_state->emulator()->export_resolver();
 
   path_ = path;
   name_ = utf8::find_base_name_from_guest_path(path);
-
-  // Persist this object through reloads.
-  host_object_ = true;
 
   // HACK: Allocates memory where xboxkrnl.exe would be!
   // TODO: Need to free this memory when necessary.
