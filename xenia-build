@@ -47,6 +47,7 @@ def import_subprocess_environment(args):
         'systemroot',
         'temp',
         'tmp',
+        'vcinstalldir',
         'windowssdkdir',
         )
     for line in variables.splitlines():
@@ -436,6 +437,8 @@ def get_clang_format_binary():
         'clang-format-13',
         'clang-format',
         ]
+    if 'VCINSTALLDIR' in os.environ:
+        attempts.append(os.path.join(os.environ['VCINSTALLDIR'], 'Tools', 'Llvm', 'bin', 'clang-format.exe'))
     for binary in attempts:
         if has_bin(binary):
             return binary
