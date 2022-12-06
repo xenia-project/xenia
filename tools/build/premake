@@ -213,7 +213,7 @@ def import_vs_environment():
   install_path = None
   env_tool_args = None
 
-  vswhere = subprocess.check_output('third_party/vswhere/vswhere.exe -version "[15,)" -latest -format json -utf8', shell=False, universal_newlines=True, encoding="utf-8")
+  vswhere = subprocess.check_output('tools/vswhere/vswhere.exe -version "[15,)" -latest -format json -utf8', shell=False, universal_newlines=True, encoding="utf-8")
   if vswhere:
     vswhere = json.loads(vswhere)
   if vswhere and len(vswhere) > 0:
