@@ -355,11 +355,18 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
                      : nullptr;
   uint8_t* current_input_buffer = data->current_buffer ? in1 : in0;
 
-  XELOGAPU("Processing context {} (offset {}, buffer {}, ptr {:p})", id(),
-           data->input_buffer_read_offset, data->current_buffer,
-           current_input_buffer);
+  XELOGAPU(
+      "Processing context {} (offset {}, buffer {}, ptr {:p}, output buffer "
+      "{}, output buffer count {})",
+      id(), data->input_buffer_read_offset, data->current_buffer,
+      current_input_buffer, data->output_buffer_ptr,
+      data->output_buffer_block_count);
 
   if (!current_input_buffer) {
+    return;
+  }
+  if (!data->output_buffer_block_count) {
+    XELOGE("Received 0 for output_buffer_block_count!");
     return;
   }
   size_t input_buffer_0_size =
@@ -492,8 +499,8 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
       }
 
       if (frame_count > 0) {
-        //assert_true(xma::GetPacketFrameOffset(packet) - 32 ==
-        //            split_frame_len_ - split_frame_len_partial_);
+        // assert_true(xma::GetPacketFrameOffset(packet) - 32 ==
+        //             split_frame_len_ - split_frame_len_partial_);
       }
 
       if (split_frame_len_partial_ > split_frame_len_) {

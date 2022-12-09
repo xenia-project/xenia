@@ -80,7 +80,36 @@ static void do_ntdll_hack_this_process() {
                        (uintptr_t)GetModuleHandleA("ntdll.dll"));
 }
 #endif
+
+static HMODULE probe_for_module(void* addr) {
+  // get 65k aligned addr downwards to probe for MZ
+  uintptr_t base = reinterpret_cast<uintptr_t>(addr) & ~0xFFFFULL;
+
+  constexpr unsigned max_search_iters =
+      (64 * (1024 * 1024)) /
+      65536;  // search down at most 64 mb (we do it in
+              // batches of 64k so its pretty quick). i think its reasonable to
+              // expect no module will be > 64mb
+  // break if access violation thrown, we're definitely not a PE in that case
+  __try {
+    for (unsigned i = 0; i < max_search_iters; ++i) {
+      if (*reinterpret_cast<unsigned short*>(base) == 'ZM') {
+        return reinterpret_cast<HMODULE>(base);
+      } else {
+        base -= 65536;
+      }
+    }
+    return nullptr;
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+    return nullptr;
+  }
+}
+
 // end ntdll hack
+
+static constexpr auto XENIA_ERROR_LANGUAGE =
+    MAKELANGID(LANG_ENGLISH, SUBLANG_DEFAULT);
+
 struct HostExceptionReport {
   _EXCEPTION_POINTERS* const ExceptionInfo;
   size_t Report_Scratchpos;
@@ -153,13 +182,33 @@ const char* HostExceptionReport::GetFormattedAddress(uintptr_t address) {
   char(&current_buffer)[128] =
       formatted_addresses[address_format_ring_index++ % 16];
 
-  if (address >= g_xenia_exe_base &&
-      address - g_xenia_exe_base < g_xenia_exe_size) {
-    uintptr_t offset = address - g_xenia_exe_base;
+  /* if (address >= g_xenia_exe_base &&
+       address - g_xenia_exe_base < g_xenia_exe_size) {
+     uintptr_t offset = address - g_xenia_exe_base;
 
-    sprintf_s(current_buffer, "xenia_canary.exe+%llX", offset);
-  } else {
-    sprintf_s(current_buffer, "0x%llX", address);
+     sprintf_s(current_buffer, "xenia_canary.exe+%llX", offset);
+   } else */
+  {
+    HMODULE hmod_for = probe_for_module((void*)address);
+
+    if (hmod_for) {
+      // get the module filename, then chomp off all but the actual file name
+      // (full path is obtained)
+      char tmp_module_name[MAX_PATH + 1];
+      GetModuleFileNameA(hmod_for, tmp_module_name, sizeof(tmp_module_name));
+
+      size_t search_back = strlen(tmp_module_name);
+      // hunt backwards for the last sep
+      while (tmp_module_name[--search_back] != '\\')
+        ;
+
+      // MessageBoxA(nullptr, tmp_module_name, "ffds", MB_OK);
+      sprintf_s(current_buffer, "%s+%llX", tmp_module_name + search_back + 1,
+                address - reinterpret_cast<uintptr_t>(hmod_for));
+
+    } else {
+      sprintf_s(current_buffer, "0x%llX", address);
+    }
   }
   return current_buffer;
 }
@@ -168,9 +217,8 @@ static char* Ntstatus_msg(NTSTATUS status) {
   char* statusmsg = nullptr;
   FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_HMODULE |
                      FORMAT_MESSAGE_IGNORE_INSERTS,
-                 GetModuleHandleA("ntdll.dll"), status,
-                 MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&statusmsg,
-                 0, NULL);
+                 GetModuleHandleA("ntdll.dll"), status, XENIA_ERROR_LANGUAGE,
+                 (LPSTR)&statusmsg, 0, NULL);
   return statusmsg;
 }
 static bool exception_pointers_handler(HostExceptionReport* report) {
@@ -206,9 +254,8 @@ static bool exception_win32_error_handle(HostExceptionReport* report) {
   char* statusmsg = nullptr;
   FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
                      FORMAT_MESSAGE_IGNORE_INSERTS,
-                 NULL, report->last_win32_error,
-                 MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&statusmsg,
-                 0, NULL);
+                 nullptr, report->last_win32_error, XENIA_ERROR_LANGUAGE,
+                 (LPSTR)&statusmsg, 0, nullptr);
   sprintf_s(win32_error_buf, "Last Win32 Error: 0x%X (%s)\n",
             report->last_win32_error,
             HostExceptionReport::ChompNewlines(statusmsg));
@@ -240,9 +287,35 @@ static bool exception_cerror_handle(HostExceptionReport* report) {
   return true;
 }
 
+static bool thread_name_handle(HostExceptionReport* report) {
+  // ll GetThreadDescription(HANDLE hThread, PWSTR *ppszThreadDescription)
+
+  FARPROC description_getter =
+      GetProcAddress(GetModuleHandleA("kernel32.dll"), "GetThreadDescription");
+
+  if (!description_getter) {
+    return false;
+  }
+  PWSTR descr = nullptr;
+
+  reinterpret_cast<HRESULT (*)(HANDLE, PWSTR*)>(description_getter)(
+      GetCurrentThread(), &descr);
+
+  if (!descr) {
+    return false;
+  }
+
+  char result_buffer[512];
+
+  sprintf_s(result_buffer, "Faulting thread name: %ws\n", descr);
+
+  report->AddString(result_buffer);
+  return true;
+}
 static ExceptionInfoCategoryHandler host_exception_category_handlers[] = {
     exception_pointers_handler, exception_win32_error_handle,
-    exception_ntstatus_error_handle, exception_cerror_handle};
+    exception_ntstatus_error_handle, exception_cerror_handle,
+    thread_name_handle};
 
 LONG _UnhandledExceptionFilter(_EXCEPTION_POINTERS* ExceptionInfo) {
   HostExceptionReport report{ExceptionInfo};
