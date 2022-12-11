@@ -696,7 +696,7 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
       XELOGAPU(
           "XmaContext {}: Next Offset: {} (Frame: {}/{} Packet: {}/{} Packet "
           "Skip: {} - {})",
-          id(), offset, frame_idx, frame_count, packet_idx,
+          id(), offset, frame_idx, frame_count - 1, packet_idx,
           current_input_packet_count, xma::GetPacketSkipCount(packet),
           data->input_buffer_read_offset);
       if (frame_idx + 1 >= frame_count) {
