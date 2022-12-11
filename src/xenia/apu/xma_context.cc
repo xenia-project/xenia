@@ -355,6 +355,17 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
                      : nullptr;
   uint8_t* current_input_buffer = data->current_buffer ? in1 : in0;
 
+  if (!current_input_buffer) {
+    XELOGE("XmaContext {}: Error - input buffer pointer is invalid!", id());
+    return;
+  }
+
+  if (!data->output_buffer_block_count) {
+    XELOGE("XmaContext {}: Error - Received 0 for output_buffer_block_count!",
+           id());
+    return;
+  }
+
   XELOGAPU(
       "Processing context {} (offset {}, buffer {}, ptr {:p}, output buffer "
       "{:08X}, output buffer count {})",
@@ -362,14 +373,6 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
       current_input_buffer, data->output_buffer_ptr,
       data->output_buffer_block_count);
 
-  if (!current_input_buffer) {
-    return;
-  }
-  if (!data->output_buffer_block_count) {
-    XELOGE("XmaContext {}: Error - Received 0 for output_buffer_block_count!",
-           id());
-    return;
-  }
   size_t input_buffer_0_size =
       data->input_buffer_0_packet_count * kBytesPerPacket;
   size_t input_buffer_1_size =
