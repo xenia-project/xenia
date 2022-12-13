@@ -28,6 +28,7 @@ class BitStream {
   void Advance(size_t num_bits);
   void SetOffset(size_t offset_bits);
   size_t BitsRemaining();
+  bool IsOffsetValid(size_t num_bits);
 
   // Note: num_bits MUST be in the range 0-57 (inclusive)
   uint64_t Peek(size_t num_bits);

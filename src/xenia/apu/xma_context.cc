@@ -597,9 +597,19 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
       std::memset(xma_frame_.data(), 0, xma_frame_.size());
 
       {
-        auto offset =
-            stream.Copy(xma_frame_.data() + 1,
-                        std::min(split_frame_len_, split_frame_len_partial_));
+        int32_t bits_to_copy =
+            std::min(split_frame_len_, split_frame_len_partial_);
+
+        if (!stream.IsOffsetValid(bits_to_copy)) {
+          XELOGAPU(
+              "XmaContext {}: Error - Invalid amount of bits to copy! "
+              "split_frame_len: {}, split_partial: {}, offset_bits: {}",
+              id(), split_frame_len_, split_frame_len_partial_,
+              stream.offset_bits());
+          SwapInputBuffer(data);
+          return;
+        }
+        auto offset = stream.Copy(xma_frame_.data() + 1, bits_to_copy);
         assert_true(offset < 8);
         split_frame_padding_start_ = static_cast<uint8_t>(offset);
       }
