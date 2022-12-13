@@ -509,17 +509,6 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
         //             split_frame_len_ - split_frame_len_partial_);
       }
 
-      if (split_frame_len_partial_ > split_frame_len_) {
-        XELOGAPU(
-            "XmaContext {}: Error - Invalid split frame lengths! "
-            "frame_length: {} "
-            "partial_length: {}",
-            id(), split_frame_len_, split_frame_len_partial_);
-        split_frame_len_ = 0;
-        split_frame_len_partial_ = 0;
-        SwapInputBuffer(data);
-        return;
-      }
       auto offset = stream.Copy(
           xma_frame_.data() + 1 +
               ((split_frame_len_partial_ + split_frame_padding_start_) / 8),
@@ -894,11 +883,11 @@ std::tuple<int, bool> XmaContext::GetPacketFrameCount(uint8_t* packet) {
   int frame_count = 0;
 
   while (true) {
-    frame_count++;
     if (stream.BitsRemaining() < 15) {
-      return {frame_count, true};
+      return {frame_count, false};
     }
 
+    frame_count++;
     uint64_t size = stream.Read(15);
     if ((size - 15) > stream.BitsRemaining()) {
       return {frame_count, true};
