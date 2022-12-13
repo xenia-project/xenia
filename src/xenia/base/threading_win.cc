@@ -60,6 +60,12 @@ namespace xe {
 namespace threading {
 
 void EnableAffinityConfiguration() {
+  // chrispy: i don't think this is necessary,
+  // affinity always seems to be the system mask? research more
+  // also, maybe if ignore_thread_affinities is on we should use
+  // SetProcessAffinityUpdateMode to allow windows to dynamically update
+  // our process' affinity (by default windows cannot change the affinity itself
+  // at runtime, user code must do it)
   HANDLE process_handle = GetCurrentProcess();
   DWORD_PTR process_affinity_mask;
   DWORD_PTR system_affinity_mask;
@@ -117,7 +123,7 @@ void set_name(const std::string_view name) {
 
 // checked ntoskrnl, it does not modify delay, so we can place this as a
 // constant and avoid creating a stack variable
-static const LARGE_INTEGER sleepdelay0_for_maybeyield{{0LL}};
+static const LARGE_INTEGER sleepdelay0_for_maybeyield{{~0u, -1}};
 
 void MaybeYield() {
 #if 0

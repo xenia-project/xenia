@@ -551,30 +551,60 @@ void GetHostViewportInfo(GetViewportInfoArgs* XE_RESTRICT args,
     viewport_info_out.ndc_offset[i] = ndc_offset[i];
   }
 }
-void GetScissor(const RegisterFile& regs, Scissor& scissor_out,
-                bool clamp_to_surface_pitch) {
+template <bool clamp_to_surface_pitch>
+XE_NOINLINE static void GetScissorTmpl(const RegisterFile& XE_RESTRICT regs,
+                                       Scissor& XE_RESTRICT scissor_out) {
   auto pa_sc_window_scissor_tl = regs.Get<reg::PA_SC_WINDOW_SCISSOR_TL>();
-  int32_t tl_x = int32_t(pa_sc_window_scissor_tl.tl_x);
-  int32_t tl_y = int32_t(pa_sc_window_scissor_tl.tl_y);
   auto pa_sc_window_scissor_br = regs.Get<reg::PA_SC_WINDOW_SCISSOR_BR>();
-  int32_t br_x = int32_t(pa_sc_window_scissor_br.br_x);
-  int32_t br_y = int32_t(pa_sc_window_scissor_br.br_y);
-  if (!pa_sc_window_scissor_tl.window_offset_disable) {
-    auto pa_sc_window_offset = regs.Get<reg::PA_SC_WINDOW_OFFSET>();
-    tl_x += pa_sc_window_offset.window_x_offset;
-    tl_y += pa_sc_window_offset.window_y_offset;
-    br_x += pa_sc_window_offset.window_x_offset;
-    br_y += pa_sc_window_offset.window_y_offset;
+  auto pa_sc_window_offset = regs.Get<reg::PA_SC_WINDOW_OFFSET>();
+  auto pa_sc_screen_scissor_tl = regs.Get<reg::PA_SC_SCREEN_SCISSOR_TL>();
+  auto pa_sc_screen_scissor_br = regs.Get<reg::PA_SC_SCREEN_SCISSOR_BR>();
+  uint32_t surface_pitch = 0;
+  if constexpr (clamp_to_surface_pitch) {
+    surface_pitch = regs.Get<reg::RB_SURFACE_INFO>().surface_pitch;
   }
+  uint32_t pa_sc_window_scissor_tl_tl_x = pa_sc_window_scissor_tl.tl_x,
+           pa_sc_window_scissor_tl_tl_y = pa_sc_window_scissor_tl.tl_y,
+           pa_sc_window_scissor_br_br_x = pa_sc_window_scissor_br.br_x,
+           pa_sc_window_scissor_br_br_y = pa_sc_window_scissor_br.br_y,
+           pa_sc_window_offset_window_x_offset =
+               pa_sc_window_offset.window_x_offset,
+           pa_sc_window_offset_window_y_offset =
+               pa_sc_window_offset.window_y_offset,
+           pa_sc_screen_scissor_tl_tl_x = pa_sc_screen_scissor_tl.tl_x,
+           pa_sc_screen_scissor_tl_tl_y = pa_sc_screen_scissor_tl.tl_y,
+           pa_sc_screen_scissor_br_br_x = pa_sc_screen_scissor_br.br_x,
+           pa_sc_screen_scissor_br_br_y = pa_sc_screen_scissor_br.br_y;
+
+  int32_t tl_x = int32_t(pa_sc_window_scissor_tl_tl_x);
+  int32_t tl_y = int32_t(pa_sc_window_scissor_tl_tl_y);
+
+  int32_t br_x = int32_t(pa_sc_window_scissor_br_br_x);
+  int32_t br_y = int32_t(pa_sc_window_scissor_br_br_y);
+
+  // chrispy: put this here to make it clear that the shift by 31 is extracting
+  // this field
+  XE_MAYBE_UNUSED
+  uint32_t window_offset_disable_reference =
+      pa_sc_window_scissor_tl.window_offset_disable;
+  int32_t window_offset_disable_mask =
+      ~(static_cast<int32_t>(pa_sc_window_scissor_tl.value) >> 31);
+  // if (!pa_sc_window_scissor_tl.window_offset_disable) {
+
+  tl_x += pa_sc_window_offset_window_x_offset & window_offset_disable_mask;
+  tl_y += pa_sc_window_offset_window_y_offset & window_offset_disable_mask;
+  br_x += pa_sc_window_offset_window_x_offset & window_offset_disable_mask;
+  br_y += pa_sc_window_offset_window_y_offset & window_offset_disable_mask;
+  //}
   // Screen scissor is not used by Direct3D 9 (always 0, 0 to 8192, 8192), but
   // still handled here for completeness.
-  auto pa_sc_screen_scissor_tl = regs.Get<reg::PA_SC_SCREEN_SCISSOR_TL>();
-  tl_x = std::max(tl_x, int32_t(pa_sc_screen_scissor_tl.tl_x));
-  tl_y = std::max(tl_y, int32_t(pa_sc_screen_scissor_tl.tl_y));
-  auto pa_sc_screen_scissor_br = regs.Get<reg::PA_SC_SCREEN_SCISSOR_BR>();
-  br_x = std::min(br_x, int32_t(pa_sc_screen_scissor_br.br_x));
-  br_y = std::min(br_y, int32_t(pa_sc_screen_scissor_br.br_y));
-  if (clamp_to_surface_pitch) {
+
+  tl_x = std::max(tl_x, int32_t(pa_sc_screen_scissor_tl_tl_x));
+  tl_y = std::max(tl_y, int32_t(pa_sc_screen_scissor_tl_tl_y));
+
+  br_x = std::min(br_x, int32_t(pa_sc_screen_scissor_br_br_x));
+  br_y = std::min(br_y, int32_t(pa_sc_screen_scissor_br_br_y));
+  if constexpr (clamp_to_surface_pitch) {
     // Clamp the horizontal scissor to surface_pitch for safety, in case that's
     // not done by the guest for some reason (it's not when doing draws without
     // clipping in Direct3D 9, for instance), to prevent overflow - this is
@@ -582,7 +612,7 @@ void GetScissor(const RegisterFile& regs, Scissor& scissor_out,
     // rasterization without render target width at all (pixel shader
     // interlock-based custom RB implementations) and using conventional render
     // targets, but padded to EDRAM tiles.
-    uint32_t surface_pitch = regs.Get<reg::RB_SURFACE_INFO>().surface_pitch;
+
     tl_x = std::min(tl_x, int32_t(surface_pitch));
     br_x = std::min(br_x, int32_t(surface_pitch));
   }
@@ -599,6 +629,15 @@ void GetScissor(const RegisterFile& regs, Scissor& scissor_out,
   scissor_out.offset[1] = uint32_t(tl_y);
   scissor_out.extent[0] = uint32_t(br_x - tl_x);
   scissor_out.extent[1] = uint32_t(br_y - tl_y);
+}
+
+void GetScissor(const RegisterFile& XE_RESTRICT regs,
+                Scissor& XE_RESTRICT scissor_out, bool clamp_to_surface_pitch) {
+  if (clamp_to_surface_pitch) {
+    return GetScissorTmpl<true>(regs, scissor_out);
+  } else {
+    return GetScissorTmpl<false>(regs, scissor_out);
+  }
 }
 
 uint32_t GetNormalizedColorMask(const RegisterFile& regs,
@@ -863,7 +902,7 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
     y1 = y0 + int32_t(xenos::kMaxResolveSize);
   }
   // fails in forza horizon 1
-  //x0 is 0, x1 is 0x100, y0 is 0x100, y1 is 0x100
+  // x0 is 0, x1 is 0x100, y0 is 0x100, y1 is 0x100
   assert_true(x0 <= x1 && y0 <= y1);
   if (x0 >= x1 || y0 >= y1) {
     XELOGE("Resolve region is empty");
@@ -1103,7 +1142,7 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
   info_out.rb_depth_clear = regs[XE_GPU_REG_RB_DEPTH_CLEAR].u32;
   info_out.rb_color_clear = regs[XE_GPU_REG_RB_COLOR_CLEAR].u32;
   info_out.rb_color_clear_lo = regs[XE_GPU_REG_RB_COLOR_CLEAR_LO].u32;
-  #if 0
+#if 0
   XELOGD(
       "Resolve: {},{} <= x,y < {},{}, {} -> {} at 0x{:08X} (potentially "
       "modified memory range 0x{:08X} to 0x{:08X})",
@@ -1114,7 +1153,7 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
                      xenos::ColorRenderTargetFormat(color_edram_info.format)),
       FormatInfo::GetName(dest_format), rb_copy_dest_base, copy_dest_extent_start,
       copy_dest_extent_end);
-  #endif
+#endif
   return true;
 }
 XE_MSVC_OPTIMIZE_REVERT()

@@ -9,8 +9,8 @@
 
 #include "xenia/base/memory.h"
 #include "xenia/base/cvar.h"
-#include "xenia/base/platform.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/platform.h"
 
 #if XE_ARCH_ARM64
 #include <arm_neon.h>
@@ -59,7 +59,7 @@ static void XeCopy16384StreamingAVX(CacheLine* XE_RESTRICT to,
 
   CacheLine* dest4 = to + (NUM_CACHELINES_IN_PAGE * 3);
   CacheLine* src4 = from + (NUM_CACHELINES_IN_PAGE * 3);
-  
+
   for (uint32_t i = 0; i < num_lines_for_8k; ++i) {
     xe::swcache::CacheLine line0, line1, line2, line3;
 
@@ -173,7 +173,12 @@ static void vastcpy_impl_movdir64m(CacheLine* XE_RESTRICT physaddr,
     _movdir64b(physaddr + i, rdmapping + i);
   }
 }
-
+static void vastcpy_impl_repmovs(CacheLine* XE_RESTRICT physaddr,
+                                 CacheLine* XE_RESTRICT rdmapping,
+                                 uint32_t written_length) {
+  __movsq((unsigned long long*)physaddr, (unsigned long long*)rdmapping,
+          written_length / 8);
+}
 XE_COLD
 static void first_vastcpy(CacheLine* XE_RESTRICT physaddr,
                           CacheLine* XE_RESTRICT rdmapping,
@@ -189,6 +194,9 @@ static void first_vastcpy(CacheLine* XE_RESTRICT physaddr,
   if (amd64::GetFeatureFlags() & amd64::kX64EmitMovdir64M) {
     XELOGI("Selecting MOVDIR64M vastcpy.");
     dispatch_to_use = vastcpy_impl_movdir64m;
+  } else if (amd64::GetFeatureFlags() & amd64::kX64FastRepMovs) {
+    XELOGI("Selecting rep movs vastcpy.");
+    dispatch_to_use = vastcpy_impl_repmovs;
   } else {
     XELOGI("Selecting generic AVX vastcpy.");
     dispatch_to_use = vastcpy_impl_avx;
