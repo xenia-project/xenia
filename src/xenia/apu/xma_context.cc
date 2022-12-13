@@ -511,7 +511,7 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
 
       if (split_frame_len_partial_ > split_frame_len_) {
         XELOGAPU(
-            "XmaContext {}: Error - Invalid split frame lengths {}! "
+            "XmaContext {}: Error - Invalid split frame lengths! "
             "frame_length: {} "
             "partial_length: {}",
             id(), split_frame_len_, split_frame_len_partial_);
