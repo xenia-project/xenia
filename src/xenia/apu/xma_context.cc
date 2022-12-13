@@ -715,6 +715,8 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
             if (!reuse_input_buffer) {
               if (is_streaming) {
                 SwapInputBuffer(data);
+                data->input_buffer_read_offset =
+                    GetPacketFirstFrameOffset(data);
               } else {
                 is_stream_done_ = true;
               }
@@ -726,6 +728,9 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
           }
         }
         packet = current_input_buffer + packet_idx * kBytesPerPacket;
+        // TODO(Gliniak): There might be an edge-case when we're in packet 26/27
+        // and GetPacketFrameOffset returns that there is no data in this packet
+        // aka. FrameOffset is set to more than 0x7FFF-0x20
         offset =
             xma::GetPacketFrameOffset(packet) + packet_idx * kBitsPerPacket;
       }
@@ -763,6 +768,23 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
   if (output_rb.write_offset() == output_rb.read_offset()) {
     data->output_buffer_valid = 0;
   }
+}
+
+uint32_t XmaContext::GetPacketFirstFrameOffset(const XMA_CONTEXT_DATA* data) {
+  uint32_t first_frame_offset = kBitsPerHeader;
+
+  uint8_t* in0 = data->input_buffer_0_valid
+                     ? memory()->TranslatePhysical(data->input_buffer_0_ptr)
+                     : nullptr;
+  uint8_t* in1 = data->input_buffer_1_valid
+                     ? memory()->TranslatePhysical(data->input_buffer_1_ptr)
+                     : nullptr;
+  uint8_t* current_input_buffer = data->current_buffer ? in1 : in0;
+
+  if (current_input_buffer) {
+    first_frame_offset = xma::GetPacketFrameOffset(current_input_buffer);
+  }
+  return first_frame_offset;
 }
 
 size_t XmaContext::GetNextFrame(uint8_t* block, size_t size,
