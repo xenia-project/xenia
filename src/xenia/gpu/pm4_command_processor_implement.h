@@ -523,19 +523,18 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_WAIT_REG_MEM(
         PrepareForWait();
         if (!cvars::vsync) {
           // User wants it fast and dangerous.
-          xe::threading::MaybeYield();
+          // do nothing
         } else {
           xe::threading::Sleep(std::chrono::milliseconds(wait / 0x100));
+          ReturnFromWait();
         }
-        // xe::threading::SyncMemory();
-        ReturnFromWait();
 
         if (!worker_running_) {
           // Short-circuited exit.
           return false;
         }
       } else {
-        xe::threading::MaybeYield();
+        //xe::threading::MaybeYield();
       }
     }
   } while (!matched);
