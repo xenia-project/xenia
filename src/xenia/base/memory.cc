@@ -309,15 +309,45 @@ void copy_and_swap_32_unaligned(void* dest_ptr, const void* src_ptr,
                                 size_t count) {
   auto dest = reinterpret_cast<uint32_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint32_t*>(src_ptr);
-  __m128i shufmask =
-      _mm_set_epi8(0x0C, 0x0D, 0x0E, 0x0F, 0x08, 0x09, 0x0A, 0x0B, 0x04, 0x05,
-                   0x06, 0x07, 0x00, 0x01, 0x02, 0x03);
-
   size_t i;
-  for (i = 0; i + 4 <= count; i += 4) {
-    __m128i input = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&src[i]));
-    __m128i output = _mm_shuffle_epi8(input, shufmask);
-    _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
+  // chrispy: this optimization mightt backfire if our unaligned load spans two
+  // cachelines... which it probably will
+  if (amd64::GetFeatureFlags() & amd64::kX64EmitAVX2) {
+    __m256i shufmask = _mm256_set_epi8(
+        0x0C, 0x0D, 0x0E, 0x0F, 0x08, 0x09, 0x0A, 0x0B, 0x04, 0x05, 0x06, 0x07,
+        0x00, 0x01, 0x02, 0x03, 0x0C, 0x0D, 0x0E, 0x0F, 0x08, 0x09, 0x0A, 0x0B,
+        0x04, 0x05, 0x06, 0x07, 0x00, 0x01, 0x02, 0x03);
+    // with vpshufb being a 0.5 through instruction, it makes the most sense to
+    // double up on our iters
+    for (i = 0; i + 16 <= count; i += 16) {
+      __m256i input1 =
+          _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&src[i]));
+      __m256i input2 =
+          _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&src[i + 8]));
+
+      __m256i output1 = _mm256_shuffle_epi8(input1, shufmask);
+      __m256i output2 = _mm256_shuffle_epi8(input2, shufmask);
+
+      _mm256_storeu_si256(reinterpret_cast<__m256i*>(&dest[i]), output1);
+      _mm256_storeu_si256(reinterpret_cast<__m256i*>(&dest[i + 8]), output2);
+    }
+    for (; i + 8 <= count; i += 8) {
+      __m256i input =
+          _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&src[i]));
+      __m256i output = _mm256_shuffle_epi8(input, shufmask);
+      _mm256_storeu_si256(reinterpret_cast<__m256i*>(&dest[i]), output);
+    }
+  } else {
+    __m128i shufmask =
+        _mm_set_epi8(0x0C, 0x0D, 0x0E, 0x0F, 0x08, 0x09, 0x0A, 0x0B, 0x04, 0x05,
+                     0x06, 0x07, 0x00, 0x01, 0x02, 0x03);
+
+    for (i = 0; i + 4 <= count; i += 4) {
+      __m128i input =
+          _mm_loadu_si128(reinterpret_cast<const __m128i*>(&src[i]));
+      __m128i output = _mm_shuffle_epi8(input, shufmask);
+      _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
+    }
   }
   XE_WORKAROUND_CONSTANT_RETURN_IF(count % 4 == 0);
   for (; i < count; ++i) {  // handle residual elements
