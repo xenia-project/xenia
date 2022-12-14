@@ -327,15 +327,34 @@ void copy_and_swap_32_unaligned(void* dest_ptr, const void* src_ptr,
 
       __m256i output1 = _mm256_shuffle_epi8(input1, shufmask);
       __m256i output2 = _mm256_shuffle_epi8(input2, shufmask);
-
+	  //chrispy: todo, benchmark this w/ and w/out these prefetches here on multiple machines
+	  //finding a good distance for prefetchw in particular is probably important
+	  //for when we're writing across 2 cachelines
+	  #if 0
+      if (i + 48 <= count) {
+        swcache::PrefetchNTA(&src[i + 32]);
+        if (amd64::GetFeatureFlags() & amd64::kX64EmitPrefetchW) {
+          swcache::PrefetchW(&dest[i + 32]);
+        }
+      }
+	  #endif
       _mm256_storeu_si256(reinterpret_cast<__m256i*>(&dest[i]), output1);
       _mm256_storeu_si256(reinterpret_cast<__m256i*>(&dest[i + 8]), output2);
     }
-    for (; i + 8 <= count; i += 8) {
+    if (i + 8 <= count) {
       __m256i input =
           _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&src[i]));
       __m256i output = _mm256_shuffle_epi8(input, shufmask);
       _mm256_storeu_si256(reinterpret_cast<__m256i*>(&dest[i]), output);
+      i += 8;
+    }
+    if (i + 4 <= count) {
+      __m128i input =
+          _mm_loadu_si128(reinterpret_cast<const __m128i*>(&src[i]));
+      __m128i output =
+          _mm_shuffle_epi8(input, _mm256_castsi256_si128(shufmask));
+      _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
+      i += 4;
     }
   } else {
     __m128i shufmask =

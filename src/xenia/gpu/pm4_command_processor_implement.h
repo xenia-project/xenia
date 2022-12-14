@@ -534,7 +534,6 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_WAIT_REG_MEM(
           return false;
         }
       } else {
-        //xe::threading::MaybeYield();
       }
     }
   } while (!matched);

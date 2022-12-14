@@ -214,18 +214,19 @@ class D3D12CommandProcessor final : public CommandProcessor {
   XE_FORCEINLINE
   void WriteRegisterForceinline(uint32_t index, uint32_t value);
   void WriteRegister(uint32_t index, uint32_t value) override;
-  XE_FORCEINLINE
+  
   virtual void WriteRegistersFromMem(uint32_t start_index, uint32_t* base,
                                      uint32_t num_registers) override;
-  //SHADER_CONSTANT_blah_XWYZ
+  /*helper functions for WriteRegistersFromMem*/
+  XE_FORCEINLINE
   void WriteShaderConstantsFromMem(uint32_t start_index, uint32_t* base,
-                                        uint32_t num_registers);
+                                     uint32_t num_registers);
+  XE_FORCEINLINE
   void WriteBoolLoopFromMem(uint32_t start_index, uint32_t* base,
                             uint32_t num_registers);
+  XE_FORCEINLINE
   void WriteFetchFromMem(uint32_t start_index, uint32_t* base,
                          uint32_t num_registers);
-  void WriteRegistersFromMemCommonSense(uint32_t start_index,  uint32_t* base,
-                                     uint32_t num_registers) ;
 
   void WritePossiblySpecialRegistersFromMem(uint32_t start_index, uint32_t* base,
                                            uint32_t num_registers);
