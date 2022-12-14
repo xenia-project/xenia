@@ -552,8 +552,90 @@ void GetHostViewportInfo(GetViewportInfoArgs* XE_RESTRICT args,
   }
 }
 template <bool clamp_to_surface_pitch>
-XE_NOINLINE static void GetScissorTmpl(const RegisterFile& XE_RESTRICT regs,
-                                       Scissor& XE_RESTRICT scissor_out) {
+static inline
+void GetScissorTmpl(const RegisterFile& XE_RESTRICT regs,
+                           Scissor& XE_RESTRICT scissor_out) {
+#if XE_ARCH_AMD64 == 1
+  auto pa_sc_window_scissor_tl = regs.Get<reg::PA_SC_WINDOW_SCISSOR_TL>();
+  auto pa_sc_window_scissor_br = regs.Get<reg::PA_SC_WINDOW_SCISSOR_BR>();
+  auto pa_sc_window_offset = regs.Get<reg::PA_SC_WINDOW_OFFSET>();
+  auto pa_sc_screen_scissor_tl = regs.Get<reg::PA_SC_SCREEN_SCISSOR_TL>();
+  auto pa_sc_screen_scissor_br = regs.Get<reg::PA_SC_SCREEN_SCISSOR_BR>();
+  uint32_t surface_pitch = 0;
+  if constexpr (clamp_to_surface_pitch) {
+    surface_pitch = regs.Get<reg::RB_SURFACE_INFO>().surface_pitch;
+  }
+  uint32_t pa_sc_window_scissor_tl_tl_x = pa_sc_window_scissor_tl.tl_x,
+           pa_sc_window_scissor_tl_tl_y = pa_sc_window_scissor_tl.tl_y,
+           pa_sc_window_scissor_br_br_x = pa_sc_window_scissor_br.br_x,
+           pa_sc_window_scissor_br_br_y = pa_sc_window_scissor_br.br_y,
+           pa_sc_window_offset_window_x_offset =
+               pa_sc_window_offset.window_x_offset,
+           pa_sc_window_offset_window_y_offset =
+               pa_sc_window_offset.window_y_offset,
+           pa_sc_screen_scissor_tl_tl_x = pa_sc_screen_scissor_tl.tl_x,
+           pa_sc_screen_scissor_tl_tl_y = pa_sc_screen_scissor_tl.tl_y,
+           pa_sc_screen_scissor_br_br_x = pa_sc_screen_scissor_br.br_x,
+           pa_sc_screen_scissor_br_br_y = pa_sc_screen_scissor_br.br_y;
+
+  int32_t tl_x = int32_t(pa_sc_window_scissor_tl_tl_x);
+  int32_t tl_y = int32_t(pa_sc_window_scissor_tl_tl_y);
+
+  int32_t br_x = int32_t(pa_sc_window_scissor_br_br_x);
+  int32_t br_y = int32_t(pa_sc_window_scissor_br_br_y);
+
+  __m128i tmp1 = _mm_setr_epi32(tl_x, tl_y, br_x, br_y);
+  __m128i pa_sc_scissor = _mm_setr_epi32(
+      pa_sc_screen_scissor_tl_tl_x, pa_sc_screen_scissor_tl_tl_y,
+      pa_sc_screen_scissor_br_br_x, pa_sc_screen_scissor_br_br_y);
+  __m128i xyoffsetadd = _mm_cvtsi64x_si128(
+      static_cast<unsigned long long>(pa_sc_window_offset_window_x_offset) |
+      (static_cast<unsigned long long>(pa_sc_window_offset_window_y_offset)
+       << 32));
+  xyoffsetadd = _mm_unpacklo_epi64(xyoffsetadd, xyoffsetadd);
+  // chrispy: put this here to make it clear that the shift by 31 is extracting
+  // this field
+  XE_MAYBE_UNUSED
+  uint32_t window_offset_disable_reference =
+      pa_sc_window_scissor_tl.window_offset_disable;
+
+  __m128i offset_disable_mask = _mm_set1_epi32(pa_sc_window_scissor_tl.value);
+
+  __m128i addend = _mm_blendv_epi8(xyoffsetadd, _mm_setzero_si128(),
+                                   _mm_srai_epi32(offset_disable_mask, 31));
+
+  tmp1 = _mm_add_epi32(tmp1, addend);
+
+  //}
+  // Screen scissor is not used by Direct3D 9 (always 0, 0 to 8192, 8192), but
+  // still handled here for completeness.
+  __m128i lomax = _mm_max_epi32(tmp1, pa_sc_scissor);
+  __m128i himin = _mm_min_epi32(tmp1, pa_sc_scissor);
+
+  tmp1 = _mm_blend_epi16(lomax, himin, 0b11110000);
+
+  if constexpr (clamp_to_surface_pitch) {
+    // Clamp the horizontal scissor to surface_pitch for safety, in case that's
+    // not done by the guest for some reason (it's not when doing draws without
+    // clipping in Direct3D 9, for instance), to prevent overflow - this is
+    // important for host implementations, both based on target-indepedent
+    // rasterization without render target width at all (pixel shader
+    // interlock-based custom RB implementations) and using conventional render
+    // targets, but padded to EDRAM tiles.
+    tmp1 = _mm_blend_epi16(
+        tmp1, _mm_min_epi32(tmp1, _mm_set1_epi32(surface_pitch)),
+                            0b00110011);
+  }
+
+  tmp1 = _mm_max_epi32(tmp1, _mm_setzero_si128());
+
+  __m128i tl_in_high = _mm_unpacklo_epi64(tmp1, tmp1);
+
+  __m128i final_br = _mm_max_epi32(tmp1, tl_in_high);
+  final_br = _mm_sub_epi32(final_br, tl_in_high);
+  __m128i scissor_res = _mm_blend_epi16(tmp1, final_br, 0b11110000);
+  _mm_storeu_si128((__m128i*)&scissor_out, scissor_res);
+#else
   auto pa_sc_window_scissor_tl = regs.Get<reg::PA_SC_WINDOW_SCISSOR_TL>();
   auto pa_sc_window_scissor_br = regs.Get<reg::PA_SC_WINDOW_SCISSOR_BR>();
   auto pa_sc_window_offset = regs.Get<reg::PA_SC_WINDOW_OFFSET>();
@@ -629,6 +711,7 @@ XE_NOINLINE static void GetScissorTmpl(const RegisterFile& XE_RESTRICT regs,
   scissor_out.offset[1] = uint32_t(tl_y);
   scissor_out.extent[0] = uint32_t(br_x - tl_x);
   scissor_out.extent[1] = uint32_t(br_y - tl_y);
+#endif
 }
 
 void GetScissor(const RegisterFile& XE_RESTRICT regs,

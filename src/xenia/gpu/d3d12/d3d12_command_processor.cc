@@ -2193,7 +2193,6 @@ D3D12CommandProcessor::WriteRegisterRangeFromMem_WithKnownBound(
   REFRESH_MSVC_RANGE();
   DO_A_RANGE(XE_GPU_REG_SHADER_CONSTANT_LOOP_31 + 1, 65536,
              REGULAR_WRITE_CALLBACK);
-
 }
 template <uint32_t register_lower_bound, uint32_t register_upper_bound>
 XE_FORCEINLINE void
@@ -2799,11 +2798,17 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   // todo: use SIMD for getscissor + scaling here, should reduce code size more
   draw_util::Scissor scissor;
   draw_util::GetScissor(regs, scissor);
+#if XE_ARCH_AMD64 == 1
+  __m128i* scisp = (__m128i*)&scissor;
+  *scisp = _mm_mullo_epi32(
+      *scisp, _mm_setr_epi32(draw_resolution_scale_x, draw_resolution_scale_y,
+                             draw_resolution_scale_x, draw_resolution_scale_y));
+#else
   scissor.offset[0] *= draw_resolution_scale_x;
   scissor.offset[1] *= draw_resolution_scale_y;
   scissor.extent[0] *= draw_resolution_scale_x;
   scissor.extent[1] *= draw_resolution_scale_y;
-
+#endif
   // Update viewport, scissor, blend factor and stencil reference.
   UpdateFixedFunctionState(viewport_info, scissor, primitive_polygonal,
                            normalized_depth_control);
