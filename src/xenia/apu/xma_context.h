@@ -196,6 +196,10 @@ class XmaContext {
   void Decode(XMA_CONTEXT_DATA* data);
   int PrepareDecoder(uint8_t* packet, int sample_rate, bool is_two_channel);
 
+  // This method should be used ONLY when we're at the last packet of the stream
+  // and we want to find offset in next buffer
+  uint32_t GetPacketFirstFrameOffset(const XMA_CONTEXT_DATA* data);
+
   Memory* memory_ = nullptr;
 
   uint32_t id_ = 0;
