@@ -104,6 +104,15 @@ class TextureCache {
   void TextureFetchConstantWritten(uint32_t index) {
     texture_bindings_in_sync_ &= ~(UINT32_C(1) << index);
   }
+  void TextureFetchConstantsWritten(uint32_t first_index, uint32_t last_index) {
+    // generate a mask of all bits from before the first index, and xor it with
+    // all bits before the last index this produces a mask covering only the
+    // bits between first and last
+    uint32_t res = ((1U << first_index) - 1) ^ ((1U << (last_index + 1)) - 1);
+    // todo: check that this is right
+
+    texture_bindings_in_sync_ &= ~res;
+  }
 
   virtual void RequestTextures(uint32_t used_texture_mask);
 

@@ -211,12 +211,25 @@ class D3D12CommandProcessor final : public CommandProcessor {
  protected:
   bool SetupContext() override;
   void ShutdownContext() override;
-
-  void WriteRegister(uint32_t index, uint32_t value) override;
   XE_FORCEINLINE
+  void WriteRegisterForceinline(uint32_t index, uint32_t value);
+  void WriteRegister(uint32_t index, uint32_t value) override;
+  
   virtual void WriteRegistersFromMem(uint32_t start_index, uint32_t* base,
                                      uint32_t num_registers) override;
+  /*helper functions for WriteRegistersFromMem*/
+  XE_FORCEINLINE
+  void WriteShaderConstantsFromMem(uint32_t start_index, uint32_t* base,
+                                     uint32_t num_registers);
+  XE_FORCEINLINE
+  void WriteBoolLoopFromMem(uint32_t start_index, uint32_t* base,
+                            uint32_t num_registers);
+  XE_FORCEINLINE
+  void WriteFetchFromMem(uint32_t start_index, uint32_t* base,
+                         uint32_t num_registers);
 
+  void WritePossiblySpecialRegistersFromMem(uint32_t start_index, uint32_t* base,
+                                           uint32_t num_registers);
   template <uint32_t register_lower_bound, uint32_t register_upper_bound>
   XE_FORCEINLINE void WriteRegisterRangeFromMem_WithKnownBound(
       uint32_t start_index, uint32_t* base, uint32_t num_registers);

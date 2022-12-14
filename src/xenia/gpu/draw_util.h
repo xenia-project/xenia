@@ -433,13 +433,15 @@ struct GetViewportInfoArgs {
 void GetHostViewportInfo(GetViewportInfoArgs* XE_RESTRICT args,
                          ViewportInfo& viewport_info_out);
 
-struct Scissor {
+struct alignas(16) Scissor {
   // Offset from render target UV = 0 to +UV.
   uint32_t offset[2];
   // Extent can be zero.
   uint32_t extent[2];
 };
-void GetScissor(const RegisterFile& regs, Scissor& scissor_out,
+
+void GetScissor(const RegisterFile& XE_RESTRICT regs,
+                Scissor& XE_RESTRICT scissor_out,
                 bool clamp_to_surface_pitch = true);
 
 // Returns the color component write mask for the draw command taking into

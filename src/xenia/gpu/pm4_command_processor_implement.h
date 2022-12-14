@@ -4,7 +4,6 @@ void COMMAND_PROCESSOR::ExecuteIndirectBuffer(uint32_t ptr,
                                               uint32_t count) XE_RESTRICT {
   SCOPE_profile_cpu_f("gpu");
 
-
   trace_writer_.WriteIndirectBufferStart(ptr, count * sizeof(uint32_t));
   if (count != 0) {
     RingBuffer old_reader = reader_;
@@ -32,10 +31,9 @@ void COMMAND_PROCESSOR::ExecuteIndirectBuffer(uint32_t ptr,
     trace_writer_.WriteIndirectBufferEnd();
     reader_ = old_reader;
   } else {
-	  //rare, but i've seen it happen! (and then a division by 0 occurs)
+    // rare, but i've seen it happen! (and then a division by 0 occurs)
     return;
   }
-
 }
 
 bool COMMAND_PROCESSOR::ExecutePacket() {
@@ -88,8 +86,9 @@ bool COMMAND_PROCESSOR::ExecutePacketType0_CountOverflow(uint32_t count) {
          count * sizeof(uint32_t));
   return false;
 }
-    /*
-	Todo: optimize this function this one along with execute packet type III are the most frequently called functions for PM4
+/*
+    Todo: optimize this function this one along with execute packet type III are
+   the most frequently called functions for PM4
 */
 XE_NOINLINE
 bool COMMAND_PROCESSOR::ExecutePacketType0(uint32_t packet) XE_RESTRICT {
@@ -98,7 +97,6 @@ bool COMMAND_PROCESSOR::ExecutePacketType0(uint32_t packet) XE_RESTRICT {
   // (base_index << 2).
 
   uint32_t count = ((packet >> 16) & 0x3FFF) + 1;
-
 
   if (COMMAND_PROCESSOR::GetCurrentRingReadCount() >=
       count * sizeof(uint32_t)) {
@@ -143,7 +141,7 @@ bool COMMAND_PROCESSOR::ExecutePacketType2(uint32_t packet) XE_RESTRICT {
   trace_writer_.WritePacketEnd();
   return true;
 }
-XE_NOINLINE
+XE_FORCEINLINE
 XE_NOALIAS
 uint32_t COMMAND_PROCESSOR::GetCurrentRingReadCount() {
   return reader_.read_count();
@@ -446,41 +444,46 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_INDIRECT_BUFFER(
   return true;
 }
 
-XE_NOINLINE
+/*
+        chrispy: this is fine to inline, as a noinline function it compiled down
+   to 54 bytes
+*/
 static bool MatchValueAndRef(uint32_t value, uint32_t ref, uint32_t wait_info) {
-  /*
-	Todo: should subtract values from each other twice with the sides inverted and then create a mask from the sign bits 
-	then use the wait_info value in order to select the bits that correctly implement the condition
-	If neither subtraction has the signbit set then that means the value is equal
-  */
-  bool matched = false;
-  switch (wait_info & 0x7) {
-    case 0x0:  // Never.
-      matched = false;
-      break;
-    case 0x1:  // Less than reference.
-      matched = value < ref;
-      break;
-    case 0x2:  // Less than or equal to reference.
-      matched = value <= ref;
-      break;
-    case 0x3:  // Equal to reference.
-      matched = value == ref;
-      break;
-    case 0x4:  // Not equal to reference.
-      matched = value != ref;
-      break;
-    case 0x5:  // Greater than or equal to reference.
-      matched = value >= ref;
-      break;
-    case 0x6:  // Greater than reference.
-      matched = value > ref;
-      break;
-    case 0x7:  // Always
-      matched = true;
-      break;
-  }
-  return matched;
+// smaller code is generated than the #else path, although whether it is faster
+// i do not know. i don't think games do an enormous number of cond_write
+// though, so we have picked
+// the path with the smaller codegen.
+// we do technically have more instructions executed vs the switch case method,
+// but we have no mispredicts and most of our instructions are 0.25/0.3
+// throughput
+#if 1
+  uint32_t value_minus_ref =
+      static_cast<uint32_t>(static_cast<int32_t>(value - ref) >> 31);
+  uint32_t ref_minus_value =
+      static_cast<uint32_t>(static_cast<int32_t>(ref - value) >> 31);
+  uint32_t eqmask = ~(value_minus_ref | ref_minus_value);
+  uint32_t nemask = (value_minus_ref | ref_minus_value);
+
+  uint32_t value_lt_mask = value_minus_ref;
+  uint32_t value_gt_mask = ref_minus_value;
+  uint32_t value_lte_mask = value_lt_mask | eqmask;
+  uint32_t value_gte_mask = value_gt_mask | eqmask;
+
+  uint32_t bits_for_selecting =
+      (value_lt_mask & (1 << 1)) | (value_lte_mask & (1 << 2)) |
+      (eqmask & (1 << 3)) | (nemask & (1 << 4)) | (value_gte_mask & (1 << 5)) |
+      (value_gt_mask & (1 << 6)) | (1 << 7);
+
+  return (bits_for_selecting >> (wait_info & 7)) & 1;
+
+#else
+
+  return ((((value < ref) << 1) | ((value <= ref) << 2) |
+           ((value == ref) << 3) | ((value != ref) << 4) |
+           ((value >= ref) << 5) | ((value > ref) << 6) | (1 << 7)) >>
+          (wait_info & 7)) &
+         1;
+#endif
 }
 XE_NOINLINE
 bool COMMAND_PROCESSOR::ExecutePacketType3_WAIT_REG_MEM(
@@ -520,19 +523,17 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_WAIT_REG_MEM(
         PrepareForWait();
         if (!cvars::vsync) {
           // User wants it fast and dangerous.
-          xe::threading::MaybeYield();
+          // do nothing
         } else {
           xe::threading::Sleep(std::chrono::milliseconds(wait / 0x100));
+          ReturnFromWait();
         }
-        // xe::threading::SyncMemory();
-        ReturnFromWait();
 
         if (!worker_running_) {
           // Short-circuited exit.
           return false;
         }
       } else {
-        xe::threading::MaybeYield();
       }
     }
   } while (!matched);
@@ -1128,7 +1129,7 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_VIZ_QUERY(
 }
 
 uint32_t COMMAND_PROCESSOR::ExecutePrimaryBuffer(uint32_t read_index,
-                                                uint32_t write_index) {
+                                                 uint32_t write_index) {
   SCOPE_profile_cpu_f("gpu");
 #if XE_ENABLE_TRACE_WRITER_INSTRUMENTATION == 1
   // If we have a pending trace stream open it now. That way we ensure we get

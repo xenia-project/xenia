@@ -9,8 +9,8 @@
 
 #include "xenia/base/memory.h"
 #include "xenia/base/cvar.h"
-#include "xenia/base/platform.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/platform.h"
 
 #if XE_ARCH_ARM64
 #include <arm_neon.h>
@@ -59,7 +59,7 @@ static void XeCopy16384StreamingAVX(CacheLine* XE_RESTRICT to,
 
   CacheLine* dest4 = to + (NUM_CACHELINES_IN_PAGE * 3);
   CacheLine* src4 = from + (NUM_CACHELINES_IN_PAGE * 3);
-  
+
   for (uint32_t i = 0; i < num_lines_for_8k; ++i) {
     xe::swcache::CacheLine line0, line1, line2, line3;
 
@@ -173,7 +173,12 @@ static void vastcpy_impl_movdir64m(CacheLine* XE_RESTRICT physaddr,
     _movdir64b(physaddr + i, rdmapping + i);
   }
 }
-
+static void vastcpy_impl_repmovs(CacheLine* XE_RESTRICT physaddr,
+                                 CacheLine* XE_RESTRICT rdmapping,
+                                 uint32_t written_length) {
+  __movsq((unsigned long long*)physaddr, (unsigned long long*)rdmapping,
+          written_length / 8);
+}
 XE_COLD
 static void first_vastcpy(CacheLine* XE_RESTRICT physaddr,
                           CacheLine* XE_RESTRICT rdmapping,
@@ -189,6 +194,9 @@ static void first_vastcpy(CacheLine* XE_RESTRICT physaddr,
   if (amd64::GetFeatureFlags() & amd64::kX64EmitMovdir64M) {
     XELOGI("Selecting MOVDIR64M vastcpy.");
     dispatch_to_use = vastcpy_impl_movdir64m;
+  } else if (amd64::GetFeatureFlags() & amd64::kX64FastRepMovs) {
+    XELOGI("Selecting rep movs vastcpy.");
+    dispatch_to_use = vastcpy_impl_repmovs;
   } else {
     XELOGI("Selecting generic AVX vastcpy.");
     dispatch_to_use = vastcpy_impl_avx;
@@ -301,15 +309,64 @@ void copy_and_swap_32_unaligned(void* dest_ptr, const void* src_ptr,
                                 size_t count) {
   auto dest = reinterpret_cast<uint32_t*>(dest_ptr);
   auto src = reinterpret_cast<const uint32_t*>(src_ptr);
-  __m128i shufmask =
-      _mm_set_epi8(0x0C, 0x0D, 0x0E, 0x0F, 0x08, 0x09, 0x0A, 0x0B, 0x04, 0x05,
-                   0x06, 0x07, 0x00, 0x01, 0x02, 0x03);
-
   size_t i;
-  for (i = 0; i + 4 <= count; i += 4) {
-    __m128i input = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&src[i]));
-    __m128i output = _mm_shuffle_epi8(input, shufmask);
-    _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
+  // chrispy: this optimization mightt backfire if our unaligned load spans two
+  // cachelines... which it probably will
+  if (amd64::GetFeatureFlags() & amd64::kX64EmitAVX2) {
+    __m256i shufmask = _mm256_set_epi8(
+        0x0C, 0x0D, 0x0E, 0x0F, 0x08, 0x09, 0x0A, 0x0B, 0x04, 0x05, 0x06, 0x07,
+        0x00, 0x01, 0x02, 0x03, 0x0C, 0x0D, 0x0E, 0x0F, 0x08, 0x09, 0x0A, 0x0B,
+        0x04, 0x05, 0x06, 0x07, 0x00, 0x01, 0x02, 0x03);
+    // with vpshufb being a 0.5 through instruction, it makes the most sense to
+    // double up on our iters
+    for (i = 0; i + 16 <= count; i += 16) {
+      __m256i input1 =
+          _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&src[i]));
+      __m256i input2 =
+          _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&src[i + 8]));
+
+      __m256i output1 = _mm256_shuffle_epi8(input1, shufmask);
+      __m256i output2 = _mm256_shuffle_epi8(input2, shufmask);
+	  //chrispy: todo, benchmark this w/ and w/out these prefetches here on multiple machines
+	  //finding a good distance for prefetchw in particular is probably important
+	  //for when we're writing across 2 cachelines
+	  #if 0
+      if (i + 48 <= count) {
+        swcache::PrefetchNTA(&src[i + 32]);
+        if (amd64::GetFeatureFlags() & amd64::kX64EmitPrefetchW) {
+          swcache::PrefetchW(&dest[i + 32]);
+        }
+      }
+	  #endif
+      _mm256_storeu_si256(reinterpret_cast<__m256i*>(&dest[i]), output1);
+      _mm256_storeu_si256(reinterpret_cast<__m256i*>(&dest[i + 8]), output2);
+    }
+    if (i + 8 <= count) {
+      __m256i input =
+          _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&src[i]));
+      __m256i output = _mm256_shuffle_epi8(input, shufmask);
+      _mm256_storeu_si256(reinterpret_cast<__m256i*>(&dest[i]), output);
+      i += 8;
+    }
+    if (i + 4 <= count) {
+      __m128i input =
+          _mm_loadu_si128(reinterpret_cast<const __m128i*>(&src[i]));
+      __m128i output =
+          _mm_shuffle_epi8(input, _mm256_castsi256_si128(shufmask));
+      _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
+      i += 4;
+    }
+  } else {
+    __m128i shufmask =
+        _mm_set_epi8(0x0C, 0x0D, 0x0E, 0x0F, 0x08, 0x09, 0x0A, 0x0B, 0x04, 0x05,
+                     0x06, 0x07, 0x00, 0x01, 0x02, 0x03);
+
+    for (i = 0; i + 4 <= count; i += 4) {
+      __m128i input =
+          _mm_loadu_si128(reinterpret_cast<const __m128i*>(&src[i]));
+      __m128i output = _mm_shuffle_epi8(input, shufmask);
+      _mm_storeu_si128(reinterpret_cast<__m128i*>(&dest[i]), output);
+    }
   }
   XE_WORKAROUND_CONSTANT_RETURN_IF(count % 4 == 0);
   for (; i < count; ++i) {  // handle residual elements

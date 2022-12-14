@@ -109,7 +109,7 @@ XE_NOINLINE
 XE_COLD
 bool HitUnimplementedOpcode(uint32_t opcode, uint32_t count) XE_RESTRICT;
 
-XE_NOINLINE
+XE_FORCEINLINE
 XE_NOALIAS
 uint32_t GetCurrentRingReadCount();
 
