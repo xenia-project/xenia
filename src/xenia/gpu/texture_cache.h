@@ -108,7 +108,7 @@ class TextureCache {
     // generate a mask of all bits from before the first index, and xor it with
     // all bits before the last index this produces a mask covering only the
     // bits between first and last
-    uint32_t res = ((1U << first_index) - 1) ^ ((1U << (last_index + 1)) - 1);
+    uint32_t res = ((1U << first_index) - 1) ^ static_cast<uint32_t>((1ULL << (last_index + 1)) - 1ULL);
     // todo: check that this is right
 
     texture_bindings_in_sync_ &= ~res;

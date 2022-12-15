@@ -74,6 +74,18 @@ class SharedMemory {
   bool RequestRange(uint32_t start, uint32_t length,
                     bool* any_data_resolved_out = nullptr);
 
+  void TryFindUploadRange(const uint32_t& block_first,
+                          const uint32_t& block_last,
+                          const uint32_t& page_first, const uint32_t& page_last,
+                          bool& any_data_resolved, uint32_t& range_start,
+                          unsigned int& current_upload_range,
+                          std::pair<uint32_t, uint32_t>* uploads);
+
+  void TryGetNextUploadRange(uint32_t& range_start, uint64_t& block_valid,
+                             const uint32_t& i,
+                             unsigned int& current_upload_range,
+                             std::pair<uint32_t, uint32_t>* uploads);
+
   // Marks the range and, if not exact_range, potentially its surroundings
   // (to up to the first GPU-written page, as an access violation exception
   // count optimization) as modified by the CPU, also invalidating GPU-written
@@ -196,10 +208,16 @@ class SharedMemory {
     // contains data written specifically by resolving from EDRAM.
     uint64_t valid_and_gpu_resolved;
   };
+
+  //chrispy: todo, systempageflagsblock should be 3 different arrays
   // Flags for each 64 system pages, interleaved as blocks, so bit scan can be
   // used to quickly extract ranges.
-  std::vector<SystemPageFlagsBlock> system_page_flags_;
+ // std::vector<SystemPageFlagsBlock> system_page_flags_;
 
+  uint64_t *system_page_flags_valid_ = nullptr,
+           *system_page_flags_valid_and_gpu_written_ = nullptr,
+           *system_page_flags_valid_and_gpu_resolved_ = nullptr;
+  unsigned num_system_page_flags_ = 0;
   static std::pair<uint32_t, uint32_t> MemoryInvalidationCallbackThunk(
       void* context_ptr, uint32_t physical_address_start, uint32_t length,
       bool exact_range);

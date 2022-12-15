@@ -2063,7 +2063,7 @@ D3D12CommandProcessor::WriteRegisterRangeFromMem_WithKnownBound(
 
 #define DO_A_RANGE(start_range, end_range, cb)                       \
   if constexpr (start_range >= register_lower_bound ||               \
-                end_range > register_lower_bound) {                 \
+                end_range > register_lower_bound) {                  \
     if (current_index < (end_range)) {                               \
       uint32_t ntowrite = get_end_before_qty(end_range);             \
       cb((start_range), (end_range), current_index, base, ntowrite); \
