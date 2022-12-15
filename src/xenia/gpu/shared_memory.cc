@@ -26,9 +26,28 @@ SharedMemory::SharedMemory(Memory& memory) : memory_(memory) {
 SharedMemory::~SharedMemory() { ShutdownCommon(); }
 
 void SharedMemory::InitializeCommon() {
-  system_page_flags_.clear();
-  system_page_flags_.resize(((kBufferSize >> page_size_log2_) + 63) / 64);
+  size_t num_system_page_flags_entries =
+      ((kBufferSize >> page_size_log2_) + 63) / 64;
+  num_system_page_flags_ = static_cast<uint32_t>(num_system_page_flags_entries);
 
+  // in total on windows the page flags take up 2048 entries per fields, with 3
+  // fields and 8 bytes per entry thats 49152 bytes. having page alignment for
+  // them is probably beneficial, we do waste 16384 bytes with this alloc though
+
+  uint64_t* system_page_flags_base = (uint64_t*)memory::AllocFixed(
+      nullptr, num_system_page_flags_ * 3 * sizeof(uint64_t),
+      memory::AllocationType::kReserveCommit, memory::PageAccess::kReadWrite);
+
+  system_page_flags_valid_ = system_page_flags_base,
+  system_page_flags_valid_and_gpu_resolved_ =
+      system_page_flags_base + (num_system_page_flags_),
+  system_page_flags_valid_and_gpu_written_ =
+      system_page_flags_base + (num_system_page_flags_ * 2);
+  memset(system_page_flags_valid_, 0, 8 * num_system_page_flags_entries);
+  memset(system_page_flags_valid_and_gpu_resolved_, 0,
+         8 * num_system_page_flags_entries);
+  memset(system_page_flags_valid_and_gpu_written_, 0,
+         8 * num_system_page_flags_entries);
   memory_invalidation_callback_handle_ =
       memory_.RegisterPhysicalMemoryInvalidationCallback(
           MemoryInvalidationCallbackThunk, this);
@@ -81,6 +100,12 @@ void SharedMemory::ShutdownCommon() {
   host_gpu_memory_sparse_allocated_.clear();
   host_gpu_memory_sparse_allocated_.shrink_to_fit();
   host_gpu_memory_sparse_granularity_log2_ = UINT32_MAX;
+  memory::DeallocFixed(system_page_flags_valid_, 0,
+                       memory::DeallocationType::kRelease);
+  system_page_flags_valid_ = nullptr;
+  system_page_flags_valid_and_gpu_resolved_ = nullptr;
+  system_page_flags_valid_and_gpu_written_ = nullptr;
+  num_system_page_flags_ = 0;
 }
 
 void SharedMemory::ClearCache() {
@@ -105,8 +130,9 @@ void SharedMemory::ClearCache() {
 
 void SharedMemory::SetSystemPageBlocksValidWithGpuDataWritten() {
   auto global_lock = global_critical_region_.Acquire();
-  for (SystemPageFlagsBlock& block : system_page_flags_) {
-    block.valid = block.valid_and_gpu_written;
+
+  for (unsigned i = 0; i < num_system_page_flags_; ++i) {
+    system_page_flags_valid_[i] = system_page_flags_valid_and_gpu_written_[i];
   }
 }
 
@@ -150,8 +176,8 @@ SharedMemory::WatchHandle SharedMemory::WatchMemoryRange(
       watch_page_first << page_size_log2_ >> kWatchBucketSizeLog2;
   uint32_t bucket_last =
       watch_page_last << page_size_log2_ >> kWatchBucketSizeLog2;
-  //chrispy: Not required the global lock is always held by the caller
- // auto global_lock = global_critical_region_.Acquire();
+  // chrispy: Not required the global lock is always held by the caller
+  // auto global_lock = global_critical_region_.Acquire();
 
   // Allocate the range.
   WatchRange* range = watch_range_first_free_;
@@ -308,17 +334,17 @@ void SharedMemory::MakeRangeValid(uint32_t start, uint32_t length,
       if (i == valid_block_last && (valid_page_last & 63) != 63) {
         valid_bits &= (uint64_t(1) << ((valid_page_last & 63) + 1)) - 1;
       }
-      SystemPageFlagsBlock& block = system_page_flags_[i];
-      block.valid |= valid_bits;
+      // SystemPageFlagsBlock& block = system_page_flags_[i];
+      system_page_flags_valid_[i] |= valid_bits;
       if (written_by_gpu) {
-        block.valid_and_gpu_written |= valid_bits;
+        system_page_flags_valid_and_gpu_written_[i] |= valid_bits;
       } else {
-        block.valid_and_gpu_written &= ~valid_bits;
+        system_page_flags_valid_and_gpu_written_[i] &= ~valid_bits;
       }
       if (written_by_gpu_resolve) {
-        block.valid_and_gpu_resolved |= valid_bits;
+        system_page_flags_valid_and_gpu_resolved_[i] |= valid_bits;
       } else {
-        block.valid_and_gpu_resolved &= ~valid_bits;
+        system_page_flags_valid_and_gpu_resolved_[i] &= ~valid_bits;
       }
     }
   }
@@ -384,64 +410,15 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length,
 
   bool any_data_resolved = false;
   uint32_t block_first = page_first >> 6;
-  swcache::PrefetchL1(&system_page_flags_[block_first]);
+  // swcache::PrefetchL1(&system_page_flags_[block_first]);
   uint32_t block_last = page_last >> 6;
   uint32_t range_start = UINT32_MAX;
 
   {
     auto global_lock = global_critical_region_.Acquire();
-    for (uint32_t i = block_first; i <= block_last; ++i) {
-      const SystemPageFlagsBlock& block = system_page_flags_[i];
-      uint64_t block_valid = block.valid;
-      uint64_t block_resolved = block.valid_and_gpu_resolved;
-      // Consider pages in the block outside the requested range valid.
-      if (i == block_first) {
-        uint64_t block_before = (uint64_t(1) << (page_first & 63)) - 1;
-        block_valid |= block_before;
-        block_resolved &= ~block_before;
-      }
-      if (i == block_last && (page_last & 63) != 63) {
-        uint64_t block_inside = (uint64_t(1) << ((page_last & 63) + 1)) - 1;
-        block_valid |= ~block_inside;
-        block_resolved &= block_inside;
-      }
-      if (block_resolved) {
-        any_data_resolved = true;
-      }
-
-      while (true) {
-        uint32_t block_page;
-        if (range_start == UINT32_MAX) {
-          // Check if need to open a new range.
-          if (!xe::bit_scan_forward(~block_valid, &block_page)) {
-            break;
-          }
-          range_start = (i << 6) + block_page;
-        } else {
-          // Check if need to close the range.
-          // Ignore the valid pages before the beginning of the range.
-          uint64_t block_valid_from_start = block_valid;
-          if (i == (range_start >> 6)) {
-            block_valid_from_start &=
-                ~((uint64_t(1) << (range_start & 63)) - 1);
-          }
-          if (!xe::bit_scan_forward(block_valid_from_start, &block_page)) {
-            break;
-          }
-          if (current_upload_range + 1 >= MAX_UPLOAD_RANGES) {
-            xe::FatalError(
-                "Hit max upload ranges in shared_memory.cc, tell a dev to "
-                "raise the limit!");
-          }
-          uploads[current_upload_range++] =
-              std::make_pair(range_start, (i << 6) + block_page - range_start);
-          // In the next iteration within this block, consider this range valid
-          // since it has been queued for upload.
-          block_valid |= (uint64_t(1) << block_page) - 1;
-          range_start = UINT32_MAX;
-        }
-      }
-    }
+    TryFindUploadRange(block_first, block_last, page_first, page_last,
+                       any_data_resolved, range_start, current_upload_range,
+                       uploads);
   }
   if (range_start != UINT32_MAX) {
     uploads[current_upload_range++] =
@@ -455,6 +432,110 @@ bool SharedMemory::RequestRange(uint32_t start, uint32_t length,
   }
 
   return UploadRanges(uploads, current_upload_range);
+}
+
+template <typename T>
+XE_FORCEINLINE XE_NOALIAS static T mod_shift_left(T value, uint32_t by) {
+#if XE_ARCH_AMD64 == 1
+  // arch has modular shifts
+  return value << by;
+#else
+  return value << (by % (sizeof(T) * CHAR_BIT));
+#endif
+}
+void SharedMemory::TryFindUploadRange(const uint32_t& block_first,
+                                      const uint32_t& block_last,
+                                      const uint32_t& page_first,
+                                      const uint32_t& page_last,
+                                      bool& any_data_resolved,
+                                      uint32_t& range_start,
+                                      unsigned int& current_upload_range,
+                                      std::pair<uint32_t, uint32_t>* uploads) {
+  for (uint32_t i = block_first; i <= block_last; ++i) {
+    // const SystemPageFlagsBlock& block = system_page_flags_[i];
+    uint64_t block_valid = system_page_flags_valid_[i];
+    uint64_t block_resolved = 0;
+
+    if (any_data_resolved) {
+      block_resolved = 0;
+    } else {
+      block_resolved = system_page_flags_valid_and_gpu_resolved_[i];
+    }
+    if (i == block_first) {
+      uint64_t block_before = mod_shift_left(uint64_t(1), page_first) - 1;
+      block_valid |= block_before;
+      block_resolved &= ~block_before;
+    }
+    if (i == block_last && (page_last & 63) != 63) {
+      uint64_t block_inside = mod_shift_left(uint64_t(1), page_last + 1) - 1;
+      block_valid |= ~block_inside;
+      block_resolved &= block_inside;
+    }
+    // Consider pages in the block outside the requested range valid.
+    if (!block_resolved) {
+    } else {
+      any_data_resolved = true;
+    }
+    TryGetNextUploadRange(range_start, block_valid, i, current_upload_range,
+                          uploads);
+  }
+}
+
+static bool UploadRange_DoBestScanForward(uint64_t v, uint32_t* out) {
+#if XE_ARCH_AMD64 == 1
+  if (!v) {
+    return false;
+  }
+  if (amd64::GetFeatureFlags() & amd64::kX64EmitBMI1) {
+    *out = static_cast<uint32_t>(_tzcnt_u64(v));
+  } else {
+    unsigned char bsfres = _BitScanForward64((unsigned long*)out, v);
+
+    XE_MSVC_ASSUME(bsfres == 1);
+  }
+  return true;
+#else
+  return xe::bit_scan_forward(v, out);
+#endif
+}
+
+void SharedMemory::TryGetNextUploadRange(
+    uint32_t& range_start, uint64_t& block_valid, const uint32_t& i,
+    unsigned int& current_upload_range,
+    std::pair<uint32_t, uint32_t>* uploads) {
+  while (true) {
+    uint32_t block_page = 0;
+    if (range_start == UINT32_MAX) {
+      // Check if need to open a new range.
+      if (!UploadRange_DoBestScanForward(~block_valid, &block_page)) {
+        break;
+      }
+      range_start = (i << 6) + block_page;
+    } else {
+      // Check if need to close the range.
+      // Ignore the valid pages before the beginning of the range.
+      uint64_t block_valid_from_start = block_valid;
+      if (i == (range_start >> 6)) {
+        block_valid_from_start &=
+            ~(mod_shift_left(uint64_t(1), range_start) - 1);
+      }
+      if (!UploadRange_DoBestScanForward(block_valid_from_start, &block_page)) {
+        break;
+      }
+      if (current_upload_range + 1 < MAX_UPLOAD_RANGES) {
+        uploads[current_upload_range++] =
+            std::make_pair(range_start, (i << 6) + block_page - range_start);
+        // In the next iteration within this block, consider this range valid
+        // since it has been queued for upload.
+        block_valid |= (uint64_t(1) << block_page) - 1;
+        range_start = UINT32_MAX;
+      } else {
+        xe::FatalError(
+            "Hit max upload ranges in shared_memory.cc, tell a dev to "
+            "raise the limit!");
+      }
+    }
+  }
 }
 
 std::pair<uint32_t, uint32_t> SharedMemory::MemoryInvalidationCallbackThunk(
@@ -490,14 +571,14 @@ std::pair<uint32_t, uint32_t> SharedMemory::MemoryInvalidationCallback(
     // 0.7 ms.
     if (page_first & 63) {
       uint64_t gpu_written_start =
-          system_page_flags_[block_first].valid_and_gpu_written;
+          system_page_flags_valid_and_gpu_written_[block_first];
       gpu_written_start &= (uint64_t(1) << (page_first & 63)) - 1;
       page_first =
           (page_first & ~uint32_t(63)) + (64 - xe::lzcnt(gpu_written_start));
     }
     if ((page_last & 63) != 63) {
       uint64_t gpu_written_end =
-          system_page_flags_[block_last].valid_and_gpu_written;
+          system_page_flags_valid_and_gpu_written_[block_last];
       gpu_written_end &= ~((uint64_t(1) << ((page_last & 63) + 1)) - 1);
       page_last = (page_last & ~uint32_t(63)) +
                   (std::max(xe::tzcnt(gpu_written_end), uint8_t(1)) - 1);
@@ -512,10 +593,9 @@ std::pair<uint32_t, uint32_t> SharedMemory::MemoryInvalidationCallback(
     if (i == block_last && (page_last & 63) != 63) {
       invalidate_bits &= (uint64_t(1) << ((page_last & 63) + 1)) - 1;
     }
-    SystemPageFlagsBlock& block = system_page_flags_[i];
-    block.valid &= ~invalidate_bits;
-    block.valid_and_gpu_written &= ~invalidate_bits;
-    block.valid_and_gpu_resolved &= ~invalidate_bits;
+    system_page_flags_valid_[i] &= ~invalidate_bits;
+    system_page_flags_valid_and_gpu_resolved_[i] &= ~invalidate_bits;
+    system_page_flags_valid_and_gpu_written_[i] &= ~invalidate_bits;
   }
 
   FireWatches(page_first, page_last, false);
@@ -536,11 +616,11 @@ void SharedMemory::PrepareForTraceDownload() {
   uint32_t fire_watches_range_start = UINT32_MAX;
   uint32_t gpu_written_range_start = UINT32_MAX;
   auto global_lock = global_critical_region_.Acquire();
-  for (uint32_t i = 0; i < system_page_flags_.size(); ++i) {
-    SystemPageFlagsBlock& page_flags_block = system_page_flags_[i];
-    uint64_t previously_valid_block = page_flags_block.valid;
-    uint64_t gpu_written_block = page_flags_block.valid_and_gpu_written;
-    page_flags_block.valid = gpu_written_block;
+  for (uint32_t i = 0; i < num_system_page_flags_; ++i) {
+    // SystemPageFlagsBlock& page_flags_block = system_page_flags_[i];
+    uint64_t previously_valid_block = system_page_flags_valid_[i];
+    uint64_t gpu_written_block = system_page_flags_valid_and_gpu_written_[i];
+    system_page_flags_valid_[i] = gpu_written_block;
 
     // Fire watches on the invalidated pages.
     uint64_t fire_watches_block = previously_valid_block & ~gpu_written_block;
@@ -627,45 +707,48 @@ void SharedMemory::ReleaseTraceDownloadRanges() {
 
 bool SharedMemory::EnsureHostGpuMemoryAllocated(uint32_t start,
                                                 uint32_t length) {
-  if (host_gpu_memory_sparse_granularity_log2_ == UINT32_MAX) {
-    return true;
-  }
-  if (!length) {
-    return true;
-  }
-  if (start > kBufferSize || (kBufferSize - start) < length) {
-    return false;
-  }
-  uint32_t page_first = start >> page_size_log2_;
-  uint32_t page_last = (start + length - 1) >> page_size_log2_;
-  uint32_t allocation_first =
-      page_first << page_size_log2_ >> host_gpu_memory_sparse_granularity_log2_;
-  uint32_t allocation_last =
-      page_last << page_size_log2_ >> host_gpu_memory_sparse_granularity_log2_;
-  while (true) {
-    std::pair<size_t, size_t> allocation_range = xe::bit_range::NextUnsetRange(
-        host_gpu_memory_sparse_allocated_.data(), allocation_first,
-        allocation_last - allocation_first + 1);
-    if (!allocation_range.second) {
-      break;
-    }
-    if (!AllocateSparseHostGpuMemoryRange(uint32_t(allocation_range.first),
-                                          uint32_t(allocation_range.second))) {
+  if (host_gpu_memory_sparse_granularity_log2_ != UINT32_MAX && length) {
+    if (start <= kBufferSize && (kBufferSize - start) >= length) {
+      uint32_t page_first = start >> page_size_log2_;
+      uint32_t page_last = (start + length - 1) >> page_size_log2_;
+      uint32_t allocation_first = page_first << page_size_log2_ >>
+                                  host_gpu_memory_sparse_granularity_log2_;
+      uint32_t allocation_last = page_last << page_size_log2_ >>
+                                 host_gpu_memory_sparse_granularity_log2_;
+      while (true) {
+        std::pair<size_t, size_t> allocation_range =
+            xe::bit_range::NextUnsetRange(
+                host_gpu_memory_sparse_allocated_.data(), allocation_first,
+                allocation_last - allocation_first + 1);
+        if (!allocation_range.second) {
+          break;
+        }
+        if (!AllocateSparseHostGpuMemoryRange(
+                uint32_t(allocation_range.first),
+                uint32_t(allocation_range.second))) {
+          return false;
+        }
+        xe::bit_range::SetRange(host_gpu_memory_sparse_allocated_.data(),
+                                allocation_range.first,
+                                allocation_range.second);
+        ++host_gpu_memory_sparse_allocations_;
+        COUNT_profile_set(
+            "gpu/shared_memory/host_gpu_memory_sparse_allocations",
+            host_gpu_memory_sparse_allocations_);
+        host_gpu_memory_sparse_used_bytes_ +=
+            uint32_t(allocation_range.second)
+            << host_gpu_memory_sparse_granularity_log2_;
+        COUNT_profile_set(
+            "gpu/shared_memory/host_gpu_memory_sparse_used_mb",
+            (host_gpu_memory_sparse_used_bytes_ + ((1 << 20) - 1)) >> 20);
+        allocation_first =
+            uint32_t(allocation_range.first + allocation_range.second);
+      }
+    } else {
       return false;
     }
-    xe::bit_range::SetRange(host_gpu_memory_sparse_allocated_.data(),
-                            allocation_range.first, allocation_range.second);
-    ++host_gpu_memory_sparse_allocations_;
-    COUNT_profile_set("gpu/shared_memory/host_gpu_memory_sparse_allocations",
-                      host_gpu_memory_sparse_allocations_);
-    host_gpu_memory_sparse_used_bytes_ +=
-        uint32_t(allocation_range.second)
-        << host_gpu_memory_sparse_granularity_log2_;
-    COUNT_profile_set(
-        "gpu/shared_memory/host_gpu_memory_sparse_used_mb",
-        (host_gpu_memory_sparse_used_bytes_ + ((1 << 20) - 1)) >> 20);
-    allocation_first =
-        uint32_t(allocation_range.first + allocation_range.second);
+  } else {
+    return true;
   }
   return true;
 }
