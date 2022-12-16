@@ -824,15 +824,12 @@ void EmulatorWindow::OnKeyDown(ui::KeyEvent& e) {
   e.set_handled(true);
 }
 
-void EmulatorWindow::FileDrop(const std::filesystem::path& filename) {
+void EmulatorWindow::FileDrop(const std::filesystem::path& path) {
   if (!emulator_initialized_) {
     return;
   }
-  auto result = emulator_->LaunchPath(filename);
-  if (XFAILED(result)) {
-    // TODO: Display a message box.
-    XELOGE("Failed to launch target: {:08X}", result);
-  }
+
+  RunTitle(path);
 }
 
 void EmulatorWindow::FileOpen() {
@@ -855,26 +852,12 @@ void EmulatorWindow::FileOpen() {
     if (!selected_files.empty()) {
       path = selected_files[0];
     }
-  }
-
-  if (!path.empty()) {
-    // Normalize the path and make absolute.
-    auto abs_path = std::filesystem::absolute(path);
-    auto result = emulator_->LaunchPath(abs_path);
-    if (XFAILED(result)) {
-      // TODO: Display a message box.
-      XELOGE("Failed to launch target: {:08X}", result);
-    } else {
-      AddRecentlyLaunchedTitle(abs_path, emulator_->title_name());
-    }
+    // Only run the title if a file is selected
+    RunTitle(path);
   }
 }
 
-void EmulatorWindow::FileClose() {
-  if (emulator_->is_title_open()) {
-    emulator_->TerminateTitle();
-  }
-}
+void EmulatorWindow::FileClose() { emulator_->TerminateTitle(); }
 
 void EmulatorWindow::InstallContent() {
   std::vector<std::filesystem::path> paths;
@@ -896,9 +879,14 @@ void EmulatorWindow::InstallContent() {
       // Normalize the path and make absolute.
       auto abs_path = std::filesystem::absolute(path);
       auto result = emulator_->InstallContentPackage(abs_path);
+
       if (result != X_STATUS_SUCCESS) {
-        // TODO: Display a message box.
         XELOGE("Failed to install content! Error code: {:08X}", result);
+
+        MessageBoxA(nullptr,
+                    "Failed to install content!\n\nCheck xenia.log for technical "
+                    "details.",
+                    "Failed to install content!", MB_ICONERROR);
       }
     }
   }
@@ -1084,25 +1072,51 @@ void EmulatorWindow::SetInitializingShaderStorage(bool initializing) {
 }
 
 void EmulatorWindow::RunPreviouslyPlayedTitle() {
-  if (!emulator()->is_title_open() && recently_launched_titles_.size() >= 1) {
-    RunRecentlyPlayedTitle(recently_launched_titles_[0].path_to_file);
+  if (recently_launched_titles_.size() >= 1) {
+    RunTitle(recently_launched_titles_[0].path_to_file);
   }
 }
 
-void EmulatorWindow::RunRecentlyPlayedTitle(
-    std::filesystem::path path_to_file) {
-  if (path_to_file.empty()) {
-    return;
+xe::X_STATUS EmulatorWindow::RunTitle(std::filesystem::path path) {
+  bool titleExists = !std::filesystem::exists(path);
+
+  if (path.empty() || titleExists) {
+    char* log_msg = path.empty() ? "Failed to launch title path is empty"
+                                 : "Failed to launch title path is invalid";
+
+    XELOGE(log_msg);
+
+    MessageBoxA(nullptr, log_msg, "Title Launch Failed!", MB_ICONERROR);
+
+    return X_STATUS_NO_SUCH_FILE;
+  }
+  
+  if (emulator_->is_title_open()) {
+    // Terminate the current title and start a new title.
+    // if (emulator_->TerminateTitle() == X_STATUS_SUCCESS) {
+    //   return RunTitle(path);
+    // }
+
+    return X_STATUS_UNSUCCESSFUL;
   }
 
-  auto abs_path = std::filesystem::absolute(path_to_file);
+  // Prevent crashing the emulator by not loading a game if a game is already
+  // loaded.
+  auto abs_path = std::filesystem::absolute(path);
   auto result = emulator_->LaunchPath(abs_path);
-  if (XFAILED(result)) {
-    // TODO: Display a message box.
+
+  if (result) {
     XELOGE("Failed to launch target: {:08X}", result);
-    return;
+
+    MessageBoxA(
+        nullptr,
+        "Failed to launch title.\n\nCheck xenia.log for technical details.",
+        "Title Launch Failed!", MB_ICONERROR);
+  } else {
+    AddRecentlyLaunchedTitle(path, emulator_->title_name());
   }
-  AddRecentlyLaunchedTitle(path_to_file, emulator_->title_name());
+
+  return result;
 }
 
 void EmulatorWindow::FillRecentlyLaunchedTitlesMenu(
@@ -1110,13 +1124,13 @@ void EmulatorWindow::FillRecentlyLaunchedTitlesMenu(
   unsigned int index = 0;
   for (const auto& [title_name, path] : recently_launched_titles_) {
     if (index == 0) {
-      recent_menu->AddChild(MenuItem::Create(
-          MenuItem::Type::kString, title_name, "F9",
-          std::bind(&EmulatorWindow::RunRecentlyPlayedTitle, this, path)));
+      recent_menu->AddChild(
+          MenuItem::Create(MenuItem::Type::kString, title_name, "F9",
+                           std::bind(&EmulatorWindow::RunTitle, this, path)));
     } else {
-      recent_menu->AddChild(MenuItem::Create(
-          MenuItem::Type::kString, title_name,
-          std::bind(&EmulatorWindow::RunRecentlyPlayedTitle, this, path)));
+      recent_menu->AddChild(
+          MenuItem::Create(MenuItem::Type::kString, title_name,
+                           std::bind(&EmulatorWindow::RunTitle, this, path)));
     }
     index++;
   }
