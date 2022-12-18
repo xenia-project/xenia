@@ -40,7 +40,8 @@ SET "CANDIDATE_PATHS[1]=C:\python39\python.exe"
 SET "CANDIDATE_PATHS[2]=C:\python38\python.exe"
 SET "CANDIDATE_PATHS[3]=C:\python37\python.exe"
 SET "CANDIDATE_PATHS[4]=C:\python%PYTHON_MINIMUM_VERSION[0]%%PYTHON_MINIMUM_VERSION[1]%\python.exe"
-SET OUTPUT_INDEX=5
+SET "CANDIDATE_PATHS[5]=C:\Windows\py.exe"
+SET OUTPUT_INDEX=6
 
 FOR /F "usebackq delims=" %%L IN (`2^>NUL where python3`) DO (
   IF %%~zL NEQ 0 (
