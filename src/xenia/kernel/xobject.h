@@ -136,7 +136,7 @@ class XObject {
   };
 
   XObject(Type type);
-  XObject(KernelState* kernel_state, Type type);
+  XObject(KernelState* kernel_state, Type type, bool host_object = false);
   virtual ~XObject();
 
   Emulator* emulator() const;
