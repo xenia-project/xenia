@@ -26,6 +26,9 @@ using xe::hid::X_INPUT_STATE;
 using xe::hid::X_INPUT_VIBRATION;
 
 constexpr uint32_t XINPUT_FLAG_GAMEPAD = 0x01;
+constexpr uint32_t XINPUT_FLAG_KEYBOARD = 0x02;
+constexpr uint32_t XINPUT_FLAG_MIC = 0x20;  // Based on "karaoke" titles
+constexpr uint32_t XINPUT_FLAG_ANYDEVICE = 0xFF;
 constexpr uint32_t XINPUT_FLAG_ANY_USER = 1 << 30;
 
 void XamResetInactivity_entry() {
@@ -39,48 +42,29 @@ dword_result_t XamEnableInactivityProcessing_entry(dword_t unk,
 }
 DECLARE_XAM_EXPORT1(XamEnableInactivityProcessing, kInput, kStub);
 
-// https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetcapabilities(v=vs.85).aspx
-dword_result_t XamInputGetCapabilities_entry(
-    dword_t user_index, dword_t _flags, pointer_t<X_INPUT_CAPABILITIES> caps) {
-  unsigned flags = _flags;
-	//chrispy: actually, it appears that caps is never checked for null, it is memset at the start regardless
-  if (!caps) {
-    return X_ERROR_BAD_ARGUMENTS;
-  }
-  if ((flags & 0x40000000) != 0) {
-	//should trap
-  }
-
-  if ((flags & 4) != 0) {
-  //should trap
-  }
-
-
-  if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
-    // Ignore any query for other types of devices.
-    return X_ERROR_DEVICE_NOT_CONNECTED;
-  }
-
-  uint32_t actual_user_index = user_index;
-  if ((actual_user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
-    // Always pin user to 0.
-    actual_user_index = 0;
-  }
-
-  auto input_system = kernel_state()->emulator()->input_system();
-  auto lock = input_system->lock();
-  return input_system->GetCapabilities(actual_user_index, flags, caps);
-}
-DECLARE_XAM_EXPORT1(XamInputGetCapabilities, kInput, kSketchy);
-
 dword_result_t XamInputGetCapabilitiesEx_entry(
     dword_t unk, dword_t user_index, dword_t flags,
     pointer_t<X_INPUT_CAPABILITIES> caps) {
+  if (unk > 1) {
+    return X_ERROR_NOT_SUPPORTED;
+  }
+
+  // Fail-safe check
   if (!caps) {
     return X_ERROR_BAD_ARGUMENTS;
   }
 
-  if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
+  caps.Zero();
+
+  if ((flags & XINPUT_FLAG_ANY_USER) != 0) {
+    // should trap
+  }
+
+  if ((flags & 4) != 0) {
+    // should trap
+  }
+
+  if ((flags & XINPUT_FLAG_ANYDEVICE) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
     // Ignore any query for other types of devices.
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
@@ -97,6 +81,15 @@ dword_result_t XamInputGetCapabilitiesEx_entry(
 }
 DECLARE_XAM_EXPORT1(XamInputGetCapabilitiesEx, kInput, kSketchy);
 
+// https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetcapabilities(v=vs.85).aspx
+dword_result_t XamInputGetCapabilities_entry(
+    dword_t user_index, dword_t flags, pointer_t<X_INPUT_CAPABILITIES> caps) {
+  // chrispy: actually, it appears that caps is never checked for null, it is
+  // memset at the start regardless
+  return XamInputGetCapabilitiesEx_entry(1, user_index, flags, caps);
+}
+DECLARE_XAM_EXPORT1(XamInputGetCapabilities, kInput, kSketchy);
+
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputgetstate(v=vs.85).aspx
 dword_result_t XamInputGetState_entry(dword_t user_index, dword_t flags,
                                       pointer_t<X_INPUT_STATE> input_state) {
@@ -109,7 +102,7 @@ dword_result_t XamInputGetState_entry(dword_t user_index, dword_t flags,
 
   // Games call this with a NULL state ptr, probably as a query.
 
-  if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
+  if ((flags & XINPUT_FLAG_ANYDEVICE) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
     // Ignore any query for other types of devices.
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
@@ -128,8 +121,10 @@ dword_result_t XamInputGetState_entry(dword_t user_index, dword_t flags,
 DECLARE_XAM_EXPORT2(XamInputGetState, kInput, kImplemented, kHighFrequency);
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/microsoft.directx_sdk.reference.xinputsetstate(v=vs.85).aspx
-dword_result_t XamInputSetState_entry(dword_t user_index, dword_t flags, /* flags, as far as i can see, is not used*/
-                                      pointer_t<X_INPUT_VIBRATION> vibration) {
+dword_result_t XamInputSetState_entry(
+    dword_t user_index,
+    dword_t flags, /* flags, as far as i can see, is not used*/
+    pointer_t<X_INPUT_VIBRATION> vibration) {
   if (user_index >= 4) {
     return X_E_DEVICE_NOT_CONNECTED;
   }
@@ -160,7 +155,7 @@ dword_result_t XamInputGetKeystroke_entry(
     return X_ERROR_BAD_ARGUMENTS;
   }
 
-  if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
+  if ((flags & XINPUT_FLAG_ANYDEVICE) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
     // Ignore any query for other types of devices.
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
@@ -185,7 +180,7 @@ dword_result_t XamInputGetKeystrokeEx_entry(
     return X_ERROR_BAD_ARGUMENTS;
   }
 
-  if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
+  if ((flags & XINPUT_FLAG_ANYDEVICE) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
     // Ignore any query for other types of devices.
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
