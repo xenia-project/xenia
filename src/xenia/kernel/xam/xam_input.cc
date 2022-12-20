@@ -54,9 +54,6 @@ dword_result_t XamInputGetCapabilities_entry(
   if ((flags & 4) != 0) {
   //should trap
   }
-  if (!flags) {
-    flags = 3;
-  }
 
 
   if ((flags & 0xFF) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
