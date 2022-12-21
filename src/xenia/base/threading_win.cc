@@ -123,7 +123,7 @@ void set_name(const std::string_view name) {
 
 // checked ntoskrnl, it does not modify delay, so we can place this as a
 // constant and avoid creating a stack variable
-static const LARGE_INTEGER sleepdelay0_for_maybeyield{{~0u, -1}};
+static const LARGE_INTEGER sleepdelay0_for_maybeyield{{0LL}};
 
 void MaybeYield() {
 #if 0
