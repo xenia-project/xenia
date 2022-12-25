@@ -104,6 +104,26 @@ uint32_t KernelState::title_id() const {
   return 0;
 }
 
+util::XdbfGameData KernelState::title_xdbf() const {
+  return module_xdbf(executable_module_);
+}
+
+util::XdbfGameData KernelState::module_xdbf(
+    object_ref<UserModule> exec_module) const {
+  assert_not_null(exec_module);
+
+  uint32_t resource_data = 0;
+  uint32_t resource_size = 0;
+  if (XSUCCEEDED(exec_module->GetSection(
+          fmt::format("{:08X}", exec_module->title_id()).c_str(),
+          &resource_data, &resource_size))) {
+    util::XdbfGameData db(memory()->TranslateVirtual(resource_data),
+                          resource_size);
+    return db;
+  }
+  return util::XdbfGameData(nullptr, resource_size);
+}
+
 uint32_t KernelState::process_type() const {
   auto pib =
       memory_->TranslateVirtual<ProcessInfoBlock*>(process_info_block_address_);

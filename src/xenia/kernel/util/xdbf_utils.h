@@ -29,6 +29,70 @@ enum class XdbfSection : uint16_t {
   kStringTable = 0x0003,
 };
 
+#pragma pack(push, 1)
+struct XbdfHeader {
+  xe::be<uint32_t> magic;
+  xe::be<uint32_t> version;
+  xe::be<uint32_t> entry_count;
+  xe::be<uint32_t> entry_used;
+  xe::be<uint32_t> free_count;
+  xe::be<uint32_t> free_used;
+};
+static_assert_size(XbdfHeader, 24);
+
+struct XbdfEntry {
+  xe::be<uint16_t> section;
+  xe::be<uint64_t> id;
+  xe::be<uint32_t> offset;
+  xe::be<uint32_t> size;
+};
+static_assert_size(XbdfEntry, 18);
+
+struct XbdfFileLoc {
+  xe::be<uint32_t> offset;
+  xe::be<uint32_t> size;
+};
+static_assert_size(XbdfFileLoc, 8);
+
+struct XdbfXstc {
+  xe::be<uint32_t> magic;
+  xe::be<uint32_t> version;
+  xe::be<uint32_t> size;
+  xe::be<uint32_t> default_language;
+};
+static_assert_size(XdbfXstc, 16);
+
+struct XdbfSectionHeader {
+  xe::be<uint32_t> magic;
+  xe::be<uint32_t> version;
+  xe::be<uint32_t> size;
+  xe::be<uint16_t> count;
+};
+static_assert_size(XdbfSectionHeader, 14);
+
+struct XdbfStringTableEntry {
+  xe::be<uint16_t> id;
+  xe::be<uint16_t> string_length;
+};
+static_assert_size(XdbfStringTableEntry, 4);
+
+struct XdbfAchievementTableEntry {
+  xe::be<uint16_t> id;
+  xe::be<uint16_t> label_id;
+  xe::be<uint16_t> description_id;
+  xe::be<uint16_t> unachieved_id;
+  xe::be<uint32_t> image_id;
+  xe::be<uint16_t> gamerscore;
+  xe::be<uint16_t> unkE;
+  xe::be<uint32_t> flags;
+  xe::be<uint32_t> unk14;
+  xe::be<uint32_t> unk18;
+  xe::be<uint32_t> unk1C;
+  xe::be<uint32_t> unk20;
+};
+static_assert_size(XdbfAchievementTableEntry, 0x24);
+#pragma pack(pop)
+
 struct XdbfBlock {
   const uint8_t* buffer;
   size_t size;
@@ -52,55 +116,7 @@ class XdbfWrapper {
   // Gets a string from the string table in the given language.
   // Returns the empty string if the entry is not found.
   std::string GetStringTableEntry(XLanguage language, uint16_t string_id) const;
-
- protected:
-#pragma pack(push, 1)
-  struct XbdfHeader {
-    xe::be<uint32_t> magic;
-    xe::be<uint32_t> version;
-    xe::be<uint32_t> entry_count;
-    xe::be<uint32_t> entry_used;
-    xe::be<uint32_t> free_count;
-    xe::be<uint32_t> free_used;
-  };
-  static_assert_size(XbdfHeader, 24);
-
-  struct XbdfEntry {
-    xe::be<uint16_t> section;
-    xe::be<uint64_t> id;
-    xe::be<uint32_t> offset;
-    xe::be<uint32_t> size;
-  };
-  static_assert_size(XbdfEntry, 18);
-
-  struct XbdfFileLoc {
-    xe::be<uint32_t> offset;
-    xe::be<uint32_t> size;
-  };
-  static_assert_size(XbdfFileLoc, 8);
-
-  struct XdbfXstc {
-    xe::be<uint32_t> magic;
-    xe::be<uint32_t> version;
-    xe::be<uint32_t> size;
-    xe::be<uint32_t> default_language;
-  };
-  static_assert_size(XdbfXstc, 16);
-
-  struct XdbfXstrHeader {
-    xe::be<uint32_t> magic;
-    xe::be<uint32_t> version;
-    xe::be<uint32_t> size;
-    xe::be<uint16_t> string_count;
-  };
-  static_assert_size(XdbfXstrHeader, 14);
-
-  struct XdbfStringTableEntry {
-    xe::be<uint16_t> id;
-    xe::be<uint16_t> string_length;
-  };
-  static_assert_size(XdbfStringTableEntry, 4);
-#pragma pack(pop)
+  std::vector<XdbfAchievementTableEntry> GetAchievements() const;
 
  private:
   const uint8_t* data_ = nullptr;
@@ -116,6 +132,9 @@ class XdbfGameData : public XdbfWrapper {
  public:
   XdbfGameData(const uint8_t* data, size_t data_size)
       : XdbfWrapper(data, data_size) {}
+
+  // Checks if provided language exist, if not returns default title language.
+  XLanguage GetExistingLanguage(XLanguage language_to_check) const;
 
   // The game icon image, if found.
   XdbfBlock icon() const;
