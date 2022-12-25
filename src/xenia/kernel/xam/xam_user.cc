@@ -20,6 +20,8 @@
 #include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
 
+DECLARE_int32(user_language);
+
 namespace xe {
 namespace kernel {
 namespace xam {
@@ -672,19 +674,27 @@ dword_result_t XamUserCreateAchievementEnumerator_entry(
     return result;
   }
 
-  uint32_t dummy_count = std::min(100u, uint32_t(count));
-  for (uint32_t i = 1; i <= dummy_count; ++i) {
-    auto item = XStaticAchievementEnumerator::AchievementDetails{
-        i,  // dummy achievement id
-        fmt::format(u"Dummy {}", i),
-        u"Dummy description",
-        u"Dummy unachieved",
-        i,  // dummy image id
-        0,
-        {0, 0},
-        8};  // flags=8 makes dummy achievements show up in 4D5307DC
-             // achievements list.
-    e->AppendItem(item);
+  const util::XdbfGameData db = kernel_state()->title_xdbf();
+
+  if (db.is_valid()) {
+    const XLanguage language =
+        db.GetExistingLanguage(static_cast<XLanguage>(cvars::user_language));
+    const std::vector<util::XdbfAchievementTableEntry> achievement_list =
+        db.GetAchievements();
+
+    for (const util::XdbfAchievementTableEntry& entry : achievement_list) {
+      auto item = XStaticAchievementEnumerator::AchievementDetails{
+          entry.id,
+          xe::to_utf16(db.GetStringTableEntry(language, entry.label_id)),
+          xe::to_utf16(db.GetStringTableEntry(language, entry.description_id)),
+          xe::to_utf16(db.GetStringTableEntry(language, entry.unachieved_id)),
+          entry.image_id,
+          entry.gamerscore,
+          {0, 0},
+          entry.flags};
+
+      e->AppendItem(item);
+    }
   }
 
   *handle_ptr = e->handle();
