@@ -16,6 +16,11 @@ namespace util {
 constexpr fourcc_t kXdbfSignatureXdbf = make_fourcc("XDBF");
 constexpr fourcc_t kXdbfSignatureXstc = make_fourcc("XSTC");
 constexpr fourcc_t kXdbfSignatureXstr = make_fourcc("XSTR");
+constexpr fourcc_t kXdbfSignatureXach = make_fourcc("XACH");
+
+constexpr uint64_t kXdbfIdTitle = 0x8000;
+constexpr uint64_t kXdbfIdXstc = 0x58535443;
+constexpr uint64_t kXdbfIdXach = 0x58414348;
 
 XdbfWrapper::XdbfWrapper(const uint8_t* data, size_t data_size)
     : data_(data), data_size_(data_size) {
@@ -81,8 +86,35 @@ std::string XdbfWrapper::GetStringTableEntry(XLanguage language,
   return "";
 }
 
-constexpr uint64_t kXdbfIdTitle = 0x8000;
-constexpr uint64_t kXdbfIdXstc = 0x58535443;
+std::vector<XdbfAchievementTableEntry> XdbfWrapper::GetAchievements() const {
+  std::vector<XdbfAchievementTableEntry> achievements;
+
+  auto achievement_table = GetEntry(XdbfSection::kMetadata, kXdbfIdXach);
+  if (!achievement_table) {
+    return achievements;
+  }
+
+  auto xstr_head =
+      reinterpret_cast<const XdbfXstrHeader*>(achievement_table.buffer);
+  assert_true(xstr_head->magic == kXdbfSignatureXach);
+  assert_true(xstr_head->version == 1);
+
+  const uint8_t* ptr = achievement_table.buffer + sizeof(XdbfXstrHeader);
+  for (uint16_t i = 0; i < xstr_head->string_count; ++i) {
+    auto entry = reinterpret_cast<const XdbfAchievementTableEntry*>(ptr);
+    ptr += sizeof(XdbfAchievementTableEntry);
+    achievements.push_back(*entry);
+  }
+  return achievements;
+
+}
+
+XLanguage XdbfGameData::GetExistingLanguage(XLanguage language_to_check) const {
+  // A bit of a hack. Check if title in specific language exist.
+  // If it doesn't then for sure language is not supported.
+  return title(language_to_check).empty() ? default_language()
+                                          : language_to_check;
+}
 
 XdbfBlock XdbfGameData::icon() const {
   return GetEntry(XdbfSection::kImage, kXdbfIdTitle);
