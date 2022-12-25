@@ -23,6 +23,7 @@
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/kernel/util/native_list.h"
 #include "xenia/kernel/util/object_table.h"
+#include "xenia/kernel/util/xdbf_utils.h"
 #include "xenia/kernel/xam/app_manager.h"
 #include "xenia/kernel/xam/content_manager.h"
 #include "xenia/kernel/xam/user_profile.h"
@@ -99,6 +100,8 @@ class KernelState {
   vfs::VirtualFileSystem* file_system() const { return file_system_; }
 
   uint32_t title_id() const;
+  util::XdbfGameData title_xdbf() const;
+  util::XdbfGameData module_xdbf(object_ref<UserModule> exec_module) const;
 
   xam::AppManager* app_manager() const { return app_manager_.get(); }
   xam::ContentManager* content_manager() const {

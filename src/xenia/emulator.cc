@@ -55,6 +55,8 @@
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #endif  // XE_ARCH
 
+DECLARE_int32(user_language);
+
 DEFINE_double(time_scalar, 1.0,
               "Scalar used to speed or slow time (1x, 2x, 1/2x, etc).",
               "General");
@@ -795,23 +797,28 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
     }
     game_config_load_callback_loop_next_index_ = SIZE_MAX;
 
-    uint32_t resource_data = 0;
-    uint32_t resource_size = 0;
-    if (XSUCCEEDED(module->GetSection(title_id.c_str(), &resource_data,
-                                      &resource_size))) {
-      kernel::util::XdbfGameData db(
-          module->memory()->TranslateVirtual(resource_data), resource_size);
-      if (db.is_valid()) {
-        // TODO(gibbed): get title respective to user locale.
-        title_name_ = db.title(XLanguage::kEnglish);
-        if (title_name_.empty()) {
-          // If English title is unavailable, get the title in default locale.
-          title_name_ = db.title();
-        }
-        auto icon_block = db.icon();
-        if (icon_block) {
-          display_window_->SetIcon(icon_block.buffer, icon_block.size);
-        }
+    const kernel::util::XdbfGameData db = kernel_state_->module_xdbf(module);
+    if (db.is_valid()) {
+      XLanguage language =
+          db.GetExistingLanguage(static_cast<XLanguage>(cvars::user_language));
+      title_name_ = db.title(language);
+
+      XELOGI("-------------------- ACHIEVEMENTS --------------------");
+      const std::vector<kernel::util::XdbfAchievementTableEntry>
+          achievement_list = db.GetAchievements();
+      for (const kernel::util::XdbfAchievementTableEntry& entry :
+           achievement_list) {
+        std::string label = db.GetStringTableEntry(language, entry.label_id);
+        std::string desc =
+            db.GetStringTableEntry(language, entry.description_id);
+
+        XELOGI("{} - {} - {} - {}", entry.id, label, desc, entry.gamerscore);
+      }
+      XELOGI("----------------- END OF ACHIEVEMENTS ----------------");
+
+      auto icon_block = db.icon();
+      if (icon_block) {
+        display_window_->SetIcon(icon_block.buffer, icon_block.size);
       }
     }
   }
