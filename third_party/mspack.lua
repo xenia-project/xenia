@@ -18,14 +18,14 @@ project("mspack")
       "mspack",
   })
   files({
-      "mspack/logging.cc",
-      "mspack/lzx.h",
-      "mspack/lzxd.c",
-      "mspack/mspack.h",
-      "mspack/readbits.h",
-      "mspack/readhuff.h",
-      "mspack/system.c",
-      "mspack/system.h",
+    "mspack/include/mspack/lzx.h",
+    "mspack/include/mspack/mspack.h",
+    "mspack/include/mspack/readbits.h",
+    "mspack/include/mspack/readhuff.h",
+    "mspack/include/mspack/system.h",
+    "mspack/mspack/logging.cc",
+    "mspack/mspack/lzxd.c",
+    "mspack/mspack/system.c",
   })
 
   filter("platforms:Windows")
