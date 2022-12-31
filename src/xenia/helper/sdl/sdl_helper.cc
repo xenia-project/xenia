@@ -32,6 +32,10 @@ bool SDLHelper::Prepare() {
   is_prepared_ &= SetHints();
   is_prepared_ &= RedirectLog();
 
+  SDL_version ver = {};
+  SDL_GetVersion(&ver);
+  XELOGI("SDL Version {}.{}.{} initialized.", ver.major, ver.minor, ver.patch);
+
   return is_prepared_;
 }
 

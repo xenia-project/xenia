@@ -1228,13 +1228,11 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
                           kOutputPerVertexMemberPosition, "gl_Position");
   builder_->addMemberDecoration(type_struct_per_vertex,
                                 kOutputPerVertexMemberPosition,
-                                spv::DecorationInvariant);
-  builder_->addMemberDecoration(type_struct_per_vertex,
-                                kOutputPerVertexMemberPosition,
                                 spv::DecorationBuiltIn, spv::BuiltInPosition);
   builder_->addDecoration(type_struct_per_vertex, spv::DecorationBlock);
   output_per_vertex_ = builder_->createVariable(
       spv::NoPrecision, spv::StorageClassOutput, type_struct_per_vertex, "");
+  builder_->addDecoration(output_per_vertex_, spv::DecorationInvariant);
   main_interface_.push_back(output_per_vertex_);
 }
 

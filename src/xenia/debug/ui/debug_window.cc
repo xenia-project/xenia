@@ -367,7 +367,7 @@ void DebugWindow::DrawSourcePane() {
   ImGui::PushButtonRepeat(true);
   bool can_step = !cache_.is_running && state_.thread_info;
   if (ImGui::ButtonEx("Step PPC", ImVec2(0, 0),
-                      can_step ? 0 : ImGuiButtonFlags_Disabled)) {
+                      can_step ? 0 : ImGuiItemFlags_Disabled)) {
     // By enabling the button when stepping we allow repeat behavior.
     if (processor_->execution_state() != cpu::ExecutionState::kStepping) {
       processor_->StepGuestInstruction(state_.thread_info->thread_id);
@@ -385,7 +385,7 @@ void DebugWindow::DrawSourcePane() {
     ImGui::SameLine();
     ImGui::PushButtonRepeat(true);
     if (ImGui::ButtonEx("Step x64", ImVec2(0, 0),
-                        can_step ? 0 : ImGuiButtonFlags_Disabled)) {
+                        can_step ? 0 : ImGuiItemFlags_Disabled)) {
       // By enabling the button when stepping we allow repeat behavior.
       if (processor_->execution_state() != cpu::ExecutionState::kStepping) {
         processor_->StepHostInstruction(state_.thread_info->thread_id);

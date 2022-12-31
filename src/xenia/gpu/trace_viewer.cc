@@ -258,7 +258,7 @@ void TraceViewer::DrawControllerUI() {
   }
 
   ImGui::SameLine();
-  ImGui::SliderInt("", &target_frame, 0, player_->frame_count() - 1);
+  ImGui::SliderInt("##", &target_frame, 0, player_->frame_count() - 1);
   if (target_frame != player_->current_frame_index() &&
       !player_->is_playing_trace()) {
     player_->SeekFrame(target_frame);
@@ -554,7 +554,7 @@ void TraceViewer::DrawCommandListUI() {
   }
 
   ImGui::PushItemWidth(float(column_width - 15));
-  ImGui::SliderInt("", &target_command, -1, command_count - 1);
+  ImGui::SliderInt("##", &target_command, -1, command_count - 1);
   ImGui::PopItemWidth();
 
   if (target_command != player_->current_command_index() &&
@@ -733,8 +733,8 @@ void TraceViewer::DrawTextureInfo(
   ImGui::Columns(2);
   if (texture) {
     ImVec2 button_size(256, 256);
-    if (ImGui::ImageButton(ImTextureID(texture), button_size, ImVec2(0, 0),
-                           ImVec2(1, 1))) {
+    if (ImGui::ImageButton("#texture_info_image", ImTextureID(texture),
+                           button_size, ImVec2(0, 0), ImVec2(1, 1))) {
       // show viewer
     }
   } else {
@@ -818,8 +818,7 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
   int display_start, display_end;
   ImGui::CalcListClipping(vertex_count, ImGui::GetTextLineHeight(),
                           &display_start, &display_end);
-  ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
-                       (display_start)*ImGui::GetTextLineHeight());
+  ImGui::Dummy(ImVec2(0, (display_start)*ImGui::GetTextLineHeight()));
   ImGui::Columns(column_count);
   if (display_start <= 1) {
     for (size_t el_index = 0; el_index < vertex_binding.attributes.size();
@@ -1005,8 +1004,8 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
     }
   }
   ImGui::Columns(1);
-  ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (vertex_count - display_end) *
-                                                    ImGui::GetTextLineHeight());
+  ImGui::Dummy(
+      ImVec2(0, (vertex_count - display_end) * ImGui::GetTextLineHeight()));
   ImGui::PopStyleVar();
   ImGui::EndChild();
 }
@@ -1463,19 +1462,21 @@ void TraceViewer::DrawStateUI() {
         ImVec2 button_pos = ImGui::GetCursorScreenPos();
         ImVec2 button_size(256, 256);
         ImTextureID tex = 0;
+        ImGui::PushID(i);
         if (write_mask) {
           auto color_target = GetColorRenderTarget(surface_pitch, surface_msaa,
                                                    color_base, color_format);
           tex = ImTextureID(color_target);
-          if (ImGui::ImageButton(tex, button_size, ImVec2(0, 0),
+          if (ImGui::ImageButton("#color_image", tex, button_size, ImVec2(0, 0),
                                  ImVec2(1, 1))) {
             // show viewer
           }
         } else {
-          ImGui::ImageButton(ImTextureID(0), button_size, ImVec2(0, 0),
-                             ImVec2(1, 1), -1, ImVec4(0, 0, 0, 0),
+          ImGui::ImageButton("#color_image", ImTextureID(0), button_size,
+                             ImVec2(0, 0), ImVec2(1, 1), ImVec4(0, 0, 0, 0),
                              ImVec4(0, 0, 0, 0));
         }
+        ImGui::PopID();
         if (ImGui::IsItemHovered()) {
           ImGui::BeginTooltip();
           ImGui::Text("Color Target %d (%s), base %.4X, pitch %d, format %s", i,
@@ -1586,8 +1587,8 @@ void TraceViewer::DrawStateUI() {
 
       auto button_pos = ImGui::GetCursorScreenPos();
       ImVec2 button_size(256, 256);
-      ImGui::ImageButton(ImTextureID(depth_target), button_size, ImVec2(0, 0),
-                         ImVec2(1, 1));
+      ImGui::ImageButton("#depth_stencil_image", ImTextureID(depth_target),
+                         button_size, ImVec2(0, 0), ImVec2(1, 1));
       if (ImGui::IsItemHovered()) {
         ImGui::BeginTooltip();
 
@@ -1640,8 +1641,7 @@ void TraceViewer::DrawStateUI() {
       ImGui::CalcListClipping(int(vertices.size() / 4),
                               ImGui::GetTextLineHeight(), &display_start,
                               &display_end);
-      ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
-                           (display_start)*ImGui::GetTextLineHeight());
+      ImGui::Dummy(ImVec2(0, (display_start)*ImGui::GetTextLineHeight()));
 
       ImGui::Columns(int(el_size), "#vsvertices", true);
       for (size_t i = display_start; i < display_end; i++) {
@@ -1662,9 +1662,8 @@ void TraceViewer::DrawStateUI() {
       }
       ImGui::Columns(1);
 
-      ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
-                           ((vertices.size() / 4) - display_end) *
-                               ImGui::GetTextLineHeight());
+      ImGui::Dummy(ImVec2(0, ((vertices.size() / 4) - display_end) *
+                                 ImGui::GetTextLineHeight()));
       ImGui::EndChild();
     } else {
       ImGui::Text("No vertex shader output");
@@ -1708,8 +1707,7 @@ void TraceViewer::DrawStateUI() {
       ImGui::CalcListClipping(1 + draw_info.index_count,
                               ImGui::GetTextLineHeight(), &display_start,
                               &display_end);
-      ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
-                           (display_start)*ImGui::GetTextLineHeight());
+      ImGui::Dummy(ImVec2(0, (display_start)*ImGui::GetTextLineHeight()));
       ImGui::Columns(2, "#indices", true);
       ImGui::SetColumnOffset(1, 60);
       if (display_start <= 1) {
@@ -1744,9 +1742,8 @@ void TraceViewer::DrawStateUI() {
         ImGui::NextColumn();
       }
       ImGui::Columns(1);
-      ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
-                           (draw_info.index_count - display_end) *
-                               ImGui::GetTextLineHeight());
+      ImGui::Dummy(ImVec2(0, (draw_info.index_count - display_end) *
+                                 ImGui::GetTextLineHeight()));
       ImGui::PopStyleVar();
       ImGui::EndChild();
     }

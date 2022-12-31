@@ -69,12 +69,12 @@ std::string XdbfWrapper::GetStringTableEntry(XLanguage language,
   }
 
   auto xstr_head =
-      reinterpret_cast<const XdbfXstrHeader*>(language_block.buffer);
+      reinterpret_cast<const XdbfSectionHeader*>(language_block.buffer);
   assert_true(xstr_head->magic == kXdbfSignatureXstr);
   assert_true(xstr_head->version == 1);
 
-  const uint8_t* ptr = language_block.buffer + sizeof(XdbfXstrHeader);
-  for (uint16_t i = 0; i < xstr_head->string_count; ++i) {
+  const uint8_t* ptr = language_block.buffer + sizeof(XdbfSectionHeader);
+  for (uint16_t i = 0; i < xstr_head->count; ++i) {
     auto entry = reinterpret_cast<const XdbfStringTableEntry*>(ptr);
     ptr += sizeof(XdbfStringTableEntry);
     if (entry->id == string_id) {
@@ -94,19 +94,18 @@ std::vector<XdbfAchievementTableEntry> XdbfWrapper::GetAchievements() const {
     return achievements;
   }
 
-  auto xstr_head =
-      reinterpret_cast<const XdbfXstrHeader*>(achievement_table.buffer);
-  assert_true(xstr_head->magic == kXdbfSignatureXach);
-  assert_true(xstr_head->version == 1);
+  auto xach_head =
+      reinterpret_cast<const XdbfSectionHeader*>(achievement_table.buffer);
+  assert_true(xach_head->magic == kXdbfSignatureXach);
+  assert_true(xach_head->version == 1);
 
-  const uint8_t* ptr = achievement_table.buffer + sizeof(XdbfXstrHeader);
-  for (uint16_t i = 0; i < xstr_head->string_count; ++i) {
+  const uint8_t* ptr = achievement_table.buffer + sizeof(XdbfSectionHeader);
+  for (uint16_t i = 0; i < xach_head->count; ++i) {
     auto entry = reinterpret_cast<const XdbfAchievementTableEntry*>(ptr);
     ptr += sizeof(XdbfAchievementTableEntry);
     achievements.push_back(*entry);
   }
   return achievements;
-
 }
 
 XLanguage XdbfGameData::GetExistingLanguage(XLanguage language_to_check) const {

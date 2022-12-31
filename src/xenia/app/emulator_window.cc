@@ -403,12 +403,17 @@ void EmulatorWindow::DisplayConfigDialog::OnDraw(ImGuiIO& io) {
               new_presenter_config.GetFsrSharpnessReduction();
           ImGui::TextUnformatted(
               "FSR sharpness reduction when upscaling (lower is sharper):");
-          // Power 2.0 as the reduction is in stops, used in exp2.
+          const auto label =
+              fmt::format("{:.3f} stops", fsr_sharpness_reduction);
+          // Power 2.0 scaling as the reduction is in stops, used in exp2.
+          fsr_sharpness_reduction = sqrt(2.f * fsr_sharpness_reduction);
           ImGui::SliderFloat(
               "##FSRSharpnessReduction", &fsr_sharpness_reduction,
               ui::Presenter::GuestOutputPaintConfig::kFsrSharpnessReductionMin,
               ui::Presenter::GuestOutputPaintConfig::kFsrSharpnessReductionMax,
-              "%.3f stops", 2.0f);
+              label.c_str(), ImGuiSliderFlags_NoInput);
+          fsr_sharpness_reduction =
+              .5f * fsr_sharpness_reduction * fsr_sharpness_reduction;
           ImGui::SameLine();
           if (ImGui::Button("Reset##ResetFSRSharpnessReduction")) {
             fsr_sharpness_reduction = ui::Presenter::GuestOutputPaintConfig ::

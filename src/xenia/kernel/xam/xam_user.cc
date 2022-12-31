@@ -719,14 +719,15 @@ dword_result_t XamUserCreateAchievementEnumerator_entry(
     return result;
   }
 
-  const kernel::util::XdbfGameData db = kernel_state()->title_xdbf();
+  const util::XdbfGameData db = kernel_state()->title_xdbf();
 
   if (db.is_valid()) {
-    XLanguage language = db.GetExistingLanguage(static_cast<XLanguage>(cvars::user_language));
-    std::vector<kernel::util::XdbfAchievementTableEntry> achievement_list =
+    const XLanguage language =
+        db.GetExistingLanguage(static_cast<XLanguage>(cvars::user_language));
+    const std::vector<util::XdbfAchievementTableEntry> achievement_list =
         db.GetAchievements();
 
-    for (const auto& entry : achievement_list) {
+    for (const util::XdbfAchievementTableEntry& entry : achievement_list) {
       auto item = XStaticAchievementEnumerator::AchievementDetails{
           entry.id,
           xe::to_utf16(db.GetStringTableEntry(language, entry.label_id)),

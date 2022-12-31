@@ -39,9 +39,6 @@ bool FinalizationPass::Run(HIRBuilder* builder) {
   auto block = builder->first_block();
   while (block) {
     block->ordinal = block_ordinal++;
-
-    // Ensure all labels have names.
-
     // Remove unneeded jumps.
     auto tail = block->instr_tail;
     if (tail && tail->opcode == &OPCODE_BRANCH_info) {

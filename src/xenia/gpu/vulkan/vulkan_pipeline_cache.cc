@@ -581,6 +581,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
       primitive_processing_result.host_primitive_reset_enabled;
 
   description_out.depth_clamp_enable =
+      device_features.depthClamp &&
       regs.Get<reg::PA_CL_CLIP_CNTL>().clip_disable;
 
   // TODO(Triang3l): Tessellation.
@@ -822,6 +823,10 @@ bool VulkanPipelineCache::ArePipelineRequirementsMet(
 
   if (!device_features.geometryShader &&
       description.geometry_shader != PipelineGeometryShader::kNone) {
+    return false;
+  }
+
+  if (!device_features.depthClamp && description.depth_clamp_enable) {
     return false;
   }
 
@@ -1175,17 +1180,11 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                         member_out_gl_per_vertex_position, "gl_Position");
   builder.addMemberDecoration(type_struct_out_gl_per_vertex,
                               member_out_gl_per_vertex_position,
-                              spv::DecorationInvariant);
-  builder.addMemberDecoration(type_struct_out_gl_per_vertex,
-                              member_out_gl_per_vertex_position,
                               spv::DecorationBuiltIn, spv::BuiltInPosition);
   if (clip_distance_count) {
     builder.addMemberName(type_struct_out_gl_per_vertex,
                           member_out_gl_per_vertex_clip_distance,
                           "gl_ClipDistance");
-    builder.addMemberDecoration(type_struct_out_gl_per_vertex,
-                                member_out_gl_per_vertex_clip_distance,
-                                spv::DecorationInvariant);
     builder.addMemberDecoration(
         type_struct_out_gl_per_vertex, member_out_gl_per_vertex_clip_distance,
         spv::DecorationBuiltIn, spv::BuiltInClipDistance);
@@ -1194,6 +1193,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   spv::Id out_gl_per_vertex =
       builder.createVariable(spv::NoPrecision, spv::StorageClassOutput,
                              type_struct_out_gl_per_vertex, "");
+  builder.addDecoration(out_gl_per_vertex, spv::DecorationInvariant);
   main_interface.push_back(out_gl_per_vertex);
 
   // Begin the main function.

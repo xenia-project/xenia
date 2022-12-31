@@ -876,15 +876,17 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
 
       // Show achievments data
       XELOGI("-------------------- ACHIEVEMENTS --------------------");
-      auto ach = db.GetAchievements();
-      for (const auto& entry : ach) {
+      const std::vector<kernel::util::XdbfAchievementTableEntry>
+          achievement_list = db.GetAchievements();
+      for (const kernel::util::XdbfAchievementTableEntry& entry :
+           achievement_list) {
         std::string label = db.GetStringTableEntry(language, entry.label_id);
         std::string desc =
             db.GetStringTableEntry(language, entry.description_id);
 
         XELOGI("{} - {} - {} - {}", entry.id, label, desc, entry.gamerscore);
       }
-      XELOGI("----------------- END OF ACHIEVEMENTS --------------------");
+      XELOGI("----------------- END OF ACHIEVEMENTS ----------------");
 
       auto icon_block = db.icon();
       if (icon_block) {

@@ -28,13 +28,14 @@ enum X64FeatureFlags : uint64_t {
 
   kX64EmitAVX512BW = 1 << 10,
   kX64EmitAVX512DQ = 1 << 11,
+  kX64EmitAVX512VBMI = 1 << 12,
 
   kX64EmitAVX512Ortho = kX64EmitAVX512F | kX64EmitAVX512VL,
   kX64EmitAVX512Ortho64 = kX64EmitAVX512Ortho | kX64EmitAVX512DQ,
-  kX64FastJrcx = 1 << 12,  // jrcxz is as fast as any other jump ( >= Zen1)
+  kX64FastJrcx = 1 << 13,  // jrcxz is as fast as any other jump ( >= Zen1)
   kX64FastLoop =
-      1 << 13,  // loop/loope/loopne is as fast as any other jump ( >= Zen2)
-  kX64EmitAVX512VBMI = 1 << 14,
+      1 << 14,  // loop/loope/loopne is as fast as any other jump ( >= Zen2)
+
   kX64FlagsIndependentVars =
       1 << 15,  // if true, instructions that only modify some flags (like
                 // inc/dec) do not introduce false dependencies on EFLAGS
@@ -54,7 +55,7 @@ uint64_t GetFeatureFlags();
 XE_COLD
 void InitFeatureFlags();
 
-}
+}  // namespace amd64
 }  // namespace xe
 
 #endif  // XENIA_BASE_PLATFORM_AMD64_H_

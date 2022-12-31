@@ -44,9 +44,13 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
       // targets are different for 2x and 4x guest MSAA, pipelines because the
       // sample mask will have 2 samples excluded for 2x-as-4x).
       // This has effect only on the attachments, but even in cases when there
-      // are no attachments, it can be used to the sample count between
+      // are no attachments, it can be used to pass the sample count between
       // subsystems, for instance, to specify the desired number of samples to
       // use when there are no attachments in pipelines.
+      // Also, without attachments, using separate render passes for different
+      // sample counts ensures that if the variableMultisampleRate feature is
+      // not supported, no draws with different rasterization sample counts end
+      // up in one render pass.
       xenos::MsaaSamples msaa_samples : xenos::kMsaaSamplesBits;  // 2
       // << 0 is depth, << 1...4 is color.
       uint32_t depth_and_color_used : 1 + xenos::kMaxColorRenderTargets;  // 7

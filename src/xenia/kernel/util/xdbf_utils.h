@@ -62,13 +62,13 @@ struct XdbfXstc {
 };
 static_assert_size(XdbfXstc, 16);
 
-struct XdbfXstrHeader {
+struct XdbfSectionHeader {
   xe::be<uint32_t> magic;
   xe::be<uint32_t> version;
   xe::be<uint32_t> size;
-  xe::be<uint16_t> string_count;
+  xe::be<uint16_t> count;
 };
-static_assert_size(XdbfXstrHeader, 14);
+static_assert_size(XdbfSectionHeader, 14);
 
 struct XdbfStringTableEntry {
   xe::be<uint16_t> id;
