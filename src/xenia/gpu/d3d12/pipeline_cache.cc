@@ -61,6 +61,10 @@ DEFINE_int32(
 DEFINE_bool(d3d12_tessellation_wireframe, false,
             "Display tessellated surfaces as wireframe for debugging.",
             "D3D12");
+DEFINE_bool(d3d12_remove_retc_from_geometry_shader, false,
+            "[ONLY FOR AMD 7900 Series GPU] Workaround for broken Geometry "
+            "Shader. Warning! Might cause issues and hardlocks!",
+            "D3D12");
 
 namespace xe {
 namespace gpu {
@@ -2404,7 +2408,9 @@ void PipelineCache::CreateDxbcGeometryShader(
            dxbc::Src::R(0, 0b1110));
     a.OpOr(dxbc::Dest::R(0, 0b0001), dxbc::Src::R(0, dxbc::Src::kXXXX),
            dxbc::Src::R(0, dxbc::Src::kYYYY));
-    a.OpRetC(true, dxbc::Src::R(0, dxbc::Src::kXXXX));
+    if (!cvars::d3d12_remove_retc_from_geometry_shader) {
+      a.OpRetC(true, dxbc::Src::R(0, dxbc::Src::kXXXX));
+    }
   }
 
   // Cull the whole primitive if any cull distance for all vertices in the
@@ -2430,7 +2436,9 @@ void PipelineCache::CreateDxbcGeometryShader(
         a.OpAnd(dxbc::Dest::R(0, 0b0001), dxbc::Src::R(0, dxbc::Src::kXXXX),
                 dxbc::Src::R(0, dxbc::Src::kYYYY));
       }
-      a.OpRetC(true, dxbc::Src::R(0, dxbc::Src::kXXXX));
+      if (!cvars::d3d12_remove_retc_from_geometry_shader) {
+        a.OpRetC(true, dxbc::Src::R(0, dxbc::Src::kXXXX));
+      }
     }
   }
 
@@ -2473,7 +2481,9 @@ void PipelineCache::CreateDxbcGeometryShader(
       for (uint32_t i = 0; i < 2; ++i) {
         a.OpLT(dxbc::Dest::R(0, 0b0100), dxbc::Src::LF(0.0f),
                point_size_src.SelectFromSwizzled(i));
-        a.OpRetC(false, dxbc::Src::R(0, dxbc::Src::kZZZZ));
+        if (!cvars::d3d12_remove_retc_from_geometry_shader) {
+          a.OpRetC(false, dxbc::Src::R(0, dxbc::Src::kZZZZ));
+        }
       }
       // Transform the diameter in the guest screen coordinates to radius in the
       // normalized device coordinates, and then to the clip space by
