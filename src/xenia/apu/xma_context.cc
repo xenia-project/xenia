@@ -150,11 +150,6 @@ void XmaContext::Clear() {
   data.output_buffer_read_offset = 0;
   data.output_buffer_write_offset = 0;
 
-  xma_frame_.fill(0);
-  split_frame_len_ = 0;
-  split_frame_len_partial_ = 0;
-  split_frame_padding_start_ = 0;
-
   data.Store(context_ptr);
 }
 
