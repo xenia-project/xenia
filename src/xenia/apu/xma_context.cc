@@ -368,6 +368,13 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
       current_input_buffer, data->output_buffer_ptr,
       data->output_buffer_block_count);
 
+  if (is_stream_done_) {
+    is_stream_done_ = false;
+    packets_skip_ = 0;
+    SwapInputBuffer(data);
+    return;
+  }
+
   size_t input_buffer_0_size =
       data->input_buffer_0_packet_count * kBytesPerPacket;
   size_t input_buffer_1_size =
@@ -413,13 +420,6 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
     if (!data->input_buffer_0_valid && !data->input_buffer_1_valid) {
       // Out of data.
       break;
-    }
-
-    if (is_stream_done_) {
-      is_stream_done_ = false;
-      packets_skip_ = 0;
-      SwapInputBuffer(data);
-      return;
     }
     // Setup the input buffer if we are at loop_end.
     // The input buffer must not be swapped out until all loops are processed.
