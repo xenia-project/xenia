@@ -1010,7 +1010,9 @@ DECLARE_XAM_EXPORT1(NetDll_sendto, kNetworking, kImplemented);
 
 dword_result_t NetDll___WSAFDIsSet_entry(dword_t socket_handle,
                                          pointer_t<x_fd_set> fd_set) {
-  for (uint32_t i = 0; i < fd_set->fd_count.value; i++) {
+  const uint8_t max_fd_count =
+      std::min((uint32_t)fd_set->fd_count, uint32_t(64));
+  for (uint8_t i = 0; i < max_fd_count; i++) {
     if (fd_set->fd_array[i] == socket_handle) {
       return 1;
     }
