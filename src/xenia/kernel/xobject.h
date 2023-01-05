@@ -117,6 +117,7 @@ class XObject {
   // Instead of receiving address that starts with 0x82... we're receiving
   // one with 0x8A... which causes crash
   static constexpr uint32_t kHandleBase = 0xF8000000;
+  static constexpr uint32_t kHandleHostBase = 0x01000000;
 
   enum class Type : uint32_t {
     Undefined,
@@ -175,6 +176,9 @@ class XObject {
   static object_ref<XObject> Restore(KernelState* kernel_state, Type type,
                                      ByteStream* stream);
 
+  static constexpr bool is_handle_host_object(X_HANDLE handle) {
+    return handle > XObject::kHandleHostBase && handle < XObject::kHandleBase;
+  };
   // Reference()
   // Dereference()
 

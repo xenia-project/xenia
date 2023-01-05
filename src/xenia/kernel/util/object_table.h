@@ -49,9 +49,6 @@ class ObjectTable {
   X_STATUS RestoreHandle(X_HANDLE handle, XObject* object);
   template <typename T>
   object_ref<T> LookupObject(X_HANDLE handle, bool already_locked = false) {
-    if (T::kObjectType == XObject::Type::Socket) {
-      handle |= XObject::kHandleBase;
-    }
     auto object = LookupObject(handle, already_locked);
     if (object) {
       assert_true(object->type() == T::kObjectType);
@@ -96,7 +93,7 @@ class ObjectTable {
 
   X_HANDLE TranslateHandle(X_HANDLE handle);
   static constexpr uint32_t GetHandleSlot(X_HANDLE handle, bool host) {
-    if (!host) handle -= XObject::kHandleBase;
+    handle &= host ? ~XObject::kHandleHostBase : ~XObject::kHandleBase;
     return handle >> 2;
   }
   X_STATUS FindFreeSlot(uint32_t* out_slot, bool host);

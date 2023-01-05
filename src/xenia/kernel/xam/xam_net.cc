@@ -639,7 +639,7 @@ dword_result_t NetDll_socket_entry(dword_t caller, dword_t af, dword_t type,
     return -1;
   }
 
-  return (socket->handle() & 0x00FFFFFF);
+  return socket->handle();
 }
 DECLARE_XAM_EXPORT1(NetDll_socket, kNetworking, kImplemented);
 
