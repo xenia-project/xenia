@@ -17,6 +17,12 @@
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/xbox.h"
 
+DEFINE_bool(
+    ignore_offset_for_ranged_allocations, false,
+    "Allows to ignore 4k offset for physical allocations with provided range. "
+    "Certain titles check if result matches provided lower range.",
+    "Memory");
+
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {
@@ -386,7 +392,8 @@ dword_result_t MmAllocatePhysicalMemoryEx_entry(
   // TODO(Gliniak): Games like 545108B4 compares min_addr_range with value
   // returned. 0x1000 offset causes it to go below that minimal range and goes
   // haywire
-  if (min_addr_range && max_addr_range) {
+  if (min_addr_range && max_addr_range &&
+      cvars::ignore_offset_for_ranged_allocations) {
     heap_physical_address_offset = 0;
   }
 
