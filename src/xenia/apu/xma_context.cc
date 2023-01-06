@@ -147,8 +147,14 @@ void XmaContext::Clear() {
   data.input_buffer_1_valid = 0;
   data.output_buffer_valid = 0;
 
+  data.input_buffer_read_offset = 0;
   data.output_buffer_read_offset = 0;
   data.output_buffer_write_offset = 0;
+
+  xma_frame_.fill(0);
+  split_frame_len_ = 0;
+  split_frame_len_partial_ = 0;
+  split_frame_padding_start_ = 0;
 
   data.Store(context_ptr);
 }
@@ -658,6 +664,7 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
       XELOGE("XmaContext {}: Error - Decoding failed", id());
       data->parser_error_status = 4;  // TODO(Gliniak): Find all parsing errors
                                       // and create enumerator from them
+      SwapInputBuffer(data);
       assert_always();
       return;  // TODO bail out
     }
