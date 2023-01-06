@@ -16,6 +16,7 @@
 #include "xenia/base/filesystem.h"
 #include "xenia/base/string.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/xam/user_profile.h"
 #include "xenia/kernel/xfile.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/vfs/devices/host_path_device.h"
@@ -179,8 +180,8 @@ X_RESULT ContentManager::ReadContentHeaderFile(const std::string_view file_name,
 
   auto content_type_directory = fmt::format("{:08X}", content_type);
   auto header_file_path = root_path_ / title_id_str /
-                          kGameContentHeaderDirName /
-                          content_type_directory / file_name;
+                          kGameContentHeaderDirName / content_type_directory /
+                          file_name;
   constexpr uint32_t header_size = sizeof(XCONTENT_AGGREGATE_DATA);
 
   if (std::filesystem::exists(header_file_path)) {
@@ -201,6 +202,11 @@ X_RESULT ContentManager::ReadContentHeaderFile(const std::string_view file_name,
     }
     fclose(file);
     std::memcpy(&data, buffer.data(), buffer.size());
+    // It only reads basic info, however importing savefiles
+    // usually requires title_id to be provided
+    // Kinda simple workaround for that, but still assumption
+    data.title_id = title_id;
+    data.unk134 = kernel_state_->user_profile(uint32_t(0))->xuid();
     return X_STATUS_SUCCESS;
   }
   return X_STATUS_NO_SUCH_FILE;
