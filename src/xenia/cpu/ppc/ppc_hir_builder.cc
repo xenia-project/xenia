@@ -596,7 +596,9 @@ void PPCHIRBuilder::SetReturnAddress(Value* value) {
       XexModule* xexmod = dynamic_cast<XexModule*>(mod);
       if (xexmod) {
         auto flags = xexmod->GetInstructionAddressFlags(value->AsUint32());
-        flags->is_return_site = true;
+        if (flags) {
+          flags->is_return_site = true;
+        }
       }
     }
   }
