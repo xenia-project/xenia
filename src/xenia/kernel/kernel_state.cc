@@ -493,10 +493,13 @@ X_RESULT KernelState::ApplyTitleUpdate(const object_ref<UserModule> module) {
   X_RESULT open_status =
       content_manager()->OpenContent("UPDATE", title_update, disc_number);
 
+  // Use the corresponding patch for the launch module
+  std::filesystem::path patch_xexp = fmt::format("{0}.xexp", module->name());
+
   std::string resolved_path = "";
   file_system()->FindSymbolicLink("UPDATE:", resolved_path);
   xe::vfs::Entry* patch_entry = kernel_state()->file_system()->ResolvePath(
-      resolved_path + "default.xexp");
+      resolved_path + patch_xexp.generic_string());
 
   if (patch_entry) {
     const std::string patch_path = patch_entry->absolute_path();
