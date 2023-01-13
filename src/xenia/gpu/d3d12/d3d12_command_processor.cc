@@ -55,8 +55,21 @@ DEFINE_bool(d3d12_clear_memory_page_state, false,
 
 namespace xe {
 namespace gpu {
+
+void D3D12SaveGPUSetting(D3D12GPUSetting setting, uint64_t value) {
+  switch (setting) {
+    case D3D12GPUSetting::ClearMemoryPageState:
+      OVERRIDE_bool(d3d12_clear_memory_page_state, (bool)value);
+      break;
+    case D3D12GPUSetting::ReadbackResolve:
+      OVERRIDE_bool(d3d12_readback_resolve, (bool)value);
+      break;
+  }
+}
+    
 namespace d3d12 {
 
+    
 // Generated with `xb buildshaders`.
 namespace shaders {
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/apply_gamma_pwl_cs.h"

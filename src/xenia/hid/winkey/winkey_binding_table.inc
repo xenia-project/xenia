@@ -11,6 +11,7 @@
 // constructing various tables.
 
 // clang-format off
+XE_HID_WINKEY_BINDING(Guide,       "GUIDE"              , keybind_guide            , "0x08")
 XE_HID_WINKEY_BINDING(DpadLeft,    "DPAD_LEFT"          , keybind_dpad_left        , "^A"  )
 XE_HID_WINKEY_BINDING(DpadRight,   "DPAD_RIGHT"         , keybind_dpad_right       , "^D"  )
 XE_HID_WINKEY_BINDING(DpadDown,    "DPAD_DOWN"          , keybind_dpad_down        , "^S"  )

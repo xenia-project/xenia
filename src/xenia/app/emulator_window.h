@@ -25,6 +25,8 @@
 #include "xenia/ui/windowed_app_context.h"
 #include "xenia/xbox.h"
 
+#define MAX_USERS 4
+
 namespace xe {
 namespace app {
 
@@ -53,6 +55,8 @@ class EmulatorWindow {
   static std::unique_ptr<EmulatorWindow> Create(
       Emulator* emulator, ui::WindowedAppContext& app_context);
 
+  std::unique_ptr<xe::threading::Thread> Gamepad_HotKeys_Listener;
+      
   Emulator* emulator() const { return emulator_; }
   ui::WindowedAppContext& app_context() const { return app_context_; }
   ui::Window* window() const { return window_.get(); }
@@ -69,6 +73,47 @@ class EmulatorWindow {
   void ToggleFullscreen();
   void SetInitializingShaderStorage(bool initializing);
 
+    // Types of button functions for hotkeys.
+  enum class ButtonFunctions {
+    ToggleFullscreen,
+    RunPreviouslyPlayedTitle,
+    CpuTimeScalarSetHalf,
+    CpuTimeScalarSetDouble,
+    CpuTimeScalarReset,
+    ToggleControllerVibration,
+    ClearMemoryPageState,
+    ReadbackResolve,
+    CloseWindow,
+    Unknown
+  };
+
+  enum class gpu_cvar {
+    ClearMemoryPageState,
+    ReadbackResolve,
+  };
+
+  class ControllerHotKey {
+   public:
+    // If true the hotkey can be activated while a title is running, otherwise
+    // false.
+    bool title_passthru;
+
+    // If true vibrate the controller after activating the hotkey, otherwise
+    // false.
+    bool rumble;
+    std::string pretty;
+    ButtonFunctions function;
+
+    ControllerHotKey(ButtonFunctions fn = ButtonFunctions::Unknown,
+                     std::string pretty = "", bool rumble = false,
+                     bool active = true) {
+      function = fn;
+      this->pretty = pretty;
+      title_passthru = active;
+      this->rumble = rumble;
+    }
+  };
+  
  private:
   class EmulatorWindowListener final : public ui::WindowListener,
                                        public ui::WindowInputListener {
@@ -152,6 +197,13 @@ class EmulatorWindow {
   void ShowFAQ();
   void ShowBuildCommit();
 
+  EmulatorWindow::ControllerHotKey ProcessControllerHotkey(int buttons);
+  void VibrateController(xe::hid::InputSystem* input_sys, bool vibrate = true);
+  void GamepadHotKeys();
+  void ToggleGPUSetting(gpu_cvar index);
+  bool IsUseNexusForGameBarEnabled();
+  void DisplayHotKeysConfig();
+  
   xe::X_STATUS RunTitle(std::filesystem::path path);
   void RunPreviouslyPlayedTitle();
   void FillRecentlyLaunchedTitlesMenu(xe::ui::MenuItem* recent_menu);

@@ -34,6 +34,7 @@ class XInputInputDriver final : public InputDriver {
   void* module_;
   void* XInputGetCapabilities_;
   void* XInputGetState_;
+  void* XInputGetStateEx_;
   void* XInputGetKeystroke_;
   void* XInputSetState_;
   void* XInputEnable_;

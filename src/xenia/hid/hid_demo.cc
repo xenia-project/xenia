@@ -345,6 +345,7 @@ void HidDemoApp::DrawUserInputGetKeystroke(uint32_t user_index, bool poll,
                                            bool clear_log) const {
   static const std::unordered_map<ui::VirtualKey, const std::string> kVkPretty =
       {
+          {ui::VirtualKey::kXInputPadGuide, "Guide"},
           {ui::VirtualKey::kXInputPadA, "A"},
           {ui::VirtualKey::kXInputPadB, "B"},
           {ui::VirtualKey::kXInputPadX, "X"},

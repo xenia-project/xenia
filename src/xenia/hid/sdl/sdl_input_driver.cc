@@ -249,7 +249,7 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
   // The order of this list is also the order in which events are send if
   // multiple buttons change at once.
   static_assert(sizeof(X_INPUT_GAMEPAD::buttons) == 2);
-  static constexpr std::array<ui::VirtualKey, 34> kVkLookup = {
+  static constexpr std::array<ui::VirtualKey, 35> kVkLookup = {
       // 00 - True buttons from xinput button field
       ui::VirtualKey::kXInputPadDpadUp,
       ui::VirtualKey::kXInputPadDpadDown,
@@ -261,7 +261,8 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
       ui::VirtualKey::kXInputPadRThumbPress,
       ui::VirtualKey::kXInputPadLShoulder,
       ui::VirtualKey::kXInputPadRShoulder,
-      ui::VirtualKey::kNone, /* Guide has no VK */
+      // Guide has no VK (kNone), however using kXInputPadGuide.
+      ui::VirtualKey::kXInputPadGuide,
       ui::VirtualKey::kNone, /* Unknown */
       ui::VirtualKey::kXInputPadA,
       ui::VirtualKey::kXInputPadB,

@@ -243,6 +243,7 @@ enum class VirtualKey : uint16_t {
   // because XInput is the API used for the Xbox 360 controller.
   // To avoid confusion between VK_GAMEPAD_* and VK_PAD_*, here they are
   // prefixed with kXboxOne and kXInput respectively.
+  // https://learn.microsoft.com/en-us/uwp/api/windows.system.virtualkey
   kXboxOneGamepadA = 0xC3,
   kXboxOneGamepadB = 0xC4,
   kXboxOneGamepadX = 0xC5,
@@ -317,7 +318,7 @@ enum class VirtualKey : uint16_t {
   // VK_PAD_* from XInput.h for XInputGetKeystroke. kXInput prefix added to
   // distinguish from VK_GAMEPAD_*, added much later for the Xbox One
   // controller.
-
+  // https://learn.microsoft.com/en-us/windows/win32/api/xinput/ns-xinput-xinput_keystroke
   kXInputPadA = 0x5800,
   kXInputPadB = 0x5801,
   kXInputPadX = 0x5802,
@@ -354,6 +355,8 @@ enum class VirtualKey : uint16_t {
   kXInputPadRThumbUpRight = 0x5835,
   kXInputPadRThumbDownRight = 0x5836,
   kXInputPadRThumbDownLeft = 0x5837,
+  // Undocumented therefore kNone however using 0x5838 for now.
+  kXInputPadGuide = 0x5838,
 };
 
 }  // namespace ui
