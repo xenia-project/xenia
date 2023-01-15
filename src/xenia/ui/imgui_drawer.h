@@ -51,6 +51,8 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
   }
 
   void Draw(UIDrawContext& ui_draw_context) override;
+  
+  void ClearDialogs();
 
  protected:
   void OnKeyDown(KeyEvent& e) override;

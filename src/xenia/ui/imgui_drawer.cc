@@ -109,13 +109,29 @@ void ImGuiDrawer::Initialize() {
   ImFontConfig font_config;
   font_config.OversampleH = font_config.OversampleV = 1;
   font_config.PixelSnapH = true;
+
+  // https://jrgraphix.net/r/Unicode/
   static const ImWchar font_glyph_ranges[] = {
-      0x0020,
-      0x00FF,  // Basic Latin + Latin Supplement
+      0x0020, 0x00FF,  // Basic Latin + Latin Supplement
+      0x2000, 0x206F,  // General Punctuation
       0,
   };
   io.Fonts->AddFontFromMemoryCompressedBase85TTF(
-      kProggyTinyCompressedDataBase85, 10.0f, &font_config, font_glyph_ranges);
+      kProggyTinyCompressedDataBase85, 10.0f, &font_config,
+      io.Fonts->GetGlyphRangesDefault());
+
+  font_config.MergeMode = true;
+  
+  const char* alt_font = "C:\\Windows\\Fonts\\segoeui.ttf";
+  if (std::filesystem::exists(alt_font)) {
+    io.Fonts->AddFontFromFileTTF(alt_font, 16.0f, &font_config,
+                                 font_glyph_ranges);
+  } else {
+    XELOGW(
+        "Unable to load Segoe UI; General Punctuation characters will be "
+        "boxes");
+  }
+
   // TODO(benvanik): jp font on other platforms?
   // https://github.com/Koruri/kibitaki looks really good, but is 1.5MiB.
   const char* jp_font_path = "C:\\Windows\\Fonts\\msgothic.ttc";
@@ -325,6 +341,14 @@ void ImGuiDrawer::Draw(UIDrawContext& ui_draw_context) {
   if (!dialogs_.empty()) {
     // Repaint (and handle input) continuously if still active.
     presenter_->RequestUIPaintFromUIThread();
+  }
+}
+
+void ImGuiDrawer::ClearDialogs() {
+  size_t dialog_loop = 0;
+
+  while (dialog_loop < dialogs_.size()) {
+    RemoveDialog(dialogs_[dialog_loop++]);
   }
 }
 

@@ -56,7 +56,9 @@ class EmulatorWindow {
       Emulator* emulator, ui::WindowedAppContext& app_context);
 
   std::unique_ptr<xe::threading::Thread> Gamepad_HotKeys_Listener;
-      
+
+  int selected_title_index = -1;
+  
   Emulator* emulator() const { return emulator_; }
   ui::WindowedAppContext& app_context() const { return app_context_; }
   ui::Window* window() const { return window_.get(); }
@@ -73,17 +75,20 @@ class EmulatorWindow {
   void ToggleFullscreen();
   void SetInitializingShaderStorage(bool initializing);
 
-    // Types of button functions for hotkeys.
+  // Types of button functions for hotkeys.
   enum class ButtonFunctions {
     ToggleFullscreen,
-    RunPreviouslyPlayedTitle,
+    RunTitle,
     CpuTimeScalarSetHalf,
     CpuTimeScalarSetDouble,
     CpuTimeScalarReset,
+    ClearGPUCache,
     ToggleControllerVibration,
     ClearMemoryPageState,
     ReadbackResolve,
     CloseWindow,
+    IncTitleSelect,
+    DecTitleSelect,
     Unknown
   };
 
@@ -113,7 +118,7 @@ class EmulatorWindow {
       this->rumble = rumble;
     }
   };
-  
+
  private:
   class EmulatorWindowListener final : public ui::WindowListener,
                                        public ui::WindowInputListener {
@@ -198,12 +203,13 @@ class EmulatorWindow {
   void ShowBuildCommit();
 
   EmulatorWindow::ControllerHotKey ProcessControllerHotkey(int buttons);
-  void VibrateController(xe::hid::InputSystem* input_sys, bool vibrate = true);
+  void VibrateController(xe::hid::InputSystem* input_sys, uint32_t user_index,
+                         bool vibrate = true);
   void GamepadHotKeys();
   void ToggleGPUSetting(gpu_cvar index);
   bool IsUseNexusForGameBarEnabled();
   void DisplayHotKeysConfig();
-  
+
   xe::X_STATUS RunTitle(std::filesystem::path path);
   void RunPreviouslyPlayedTitle();
   void FillRecentlyLaunchedTitlesMenu(xe::ui::MenuItem* recent_menu);
