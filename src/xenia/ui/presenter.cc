@@ -61,12 +61,12 @@ DEFINE_bool(
 // is the title-safe area rather than the action-safe area.
 // 90% is also exactly the fraction of 16:9 height in 16:10.
 DEFINE_int32(
-    present_safe_area_x, 90,
+    present_safe_area_x, 100,
     "Percentage of the image width that can be kept when presenting to "
     "maintain aspect ratio without letterboxing or stretching.",
     "Display");
 DEFINE_int32(
-    present_safe_area_y, 90,
+    present_safe_area_y, 100,
     "Percentage of the image height that can be kept when presenting to "
     "maintain aspect ratio without letterboxing or stretching.",
     "Display");
