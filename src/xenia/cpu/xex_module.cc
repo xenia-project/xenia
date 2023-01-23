@@ -37,6 +37,10 @@ DEFINE_bool(disable_instruction_infocache, false,
             "Disables caching records of called instructions/mmio accesses.",
             "CPU");
 
+DEFINE_bool(writable_code_segments, false,
+            "Enables a program to write to its own code segments in memory.",
+            "CPU");
+
 DEFINE_bool(
     enable_early_precompilation, false,
     "Enable pre-compiling guest functions that we know we've called/that "
@@ -1080,7 +1084,10 @@ bool XexModule::LoadContinue() {
     switch (desc.info) {
       case XEX_SECTION_CODE:
       case XEX_SECTION_READONLY_DATA:
-        heap->Protect(address, size, kMemoryProtectRead);
+        heap->Protect(address, size,
+                      cvars::writable_code_segments
+                          ? kMemoryProtectRead | kMemoryProtectWrite
+                          : kMemoryProtectRead);
         break;
       case XEX_SECTION_DATA:
         heap->Protect(address, size, kMemoryProtectRead | kMemoryProtectWrite);
