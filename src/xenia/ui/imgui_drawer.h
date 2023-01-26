@@ -13,8 +13,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <vector>
 #include <optional>
+#include <vector>
 
 #include "xenia/ui/immediate_drawer.h"
 #include "xenia/ui/presenter.h"
