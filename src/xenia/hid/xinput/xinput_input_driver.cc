@@ -52,6 +52,7 @@ X_STATUS XInputInputDriver::Setup() {
   }
 
   // Support guide button with XInput using XInputGetStateEx
+  // https://source.winehq.org/git/wine.git/?a=commit;h=de3591ca9803add117fbacb8abe9b335e2e44977
   auto const XInputGetStateEx = (LPCSTR)100;
 
   // Required.
@@ -77,7 +78,7 @@ X_STATUS XInputInputDriver::Setup() {
   XInputGetKeystroke_ = xigk;
   XInputSetState_ = xiss;
   XInputEnable_ = xie;
-  
+
   return X_STATUS_SUCCESS;
 }
 
@@ -140,16 +141,17 @@ X_RESULT XInputInputDriver::GetState(uint32_t user_index,
   if (skipper) {
     return skipper;
   }
-  
+
+  // Added padding in case we are using XInputGetStateEx
   struct {
     XINPUT_STATE state;
-    unsigned int xinput_state_ex_padding; // Add padding in case we are using XInputGetStateEx
+    unsigned int dwPaddingReserved;
   } native_state;
 
-  // If the guide button is enabled use XInputGetStateEx, otherwise use the default XInputGetState.
-  auto xigs = cvars::guide_button
-                  ? (decltype(&XInputGetState))XInputGetStateEx_
-                  : (decltype(&XInputGetState))XInputGetState_;
+  // If the guide button is enabled use XInputGetStateEx, otherwise use the
+  // default XInputGetState.
+  auto xigs = cvars::guide_button ? (decltype(&XInputGetState))XInputGetStateEx_
+                                  : (decltype(&XInputGetState))XInputGetState_;
 
   DWORD result = xigs(user_index, &native_state.state);
   if (result) {
