@@ -33,8 +33,7 @@ namespace app {
 struct RecentTitleEntry {
   std::string title_name;
   std::filesystem::path path_to_file;
-  // uint32_t run_count;
-  // uint64_t last_run_time;
+  std::time_t last_run_time;
 };
 
 class EmulatorWindow {
@@ -213,8 +212,9 @@ class EmulatorWindow {
 
   xe::X_STATUS RunTitle(std::filesystem::path path);
   void RunPreviouslyPlayedTitle();
+  void RunRecentlyPlayedTitle(std::filesystem::path path_to_file);
   void FillRecentlyLaunchedTitlesMenu(xe::ui::MenuItem* recent_menu);
-  void ReadRecentlyLaunchedTitles();
+  void LoadRecentlyLaunchedTitles();
   void AddRecentlyLaunchedTitle(std::filesystem::path path_to_file,
                                 std::string title_name);
 
