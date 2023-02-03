@@ -12,6 +12,7 @@
 #include "third_party/discord-rpc/include/discord_rpc.h"
 #include "xenia/base/string.h"
 
+// TODO: This library has been deprecated in favor of Discord's GameSDK.
 namespace xe {
 namespace discord {
 

@@ -1195,11 +1195,11 @@ const std::map<int, EmulatorWindow::ControllerHotKey> controller_hotkey_map = {
     {X_INPUT_GAMEPAD_DPAD_DOWN,
      EmulatorWindow::ControllerHotKey(
          EmulatorWindow::ButtonFunctions::IncTitleSelect,
-         "D-PAD Down + Guide = Title Selection +1", true, false)},
+         "D-PAD Down = Title Selection +1", true, false)},
     {X_INPUT_GAMEPAD_DPAD_UP,
      EmulatorWindow::ControllerHotKey(
          EmulatorWindow::ButtonFunctions::DecTitleSelect,
-         "D-PAD Up + Guide = Title Selection -1", true, false)}};
+         "D-PAD Up = Title Selection -1", true, false)}};
 
 EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
     int buttons) {
@@ -1247,12 +1247,10 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
     case ButtonFunctions::RunTitle: {
       if (selected_title_index == -1) selected_title_index++;
 
-      xe::X_STATUS title_success = RunTitle(
-          recently_launched_titles_[selected_title_index].path_to_file);
+      app_context().CallInUIThread([this]() {
+        RunTitle(recently_launched_titles_[selected_title_index].path_to_file);
+      });
 
-      if (title_success == X_ERROR_SUCCESS) {
-        imgui_drawer_.get()->ClearDialogs();
-      }
     } break;
     case ButtonFunctions::ClearMemoryPageState:
       ToggleGPUSetting(gpu_cvar::ClearMemoryPageState);
@@ -1311,6 +1309,7 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
     selected_title_index = std::clamp(
         selected_title_index, 0, (int)recently_launched_titles_.size() - 1);
 
+    // Must clear dialogs to prevent stacking
     imgui_drawer_.get()->ClearDialogs();
 
     // Titles may contain Unicode characters such as At World’s End
@@ -1338,7 +1337,7 @@ void EmulatorWindow::VibrateController(xe::hid::InputSystem* input_sys,
   // otherwise the rumble may fail.
   auto input_lock = input_sys->lock();
 
-  X_INPUT_VIBRATION vibration{};
+  X_INPUT_VIBRATION vibration = {};
 
   vibration.left_motor_speed = toggle_rumble ? UINT16_MAX : 0;
   vibration.right_motor_speed = toggle_rumble ? UINT16_MAX : 0;
@@ -1367,7 +1366,7 @@ void EmulatorWindow::GamepadHotKeys() {
 
         // Release the lock before processing the hotkey
         input_lock.mutex()->unlock();
-        
+
         // Check if the controller is connected
         if (result == X_ERROR_SUCCESS) {
           if (ProcessControllerHotkey(state.gamepad.buttons).rumble) {
@@ -1473,12 +1472,13 @@ void EmulatorWindow::DisplayHotKeysConfig() {
                                       msg);
 }
 
-xe::X_STATUS EmulatorWindow::RunTitle(std::filesystem::path path) {
-  bool titleExists = !std::filesystem::exists(path);
+xe::X_STATUS EmulatorWindow::RunTitle(std::filesystem::path path_to_file) {
+  bool titleExists = !std::filesystem::exists(path_to_file);
 
-  if (path.empty() || titleExists) {
-    char* log_msg = path.empty() ? "Failed to launch title path is empty."
-                                 : "Failed to launch title path is invalid.";
+  if (path_to_file.empty() || titleExists) {
+    char* log_msg = path_to_file.empty()
+                        ? "Failed to launch title path is empty."
+                        : "Failed to launch title path is invalid.";
 
     XELOGE(log_msg);
 
@@ -1501,19 +1501,19 @@ xe::X_STATUS EmulatorWindow::RunTitle(std::filesystem::path path) {
 
   // Prevent crashing the emulator by not loading a game if a game is already
   // loaded.
-  auto abs_path = std::filesystem::absolute(path);
+  auto abs_path = std::filesystem::absolute(path_to_file);
   auto result = emulator_->LaunchPath(abs_path);
+
+  imgui_drawer_.get()->ClearDialogs();
 
   if (result) {
     XELOGE("Failed to launch target: {:08X}", result);
-
-    imgui_drawer_.get()->ClearDialogs();
 
     xe::ui::ImGuiDialog::ShowMessageBox(
         imgui_drawer_.get(), "Title Launch Failed!",
         "Failed to launch title.\n\nCheck xenia.log for technical details.");
   } else {
-    AddRecentlyLaunchedTitle(path, emulator_->title_name());
+    AddRecentlyLaunchedTitle(path_to_file, emulator_->title_name());
   }
 
   return result;
@@ -1525,32 +1525,19 @@ void EmulatorWindow::RunPreviouslyPlayedTitle() {
   }
 }
 
-void EmulatorWindow::RunRecentlyPlayedTitle(
-    std::filesystem::path path_to_file) {
-  if (path_to_file.empty()) {
-    return;
-  }
-
-  auto abs_path = std::filesystem::absolute(path_to_file);
-  auto result = emulator_->LaunchPath(abs_path);
-  if (XFAILED(result)) {
-    // TODO: Display a message box.
-    XELOGE("Failed to launch target: {:08X}", result);
-    return;
-  }
-  AddRecentlyLaunchedTitle(path_to_file, emulator_->title_name());
-}
-
 void EmulatorWindow::FillRecentlyLaunchedTitlesMenu(
     xe::ui::MenuItem* recent_menu) {
-  for (const RecentTitleEntry& entry : recently_launched_titles_) {
-    std::string item_text = !entry.title_name.empty()
-                                ? entry.title_name
-                                : entry.path_to_file.string();
-    recent_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, item_text,
-                         std::bind(&EmulatorWindow::RunRecentlyPlayedTitle,
-                                   this, entry.path_to_file)));
+  for (int i = 0; i < recently_launched_titles_.size(); ++i) {
+    std::string hotkey = (i == 0) ? "F9" : "";
+
+    const RecentTitleEntry& entry = recently_launched_titles_[i];
+    const std::string item_text = entry.title_name.empty()
+                                      ? entry.path_to_file.string()
+                                      : entry.title_name;
+
+    recent_menu->AddChild(MenuItem::Create(
+        MenuItem::Type::kString, item_text, hotkey,
+        std::bind(&EmulatorWindow::RunTitle, this, entry.path_to_file)));
   }
 }
 
