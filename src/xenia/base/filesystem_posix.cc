@@ -217,6 +217,10 @@ std::vector<FileInfo> ListFiles(const std::filesystem::path& path) {
   }
 
   while (auto ent = readdir(dir)) {
+    if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {
+      continue;
+    }
+
     FileInfo info;
 
     info.name = ent->d_name;
