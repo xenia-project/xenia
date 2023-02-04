@@ -11,6 +11,7 @@
 #include "xenia/kernel/xam/content_manager.h"
 #include "xenia/vfs/devices/stfs_container_device.h"
 
+#include "devices/host_path_entry.h"
 #include "xenia/base/literals.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/string.h"
@@ -220,6 +221,22 @@ X_STATUS VirtualFileSystem::OpenFile(Entry* root_entry,
   if (entry) {
     if (entry->attributes() & kFileAttributeDirectory && is_non_directory) {
       return X_STATUS_FILE_IS_A_DIRECTORY;
+    }
+
+    // If the entry does not exist on the host then remove the cached entry
+    if (parent_entry) {
+      const xe::vfs::HostPathEntry* host_Path =
+          dynamic_cast<const xe::vfs::HostPathEntry*>(parent_entry);
+
+      if (host_Path) {
+        auto const file_path = host_Path->host_path() / entry->name();
+
+        if (!std::filesystem::exists(file_path)) {
+          // Remove cached entry
+          entry->Delete();
+          entry = nullptr;
+        }
+      }
     }
   }
 
