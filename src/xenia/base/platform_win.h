@@ -37,7 +37,7 @@
 #define XE_USE_NTDLL_FUNCTIONS 1
 //chrispy: disabling this for now, more research needs to be done imo, although it does work very well on my machine
 // 
-#define XE_USE_KUSER_SHARED 1
+#define XE_USE_KUSER_SHARED 0
 #if XE_USE_NTDLL_FUNCTIONS == 1
 /*
         ntdll versions of functions often skip through a lot of extra garbage in

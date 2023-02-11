@@ -70,6 +70,7 @@ class AudioSystem {
   Memory* memory_ = nullptr;
   cpu::Processor* processor_ = nullptr;
   std::unique_ptr<XmaDecoder> xma_decoder_;
+  uint32_t queued_frames_;
 
   std::atomic<bool> worker_running_ = {false};
   kernel::object_ref<kernel::XHostThread> worker_thread_;

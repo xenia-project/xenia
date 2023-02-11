@@ -46,10 +46,10 @@ AudioSystem::AudioSystem(cpu::Processor* processor)
       processor_(processor),
       worker_running_(false) {
   std::memset(clients_, 0, sizeof(clients_));
+  queued_frames_ = std::max(cvars::max_queued_frames, (uint32_t)16);
 
   for (size_t i = 0; i < kMaximumClientCount; ++i) {
-    client_semaphores_[i] =
-        xe::threading::Semaphore::Create(0, cvars::max_queued_frames);
+    client_semaphores_[i] = xe::threading::Semaphore::Create(0, queued_frames_);
     wait_handles_[i] = client_semaphores_[i].get();
   }
   shutdown_event_ = xe::threading::Event::CreateAutoResetEvent(false);
@@ -179,7 +179,7 @@ X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
   assert_true(index >= 0);
 
   auto client_semaphore = client_semaphores_[index].get();
-  auto ret = client_semaphore->Release(cvars::max_queued_frames, nullptr);
+  auto ret = client_semaphore->Release(queued_frames_, nullptr);
   assert_true(ret);
 
   AudioDriver* driver;
@@ -282,7 +282,7 @@ bool AudioSystem::Restore(ByteStream* stream) {
     client.in_use = true;
 
     auto client_semaphore = client_semaphores_[id].get();
-    auto ret = client_semaphore->Release(cvars::max_queued_frames, nullptr);
+    auto ret = client_semaphore->Release(queued_frames_, nullptr);
     assert_true(ret);
 
     AudioDriver* driver = nullptr;
