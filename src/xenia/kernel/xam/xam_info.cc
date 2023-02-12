@@ -222,6 +222,11 @@ dword_result_t XGetLanguage_entry() {
 }
 DECLARE_XAM_EXPORT1(XGetLanguage, kNone, kImplemented);
 
+dword_result_t XamGetCurrentTitleId_entry() {
+  return kernel_state()->emulator()->title_id();
+}
+DECLARE_XAM_EXPORT1(XamGetCurrentTitleId, kNone, kImplemented);
+
 dword_result_t XamGetExecutionId_entry(lpdword_t info_ptr) {
   auto module = kernel_state()->GetExecutableModule();
   assert_not_null(module);
