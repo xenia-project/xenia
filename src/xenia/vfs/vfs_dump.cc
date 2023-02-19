@@ -32,12 +32,12 @@ DEFINE_transient_path(dump_path, "",
                       "Specifies the directory to dump files to.", "General");
 
 int vfs_dump_main(const std::vector<std::string>& args) {
-  if (cvars::source.empty() || cvars::dump_path.empty()) {
+  if (cvars::source.empty()) {
     XELOGE("Usage: {} [source] [dump_path]", xe::path_to_utf8(args[0]));
     return 1;
   }
 
-  std::filesystem::path base_path = cvars::dump_path;
+  std::filesystem::path base_path = cvars::dump_path.empty() ? cvars::source : cvars::dump_path;
   std::unique_ptr<vfs::Device> device;
 
   // TODO: Flags specifying the type of device.
