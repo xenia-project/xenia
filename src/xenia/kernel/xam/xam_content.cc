@@ -116,6 +116,8 @@ dword_result_t XamContentCreateEnumerator_entry(
 }
 DECLARE_XAM_EXPORT1(XamContentCreateEnumerator, kContent, kImplemented);
 
+enum class kDispositionState : uint32_t { Unknown = 0, Create = 1, Open = 2 };
+
 dword_result_t xeXamContentCreate(dword_t user_index, lpstring_t root_name,
                                   lpvoid_t content_data_ptr,
                                   dword_t content_data_size, dword_t flags,
@@ -143,40 +145,37 @@ dword_result_t xeXamContentCreate(dword_t user_index, lpstring_t root_name,
               content_data, disposition_ptr, license_mask_ptr](
                  uint32_t& extended_error, uint32_t& length) -> X_RESULT {
     X_RESULT result = X_ERROR_INVALID_PARAMETER;
-    bool create = false;
-    bool open = false;
+    kDispositionState disposition = kDispositionState::Unknown;
     switch (flags & 0xF) {
       case 1:  // CREATE_NEW
                // Fail if exists.
         if (content_manager->ContentExists(content_data)) {
           result = X_ERROR_ALREADY_EXISTS;
         } else {
-          create = true;
+          disposition = kDispositionState::Create;
         }
         break;
       case 2:  // CREATE_ALWAYS
                // Overwrite existing, if any.
         if (content_manager->ContentExists(content_data)) {
           content_manager->DeleteContent(content_data);
-          create = true;
-        } else {
-          create = true;
         }
+        disposition = kDispositionState::Create;
         break;
       case 3:  // OPEN_EXISTING
                // Open only if exists.
         if (!content_manager->ContentExists(content_data)) {
           result = X_ERROR_PATH_NOT_FOUND;
         } else {
-          open = true;
+          disposition = kDispositionState::Open;
         }
         break;
       case 4:  // OPEN_ALWAYS
                // Create if needed.
         if (!content_manager->ContentExists(content_data)) {
-          create = true;
+          disposition = kDispositionState::Create;
         } else {
-          open = true;
+          disposition = kDispositionState::Open;
         }
         break;
       case 5:  // TRUNCATE_EXISTING
@@ -185,7 +184,7 @@ dword_result_t xeXamContentCreate(dword_t user_index, lpstring_t root_name,
           result = X_ERROR_PATH_NOT_FOUND;
         } else {
           content_manager->DeleteContent(content_data);
-          create = true;
+          disposition = kDispositionState::Create;
         }
         break;
       default:
@@ -193,19 +192,14 @@ dword_result_t xeXamContentCreate(dword_t user_index, lpstring_t root_name,
         break;
     }
 
-    // creation result
-    // 0 = ?
-    // 1 = created
-    // 2 = opened
-    uint32_t disposition = create ? 1 : 2;
-    if (disposition_ptr) {
-      *disposition_ptr = disposition;
+    if (disposition == kDispositionState::Create) {
+      result = content_manager->CreateContent(root_name, content_data);
+    } else if (disposition == kDispositionState::Open) {
+      result = content_manager->OpenContent(root_name, content_data);
     }
 
-    if (create) {
-      result = content_manager->CreateContent(root_name, content_data);
-    } else if (open) {
-      result = content_manager->OpenContent(root_name, content_data);
+    if (disposition_ptr) {
+      *disposition_ptr = static_cast<uint32_t>(disposition);
     }
 
     if (license_mask_ptr && XSUCCEEDED(result)) {
@@ -213,7 +207,7 @@ dword_result_t xeXamContentCreate(dword_t user_index, lpstring_t root_name,
     }
 
     extended_error = X_HRESULT_FROM_WIN32(result);
-    length = disposition;
+    length = static_cast<uint32_t>(disposition);
     return result;
   };
 
