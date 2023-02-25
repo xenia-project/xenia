@@ -294,4 +294,8 @@ void ShowSimpleMessageBox(SimpleMessageBoxType type, std::string_view message) {
   // Java VM for the calling thread is needed.
 }
 
+const std::filesystem::path GetFontPath(const std::string font_name) {
+  return "";
+}
+
 }  // namespace xe

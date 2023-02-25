@@ -36,6 +36,7 @@ enum class SimpleMessageBoxType {
 // This is expected to block the caller until the message box is closed.
 void ShowSimpleMessageBox(SimpleMessageBoxType type, std::string_view message);
 
+const std::filesystem::path GetFontPath(const std::string font_name);
 }  // namespace xe
 
 #endif  // XENIA_BASE_SYSTEM_H_

@@ -13,6 +13,7 @@
 #include <cstring>
 
 #include "third_party/imgui/imgui.h"
+#include "xenia/base/system.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/logging.h"
@@ -20,6 +21,11 @@
 #include "xenia/ui/imgui_dialog.h"
 #include "xenia/ui/ui_event.h"
 #include "xenia/ui/window.h"
+
+DEFINE_path(
+    custom_font_path, "",
+    "Allows user to load custom font and use it instead of default one.", "UI");
+DEFINE_uint32(font_size, 12, "Allows user to set custom font size.", "UI");
 
 namespace xe {
 namespace ui {
@@ -98,38 +104,7 @@ void ImGuiDrawer::Initialize() {
   internal_state_ = ImGui::CreateContext();
   ImGui::SetCurrentContext(internal_state_);
 
-  auto& io = ImGui::GetIO();
-
-  // TODO(gibbed): disable imgui.ini saving for now,
-  // imgui assumes paths are char* so we can't throw a good path at it on
-  // Windows.
-  io.IniFilename = nullptr;
-
-  // Setup the font glyphs.
-  ImFontConfig font_config;
-  font_config.OversampleH = font_config.OversampleV = 1;
-  font_config.PixelSnapH = true;
-  static const ImWchar font_glyph_ranges[] = {
-      0x0020,
-      0x00FF,  // Basic Latin + Latin Supplement
-      0,
-  };
-  io.Fonts->AddFontFromMemoryCompressedBase85TTF(
-      kProggyTinyCompressedDataBase85, 10.0f, &font_config, font_glyph_ranges);
-  // TODO(benvanik): jp font on other platforms?
-  // https://github.com/Koruri/kibitaki looks really good, but is 1.5MiB.
-  const char* jp_font_path = "C:\\Windows\\Fonts\\msgothic.ttc";
-  if (std::filesystem::exists(jp_font_path)) {
-    ImFontConfig jp_font_config;
-    jp_font_config.MergeMode = true;
-    jp_font_config.OversampleH = jp_font_config.OversampleV = 1;
-    jp_font_config.PixelSnapH = true;
-    jp_font_config.FontNo = 0;
-    io.Fonts->AddFontFromFileTTF(jp_font_path, 12.0f, &jp_font_config,
-                                 io.Fonts->GetGlyphRangesJapanese());
-  } else {
-    XELOGW("Unable to load Japanese font; JP characters will be boxes");
-  }
+  InitializeFonts();
 
   auto& style = ImGui::GetStyle();
   style.ScrollbarRounding = 0;
@@ -216,6 +191,105 @@ std::optional<ImGuiKey> ImGuiDrawer::VirtualKeyToImGuiKey(VirtualKey vkey) {
   } else {
     return std::nullopt;
   }
+}
+
+static const ImWchar font_glyph_ranges[] = {
+    0x0020, 0x00FF,  // Basic Latin + Latin Supplement
+    0x0370, 0x03FF,  // Greek
+    0x0400, 0x044F,  // Cyrillic
+    0x2000, 0x206F,  // General Punctuation
+    0,
+};
+
+void ImGuiDrawer::LoadCustomFont(ImGuiIO& io, ImFontConfig& font_config,
+                                 const float font_size) {
+  if (cvars::custom_font_path.empty()) {
+    return;
+  }
+
+  if (!std::filesystem::exists(cvars::custom_font_path)) {
+    return;
+  }
+
+  const std::string font_path = xe::path_to_utf8(cvars::custom_font_path);
+  ImFont* font = io.Fonts->AddFontFromFileTTF(font_path.c_str(), font_size,
+                                              &font_config, font_glyph_ranges);
+
+  io.Fonts->Build();
+
+  if (!font->IsLoaded()) {
+    XELOGE("Failed to load custom font: {}", font_path);
+    io.Fonts->Clear();
+  }
+}
+
+void ImGuiDrawer::LoadSystemFont(ImGuiIO& io, ImFontConfig& font_config,
+                                  const float font_size) {
+  const std::filesystem::path font_path = xe::GetFontPath("tahoma.ttf");
+  if (!std::filesystem::exists(font_path)) {
+    XELOGW(
+        "Unable to find Tahoma font in OS fonts directory. Switching to "
+        "embedded Xenia font");
+    return;
+  }
+
+  ImFont* font =
+      io.Fonts->AddFontFromFileTTF(xe::path_to_utf8(font_path).c_str(),
+                                   font_size, &font_config, font_glyph_ranges);
+
+  io.Fonts->Build();
+  // Something went wrong while loading custom font. Probably corrupted.
+  if (!font->IsLoaded()) {
+    XELOGE("Failed to load custom font: {}", xe::path_to_utf8(font_path));
+    io.Fonts->Clear();
+  }
+}
+
+void ImGuiDrawer::LoadJapaneseFont(ImGuiIO& io, const float font_size) {
+  // TODO(benvanik): jp font on other platforms?
+  const std::filesystem::path font_path = xe::GetFontPath("msgothic.ttc");
+
+  if (!std::filesystem::exists(font_path)) {
+    XELOGW("Unable to load Japanese font; JP characters will be boxes");
+    return;
+  }
+
+  ImFontConfig jp_font_config;
+  jp_font_config.MergeMode = true;
+  jp_font_config.OversampleH = jp_font_config.OversampleV = 2;
+  jp_font_config.PixelSnapH = true;
+  jp_font_config.FontNo = 0;
+  io.Fonts->AddFontFromFileTTF(xe::path_to_utf8(font_path).c_str(), font_size,
+                               &jp_font_config,
+                               io.Fonts->GetGlyphRangesJapanese());
+};
+
+void ImGuiDrawer::InitializeFonts() {
+  auto& io = ImGui::GetIO();
+
+  const float font_size = std::max((float)cvars::font_size, 8.f);
+  // TODO(gibbed): disable imgui.ini saving for now,
+  // imgui assumes paths are char* so we can't throw a good path at it on
+  // Windows.
+  io.IniFilename = nullptr;
+
+  ImFontConfig font_config;
+  font_config.OversampleH = font_config.OversampleV = 2;
+  font_config.PixelSnapH = true;
+
+  LoadCustomFont(io, font_config, font_size);
+  // Failed to load custom font. Trying to load one of OS fonts.
+  if (io.Fonts->Fonts.empty()) {
+    LoadSystemFont(io, font_config, font_size);
+  }
+  // Failed to load OS font. Loading Xenia embedded font.
+  if (io.Fonts->Fonts.empty()) {
+    io.Fonts->AddFontFromMemoryCompressedBase85TTF(
+        kProggyTinyCompressedDataBase85, font_size, &font_config,
+        io.Fonts->GetGlyphRangesDefault());
+  }
+
+  LoadJapaneseFont(io, font_size);
 }
 
 void ImGuiDrawer::SetupFontTexture() {

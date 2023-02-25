@@ -67,4 +67,8 @@ void ShowSimpleMessageBox(SimpleMessageBoxType type, std::string_view message) {
   }
 }
 
+const std::filesystem::path GetFontPath(const std::string font_name) {
+  return "";
+}
+
 }  // namespace xe

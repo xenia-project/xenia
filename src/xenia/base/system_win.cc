@@ -7,6 +7,8 @@
  ******************************************************************************
  */
 
+#include <ShlObj_core.h>
+
 #include "xenia/base/platform_win.h"
 #include "xenia/base/string.h"
 #include "xenia/base/system.h"
@@ -46,6 +48,27 @@ void ShowSimpleMessageBox(SimpleMessageBoxType type,
   }
   MessageBoxW(nullptr, reinterpret_cast<LPCWSTR>(wide_message.c_str()), title,
               type_flags);
+}
+
+const std::filesystem::path GetFontPath(const std::string font_name) {
+  std::filesystem::path font_path = "";
+
+  PWSTR fonts_dir;
+  HRESULT result = SHGetKnownFolderPath(FOLDERID_Fonts, 0, NULL, &fonts_dir);
+  if (FAILED(result)) {
+    CoTaskMemFree(static_cast<void*>(fonts_dir));
+    return "";
+  }
+  font_path = std::wstring(fonts_dir);
+  font_path.append(font_name);
+
+  CoTaskMemFree(static_cast<void*>(fonts_dir));
+
+  if (!std::filesystem::exists(font_path)) {
+    return "";
+  }
+
+  return font_path;
 }
 
 }  // namespace xe
