@@ -17,6 +17,11 @@ namespace kernel {
 namespace xam {
 namespace apps {
 
+struct X_XUSER_ACHIEVEMENT {
+  xe::be<uint32_t> user_idx;
+  xe::be<uint32_t> achievement_id;
+};
+
 XgiApp::XgiApp(KernelState* kernel_state) : App(kernel_state, 0xFB) {}
 
 // http://mb.mirage.org/bugzilla/xliveless/main.c
@@ -55,6 +60,13 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       uint32_t achievements_ptr = xe::load_and_swap<uint32_t>(buffer + 4);
       XELOGD("XGIUserWriteAchievements({:08X}, {:08X})", achievement_count,
              achievements_ptr);
+
+      auto* achievement =
+          (X_XUSER_ACHIEVEMENT*)memory_->TranslateVirtual(achievements_ptr);
+      for (uint32_t i = 0; i < achievement_count; i++, achievement++) {
+        kernel_state_->achievement_manager()->EarnAchievement(
+            achievement->user_idx, 0, achievement->achievement_id);
+      }
       return X_E_SUCCESS;
     }
     case 0x000B0010: {

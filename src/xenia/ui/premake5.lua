@@ -27,4 +27,5 @@ project("xenia-ui")
     links({
       "dwmapi",
       "dxgi",
+      "winmm",
     })

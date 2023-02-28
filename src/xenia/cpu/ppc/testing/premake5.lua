@@ -10,6 +10,7 @@ project("xenia-cpu-ppc-tests")
     "capstone", -- cpu-backend-x64
     "fmt",
     "mspack",
+    "imgui",
     "xenia-core",
     "xenia-cpu",
     "xenia-base",

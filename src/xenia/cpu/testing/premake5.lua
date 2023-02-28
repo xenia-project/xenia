@@ -5,6 +5,7 @@ test_suite("xenia-cpu-tests", project_root, ".", {
   links = {
     "capstone",
     "fmt",
+    "imgui",
     "xenia-base",
     "xenia-core",
     "xenia-cpu",

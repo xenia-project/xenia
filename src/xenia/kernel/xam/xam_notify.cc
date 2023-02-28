@@ -98,6 +98,7 @@ dword_result_t XNotifyDelayUI_entry(dword_t delay_ms) {
 DECLARE_XAM_EXPORT1(XNotifyDelayUI, kNone, kStub);
 
 void XNotifyPositionUI_entry(dword_t position) {
+  kernel_state()->notification_position_ = position;
   // Ignored.
 }
 DECLARE_XAM_EXPORT1(XNotifyPositionUI, kNone, kStub);

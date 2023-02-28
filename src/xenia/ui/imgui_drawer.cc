@@ -18,8 +18,22 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/ui/imgui_dialog.h"
+#include "xenia/ui/imgui_notification.h"
+#include "xenia/ui/resources.h"
 #include "xenia/ui/ui_event.h"
 #include "xenia/ui/window.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "third_party/stb/stb_image.h"
+
+#if XE_PLATFORM_WIN32
+#include <ShlObj_core.h>
+#endif
+
+DEFINE_path(
+    custom_font_path, "",
+    "Allows user to load custom font and use it instead of default one.",
+    "General");
 
 namespace xe {
 namespace ui {
@@ -89,7 +103,32 @@ void ImGuiDrawer::RemoveDialog(ImGuiDialog* dialog) {
     }
   }
   dialogs_.erase(it);
-  DetachIfLastDialogRemoved();
+  DetachIfLastWindowRemoved();
+}
+
+void ImGuiDrawer::AddNotification(ImGuiNotification* dialog) {
+  assert_not_null(dialog);
+  // Check if already added.
+  if (std::find(notifications_.cbegin(), notifications_.cend(), dialog) !=
+      notifications_.cend()) {
+    return;
+  }
+  if (notifications_.empty()) {
+    if (presenter_) {
+      presenter_->AddUIDrawerFromUIThread(this, z_order_);
+    }
+  }
+  notifications_.push_back(dialog);
+}
+
+void ImGuiDrawer::RemoveNotification(ImGuiNotification* dialog) {
+  assert_not_null(dialog);
+  auto it = std::find(notifications_.cbegin(), notifications_.cend(), dialog);
+  if (it == notifications_.cend()) {
+    return;
+  }
+  notifications_.erase(it);
+  DetachIfLastWindowRemoved();
 }
 
 void ImGuiDrawer::Initialize() {
@@ -98,54 +137,7 @@ void ImGuiDrawer::Initialize() {
   internal_state_ = ImGui::CreateContext();
   ImGui::SetCurrentContext(internal_state_);
 
-  auto& io = ImGui::GetIO();
-
-  // TODO(gibbed): disable imgui.ini saving for now,
-  // imgui assumes paths are char* so we can't throw a good path at it on
-  // Windows.
-  io.IniFilename = nullptr;
-
-  // Setup the font glyphs.
-  ImFontConfig font_config;
-  font_config.OversampleH = font_config.OversampleV = 1;
-  font_config.PixelSnapH = true;
-
-  // https://jrgraphix.net/r/Unicode/
-  static const ImWchar font_glyph_ranges[] = {
-      0x0020, 0x00FF,  // Basic Latin + Latin Supplement
-      0x2000, 0x206F,  // General Punctuation
-      0,
-  };
-  io.Fonts->AddFontFromMemoryCompressedBase85TTF(
-      kProggyTinyCompressedDataBase85, 10.0f, &font_config,
-      io.Fonts->GetGlyphRangesDefault());
-
-  font_config.MergeMode = true;
-  
-  const char* alt_font = "C:\\Windows\\Fonts\\segoeui.ttf";
-  if (std::filesystem::exists(alt_font)) {
-    io.Fonts->AddFontFromFileTTF(alt_font, 16.0f, &font_config,
-                                 font_glyph_ranges);
-  } else {
-    XELOGW(
-        "Unable to load Segoe UI; General Punctuation characters will be "
-        "boxes");
-  }
-
-  // TODO(benvanik): jp font on other platforms?
-  // https://github.com/Koruri/kibitaki looks really good, but is 1.5MiB.
-  const char* jp_font_path = "C:\\Windows\\Fonts\\msgothic.ttc";
-  if (std::filesystem::exists(jp_font_path)) {
-    ImFontConfig jp_font_config;
-    jp_font_config.MergeMode = true;
-    jp_font_config.OversampleH = jp_font_config.OversampleV = 1;
-    jp_font_config.PixelSnapH = true;
-    jp_font_config.FontNo = 0;
-    io.Fonts->AddFontFromFileTTF(jp_font_path, 12.0f, &jp_font_config,
-                                 io.Fonts->GetGlyphRangesJapanese());
-  } else {
-    XELOGW("Unable to load Japanese font; JP characters will be boxes");
-  }
+  InitializeFonts();
 
   auto& style = ImGui::GetStyle();
   style.ScrollbarRounding = 0;
@@ -234,6 +226,101 @@ std::optional<ImGuiKey> ImGuiDrawer::VirtualKeyToImGuiKey(VirtualKey vkey) {
   }
 }
 
+void ImGuiDrawer::SetupNotificationTextures() {
+  if (!immediate_drawer_) {
+    return;
+  }
+
+  ImGuiIO& io = GetIO();
+
+  // We're including 4th to include all visible
+  for (uint8_t i = 0; i <= 4; i++) {
+    if (notification_icons.size() < i) {
+      break;
+    }
+
+    unsigned char* image_data;
+    int width, height, channels;
+    const auto user_icon = notification_icons.at(i);
+    image_data =
+        stbi_load_from_memory(user_icon.first, user_icon.second, &width,
+                              &height, &channels, STBI_rgb_alpha);
+    notification_icon_textures_.push_back(immediate_drawer_->CreateTexture(
+        width, height, ImmediateTextureFilter::kLinear, true,
+        reinterpret_cast<uint8_t*>(image_data)));
+  }
+}
+
+void ImGuiDrawer::InitializeFonts() {
+  auto& io = ImGui::GetIO();
+
+  const float default_font_size = 12.0f;
+  // TODO(gibbed): disable imgui.ini saving for now,
+  // imgui assumes paths are char* so we can't throw a good path at it on
+  // Windows.
+  io.IniFilename = nullptr;
+
+  // Setup the font glyphs.
+  ImFontConfig font_config;
+  font_config.OversampleH = font_config.OversampleV = 2;
+  font_config.PixelSnapH = true;
+
+  // https://jrgraphix.net/r/Unicode/
+  static const ImWchar font_glyph_ranges[] = {
+      0x0020, 0x00FF,  // Basic Latin + Latin Supplement
+      0x0370, 0x03FF,  // Greek
+      0x0400, 0x044F,  // Cyrillic
+      0x2000, 0x206F,  // General Punctuation
+      0,
+  };
+
+  if (!cvars::custom_font_path.empty() &&
+      std::filesystem::exists(cvars::custom_font_path)) {
+    const std::string font_path = xe::path_to_utf8(cvars::custom_font_path);
+    ImFont* font = io.Fonts->AddFontFromFileTTF(
+        font_path.c_str(), default_font_size, &font_config, font_glyph_ranges);
+
+    io.Fonts->Build();
+    // Something went wrong while loading custom font. Probably corrupted.
+    if (!font->IsLoaded()) {
+      XELOGE("Failed to load custom font: {}", font_path);
+      io.Fonts->Clear();
+    }
+  }
+
+  if (io.Fonts->Fonts.empty()) {
+    io.Fonts->AddFontFromMemoryCompressedBase85TTF(
+        kProggyTinyCompressedDataBase85, default_font_size, &font_config,
+        io.Fonts->GetGlyphRangesDefault());
+  }
+
+  // TODO(benvanik): jp font on other platforms?
+#if XE_PLATFORM_WIN32
+  PWSTR fonts_dir;
+  HRESULT result = SHGetKnownFolderPath(FOLDERID_Fonts, 0, NULL, &fonts_dir);
+  if (FAILED(result)) {
+    XELOGW("Unable to find Windows fonts directory");
+    return;
+  }
+
+  std::filesystem::path jp_font_path = std::wstring(fonts_dir);
+  jp_font_path.append("msgothic.ttc");
+  if (std::filesystem::exists(jp_font_path)) {
+    ImFontConfig jp_font_config;
+    jp_font_config.MergeMode = true;
+    jp_font_config.OversampleH = jp_font_config.OversampleV = 2;
+    jp_font_config.PixelSnapH = true;
+    jp_font_config.FontNo = 0;
+    io.Fonts->AddFontFromFileTTF(xe::path_to_utf8(jp_font_path).c_str(),
+                                 default_font_size, &jp_font_config,
+                                 io.Fonts->GetGlyphRangesJapanese());
+  } else {
+    XELOGW("Unable to load Japanese font; JP characters will be boxes");
+  }
+  CoTaskMemFree(static_cast<void*>(fonts_dir));
+#endif
+}
+
 void ImGuiDrawer::SetupFontTexture() {
   if (font_texture_ || !immediate_drawer_) {
     return;
@@ -273,10 +360,13 @@ void ImGuiDrawer::SetImmediateDrawer(ImmediateDrawer* new_immediate_drawer) {
   if (immediate_drawer_) {
     GetIO().Fonts->TexID = static_cast<ImTextureID>(nullptr);
     font_texture_.reset();
+
+    notification_icon_textures_.clear();
   }
   immediate_drawer_ = new_immediate_drawer;
   if (immediate_drawer_) {
     SetupFontTexture();
+    SetupNotificationTextures();
   }
 }
 
@@ -289,7 +379,7 @@ void ImGuiDrawer::Draw(UIDrawContext& ui_draw_context) {
     return;
   }
 
-  if (dialogs_.empty()) {
+  if (dialogs_.empty() && notifications_.empty()) {
     return;
   }
 
@@ -323,6 +413,11 @@ void ImGuiDrawer::Draw(UIDrawContext& ui_draw_context) {
   }
   dialog_loop_next_index_ = SIZE_MAX;
 
+  if (!notifications_.empty()) {
+    // We only care about drawing next notification.
+    notifications_.at(0)->Draw();
+  }
+
   ImGui::Render();
   ImDrawData* draw_data = ImGui::GetDrawData();
   if (draw_data) {
@@ -336,9 +431,9 @@ void ImGuiDrawer::Draw(UIDrawContext& ui_draw_context) {
 
   // Detaching is deferred if the last dialog is removed during drawing, perform
   // it now if needed.
-  DetachIfLastDialogRemoved();
+  DetachIfLastWindowRemoved();
 
-  if (!dialogs_.empty()) {
+  if (!dialogs_.empty() || !notifications_.empty()) {
     // Repaint (and handle input) continuously if still active.
     presenter_->RequestUIPaintFromUIThread();
   }
@@ -571,12 +666,12 @@ void ImGuiDrawer::SwitchToPhysicalMouseAndUpdateMousePosition(
   UpdateMousePosition(float(e.x()), float(e.y()));
 }
 
-void ImGuiDrawer::DetachIfLastDialogRemoved() {
+void ImGuiDrawer::DetachIfLastWindowRemoved() {
   // IsDrawingDialogs() is also checked because in a situation of removing the
   // only dialog, then adding a dialog, from within a dialog's Draw function,
   // re-registering the ImGuiDrawer may result in ImGui being drawn multiple
   // times in the current frame.
-  if (!dialogs_.empty() || IsDrawingDialogs()) {
+  if (!dialogs_.empty() || !notifications_.empty() || IsDrawingDialogs()) {
     return;
   }
   if (presenter_) {

@@ -30,6 +30,7 @@
 #include "xenia/memory.h"
 #include "xenia/vfs/virtual_file_system.h"
 #include "xenia/xbox.h"
+#include "achievement_manager.h"
 
 namespace xe {
 class ByteStream;
@@ -103,6 +104,9 @@ class KernelState {
   util::XdbfGameData title_xdbf() const;
   util::XdbfGameData module_xdbf(object_ref<UserModule> exec_module) const;
 
+  AchievementManager* achievement_manager() const {
+    return achievement_manager_.get();
+  }
   xam::AppManager* app_manager() const { return app_manager_.get(); }
   xam::ContentManager* content_manager() const {
     return content_manager_.get();
@@ -229,6 +233,7 @@ class KernelState {
   bool Save(ByteStream* stream);
   bool Restore(ByteStream* stream);
 
+  uint32_t notification_position_ = 0;
  private:
   void LoadKernelModule(object_ref<KernelModule> kernel_module);
 
@@ -240,6 +245,7 @@ class KernelState {
   std::unique_ptr<xam::AppManager> app_manager_;
   std::unique_ptr<xam::ContentManager> content_manager_;
   std::map<uint8_t, std::unique_ptr<xam::UserProfile>> user_profiles_;
+  std::unique_ptr<AchievementManager> achievement_manager_;
 
   xe::global_critical_region global_critical_region_;
 
