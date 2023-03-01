@@ -15,6 +15,7 @@
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_module.h"
 #include "xenia/kernel/xam/xam_private.h"
+#include "xenia/kernel/xboxkrnl/xboxkrnl_threading.h"
 #include "xenia/kernel/xenumerator.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
@@ -32,6 +33,9 @@ DECLARE_int32(user_language);
 namespace xe {
 namespace kernel {
 namespace xam {
+
+// https://github.com/tpn/winsdk-10/blob/master/Include/10.0.14393.0/km/wdm.h#L15539
+typedef enum _MODE { KernelMode, UserMode, MaximumMode } MODE;
 
 dword_result_t XamFeatureEnabled_entry(dword_t unk) { return 0; }
 DECLARE_XAM_EXPORT1(XamFeatureEnabled, kNone, kStub);
@@ -247,6 +251,57 @@ dword_result_t XGetLanguage_entry() {
 }
 DECLARE_XAM_EXPORT1(XGetLanguage, kNone, kImplemented);
 
+// http://www.noxa.org/blog/2011/02/28/building-an-xbox-360-emulator-part-3-feasibilityos/
+// http://www.noxa.org/blog/2011/08/13/building-an-xbox-360-emulator-part-5-xex-files/
+dword_result_t RtlSleep_entry(dword_t dwMilliseconds, dword_t bAlertable) {
+  LARGE_INTEGER delay{};
+
+  // Convert the delay time to 100-nanosecond intervals
+  delay.QuadPart = dwMilliseconds == -1
+                       ? LLONG_MAX
+                       : static_cast<LONGLONG>(-10000) * dwMilliseconds;
+
+  X_STATUS result = xboxkrnl::KeDelayExecutionThread(
+      MODE::UserMode,
+      bAlertable,
+      (uint64_t*)&delay);
+
+  // If the delay was interrupted by an APC, keep delaying the thread
+  while (bAlertable && result == X_STATUS_ALERTED) {
+    result = xboxkrnl::KeDelayExecutionThread(MODE::UserMode, bAlertable,
+                                              (uint64_t*)&delay);
+  }
+
+  return result == X_STATUS_SUCCESS ? X_STATUS_SUCCESS : X_STATUS_USER_APC;
+}
+DECLARE_XAM_EXPORT1(RtlSleep, kNone, kImplemented);
+
+dword_result_t SleepEx_entry(dword_t dwMilliseconds, dword_t bAlertable) {
+  return RtlSleep_entry(dwMilliseconds, bAlertable);
+}
+DECLARE_XAM_EXPORT1(SleepEx, kNone, kImplemented);
+
+// https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-sleep
+void Sleep_entry(dword_t dwMilliseconds) {
+  RtlSleep_entry(dwMilliseconds, FALSE);
+}
+DECLARE_XAM_EXPORT1(Sleep, kNone, kImplemented);
+
+// https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-gettickcount
+dword_result_t GetTickCount_entry() { return Clock::QueryGuestUptimeMillis(); }
+DECLARE_XAM_EXPORT1(GetTickCount, kNone, kImplemented);
+
+dword_result_t GetModuleHandleA_entry(lpstring_t moduleName) {
+  auto module = kernel_state()->GetModule(moduleName.value(), false);
+  return module ? module->hmodule_ptr() : NULL;
+}
+DECLARE_XAM_EXPORT1(GetModuleHandleA, kNone, kImplemented);
+
+dword_result_t XamGetCurrentTitleId_entry() {
+  return kernel_state()->emulator()->title_id();
+}
+DECLARE_XAM_EXPORT1(XamGetCurrentTitleId, kNone, kImplemented);
+
 dword_result_t XamGetExecutionId_entry(lpdword_t info_ptr) {
   auto module = kernel_state()->GetExecutableModule();
   assert_not_null(module);
@@ -350,7 +405,8 @@ dword_result_t XamAlloc_entry(dword_t flags, dword_t size, lpdword_t out_ptr) {
 
   // Allocate from the heap. Not sure why XAM does this specially, perhaps
   // it keeps stuff in a separate heap?
-  //chrispy: there is a set of different heaps it uses, an array of them. the top 4 bits of the 32 bit flags seems to select the heap
+  // chrispy: there is a set of different heaps it uses, an array of them. the
+  // top 4 bits of the 32 bit flags seems to select the heap
   uint32_t ptr = kernel_state()->memory()->SystemHeapAlloc(size);
   *out_ptr = ptr;
 

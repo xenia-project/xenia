@@ -32,6 +32,10 @@ uint32_t xeKeWaitForSingleObject(void* object_ptr, uint32_t wait_reason,
                                  uint64_t* timeout_ptr);
 uint32_t xeKeSetEvent(X_KEVENT* event_ptr, uint32_t increment, uint32_t wait);
 
+uint32_t KeDelayExecutionThread(uint32_t processor_mode,
+                                      uint32_t alertable,
+                                      uint64_t* interval_ptr);
+
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe

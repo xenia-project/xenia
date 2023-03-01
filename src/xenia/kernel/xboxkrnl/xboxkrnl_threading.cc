@@ -102,6 +102,7 @@ dword_result_t ExCreateThread_entry(lpdword_t handle_ptr, dword_t stack_size,
                                     lpvoid_t start_address,
                                     lpvoid_t start_context,
                                     dword_t creation_flags) {
+  // Invalid Link
   // http://jafile.com/uploads/scoop/main.cpp.txt
   // DWORD
   // LPHANDLE Handle,
@@ -335,13 +336,21 @@ dword_result_t KeQueryPerformanceFrequency_entry() {
 DECLARE_XBOXKRNL_EXPORT2(KeQueryPerformanceFrequency, kThreading, kImplemented,
                          kHighFrequency);
 
-dword_result_t KeDelayExecutionThread_entry(dword_t processor_mode,
-                                            dword_t alertable,
-                                            lpqword_t interval_ptr) {
+uint32_t KeDelayExecutionThread(uint32_t processor_mode,
+                                      uint32_t alertable,
+                                      uint64_t* interval_ptr) {
   XThread* thread = XThread::GetCurrentThread();
   X_STATUS result = thread->Delay(processor_mode, alertable, *interval_ptr);
 
   return result;
+}
+
+dword_result_t KeDelayExecutionThread_entry(dword_t processor_mode,
+                                            dword_t alertable,
+                                            lpqword_t interval_ptr) {
+  uint64_t interval = interval_ptr ? static_cast<uint64_t>(*interval_ptr) : 0u;
+  return KeDelayExecutionThread(processor_mode, alertable,
+                                interval_ptr ? &interval : nullptr);
 }
 DECLARE_XBOXKRNL_EXPORT3(KeDelayExecutionThread, kThreading, kImplemented,
                          kBlocking, kHighFrequency);
