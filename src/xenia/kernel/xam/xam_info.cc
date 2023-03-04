@@ -24,6 +24,8 @@
 
 #include "third_party/fmt/include/fmt/format.h"
 
+DECLARE_string(console_region);
+
 namespace xe {
 namespace kernel {
 namespace xam {
@@ -200,10 +202,24 @@ dword_result_t XGetAVPack_entry() {
 }
 DECLARE_XAM_EXPORT1(XGetAVPack, kNone, kStub);
 
-uint32_t xeXGetGameRegion() { return 0xFFFFu; }
+uint32_t xeXGetGameRegion() {
+  // Appears to correlate with xex2_region_flags.
+  // 0x07FF - Devkit, according to text displayed on screen in DashLaunch.
+  //          Probably not very useful for now so not added.
+  static const std::map<std::string, uint32_t> region_map = {
+      {"us", 0x00FF}, {"as", 0x01FF}, {"jp", 0x0101},
+      {"cn", 0x0102}, {"eu", 0x02FF}, {"au", 0x0201},
+  };
+
+  auto it = region_map.find(cvars::console_region);
+  if (it != region_map.cend()) return it->second;
+
+  // On any invalid value or "rf", just return Region Free as before.
+  return 0xFFFF;
+}
 
 dword_result_t XGetGameRegion_entry() { return xeXGetGameRegion(); }
-DECLARE_XAM_EXPORT1(XGetGameRegion, kNone, kStub);
+DECLARE_XAM_EXPORT1(XGetGameRegion, kNone, kSketchy);
 
 dword_result_t XGetLanguage_entry() {
   auto desired_language = XLanguage::kEnglish;
