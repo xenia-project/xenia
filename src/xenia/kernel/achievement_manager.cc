@@ -17,6 +17,8 @@
 DEFINE_bool(show_achievement_notification, true,
             "Show achievement notification on screen.", "UI");
 
+DECLARE_int32(user_language);
+
 namespace xe {
 namespace kernel {
 
@@ -32,13 +34,15 @@ void AchievementManager::EarnAchievement(uint64_t xuid, uint32_t title_id,
   const util::XdbfGameData title_xdbf = kernel_state()->title_xdbf();
   const std::vector<util::XdbfAchievementTableEntry> achievements =
       title_xdbf.GetAchievements();
+  const XLanguage title_language = title_xdbf.GetExistingLanguage(
+      static_cast<XLanguage>(cvars::user_language));
 
   for (const util::XdbfAchievementTableEntry& entry : achievements) {
     if (entry.id == achievement_id) {
-      const std::string label = title_xdbf.GetStringTableEntry(
-          title_xdbf.default_language(), entry.label_id);
-      const std::string desc = title_xdbf.GetStringTableEntry(
-          title_xdbf.default_language(), entry.description_id);
+      const std::string label =
+          title_xdbf.GetStringTableEntry(title_language, entry.label_id);
+      const std::string desc =
+          title_xdbf.GetStringTableEntry(title_language, entry.description_id);
 
       XELOGI("Achievement unlocked: {}", label);
       const std::string description =
