@@ -233,7 +233,7 @@ class KernelState {
   bool Save(ByteStream* stream);
   bool Restore(ByteStream* stream);
 
-  uint32_t notification_position_ = 0;
+  uint32_t notification_position_ = 2;
  private:
   void LoadKernelModule(object_ref<KernelModule> kernel_module);
 
