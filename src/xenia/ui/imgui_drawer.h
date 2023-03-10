@@ -15,6 +15,7 @@
 #include <memory>
 #include <vector>
 
+#include "third_party/imgui/imgui.h"
 #include "xenia/ui/immediate_drawer.h"
 #include "xenia/ui/presenter.h"
 #include "xenia/ui/window.h"
@@ -55,7 +56,7 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
   }
 
   void Draw(UIDrawContext& ui_draw_context) override;
-  
+
   void ClearDialogs();
 
   ImmediateTexture* GetNotificationIcon(uint8_t user_index) {
@@ -79,6 +80,9 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
  private:
   void Initialize();
   void InitializeFonts();
+  bool LoadCustomFont(ImGuiIO& io, ImFontConfig& font_config, float font_size);
+  bool LoadWindowsFont(ImGuiIO& io, ImFontConfig& font_config, float font_size);
+  bool LoadJapaneseFont(ImGuiIO& io, float font_size);
 
   void SetupNotificationTextures();
   void SetupFontTexture();
@@ -103,7 +107,8 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
   // All currently-attached dialogs that get drawn.
   std::vector<ImGuiDialog*> dialogs_;
 
-  // All queued notifications. Notification at index 0 is currently presented one.
+  // All queued notifications. Notification at index 0 is currently presented
+  // one.
   std::vector<ImGuiNotification*> notifications_;
   // Using an index, not an iterator, because after the erasure, the adjustment
   // must be done for the vector element indices that would be in the iterator

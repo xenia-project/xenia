@@ -32,8 +32,9 @@
 
 DEFINE_path(
     custom_font_path, "",
-    "Allows user to load custom font and use it instead of default one.",
-    "General");
+    "Allows user to load custom font and use it instead of default one.", "UI");
+
+DEFINE_uint32(font_size, 12, "Allows user to set custom font size.", "UI");
 
 namespace xe {
 namespace ui {
@@ -251,56 +252,79 @@ void ImGuiDrawer::SetupNotificationTextures() {
   }
 }
 
-void ImGuiDrawer::InitializeFonts() {
-  auto& io = ImGui::GetIO();
+static const ImWchar font_glyph_ranges[] = {
+    0x0020, 0x00FF,  // Basic Latin + Latin Supplement
+    0x0370, 0x03FF,  // Greek
+    0x0400, 0x044F,  // Cyrillic
+    0x2000, 0x206F,  // General Punctuation
+    0,
+};
 
-  const float default_font_size = 12.0f;
-  // TODO(gibbed): disable imgui.ini saving for now,
-  // imgui assumes paths are char* so we can't throw a good path at it on
-  // Windows.
-  io.IniFilename = nullptr;
-
-  // Setup the font glyphs.
-  ImFontConfig font_config;
-  font_config.OversampleH = font_config.OversampleV = 2;
-  font_config.PixelSnapH = true;
-
-  // https://jrgraphix.net/r/Unicode/
-  static const ImWchar font_glyph_ranges[] = {
-      0x0020, 0x00FF,  // Basic Latin + Latin Supplement
-      0x0370, 0x03FF,  // Greek
-      0x0400, 0x044F,  // Cyrillic
-      0x2000, 0x206F,  // General Punctuation
-      0,
-  };
-
-  if (!cvars::custom_font_path.empty() &&
-      std::filesystem::exists(cvars::custom_font_path)) {
-    const std::string font_path = xe::path_to_utf8(cvars::custom_font_path);
-    ImFont* font = io.Fonts->AddFontFromFileTTF(
-        font_path.c_str(), default_font_size, &font_config, font_glyph_ranges);
-
-    io.Fonts->Build();
-    // Something went wrong while loading custom font. Probably corrupted.
-    if (!font->IsLoaded()) {
-      XELOGE("Failed to load custom font: {}", font_path);
-      io.Fonts->Clear();
-    }
+bool ImGuiDrawer::LoadCustomFont(ImGuiIO& io, ImFontConfig& font_config,
+                                 float font_size) {
+  if (cvars::custom_font_path.empty()) {
+    return false;
   }
 
-  if (io.Fonts->Fonts.empty()) {
-    io.Fonts->AddFontFromMemoryCompressedBase85TTF(
-        kProggyTinyCompressedDataBase85, default_font_size, &font_config,
-        io.Fonts->GetGlyphRangesDefault());
+  if (!std::filesystem::exists(cvars::custom_font_path)) {
+    return false;
   }
 
+  const std::string font_path = xe::path_to_utf8(cvars::custom_font_path);
+  ImFont* font = io.Fonts->AddFontFromFileTTF(font_path.c_str(), font_size,
+                                              &font_config, font_glyph_ranges);
+
+  io.Fonts->Build();
+
+  if (!font->IsLoaded()) {
+    XELOGE("Failed to load custom font: {}", font_path);
+    io.Fonts->Clear();
+    return false;
+  }
+  return true;
+}
+
+bool ImGuiDrawer::LoadWindowsFont(ImGuiIO& io, ImFontConfig& font_config,
+                                  float font_size) {
+#if XE_PLATFORM_WIN32
+  PWSTR fonts_dir;
+  HRESULT result = SHGetKnownFolderPath(FOLDERID_Fonts, 0, NULL, &fonts_dir);
+  if (FAILED(result)) {
+    CoTaskMemFree(static_cast<void*>(fonts_dir));
+    XELOGW("Unable to find Windows fonts directory");
+    return false;
+  }
+
+  std::filesystem::path font_path = std::wstring(fonts_dir);
+  font_path.append("tahoma.ttf");
+  if (!std::filesystem::exists(font_path)) {
+    return false;
+  }
+
+  ImFont* font =
+      io.Fonts->AddFontFromFileTTF(xe::path_to_utf8(font_path).c_str(),
+                                   font_size, &font_config, font_glyph_ranges);
+
+  io.Fonts->Build();
+  // Something went wrong while loading custom font. Probably corrupted.
+  if (!font->IsLoaded()) {
+    XELOGE("Failed to load custom font: {}", xe::path_to_utf8(font_path));
+    io.Fonts->Clear();
+  }
+  CoTaskMemFree(static_cast<void*>(fonts_dir));
+  return true;
+#endif
+  return false;
+}
+
+bool ImGuiDrawer::LoadJapaneseFont(ImGuiIO& io, float font_size) {
   // TODO(benvanik): jp font on other platforms?
 #if XE_PLATFORM_WIN32
   PWSTR fonts_dir;
   HRESULT result = SHGetKnownFolderPath(FOLDERID_Fonts, 0, NULL, &fonts_dir);
   if (FAILED(result)) {
     XELOGW("Unable to find Windows fonts directory");
-    return;
+    return false;
   }
 
   std::filesystem::path jp_font_path = std::wstring(fonts_dir);
@@ -312,13 +336,42 @@ void ImGuiDrawer::InitializeFonts() {
     jp_font_config.PixelSnapH = true;
     jp_font_config.FontNo = 0;
     io.Fonts->AddFontFromFileTTF(xe::path_to_utf8(jp_font_path).c_str(),
-                                 default_font_size, &jp_font_config,
+                                 font_size, &jp_font_config,
                                  io.Fonts->GetGlyphRangesJapanese());
   } else {
     XELOGW("Unable to load Japanese font; JP characters will be boxes");
   }
   CoTaskMemFree(static_cast<void*>(fonts_dir));
+  return true;
 #endif
+  return false;
+};
+
+void ImGuiDrawer::InitializeFonts() {
+  auto& io = ImGui::GetIO();
+
+  const float font_size = std::max((float)cvars::font_size, 8.f);
+  // TODO(gibbed): disable imgui.ini saving for now,
+  // imgui assumes paths are char* so we can't throw a good path at it on
+  // Windows.
+  io.IniFilename = nullptr;
+
+  ImFontConfig font_config;
+  font_config.OversampleH = font_config.OversampleV = 2;
+  font_config.PixelSnapH = true;
+
+  bool is_font_loaded = LoadCustomFont(io, font_config, font_size);
+  if (!is_font_loaded) {
+    is_font_loaded = LoadWindowsFont(io, font_config, font_size);
+  }
+
+  if (io.Fonts->Fonts.empty()) {
+    io.Fonts->AddFontFromMemoryCompressedBase85TTF(
+        kProggyTinyCompressedDataBase85, font_size, &font_config,
+        io.Fonts->GetGlyphRangesDefault());
+  }
+
+  LoadJapaneseFont(io, font_size);
 }
 
 void ImGuiDrawer::SetupFontTexture() {

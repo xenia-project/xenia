@@ -26,6 +26,8 @@ constexpr ImVec2 default_drawing_resolution = ImVec2(1280.f, 720.f);
 constexpr ImVec2 default_notification_icon_size = ImVec2(58.0f, 58.0f);
 constexpr ImVec2 default_notification_margin_size = ImVec2(50.f, 5.f);
 constexpr float default_notification_text_scale = 2.3f;
+constexpr float default_notification_rounding = 30.f;
+constexpr float default_font_size = 12.f;
 
 constexpr ImVec4 white_color = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
 

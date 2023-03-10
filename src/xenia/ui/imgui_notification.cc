@@ -186,14 +186,16 @@ void AchievementNotificationWindow::OnDraw(ImGuiIO& io) {
                                                   : GetDescription().c_str();
 
   const ImVec2 screen_size = io.DisplaySize;
-  const float scale = std::fminf(screen_size.x / default_drawing_resolution.x,
-                                 screen_size.y / default_drawing_resolution.y);
+  const float window_scale =
+      std::fminf(screen_size.x / default_drawing_resolution.x,
+                 screen_size.y / default_drawing_resolution.y);
+  const float font_scale = default_font_size / io.Fonts->Fonts[0]->FontSize;
   const ImVec2 text_size = io.Fonts->Fonts[0]->CalcTextSizeA(
-      io.Fonts->Fonts[0]->FontSize * default_notification_text_scale * scale,
+      default_font_size * default_notification_text_scale * window_scale,
       FLT_MAX, -1.0f, longest_notification_text_line.c_str());
 
   const ImVec2 final_notification_size =
-      CalculateNotificationSize(text_size, scale);
+      CalculateNotificationSize(text_size, window_scale);
 
   const ImVec2 notification_position = CalculateNotificationScreenPosition(
       screen_size, final_notification_size, GetPositionId());
@@ -211,7 +213,8 @@ void AchievementNotificationWindow::OnDraw(ImGuiIO& io) {
   ImGui::SetNextWindowPos(notification_position);
 
   // Set new window style before drawing window
-  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 30.f * scale);
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding,
+                      default_notification_rounding * window_scale);
   ImGui::PushStyleColor(ImGuiCol_WindowBg,
                         default_notification_background_color);
   ImGui::PushStyleColor(ImGuiCol_Separator,
@@ -220,15 +223,16 @@ void AchievementNotificationWindow::OnDraw(ImGuiIO& io) {
 
   ImGui::Begin("Notification Window", NULL, NOTIFY_TOAST_FLAGS);
   {
-    ImGui::SetWindowFontScale(default_notification_text_scale * scale);
+    ImGui::SetWindowFontScale(default_notification_text_scale * font_scale *
+                              window_scale);
     // Set offset to image to prevent it from being right on border.
     ImGui::SetCursorPos(ImVec2(final_notification_size.x * 0.005f,
                                final_notification_size.y * 0.05f));
     // Elements of window
     ImGui::Image(reinterpret_cast<ImTextureID>(
                      GetDrawer()->GetNotificationIcon(GetUserIndex())),
-                 ImVec2(default_notification_icon_size.x * scale,
-                        default_notification_icon_size.y * scale));
+                 ImVec2(default_notification_icon_size.x * window_scale,
+                        default_notification_icon_size.y * window_scale));
 
     ImGui::SameLine();
     if (notification_draw_progress_ > 0.5f) {
