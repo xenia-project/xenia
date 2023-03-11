@@ -435,6 +435,21 @@ bool D3D12SharedMemory::UploadRanges(
       MakeRangeValid(upload_range_start << page_size_log2(),
                      uint32_t(upload_buffer_size), false, false);
 
+      // Handling for certain games that crashes due to accessing unallocated
+      // pages. It's usually happens with base_page that is completely different
+      // that any previously used ones. It always is completely not allocated.
+      // Additionally these requests are usually quite small 1-2 pages.
+      memory::PageAccess page_access =
+          memory().GetPhysicalHeap()->QueryRangeAccess(
+              upload_range_start << page_size_log2(),
+              (upload_range_start << page_size_log2()) +
+                  (uint32_t)1);  // Check only first page
+
+      if (page_access == xe::memory::PageAccess::kNoAccess) {
+        XELOGE("Invalid upload range for GPU: {:08X}", upload_range_start);
+        return false;
+      }
+
       if (upload_buffer_size < (1ULL << 32) && upload_buffer_size > 8192) {
         memory::vastcpy(
             upload_buffer_mapping,
