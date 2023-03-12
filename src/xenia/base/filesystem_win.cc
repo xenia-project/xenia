@@ -261,5 +261,29 @@ std::vector<FileInfo> ListFiles(const std::filesystem::path& path) {
   return result;
 }
 
+std::vector<FileInfo> ListDirectories(const std::filesystem::path& path) {
+  std::vector<FileInfo> files = ListFiles(path);
+  std::vector<FileInfo> directories = {};
+
+  std::copy_if(
+      files.cbegin(), files.cend(), std::back_inserter(directories),
+      [](FileInfo file) { return file.type == FileInfo::Type::kDirectory; });
+
+  return directories;
+}
+
+std::vector<FileInfo> FilterByName(const std::vector<FileInfo>& files,
+                                   const std::regex pattern) {
+  std::vector<FileInfo> filtered_entries = {};
+
+  std::copy_if(files.cbegin(), files.cend(),
+               std::back_inserter(filtered_entries), [pattern](FileInfo file) {
+                 return std::regex_match(file.name.filename().string(),
+                                         pattern);
+               });
+
+  return filtered_entries;
+}
+
 }  // namespace filesystem
 }  // namespace xe
