@@ -191,6 +191,17 @@ dword_result_t NetDll_XNetStartup_entry(dword_t caller,
 }
 DECLARE_XAM_EXPORT1(NetDll_XNetStartup, kNetworking, kImplemented);
 
+// https://github.com/jogolden/testdev/blob/master/xkelib/syssock.h#L46
+dword_result_t NetDll_XNetStartupEx_entry(dword_t caller,
+                                          pointer_t<XNetStartupParams> params,
+                                          dword_t versionReq) {
+  // versionReq
+  // MW3, Ghosts: 0x20501400
+
+  return NetDll_XNetStartup_entry(caller, params);
+}
+DECLARE_XAM_EXPORT1(NetDll_XNetStartupEx, kNetworking, kImplemented);
+
 dword_result_t NetDll_XNetCleanup_entry(dword_t caller, lpvoid_t params) {
   auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
   // auto xnet = xam->xnet();
@@ -281,6 +292,13 @@ dword_result_t NetDll_WSAStartup_entry(dword_t caller, word_t version,
   return ret;
 }
 DECLARE_XAM_EXPORT1(NetDll_WSAStartup, kNetworking, kImplemented);
+
+dword_result_t NetDll_WSAStartupEx_entry(dword_t caller, word_t version,
+                                         pointer_t<X_WSADATA> data_ptr,
+                                         dword_t versionReq) {
+  return NetDll_WSAStartup_entry(caller, version, data_ptr);
+}
+DECLARE_XAM_EXPORT1(NetDll_WSAStartupEx, kNetworking, kImplemented);
 
 dword_result_t NetDll_WSACleanup_entry(dword_t caller) {
   // This does nothing. Xenia needs WSA running.
