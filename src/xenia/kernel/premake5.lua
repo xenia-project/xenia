@@ -17,6 +17,9 @@ project("xenia-kernel")
   })
   defines({
   })
+  includedirs({
+    project_root.."/xenia/base/",
+  })
   recursive_platform_files()
   files({
     "debug_visualizers.natvis",
