@@ -18,10 +18,9 @@ namespace base {
 namespace test {
 
 TEST_CASE("file_get_info", "Get Info") {
-  auto relative_root_dir = std::filesystem::path("../../../../");
   auto test_file_name = std::filesystem::path("test_file");
   auto test_file_dir = std::filesystem::path("src/xenia/base/testing/res");
-  auto test_file_path = relative_root_dir / test_file_dir / test_file_name;
+  auto test_file_path = test_file_dir / test_file_name;
 
   filesystem::FileInfo info = {};
 
@@ -29,7 +28,7 @@ TEST_CASE("file_get_info", "Get Info") {
 
   CHECK(info.type == filesystem::FileInfo::Type::kFile);
   CHECK(info.name == test_file_name);
-  CHECK(info.path == relative_root_dir / test_file_dir);
+  CHECK(info.path == test_file_dir);
   CHECK(info.total_size == 81);
   CHECK(info.create_timestamp > 132111406279379842);
   CHECK(info.access_timestamp > 132111406279379842);
@@ -37,10 +36,9 @@ TEST_CASE("file_get_info", "Get Info") {
 }
 
 TEST_CASE("folder_get_info", "Get Info") {
-  auto relative_root_dir = std::filesystem::path("../../../../");
   auto test_folder_name = std::filesystem::path("res");
   auto test_folder_dir = std::filesystem::path("src/xenia/base/testing");
-  auto test_folder_path = relative_root_dir / test_folder_dir / test_folder_name;
+  auto test_folder_path = test_folder_dir / test_folder_name;
 
   filesystem::FileInfo info = {};
 
@@ -48,7 +46,7 @@ TEST_CASE("folder_get_info", "Get Info") {
 
   CHECK(info.type == filesystem::FileInfo::Type::kDirectory);
   CHECK(info.name == test_folder_name);
-  CHECK(info.path == relative_root_dir / test_folder_dir);
+  CHECK(info.path == test_folder_dir);
   CHECK(info.total_size == 0);
   CHECK(info.create_timestamp > 132111406279379842);
   CHECK(info.access_timestamp > 132111406279379842);
