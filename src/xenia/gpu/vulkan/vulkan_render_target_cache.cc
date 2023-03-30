@@ -3174,7 +3174,9 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
       source_stencil[0] != spv::NoResult) {
     // For the depth -> depth case, write the stencil directly to the output.
     assert_true(mode.output == TransferOutput::kDepth);
-    builder.createStore(source_stencil[0], output_fragment_stencil_ref);
+    builder.createStore(builder.createUnaryOp(spv::OpBitcast, type_int,
+                                              source_stencil[0]),
+                        output_fragment_stencil_ref);
   }
 
   if (dest_is_64bpp) {
@@ -3518,13 +3520,15 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               if (output_fragment_stencil_ref != spv::NoResult) {
                 builder.createStore(
                     builder.createUnaryOp(
-                        spv::OpConvertFToU, type_uint,
-                        builder.createBinOp(
-                            spv::OpFAdd, type_float,
-                            builder.createBinOp(spv::OpFMul, type_float,
-                                                source_color[0][0],
-                                                unorm_scale),
-                            unorm_round_offset)),
+                        spv::OpBitcast, type_int,
+                        builder.createUnaryOp(
+                            spv::OpConvertFToU, type_uint,
+                            builder.createBinOp(
+                                spv::OpFAdd, type_float,
+                                builder.createBinOp(spv::OpFMul, type_float,
+                                                    source_color[0][0],
+                                                    unorm_scale),
+                                unorm_round_offset))),
                     output_fragment_stencil_ref);
               }
             }
