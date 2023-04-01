@@ -11,6 +11,7 @@
 
 #include "xenia/base/atomic.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/mutex.h"
 #include "xenia/cpu/ppc/ppc_context.h"
 #include "xenia/cpu/ppc/ppc_emit.h"
 #include "xenia/cpu/ppc/ppc_opcode_info.h"
@@ -56,15 +57,15 @@ Memory* PPCFrontend::memory() const { return processor_->memory(); }
 // Checks the state of the global lock and sets scratch to the current MSR
 // value.
 void CheckGlobalLock(PPCContext* ppc_context, void* arg0, void* arg1) {
-  auto global_mutex = reinterpret_cast<std::recursive_mutex*>(arg0);
+  auto global_mutex = reinterpret_cast<xe_global_mutex*>(arg0);
   auto global_lock_count = reinterpret_cast<int32_t*>(arg1);
-  std::lock_guard<std::recursive_mutex> lock(*global_mutex);
+  std::lock_guard<xe_global_mutex> lock(*global_mutex);
   ppc_context->scratch = *global_lock_count ? 0 : 0x8000;
 }
 
 // Enters the global lock. Safe to recursion.
 void EnterGlobalLock(PPCContext* ppc_context, void* arg0, void* arg1) {
-  auto global_mutex = reinterpret_cast<std::recursive_mutex*>(arg0);
+  auto global_mutex = reinterpret_cast<xe_global_mutex*>(arg0);
   auto global_lock_count = reinterpret_cast<int32_t*>(arg1);
   global_mutex->lock();
   xe::atomic_inc(global_lock_count);
@@ -72,7 +73,7 @@ void EnterGlobalLock(PPCContext* ppc_context, void* arg0, void* arg1) {
 
 // Leaves the global lock. Safe to recursion.
 void LeaveGlobalLock(PPCContext* ppc_context, void* arg0, void* arg1) {
-  auto global_mutex = reinterpret_cast<std::recursive_mutex*>(arg0);
+  auto global_mutex = reinterpret_cast<xe_global_mutex*>(arg0);
   auto global_lock_count = reinterpret_cast<int32_t*>(arg1);
   auto new_lock_count = xe::atomic_dec(global_lock_count);
   assert_true(new_lock_count >= 0);

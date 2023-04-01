@@ -14,20 +14,32 @@
 // Includes Windows headers, so it goes after platform_win.h.
 #include "third_party/xbyak/xbyak/xbyak_util.h"
 
-class StartupAvxCheck {
+class StartupCpuFeatureCheck {
  public:
-  StartupAvxCheck() {
+  StartupCpuFeatureCheck() {
     Xbyak::util::Cpu cpu;
-    if (cpu.has(Xbyak::util::Cpu::tAVX)) {
-      return;
+    const char* error_message = nullptr;
+    if (!cpu.has(Xbyak::util::Cpu::tAVX)) {
+      error_message =
+          "Your CPU does not support AVX, which is required by Xenia. See "
+          "the "
+          "FAQ for system requirements at https://xenia.jp";
     }
-    // TODO(gibbed): detect app type and printf instead, if needed?
-    MessageBoxA(
-        nullptr,
-        "Your CPU does not support AVX, which is required by Xenia. See the "
-        "FAQ for system requirements at https://xenia.jp",
-        "Xenia Error", MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
-    ExitProcess(static_cast<uint32_t>(-1));
+    unsigned int data[4];
+    Xbyak::util::Cpu::getCpuid(0x80000001, data);
+    if (!(data[2] & (1U << 8))) {
+      error_message =
+          "Your cpu does not support PrefetchW, which Xenia Canary "
+          "requires.";
+    }
+    if (error_message == nullptr) {
+      return;
+    } else {
+      // TODO(gibbed): detect app type and printf instead, if needed?
+      MessageBoxA(nullptr, error_message, "Xenia Error",
+                  MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
+      ExitProcess(static_cast<uint32_t>(-1));
+    }
   }
 };
 
@@ -38,4 +50,4 @@ class StartupAvxCheck {
 // https://docs.microsoft.com/en-us/cpp/preprocessor/init-seg
 #pragma warning(suppress : 4073)
 #pragma init_seg(lib)
-static StartupAvxCheck gStartupAvxCheck;
+static StartupCpuFeatureCheck gStartupAvxCheck;

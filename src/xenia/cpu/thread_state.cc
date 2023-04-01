@@ -95,6 +95,12 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
   context_->r[1] = stack_base;
   context_->r[13] = pcr_address;
   // fixme: VSCR must be set here!
+  context_->msr = 0x9030;  // dumped from a real 360, 0x8000
+
+  //this register can be used for arbitrary data according to the PPC docs
+  //but the suggested use is to mark which vector registers are in use, for faster save/restore
+  //it seems unlikely anything uses this, especially since we have way more than 32 vrs, but setting it to all ones seems closer to correct than 0
+  context_->vrsave = ~0u;
 }
 
 ThreadState::~ThreadState() {

@@ -71,6 +71,13 @@ void InitFeatureFlags() {
     unsigned int data[4];
     Xbyak::util::Cpu::getCpuid(0x80000001, data);
     unsigned amd_flags = data[2];
+    // chrispy: do prefetchw manually, prefetchw is one of the features xbyak
+    // ignores if you have an amd cpu.
+
+    if (amd_flags & (1U << 8)) {
+      // no mask for prefetchw
+      feature_flags_ |= kX64EmitPrefetchW;
+    }
     if (amd_flags & (1U << 5)) {
       if ((cvars::x64_extension_mask & kX64EmitLZCNT) == kX64EmitLZCNT) {
         feature_flags_ |= kX64EmitLZCNT;
