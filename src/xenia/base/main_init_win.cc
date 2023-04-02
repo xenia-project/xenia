@@ -25,8 +25,8 @@ class StartupCpuFeatureCheck {
           "the "
           "FAQ for system requirements at https://xenia.jp";
     }
-
-	if (!error_message) {
+#if 0
+    if (!error_message) {
       unsigned int data[4];
       Xbyak::util::Cpu::getCpuid(0x80000001, data);
       if (!(data[2] & (1U << 8))) {
@@ -35,6 +35,7 @@ class StartupCpuFeatureCheck {
             "requires.";
       }
     }
+#endif
     if (error_message == nullptr) {
       return;
     } else {
