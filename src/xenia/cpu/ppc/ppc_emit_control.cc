@@ -807,8 +807,14 @@ int InstrEmit_mtmsr(PPCHIRBuilder& f, const InstrData& i) {
 
 int InstrEmit_mtmsrd(PPCHIRBuilder& f, const InstrData& i) {
 	//todo: this is moving msr under a mask, so only writing EE and RI
-  f.StoreContext(offsetof(PPCContext, scratch),
-                 f.ZeroExtend(f.LoadGPR(i.X.RT), INT64_TYPE));
+
+  Value* from = f.LoadGPR(i.X.RT);
+  Value* mtmsrd_mask = f.LoadConstantUint64((1ULL << 15));
+  Value* msr = f.LoadContext(offsetof(PPCContext, msr), INT64_TYPE);
+
+  Value* new_msr = f.Or(f.And(from, mtmsrd_mask), f.AndNot(msr, mtmsrd_mask));
+
+  f.StoreContext(offsetof(PPCContext, msr), new_msr);
   return 0;
 }
 
