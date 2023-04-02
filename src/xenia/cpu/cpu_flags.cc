@@ -30,11 +30,6 @@ DEFINE_bool(trace_function_references, false,
 DEFINE_bool(trace_function_data, false,
             "Generate tracing for function result data.", "CPU");
 
-DEFINE_bool(
-    disable_global_lock, false,
-    "Disables global lock usage in guest code. Does not affect host code.",
-    "CPU");
-
 DEFINE_bool(validate_hir, false,
             "Perform validation checks on the HIR during compilation.", "CPU");
 
