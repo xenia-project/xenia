@@ -25,12 +25,15 @@ class StartupCpuFeatureCheck {
           "the "
           "FAQ for system requirements at https://xenia.jp";
     }
-    unsigned int data[4];
-    Xbyak::util::Cpu::getCpuid(0x80000001, data);
-    if (!(data[2] & (1U << 8))) {
-      error_message =
-          "Your cpu does not support PrefetchW, which Xenia Canary "
-          "requires.";
+
+	if (!error_message) {
+      unsigned int data[4];
+      Xbyak::util::Cpu::getCpuid(0x80000001, data);
+      if (!(data[2] & (1U << 8))) {
+        error_message =
+            "Your cpu does not support PrefetchW, which Xenia Canary "
+            "requires.";
+      }
     }
     if (error_message == nullptr) {
       return;
