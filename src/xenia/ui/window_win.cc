@@ -26,6 +26,11 @@
 #include <ShellScalingApi.h>
 #include <dwmapi.h>
 
+DEFINE_uint32(window_position_x, 0,
+              "In windows the position to create the window to", "Display");
+DEFINE_uint32(window_position_y, 0,
+              "In windows the position to create the window to", "Display");
+
 namespace xe {
 namespace ui {
 
@@ -125,20 +130,35 @@ bool Win32Window::OpenImpl() {
                                                 dpi_, USER_DEFAULT_SCREEN_DPI));
   AdjustWindowRectangle(window_size_rect, window_style,
                         BOOL(main_menu != nullptr), window_ex_style, dpi_);
+
+  int window_x = cvars::window_position_x;
+  int window_y = cvars::window_position_y;
+  if (window_x == 0 && window_y == 0) {
+    window_x = CW_USEDEFAULT;
+    window_y = CW_USEDEFAULT;
+  }
+
   // Create the window. Though WM_NCCREATE will assign to `hwnd_` too, still do
   // the assignment here to handle the case of a failure after WM_NCCREATE, for
   // instance.
   hwnd_ = CreateWindowExW(
       window_ex_style, L"XeniaWindowClass",
       reinterpret_cast<LPCWSTR>(xe::to_utf16(GetTitle()).c_str()), window_style,
-      CW_USEDEFAULT, CW_USEDEFAULT,
-      window_size_rect.right - window_size_rect.left,
+      window_x, window_y, window_size_rect.right - window_size_rect.left,
       window_size_rect.bottom - window_size_rect.top, nullptr, nullptr,
       hinstance, this);
   if (!hwnd_) {
     XELOGE("CreateWindowExW failed");
     return false;
   }
+
+  // If saved window position is not in any monitor anymore, move window to
+  // the primary display
+  if (!MonitorFromWindow(hwnd_, MONITOR_DEFAULTTONULL)) {
+    MoveWindow(hwnd_, 0, 0, window_size_rect.right - window_size_rect.left,
+               window_size_rect.bottom - window_size_rect.top, false);
+  }
+
   // For per-monitor DPI, obtain the DPI of the monitor the window was created
   // on, and adjust the initial normal size for it. If as a result of this
   // resizing, the window is moved to a different monitor, the WM_DPICHANGED
@@ -999,6 +1019,15 @@ LRESULT Win32Window::WndProc(HWND hWnd, UINT message, WPARAM wParam,
       if (cursor_auto_hide_timer_) {
         DeleteTimerQueueTimer(nullptr, cursor_auto_hide_timer_, nullptr);
         cursor_auto_hide_timer_ = nullptr;
+      }
+      {
+        // Save window position
+        WINDOWINFO window_info{};
+        window_info.cbSize = sizeof(window_info);
+        if (GetWindowInfo(hwnd_, &window_info)) {
+          OVERRIDE_uint32(window_position_x, window_info.rcWindow.left);
+          OVERRIDE_uint32(window_position_y, window_info.rcWindow.top);
+        }
       }
       {
         WindowDestructionReceiver destruction_receiver(this);
