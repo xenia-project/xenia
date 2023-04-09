@@ -8,6 +8,8 @@ Run with --help or no arguments for possible commands.
 """
 from __future__ import print_function
 from datetime import datetime
+from multiprocessing import Pool
+from functools import partial
 import argparse
 import json
 import os
@@ -1209,6 +1211,62 @@ class GenTestsCommand(Command):
             ''',
             *args, **kwargs)
 
+    def process_src_file(test_bin, ppc_as, ppc_objdump, ppc_ld, ppc_nm, src_file):
+        print('- %s' % src_file)
+
+        def make_unix_path(p):
+            """Forces a unix path separator style, as required by binutils.
+            """
+            return p.replace(os.sep, '/')
+
+        src_name = os.path.splitext(os.path.basename(src_file))[0]
+        obj_file = os.path.join(test_bin, src_name) + '.o'
+        shell_call([
+            ppc_as,
+            '-a32',
+            '-be',
+            '-mregnames',
+            '-mpower7',
+            '-maltivec',
+            '-mvsx',
+            '-mvmx128',
+            '-R',
+            '-o%s' % (make_unix_path(obj_file)),
+            make_unix_path(src_file),
+            ])
+        dis_file = os.path.join(test_bin, src_name) + '.dis'
+        shell_call([
+            ppc_objdump,
+            '--adjust-vma=0x100000',
+            '-Mpower7',
+            '-Mvmx128',
+            '-D',
+            '-EB',
+            make_unix_path(obj_file),
+            ], stdout_path=dis_file)
+        # Eat the first 4 lines to kill the file path that'll differ across machines.
+        with open(dis_file) as f:
+            dis_file_lines = f.readlines()
+        with open(dis_file, 'w') as f:
+            f.writelines(dis_file_lines[4:])
+        shell_call([
+            ppc_ld,
+            '-A powerpc:common32',
+            '-melf32ppc',
+            '-EB',
+            '-nostdlib',
+            '--oformat=binary',
+            '-Ttext=0x80000000',
+            '-e0x80000000',
+            '-o%s' % (make_unix_path(os.path.join(test_bin, src_name) + '.bin')),
+            make_unix_path(obj_file),
+            ])
+        shell_call([
+            ppc_nm,
+            '--numeric-sort',
+            make_unix_path(obj_file),
+            ], stdout_path=os.path.join(test_bin, src_name) + '.map')
+
     def execute(self, args, pass_args, cwd):
         print('Generating test binaries...')
         print('')
@@ -1232,61 +1290,12 @@ class GenTestsCommand(Command):
                      if (name.startswith('instr_') or name.startswith('seq_'))
                      and name.endswith(('.s'))]
 
-        def make_unix_path(p):
-            """Forces a unix path separator style, as required by binutils.
-            """
-            return p.replace(os.sep, '/')
-
         any_errors = False
-        for src_file in src_files:
-            print('- %s' % src_file)
-            src_name = os.path.splitext(os.path.basename(src_file))[0]
-            obj_file = os.path.join(test_bin, src_name) + '.o'
-            shell_call([
-                ppc_as,
-                '-a32',
-                '-be',
-                '-mregnames',
-                '-mpower7',
-                '-maltivec',
-                '-mvsx',
-                '-mvmx128',
-                '-R',
-                '-o%s' % (make_unix_path(obj_file)),
-                make_unix_path(src_file),
-                ])
-            dis_file = os.path.join(test_bin, src_name) + '.dis'
-            shell_call([
-                ppc_objdump,
-                '--adjust-vma=0x100000',
-                '-Mpower7',
-                '-Mvmx128',
-                '-D',
-                '-EB',
-                make_unix_path(obj_file),
-                ], stdout_path=dis_file)
-            # Eat the first 4 lines to kill the file path that'll differ across machines.
-            with open(dis_file) as f:
-                dis_file_lines = f.readlines()
-            with open(dis_file, 'w') as f:
-                f.writelines(dis_file_lines[4:])
-            shell_call([
-                ppc_ld,
-                '-A powerpc:common32',
-                '-melf32ppc',
-                '-EB',
-                '-nostdlib',
-                '--oformat=binary',
-                '-Ttext=0x80000000',
-                '-e0x80000000',
-                '-o%s' % (make_unix_path(os.path.join(test_bin, src_name) + '.bin')),
-                make_unix_path(obj_file),
-                ])
-            shell_call([
-                ppc_nm,
-                '--numeric-sort',
-                make_unix_path(obj_file),
-                ], stdout_path=os.path.join(test_bin, src_name) + '.map')
+
+        pool_func = partial(GenTestsCommand.process_src_file, test_bin, ppc_as, ppc_objdump, ppc_ld, ppc_nm)
+        with Pool() as pool:
+            pool.map(pool_func, src_files)
+
 
         if any_errors:
             print('ERROR: failed to build one or more tests.')

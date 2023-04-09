@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "third_party/imgui/imgui.h"

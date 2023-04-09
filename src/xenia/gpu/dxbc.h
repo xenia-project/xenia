@@ -2197,6 +2197,8 @@ class Assembler {
     ++stat_.instruction_count;
     ++stat_.cut_instruction_count;
   }
+  // Don't use emit_then_cut_stream - crashes AMD Software: Adrenalin Edition
+  // 23.3.2 shader compiler on RDNA 3 if used conditionally.
   void OpEmitThenCutStream(const Dest& stream) {
     uint32_t operands_length = stream.GetLength();
     code_.reserve(code_.size() + 1 + operands_length);
