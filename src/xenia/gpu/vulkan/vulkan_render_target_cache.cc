@@ -2527,7 +2527,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
   // is not eliminated when compiling the shader for AMD via RenderDoc on
   // Windows, as of June 2022.
   uint_vector_temp.clear();
-  uint_vector_temp.reserve(2);
   uint_vector_temp.push_back(0);
   uint_vector_temp.push_back(1);
   spv::Id dest_pixel_coord = builder.createUnaryOp(
@@ -2623,7 +2622,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             builder.createBinOp(spv::OpBitwiseAnd, type_uint, dest_sample_id,
                                 builder.makeUintConstant(1 << 1));
         id_vector_temp.clear();
-        id_vector_temp.reserve(4);
         id_vector_temp.push_back(dest_sample_id);
         id_vector_temp.push_back(dest_tile_pixel_x);
         id_vector_temp.push_back(builder.makeUintConstant(1));
@@ -2658,7 +2656,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         // Horizontal pixel index can be reused. Vertical pixel 1 should
         // become sample 2.
         id_vector_temp.clear();
-        id_vector_temp.reserve(4);
         id_vector_temp.push_back(builder.makeUintConstant(0));
         id_vector_temp.push_back(dest_tile_pixel_y);
         id_vector_temp.push_back(builder.makeUintConstant(1));
@@ -2677,7 +2674,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         // The X part.
         // 1 destination horizontal sample = 2 source horizontal pixels.
         id_vector_temp.clear();
-        id_vector_temp.reserve(4);
         id_vector_temp.push_back(builder.createBinOp(
             spv::OpShiftLeftLogical, type_uint, dest_tile_pixel_x,
             builder.makeUintConstant(2)));
@@ -2711,7 +2707,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         // Vertical pixel and sample (second bit) addressing is the same.
         // However, 1 horizontal destination pixel = 1 horizontal source sample.
         id_vector_temp.clear();
-        id_vector_temp.reserve(4);
         id_vector_temp.push_back(dest_sample_id);
         id_vector_temp.push_back(dest_tile_pixel_x);
         id_vector_temp.push_back(builder.makeUintConstant(0));
@@ -2751,7 +2746,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           // (second bit).
           if (msaa_2x_attachments_supported_) {
             id_vector_temp.clear();
-            id_vector_temp.reserve(4);
             id_vector_temp.push_back(source_sample_id);
             id_vector_temp.push_back(builder.createBinOp(
                 spv::OpBitwiseXor, type_uint, dest_sample_id,
@@ -2762,7 +2756,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                                                 type_uint, id_vector_temp);
           } else {
             id_vector_temp.clear();
-            id_vector_temp.reserve(4);
             id_vector_temp.push_back(dest_sample_id);
             id_vector_temp.push_back(source_sample_id);
             id_vector_temp.push_back(builder.makeUintConstant(0));
@@ -2774,7 +2767,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           // 64bpp -> 32bpp, 4x -> 1x.
           // 1 destination vertical pixel = 1 source vertical sample.
           id_vector_temp.clear();
-          id_vector_temp.reserve(4);
           id_vector_temp.push_back(source_sample_id);
           id_vector_temp.push_back(source_tile_pixel_y);
           id_vector_temp.push_back(builder.makeUintConstant(1));
@@ -2817,7 +2809,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           // sample bit.
           if (msaa_2x_attachments_supported_) {
             id_vector_temp.clear();
-            id_vector_temp.reserve(4);
             id_vector_temp.push_back(dest_tile_pixel_x);
             id_vector_temp.push_back(builder.createBinOp(
                 spv::OpBitwiseXor, type_uint, dest_sample_id,
@@ -2828,7 +2819,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                                                 type_uint, id_vector_temp);
           } else {
             id_vector_temp.clear();
-            id_vector_temp.reserve(4);
             id_vector_temp.push_back(dest_sample_id);
             id_vector_temp.push_back(dest_tile_pixel_x);
             id_vector_temp.push_back(builder.makeUintConstant(0));
@@ -2843,7 +2833,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           // Same BPP, 4x -> 1x.
           // Pixels to samples.
           id_vector_temp.clear();
-          id_vector_temp.reserve(4);
           id_vector_temp.push_back(builder.createBinOp(
               spv::OpBitwiseAnd, type_uint, dest_tile_pixel_x,
               builder.makeUintConstant(1)));
@@ -2865,7 +2854,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         if (key.dest_msaa_samples >= xenos::MsaaSamples::k4X) {
           // Horizontal samples to pixels.
           id_vector_temp.clear();
-          id_vector_temp.reserve(4);
           id_vector_temp.push_back(dest_sample_id);
           id_vector_temp.push_back(dest_tile_pixel_x);
           id_vector_temp.push_back(builder.makeUintConstant(1));
@@ -2895,7 +2883,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                                                  builder.makeUintConstant(1));
         } else {
           id_vector_temp.clear();
-          id_vector_temp.reserve(4);
           id_vector_temp.push_back(source_sample_id);
           id_vector_temp.push_back(source_sample_id);
           id_vector_temp.push_back(builder.makeUintConstant(1));
@@ -2907,7 +2894,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         // 1x -> 4x.
         // Vertical samples (second bit) to Y pixels.
         id_vector_temp.clear();
-        id_vector_temp.reserve(4);
         id_vector_temp.push_back(
             builder.createBinOp(spv::OpShiftRightLogical, type_uint,
                                 dest_sample_id, builder.makeUintConstant(1)));
@@ -2932,7 +2918,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                                                  builder.makeUintConstant(1));
         } else {
           id_vector_temp.clear();
-          id_vector_temp.reserve(4);
           id_vector_temp.push_back(source_sample_id);
           id_vector_temp.push_back(source_sample_id);
           id_vector_temp.push_back(builder.makeUintConstant(1));
@@ -2950,7 +2935,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         // source.
         if (msaa_2x_attachments_supported_) {
           id_vector_temp.clear();
-          id_vector_temp.reserve(4);
           id_vector_temp.push_back(
               builder.createBinOp(spv::OpBitwiseXor, type_uint, dest_sample_id,
                                   builder.makeUintConstant(1)));
@@ -2961,7 +2945,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                                                  type_uint, id_vector_temp);
         } else {
           id_vector_temp.clear();
-          id_vector_temp.reserve(4);
           id_vector_temp.push_back(
               builder.createBinOp(spv::OpShiftRightLogical, type_uint,
                                   dest_sample_id, builder.makeUintConstant(1)));
@@ -3056,7 +3039,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
 
   spv::Builder::TextureParameters source_texture_parameters = {};
   id_vector_temp.clear();
-  id_vector_temp.reserve(2);
   id_vector_temp.push_back(source_pixel_x_int);
   id_vector_temp.push_back(source_pixel_y_int);
   spv::Id source_coordinates[2] = {
@@ -3079,7 +3061,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           builder.makeIntConstant(1));
     } else {
       id_vector_temp.clear();
-      id_vector_temp.reserve(2);
       id_vector_temp.push_back(builder.createBinOp(spv::OpBitwiseOr, type_int,
                                                    source_pixel_x_int,
                                                    builder.makeIntConstant(1)));
@@ -3203,7 +3184,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                     unorm_round_offset));
             for (uint32_t j = 1; j < 4; ++j) {
               id_vector_temp.clear();
-              id_vector_temp.reserve(4);
               id_vector_temp.push_back(packed[i]);
               id_vector_temp.push_back(builder.createUnaryOp(
                   spv::OpConvertFToU, type_uint,
@@ -3236,7 +3216,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                     unorm_round_offset));
             for (uint32_t j = 1; j < 4; ++j) {
               id_vector_temp.clear();
-              id_vector_temp.reserve(4);
               id_vector_temp.push_back(packed[i]);
               id_vector_temp.push_back(builder.createUnaryOp(
                   spv::OpConvertFToU, type_uint,
@@ -3270,7 +3249,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                 builder, source_color[i][0], ext_inst_glsl_std_450);
             for (uint32_t j = 1; j < 3; ++j) {
               id_vector_temp.clear();
-              id_vector_temp.reserve(4);
               id_vector_temp.push_back(packed[i]);
               id_vector_temp.push_back(
                   SpirvShaderTranslator::UnclampedFloat32To7e3(
@@ -3282,7 +3260,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             }
             // Saturate and convert the alpha.
             id_vector_temp.clear();
-            id_vector_temp.reserve(3);
             id_vector_temp.push_back(source_color[i][3]);
             id_vector_temp.push_back(float_0);
             id_vector_temp.push_back(float_1);
@@ -3290,7 +3267,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                 builder.createBuiltinCall(type_float, ext_inst_glsl_std_450,
                                           GLSLstd450NClamp, id_vector_temp);
             id_vector_temp.clear();
-            id_vector_temp.reserve(4);
             id_vector_temp.push_back(packed[i]);
             id_vector_temp.push_back(builder.createUnaryOp(
                 spv::OpConvertFToU, type_uint,
@@ -3320,7 +3296,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             spv::Id color_16_in_32[2];
             for (uint32_t i = 0; i < 2; ++i) {
               id_vector_temp.clear();
-              id_vector_temp.reserve(4);
               id_vector_temp.push_back(source_color[i][0]);
               id_vector_temp.push_back(source_color[i][1]);
               id_vector_temp.push_back(component_offset_width);
@@ -3329,7 +3304,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                                                    type_uint, id_vector_temp);
             }
             id_vector_temp.clear();
-            id_vector_temp.reserve(2);
             id_vector_temp.push_back(color_16_in_32[0]);
             id_vector_temp.push_back(color_16_in_32[1]);
             builder.createStore(builder.createCompositeConstruct(
@@ -3337,7 +3311,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                                 output_fragment_data);
           } else {
             id_vector_temp.clear();
-            id_vector_temp.reserve(4);
             for (uint32_t i = 0; i < 4; ++i) {
               id_vector_temp.push_back(source_color[i >> 1][i & 1]);
             }
@@ -3354,7 +3327,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             spv::Id color_16_in_32[2];
             for (uint32_t i = 0; i < 2; ++i) {
               id_vector_temp.clear();
-              id_vector_temp.reserve(4);
               id_vector_temp.push_back(source_color[0][i << 1]);
               id_vector_temp.push_back(source_color[0][(i << 1) + 1]);
               id_vector_temp.push_back(component_offset_width);
@@ -3363,7 +3335,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                                                    type_uint, id_vector_temp);
             }
             id_vector_temp.clear();
-            id_vector_temp.reserve(2);
             id_vector_temp.push_back(color_16_in_32[0]);
             id_vector_temp.push_back(color_16_in_32[1]);
             builder.createStore(builder.createCompositeConstruct(
@@ -3371,7 +3342,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                                 output_fragment_data);
           } else {
             id_vector_temp.clear();
-            id_vector_temp.reserve(4);
             for (uint32_t i = 0; i < 4; ++i) {
               id_vector_temp.push_back(source_color[0][i]);
             }
@@ -3430,7 +3400,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         }
         // Merge depth and stencil.
         id_vector_temp.clear();
-        id_vector_temp.reserve(4);
         id_vector_temp.push_back(source_stencil[i]);
         id_vector_temp.push_back(depth24);
         id_vector_temp.push_back(depth_offset);
@@ -3445,7 +3414,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
       assert_true(packed[1] != spv::NoResult);
       if (dest_color_format == xenos::ColorRenderTargetFormat::k_32_32_FLOAT) {
         id_vector_temp.clear();
-        id_vector_temp.reserve(2);
         id_vector_temp.push_back(packed[0]);
         id_vector_temp.push_back(packed[1]);
         // Multisampled sampled images are optional in Vulkan, and image views
@@ -3466,7 +3434,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         spv::Id const_uint_0 = builder.makeUintConstant(0);
         spv::Id const_uint_16 = builder.makeUintConstant(16);
         id_vector_temp.clear();
-        id_vector_temp.reserve(4);
         for (uint32_t i = 0; i < 4; ++i) {
           id_vector_temp.push_back(builder.createTriOp(
               spv::OpBitFieldUExtract, type_uint, packed[i >> 1],
@@ -3501,7 +3468,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                    xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA)) {
             // Same format - passthrough.
             id_vector_temp.clear();
-            id_vector_temp.reserve(4);
             for (uint32_t i = 0; i < 4; ++i) {
               id_vector_temp.push_back(source_color[0][i]);
             }
@@ -3544,7 +3510,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               spv::Id component_width = builder.makeUintConstant(8);
               for (uint32_t i = 1; i < 4 - packed_component_offset; ++i) {
                 id_vector_temp.clear();
-                id_vector_temp.reserve(4);
                 id_vector_temp.push_back(packed);
                 id_vector_temp.push_back(builder.createUnaryOp(
                     spv::OpConvertFToU, type_uint,
@@ -3571,7 +3536,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                dest_color_format == xenos::ColorRenderTargetFormat::
                                         k_2_10_10_10_AS_10_10_10_10)) {
             id_vector_temp.clear();
-            id_vector_temp.reserve(4);
             for (uint32_t i = 0; i < 4; ++i) {
               id_vector_temp.push_back(source_color[0][i]);
             }
@@ -3594,7 +3558,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               spv::Id width_a = builder.makeUintConstant(2);
               for (uint32_t i = 1; i < 4; ++i) {
                 id_vector_temp.clear();
-                id_vector_temp.reserve(4);
                 id_vector_temp.push_back(packed);
                 id_vector_temp.push_back(builder.createUnaryOp(
                     spv::OpConvertFToU, type_uint,
@@ -3621,7 +3584,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                dest_color_format == xenos::ColorRenderTargetFormat::
                                         k_2_10_10_10_FLOAT_AS_16_16_16_16)) {
             id_vector_temp.clear();
-            id_vector_temp.reserve(4);
             for (uint32_t i = 0; i < 4; ++i) {
               id_vector_temp.push_back(source_color[0][i]);
             }
@@ -3637,7 +3599,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               spv::Id width_rgb = builder.makeUintConstant(10);
               for (uint32_t i = 1; i < 3; ++i) {
                 id_vector_temp.clear();
-                id_vector_temp.reserve(4);
                 id_vector_temp.push_back(packed);
                 id_vector_temp.push_back(
                     SpirvShaderTranslator::UnclampedFloat32To7e3(
@@ -3649,7 +3610,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               }
               // Saturate and convert the alpha.
               id_vector_temp.clear();
-              id_vector_temp.reserve(3);
               id_vector_temp.push_back(source_color[0][3]);
               id_vector_temp.push_back(builder.makeFloatConstant(0.0f));
               id_vector_temp.push_back(builder.makeFloatConstant(1.0f));
@@ -3657,7 +3617,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                   builder.createBuiltinCall(type_float, ext_inst_glsl_std_450,
                                             GLSLstd450NClamp, id_vector_temp);
               id_vector_temp.clear();
-              id_vector_temp.reserve(4);
               id_vector_temp.push_back(packed);
               id_vector_temp.push_back(builder.createUnaryOp(
                   spv::OpConvertFToU, type_uint,
@@ -3690,7 +3649,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                dest_color_format ==
                    xenos::ColorRenderTargetFormat::k_16_16_FLOAT)) {
             id_vector_temp.clear();
-            id_vector_temp.reserve(2);
             for (uint32_t i = 0; i < 2; ++i) {
               id_vector_temp.push_back(source_color[0][i]);
             }
@@ -3702,7 +3660,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             if (mode.output != TransferOutput::kStencilBit) {
               spv::Id component_offset_width = builder.makeUintConstant(16);
               id_vector_temp.clear();
-              id_vector_temp.reserve(4);
               id_vector_temp.push_back(packed);
               id_vector_temp.push_back(source_color[0][1]);
               id_vector_temp.push_back(component_offset_width);
@@ -3752,7 +3709,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         } else {
           // Merge depth and stencil.
           id_vector_temp.clear();
-          id_vector_temp.reserve(4);
           id_vector_temp.push_back(source_stencil[0]);
           id_vector_temp.push_back(packed);
           id_vector_temp.push_back(builder.makeUintConstant(8));
@@ -3773,7 +3729,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               spv::Id component_width = builder.makeUintConstant(8);
               spv::Id unorm_scale = builder.makeFloatConstant(1.0f / 255.0f);
               id_vector_temp.clear();
-              id_vector_temp.reserve(4);
               for (uint32_t i = 0; i < 4; ++i) {
                 id_vector_temp.push_back(builder.createBinOp(
                     spv::OpFMul, type_float,
@@ -3796,7 +3751,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               spv::Id width_a = builder.makeUintConstant(2);
               spv::Id unorm_scale_a = builder.makeFloatConstant(1.0f / 3.0f);
               id_vector_temp.clear();
-              id_vector_temp.reserve(4);
               for (uint32_t i = 0; i < 4; ++i) {
                 id_vector_temp.push_back(builder.createBinOp(
                     spv::OpFMul, type_float,
@@ -3816,7 +3770,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             case xenos::ColorRenderTargetFormat::
                 k_2_10_10_10_FLOAT_AS_16_16_16_16: {
               id_vector_temp.clear();
-              id_vector_temp.reserve(4);
               // Color.
               spv::Id width_rgb = builder.makeUintConstant(10);
               for (uint32_t i = 0; i < 3; ++i) {
@@ -3847,7 +3800,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               // where that wouldn't help anyway).
               spv::Id component_offset_width = builder.makeUintConstant(16);
               id_vector_temp.clear();
-              id_vector_temp.reserve(2);
               for (uint32_t i = 0; i < 2; ++i) {
                 id_vector_temp.push_back(builder.createTriOp(
                     spv::OpBitFieldUExtract, type_uint, packed,
@@ -3910,7 +3862,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                   // 4x) to second sample bit.
                   if (msaa_2x_attachments_supported_) {
                     id_vector_temp.clear();
-                    id_vector_temp.reserve(4);
                     id_vector_temp.push_back(dest_tile_pixel_x);
                     id_vector_temp.push_back(builder.createBinOp(
                         spv::OpBitwiseXor, type_uint, dest_sample_id,
@@ -3921,7 +3872,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                         spv::OpBitFieldInsert, type_uint, id_vector_temp);
                   } else {
                     id_vector_temp.clear();
-                    id_vector_temp.reserve(4);
                     id_vector_temp.push_back(dest_sample_id);
                     id_vector_temp.push_back(dest_tile_pixel_x);
                     id_vector_temp.push_back(builder.makeUintConstant(0));
@@ -3936,7 +3886,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                   // 4x -> 1x.
                   // Pixels to samples.
                   id_vector_temp.clear();
-                  id_vector_temp.reserve(4);
                   id_vector_temp.push_back(builder.createBinOp(
                       spv::OpBitwiseAnd, type_uint, dest_tile_pixel_x,
                       builder.makeUintConstant(1)));
@@ -3958,7 +3907,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                 if (key.dest_msaa_samples >= xenos::MsaaSamples::k4X) {
                   // Horizontal samples to pixels.
                   id_vector_temp.clear();
-                  id_vector_temp.reserve(4);
                   id_vector_temp.push_back(dest_sample_id);
                   id_vector_temp.push_back(dest_tile_pixel_x);
                   id_vector_temp.push_back(builder.makeUintConstant(1));
@@ -3988,7 +3936,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                                               builder.makeUintConstant(1));
                     } else {
                       id_vector_temp.clear();
-                      id_vector_temp.reserve(4);
                       id_vector_temp.push_back(host_depth_source_sample_id);
                       id_vector_temp.push_back(host_depth_source_sample_id);
                       id_vector_temp.push_back(builder.makeUintConstant(1));
@@ -4000,7 +3947,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                     // 1x -> 4x.
                     // Vertical samples (second bit) to Y pixels.
                     id_vector_temp.clear();
-                    id_vector_temp.reserve(4);
                     id_vector_temp.push_back(builder.createBinOp(
                         spv::OpShiftRightLogical, type_uint, dest_sample_id,
                         builder.makeUintConstant(1)));
@@ -4027,7 +3973,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                                               builder.makeUintConstant(1));
                     } else {
                       id_vector_temp.clear();
-                      id_vector_temp.reserve(4);
                       id_vector_temp.push_back(host_depth_source_sample_id);
                       id_vector_temp.push_back(host_depth_source_sample_id);
                       id_vector_temp.push_back(builder.makeUintConstant(1));
@@ -4045,7 +3990,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                     // vertical pixels of 1x source.
                     if (msaa_2x_attachments_supported_) {
                       id_vector_temp.clear();
-                      id_vector_temp.reserve(4);
                       id_vector_temp.push_back(builder.createBinOp(
                           spv::OpBitwiseXor, type_uint, dest_sample_id,
                           builder.makeUintConstant(1)));
@@ -4056,7 +4000,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                           spv::OpBitFieldInsert, type_uint, id_vector_temp);
                     } else {
                       id_vector_temp.clear();
-                      id_vector_temp.reserve(4);
                       id_vector_temp.push_back(builder.createBinOp(
                           spv::OpShiftRightLogical, type_uint, dest_sample_id,
                           builder.makeUintConstant(1)));
@@ -4142,7 +4085,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             host_depth_source_texture_parameters.sampler =
                 builder.createLoad(host_depth_source_texture, spv::NoPrecision);
             id_vector_temp.clear();
-            id_vector_temp.reserve(2);
             id_vector_temp.push_back(host_depth_source_pixel_x_int);
             id_vector_temp.push_back(host_depth_source_pixel_y_int);
             host_depth_source_texture_parameters.coords =
@@ -4176,7 +4118,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               if (key.dest_msaa_samples >= xenos::MsaaSamples::k4X) {
                 // Horizontal sample index in bit 0.
                 id_vector_temp.clear();
-                id_vector_temp.reserve(4);
                 id_vector_temp.push_back(dest_sample_id);
                 id_vector_temp.push_back(dest_tile_pixel_x);
                 id_vector_temp.push_back(builder.makeUintConstant(1));
@@ -4187,7 +4128,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               // Vertical sample index as 1 or 0 in bit 0 for true 2x or as 0
               // or 1 in bit 1 for 4x or for 2x emulated as 4x.
               id_vector_temp.clear();
-              id_vector_temp.reserve(4);
               id_vector_temp.push_back(builder.createBinOp(
                   (key.dest_msaa_samples == xenos::MsaaSamples::k2X &&
                    msaa_2x_attachments_supported_)
@@ -4218,7 +4158,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                         dest_tile_sample_y),
                     dest_tile_sample_x));
             id_vector_temp.clear();
-            id_vector_temp.reserve(2);
             // The only SSBO structure member.
             id_vector_temp.push_back(builder.makeIntConstant(0));
             id_vector_temp.push_back(builder.createUnaryOp(
@@ -4326,7 +4265,6 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             builder.createBranch(depth24_to_depth32_merge);
             builder.setBuildPoint(depth24_to_depth32_merge);
             id_vector_temp.clear();
-            id_vector_temp.reserve(4);
             id_vector_temp.push_back(guest_depth32);
             id_vector_temp.push_back(depth24_to_depth32_result_block_id);
             id_vector_temp.push_back(host_depth32);
@@ -5895,7 +5833,6 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
       // 4x MSAA source texture sample index - bit 0 for horizontal, bit 1 for
       // vertical.
       id_vector_temp.clear();
-      id_vector_temp.reserve(4);
       id_vector_temp.push_back(builder.createBinOp(
           spv::OpBitwiseAnd, type_uint, source_sample_x, const_uint_1));
       id_vector_temp.push_back(source_sample_y);
@@ -5926,7 +5863,6 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
   source_texture_parameters.sampler =
       builder.createLoad(source_texture, spv::NoPrecision);
   id_vector_temp.clear();
-  id_vector_temp.reserve(2);
   id_vector_temp.push_back(
       builder.createUnaryOp(spv::OpBitcast, type_int, source_pixel_x));
   id_vector_temp.push_back(
@@ -5975,7 +5911,6 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
       } break;
     }
     id_vector_temp.clear();
-    id_vector_temp.reserve(4);
     id_vector_temp.push_back(source_stencil);
     id_vector_temp.push_back(packed[0]);
     id_vector_temp.push_back(builder.makeUintConstant(8));
@@ -6000,7 +5935,6 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
         spv::Id component_width = builder.makeUintConstant(8);
         for (uint32_t i = 1; i < 4; ++i) {
           id_vector_temp.clear();
-          id_vector_temp.reserve(4);
           id_vector_temp.push_back(packed[0]);
           id_vector_temp.push_back(builder.createUnaryOp(
               spv::OpConvertFToU, type_uint,
@@ -6035,7 +5969,6 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
         spv::Id width_a = builder.makeUintConstant(2);
         for (uint32_t i = 1; i < 4; ++i) {
           id_vector_temp.clear();
-          id_vector_temp.reserve(4);
           id_vector_temp.push_back(packed[0]);
           id_vector_temp.push_back(builder.createUnaryOp(
               spv::OpConvertFToU, type_uint,
@@ -6062,7 +5995,6 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
         spv::Id width_rgb = builder.makeUintConstant(10);
         for (uint32_t i = 1; i < 3; ++i) {
           id_vector_temp.clear();
-          id_vector_temp.reserve(4);
           id_vector_temp.push_back(packed[0]);
           id_vector_temp.push_back(SpirvShaderTranslator::UnclampedFloat32To7e3(
               builder,
@@ -6074,7 +6006,6 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
                                        id_vector_temp);
           // Saturate and convert the alpha.
           id_vector_temp.clear();
-          id_vector_temp.reserve(3);
           id_vector_temp.push_back(
               builder.createCompositeExtract(source_vec4, type_float, 3));
           id_vector_temp.push_back(builder.makeFloatConstant(0.0f));
@@ -6083,7 +6014,6 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
               builder.createBuiltinCall(type_float, ext_inst_glsl_std_450,
                                         GLSLstd450NClamp, id_vector_temp);
           id_vector_temp.clear();
-          id_vector_temp.reserve(4);
           id_vector_temp.push_back(packed[0]);
           id_vector_temp.push_back(builder.createUnaryOp(
               spv::OpConvertFToU, type_uint,
@@ -6112,7 +6042,6 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
         spv::Id component_offset_width = builder.makeUintConstant(16);
         for (uint32_t i = 0; i <= uint32_t(format_is_64bpp); ++i) {
           id_vector_temp.clear();
-          id_vector_temp.reserve(4);
           id_vector_temp.push_back(
               builder.createCompositeExtract(source_vec4, type_uint, 2 * i));
           id_vector_temp.push_back(builder.createCompositeExtract(
@@ -6144,13 +6073,11 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
   spv::Id store_value = packed[0];
   if (format_is_64bpp) {
     id_vector_temp.clear();
-    id_vector_temp.reserve(2);
     id_vector_temp.push_back(packed[0]);
     id_vector_temp.push_back(packed[1]);
     store_value = builder.createCompositeConstruct(type_uint2, id_vector_temp);
   }
   id_vector_temp.clear();
-  id_vector_temp.reserve(2);
   // The only SSBO structure member.
   id_vector_temp.push_back(builder.makeIntConstant(0));
   id_vector_temp.push_back(

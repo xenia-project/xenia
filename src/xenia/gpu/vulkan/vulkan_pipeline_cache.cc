@@ -1220,7 +1220,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
   // set to NaN for emulation of vertex killing with the OR operator).
   for (uint32_t i = 0; i < input_primitive_vertex_count; ++i) {
     id_vector_temp.clear();
-    id_vector_temp.reserve(2);
     id_vector_temp.push_back(builder.makeIntConstant(int32_t(i)));
     id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
     spv::Id position_is_nan = builder.createUnaryOp(
@@ -1273,7 +1272,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
     for (uint32_t i = 0; i < cull_distance_count; ++i) {
       for (uint32_t j = 0; j < input_primitive_vertex_count; ++j) {
         id_vector_temp.clear();
-        id_vector_temp.reserve(3);
         id_vector_temp.push_back(builder.makeIntConstant(int32_t(j)));
         id_vector_temp.push_back(const_member_in_gl_per_vertex_cull_distance);
         id_vector_temp.push_back(builder.makeIntConstant(int32_t(i)));
@@ -1332,7 +1330,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
 
       // Load the point diameter in guest pixels.
       id_vector_temp.clear();
-      id_vector_temp.reserve(2);
       id_vector_temp.push_back(
           builder.makeIntConstant(int32_t(kPointConstantConstantDiameter)));
       id_vector_temp.push_back(const_int_0);
@@ -1412,7 +1409,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       // normalized device coordinates, and then to the clip space by
       // multiplying by W.
       id_vector_temp.clear();
-      id_vector_temp.reserve(2);
       id_vector_temp.push_back(builder.makeIntConstant(
           int32_t(kPointConstantScreenDiameterToNdcRadius)));
       id_vector_temp.push_back(const_int_0);
@@ -1432,7 +1428,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                              spv::NoPrecision));
       builder.addDecoration(point_radius_y, spv::DecorationNoContraction);
       id_vector_temp.clear();
-      id_vector_temp.reserve(2);
       // 0 is the input primitive vertex index.
       id_vector_temp.push_back(const_int_0);
       id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
@@ -1482,7 +1477,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       spv::Id point_clip_distances = spv::NoResult;
       if (clip_distance_count) {
         id_vector_temp.clear();
-        id_vector_temp.reserve(2);
         // 0 is the input primitive vertex index.
         id_vector_temp.push_back(const_int_0);
         id_vector_temp.push_back(const_member_in_gl_per_vertex_clip_distance);
@@ -1506,7 +1500,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         // Point coordinates.
         if (key.has_point_coordinates) {
           id_vector_temp.clear();
-          id_vector_temp.reserve(2);
           id_vector_temp.push_back(
               builder.makeFloatConstant(float(point_vertex_x)));
           id_vector_temp.push_back(
@@ -1517,7 +1510,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         }
         // Position.
         id_vector_temp.clear();
-        id_vector_temp.reserve(4);
         id_vector_temp.push_back(point_edge_x[point_vertex_x]);
         id_vector_temp.push_back(point_edge_y[point_vertex_y]);
         id_vector_temp.push_back(point_z);
@@ -1655,7 +1647,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       if (key.has_point_coordinates) {
         spv::Id const_float_0 = builder.makeFloatConstant(0.0f);
         id_vector_temp.clear();
-        id_vector_temp.reserve(2);
         id_vector_temp.push_back(const_float_0);
         id_vector_temp.push_back(const_float_0);
         const_point_coordinates_zero =
@@ -1683,7 +1674,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         }
         // Position.
         id_vector_temp.clear();
-        id_vector_temp.reserve(2);
         id_vector_temp.push_back(vertex_index);
         id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
         spv::Id vertex_position = builder.createLoad(
@@ -1699,7 +1689,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         // Clip distances.
         if (clip_distance_count) {
           id_vector_temp.clear();
-          id_vector_temp.reserve(2);
           id_vector_temp.push_back(vertex_index);
           id_vector_temp.push_back(const_member_in_gl_per_vertex_clip_distance);
           spv::Id vertex_clip_distances = builder.createLoad(
@@ -1756,7 +1745,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       }
       // Position.
       id_vector_temp.clear();
-      id_vector_temp.reserve(2);
       id_vector_temp.push_back(vertex_indices[0]);
       id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
       spv::Id vertex_position_v0 = builder.createLoad(
@@ -1790,7 +1778,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       for (uint32_t i = 0; i < clip_distance_count; ++i) {
         spv::Id const_int_i = builder.makeIntConstant(int32_t(i));
         id_vector_temp.clear();
-        id_vector_temp.reserve(3);
         id_vector_temp.push_back(vertex_indices[0]);
         id_vector_temp.push_back(const_member_in_gl_per_vertex_clip_distance);
         id_vector_temp.push_back(const_int_i);
@@ -1818,7 +1805,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         builder.addDecoration(vertex_clip_distance_v3,
                               spv::DecorationNoContraction);
         id_vector_temp.clear();
-        id_vector_temp.reserve(2);
         id_vector_temp.push_back(const_member_in_gl_per_vertex_clip_distance);
         id_vector_temp.push_back(const_int_i);
         builder.createStore(
@@ -1838,7 +1824,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       if (key.has_point_coordinates) {
         spv::Id const_float_0 = builder.makeFloatConstant(0.0f);
         id_vector_temp.clear();
-        id_vector_temp.reserve(2);
         id_vector_temp.push_back(const_float_0);
         id_vector_temp.push_back(const_float_0);
         const_point_coordinates_zero =
@@ -1870,7 +1855,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         }
         // Position.
         id_vector_temp.clear();
-        id_vector_temp.reserve(2);
         id_vector_temp.push_back(const_vertex_index);
         id_vector_temp.push_back(const_member_in_gl_per_vertex_position);
         spv::Id vertex_position = builder.createLoad(
@@ -1886,7 +1870,6 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
         // Clip distances.
         if (clip_distance_count) {
           id_vector_temp.clear();
-          id_vector_temp.reserve(2);
           id_vector_temp.push_back(const_vertex_index);
           id_vector_temp.push_back(const_member_in_gl_per_vertex_clip_distance);
           spv::Id vertex_clip_distances = builder.createLoad(

@@ -197,14 +197,12 @@ void SpirvShaderTranslator::StartTranslation() {
 
   const_int_0_ = builder_->makeIntConstant(0);
   id_vector_temp_.clear();
-  id_vector_temp_.reserve(4);
   for (uint32_t i = 0; i < 4; ++i) {
     id_vector_temp_.push_back(const_int_0_);
   }
   const_int4_0_ = builder_->makeCompositeConstant(type_int4_, id_vector_temp_);
   const_uint_0_ = builder_->makeUintConstant(0);
   id_vector_temp_.clear();
-  id_vector_temp_.reserve(4);
   for (uint32_t i = 0; i < 4; ++i) {
     id_vector_temp_.push_back(const_uint_0_);
   }
@@ -212,7 +210,6 @@ void SpirvShaderTranslator::StartTranslation() {
       builder_->makeCompositeConstant(type_uint4_, id_vector_temp_);
   const_float_0_ = builder_->makeFloatConstant(0.0f);
   id_vector_temp_.clear();
-  id_vector_temp_.reserve(4);
   id_vector_temp_.push_back(const_float_0_);
   for (uint32_t i = 1; i < 4; ++i) {
     id_vector_temp_.push_back(const_float_0_);
@@ -221,7 +218,6 @@ void SpirvShaderTranslator::StartTranslation() {
   }
   const_float_1_ = builder_->makeFloatConstant(1.0f);
   id_vector_temp_.clear();
-  id_vector_temp_.reserve(4);
   id_vector_temp_.push_back(const_float_1_);
   for (uint32_t i = 1; i < 4; ++i) {
     id_vector_temp_.push_back(const_float_1_);
@@ -229,7 +225,6 @@ void SpirvShaderTranslator::StartTranslation() {
         type_float_vectors_[i], id_vector_temp_);
   }
   id_vector_temp_.clear();
-  id_vector_temp_.reserve(2);
   id_vector_temp_.push_back(const_float_0_);
   id_vector_temp_.push_back(const_float_1_);
   const_float2_0_1_ =
@@ -378,7 +373,6 @@ void SpirvShaderTranslator::StartTranslation() {
     // vectors instead of scalar arrays because the latter would have padding to
     // 16 bytes in each element.
     id_vector_temp_.clear();
-    id_vector_temp_.reserve(2);
     // 256 bool constants.
     id_vector_temp_.push_back(builder_->makeArrayType(
         type_uint4_, builder_->makeUintConstant(2), sizeof(uint32_t) * 4));
@@ -576,7 +570,6 @@ void SpirvShaderTranslator::StartTranslation() {
   if (has_main_switch) {
     // OpPhi must be the first in the block.
     id_vector_temp_.clear();
-    id_vector_temp_.reserve(4);
     id_vector_temp_.push_back(const_int_0_);
     id_vector_temp_.push_back(main_loop_pre_header.getId());
     main_loop_pc_next_ = builder_->getUniqueId();
@@ -855,7 +848,6 @@ void SpirvShaderTranslator::ProcessLoopStartInstruction(
   EnsureBuildPointAvailable();
 
   id_vector_temp_.clear();
-  id_vector_temp_.reserve(3);
   // Loop constants (member 1).
   id_vector_temp_.push_back(builder_->makeIntConstant(1));
   // 4-component vector.
@@ -882,7 +874,6 @@ void SpirvShaderTranslator::ProcessLoopStartInstruction(
       builder_->createTriOp(spv::OpBitFieldUExtract, type_uint_, loop_constant,
                             const_int_0_, const_int_8);
   id_vector_temp_.clear();
-  id_vector_temp_.reserve(4);
   id_vector_temp_.push_back(loop_count_new);
   for (unsigned int i = 0; i < 3; ++i) {
     id_vector_temp_.push_back(
@@ -897,7 +888,6 @@ void SpirvShaderTranslator::ProcessLoopStartInstruction(
   spv::Id address_relative_stack_old =
       builder_->createLoad(var_main_loop_address_, spv::NoPrecision);
   id_vector_temp_.clear();
-  id_vector_temp_.reserve(4);
   if (instr.is_repeat) {
     id_vector_temp_.emplace_back();
   } else {
@@ -1017,7 +1007,6 @@ void SpirvShaderTranslator::ProcessLoopEndInstruction(
   // Extract the value to add to aL (signed, in bits 16:23 of the loop
   // constant).
   id_vector_temp_.clear();
-  id_vector_temp_.reserve(3);
   // Loop constants (member 1).
   id_vector_temp_.push_back(builder_->makeIntConstant(1));
   // 4-component vector.
@@ -1056,7 +1045,6 @@ void SpirvShaderTranslator::ProcessLoopEndInstruction(
   // Pop the current loop off the loop counter and the relative address stacks -
   // move YZW to XYZ and set W to 0.
   id_vector_temp_.clear();
-  id_vector_temp_.reserve(4);
   for (unsigned int i = 1; i < 4; ++i) {
     id_vector_temp_.push_back(
         builder_->createCompositeExtract(loop_count_stack_old, type_uint_, i));
@@ -1066,7 +1054,6 @@ void SpirvShaderTranslator::ProcessLoopEndInstruction(
       builder_->createCompositeConstruct(type_uint4_, id_vector_temp_),
       var_main_loop_count_);
   id_vector_temp_.clear();
-  id_vector_temp_.reserve(4);
   for (unsigned int i = 1; i < 4; ++i) {
     id_vector_temp_.push_back(builder_->createCompositeExtract(
         address_relative_stack_old, type_int_, i));
@@ -1240,7 +1227,6 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
   // The edge flag isn't used for any purpose by the translator.
   if (current_shader().writes_point_size_edge_flag_kill_vertex() & 0b101) {
     id_vector_temp_.clear();
-    id_vector_temp_.reserve(3);
     // Set the point size to a negative value to tell the point sprite expansion
     // that it should use the default point size if the vertex shader does not
     // override it.
@@ -1475,7 +1461,6 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
                                spv::NoPrecision));
       // Write the index to r0.x as float.
       id_vector_temp_.clear();
-      id_vector_temp_.reserve(2);
       id_vector_temp_.push_back(const_int_0_);
       id_vector_temp_.push_back(const_int_0_);
       builder_->createStore(
@@ -1521,7 +1506,6 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
     // Check if the shader returns XY/W rather than XY, and if it does, revert
     // that.
     uint_vector_temp_.clear();
-    uint_vector_temp_.reserve(2);
     uint_vector_temp_.push_back(0);
     uint_vector_temp_.push_back(1);
     spv::Id position_xy = builder_->createRvalueSwizzle(
@@ -1629,7 +1613,6 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
     // frontFace = VkFrontFace(0), but faceness is ignored for non-polygon
     // primitive types).
     id_vector_temp_.clear();
-    id_vector_temp_.reserve(2);
     id_vector_temp_.push_back(builder_->makeUintConstant(0b10));
     id_vector_temp_.push_back(builder_->makeUintConstant(0b01));
     spv::Id point_vertex_positive = builder_->createBinOp(
@@ -1704,7 +1687,6 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
                             spv::DecorationNoContraction);
     // Expand the point sprite.
     uint_vector_temp_.clear();
-    uint_vector_temp_.reserve(2);
     uint_vector_temp_.push_back(0);
     uint_vector_temp_.push_back(1);
     spv::Id point_position_xy = builder_->createBinOp(
@@ -2139,7 +2121,6 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
       // Saturate to avoid negative point coordinates if the center of the pixel
       // is not covered, and extrapolation is done.
       id_vector_temp_.clear();
-      id_vector_temp_.reserve(3);
       id_vector_temp_.push_back(
           builder_->createLoad(input_point_coordinates_, spv::NoPrecision));
       id_vector_temp_.push_back(const_float2_0_);
@@ -2168,7 +2149,6 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
     }
     // Store the pixel parameters.
     id_vector_temp_.clear();
-    id_vector_temp_.reserve(4);
     id_vector_temp_.push_back(param_gen_x);
     id_vector_temp_.push_back(param_gen_y);
     id_vector_temp_.push_back(param_gen_z);
@@ -2234,7 +2214,6 @@ void SpirvShaderTranslator::UpdateExecConditionals(
   spv::Id condition_id;
   if (type == ParsedExecInstruction::Type::kConditional) {
     id_vector_temp_.clear();
-    id_vector_temp_.reserve(3);
     // Bool constants (member 0).
     id_vector_temp_.push_back(const_int_0_);
     // 128-bit vector.
@@ -2865,7 +2844,6 @@ spv::Id SpirvShaderTranslator::EndianSwap32Uint(spv::Id value, spv::Id endian) {
   spv::Id const_uint_8_typed, const_uint_00ff00ff_typed, const_uint_16_typed;
   int num_components = builder_->getNumTypeComponents(type);
   if (num_components > 1) {
-    id_vector_temp_.reserve(num_components);
     id_vector_temp_.clear();
     id_vector_temp_.insert(id_vector_temp_.cend(), num_components,
                            const_uint_8_scalar);
@@ -2946,7 +2924,6 @@ spv::Id SpirvShaderTranslator::EndianSwap32Uint(spv::Id value, spv::Id endian) {
                                     &block_16in32_merge);
   builder_->setBuildPoint(&block_16in32);
   id_vector_temp_.clear();
-  id_vector_temp_.reserve(4);
   id_vector_temp_.push_back(builder_->createBinOp(
       spv::OpShiftRightLogical, type, value, const_uint_16_typed));
   id_vector_temp_.push_back(value);
@@ -2983,7 +2960,6 @@ spv::Id SpirvShaderTranslator::LoadUint32FromSharedMemory(
   if (!buffer_count_log2) {
     // Single binding - load directly.
     id_vector_temp_.clear();
-    id_vector_temp_.reserve(2);
     // The only SSBO struct member.
     id_vector_temp_.push_back(const_int_0_);
     id_vector_temp_.push_back(address_dwords_int);
@@ -3034,7 +3010,6 @@ spv::Id SpirvShaderTranslator::LoadUint32FromSharedMemory(
   for (uint32_t i = 0; i < buffer_count; ++i) {
     builder_->setBuildPoint(switch_case_blocks[i]);
     id_vector_temp_.clear();
-    id_vector_temp_.reserve(3);
     id_vector_temp_.push_back(builder_->makeIntConstant(int(i)));
     // The only SSBO struct member.
     id_vector_temp_.push_back(const_int_0_);
@@ -3068,7 +3043,6 @@ spv::Id SpirvShaderTranslator::PWLGammaToLinear(spv::Id gamma,
   if (!gamma_pre_saturated) {
     // Saturate, flushing NaN to 0.
     id_vector_temp_.clear();
-    id_vector_temp_.reserve(3);
     id_vector_temp_.push_back(gamma);
     id_vector_temp_.push_back(const_vector_0);
     id_vector_temp_.push_back(const_vector_1);
@@ -3166,7 +3140,6 @@ spv::Id SpirvShaderTranslator::LinearToPWLGamma(spv::Id linear,
   if (!linear_pre_saturated) {
     // Saturate, flushing NaN to 0.
     id_vector_temp_.clear();
-    id_vector_temp_.reserve(3);
     id_vector_temp_.push_back(linear);
     id_vector_temp_.push_back(const_vector_0);
     id_vector_temp_.push_back(const_vector_1);
