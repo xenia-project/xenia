@@ -195,7 +195,6 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
         // Extract the different components, if not all are different.
         if (multiplicands_different != used_result_components) {
           uint_vector_temp_.clear();
-          uint_vector_temp_.reserve(different_count);
           uint32_t components_remaining = used_result_components;
           for (uint32_t i = 0; i < used_result_component_count; ++i) {
             uint32_t component;
@@ -231,7 +230,6 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
                                                      instr.vector_operands[i]);
         }
         id_vector_temp_.clear();
-        id_vector_temp_.reserve(2);
         id_vector_temp_.push_back(different_operands[0]);
         id_vector_temp_.push_back(different_operands[1]);
         spv::Id different_abs_min =
@@ -315,7 +313,6 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
             builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
                                         GLSLstd450Floor, id_vector_temp_);
         id_vector_temp_.clear();
-        id_vector_temp_.reserve(3);
         id_vector_temp_.push_back(maxa_address);
         id_vector_temp_.push_back(builder_->makeFloatConstant(-256.0f));
         id_vector_temp_.push_back(builder_->makeFloatConstant(255.0f));
@@ -346,7 +343,6 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
         if (used_result_component_count > 1) {
           // Need all but the last (W) element of operand_0 as a vector.
           uint_vector_temp_.clear();
-          uint_vector_temp_.reserve(used_result_component_count);
           for (unsigned int i = 0; i < used_result_component_count; ++i) {
             uint_vector_temp_.push_back(i);
           }
@@ -390,7 +386,6 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       // Mixed identical and different components.
       assert_true(used_result_component_count > 1);
       id_vector_temp_.clear();
-      id_vector_temp_.reserve(used_result_component_count);
       uint32_t components_remaining = used_result_components;
       for (uint32_t i = 0; i < used_result_component_count; ++i) {
         // Composite extraction of operand_0[i] works fine even it's maxa with
@@ -695,7 +690,6 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       builder_->setBuildPoint(ma_merge_block);
       // Choose the result options from Z and YX cases.
       id_vector_temp_.clear();
-      id_vector_temp_.reserve(used_result_component_count);
       for (uint32_t i = 0; i < 4; ++i) {
         if (!(used_result_components & (1 << i))) {
           continue;
@@ -753,7 +747,6 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       while (xe::bit_scan_forward(components_remaining, &component)) {
         components_remaining &= ~(uint32_t(1) << component);
         id_vector_temp_.clear();
-        id_vector_temp_.reserve(2);
         id_vector_temp_.push_back(result);
         id_vector_temp_.push_back(builder_->createCompositeExtract(
             operand, type_float_, static_cast<unsigned int>(component)));
@@ -895,7 +888,6 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
         }
       }
       id_vector_temp_.clear();
-      id_vector_temp_.reserve(used_result_component_count);
       if (used_result_components & 0b0001) {
         // x = 1.0
         id_vector_temp_.push_back(const_float_1_);
@@ -1171,7 +1163,6 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
             builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
                                         GLSLstd450Floor, id_vector_temp_);
         id_vector_temp_.clear();
-        id_vector_temp_.reserve(3);
         id_vector_temp_.push_back(maxa_address);
         id_vector_temp_.push_back(builder_->makeFloatConstant(-256.0f));
         id_vector_temp_.push_back(builder_->makeFloatConstant(255.0f));
