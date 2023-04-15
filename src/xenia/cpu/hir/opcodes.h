@@ -248,9 +248,7 @@ enum Opcode {
   OPCODE_MUL_HI,  // TODO(benvanik): remove this and add INT128 type.
   OPCODE_DIV,
   OPCODE_MUL_ADD,
-  OPCODE_NEGATED_MUL_ADD,
   OPCODE_MUL_SUB,
-  OPCODE_NEGATED_MUL_SUB,
   OPCODE_NEG,
   OPCODE_ABS,
   OPCODE_SQRT,
@@ -292,7 +290,10 @@ enum Opcode {
                      // as we already have OPCODE_ROUND. round double to float (
                      // ppc "single" fpu instruction result rounding behavior )
   OPCODE_SET_NJM,
-	OPCODE_DELAY_EXECUTION, //for db16cyc
+  OPCODE_DELAY_EXECUTION,  // for db16cyc
+  OPCODE_RESERVED_LOAD,
+  OPCODE_RESERVED_STORE,
+
   __OPCODE_MAX_VALUE,  // Keep at end.
 };
 

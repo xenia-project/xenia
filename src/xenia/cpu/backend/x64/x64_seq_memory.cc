@@ -387,7 +387,6 @@ struct LVL_V128 : Sequence<LVL_V128, I<OPCODE_LVL, V128Op, I64Op>> {
 };
 EMITTER_OPCODE_TABLE(OPCODE_LVL, LVL_V128);
 
-
 struct LVR_V128 : Sequence<LVR_V128, I<OPCODE_LVR, V128Op, I64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     Xbyak::Label endpoint{};
@@ -483,6 +482,84 @@ struct STVR_V128 : Sequence<STVR_V128, I<OPCODE_STVR, VoidOp, I64Op, V128Op>> {
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_STVR, STVR_V128);
+
+struct RESERVED_LOAD_INT32
+    : Sequence<RESERVED_LOAD_INT32, I<OPCODE_RESERVED_LOAD, I32Op, I64Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    // should use phys addrs, not virtual addrs!
+
+    // try_acquire_reservation_helper_ doesnt spoil rax
+    e.lea(e.rax, e.ptr[ComputeMemoryAddress(e, i.src1)]);
+    // begin acquiring exclusive access to the location
+    // we will do a load first, but we'll need exclusive access once we do our
+    // atomic op in the store
+    e.prefetchw(e.ptr[e.rax]);
+    e.mov(e.ecx, i.src1.reg().cvt32());
+    e.call(e.backend()->try_acquire_reservation_helper_);
+    e.mov(i.dest, e.dword[e.rax]);
+
+    e.mov(
+        e.GetBackendCtxPtr(offsetof(X64BackendContext, cached_reserve_value_)),
+        i.dest.reg().cvt64());
+  }
+};
+
+struct RESERVED_LOAD_INT64
+    : Sequence<RESERVED_LOAD_INT64, I<OPCODE_RESERVED_LOAD, I64Op, I64Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    // try_acquire_reservation_helper_ doesnt spoil rax
+    e.lea(e.rax, e.ptr[ComputeMemoryAddress(e, i.src1)]);
+    e.mov(e.ecx, i.src1.reg().cvt32());
+    // begin acquiring exclusive access to the location
+    // we will do a load first, but we'll need exclusive access once we do our
+    // atomic op in the store
+    e.prefetchw(e.ptr[e.rax]);
+
+    e.call(e.backend()->try_acquire_reservation_helper_);
+    e.mov(i.dest, e.qword[ComputeMemoryAddress(e, i.src1)]);
+
+    e.mov(
+        e.GetBackendCtxPtr(offsetof(X64BackendContext, cached_reserve_value_)),
+        i.dest.reg());
+  }
+};
+
+EMITTER_OPCODE_TABLE(OPCODE_RESERVED_LOAD, RESERVED_LOAD_INT32,
+                     RESERVED_LOAD_INT64);
+
+// address, value
+
+struct RESERVED_STORE_INT32
+    : Sequence<RESERVED_STORE_INT32,
+               I<OPCODE_RESERVED_STORE, I8Op, I64Op, I32Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    // edx=guest addr
+    // r9 = host addr
+    // r8 = value
+    // if ZF is set and CF is set, we succeeded
+    e.mov(e.ecx, i.src1.reg().cvt32());
+    e.lea(e.r9, e.ptr[ComputeMemoryAddress(e, i.src1)]);
+    e.mov(e.r8d, i.src2);
+    e.call(e.backend()->reserved_store_32_helper);
+    e.setz(i.dest);
+  }
+};
+
+struct RESERVED_STORE_INT64
+    : Sequence<RESERVED_STORE_INT64,
+               I<OPCODE_RESERVED_STORE, I8Op, I64Op, I64Op>> {
+  static void Emit(X64Emitter& e, const EmitArgType& i) {
+    e.mov(e.ecx, i.src1.reg().cvt32());
+    e.lea(e.r9, e.ptr[ComputeMemoryAddress(e, i.src1)]);
+    e.mov(e.r8, i.src2);
+    e.call(e.backend()->reserved_store_64_helper);
+    e.setz(i.dest);
+  }
+};
+
+EMITTER_OPCODE_TABLE(OPCODE_RESERVED_STORE, RESERVED_STORE_INT32,
+                     RESERVED_STORE_INT64);
+
 // ============================================================================
 // OPCODE_ATOMIC_COMPARE_EXCHANGE
 // ============================================================================

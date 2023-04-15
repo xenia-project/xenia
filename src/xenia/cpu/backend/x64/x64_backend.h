@@ -42,6 +42,17 @@ typedef void* (*HostToGuestThunk)(void* target, void* arg0, void* arg1);
 typedef void* (*GuestToHostThunk)(void* target, void* arg0, void* arg1);
 typedef void (*ResolveFunctionThunk)();
 
+#define RESERVE_BLOCK_SHIFT 16
+
+#define RESERVE_NUM_ENTRIES \
+  ((1024ULL * 1024ULL * 1024ULL * 4ULL) >> RESERVE_BLOCK_SHIFT)
+// https://codalogic.com/blog/2022/12/06/Exploring-PowerPCs-read-modify-write-operations
+struct ReserveHelper {
+  uint64_t blocks[RESERVE_NUM_ENTRIES / 64];
+
+  ReserveHelper() { memset(blocks, 0, sizeof(blocks)); }
+};
+
 struct X64BackendStackpoint {
   uint64_t host_stack_;
   unsigned guest_stack_;
@@ -55,16 +66,21 @@ struct X64BackendStackpoint {
 // context (somehow placing a global X64BackendCtx prior to membase, so we can
 // negatively index the membase reg)
 struct X64BackendContext {
+  ReserveHelper* reserve_helper_;
+  uint64_t cached_reserve_value_;
   // guest_tick_count is used if inline_loadclock is used
   uint64_t* guest_tick_count;
   // records mapping of host_stack to guest_stack
   X64BackendStackpoint* stackpoints;
-
+  uint64_t cached_reserve_offset;
+  uint32_t cached_reserve_bit;
   unsigned int current_stackpoint_depth;
   unsigned int mxcsr_fpu;  // currently, the way we implement rounding mode
                            // affects both vmx and the fpu
   unsigned int mxcsr_vmx;
-  unsigned int flags;   // bit 0 = 0 if mxcsr is fpu, else it is vmx
+  // bit 0 = 0 if mxcsr is fpu, else it is vmx
+  // bit 1 = got reserve
+  unsigned int flags;
   unsigned int Ox1000;  // constant 0x1000 so we can shrink each tail emitted
                         // add of it by... 2 bytes lol
 };
@@ -152,9 +168,18 @@ class X64Backend : public Backend {
   void* synchronize_guest_and_host_stack_helper_size8_ = nullptr;
   void* synchronize_guest_and_host_stack_helper_size16_ = nullptr;
   void* synchronize_guest_and_host_stack_helper_size32_ = nullptr;
+
+ public:
+  void* try_acquire_reservation_helper_ = nullptr;
+  void* reserved_store_32_helper = nullptr;
+  void* reserved_store_64_helper = nullptr;
+
+ private:
 #if XE_X64_PROFILER_AVAILABLE == 1
   GuestProfilerData profiler_data_;
 #endif
+
+  alignas(64) ReserveHelper reserve_helper_;
 };
 
 }  // namespace x64

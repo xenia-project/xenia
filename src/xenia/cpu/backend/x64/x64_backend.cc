@@ -70,6 +70,9 @@ class X64HelperEmitter : public X64Emitter {
   void* EmitGuestAndHostSynchronizeStackSizeLoadThunk(
       void* sync_func, unsigned stack_element_size);
 
+  void* EmitTryAcquireReservationHelper();
+  void* EmitReservedStoreHelper(bool bit64 = false);
+
  private:
   void* EmitCurrentForOffsets(const _code_offsets& offsets,
                               size_t stack_size = 0);
@@ -226,6 +229,10 @@ bool X64Backend::Initialize(Processor* processor) {
         thunk_emitter.EmitGuestAndHostSynchronizeStackSizeLoadThunk(
             synchronize_guest_and_host_stack_helper_, 4);
   }
+  try_acquire_reservation_helper_ =
+      thunk_emitter.EmitTryAcquireReservationHelper();
+  reserved_store_32_helper = thunk_emitter.EmitReservedStoreHelper(false);
+  reserved_store_64_helper = thunk_emitter.EmitReservedStoreHelper(true);
 
   // Set the code cache to use the ResolveFunction thunk for default
   // indirections.
@@ -799,7 +806,7 @@ void* X64HelperEmitter::EmitGuestAndHostSynchronizeStackHelper() {
   inc(ecx);
   jmp(checkbp, T_NEAR);
   L(we_good);
-  //we're popping this return address, so go down by one
+  // we're popping this return address, so go down by one
   sub(edx, sizeof(X64BackendStackpoint));
   dec(ecx);
   L(checkbp);
@@ -857,6 +864,123 @@ void* X64HelperEmitter::EmitGuestAndHostSynchronizeStackSizeLoadThunk(
   code_offsets.tail = getSize();
   return EmitCurrentForOffsets(code_offsets);
 }
+void* X64HelperEmitter::EmitTryAcquireReservationHelper() {
+  _code_offsets code_offsets = {};
+  code_offsets.prolog = getSize();
+
+  Xbyak::Label already_has_a_reservation;
+  Xbyak::Label acquire_new_reservation;
+
+  btr(GetBackendFlagsPtr(), 1);
+  mov(r8, GetBackendCtxPtr(offsetof(X64BackendContext, reserve_helper_)));
+  jc(already_has_a_reservation);
+
+  shr(ecx, RESERVE_BLOCK_SHIFT);
+  xor_(r9d, r9d);
+  mov(edx, ecx);
+  shr(edx, 6);  // divide by 64
+  lea(rdx, ptr[r8 + rdx * 8]);
+  and_(ecx, 64 - 1);
+
+  lock();
+  bts(qword[rdx], rcx);
+  // DebugBreak();
+  // set flag on local backend context for thread to indicate our previous
+  // attempt to get the reservation succeeded
+  setnc(r9b);  // success = bitmap did not have a set bit at the idx
+  shl(r9b, 1);
+
+  mov(GetBackendCtxPtr(offsetof(X64BackendContext, cached_reserve_offset)),
+      rdx);
+  mov(GetBackendCtxPtr(offsetof(X64BackendContext, cached_reserve_bit)), ecx);
+
+  or_(GetBackendCtxPtr(offsetof(X64BackendContext, flags)), r9d);
+  ret();
+  L(already_has_a_reservation);
+  DebugBreak();
+
+  code_offsets.prolog_stack_alloc = getSize();
+  code_offsets.body = getSize();
+  code_offsets.epilog = getSize();
+  code_offsets.tail = getSize();
+  return EmitCurrentForOffsets(code_offsets);
+}
+// ecx=guest addr
+// r9 = host addr
+// r8 = value
+// if ZF is set and CF is set, we succeeded
+void* X64HelperEmitter::EmitReservedStoreHelper(bool bit64) {
+  _code_offsets code_offsets = {};
+  code_offsets.prolog = getSize();
+  Xbyak::Label done;
+  Xbyak::Label reservation_isnt_for_our_addr;
+  // carry must be set + zero flag must be set
+
+  btr(GetBackendFlagsPtr(), 1);
+
+  jnc(done);
+
+  // mov(edx, i.src1.reg().cvt32());
+  mov(rax, GetBackendCtxPtr(offsetof(X64BackendContext, reserve_helper_)));
+
+  shr(ecx, RESERVE_BLOCK_SHIFT);
+  mov(edx, ecx);
+  shr(edx, 6);  // divide by 64
+  lea(rdx, ptr[rax + rdx * 8]);
+  // begin acquiring exclusive access to cacheline containing our bit
+  prefetchw(ptr[rdx]);
+
+  cmp(GetBackendCtxPtr(offsetof(X64BackendContext, cached_reserve_offset)),
+      rdx);
+  jnz(reservation_isnt_for_our_addr);
+
+  mov(rax,
+      GetBackendCtxPtr(offsetof(X64BackendContext, cached_reserve_value_)));
+
+  // we need modulo bitsize, it turns out bittests' modulus behavior for the
+  // bitoffset only applies for register operands, for memory ones we bug out
+  // todo: actually, the above note may not be true, double check it
+  and_(ecx, 64 - 1);
+  cmp(GetBackendCtxPtr(offsetof(X64BackendContext, cached_reserve_bit)), ecx);
+  jnz(reservation_isnt_for_our_addr);
+
+  // was our memory modified by kernel code or something?
+  lock();
+  if (bit64) {
+    cmpxchg(ptr[r9], r8);
+
+  } else {
+    cmpxchg(ptr[r9], r8d);
+  }
+  // the ZF flag is unaffected by BTR! we exploit this for the retval
+
+  // cancel our lock on the 65k block
+  lock();
+  btr(qword[rdx], rcx);
+
+  // Xbyak::Label check_fucky;
+  jc(done);
+  DebugBreak();
+
+  // L(check_fucky);
+
+  L(done);
+
+  // i don't care that theres a dependency on the prev value of rax atm
+  // sadly theres no CF&ZF condition code
+  setz(al);
+  setc(ah);
+  cmp(ax, 0x0101);
+  ret();
+  L(reservation_isnt_for_our_addr);
+  DebugBreak();
+  code_offsets.prolog_stack_alloc = getSize();
+  code_offsets.body = getSize();
+  code_offsets.epilog = getSize();
+  code_offsets.tail = getSize();
+  return EmitCurrentForOffsets(code_offsets);
+}
+
 void X64HelperEmitter::EmitSaveVolatileRegs() {
   // Save off volatile registers.
   // mov(qword[rsp + offsetof(StackLayout::Thunk, r[0])], rax);
@@ -975,6 +1099,7 @@ void X64Backend::InitializeBackendContext(void* ctx) {
   // https://media.discordapp.net/attachments/440280035056943104/1000765256643125308/unknown.png
   bctx->Ox1000 = 0x1000;
   bctx->guest_tick_count = Clock::GetGuestTickCountPointer();
+  bctx->reserve_helper_ = &reserve_helper_;
 }
 void X64Backend::DeinitializeBackendContext(void* ctx) {
   X64BackendContext* bctx = BackendContextForGuestContext(ctx);

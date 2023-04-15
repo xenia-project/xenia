@@ -195,8 +195,8 @@ int InstrEmit_fmsubsx(PPCHIRBuilder& f, const InstrData& i) {
 
 int InstrEmit_fnmaddx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- -([frA x frC] + frB)
-  Value* v = f.NegatedMulAdd(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC),
-                             f.LoadFPR(i.A.FRB));
+  Value* v = f.Neg(
+      f.MulAdd(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB)));
   f.StoreFPR(i.A.FRT, v);
   f.UpdateFPSCR(v, i.A.Rc);
   return 0;
@@ -204,8 +204,8 @@ int InstrEmit_fnmaddx(PPCHIRBuilder& f, const InstrData& i) {
 
 int InstrEmit_fnmaddsx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- -([frA x frC] + frB)
-  Value* v = f.NegatedMulAdd(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC),
-                             f.LoadFPR(i.A.FRB));
+  Value* v = f.Neg(
+      f.MulAdd(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB)));
   v = f.ToSingle(v);
   f.StoreFPR(i.A.FRT, v);
   f.UpdateFPSCR(v, i.A.Rc);
@@ -214,8 +214,8 @@ int InstrEmit_fnmaddsx(PPCHIRBuilder& f, const InstrData& i) {
 
 int InstrEmit_fnmsubx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- -([frA x frC] - frB)
-  Value* v = f.NegatedMulSub(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC),
-                             f.LoadFPR(i.A.FRB));
+  Value* v = f.Neg(
+      f.MulSub(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB)));
   f.StoreFPR(i.A.FRT, v);
   f.UpdateFPSCR(v, i.A.Rc);
   return 0;
@@ -223,8 +223,8 @@ int InstrEmit_fnmsubx(PPCHIRBuilder& f, const InstrData& i) {
 
 int InstrEmit_fnmsubsx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- -([frA x frC] - frB)
-  Value* v = f.NegatedMulSub(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC),
-                             f.LoadFPR(i.A.FRB));
+  Value* v = f.Neg(
+      f.MulSub(f.LoadFPR(i.A.FRA), f.LoadFPR(i.A.FRC), f.LoadFPR(i.A.FRB)));
   v = f.ToSingle(v);
   f.StoreFPR(i.A.FRT, v);
   f.UpdateFPSCR(v, i.A.Rc);
@@ -444,13 +444,12 @@ int InstrEmit_fabsx(PPCHIRBuilder& f, const InstrData& i) {
   f.StoreFPR(i.X.RT, v);
   /*
   The contents of frB with bit 0 cleared are placed into frD.
-Note that the fabs instruction treats NaNs just like any other kind of value. That is, the sign
-bit of a NaN may be altered by fabs. This instruction does not alter the FPSCR.
-Other registers altered:
-• Condition Register (CR1 field):
+Note that the fabs instruction treats NaNs just like any other kind of value.
+That is, the sign bit of a NaN may be altered by fabs. This instruction does not
+alter the FPSCR. Other registers altered: • Condition Register (CR1 field):
 Affected: FX, FEX, VX, OX (if Rc = 1)
   */
- // f.UpdateFPSCR(v, i.X.Rc);
+  // f.UpdateFPSCR(v, i.X.Rc);
   if (i.X.Rc) {
     // todo
   }
@@ -469,9 +468,9 @@ int InstrEmit_fnabsx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- !abs(frB)
   Value* v = f.Neg(f.Abs(f.LoadFPR(i.X.RB)));
   f.StoreFPR(i.X.RT, v);
-  //f.UpdateFPSCR(v, i.X.Rc);
+  // f.UpdateFPSCR(v, i.X.Rc);
   if (i.X.Rc) {
-	//todo
+    // todo
   }
   return 0;
 }
@@ -480,9 +479,9 @@ int InstrEmit_fnegx(PPCHIRBuilder& f, const InstrData& i) {
   // frD <- ¬ frB[0] || frB[1-63]
   Value* v = f.Neg(f.LoadFPR(i.X.RB));
   f.StoreFPR(i.X.RT, v);
-  //f.UpdateFPSCR(v, i.X.Rc);
+  // f.UpdateFPSCR(v, i.X.Rc);
   if (i.X.Rc) {
-	//todo
+    // todo
   }
   return 0;
 }
