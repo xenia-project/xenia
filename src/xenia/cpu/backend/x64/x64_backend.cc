@@ -864,6 +864,7 @@ void* X64HelperEmitter::EmitGuestAndHostSynchronizeStackSizeLoadThunk(
   code_offsets.tail = getSize();
   return EmitCurrentForOffsets(code_offsets);
 }
+
 void* X64HelperEmitter::EmitTryAcquireReservationHelper() {
   _code_offsets code_offsets = {};
   code_offsets.prolog = getSize();
@@ -884,7 +885,6 @@ void* X64HelperEmitter::EmitTryAcquireReservationHelper() {
 
   lock();
   bts(qword[rdx], rcx);
-  // DebugBreak();
   // set flag on local backend context for thread to indicate our previous
   // attempt to get the reservation succeeded
   setnc(r9b);  // success = bitmap did not have a set bit at the idx
@@ -914,13 +914,13 @@ void* X64HelperEmitter::EmitReservedStoreHelper(bool bit64) {
   code_offsets.prolog = getSize();
   Xbyak::Label done;
   Xbyak::Label reservation_isnt_for_our_addr;
+  Xbyak::Label somehow_double_cleared;
   // carry must be set + zero flag must be set
 
   btr(GetBackendFlagsPtr(), 1);
 
   jnc(done);
 
-  // mov(edx, i.src1.reg().cvt32());
   mov(rax, GetBackendCtxPtr(offsetof(X64BackendContext, reserve_helper_)));
 
   shr(ecx, RESERVE_BLOCK_SHIFT);
@@ -958,22 +958,24 @@ void* X64HelperEmitter::EmitReservedStoreHelper(bool bit64) {
   lock();
   btr(qword[rdx], rcx);
 
-  // Xbyak::Label check_fucky;
-  jc(done);
-  DebugBreak();
-
-  // L(check_fucky);
+  jnc(somehow_double_cleared);
 
   L(done);
-
   // i don't care that theres a dependency on the prev value of rax atm
   // sadly theres no CF&ZF condition code
   setz(al);
   setc(ah);
   cmp(ax, 0x0101);
   ret();
+
+  // could be the same label, but otherwise we don't know where we came from
+  // when one gets triggered
   L(reservation_isnt_for_our_addr);
   DebugBreak();
+
+  L(somehow_double_cleared);  // somehow, something else cleared our reserve??
+  DebugBreak();
+
   code_offsets.prolog_stack_alloc = getSize();
   code_offsets.body = getSize();
   code_offsets.epilog = getSize();
