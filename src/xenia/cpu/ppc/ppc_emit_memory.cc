@@ -22,6 +22,12 @@ DEFINE_bool(
     "instructions were written with the Xbox 360's cache in mind, and modern "
     "processors do their own automatic prefetching.",
     "CPU");
+
+DEFINE_bool(no_reserved_ops, false,
+            "For testing whether a game may have races with a broken reserved "
+            "load/store impl",
+            "CPU");
+
 namespace xe {
 namespace cpu {
 namespace ppc {
@@ -772,12 +778,17 @@ int InstrEmit_ldarx(PPCHIRBuilder& f, const InstrData& i) {
   // already, but I haven't see anything but interrupt callbacks (which are
   // always under a global lock) do that yet.
   // We issue a memory barrier here to make sure that we get good values.
-  f.MemoryBarrier();
-
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
-  Value* rt = f.ByteSwap(f.Load(ea, INT64_TYPE));
-  f.StoreReserved(rt);
-  f.StoreGPR(i.X.RT, rt);
+
+  if (cvars::no_reserved_ops) {
+    f.StoreGPR(i.X.RT, f.ByteSwap(f.Load(ea, INT64_TYPE)));
+
+  } else {
+    f.MemoryBarrier();
+
+    Value* rt = f.ByteSwap(f.LoadWithReserve(ea, INT64_TYPE));
+    f.StoreGPR(i.X.RT, rt);
+  }
   return 0;
 }
 
@@ -797,12 +808,19 @@ int InstrEmit_lwarx(PPCHIRBuilder& f, const InstrData& i) {
   // already, but I haven't see anything but interrupt callbacks (which are
   // always under a global lock) do that yet.
   // We issue a memory barrier here to make sure that we get good values.
-  f.MemoryBarrier();
 
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
-  Value* rt = f.ZeroExtend(f.ByteSwap(f.Load(ea, INT32_TYPE)), INT64_TYPE);
-  f.StoreReserved(rt);
-  f.StoreGPR(i.X.RT, rt);
+  if (cvars::no_reserved_ops) {
+    f.StoreGPR(i.X.RT,
+               f.ZeroExtend(f.ByteSwap(f.Load(ea, INT32_TYPE)), INT64_TYPE));
+
+  } else {
+    f.MemoryBarrier();
+
+    Value* rt =
+        f.ZeroExtend(f.ByteSwap(f.LoadWithReserve(ea, INT32_TYPE)), INT64_TYPE);
+    f.StoreGPR(i.X.RT, rt);
+  }
   return 0;
 }
 
@@ -826,17 +844,24 @@ int InstrEmit_stdcx(PPCHIRBuilder& f, const InstrData& i) {
 
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
   Value* rt = f.ByteSwap(f.LoadGPR(i.X.RT));
-  Value* res = f.ByteSwap(f.LoadReserved());
-  Value* v = f.AtomicCompareExchange(ea, res, rt);
-  f.StoreContext(offsetof(PPCContext, cr0.cr0_eq), v);
+
+  if (cvars::no_reserved_ops) {
+    f.Store(ea, rt);
+
+    f.StoreContext(offsetof(PPCContext, cr0.cr0_eq), f.LoadConstantInt8(1));
+  } else {
+    Value* v = f.StoreWithReserve(ea, rt, INT64_TYPE);
+
+    f.StoreContext(offsetof(PPCContext, cr0.cr0_eq), v);
+  }
   f.StoreContext(offsetof(PPCContext, cr0.cr0_lt), f.LoadZeroInt8());
   f.StoreContext(offsetof(PPCContext, cr0.cr0_gt), f.LoadZeroInt8());
 
   // Issue memory barrier for when we go out of lock and want others to see our
   // updates.
-
-  f.MemoryBarrier();
-
+  if (!cvars::no_reserved_ops) {
+    f.MemoryBarrier();
+  }
   return 0;
 }
 
@@ -859,20 +884,29 @@ int InstrEmit_stwcx(PPCHIRBuilder& f, const InstrData& i) {
   // This will always succeed if under the global lock, however.
 
   Value* ea = CalculateEA_0(f, i.X.RA, i.X.RB);
+
   Value* rt = f.ByteSwap(f.Truncate(f.LoadGPR(i.X.RT), INT32_TYPE));
-  Value* res = f.ByteSwap(f.Truncate(f.LoadReserved(), INT32_TYPE));
-  Value* v = f.AtomicCompareExchange(ea, res, rt);
-  f.StoreContext(offsetof(PPCContext, cr0.cr0_eq), v);
+
+  if (cvars::no_reserved_ops) {
+    f.Store(ea, rt);
+
+    f.StoreContext(offsetof(PPCContext, cr0.cr0_eq), f.LoadConstantInt8(1));
+  } else {
+    Value* v = f.StoreWithReserve(ea, rt, INT64_TYPE);
+    f.StoreContext(offsetof(PPCContext, cr0.cr0_eq), v);
+  }
+
   f.StoreContext(offsetof(PPCContext, cr0.cr0_lt), f.LoadZeroInt8());
   f.StoreContext(offsetof(PPCContext, cr0.cr0_gt), f.LoadZeroInt8());
 
   // Issue memory barrier for when we go out of lock and want others to see our
   // updates.
-  f.MemoryBarrier();
+  if (!cvars::no_reserved_ops) {
+    f.MemoryBarrier();
+  }
 
   return 0;
 }
-
 // Floating-point load (A-19)
 
 int InstrEmit_lfd(PPCHIRBuilder& f, const InstrData& i) {

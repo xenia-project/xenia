@@ -1281,6 +1281,25 @@ Value* HIRBuilder::Load(Value* address, TypeName type, uint32_t load_flags) {
   return i->dest;
 }
 
+Value* HIRBuilder::LoadWithReserve(Value* address, TypeName type) {
+  ASSERT_ADDRESS_TYPE(address);
+
+  Instr* i = AppendInstr(OPCODE_RESERVED_LOAD_info, 0, AllocValue(type));
+  i->set_src1(address);
+  i->src2.value = i->src3.value = NULL;
+
+  return i->dest;
+}
+
+Value* HIRBuilder::StoreWithReserve(Value* address, Value* value,
+                                    TypeName type) {
+  ASSERT_ADDRESS_TYPE(address);
+  Instr* i = AppendInstr(OPCODE_RESERVED_STORE_info, 0, AllocValue(INT8_TYPE));
+  i->set_src1(address);
+  i->set_src2(value);
+  i->src3.value = NULL;
+  return i->dest;
+}
 void HIRBuilder::Store(Value* address, Value* value, uint32_t store_flags) {
   ASSERT_ADDRESS_TYPE(address);
   Instr* i = AppendInstr(OPCODE_STORE_info, store_flags);
@@ -1733,30 +1752,6 @@ Value* HIRBuilder::MulSub(Value* value1, Value* value2, Value* value3) {
   ASSERT_TYPES_EQUAL(value1, value3);
 
   Instr* i = AppendInstr(OPCODE_MUL_SUB_info, 0, AllocValue(value1->type));
-  i->set_src1(value1);
-  i->set_src2(value2);
-  i->set_src3(value3);
-  return i->dest;
-}
-
-Value* HIRBuilder::NegatedMulAdd(Value* value1, Value* value2, Value* value3) {
-  ASSERT_TYPES_EQUAL(value1, value2);
-  ASSERT_TYPES_EQUAL(value1, value3);
-
-  Instr* i =
-      AppendInstr(OPCODE_NEGATED_MUL_ADD_info, 0, AllocValue(value1->type));
-  i->set_src1(value1);
-  i->set_src2(value2);
-  i->set_src3(value3);
-  return i->dest;
-}
-
-Value* HIRBuilder::NegatedMulSub(Value* value1, Value* value2, Value* value3) {
-  ASSERT_TYPES_EQUAL(value1, value2);
-  ASSERT_TYPES_EQUAL(value1, value3);
-
-  Instr* i =
-      AppendInstr(OPCODE_NEGATED_MUL_SUB_info, 0, AllocValue(value1->type));
   i->set_src1(value1);
   i->set_src2(value2);
   i->set_src3(value3);

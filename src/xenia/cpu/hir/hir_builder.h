@@ -189,6 +189,9 @@ class HIRBuilder {
                    uint32_t store_flags = 0);
 
   Value* Load(Value* address, TypeName type, uint32_t load_flags = 0);
+  // create a reserve on an address,
+  Value* LoadWithReserve(Value* address, TypeName type);
+  Value* StoreWithReserve(Value* address, Value* value, TypeName type);
 
   Value* LoadVectorLeft(Value* address);
   Value* LoadVectorRight(Value* address);
@@ -242,10 +245,7 @@ class HIRBuilder {
   Value* Div(Value* value1, Value* value2, uint32_t arithmetic_flags = 0);
   Value* MulAdd(Value* value1, Value* value2, Value* value3);  // (1 * 2) + 3
   Value* MulSub(Value* value1, Value* value2, Value* value3);  // (1 * 2) - 3
-  Value* NegatedMulAdd(Value* value1, Value* value2,
-                       Value* value3);  // -((1 * 2) + 3)
-  Value* NegatedMulSub(Value* value1, Value* value2,
-                       Value* value3);  // -((1 * 2) - 3)
+
   Value* Neg(Value* value);
   Value* Abs(Value* value);
   Value* Sqrt(Value* value);

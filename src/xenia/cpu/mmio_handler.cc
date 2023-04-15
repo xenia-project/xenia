@@ -185,7 +185,7 @@ bool MMIOHandler::TryDecodeLoadStore(const uint8_t* p,
   uint8_t rex_b = rex & 0b0001;
   uint8_t rex_x = rex & 0b0010;
   uint8_t rex_r = rex & 0b0100;
-  //uint8_t rex_w = rex & 0b1000;
+  // uint8_t rex_w = rex & 0b1000;
 
   // http://www.sandpile.org/x86/opc_rm.htm
   // http://www.sandpile.org/x86/opc_sib.htm
@@ -448,6 +448,7 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
     if (cur_access != memory::PageAccess::kNoAccess &&
         (!is_write || cur_access != memory::PageAccess::kReadOnly)) {
       // Another thread has cleared this watch. Abort.
+      XELOGD("Race condition on watch, was already cleared by another thread!");
       return true;
     }
     // The address is not found within any range, so either a write watch or an

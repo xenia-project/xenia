@@ -1143,7 +1143,7 @@ int InstrEmit_vnmsubfp_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb,
   Value* b = f.VectorDenormFlush(f.LoadVR(vb));
   Value* c = f.VectorDenormFlush(f.LoadVR(vc));
 
-  Value* v = f.NegatedMulSub(a, c, b);
+  Value* v = f.Neg(f.MulSub(a, c, b));
   f.StoreVR(vd, v);
   return 0;
 }
