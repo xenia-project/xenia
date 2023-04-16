@@ -686,6 +686,16 @@ dword_result_t XeKeysHmacShaUsingKey_entry(lpvoid_t obscured_key,
 }
 DECLARE_XBOXKRNL_EXPORT1(XeKeysHmacShaUsingKey, kNone, kImplemented);
 
+//going off of usage in some hbrew xex
+//0 and 1 appear to be devkit, 2 is retail
+//we default to saying we're retail
+dword_result_t XeKeysGetConsoleType_entry(lpdword_t type_out) { 
+	*type_out = 2; 
+	return 0;
+}
+
+DECLARE_XBOXKRNL_EXPORT1(XeKeysGetConsoleType, kNone, kImplemented);
+
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
