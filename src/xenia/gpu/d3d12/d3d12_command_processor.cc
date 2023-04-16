@@ -24,6 +24,7 @@
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/registers.h"
 #include "xenia/gpu/xenos.h"
+#include "xenia/gpu/packet_disassembler.h"
 #include "xenia/ui/d3d12/d3d12_presenter.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
 
@@ -1816,6 +1817,7 @@ void D3D12CommandProcessor::WriteRegisterForceinline(uint32_t index,
 }
 // todo: bit-pack the bools and use bitarith to reduce branches
 void D3D12CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
+  LogRegisterSet(index, value);
   WriteRegisterForceinline(index, value);
 }
 
@@ -2073,7 +2075,7 @@ XE_FORCEINLINE void
 D3D12CommandProcessor::WriteRegisterRangeFromMem_WithKnownBound(
     uint32_t start_index, uint32_t* base, uint32_t num_registers) {
   uint32_t end = start_index + num_registers;
-
+  LogRegisterSets(start_index, base, num_registers);
   uint32_t current_index = start_index;
 
   auto get_end_before_qty = [&end, current_index](uint32_t regnum) {

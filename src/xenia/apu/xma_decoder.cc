@@ -101,7 +101,8 @@ void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
 
   StringBuffer buff;
   buff.AppendVarargs(fmt, va);
-  xe::logging::AppendLogLineFormat(log_level, level_char, "ffmpeg: {}",
+  xe::logging::AppendLogLineFormat(LogSrc::Apu, log_level, level_char,
+                                   "ffmpeg: {}",
                                    buff.to_string_view());
 }
 

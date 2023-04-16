@@ -145,7 +145,7 @@ class X64Backend : public Backend {
         reinterpret_cast<intptr_t>(ctx) - sizeof(X64BackendContext));
   }
   virtual void SetGuestRoundingMode(void* ctx, unsigned int mode) override;
-
+  virtual bool PopulatePseudoStacktrace(GuestPseudoStackTrace* st) override;
   void RecordMMIOExceptionForGuestInstruction(void* host_address);
 #if XE_X64_PROFILER_AVAILABLE == 1
   uint64_t* GetProfilerRecordForFunction(uint32_t guest_address);
