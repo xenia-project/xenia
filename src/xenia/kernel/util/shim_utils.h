@@ -521,10 +521,10 @@ XE_NOALIAS void PrintKernelCall(cpu::Export* export_entry,
   string_buffer.Append(')');
   if (export_entry->tags & xe::cpu::ExportTag::kImportant) {
     xe::logging::AppendLogLine(xe::LogLevel::Info, 'i',
-                               string_buffer.to_string_view());
+                               string_buffer.to_string_view(), LogSrc::Kernel);
   } else {
     xe::logging::AppendLogLine(xe::LogLevel::Debug, 'd',
-                               string_buffer.to_string_view());
+                               string_buffer.to_string_view(), LogSrc::Kernel);
   }
 }
 /*

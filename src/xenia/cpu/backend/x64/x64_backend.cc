@@ -1131,6 +1131,40 @@ void X64Backend::SetGuestRoundingMode(void* ctx, unsigned int mode) {
   ((ppc::PPCContext*)ctx)->fpscr.bits.rn = control;
 }
 
+bool X64Backend::PopulatePseudoStacktrace(GuestPseudoStackTrace* st) {
+  if (!cvars::enable_host_guest_stack_synchronization) {
+    return false;
+  }
+
+  ThreadState* thrd_state = ThreadState::Get();
+  if (!thrd_state) {
+    return false;  // we're not a guest!
+  }
+  ppc::PPCContext* ctx = thrd_state->context();
+
+  X64BackendContext* backend_ctx = BackendContextForGuestContext(ctx);
+
+  uint32_t depth = backend_ctx->current_stackpoint_depth - 1;
+  if (static_cast<int32_t>(depth) < 1) {
+    return false;
+  }
+  uint32_t num_entries_to_populate =
+      std::min(MAX_GUEST_PSEUDO_STACKTRACE_ENTRIES, depth);
+
+  st->count = num_entries_to_populate;
+  st->truncated_flag = num_entries_to_populate < depth ? 1 : 0;
+
+  X64BackendStackpoint* current_stackpoint =
+      &backend_ctx->stackpoints[backend_ctx->current_stackpoint_depth - 1];
+
+  for (uint32_t stp_index = 0; stp_index < num_entries_to_populate;
+       ++stp_index) {
+    st->return_addrs[stp_index] = current_stackpoint->guest_return_address_;
+    current_stackpoint--;
+  }
+  return true;
+}
+
 #if XE_X64_PROFILER_AVAILABLE == 1
 uint64_t* X64Backend::GetProfilerRecordForFunction(uint32_t guest_address) {
   // who knows, we might want to compile different versions of a function one

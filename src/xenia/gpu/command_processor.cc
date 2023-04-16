@@ -13,14 +13,37 @@
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/byte_stream.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/graphics_system.h"
+#include "xenia/gpu/packet_disassembler.h"
 #include "xenia/gpu/sampler_info.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
+#if !defined(NDEBUG)
+
+#define XE_ENABLE_GPU_REG_WRITE_LOGGING 1
+#endif
+DEFINE_bool(
+    log_guest_driven_gpu_register_written_values, false,
+    "Only does anything in debug builds, if set will log every write to a gpu "
+    "register done by a guest. Does not log writes that are done by the CP on "
+    "its own, just ones the guest makes or instructs it to make.",
+    "GPU");
+
+DEFINE_bool(disassemble_pm4, false,
+            "Only does anything in debug builds, if set will disassemble and "
+            "log all PM4 packets sent to the CP.",
+            "GPU");
+
+DEFINE_bool(
+    log_ringbuffer_kickoff_initiator_bts, false,
+    "Only does anything in debug builds, if set will log the pseudo-stacktrace "
+    "of the guest thread that wrote the new read position.",
+    "GPU");
 
 namespace xe {
 namespace gpu {
@@ -234,6 +257,7 @@ void CommandProcessor::WorkerThreadMain() {
 
     // TODO(benvanik): use reader->Read_update_freq_ and only issue after moving
     //     that many indices.
+	// Keep in mind that the gpu also updates the cpu-side copy if the write pointer and read pointer would be equal
     if (read_ptr_writeback_ptr_) {
       xe::store_and_swap<uint32_t>(
           memory_->TranslatePhysical(read_ptr_writeback_ptr_), read_ptr_index_);
@@ -320,10 +344,94 @@ void CommandProcessor::EnableReadPointerWriteBack(uint32_t ptr,
   read_ptr_update_freq_ = uint32_t(1) << block_size_log2 >> 2;
 }
 
+XE_NOINLINE XE_COLD void CommandProcessor::LogKickoffInitator(uint32_t value) {
+  cpu::backend::GuestPseudoStackTrace st;
+
+  if (logging::internal::ShouldLog(LogLevel::Debug) && kernel_state_->processor()
+            ->backend()
+            ->PopulatePseudoStacktrace(&st)) {
+    logging::LoggerBatch<LogLevel::Debug> log_initiator{};
+
+    log_initiator("Updating read ptr to {}, initiator stacktrace below\n",
+                  value);
+
+    for (uint32_t i = 0; i < st.count; ++i) {
+      log_initiator("\t{:08X}\n", st.return_addrs[i]);
+    }
+
+    if (st.truncated_flag) {
+      log_initiator("\t(Truncated stacktrace to {} entries)\n",
+                    cpu::backend::MAX_GUEST_PSEUDO_STACKTRACE_ENTRIES);
+    }
+    log_initiator.submit('d');
+  }
+}
+
 void CommandProcessor::UpdateWritePointer(uint32_t value) {
+  XE_UNLIKELY_IF (cvars::log_ringbuffer_kickoff_initiator_bts) {
+    LogKickoffInitator(value);
+  }
   write_ptr_index_ = value;
   write_ptr_index_event_->SetBoostPriority();
 }
+
+void CommandProcessor::LogRegisterSet(uint32_t register_index, uint32_t value) {
+#if XE_ENABLE_GPU_REG_WRITE_LOGGING == 1
+  if (cvars::log_guest_driven_gpu_register_written_values && logging::internal::ShouldLog(LogLevel::Debug)) {
+    const RegisterInfo* reginfo = RegisterFile::GetRegisterInfo(register_index);
+
+    if (!reginfo) {
+      XELOGD("Unknown_Reg{:04X} <- {:08X}\n", register_index, value);
+    } else {
+      XELOGD("{} <- {:08X}\n", reginfo->name, value);
+    }
+  }
+#endif
+}
+
+void CommandProcessor::LogRegisterSets(uint32_t base_register_index,
+                                       const uint32_t* values,
+                                       uint32_t n_values) {
+#if XE_ENABLE_GPU_REG_WRITE_LOGGING == 1
+  if (cvars::log_guest_driven_gpu_register_written_values &&
+      logging::internal::ShouldLog(LogLevel::Debug)) {
+    auto target = logging::internal::GetThreadBuffer();
+
+    auto target_ptr = target.first;
+
+    size_t total_size = 0;
+
+    size_t rem_size = target.second;
+
+    for (uint32_t i = 0; i < n_values; ++i) {
+      uint32_t register_index = base_register_index + i;
+
+      uint32_t value = xe::load_and_swap<uint32_t>(&values[i]);
+
+      const RegisterInfo* reginfo =
+          RegisterFile::GetRegisterInfo(register_index);
+
+      if (!reginfo) {
+        auto tmpres = fmt::format_to_n(target_ptr, rem_size,
+                                       "Unknown_Reg{:04X} <- {:08X}\n",
+                                       register_index, value);
+        target_ptr = tmpres.out;
+        rem_size -= tmpres.size;
+        total_size += tmpres.size;
+
+      } else {
+        auto tmpres = fmt::format_to_n(target_ptr, rem_size, "{} <- {:08X}\n",
+                                       reginfo->name, value);
+        rem_size -= tmpres.size;
+        target_ptr = tmpres.out;
+        total_size += tmpres.size;
+      }
+    }
+    logging::internal::AppendLogLine(LogLevel::Debug, 'd', total_size);
+  }
+#endif
+}
+
 void CommandProcessor::HandleSpecialRegisterWrite(uint32_t index,
                                                   uint32_t value) {
   RegisterFile& regs = *register_file_;

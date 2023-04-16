@@ -27,6 +27,7 @@ namespace xe {
 // may be related to. These names should not be taken as fact as what a given
 // log line from any log level actually is.
 enum class LogLevel {
+  Disabled = -1,
   Error = 0,
   Warning,
   Info,
@@ -34,6 +35,15 @@ enum class LogLevel {
   Trace,
 };
 
+// bitmasks!
+namespace LogSrc {
+enum : uint32_t {
+  Uncategorized = 0,
+  Kernel = 1,
+  Apu = 2,
+  Cpu = 4,
+};
+}
 class LogSink {
  public:
   virtual ~LogSink() = default;
@@ -72,32 +82,38 @@ void ShutdownLogging();
 namespace logging {
 namespace internal {
 
-bool ShouldLog(LogLevel log_level);
+void ToggleLogLevel();
+
+bool ShouldLog(LogLevel log_level,
+               uint32_t log_mask = xe::LogSrc::Uncategorized);
 std::pair<char*, size_t> GetThreadBuffer();
 XE_NOALIAS
 void AppendLogLine(LogLevel log_level, const char prefix_char, size_t written);
 
 }  // namespace internal
-//technically, noalias is incorrect here, these functions do in fact alias global memory,
-//but msvc will not optimize the calls away, and the global memory modified by the calls is limited to internal logging variables,
-//so it might as well be noalias
+// technically, noalias is incorrect here, these functions do in fact alias
+// global memory, but msvc will not optimize the calls away, and the global
+// memory modified by the calls is limited to internal logging variables, so it
+// might as well be noalias
 template <typename... Args>
-XE_NOALIAS
-XE_NOINLINE XE_COLD static void AppendLogLineFormat_Impl(LogLevel log_level,
-                                                         const char prefix_char,
-                                                         const char* format,
-                                                         const Args&... args) {
+XE_NOALIAS XE_NOINLINE XE_COLD static void AppendLogLineFormat_Impl(
+    LogLevel log_level, const char prefix_char, const char* format,
+    const Args&... args) {
   auto target = internal::GetThreadBuffer();
   auto result = fmt::format_to_n(target.first, target.second, format, args...);
   internal::AppendLogLine(log_level, prefix_char, result.size);
 }
 
-  // Appends a line to the log with {fmt}-style formatting.
-//chrispy: inline the initial check, outline the append. the append should happen rarely for end users
+// Appends a line to the log with {fmt}-style formatting.
+// chrispy: inline the initial check, outline the append. the append should
+// happen rarely for end users
 template <typename... Args>
-XE_FORCEINLINE static void AppendLogLineFormat(LogLevel log_level, const char prefix_char,
-                         const char* format, const Args&... args) {
-  if (!internal::ShouldLog(log_level)) {
+XE_FORCEINLINE static void AppendLogLineFormat(uint32_t log_src_mask,
+                                               LogLevel log_level,
+                                               const char prefix_char,
+                                               const char* format,
+                                               const Args&... args) {
+  if (!internal::ShouldLog(log_level, log_src_mask)) {
     return;
   }
   AppendLogLineFormat_Impl(log_level, prefix_char, format, args...);
@@ -105,7 +121,36 @@ XE_FORCEINLINE static void AppendLogLineFormat(LogLevel log_level, const char pr
 
 // Appends a line to the log.
 void AppendLogLine(LogLevel log_level, const char prefix_char,
-                   const std::string_view str);
+                   const std::string_view str,
+                   uint32_t log_mask = LogSrc::Uncategorized);
+
+template <LogLevel ll>
+struct LoggerBatch {
+  char* thrd_buf;       // current position in thread buffer
+  size_t thrd_buf_rem;  // num left in thrd buffer
+  size_t total_size;
+
+  void reset() {
+    auto target = logging::internal::GetThreadBuffer();
+
+    thrd_buf = target.first;
+    thrd_buf_rem = target.second;
+    total_size = 0;
+  }
+
+  LoggerBatch() { reset(); }
+  template <size_t fmtlen, typename... Ts>
+  void operator()(const char (&fmt)[fmtlen], Ts&&... args) {
+    auto tmpres = fmt::format_to_n(thrd_buf, thrd_buf_rem, fmt, args...);
+    thrd_buf_rem -= tmpres.size;
+    thrd_buf = tmpres.out;
+    total_size += tmpres.size;
+  }
+
+  void submit(char prefix_char) {
+    logging::internal::AppendLogLine(ll, prefix_char, total_size);
+  }
+};
 
 }  // namespace logging
 
@@ -118,48 +163,56 @@ void AppendLogLine(LogLevel log_level, const char prefix_char,
 
 template <typename... Args>
 XE_COLD void XELOGE(const char* format, const Args&... args) {
-  xe::logging::AppendLogLineFormat(xe::LogLevel::Error, '!', format, args...);
+  xe::logging::AppendLogLineFormat(xe::LogSrc::Uncategorized,
+                                   xe::LogLevel::Error, '!', format, args...);
 }
 
 template <typename... Args>
-XE_COLD
-void XELOGW(const char* format, const Args&... args) {
-  xe::logging::AppendLogLineFormat(xe::LogLevel::Warning, 'w', format, args...);
+XE_COLD void XELOGW(const char* format, const Args&... args) {
+  xe::logging::AppendLogLineFormat(xe::LogSrc::Uncategorized,
+                                   xe::LogLevel::Warning, 'w', format, args...);
 }
 
 template <typename... Args>
 void XELOGI(const char* format, const Args&... args) {
-  xe::logging::AppendLogLineFormat(xe::LogLevel::Info, 'i', format, args...);
+  xe::logging::AppendLogLineFormat(xe::LogSrc::Uncategorized,
+                                   xe::LogLevel::Info, 'i', format, args...);
 }
 
 template <typename... Args>
 void XELOGD(const char* format, const Args&... args) {
-  xe::logging::AppendLogLineFormat(xe::LogLevel::Debug, 'd', format, args...);
+  xe::logging::AppendLogLineFormat(xe::LogSrc::Uncategorized,
+                                   xe::LogLevel::Debug, 'd', format, args...);
 }
 
 template <typename... Args>
 void XELOGCPU(const char* format, const Args&... args) {
-  xe::logging::AppendLogLineFormat(xe::LogLevel::Info, 'C', format, args...);
+  xe::logging::AppendLogLineFormat(xe::LogSrc::Cpu, xe::LogLevel::Info, 'C',
+                                   format, args...);
 }
 
 template <typename... Args>
 void XELOGAPU(const char* format, const Args&... args) {
-  xe::logging::AppendLogLineFormat(xe::LogLevel::Debug, 'A', format, args...);
+  xe::logging::AppendLogLineFormat(xe::LogSrc::Apu, xe::LogLevel::Debug, 'A',
+                                   format, args...);
 }
 
 template <typename... Args>
 void XELOGGPU(const char* format, const Args&... args) {
-  xe::logging::AppendLogLineFormat(xe::LogLevel::Debug, 'G', format, args...);
+  xe::logging::AppendLogLineFormat(xe::LogSrc::Uncategorized,
+                                   xe::LogLevel::Debug, 'G', format, args...);
 }
 
 template <typename... Args>
 void XELOGKERNEL(const char* format, const Args&... args) {
-  xe::logging::AppendLogLineFormat(xe::LogLevel::Info, 'K', format, args...);
+  xe::logging::AppendLogLineFormat(xe::LogSrc::Kernel, xe::LogLevel::Info, 'K',
+                                   format, args...);
 }
 
 template <typename... Args>
 void XELOGFS(const char* format, const Args&... args) {
-  xe::logging::AppendLogLineFormat(xe::LogLevel::Info, 'F', format, args...);
+  xe::logging::AppendLogLineFormat(xe::LogSrc::Uncategorized,
+                                   xe::LogLevel::Info, 'F', format, args...);
 }
 
 #else

@@ -131,7 +131,9 @@ class CommandProcessor {
 
   void UpdateWritePointer(uint32_t value);
 
-  
+  void LogRegisterSet(uint32_t register_index, uint32_t value);
+  void LogRegisterSets(uint32_t base_register_index, const uint32_t* values,
+                       uint32_t n_values);
 
   bool is_paused() const { return paused_; }
   void Pause();
@@ -296,6 +298,8 @@ class CommandProcessor {
   reg::DC_LUT_30_COLOR gamma_ramp_256_entry_table_[256] = {};
   reg::DC_LUT_PWL_DATA gamma_ramp_pwl_rgb_[128][3] = {};
   uint32_t gamma_ramp_rw_component_ = 0;
+
+  XE_NOINLINE XE_COLD void LogKickoffInitator(uint32_t value);
 };
 
 }  // namespace gpu

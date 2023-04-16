@@ -85,7 +85,7 @@ class EmulatorWindow {
     ToggleControllerVibration,
     ClearMemoryPageState,
     ReadbackResolve,
-    CloseWindow,
+    ToggleLogging,
     IncTitleSelect,
     DecTitleSelect,
     Unknown

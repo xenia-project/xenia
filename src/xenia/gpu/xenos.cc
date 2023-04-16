@@ -206,7 +206,39 @@ const char* GetDepthRenderTargetFormatName(DepthRenderTargetFormat format) {
       return "kUnknown";
   }
 }
+static const char* const g_endian_names[] = {"none", "8 in 16", "8 in 32",
+                                             "16 in 32"};
 
+const char* GetEndianEnglishDescription(xenos::Endian endian) {
+  return g_endian_names[static_cast<uint32_t>(endian)];
+}
+static const char* const g_primtype_human_names[] = {"none",
+                                                     "point list",
+                                                     "line list",
+                                                     "line strip",
+                                                     "triangle list",
+                                                     "triangle fan",
+                                                     "triangle strip",
+                                                     "triangle with flags",
+                                                     "rectangle list",
+                                                     "unused1",
+                                                     "unused2",
+                                                     "unused3",
+                                                     "line loop",
+                                                     "quad list",
+                                                     "quad strip",
+                                                     "polygon",
+                                                     "2D copy rect list v0",
+                                                     "2D copy rect list v1",
+                                                     "2D copy rect list v2",
+                                                     "2D copy rect list v3",
+                                                     "2D fillrect list",
+                                                     "2D line strip",
+                                                     "2D triangle strip"};
+
+const char* GetPrimitiveTypeEnglishDescription(xenos::PrimitiveType prim_type) {
+  return g_primtype_human_names[static_cast<uint32_t>(prim_type)];
+}
 }  // namespace xenos
 }  // namespace gpu
 }  // namespace xe

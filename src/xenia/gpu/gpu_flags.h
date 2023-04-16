@@ -26,4 +26,6 @@ DECLARE_bool(half_pixel_offset);
 
 DECLARE_int32(query_occlusion_fake_sample_count);
 
+DECLARE_bool(disassemble_pm4);
+
 #endif  // XENIA_GPU_GPU_FLAGS_H_

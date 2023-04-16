@@ -1,4 +1,9 @@
 #pragma once
+
+#if !defined(NDEBUG)
+#define XE_ENABLE_PM4_DISASM 1
+#endif
+
 using namespace xe::gpu::xenos;
 void COMMAND_PROCESSOR::ExecuteIndirectBuffer(uint32_t ptr,
                                               uint32_t count) XE_RESTRICT {
@@ -35,8 +40,237 @@ void COMMAND_PROCESSOR::ExecuteIndirectBuffer(uint32_t ptr,
     return;
   }
 }
+XE_NOINLINE
+static void LOGU32s(logging::LoggerBatch<LogLevel::Debug>& logger,
+                    const std::vector<uint32_t>& values) {
+  bool first = true;
+#if 0
+  XELOGD("[ ");
+  for (auto&& val : values) {
+    if (first) {
+      XELOGD("0x{:08X}", val);
+      first = false;
+    } else {
+      XELOGD(", 0x{:08X}", val);
+    }
+  }
+  XELOGD(" ]");
+#else
 
+  for (auto&& val : values) {
+    if (first) {
+      logger("0x{:08X}", val);
+      first = false;
+    } else {
+      logger(", 0x{:08X}", val);
+    }
+  }
+#endif
+}
+
+std::string GenerateRegnameForPm4Print(uint32_t reg) {
+  auto reg_info = RegisterFile::GetRegisterInfo(reg);
+
+  if (reg_info) {
+    return reg_info->name;
+  } else {
+    return fmt::format("Unknown_Reg_{:04X}", reg);
+  }
+}
+
+XE_NOINLINE
+void COMMAND_PROCESSOR::DisassembleCurrentPacket() XE_RESTRICT {
+  xe::gpu::PacketInfo packet_info;
+
+  logging::LoggerBatch<LogLevel::Debug> logger{};
+
+  if (PacketDisassembler::DisasmPacket(reader_.buffer() + reader_.read_offset(),
+                                       &packet_info)) {
+    logger("CP - {}, count {}, predicated = {}\n", packet_info.type_info->name,
+           packet_info.count, packet_info.predicated);
+
+#define LOG_ACTION_FIELD(__type, name) \
+  logger("\t" #name " = {:08X}\n", action.__type.name)
+#define LOG_ACTION_FIELD_DEC(__type, name) \
+  logger("\t" #name " = {}\n", action.__type.name)
+
+#define LOG_ENDIANNESS(__type, name) \
+  logger("\t" #name " = {}\n",       \
+         xenos::GetEndianEnglishDescription(action.__type.name))
+#define LOG_PRIMTYPE(__type, name) \
+  logger("\t" #name " = {}\n",     \
+         xenos::GetPrimitiveTypeEnglishDescription(action.__type.name))
+    for (auto&& action : packet_info.actions) {
+      using PType = PacketAction::Type;
+      switch (action.type) {
+        case PType::kRegisterWrite:
+          break;
+        case PType::kSetBinMask:
+          logger("\tSetBinMask {}\n", action.set_bin_mask.value);
+          break;
+        case PType::kSetBinSelect:
+          logger("\tSetBinSelect {}\n", action.set_bin_select.value);
+          break;
+        case PType::kMeInit:
+          logger("\tMeInit - ");
+          LOGU32s(logger, action.words);
+          logger("\n");
+          break;
+        case PType::kGenInterrupt:
+          logger("\tGenInterrupt for cpu mask {:04X}\n",
+                 action.gen_interrupt.cpu_mask);
+          break;
+        case PType::kSetBinMaskHi:
+        case PType::kSetBinMaskLo:
+        case PType::kSetBinSelectHi:
+        case PType::kSetBinSelectLo:
+          LOG_ACTION_FIELD(lohi_op, value);
+          break;
+        case PType::kWaitRegMem:
+          LOG_ACTION_FIELD(wait_reg_mem, wait_info);
+          LOG_ACTION_FIELD(wait_reg_mem, poll_reg_addr);
+          LOG_ACTION_FIELD(wait_reg_mem, ref);
+          LOG_ACTION_FIELD(wait_reg_mem, mask);
+          LOG_ACTION_FIELD(wait_reg_mem, wait);
+          break;
+        case PType::kRegRmw: {
+          uint32_t rmw_info = action.reg_rmw.rmw_info;
+          uint32_t and_mask = action.reg_rmw.and_mask;
+          uint32_t or_mask = action.reg_rmw.or_mask;
+
+          uint32_t and_mask_is_reg = (rmw_info >> 31) & 0x1;
+          uint32_t or_mask_is_reg = (rmw_info >> 30) & 0x1;
+
+          std::string and_mask_str;
+
+          if (and_mask_is_reg) {
+            and_mask_str = GenerateRegnameForPm4Print(and_mask & 0x1FFF);
+          } else {
+            and_mask_str = fmt::format("0x{:08X}", and_mask);
+          }
+          std::string or_mask_str;
+
+          if (or_mask_is_reg) {
+            or_mask_str = GenerateRegnameForPm4Print(or_mask & 0x1FFF);
+          } else {
+            or_mask_str = fmt::format("0x{:08X}", or_mask);
+          }
+
+          std::string dest = GenerateRegnameForPm4Print(rmw_info & 0x1FFF);
+
+          logger("\t{} = ({} & {}) | {}\n", dest, dest, and_mask_str,
+                 or_mask_str);
+          LOG_ACTION_FIELD(reg_rmw, rmw_info);
+          LOG_ACTION_FIELD(reg_rmw, and_mask);
+          LOG_ACTION_FIELD(reg_rmw, or_mask);
+
+          break;
+        }
+        case PType::kCondWrite:
+          LOG_ACTION_FIELD(cond_write, wait_info);
+          LOG_ACTION_FIELD(cond_write, poll_reg_addr);
+          LOG_ACTION_FIELD(cond_write, ref);
+          LOG_ACTION_FIELD(cond_write, mask);
+          LOG_ACTION_FIELD(cond_write, write_reg_addr);
+          LOG_ACTION_FIELD(cond_write, write_data);
+          break;
+
+        case PType::kEventWrite:
+          LOG_ACTION_FIELD(event_write, initiator);
+          break;
+        case PType::kEventWriteSHD:
+          LOG_ACTION_FIELD(event_write_shd, initiator);
+          LOG_ACTION_FIELD(event_write_shd, address);
+          LOG_ACTION_FIELD(event_write_shd, value);
+          break;
+        case PType::kEventWriteExt:
+          LOG_ACTION_FIELD(event_write_ext, unk0);
+          LOG_ACTION_FIELD(event_write_ext, unk1);
+          break;
+        case PType::kDrawIndx:
+          LOG_ACTION_FIELD(draw_indx, dword0);
+          LOG_ACTION_FIELD(draw_indx, dword1);
+          LOG_ACTION_FIELD_DEC(draw_indx, index_count);
+          LOG_PRIMTYPE(draw_indx, prim_type);
+          LOG_ACTION_FIELD(draw_indx, src_sel);
+          LOG_ACTION_FIELD(draw_indx, guest_base);
+          LOG_ACTION_FIELD_DEC(draw_indx, index_size);
+          LOG_ENDIANNESS(draw_indx, endianness);
+          break;
+        case PType::kDrawIndx2:
+          LOG_ACTION_FIELD(draw_indx2, dword0);
+          LOG_ACTION_FIELD_DEC(draw_indx2, index_count);
+          LOG_PRIMTYPE(draw_indx2, prim_type);
+          LOG_ACTION_FIELD(draw_indx2, src_sel);
+          LOG_ACTION_FIELD_DEC(draw_indx2, indices_size);
+          logger("Indices = ");
+          LOGU32s(logger, action.words);
+          logger("\n");
+          break;
+        case PType::kInvalidateState:
+          LOG_ACTION_FIELD(invalidate_state, state_mask);
+          break;
+        case PType::kImLoad:
+          LOG_ACTION_FIELD(im_load, shader_type);
+          LOG_ACTION_FIELD(im_load, addr);
+          LOG_ACTION_FIELD(im_load, start);
+          LOG_ACTION_FIELD_DEC(im_load, size_dwords);
+          break;
+        case PType::kImLoadImmediate:
+          LOG_ACTION_FIELD_DEC(im_load_imm, shader_type);
+          LOG_ACTION_FIELD(im_load_imm, start);
+          LOG_ACTION_FIELD_DEC(im_load_imm, size_dwords);
+          logger("Shader instruction words = ");
+          LOGU32s(logger, action.words);
+          logger("\n");
+          break;
+        case PType::kWaitForIdle:
+          LOG_ACTION_FIELD(wait_for_idle, probably_unused);
+          break;
+        case PType::kContextUpdate:
+          LOG_ACTION_FIELD(context_update, maybe_unused);
+          break;
+        case PType::kVizQuery:
+          LOG_ACTION_FIELD_DEC(vizquery, id);
+          LOG_ACTION_FIELD_DEC(vizquery, end);
+          LOG_ACTION_FIELD(vizquery, dword0);
+          break;
+        case PType::kEventWriteZPD:
+          LOG_ACTION_FIELD(event_write_zpd, initiator);
+
+          break;
+        case PType::kMemWrite:
+          LOG_ACTION_FIELD(mem_write, addr);
+          LOG_ENDIANNESS(mem_write, endianness);
+          logger("Values to write (with GpuSwap pre-applied) = ");
+          LOGU32s(logger, action.words);
+          logger("\n");
+          break;
+        case PType::kRegToMem:
+          logger("{}\n", GenerateRegnameForPm4Print(action.reg2mem.reg_addr));
+          LOG_ACTION_FIELD(reg2mem, mem_addr);
+          LOG_ENDIANNESS(reg2mem, endianness);
+          break;
+        case PType::kIndirBuffer:
+          LOG_ACTION_FIELD(indir_buffer, list_ptr);
+          LOG_ACTION_FIELD_DEC(indir_buffer, list_length);
+          break;
+        case PType::kXeSwap:
+          LOG_ACTION_FIELD(xe_swap, frontbuffer_ptr);
+          break;
+      }
+    }
+  } else {
+    logger("Unknown packet! Failed to disassemble.\n");
+  }
+  logger.submit('d');
+}
 bool COMMAND_PROCESSOR::ExecutePacket() {
+#if XE_ENABLE_PM4_DISASM == 1
+  if (cvars::disassemble_pm4 && logging::internal::ShouldLog(LogLevel::Debug)) {
+    COMMAND_PROCESSOR::DisassembleCurrentPacket();
+  }
+#endif
   const uint32_t packet = reader_.ReadAndSwap<uint32_t>();
   const uint32_t packet_type = packet >> 30;
 

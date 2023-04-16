@@ -1147,8 +1147,8 @@ const std::map<int, EmulatorWindow::ControllerHotKey> controller_hotkey_map = {
          "A + Guide = Toggle Readback Resolve", true)},
     {X_INPUT_GAMEPAD_B | X_INPUT_GAMEPAD_GUIDE,
      EmulatorWindow::ControllerHotKey(
-         EmulatorWindow::ButtonFunctions::CloseWindow,
-         "B + Guide = Close Window")},
+         EmulatorWindow::ButtonFunctions::ToggleLogging,
+         "B + Guide = Toggle between loglevel set in config and the 'Disabled' loglevel.", true, true)},
     {X_INPUT_GAMEPAD_Y | X_INPUT_GAMEPAD_GUIDE,
      EmulatorWindow::ControllerHotKey(
          EmulatorWindow::ButtonFunctions::ToggleFullscreen,
@@ -1190,7 +1190,7 @@ const std::map<int, EmulatorWindow::ControllerHotKey> controller_hotkey_map = {
                                 "Start = Run Selected Title", false, false)},
     {X_INPUT_GAMEPAD_BACK | X_INPUT_GAMEPAD_START,
      EmulatorWindow::ControllerHotKey(
-         EmulatorWindow::ButtonFunctions::CloseWindow,
+         EmulatorWindow::ButtonFunctions::ToggleLogging,
          "Back + Start = Close Window", false, false)},
     {X_INPUT_GAMEPAD_DPAD_DOWN,
      EmulatorWindow::ControllerHotKey(
@@ -1296,8 +1296,8 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
     case ButtonFunctions::DecTitleSelect:
       selected_title_index--;
       break;
-    case ButtonFunctions::CloseWindow:
-      window_->RequestClose();
+    case ButtonFunctions::ToggleLogging:
+      logging::internal::ToggleLogLevel();
       break;
     case ButtonFunctions::Unknown:
     default:

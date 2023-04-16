@@ -28,7 +28,14 @@ class Processor;
 namespace xe {
 namespace cpu {
 namespace backend {
+static constexpr uint32_t MAX_GUEST_PSEUDO_STACKTRACE_ENTRIES = 32;
 
+struct GuestPseudoStackTrace {
+  uint32_t count;
+  uint32_t truncated_flag;  // set to 1 if there were more than
+                            // MAX_GUEST_PSEUDO_STACKTRACE_ENTRIES entries.
+  uint32_t return_addrs[MAX_GUEST_PSEUDO_STACKTRACE_ENTRIES];
+};
 class Assembler;
 class CodeCache;
 
@@ -84,6 +91,10 @@ class Backend {
   * */
   virtual void PrepareForReentry(void* ctx) {}
 
+  // returns true if populated st
+  virtual bool PopulatePseudoStacktrace(GuestPseudoStackTrace* st) {
+    return false;
+  }
  protected:
   Processor* processor_ = nullptr;
   MachineInfo machine_info_;

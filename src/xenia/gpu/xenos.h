@@ -48,6 +48,9 @@ enum class PrimitiveType : uint32_t {
   kTriangleStrip = 0x06,
   kTriangleWithWFlags = 0x07,
   kRectangleList = 0x08,
+  kUnused1 = 0x09,
+  kUnused2 = 0x0A,
+  kUnused3 = 0x0B,
   kLineLoop = 0x0C,
   kQuadList = 0x0D,
   kQuadStrip = 0x0E,
@@ -1596,7 +1599,11 @@ inline uint32_t MakePacketType3(Type3Opcode opcode, uint16_t count,
   return (3u << 30) | (((count - 1) & 0x3FFF) << 16) | ((opcode & 0x7F) << 8) |
          (predicate ? 1 : 0);
 }
-
+/*
+ * pretty english descriptions of enumeration values for the packet disassembler
+ */
+const char* GetEndianEnglishDescription(xenos::Endian endian);
+const char* GetPrimitiveTypeEnglishDescription(xenos::PrimitiveType prim_type);
 }  // namespace xenos
 }  // namespace gpu
 }  // namespace xe

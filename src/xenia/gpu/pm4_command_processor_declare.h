@@ -15,7 +15,9 @@ public:
 void ExecutePacket(uint32_t ptr, uint32_t count);
 
 protected:
- XE_NOINLINE
+XE_NOINLINE
+void DisassembleCurrentPacket() XE_RESTRICT;
+XE_NOINLINE
 bool ExecutePacketType0( uint32_t packet) XE_RESTRICT;
 XE_NOINLINE
 bool ExecutePacketType1( uint32_t packet) XE_RESTRICT;

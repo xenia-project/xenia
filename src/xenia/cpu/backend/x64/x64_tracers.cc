@@ -34,11 +34,12 @@ bool trace_enabled = true;
 #define IFLUSH()
 #define IPRINT(s)                    \
   if (trace_enabled && THREAD_MATCH) \
-  xe::logging::AppendLogLine(xe::LogLevel::Debug, 't', s)
+  xe::logging::AppendLogLine(xe::LogLevel::Debug, 't', s, xe::LogSrc::Cpu)
 #define DFLUSH()
 #define DPRINT(...)                  \
   if (trace_enabled && THREAD_MATCH) \
-  xe::logging::AppendLogLineFormat(xe::LogLevel::Debug, 't', __VA_ARGS__)
+  xe::logging::AppendLogLineFormat(xe::LogSrc::Cpu, xe::LogLevel::Debug, 't', \
+                                   __VA_ARGS__)
 
 uint32_t GetTracingMode() {
   uint32_t mode = 0;
