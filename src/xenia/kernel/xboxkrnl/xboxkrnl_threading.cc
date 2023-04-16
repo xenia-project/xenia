@@ -363,9 +363,18 @@ dword_result_t NtYieldExecution_entry() {
 DECLARE_XBOXKRNL_EXPORT2(NtYieldExecution, kThreading, kImplemented,
                          kHighFrequency);
 
-void KeQuerySystemTime_entry(lpqword_t time_ptr) {
-  uint64_t time = Clock::QueryGuestSystemTime();
+void KeQuerySystemTime_entry(lpqword_t time_ptr, const ppc_context_t& ctx) {
   if (time_ptr) {
+    // update the timestamp bundle to the time we queried.
+    // this is a race, but i don't of any sw that requires it, it just seems
+    // like we ought to keep it consistent with ketimestampbundle in case
+    // something uses this function, but also reads it directly
+    uint32_t ts_bundle = ctx->kernel_state->GetKeTimestampBundle();
+    uint64_t time = Clock::QueryGuestSystemTime();
+	//todo: cmpxchg?
+    xe::store_and_swap<uint64_t>(
+        &ctx->TranslateVirtual<X_TIME_STAMP_BUNDLE*>(ts_bundle)->system_time,
+        time);
     *time_ptr = time;
   }
 }

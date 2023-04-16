@@ -940,6 +940,57 @@ bool KernelState::Save(ByteStream* stream) {
   return true;
 }
 
+// this only gets triggered once per ms at most, so fields other than tick count
+// will probably not be updated in a timely manner for guest code that uses them
+void KernelState::UpdateKeTimestampBundle() {
+  X_TIME_STAMP_BUNDLE* lpKeTimeStampBundle =
+      memory_->TranslateVirtual<X_TIME_STAMP_BUNDLE*>(ke_timestamp_bundle_ptr_);
+  uint32_t uptime_ms = Clock::QueryGuestUptimeMillis();
+  xe::store_and_swap<uint64_t>(&lpKeTimeStampBundle->interrupt_time,
+                               Clock::QueryGuestInterruptTime());
+  xe::store_and_swap<uint64_t>(&lpKeTimeStampBundle->system_time,
+                               Clock::QueryGuestSystemTime());
+  xe::store_and_swap<uint32_t>(&lpKeTimeStampBundle->tick_count, uptime_ms);
+}
+
+uint32_t KernelState::GetKeTimestampBundle() {
+  XE_LIKELY_IF(ke_timestamp_bundle_ptr_) { 
+	  return ke_timestamp_bundle_ptr_; 
+  }
+  else {
+    global_critical_region::PrepareToAcquire();
+    return CreateKeTimestampBundle();
+  }
+}
+
+XE_NOINLINE
+XE_COLD
+uint32_t KernelState::CreateKeTimestampBundle() {
+  auto crit = global_critical_region::Acquire();
+
+  uint32_t pKeTimeStampBundle =
+      memory_->SystemHeapAlloc(sizeof(X_TIME_STAMP_BUNDLE));
+  X_TIME_STAMP_BUNDLE* lpKeTimeStampBundle =
+      memory_->TranslateVirtual<X_TIME_STAMP_BUNDLE*>(pKeTimeStampBundle);
+
+  xe::store_and_swap<uint64_t>(&lpKeTimeStampBundle->interrupt_time,
+                               Clock::QueryGuestInterruptTime());
+
+  xe::store_and_swap<uint64_t>(&lpKeTimeStampBundle->system_time,
+                               Clock::QueryGuestSystemTime());
+
+  xe::store_and_swap<uint32_t>(&lpKeTimeStampBundle->tick_count,
+                               Clock::QueryGuestUptimeMillis());
+
+  xe::store_and_swap<uint32_t>(&lpKeTimeStampBundle->padding, 0);
+
+  timestamp_timer_ = xe::threading::HighResolutionTimer::CreateRepeating(
+      std::chrono::milliseconds(1),
+      [this]() { this->UpdateKeTimestampBundle(); });
+  ke_timestamp_bundle_ptr_ = pKeTimeStampBundle;
+  return pKeTimeStampBundle;
+}
+
 bool KernelState::Restore(ByteStream* stream) {
   // Check the magic value.
   if (stream->Read<uint32_t>() != kKernelSaveSignature) {

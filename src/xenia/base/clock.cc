@@ -50,8 +50,7 @@ uint64_t last_guest_tick_count_ = 0;
 // Last sampled host tick count.
 uint64_t last_host_tick_count_ = Clock::QueryHostTickCount();
 
-
-using tick_mutex_type = std::mutex;  
+using tick_mutex_type = std::mutex;
 
 // Mutex to ensure last_host_tick_count_ and last_guest_tick_count_ are in sync
 // std::mutex tick_mutex_;
@@ -178,6 +177,10 @@ uint64_t Clock::QueryGuestSystemTime() {
 
   auto guest_system_time_offset = QueryGuestSystemTimeOffset();
   return guest_system_time_base_ + guest_system_time_offset;
+}
+
+uint64_t Clock::QueryGuestInterruptTime() {
+  return Clock::QueryHostInterruptTime();
 }
 
 uint32_t Clock::QueryGuestUptimeMillis() {

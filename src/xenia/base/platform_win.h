@@ -35,8 +35,9 @@
 #undef GetFirstChild
 
 #define XE_USE_NTDLL_FUNCTIONS 1
-//chrispy: disabling this for now, more research needs to be done imo, although it does work very well on my machine
-// 
+// chrispy: disabling this for now, more research needs to be done imo, although
+// it does work very well on my machine
+//
 #define XE_USE_KUSER_SHARED 0
 #if XE_USE_NTDLL_FUNCTIONS == 1
 /*
@@ -63,7 +64,11 @@
 #define XE_NTDLL_IMPORT(name, cls, clsvar) static constexpr bool clsvar = false
 
 #endif
-#if XE_USE_KUSER_SHARED==1
+static constexpr size_t KSUER_SHARED_SYSTEMTIME_OFFSET = 0x14;
+
+static constexpr size_t KUSER_SHARED_INTERRUPTTIME_OFFSET = 8;
+static unsigned char* KUserShared() { return (unsigned char*)0x7FFE0000ULL; }
+#if XE_USE_KUSER_SHARED == 1
 // KUSER_SHARED
 struct __declspec(align(4)) _KSYSTEM_TIME {
   unsigned int LowPart;
@@ -71,8 +76,6 @@ struct __declspec(align(4)) _KSYSTEM_TIME {
   int High2Time;
 };
 
-static constexpr size_t KSUER_SHARED_SYSTEMTIME_OFFSET = 0x14;
-static unsigned char* KUserShared() { return (unsigned char*)0x7FFE0000ULL; }
 static volatile _KSYSTEM_TIME* GetKUserSharedSystemTime() {
   return reinterpret_cast<volatile _KSYSTEM_TIME*>(
       KUserShared() + KSUER_SHARED_SYSTEMTIME_OFFSET);

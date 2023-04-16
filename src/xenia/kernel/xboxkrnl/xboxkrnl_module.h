@@ -40,9 +40,6 @@ class XboxkrnlModule : public KernelModule {
 
  protected:
   uint32_t pix_function_ = 0;
-
- private:
-  std::unique_ptr<xe::threading::HighResolutionTimer> timestamp_timer_;
 };
 
 }  // namespace xboxkrnl
