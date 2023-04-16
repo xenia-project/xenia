@@ -120,7 +120,8 @@ void HandleCppException(pointer_t<X_EXCEPTION_RECORD> record) {
       kernel_memory()->TranslateVirtual<x_s__CatchableTypeArray*>(
           throw_info->catchable_type_array_ptr);
 
-  xe::debugging::Break();
+  //xe::debugging::Break();
+  XELOGE("Guest attempted to throw a C++ exception!");
 }
 
 void RtlRaiseException_entry(pointer_t<X_EXCEPTION_RECORD> record) {
@@ -137,7 +138,10 @@ void RtlRaiseException_entry(pointer_t<X_EXCEPTION_RECORD> record) {
 
   // TODO(benvanik): unwinding.
   // This is going to suck.
-  xe::debugging::Break();
+ // xe::debugging::Break();
+
+  //RtlRaiseException definitely wasn't a noreturn function, we can return safe-ish
+  XELOGE("Guest attempted to trigger a breakpoint!");
 }
 DECLARE_XBOXKRNL_EXPORT2(RtlRaiseException, kDebug, kStub, kImportant);
 

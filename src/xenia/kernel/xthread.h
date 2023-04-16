@@ -73,10 +73,17 @@ struct X_KPCR {
   xe::be<uint32_t> msr_mask;		// 0x4
   uint8_t unk_08[0x28];             // 0x8
   xe::be<uint32_t> pcr_ptr;         // 0x30
-  uint8_t unk_34[0x3C];             // 0x34
+  uint8_t unk_34[0x38];             // 0x34
+  xe::be<uint32_t> use_alternative_stack; //0x6C
   xe::be<uint32_t> stack_base_ptr;  // 0x70 Stack base address (high addr)
   xe::be<uint32_t> stack_end_ptr;   // 0x74 Stack end (low addr)
-  uint8_t unk_78[0x88];             // 0x78
+
+  //maybe these are the stacks used in apcs?
+  //i know they're stacks, RtlGetStackLimits returns them if another var here is set
+
+  xe::be<uint32_t> alt_stack_base_ptr;  // 0x78
+  xe::be<uint32_t> alt_stack_end_ptr;   // 0x7C
+  uint8_t unk_80[0x80];             // 0x80
   xe::be<uint32_t> current_thread;  // 0x100
   uint8_t unk_104[0x8];             // 0x104
   uint8_t current_cpu;              // 0x10C

@@ -675,6 +675,22 @@ dword_result_t MmDeleteKernelStack_entry(lpvoid_t stack_base,
 }
 DECLARE_XBOXKRNL_EXPORT1(MmDeleteKernelStack, kMemory, kImplemented);
 
+dword_result_t MmIsAddressValid_entry(dword_t address,
+                                      const ppc_context_t& ctx) {
+  auto kernel = ctx->kernel_state;
+  auto memory = kernel->memory();
+  auto heap = memory->LookupHeap(address);
+  if (!heap) {
+    return 0;
+  }
+
+  return heap->QueryRangeAccess(address, address) !=
+         memory::PageAccess::kNoAccess;
+}
+
+DECLARE_XBOXKRNL_EXPORT1(MmIsAddressValid, kMemory, kImplemented);
+
+
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe

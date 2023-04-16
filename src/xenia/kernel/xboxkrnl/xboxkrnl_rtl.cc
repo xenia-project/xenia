@@ -517,6 +517,10 @@ static void CriticalSectionPrefetchW(const void* vp) {
 }
 
 void RtlEnterCriticalSection_entry(pointer_t<X_RTL_CRITICAL_SECTION> cs) {
+  if (!cs.guest_address()) {
+    XELOGE("Null critical section in RtlEnterCriticalSection!");
+    return;
+  }
   CriticalSectionPrefetchW(&cs->lock_count);
   uint32_t cur_thread = XThread::GetCurrentThread()->guest_object();
   uint32_t spin_count = cs->header.absolute * 256;
@@ -553,6 +557,10 @@ DECLARE_XBOXKRNL_EXPORT2(RtlEnterCriticalSection, kNone, kImplemented,
 
 dword_result_t RtlTryEnterCriticalSection_entry(
     pointer_t<X_RTL_CRITICAL_SECTION> cs) {
+  if (!cs.guest_address()) {
+    XELOGE("Null critical section in RtlTryEnterCriticalSection!");
+    return 1;  // pretend we got the critical section.
+  }
   CriticalSectionPrefetchW(&cs->lock_count);
   uint32_t thread = XThread::GetCurrentThread()->guest_object();
 
@@ -575,6 +583,10 @@ DECLARE_XBOXKRNL_EXPORT2(RtlTryEnterCriticalSection, kNone, kImplemented,
                          kHighFrequency);
 
 void RtlLeaveCriticalSection_entry(pointer_t<X_RTL_CRITICAL_SECTION> cs) {
+  if (!cs.guest_address()) {
+    XELOGE("Null critical section in RtlLeaveCriticalSection!");
+    return;
+  }
   assert_true(cs->owning_thread == XThread::GetCurrentThread()->guest_object());
 
   // Drop recursion count - if it isn't zero we still have the lock.
@@ -748,6 +760,26 @@ static void RtlRip_entry(const ppc_context_t& ctx) {
   //we should break here... not sure what to do exactly
 }
 DECLARE_XBOXKRNL_EXPORT1(RtlRip, kNone, kImportant);
+
+void RtlGetStackLimits_entry(lpdword_t out_end, lpdword_t out_base,
+                             const ppc_context_t& ctx) {
+  auto kpcr = ctx->TranslateVirtualGPR<X_KPCR*>(ctx->r[13]);
+
+  uint32_t stack_base;
+  uint32_t stack_end;
+
+  if (kpcr->use_alternative_stack) {
+    stack_base = kpcr->alt_stack_base_ptr;
+    stack_end = kpcr->alt_stack_end_ptr;
+  } else {
+    stack_base = kpcr->stack_base_ptr;
+    stack_end = kpcr->stack_end_ptr;
+  }
+  *out_base = stack_base;
+  *out_end = stack_end;
+}
+DECLARE_XBOXKRNL_EXPORT1(RtlGetStackLimits, kNone, kImplemented);
+
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
