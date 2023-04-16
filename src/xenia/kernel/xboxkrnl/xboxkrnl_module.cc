@@ -78,8 +78,7 @@ bool XboxkrnlModule::SendPIXCommand(const char* cmd) {
 }
 
 XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
-    : KernelModule(kernel_state, "xe:\\xboxkrnl.exe"),
-      timestamp_timer_(nullptr) {
+    : KernelModule(kernel_state, "xe:\\xboxkrnl.exe") {
   RegisterExportTable(export_resolver_);
 
   // Register all exported functions.
@@ -216,23 +215,9 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   xe::store_and_swap<uint8_t>(lpXboxKrnlVersion + 6, 0x80);
   xe::store_and_swap<uint8_t>(lpXboxKrnlVersion + 7, 0x00);
 
-  // KeTimeStampBundle (ad)
-  // This must be updated during execution, at 1ms intevals.
-  // We setup a system timer here to do that.
-  uint32_t pKeTimeStampBundle = memory_->SystemHeapAlloc(24);
-  auto lpKeTimeStampBundle = memory_->TranslateVirtual(pKeTimeStampBundle);
-  export_resolver_->SetVariableMapping(
-      "xboxkrnl.exe", ordinals::KeTimeStampBundle, pKeTimeStampBundle);
-  xe::store_and_swap<uint64_t>(lpKeTimeStampBundle + 0, 0);
-  xe::store_and_swap<uint64_t>(lpKeTimeStampBundle + 8, 0);
-  xe::store_and_swap<uint32_t>(lpKeTimeStampBundle + 16,
-                               Clock::QueryGuestUptimeMillis());
-  xe::store_and_swap<uint32_t>(lpKeTimeStampBundle + 20, 0);
-  timestamp_timer_ = xe::threading::HighResolutionTimer::CreateRepeating(
-      std::chrono::milliseconds(1), [lpKeTimeStampBundle]() {
-        xe::store_and_swap<uint32_t>(lpKeTimeStampBundle + 16,
-                                     Clock::QueryGuestUptimeMillis());
-      });
+  export_resolver_->SetVariableMapping("xboxkrnl.exe",
+                                       ordinals::KeTimeStampBundle,
+                                       kernel_state->GetKeTimestampBundle());
 }
 
 static auto& get_xboxkrnl_exports() {

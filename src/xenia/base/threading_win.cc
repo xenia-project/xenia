@@ -148,7 +148,16 @@ void MaybeYield() {
   // memorybarrier is really not necessary here...
   // MemoryBarrier();
 }
-
+void NanoSleep(int64_t ns) {
+//nanosleep is done in 100 nanosecond increments
+  int64_t in_nt_increments = ns / 100LL;
+  if (in_nt_increments == 0 && ns != 0) {
+	//if we're explicitly requesting a delay of 0 ns, let it go through, otherwise if it was less than a 100ns increment we round up to 100ns
+    in_nt_increments = 1;
+  }
+  in_nt_increments = -in_nt_increments;
+  NtDelayExecutionPointer.invoke(0, &in_nt_increments);
+}
 void SyncMemory() { MemoryBarrier(); }
 
 void Sleep(std::chrono::microseconds duration) {

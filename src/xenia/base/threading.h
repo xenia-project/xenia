@@ -115,6 +115,7 @@ void SyncMemory();
 
 // Sleeps the current thread for at least as long as the given duration.
 void Sleep(std::chrono::microseconds duration);
+void NanoSleep(int64_t ns);
 template <typename Rep, typename Period>
 void Sleep(std::chrono::duration<Rep, Period> duration) {
   Sleep(std::chrono::duration_cast<std::chrono::microseconds>(duration));
@@ -148,7 +149,7 @@ bool SetTlsValue(TlsHandle handle, uintptr_t value);
 // be kept short or else all timers will be impacted. This is a simplified
 // wrapper around QueueTimerRecurring which automatically cancels the timer on
 // destruction.
-//only used by XboxkrnlModule::XboxkrnlModule
+// only used by XboxkrnlModule::XboxkrnlModule
 class HighResolutionTimer {
   HighResolutionTimer(std::chrono::milliseconds interval,
                       std::function<void()> callback) {
@@ -302,14 +303,14 @@ class Event : public WaitHandle {
   // the nonsignaled state after releasing the appropriate number of waiting
   // threads.
   virtual void Pulse() = 0;
-	
+
   virtual EventInfo Query() = 0;
-  #if XE_PLATFORM_WIN32 ==1
-  //SetEvent, but if there is a waiter we immediately transfer execution to it
+#if XE_PLATFORM_WIN32 == 1
+  // SetEvent, but if there is a waiter we immediately transfer execution to it
   virtual void SetBoostPriority() = 0;
-  #else
+#else
   void SetBoostPriority() { Set(); }
-  #endif
+#endif
 };
 
 // Models a Win32-like semaphore object.

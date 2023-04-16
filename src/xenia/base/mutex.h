@@ -11,7 +11,7 @@
 #define XENIA_BASE_MUTEX_H_
 #include <mutex>
 #include "platform.h"
-
+#include "memory.h"
 #define XE_ENABLE_FAST_WIN32_MUTEX 1
 namespace xe {
 
@@ -147,6 +147,12 @@ class global_critical_region {
   // Acquires a lock on the global critical section.
   static inline global_unique_lock_type Acquire() {
     return global_unique_lock_type(mutex());
+  }
+
+  static inline void PrepareToAcquire() {
+#if XE_PLATFORM_WIN32 == 1
+    swcache::PrefetchW(&mutex());
+#endif
   }
 
   // Acquires a deferred lock on the global critical section.

@@ -22,7 +22,9 @@ namespace xboxkrnl {
 void KeEnableFpuExceptions_entry(
     const ppc_context_t& ctx) {  // dword_t enabled) {
   // TODO(benvanik): can we do anything about exceptions?
-  // theres a lot more thats supposed to happen here, the floating point state has to be saved to kthread, the irql changes, the machine state register is changed to enable exceptions
+  // theres a lot more thats supposed to happen here, the floating point state
+  // has to be saved to kthread, the irql changes, the machine state register is
+  // changed to enable exceptions
 
   X_KTHREAD* kthread = ctx->TranslateVirtual<X_KTHREAD*>(
       ctx->TranslateVirtualGPR<X_KPCR*>(ctx->r[13])->current_thread);
@@ -117,7 +119,15 @@ void KeSaveFloatingPointState_entry(ppc_context_t& ctx) {
 
 DECLARE_XBOXKRNL_EXPORT1(KeSaveFloatingPointState, kNone, kImplemented);
 #endif
+static qword_result_t KeQueryInterruptTime_entry(const ppc_context_t& ctx) {
+  auto kstate = ctx->kernel_state;
+  uint32_t ts_bundle = kstate->GetKeTimestampBundle();
+  X_TIME_STAMP_BUNDLE* bundle =
+      ctx->TranslateVirtual<X_TIME_STAMP_BUNDLE*>(ts_bundle);
 
+  return xe::load_and_swap<uint64_t>(&bundle->interrupt_time);
+}
+DECLARE_XBOXKRNL_EXPORT1(KeQueryInterruptTime, kNone, kImplemented);
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe

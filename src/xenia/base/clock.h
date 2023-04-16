@@ -54,6 +54,8 @@ class Clock {
   // Queries the milliseconds since the host began.
   static uint64_t QueryHostUptimeMillis();
 
+  static uint64_t QueryHostInterruptTime();
+
   // Guest time scalar.
   static double guest_time_scalar();
   // Sets the guest time scalar, adjusting tick and wall clock speed.
@@ -80,6 +82,8 @@ class Clock {
   static uint64_t QueryGuestSystemTime();
   // Queries the milliseconds since the guest began, accounting for scaling.
   static uint32_t QueryGuestUptimeMillis();
+
+  static uint64_t QueryGuestInterruptTime();
 
   // Sets the system time of the guest.
   static void SetGuestSystemTime(uint64_t system_time);

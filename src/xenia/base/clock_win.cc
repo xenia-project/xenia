@@ -47,5 +47,10 @@ uint64_t Clock::QueryHostSystemTime() {
 uint64_t Clock::QueryHostUptimeMillis() {
   return host_tick_count_platform() * 1000 / host_tick_frequency_platform();
 }
-
+// todo: we only take the low part of interrupttime! this is actually a 96-bit
+// int!
+uint64_t Clock::QueryHostInterruptTime() {
+  return *reinterpret_cast<uint64_t*>(KUserShared() +
+                                      KUSER_SHARED_INTERRUPTTIME_OFFSET);
+}
 }  // namespace xe

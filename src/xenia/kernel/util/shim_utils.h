@@ -382,6 +382,7 @@ using pointer_t = const shim::TypedPointerParam<T>&;
 
 using int_result_t = shim::ResultBase<int32_t>;
 using dword_result_t = shim::ResultBase<uint32_t>;
+using qword_result_t = shim::ResultBase<uint64_t>;
 using pointer_result_t = shim::ResultBase<uint32_t>;
 using X_HRESULT_result_t = shim::ResultBase<X_HRESULT>;
 using ppc_context_t = shim::ContextParam;
