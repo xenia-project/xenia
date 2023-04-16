@@ -917,6 +917,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
         .SelectFromSwizzled(word_index & 1);
   }
 
+  void KillPixel(bool condition, const dxbc::Src& condition_src);
+
   void ProcessVectorAluOperation(const ParsedAluInstruction& instr,
                                  uint32_t& result_swizzle,
                                  bool& predicate_written);

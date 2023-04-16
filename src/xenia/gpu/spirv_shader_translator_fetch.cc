@@ -52,7 +52,6 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     // Get the base address in dwords from the bits 2:31 of the first fetch
     // constant word.
     id_vector_temp_.clear();
-    id_vector_temp_.reserve(3);
     // The only element of the fetch constant buffer.
     id_vector_temp_.push_back(const_int_0_);
     // Vector index.
@@ -140,7 +139,6 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     // because of the LoadUint32FromSharedMemory call (potentially using
     // id_vector_temp_ internally).
     id_vector_temp_.clear();
-    id_vector_temp_.reserve(word_count);
     id_vector_temp_.insert(id_vector_temp_.cend(), word_composite_constituents,
                            word_composite_constituents + word_count);
     words = builder_->createCompositeConstruct(
@@ -153,7 +151,6 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
   // fetch constant word.
   uint32_t fetch_constant_word_1_index = fetch_constant_word_0_index + 1;
   id_vector_temp_.clear();
-  id_vector_temp_.reserve(3);
   // The only element of the fetch constant buffer.
   id_vector_temp_.push_back(const_int_0_);
   // Vector index.
@@ -316,7 +313,6 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
                   builder_->makeFloatConstant(0.5f / 2147483647.5f);
               if (used_format_component_count > 1) {
                 id_vector_temp_.clear();
-                id_vector_temp_.reserve(used_format_component_count);
                 id_vector_temp_.insert(id_vector_temp_.cend(),
                                        used_format_component_count,
                                        const_no_zero);
@@ -396,7 +392,6 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
     assert_true(extracted_component_count == used_format_component_count);
     if (used_format_component_count > 1) {
       id_vector_temp_.clear();
-      id_vector_temp_.reserve(used_format_component_count);
       id_vector_temp_.insert(
           id_vector_temp_.cend(), extracted_components,
           extracted_components + used_format_component_count);
@@ -443,7 +438,6 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
         } else {
           packed_scale_mul_op = spv::OpFMul;
           id_vector_temp_.clear();
-          id_vector_temp_.reserve(used_format_component_count);
           id_vector_temp_.push_back(const_packed_scale);
           for (uint32_t i = 1; i < used_format_component_count; ++i) {
             id_vector_temp_.push_back(
@@ -466,7 +460,6 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
             spv::Id const_minus_1 = builder_->makeFloatConstant(-1.0f);
             if (used_format_component_count > 1) {
               id_vector_temp_.clear();
-              id_vector_temp_.reserve(used_format_component_count);
               id_vector_temp_.insert(id_vector_temp_.cend(),
                                      used_format_component_count,
                                      const_minus_1);
@@ -482,7 +475,6 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
           } break;
           case xenos::SignedRepeatingFractionMode::kNoZero:
             id_vector_temp_.clear();
-            id_vector_temp_.reserve(used_format_component_count);
             for (uint32_t i = 0; i < used_format_component_count; ++i) {
               id_vector_temp_.push_back(
                   builder_->makeFloatConstant(0.5f * packed_scales[i]));
@@ -925,7 +917,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       // Get the data dimensionality from the bits 9:10 of the fetch constant
       // word 5.
       id_vector_temp_.clear();
-      id_vector_temp_.reserve(3);
       id_vector_temp_.push_back(const_int_0_);
       id_vector_temp_.push_back(builder_->makeIntConstant(
           int((fetch_constant_word_0_index + 5) >> 2)));
@@ -948,7 +939,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
     if (size_needed_components) {
       // Get the size from the fetch constant word 2.
       id_vector_temp_.clear();
-      id_vector_temp_.reserve(3);
       id_vector_temp_.push_back(const_int_0_);
       id_vector_temp_.push_back(builder_->makeIntConstant(
           int((fetch_constant_word_0_index + 2) >> 2)));
@@ -1296,7 +1286,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           builder_->addDecoration(face, spv::DecorationNoContraction);
         }
         id_vector_temp_.clear();
-        id_vector_temp_.reserve(3);
         id_vector_temp_.push_back(face);
         id_vector_temp_.push_back(const_float_0_);
         id_vector_temp_.push_back(builder_->makeFloatConstant(5.0f));
@@ -1410,7 +1399,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       }
 
       id_vector_temp_.clear();
-      id_vector_temp_.reserve(3);
       id_vector_temp_.push_back(
           builder_->makeIntConstant(kSystemConstantTextureSwizzledSigns));
       id_vector_temp_.push_back(
@@ -1463,7 +1451,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           // 3D.
           builder_->setBuildPoint(&block_dimension_3d_start);
           id_vector_temp_.clear();
-          id_vector_temp_.reserve(3);
           for (uint32_t i = 0; i < 3; ++i) {
             id_vector_temp_.push_back(coordinates[i]);
           }
@@ -1479,7 +1466,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           // 2D stacked.
           builder_->setBuildPoint(&block_dimension_stacked_start);
           id_vector_temp_.clear();
-          id_vector_temp_.reserve(2);
           for (uint32_t i = 0; i < 2; ++i) {
             id_vector_temp_.push_back(coordinates[i]);
           }
@@ -1512,7 +1498,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           uint32_t lod_query_coordinate_component_count =
               instr.dimension == xenos::FetchOpDimension::kCube ? 3 : 2;
           id_vector_temp_.clear();
-          id_vector_temp_.reserve(lod_query_coordinate_component_count);
           for (uint32_t i = 0; i < lod_query_coordinate_component_count; ++i) {
             id_vector_temp_.push_back(coordinates[i]);
           }
@@ -1575,7 +1560,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         // biasing, for result exponent biasing, and conditionally for stacked
         // texture filtering.
         id_vector_temp_.clear();
-        id_vector_temp_.reserve(3);
         id_vector_temp_.push_back(const_int_0_);
         id_vector_temp_.push_back(builder_->makeIntConstant(
             int((fetch_constant_word_0_index + 4) >> 2)));
@@ -1681,7 +1665,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
               // 1D textures are sampled as 2D arrays - need 2-component
               // gradients.
               id_vector_temp_.clear();
-              id_vector_temp_.reserve(2);
               id_vector_temp_.push_back(gradient_h_1d);
               id_vector_temp_.push_back(const_float_0_);
               gradients_h = builder_->createCompositeConstruct(type_float2_,
@@ -1717,7 +1700,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                                             spv::DecorationNoContraction);
                   }
                   id_vector_temp_.clear();
-                  id_vector_temp_.reserve(2);
                   id_vector_temp_.push_back(register_gradient_x);
                   id_vector_temp_.push_back(register_gradient_y);
                   (i ? gradients_v : gradients_h) =
@@ -1726,7 +1708,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                 }
               } else {
                 id_vector_temp_.clear();
-                id_vector_temp_.reserve(2);
                 for (uint32_t i = 0; i < 2; ++i) {
                   id_vector_temp_.push_back(coordinates[i]);
                 }
@@ -1763,7 +1744,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                   for (uint32_t i = 0; i < 2; ++i) {
                     spv::Id& gradient_ref = i ? gradients_v : gradients_h;
                     id_vector_temp_.clear();
-                    id_vector_temp_.reserve(3);
                     for (uint32_t j = 0; j < 3; ++j) {
                       assert_true(size[j] != spv::NoResult);
                       id_vector_temp_.push_back(builder_->createBinOp(
@@ -1780,7 +1760,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                 }
               } else {
                 id_vector_temp_.clear();
-                id_vector_temp_.reserve(3);
                 for (uint32_t i = 0; i < 3; ++i) {
                   id_vector_temp_.push_back(coordinates[i]);
                 }
@@ -1818,7 +1797,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                                                    spv::NoPrecision);
               } else {
                 id_vector_temp_.clear();
-                id_vector_temp_.reserve(3);
                 for (uint32_t i = 0; i < 3; ++i) {
                   id_vector_temp_.push_back(coordinates[i]);
                 }
@@ -1879,7 +1857,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
             texture_parameters.gradY = gradients_v;
           }
           id_vector_temp_.clear();
-          id_vector_temp_.reserve(3);
           for (uint32_t i = 0; i < 3; ++i) {
             id_vector_temp_.push_back(coordinates[i]);
           }
@@ -1899,7 +1876,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           if (use_computed_lod) {
             // Extract 2D gradients for stacked textures which are 2D arrays.
             uint_vector_temp_.clear();
-            uint_vector_temp_.reserve(2);
             uint_vector_temp_.push_back(0);
             uint_vector_temp_.push_back(1);
             texture_parameters.gradX = builder_->createRvalueSwizzle(
@@ -1924,7 +1900,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                vol_mag_filter_is_linear != vol_min_filter_is_linear)) {
             // Check if minifying along layers (derivative > 1 along any axis).
             id_vector_temp_.clear();
-            id_vector_temp_.reserve(2);
             for (uint32_t i = 0; i < 2; ++i) {
               id_vector_temp_.push_back(builder_->createCompositeExtract(
                   i ? gradients_v : gradients_h, type_float_, 2));
@@ -2022,7 +1997,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
               builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
                                           GLSLstd450Floor, id_vector_temp_);
           id_vector_temp_.clear();
-          id_vector_temp_.reserve(3);
           id_vector_temp_.push_back(coordinates[0]);
           id_vector_temp_.push_back(coordinates[1]);
           id_vector_temp_.push_back(layer_0_coordinate);
@@ -2057,7 +2031,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                 spv::OpFAdd, type_float_, layer_0_coordinate,
                 builder_->makeFloatConstant(1.0f));
             id_vector_temp_.clear();
-            id_vector_temp_.reserve(3);
             id_vector_temp_.push_back(coordinates[0]);
             id_vector_temp_.push_back(coordinates[1]);
             id_vector_temp_.push_back(layer_1_coordinate);
@@ -2153,7 +2126,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
             texture_parameters.gradY = gradients_v;
           }
           id_vector_temp_.clear();
-          id_vector_temp_.reserve(3);
           for (uint32_t i = 0; i < 3; ++i) {
             id_vector_temp_.push_back(coordinates[i]);
           }
@@ -2175,7 +2147,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         // and gamma) swizzling.
         if (!features_.image_view_format_swizzle) {
           id_vector_temp_.clear();
-          id_vector_temp_.reserve(3);
           id_vector_temp_.push_back(
               builder_->makeIntConstant(kSystemConstantTextureSwizzles));
           id_vector_temp_.push_back(
@@ -2398,7 +2369,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         // Apply the exponent bias from the bits 13:18 of the fetch constant
         // word 4.
         id_vector_temp_.clear();
-        id_vector_temp_.reserve(2);
         id_vector_temp_.push_back(builder_->makeFloatConstant(1.0f));
         id_vector_temp_.push_back(builder_->createTriOp(
             spv::OpBitFieldSExtract, type_int_, fetch_constant_word_4_signed,
@@ -2429,7 +2399,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
   spv::Id result_vector;
   if (used_result_component_count > 1) {
     id_vector_temp_.clear();
-    id_vector_temp_.reserve(used_result_component_count);
     uint32_t result_components_remaining = used_result_components;
     uint32_t result_component_index;
     while (xe::bit_scan_forward(result_components_remaining,

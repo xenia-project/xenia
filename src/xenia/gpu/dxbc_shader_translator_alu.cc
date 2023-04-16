@@ -19,6 +19,20 @@ namespace xe {
 namespace gpu {
 using namespace ucode;
 
+void DxbcShaderTranslator::KillPixel(bool condition,
+                                     const dxbc::Src& condition_src) {
+  // Discard the pixel, but continue execution if other lanes in the quad need
+  // this lane for derivatives. The driver may also perform early exiting
+  // internally if all lanes are discarded if deemed beneficial.
+  a_.OpDiscard(condition, condition_src);
+  if (edram_rov_used_) {
+    // Even though discarding disables all subsequent UAV/ROV writes, also skip
+    // as much of the Render Backend emulation logic as possible by setting the
+    // coverage and the mask of the written render targets to zero.
+    a_.OpMov(dxbc::Dest::R(system_temp_rov_params_, 0b0001), dxbc::Src::LU(0));
+  }
+}
+
 void DxbcShaderTranslator::ProcessVectorAluOperation(
     const ParsedAluInstruction& instr, uint32_t& result_swizzle,
     bool& predicate_written) {
@@ -492,11 +506,7 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
       a_.OpOr(dxbc::Dest::R(system_temp_result_, 0b0001),
               dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX),
               dxbc::Src::R(system_temp_result_, dxbc::Src::kYYYY));
-      if (edram_rov_used_) {
-        a_.OpRetC(true, dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX));
-      } else {
-        a_.OpDiscard(true, dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX));
-      }
+      KillPixel(true, dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX));
       if (used_result_components) {
         a_.OpAnd(dxbc::Dest::R(system_temp_result_, 0b0001),
                  dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX),
@@ -512,11 +522,7 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
       a_.OpOr(dxbc::Dest::R(system_temp_result_, 0b0001),
               dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX),
               dxbc::Src::R(system_temp_result_, dxbc::Src::kYYYY));
-      if (edram_rov_used_) {
-        a_.OpRetC(true, dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX));
-      } else {
-        a_.OpDiscard(true, dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX));
-      }
+      KillPixel(true, dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX));
       if (used_result_components) {
         a_.OpAnd(dxbc::Dest::R(system_temp_result_, 0b0001),
                  dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX),
@@ -532,11 +538,7 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
       a_.OpOr(dxbc::Dest::R(system_temp_result_, 0b0001),
               dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX),
               dxbc::Src::R(system_temp_result_, dxbc::Src::kYYYY));
-      if (edram_rov_used_) {
-        a_.OpRetC(true, dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX));
-      } else {
-        a_.OpDiscard(true, dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX));
-      }
+      KillPixel(true, dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX));
       if (used_result_components) {
         a_.OpAnd(dxbc::Dest::R(system_temp_result_, 0b0001),
                  dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX),
@@ -552,11 +554,7 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
       a_.OpOr(dxbc::Dest::R(system_temp_result_, 0b0001),
               dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX),
               dxbc::Src::R(system_temp_result_, dxbc::Src::kYYYY));
-      if (edram_rov_used_) {
-        a_.OpRetC(true, dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX));
-      } else {
-        a_.OpDiscard(true, dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX));
-      }
+      KillPixel(true, dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX));
       if (used_result_components) {
         a_.OpAnd(dxbc::Dest::R(system_temp_result_, 0b0001),
                  dxbc::Src::R(system_temp_result_, dxbc::Src::kXXXX),
@@ -952,47 +950,27 @@ void DxbcShaderTranslator::ProcessScalarAluOperation(
 
     case AluScalarOpcode::kKillsEq:
       a_.OpEq(ps_dest, operand_0_a, dxbc::Src::LF(0.0f));
-      if (edram_rov_used_) {
-        a_.OpRetC(true, ps_src);
-      } else {
-        a_.OpDiscard(true, ps_src);
-      }
+      KillPixel(true, ps_src);
       a_.OpAnd(ps_dest, ps_src, dxbc::Src::LF(1.0f));
       break;
     case AluScalarOpcode::kKillsGt:
       a_.OpLT(ps_dest, dxbc::Src::LF(0.0f), operand_0_a);
-      if (edram_rov_used_) {
-        a_.OpRetC(true, ps_src);
-      } else {
-        a_.OpDiscard(true, ps_src);
-      }
+      KillPixel(true, ps_src);
       a_.OpAnd(ps_dest, ps_src, dxbc::Src::LF(1.0f));
       break;
     case AluScalarOpcode::kKillsGe:
       a_.OpGE(ps_dest, operand_0_a, dxbc::Src::LF(0.0f));
-      if (edram_rov_used_) {
-        a_.OpRetC(true, ps_src);
-      } else {
-        a_.OpDiscard(true, ps_src);
-      }
+      KillPixel(true, ps_src);
       a_.OpAnd(ps_dest, ps_src, dxbc::Src::LF(1.0f));
       break;
     case AluScalarOpcode::kKillsNe:
       a_.OpNE(ps_dest, operand_0_a, dxbc::Src::LF(0.0f));
-      if (edram_rov_used_) {
-        a_.OpRetC(true, ps_src);
-      } else {
-        a_.OpDiscard(true, ps_src);
-      }
+      KillPixel(true, ps_src);
       a_.OpAnd(ps_dest, ps_src, dxbc::Src::LF(1.0f));
       break;
     case AluScalarOpcode::kKillsOne:
       a_.OpEq(ps_dest, operand_0_a, dxbc::Src::LF(1.0f));
-      if (edram_rov_used_) {
-        a_.OpRetC(true, ps_src);
-      } else {
-        a_.OpDiscard(true, ps_src);
-      }
+      KillPixel(true, ps_src);
       a_.OpAnd(ps_dest, ps_src, dxbc::Src::LF(1.0f));
       break;
 
