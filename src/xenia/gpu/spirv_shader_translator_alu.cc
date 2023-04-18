@@ -29,7 +29,6 @@ spv::Id SpirvShaderTranslator::ZeroIfAnyOperandIsZero(spv::Id value,
   assert_true(builder_->getNumComponents(operand_0_abs) == num_components);
   assert_true(builder_->getNumComponents(operand_1_abs) == num_components);
   id_vector_temp_util_.clear();
-  id_vector_temp_util_.reserve(2);
   id_vector_temp_util_.push_back(operand_0_abs);
   id_vector_temp_util_.push_back(operand_1_abs);
   return builder_->createTriOp(
