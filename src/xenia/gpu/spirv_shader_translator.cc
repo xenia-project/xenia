@@ -1110,7 +1110,6 @@ spv::Id SpirvShaderTranslator::SpirvSmearScalarResultOrConstant(
   }
   int num_components = builder_->getNumTypeComponents(vector_type);
   id_vector_temp_util_.clear();
-  id_vector_temp_util_.reserve(size_t(num_components));
   for (int i = 0; i < num_components; ++i) {
     id_vector_temp_util_.push_back(scalar);
   }
@@ -2386,7 +2385,6 @@ spv::Id SpirvShaderTranslator::LoadOperandStorage(
     case InstructionStorageSource::kConstantFloat:
       assert_true(uniform_float_constants_ != spv::NoResult);
       id_vector_temp_util_.clear();
-      id_vector_temp_util_.reserve(2);
       // The first and the only structure member.
       id_vector_temp_util_.push_back(const_int_0_);
       // Array element.
@@ -2448,7 +2446,6 @@ spv::Id SpirvShaderTranslator::GetUnmodifiedOperandComponents(
             static_cast<unsigned int>(SwizzleSource::kX));
   }
   uint_vector_temp_util_.clear();
-  uint_vector_temp_util_.reserve(component_count);
   uint32_t components_remaining = components;
   uint32_t component_index;
   while (xe::bit_scan_forward(components_remaining, &component_index)) {
@@ -2575,7 +2572,6 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
   if (result.is_clamped && non_constant_components) {
     // Apply the saturation modifier to the result.
     id_vector_temp_util_.clear();
-    id_vector_temp_util_.reserve(3);
     id_vector_temp_util_.push_back(value);
     id_vector_temp_util_.push_back(
         const_float_vectors_0_[value_num_components - 1]);
@@ -2660,7 +2656,6 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
             value_to_store = value;
           } else {
             uint_vector_temp_util_.clear();
-            uint_vector_temp_util_.reserve(target_num_components);
             uint_vector_temp_util_.insert(
                 uint_vector_temp_util_.cend(), result_swizzled_value_components,
                 result_swizzled_value_components + target_num_components);
@@ -2686,7 +2681,6 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
       if (target_num_components > 1) {
         // Constants only - vector target.
         id_vector_temp_util_.clear();
-        id_vector_temp_util_.reserve(target_num_components);
         for (uint32_t i = 0; i < target_num_components; ++i) {
           id_vector_temp_util_.push_back(
               (constant_values & (1 << i)) ? const_float_1_ : const_float_0_);
@@ -2718,7 +2712,6 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
       } else {
         // Mixed non-constants and constants - scalar source.
         id_vector_temp_util_.clear();
-        id_vector_temp_util_.reserve(target_num_components);
         for (uint32_t i = 0; i < target_num_components; ++i) {
           if (constant_components & (1 << i)) {
             id_vector_temp_util_.push_back(
@@ -2805,7 +2798,6 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
                                         id_vector_temp_util_),
             spv::NoPrecision));
     id_vector_temp_util_.clear();
-    id_vector_temp_util_.reserve(2);
     id_vector_temp_util_.push_back(point_vertex_diameter_min);
     id_vector_temp_util_.push_back(point_size);
     point_size =
@@ -2822,7 +2814,6 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
                                         id_vector_temp_util_),
             spv::NoPrecision));
     id_vector_temp_util_.clear();
-    id_vector_temp_util_.reserve(2);
     id_vector_temp_util_.push_back(point_vertex_diameter_max);
     id_vector_temp_util_.push_back(point_size);
     point_size =
