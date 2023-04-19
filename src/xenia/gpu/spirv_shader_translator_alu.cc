@@ -42,6 +42,33 @@ spv::Id SpirvShaderTranslator::ZeroIfAnyOperandIsZero(spv::Id value,
       const_float_vectors_0_[num_components - 1], value);
 }
 
+void SpirvShaderTranslator::KillPixel(spv::Id condition) {
+  // Same calls as in spv::Builder::If.
+  spv::Function& function = builder_->getBuildPoint()->getParent();
+  spv::Block* kill_block = new spv::Block(builder_->getUniqueId(), function);
+  spv::Block* merge_block = new spv::Block(builder_->getUniqueId(), function);
+  spv::Block& header_block = *builder_->getBuildPoint();
+
+  function.addBlock(kill_block);
+  builder_->setBuildPoint(kill_block);
+  // Kill without influencing the control flow in the translated shader.
+  if (var_main_kill_pixel_ != spv::NoResult) {
+    builder_->createStore(builder_->makeBoolConstant(true),
+                          var_main_kill_pixel_);
+  }
+  if (features_.demote_to_helper_invocation) {
+    builder_->createNoResultOp(spv::OpDemoteToHelperInvocationEXT);
+  }
+  builder_->createBranch(merge_block);
+
+  builder_->setBuildPoint(&header_block);
+  SpirvCreateSelectionMerge(merge_block->getId());
+  builder_->createConditionalBranch(condition, kill_block, merge_block);
+
+  function.addBlock(merge_block);
+  builder_->setBuildPoint(merge_block);
+}
+
 void SpirvShaderTranslator::ProcessAluInstruction(
     const ParsedAluInstruction& instr) {
   if (instr.IsNop()) {
@@ -560,133 +587,122 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
         builder_->addDecoration(operand_neg[2], spv::DecorationNoContraction);
       }
 
+      spv::Id ma_z_result[4] = {}, ma_yx_result[4] = {};
+
       // Check if the major axis is Z (abs(z) >= abs(x) && abs(z) >= abs(y)).
-      // Selection merge must be the penultimate instruction in the block, check
-      // the condition before it.
-      spv::Id ma_z_condition = builder_->createBinOp(
-          spv::OpLogicalAnd, type_bool_,
-          builder_->createBinOp(spv::OpFOrdGreaterThanEqual, type_bool_,
-                                operand_abs[2], operand_abs[0]),
-          builder_->createBinOp(spv::OpFOrdGreaterThanEqual, type_bool_,
-                                operand_abs[2], operand_abs[1]));
-      spv::Function& function = builder_->getBuildPoint()->getParent();
-      spv::Block& ma_z_block = builder_->makeNewBlock();
-      spv::Block& ma_yx_block = builder_->makeNewBlock();
-      spv::Block* ma_merge_block =
-          new spv::Block(builder_->getUniqueId(), function);
-      SpirvCreateSelectionMerge(ma_merge_block->getId());
-      builder_->createConditionalBranch(ma_z_condition, &ma_z_block,
-                                        &ma_yx_block);
-
-      builder_->setBuildPoint(&ma_z_block);
-      // The major axis is Z.
-      spv::Id ma_z_result[4] = {};
-      // tc = -y
-      ma_z_result[0] = operand_neg[1];
-      // ma/2 = z
-      ma_z_result[2] = operand[2];
-      if (used_result_components & 0b1010) {
-        spv::Id z_is_neg = builder_->createBinOp(
-            spv::OpFOrdLessThan, type_bool_, operand[2], const_float_0_);
-        if (used_result_components & 0b0010) {
-          // sc = z < 0.0 ? -x : x
-          ma_z_result[1] = builder_->createTriOp(
-              spv::OpSelect, type_float_, z_is_neg, operand_neg[0], operand[0]);
-        }
-        if (used_result_components & 0b1000) {
-          // id = z < 0.0 ? 5.0 : 4.0
-          ma_z_result[3] =
-              builder_->createTriOp(spv::OpSelect, type_float_, z_is_neg,
-                                    builder_->makeFloatConstant(5.0f),
-                                    builder_->makeFloatConstant(4.0f));
+      spv::Builder::If ma_z_if(
+          builder_->createBinOp(
+              spv::OpLogicalAnd, type_bool_,
+              builder_->createBinOp(spv::OpFOrdGreaterThanEqual, type_bool_,
+                                    operand_abs[2], operand_abs[0]),
+              builder_->createBinOp(spv::OpFOrdGreaterThanEqual, type_bool_,
+                                    operand_abs[2], operand_abs[1])),
+          spv::SelectionControlMaskNone, *builder_);
+      {
+        // The major axis is Z.
+        // tc = -y
+        ma_z_result[0] = operand_neg[1];
+        // ma/2 = z
+        ma_z_result[2] = operand[2];
+        if (used_result_components & 0b1010) {
+          spv::Id z_is_neg = builder_->createBinOp(
+              spv::OpFOrdLessThan, type_bool_, operand[2], const_float_0_);
+          if (used_result_components & 0b0010) {
+            // sc = z < 0.0 ? -x : x
+            ma_z_result[1] =
+                builder_->createTriOp(spv::OpSelect, type_float_, z_is_neg,
+                                      operand_neg[0], operand[0]);
+          }
+          if (used_result_components & 0b1000) {
+            // id = z < 0.0 ? 5.0 : 4.0
+            ma_z_result[3] =
+                builder_->createTriOp(spv::OpSelect, type_float_, z_is_neg,
+                                      builder_->makeFloatConstant(5.0f),
+                                      builder_->makeFloatConstant(4.0f));
+          }
         }
       }
-      builder_->createBranch(ma_merge_block);
+      spv::Block& ma_z_end_block = *builder_->getBuildPoint();
+      ma_z_if.makeBeginElse();
+      {
+        spv::Id ma_y_result[4] = {}, ma_x_result[4] = {};
 
-      builder_->setBuildPoint(&ma_yx_block);
-      // The major axis is not Z - create an inner conditional to check if the
-      // major axis is Y (abs(y) >= abs(x)).
-      // Selection merge must be the penultimate instruction in the block, check
-      // the condition before it.
-      spv::Id ma_y_condition =
-          builder_->createBinOp(spv::OpFOrdGreaterThanEqual, type_bool_,
-                                operand_abs[1], operand_abs[0]);
-      spv::Block& ma_y_block = builder_->makeNewBlock();
-      spv::Block& ma_x_block = builder_->makeNewBlock();
-      spv::Block& ma_yx_merge_block = builder_->makeNewBlock();
-      SpirvCreateSelectionMerge(ma_yx_merge_block.getId());
-      builder_->createConditionalBranch(ma_y_condition, &ma_y_block,
-                                        &ma_x_block);
+        // The major axis is not Z - create an inner conditional to check if the
+        // major axis is Y (abs(y) >= abs(x)).
+        spv::Builder::If ma_y_if(
+            builder_->createBinOp(spv::OpFOrdGreaterThanEqual, type_bool_,
+                                  operand_abs[1], operand_abs[0]),
+            spv::SelectionControlMaskNone, *builder_);
+        {
+          // The major axis is Y.
+          // sc = x
+          ma_y_result[1] = operand[0];
+          // ma/2 = y
+          ma_y_result[2] = operand[1];
+          if (used_result_components & 0b1001) {
+            spv::Id y_is_neg = builder_->createBinOp(
+                spv::OpFOrdLessThan, type_bool_, operand[1], const_float_0_);
+            if (used_result_components & 0b0001) {
+              // tc = y < 0.0 ? -z : z
+              ma_y_result[0] =
+                  builder_->createTriOp(spv::OpSelect, type_float_, y_is_neg,
+                                        operand_neg[2], operand[2]);
+              // id = y < 0.0 ? 3.0 : 2.0
+              ma_y_result[3] =
+                  builder_->createTriOp(spv::OpSelect, type_float_, y_is_neg,
+                                        builder_->makeFloatConstant(3.0f),
+                                        builder_->makeFloatConstant(2.0f));
+            }
+          }
+        }
+        spv::Block& ma_y_end_block = *builder_->getBuildPoint();
+        ma_y_if.makeBeginElse();
+        {
+          // The major axis is X.
+          // tc = -y
+          ma_x_result[0] = operand_neg[1];
+          // ma/2 = x
+          ma_x_result[2] = operand[0];
+          if (used_result_components & 0b1010) {
+            spv::Id x_is_neg = builder_->createBinOp(
+                spv::OpFOrdLessThan, type_bool_, operand[0], const_float_0_);
+            if (used_result_components & 0b0010) {
+              // sc = x < 0.0 ? z : -z
+              ma_x_result[1] =
+                  builder_->createTriOp(spv::OpSelect, type_float_, x_is_neg,
+                                        operand[2], operand_neg[2]);
+            }
+            if (used_result_components & 0b1000) {
+              // id = x < 0.0 ? 1.0 : 0.0
+              ma_x_result[3] =
+                  builder_->createTriOp(spv::OpSelect, type_float_, x_is_neg,
+                                        const_float_1_, const_float_0_);
+            }
+          }
+        }
+        spv::Block& ma_x_end_block = *builder_->getBuildPoint();
+        ma_y_if.makeEndIf();
 
-      builder_->setBuildPoint(&ma_y_block);
-      // The major axis is Y.
-      spv::Id ma_y_result[4] = {};
-      // sc = x
-      ma_y_result[1] = operand[0];
-      // ma/2 = y
-      ma_y_result[2] = operand[1];
-      if (used_result_components & 0b1001) {
-        spv::Id y_is_neg = builder_->createBinOp(
-            spv::OpFOrdLessThan, type_bool_, operand[1], const_float_0_);
-        if (used_result_components & 0b0001) {
-          // tc = y < 0.0 ? -z : z
-          ma_y_result[0] = builder_->createTriOp(
-              spv::OpSelect, type_float_, y_is_neg, operand_neg[2], operand[2]);
-          // id = y < 0.0 ? 3.0 : 2.0
-          ma_y_result[3] =
-              builder_->createTriOp(spv::OpSelect, type_float_, y_is_neg,
-                                    builder_->makeFloatConstant(3.0f),
-                                    builder_->makeFloatConstant(2.0f));
+        // The major axis is Y or X - choose the options of the result from Y
+        // and X.
+        for (uint32_t i = 0; i < 4; ++i) {
+          if (!(used_result_components & (1 << i))) {
+            continue;
+          }
+          std::unique_ptr<spv::Instruction> phi_op =
+              std::make_unique<spv::Instruction>(builder_->getUniqueId(),
+                                                 type_float_, spv::OpPhi);
+          phi_op->addIdOperand(ma_y_result[i]);
+          phi_op->addIdOperand(ma_y_end_block.getId());
+          phi_op->addIdOperand(ma_x_result[i]);
+          phi_op->addIdOperand(ma_x_end_block.getId());
+          ma_yx_result[i] = phi_op->getResultId();
+          builder_->getBuildPoint()->addInstruction(std::move(phi_op));
         }
       }
-      builder_->createBranch(&ma_yx_merge_block);
+      spv::Block& ma_yx_end_block = *builder_->getBuildPoint();
+      ma_z_if.makeEndIf();
 
-      builder_->setBuildPoint(&ma_x_block);
-      // The major axis is X.
-      spv::Id ma_x_result[4] = {};
-      // tc = -y
-      ma_x_result[0] = operand_neg[1];
-      // ma/2 = x
-      ma_x_result[2] = operand[0];
-      if (used_result_components & 0b1010) {
-        spv::Id x_is_neg = builder_->createBinOp(
-            spv::OpFOrdLessThan, type_bool_, operand[0], const_float_0_);
-        if (used_result_components & 0b0010) {
-          // sc = x < 0.0 ? z : -z
-          ma_x_result[1] = builder_->createTriOp(
-              spv::OpSelect, type_float_, x_is_neg, operand[2], operand_neg[2]);
-        }
-        if (used_result_components & 0b1000) {
-          // id = x < 0.0 ? 1.0 : 0.0
-          ma_x_result[3] =
-              builder_->createTriOp(spv::OpSelect, type_float_, x_is_neg,
-                                    const_float_1_, const_float_0_);
-        }
-      }
-      builder_->createBranch(&ma_yx_merge_block);
-
-      builder_->setBuildPoint(&ma_yx_merge_block);
-      // The major axis is Y or X - choose the options of the result from Y and
-      // X.
-      spv::Id ma_yx_result[4] = {};
-      for (uint32_t i = 0; i < 4; ++i) {
-        if (!(used_result_components & (1 << i))) {
-          continue;
-        }
-        std::unique_ptr<spv::Instruction> phi_op =
-            std::make_unique<spv::Instruction>(builder_->getUniqueId(),
-                                               type_float_, spv::OpPhi);
-        phi_op->addIdOperand(ma_y_result[i]);
-        phi_op->addIdOperand(ma_y_block.getId());
-        phi_op->addIdOperand(ma_x_result[i]);
-        phi_op->addIdOperand(ma_x_block.getId());
-        ma_yx_result[i] = phi_op->getResultId();
-        builder_->getBuildPoint()->addInstruction(std::move(phi_op));
-      }
-      builder_->createBranch(ma_merge_block);
-
-      function.addBlock(ma_merge_block);
-      builder_->setBuildPoint(ma_merge_block);
       // Choose the result options from Z and YX cases.
       id_vector_temp_.clear();
       for (uint32_t i = 0; i < 4; ++i) {
@@ -697,9 +713,9 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
             std::make_unique<spv::Instruction>(builder_->getUniqueId(),
                                                type_float_, spv::OpPhi);
         phi_op->addIdOperand(ma_z_result[i]);
-        phi_op->addIdOperand(ma_z_block.getId());
+        phi_op->addIdOperand(ma_z_end_block.getId());
         phi_op->addIdOperand(ma_yx_result[i]);
-        phi_op->addIdOperand(ma_yx_merge_block.getId());
+        phi_op->addIdOperand(ma_yx_end_block.getId());
         id_vector_temp_.push_back(phi_op->getResultId());
         builder_->getBuildPoint()->addInstruction(std::move(phi_op));
       }
@@ -815,31 +831,14 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
     case ucode::AluVectorOpcode::kKillGt:
     case ucode::AluVectorOpcode::kKillGe:
     case ucode::AluVectorOpcode::kKillNe: {
-      // Selection merge must be the penultimate instruction in the block, check
-      // the condition before it.
-      spv::Id condition = builder_->createUnaryOp(
+      KillPixel(builder_->createUnaryOp(
           spv::OpAny, type_bool_,
           builder_->createBinOp(
               spv::Op(kOps[size_t(instr.vector_opcode)]), type_bool4_,
               GetOperandComponents(operand_storage[0], instr.vector_operands[0],
                                    0b1111),
               GetOperandComponents(operand_storage[1], instr.vector_operands[1],
-                                   0b1111)));
-      spv::Block& kill_block = builder_->makeNewBlock();
-      spv::Block& merge_block = builder_->makeNewBlock();
-      SpirvCreateSelectionMerge(merge_block.getId());
-      builder_->createConditionalBranch(condition, &kill_block, &merge_block);
-      builder_->setBuildPoint(&kill_block);
-      // Kill without influencing the control flow in the translated shader.
-      if (var_main_kill_pixel_ != spv::NoResult) {
-        builder_->createStore(builder_->makeBoolConstant(true),
-                              var_main_kill_pixel_);
-      }
-      if (features_.demote_to_helper_invocation) {
-        builder_->createNoResultOp(spv::OpDemoteToHelperInvocationEXT);
-      }
-      builder_->createBranch(&merge_block);
-      builder_->setBuildPoint(&merge_block);
+                                   0b1111))));
       return const_float_0_;
     }
 
@@ -1091,47 +1090,34 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
           spv::OpLogicalAnd, type_bool_, condition,
           builder_->createBinOp(spv::OpFOrdGreaterThan, type_bool_, b,
                                 const_float_0_));
-      spv::Block& multiply_block = builder_->makeNewBlock();
-      spv::Block& merge_block = builder_->makeNewBlock();
-      SpirvCreateSelectionMerge(merge_block.getId());
+      spv::Block& pre_multiply_if_block = *builder_->getBuildPoint();
+      spv::Id product;
+      spv::Builder::If multiply_if(condition, spv::SelectionControlMaskNone,
+                                   *builder_);
       {
-        std::unique_ptr<spv::Instruction> branch_conditional_op =
-            std::make_unique<spv::Instruction>(spv::OpBranchConditional);
-        branch_conditional_op->addIdOperand(condition);
-        branch_conditional_op->addIdOperand(multiply_block.getId());
-        branch_conditional_op->addIdOperand(merge_block.getId());
-        // More likely to multiply that to return -FLT_MAX.
-        branch_conditional_op->addImmediateOperand(2);
-        branch_conditional_op->addImmediateOperand(1);
-        builder_->getBuildPoint()->addInstruction(
-            std::move(branch_conditional_op));
+        // Multiplication case.
+        spv::Id a = instr.scalar_operands[0].GetComponent(0) !=
+                            instr.scalar_operands[0].GetComponent(1)
+                        ? GetOperandComponents(operand_storage[0],
+                                               instr.scalar_operands[0], 0b0001)
+                        : b;
+        product = builder_->createBinOp(spv::OpFMul, type_float_, a, ps);
+        builder_->addDecoration(product, spv::DecorationNoContraction);
+        // Shader Model 3: +0 or denormal * anything = +-0.
+        product = ZeroIfAnyOperandIsZero(
+            product, GetAbsoluteOperand(a, instr.scalar_operands[0]), ps_abs);
       }
-      spv::Block& head_block = *builder_->getBuildPoint();
-      multiply_block.addPredecessor(&head_block);
-      merge_block.addPredecessor(&head_block);
-      // Multiplication case.
-      builder_->setBuildPoint(&multiply_block);
-      spv::Id a = instr.scalar_operands[0].GetComponent(0) !=
-                          instr.scalar_operands[0].GetComponent(1)
-                      ? GetOperandComponents(operand_storage[0],
-                                             instr.scalar_operands[0], 0b0001)
-                      : b;
-      spv::Id product = builder_->createBinOp(spv::OpFMul, type_float_, a, ps);
-      builder_->addDecoration(product, spv::DecorationNoContraction);
-      // Shader Model 3: +0 or denormal * anything = +-0.
-      product = ZeroIfAnyOperandIsZero(
-          product, GetAbsoluteOperand(a, instr.scalar_operands[0]), ps_abs);
-      builder_->createBranch(&merge_block);
-      // Merge case - choose between the product and -FLT_MAX.
-      builder_->setBuildPoint(&merge_block);
+      spv::Block& multiply_end_block = *builder_->getBuildPoint();
+      multiply_if.makeEndIf();
+      // Merge - choose between the product and -FLT_MAX.
       {
         std::unique_ptr<spv::Instruction> phi_op =
             std::make_unique<spv::Instruction>(builder_->getUniqueId(),
                                                type_float_, spv::OpPhi);
         phi_op->addIdOperand(product);
-        phi_op->addIdOperand(multiply_block.getId());
+        phi_op->addIdOperand(multiply_end_block.getId());
         phi_op->addIdOperand(const_float_max_neg);
-        phi_op->addIdOperand(head_block.getId());
+        phi_op->addIdOperand(pre_multiply_if_block.getId());
         spv::Id phi_result = phi_op->getResultId();
         builder_->getBuildPoint()->addInstruction(std::move(phi_op));
         return phi_result;
@@ -1375,30 +1361,13 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
     case ucode::AluScalarOpcode::kKillsGe:
     case ucode::AluScalarOpcode::kKillsNe:
     case ucode::AluScalarOpcode::kKillsOne: {
-      // Selection merge must be the penultimate instruction in the block, check
-      // the condition before it.
-      spv::Id condition = builder_->createBinOp(
+      KillPixel(builder_->createBinOp(
           spv::Op(kOps[size_t(instr.scalar_opcode)]), type_bool_,
           GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
                                0b0001),
           instr.scalar_opcode == ucode::AluScalarOpcode::kKillsOne
               ? const_float_1_
-              : const_float_0_);
-      spv::Block& kill_block = builder_->makeNewBlock();
-      spv::Block& merge_block = builder_->makeNewBlock();
-      SpirvCreateSelectionMerge(merge_block.getId());
-      builder_->createConditionalBranch(condition, &kill_block, &merge_block);
-      builder_->setBuildPoint(&kill_block);
-      // Kill without influencing the control flow in the translated shader.
-      if (var_main_kill_pixel_ != spv::NoResult) {
-        builder_->createStore(builder_->makeBoolConstant(true),
-                              var_main_kill_pixel_);
-      }
-      if (features_.demote_to_helper_invocation) {
-        builder_->createNoResultOp(spv::OpDemoteToHelperInvocationEXT);
-      }
-      builder_->createBranch(&merge_block);
-      builder_->setBuildPoint(&merge_block);
+              : const_float_0_));
       return const_float_0_;
     }
 

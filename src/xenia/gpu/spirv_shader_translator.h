@@ -571,6 +571,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // must be called with absolute values of operands - use GetAbsoluteOperand!
   spv::Id ZeroIfAnyOperandIsZero(spv::Id value, spv::Id operand_0_abs,
                                  spv::Id operand_1_abs);
+  // Conditionally discard the current fragment. Changes the build point.
+  void KillPixel(spv::Id condition);
   // Return type is a xe::bit_count(result.GetUsedResultComponents())-component
   // float vector or a single float, depending on whether it's a reduction
   // instruction (check getTypeId of the result), or returns spv::NoResult if
