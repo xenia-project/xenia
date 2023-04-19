@@ -25,6 +25,20 @@ class SpirvBuilder : public spv::Builder {
 
   // Make public rather than protected.
   using spv::Builder::createSelectionMerge;
+
+  spv::Id createNoContractionUnaryOp(spv::Op op_code, spv::Id type_id,
+                                     spv::Id operand) {
+    spv::Id result = createUnaryOp(op_code, type_id, operand);
+    addDecoration(result, spv::DecorationNoContraction);
+    return result;
+  }
+
+  spv::Id createNoContractionBinOp(spv::Op op_code, spv::Id type_id,
+                                   spv::Id operand1, spv::Id operand2) {
+    spv::Id result = createBinOp(op_code, type_id, operand1, operand2);
+    addDecoration(result, spv::DecorationNoContraction);
+    return result;
+  }
 };
 
 }  // namespace gpu

@@ -1490,9 +1490,8 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
           builder_->makeUintConstant(
               static_cast<unsigned int>(kSysFlag_WNotReciprocal))),
       const_uint_0_);
-  spv::Id guest_position_w_inv = builder_->createBinOp(
+  spv::Id guest_position_w_inv = builder_->createNoContractionBinOp(
       spv::OpFDiv, type_float_, const_float_1_, position_w);
-  builder_->addDecoration(guest_position_w_inv, spv::DecorationNoContraction);
   position_w =
       builder_->createTriOp(spv::OpSelect, type_float_, is_w_not_reciprocal,
                             position_w, guest_position_w_inv);
@@ -1516,10 +1515,8 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
             builder_->makeUintConstant(
                 static_cast<unsigned int>(kSysFlag_XYDividedByW))),
         const_uint_0_);
-    spv::Id guest_position_xy_mul_w = builder_->createBinOp(
+    spv::Id guest_position_xy_mul_w = builder_->createNoContractionBinOp(
         spv::OpVectorTimesScalar, type_float2_, position_xy, position_w);
-    builder_->addDecoration(guest_position_xy_mul_w,
-                            spv::DecorationNoContraction);
     position_xy = builder_->createTriOp(
         spv::OpSelect, type_float2_,
         builder_->smearScalar(spv::NoPrecision, is_xy_divided_by_w,
@@ -1537,10 +1534,8 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
             builder_->makeUintConstant(
                 static_cast<unsigned int>(kSysFlag_ZDividedByW))),
         const_uint_0_);
-    spv::Id guest_position_z_mul_w =
-        builder_->createBinOp(spv::OpFMul, type_float_, position_z, position_w);
-    builder_->addDecoration(guest_position_z_mul_w,
-                            spv::DecorationNoContraction);
+    spv::Id guest_position_z_mul_w = builder_->createNoContractionBinOp(
+        spv::OpFMul, type_float_, position_z, position_w);
     position_z =
         builder_->createTriOp(spv::OpSelect, type_float_, is_z_divided_by_w,
                               guest_position_z_mul_w, position_z);
@@ -1565,9 +1560,8 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
       builder_->createAccessChain(spv::StorageClassUniform,
                                   uniform_system_constants_, id_vector_temp_),
       spv::NoPrecision);
-  position_xyz =
-      builder_->createBinOp(spv::OpFMul, type_float3_, position_xyz, ndc_scale);
-  builder_->addDecoration(position_xyz, spv::DecorationNoContraction);
+  position_xyz = builder_->createNoContractionBinOp(spv::OpFMul, type_float3_,
+                                                    position_xyz, ndc_scale);
   id_vector_temp_.clear();
   id_vector_temp_.push_back(
       builder_->makeIntConstant(kSystemConstantNdcOffset));
@@ -1575,12 +1569,10 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
       builder_->createAccessChain(spv::StorageClassUniform,
                                   uniform_system_constants_, id_vector_temp_),
       spv::NoPrecision);
-  spv::Id ndc_offset_mul_w = builder_->createBinOp(
+  spv::Id ndc_offset_mul_w = builder_->createNoContractionBinOp(
       spv::OpVectorTimesScalar, type_float3_, ndc_offset, position_w);
-  builder_->addDecoration(ndc_offset_mul_w, spv::DecorationNoContraction);
-  position_xyz = builder_->createBinOp(spv::OpFAdd, type_float3_, position_xyz,
-                                       ndc_offset_mul_w);
-  builder_->addDecoration(position_xyz, spv::DecorationNoContraction);
+  position_xyz = builder_->createNoContractionBinOp(
+      spv::OpFAdd, type_float3_, position_xyz, ndc_offset_mul_w);
 
   // Write the point size.
   if (output_point_size_ != spv::NoResult) {
@@ -1666,36 +1658,29 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
     id_vector_temp_.clear();
     id_vector_temp_.push_back(builder_->makeIntConstant(
         kSystemConstantPointScreenDiameterToNdcRadius));
-    spv::Id point_radius = builder_->createBinOp(
+    spv::Id point_radius = builder_->createNoContractionBinOp(
         spv::OpFMul, type_float2_, point_guest_diameter,
         builder_->createLoad(builder_->createAccessChain(
                                  spv::StorageClassUniform,
                                  uniform_system_constants_, id_vector_temp_),
                              spv::NoPrecision));
-    builder_->addDecoration(point_radius, spv::DecorationNoContraction);
     // Transform the radius from the normalized device coordinates to the clip
     // space.
-    point_radius = builder_->createBinOp(spv::OpVectorTimesScalar, type_float2_,
-                                         point_radius, position_w);
-    builder_->addDecoration(point_radius, spv::DecorationNoContraction);
+    point_radius = builder_->createNoContractionBinOp(
+        spv::OpVectorTimesScalar, type_float2_, point_radius, position_w);
 
-    // Apply the direction of expansion for the current host vertex.
-    spv::Id point_radius_negative =
-        builder_->createUnaryOp(spv::OpFNegate, type_float2_, point_radius);
-    builder_->addDecoration(point_radius_negative,
-                            spv::DecorationNoContraction);
-    // Expand the point sprite.
+    // Expand the point sprite in the direction for the current host vertex.
     uint_vector_temp_.clear();
     uint_vector_temp_.push_back(0);
     uint_vector_temp_.push_back(1);
-    spv::Id point_position_xy = builder_->createBinOp(
+    spv::Id point_position_xy = builder_->createNoContractionBinOp(
         spv::OpFAdd, type_float2_,
         builder_->createRvalueSwizzle(spv::NoPrecision, type_float2_,
                                       position_xyz, uint_vector_temp_),
         builder_->createTriOp(spv::OpSelect, type_float2_,
                               point_vertex_positive, point_radius,
-                              point_radius_negative));
-    builder_->addDecoration(point_position_xy, spv::DecorationNoContraction);
+                              builder_->createNoContractionUnaryOp(
+                                  spv::OpFNegate, type_float2_, point_radius)));
     // Store the position.
     spv::Id position;
     {
@@ -2419,9 +2404,8 @@ spv::Id SpirvShaderTranslator::ApplyOperandModifiers(
   }
   if (original_operand.is_negated != invert_negate) {
     EnsureBuildPointAvailable();
-    operand_value =
-        builder_->createUnaryOp(spv::OpFNegate, type, operand_value);
-    builder_->addDecoration(operand_value, spv::DecorationNoContraction);
+    operand_value = builder_->createNoContractionUnaryOp(spv::OpFNegate, type,
+                                                         operand_value);
   }
   return operand_value;
 }
@@ -3092,29 +3076,28 @@ spv::Id SpirvShaderTranslator::PWLGammaToLinear(spv::Id gamma,
   spv::Op value_times_scalar_opcode =
       is_vector ? spv::OpVectorTimesScalar : spv::OpFMul;
   // linear = gamma * (255.0f * 1024.0f) * scale + offset
-  spv::Id linear =
-      builder_->createBinOp(value_times_scalar_opcode, value_type, gamma,
-                            builder_->makeFloatConstant(255.0f * 1024.0f));
-  builder_->addDecoration(linear, spv::DecorationNoContraction);
-  linear = builder_->createBinOp(spv::OpFMul, value_type, linear, scale);
-  builder_->addDecoration(linear, spv::DecorationNoContraction);
-  linear = builder_->createBinOp(spv::OpFAdd, value_type, linear, offset);
-  builder_->addDecoration(linear, spv::DecorationNoContraction);
+  spv::Id linear = builder_->createNoContractionBinOp(
+      spv::OpFAdd, value_type,
+      builder_->createNoContractionBinOp(
+          spv::OpFMul, value_type,
+          builder_->createNoContractionBinOp(
+              value_times_scalar_opcode, value_type, gamma,
+              builder_->makeFloatConstant(255.0f * 1024.0f)),
+          scale),
+      offset);
   // linear += trunc(linear * scale)
-  spv::Id linear_integer_term =
-      builder_->createBinOp(spv::OpFMul, value_type, linear, scale);
-  builder_->addDecoration(linear_integer_term, spv::DecorationNoContraction);
+  spv::Id linear_integer_term = builder_->createNoContractionBinOp(
+      spv::OpFMul, value_type, linear, scale);
   id_vector_temp_.clear();
   id_vector_temp_.push_back(linear_integer_term);
   linear_integer_term = builder_->createBuiltinCall(
       value_type, ext_inst_glsl_std_450_, GLSLstd450Trunc, id_vector_temp_);
-  linear = builder_->createBinOp(spv::OpFAdd, value_type, linear,
-                                 linear_integer_term);
-  builder_->addDecoration(linear, spv::DecorationNoContraction);
+  linear = builder_->createNoContractionBinOp(spv::OpFAdd, value_type, linear,
+                                              linear_integer_term);
   // linear *= 1.0f / 1023.0f
-  linear = builder_->createBinOp(value_times_scalar_opcode, value_type, linear,
-                                 builder_->makeFloatConstant(1.0f / 1023.0f));
-  builder_->addDecoration(linear, spv::DecorationNoContraction);
+  linear = builder_->createNoContractionBinOp(
+      value_times_scalar_opcode, value_type, linear,
+      builder_->makeFloatConstant(1.0f / 1023.0f));
   return linear;
 }
 
@@ -3187,18 +3170,18 @@ spv::Id SpirvShaderTranslator::LinearToPWLGamma(spv::Id linear,
                             offset_3_or_2, offset_1_or_0);
 
   // gamma = trunc(linear * scale) * (1.0f / 255.0f) + offset
-  spv::Id gamma = builder_->createBinOp(spv::OpFMul, value_type, linear, scale);
-  builder_->addDecoration(gamma, spv::DecorationNoContraction);
+  spv::Id gamma = builder_->createNoContractionBinOp(spv::OpFMul, value_type,
+                                                     linear, scale);
   id_vector_temp_.clear();
   id_vector_temp_.push_back(gamma);
   gamma = builder_->createBuiltinCall(value_type, ext_inst_glsl_std_450_,
                                       GLSLstd450Trunc, id_vector_temp_);
-  gamma = builder_->createBinOp(
-      is_vector ? spv::OpVectorTimesScalar : spv::OpFMul, value_type, gamma,
-      builder_->makeFloatConstant(1.0f / 255.0f));
-  builder_->addDecoration(gamma, spv::DecorationNoContraction);
-  gamma = builder_->createBinOp(spv::OpFAdd, value_type, gamma, offset);
-  builder_->addDecoration(gamma, spv::DecorationNoContraction);
+  gamma = builder_->createNoContractionBinOp(
+      spv::OpFAdd, value_type,
+      builder_->createNoContractionBinOp(
+          is_vector ? spv::OpVectorTimesScalar : spv::OpFMul, value_type, gamma,
+          builder_->makeFloatConstant(1.0f / 255.0f)),
+      offset);
   return gamma;
 }
 
