@@ -1178,8 +1178,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           spv::Block& block_dimension_head = *builder_->getBuildPoint();
           spv::Block& block_dimension_merge = builder_->makeNewBlock();
           spv::Block& block_dimension_3d = builder_->makeNewBlock();
-          SpirvCreateSelectionMerge(block_dimension_merge.getId(),
-                                    spv::SelectionControlDontFlattenMask);
+          builder_->createSelectionMerge(&block_dimension_merge,
+                                         spv::SelectionControlDontFlattenMask);
           assert_true(data_is_3d != spv::NoResult);
           builder_->createConditionalBranch(data_is_3d, &block_dimension_3d,
                                             &block_dimension_merge);
@@ -1209,8 +1209,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           spv::Block* block_dimension_3d =
               z_offset != spv::NoResult ? &builder_->makeNewBlock() : nullptr;
           spv::Block& block_dimension_stacked = builder_->makeNewBlock();
-          SpirvCreateSelectionMerge(block_dimension_merge.getId(),
-                                    spv::SelectionControlDontFlattenMask);
+          builder_->createSelectionMerge(&block_dimension_merge,
+                                         spv::SelectionControlDontFlattenMask);
           assert_true(data_is_3d != spv::NoResult);
           builder_->createConditionalBranch(
               data_is_3d,
@@ -1318,7 +1318,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         spv::Block& block_ma_y = builder_->makeNewBlock();
         spv::Block& block_ma_z = builder_->makeNewBlock();
         spv::Block& block_ma_merge = builder_->makeNewBlock();
-        SpirvCreateSelectionMerge(block_ma_merge.getId());
+        builder_->createSelectionMerge(&block_ma_merge,
+                                       spv::SelectionControlMaskNone);
         {
           std::unique_ptr<spv::Instruction> ma_switch_op =
               std::make_unique<spv::Instruction>(spv::OpSwitch);
@@ -1441,8 +1442,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           spv::Block& block_dimension_3d_start = builder_->makeNewBlock();
           spv::Block& block_dimension_stacked_start = builder_->makeNewBlock();
           spv::Block& block_dimension_merge = builder_->makeNewBlock();
-          SpirvCreateSelectionMerge(block_dimension_merge.getId(),
-                                    spv::SelectionControlDontFlattenMask);
+          builder_->createSelectionMerge(&block_dimension_merge,
+                                         spv::SelectionControlDontFlattenMask);
           assert_true(data_is_3d != spv::NoResult);
           builder_->createConditionalBranch(data_is_3d,
                                             &block_dimension_3d_start,
@@ -1843,8 +1844,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           spv::Block& block_dimension_3d_start = builder_->makeNewBlock();
           spv::Block& block_dimension_stacked_start = builder_->makeNewBlock();
           spv::Block& block_dimension_merge = builder_->makeNewBlock();
-          SpirvCreateSelectionMerge(block_dimension_merge.getId(),
-                                    spv::SelectionControlDontFlattenMask);
+          builder_->createSelectionMerge(&block_dimension_merge,
+                                         spv::SelectionControlDontFlattenMask);
           assert_true(data_is_3d != spv::NoResult);
           builder_->createConditionalBranch(data_is_3d,
                                             &block_dimension_3d_start,
@@ -2021,8 +2022,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                                             ? builder_->makeNewBlock()
                                             : block_z_head;
             if (vol_filter_is_linear != spv::NoResult) {
-              SpirvCreateSelectionMerge(block_z_merge.getId(),
-                                        spv::SelectionControlDontFlattenMask);
+              builder_->createSelectionMerge(
+                  &block_z_merge, spv::SelectionControlDontFlattenMask);
               builder_->createConditionalBranch(
                   vol_filter_is_linear, &block_z_linear, &block_z_merge);
               builder_->setBuildPoint(&block_z_linear);
@@ -2187,8 +2188,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
             spv::Block& block_swizzle_constant = builder_->makeNewBlock();
             spv::Block& block_swizzle_component = builder_->makeNewBlock();
             spv::Block& block_swizzle_merge = builder_->makeNewBlock();
-            SpirvCreateSelectionMerge(block_swizzle_merge.getId(),
-                                      spv::SelectionControlDontFlattenMask);
+            builder_->createSelectionMerge(
+                &block_swizzle_merge, spv::SelectionControlDontFlattenMask);
             builder_->createConditionalBranch(swizzle_bit_2,
                                               &block_swizzle_constant,
                                               &block_swizzle_component);
@@ -2279,8 +2280,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
             spv::Block& block_sign_unsigned_biased = builder_->makeNewBlock();
             spv::Block& block_sign_gamma_start = builder_->makeNewBlock();
             spv::Block& block_sign_merge = builder_->makeNewBlock();
-            SpirvCreateSelectionMerge(block_sign_merge.getId(),
-                                      spv::SelectionControlDontFlattenMask);
+            builder_->createSelectionMerge(
+                &block_sign_merge, spv::SelectionControlDontFlattenMask);
             {
               std::unique_ptr<spv::Instruction> sign_switch_op =
                   std::make_unique<spv::Instruction>(spv::OpSwitch);
@@ -2543,8 +2544,8 @@ void SpirvShaderTranslator::SampleTexture(
     spv::Block& block_sign_head = *builder_->getBuildPoint();
     spv::Block& block_sign = builder_->makeNewBlock();
     spv::Block& block_sign_merge = builder_->makeNewBlock();
-    SpirvCreateSelectionMerge(block_sign_merge.getId(),
-                              spv::SelectionControlDontFlattenMask);
+    builder_->createSelectionMerge(&block_sign_merge,
+                                   spv::SelectionControlDontFlattenMask);
     // Unsigned (i == 0) - if there are any non-signed components.
     // Signed (i == 1) - if there are any signed components.
     builder_->createConditionalBranch(i ? is_any_signed : is_all_signed,
@@ -2601,8 +2602,8 @@ spv::Id SpirvShaderTranslator::QueryTextureLod(
   spv::Block& block_sign_signed = builder_->makeNewBlock();
   spv::Block& block_sign_unsigned = builder_->makeNewBlock();
   spv::Block& block_sign_merge = builder_->makeNewBlock();
-  SpirvCreateSelectionMerge(block_sign_merge.getId(),
-                            spv::SelectionControlDontFlattenMask);
+  builder_->createSelectionMerge(&block_sign_merge,
+                                 spv::SelectionControlDontFlattenMask);
   builder_->createConditionalBranch(is_all_signed, &block_sign_signed,
                                     &block_sign_unsigned);
   builder_->setBuildPoint(&block_sign_signed);

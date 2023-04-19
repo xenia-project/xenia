@@ -62,7 +62,7 @@ void SpirvShaderTranslator::KillPixel(spv::Id condition) {
   builder_->createBranch(merge_block);
 
   builder_->setBuildPoint(&header_block);
-  SpirvCreateSelectionMerge(merge_block->getId());
+  builder_->createSelectionMerge(merge_block, spv::SelectionControlMaskNone);
   builder_->createConditionalBranch(condition, kill_block, merge_block);
 
   function.addBlock(merge_block);

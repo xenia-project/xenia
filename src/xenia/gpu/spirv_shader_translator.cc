@@ -161,7 +161,7 @@ uint32_t SpirvShaderTranslator::GetModificationRegisterCount() const {
 
 void SpirvShaderTranslator::StartTranslation() {
   // TODO(Triang3l): Logger.
-  builder_ = std::make_unique<spv::Builder>(
+  builder_ = std::make_unique<SpirvBuilder>(
       features_.spirv_version, (kSpirvMagicToolId << 16) | 1, nullptr);
 
   builder_->addCapability(IsSpirvTessEvalShader() ? spv::CapabilityTessellation
@@ -591,8 +591,8 @@ void SpirvShaderTranslator::StartTranslation() {
     main_switch_header_ = builder_->getBuildPoint();
     main_switch_merge_ =
         new spv::Block(builder_->getUniqueId(), *function_main_);
-    SpirvCreateSelectionMerge(main_switch_merge_->getId(),
-                              spv::SelectionControlDontFlattenMask);
+    builder_->createSelectionMerge(main_switch_merge_,
+                                   spv::SelectionControlDontFlattenMask);
     main_switch_op_ = std::make_unique<spv::Instruction>(spv::OpSwitch);
     main_switch_op_->addIdOperand(main_loop_pc_current);
     main_switch_op_->addIdOperand(main_switch_merge_->getId());
@@ -914,7 +914,7 @@ void SpirvShaderTranslator::ProcessLoopStartInstruction(
       spv::OpIEqual, type_bool_, loop_count_new, const_uint_0_);
   spv::Block& skip_block = builder_->makeNewBlock();
   spv::Block& body_block = builder_->makeNewBlock();
-  SpirvCreateSelectionMerge(body_block.getId());
+  builder_->createSelectionMerge(&body_block, spv::SelectionControlMaskNone);
   {
     std::unique_ptr<spv::Instruction> branch_conditional_op =
         std::make_unique<spv::Instruction>(spv::OpBranchConditional);
@@ -976,7 +976,7 @@ void SpirvShaderTranslator::ProcessLoopEndInstruction(
   spv::Block& body_block = *builder_->getBuildPoint();
   spv::Block& continue_block = builder_->makeNewBlock();
   spv::Block& break_block = builder_->makeNewBlock();
-  SpirvCreateSelectionMerge(break_block.getId());
+  builder_->createSelectionMerge(&break_block, spv::SelectionControlMaskNone);
   {
     std::unique_ptr<spv::Instruction> branch_conditional_op =
         std::make_unique<spv::Instruction>(spv::OpBranchConditional);
@@ -1293,8 +1293,8 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
         spv::Block& block_load_vertex_index_pre = *builder_->getBuildPoint();
         spv::Block& block_load_vertex_index_start = builder_->makeNewBlock();
         spv::Block& block_load_vertex_index_merge = builder_->makeNewBlock();
-        SpirvCreateSelectionMerge(block_load_vertex_index_merge.getId(),
-                                  spv::SelectionControlDontFlattenMask);
+        builder_->createSelectionMerge(&block_load_vertex_index_merge,
+                                       spv::SelectionControlDontFlattenMask);
         builder_->createConditionalBranch(load_vertex_index,
                                           &block_load_vertex_index_start,
                                           &block_load_vertex_index_merge);
@@ -1389,8 +1389,8 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
           spv::Block& block_load_vertex_index_pre = *builder_->getBuildPoint();
           spv::Block& block_load_vertex_index_start = builder_->makeNewBlock();
           spv::Block& block_load_vertex_index_merge = builder_->makeNewBlock();
-          SpirvCreateSelectionMerge(block_load_vertex_index_merge.getId(),
-                                    spv::SelectionControlDontFlattenMask);
+          builder_->createSelectionMerge(&block_load_vertex_index_merge,
+                                         spv::SelectionControlDontFlattenMask);
           builder_->createConditionalBranch(load_vertex_index,
                                             &block_load_vertex_index_start,
                                             &block_load_vertex_index_merge);
@@ -1992,8 +1992,8 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
           builder_->makeNewBlock();
       main_fsi_early_depth_stencil_execute_quad_merge_ =
           &builder_->makeNewBlock();
-      SpirvCreateSelectionMerge(
-          main_fsi_early_depth_stencil_execute_quad_merge_->getId(),
+      builder_->createSelectionMerge(
+          main_fsi_early_depth_stencil_execute_quad_merge_,
           spv::SelectionControlDontFlattenMask);
       builder_->createConditionalBranch(
           quad_needs_execution, &main_fsi_early_depth_stencil_execute_quad,
@@ -2244,7 +2244,8 @@ void SpirvShaderTranslator::UpdateExecConditionals(
   cf_exec_condition_ = condition;
   cf_exec_conditional_merge_ = new spv::Block(
       builder_->getUniqueId(), builder_->getBuildPoint()->getParent());
-  SpirvCreateSelectionMerge(cf_exec_conditional_merge_->getId());
+  builder_->createSelectionMerge(cf_exec_conditional_merge_,
+                                 spv::SelectionControlDontFlattenMask);
   spv::Block& inner_block = builder_->makeNewBlock();
   builder_->createConditionalBranch(
       condition_id, condition ? &inner_block : cf_exec_conditional_merge_,
@@ -2284,7 +2285,8 @@ void SpirvShaderTranslator::UpdateInstructionPredication(bool predicated,
   spv::Block& predicated_block = builder_->makeNewBlock();
   cf_instruction_predicate_merge_ = new spv::Block(
       builder_->getUniqueId(), builder_->getBuildPoint()->getParent());
-  SpirvCreateSelectionMerge(cf_instruction_predicate_merge_->getId());
+  builder_->createSelectionMerge(cf_instruction_predicate_merge_,
+                                 spv::SelectionControlMaskNone);
   builder_->createConditionalBranch(
       predicate_id,
       condition ? &predicated_block : cf_instruction_predicate_merge_,
@@ -2870,7 +2872,8 @@ spv::Id SpirvShaderTranslator::EndianSwap32Uint(spv::Id value, spv::Id endian) {
   assert_false(block_pre_8in16.isTerminated());
   spv::Block& block_8in16 = builder_->makeNewBlock();
   spv::Block& block_8in16_merge = builder_->makeNewBlock();
-  SpirvCreateSelectionMerge(block_8in16_merge.getId());
+  builder_->createSelectionMerge(&block_8in16_merge,
+                                 spv::SelectionControlMaskNone);
   builder_->createConditionalBranch(is_8in16_or_8in32, &block_8in16,
                                     &block_8in16_merge);
   builder_->setBuildPoint(&block_8in16);
@@ -2910,7 +2913,8 @@ spv::Id SpirvShaderTranslator::EndianSwap32Uint(spv::Id value, spv::Id endian) {
   spv::Block& block_pre_16in32 = *builder_->getBuildPoint();
   spv::Block& block_16in32 = builder_->makeNewBlock();
   spv::Block& block_16in32_merge = builder_->makeNewBlock();
-  SpirvCreateSelectionMerge(block_16in32_merge.getId());
+  builder_->createSelectionMerge(&block_16in32_merge,
+                                 spv::SelectionControlMaskNone);
   builder_->createConditionalBranch(is_8in32_or_16in32, &block_16in32,
                                     &block_16in32_merge);
   builder_->setBuildPoint(&block_16in32);
@@ -2982,8 +2986,8 @@ spv::Id SpirvShaderTranslator::LoadUint32FromSharedMemory(
   std::unique_ptr<spv::Instruction> value_phi_op =
       std::make_unique<spv::Instruction>(value_phi_result, type_uint_,
                                          spv::OpPhi);
-  SpirvCreateSelectionMerge(switch_merge_block.getId(),
-                            spv::SelectionControlDontFlattenMask);
+  builder_->createSelectionMerge(&switch_merge_block,
+                                 spv::SelectionControlDontFlattenMask);
   {
     std::unique_ptr<spv::Instruction> switch_op =
         std::make_unique<spv::Instruction>(spv::OpSwitch);

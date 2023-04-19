@@ -18,7 +18,6 @@
 #include <vector>
 
 #include "third_party/fmt/include/fmt/format.h"
-#include "third_party/glslang/SPIRV/SpvBuilder.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
@@ -28,6 +27,7 @@
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/registers.h"
+#include "xenia/gpu/spirv_builder.h"
 #include "xenia/gpu/spirv_shader_translator.h"
 #include "xenia/gpu/vulkan/vulkan_command_processor.h"
 #include "xenia/gpu/vulkan/vulkan_shader.h"
@@ -952,7 +952,7 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       (key.user_clip_plane_cull ? key.user_clip_plane_count : 0) +
       key.has_vertex_kill_and;
 
-  spv::Builder builder(spv::Spv_1_0,
+  SpirvBuilder builder(spv::Spv_1_0,
                        (SpirvShaderTranslator::kSpirvMagicToolId << 16) | 1,
                        nullptr);
   spv::Id ext_inst_glsl_std_450 = builder.import("GLSL.std.450");
@@ -1233,14 +1233,8 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
     spv::Block& discard_predecessor = *builder.getBuildPoint();
     spv::Block& discard_then_block = builder.makeNewBlock();
     spv::Block& discard_merge_block = builder.makeNewBlock();
-    {
-      std::unique_ptr<spv::Instruction> selection_merge_op(
-          std::make_unique<spv::Instruction>(spv::OpSelectionMerge));
-      selection_merge_op->addIdOperand(discard_merge_block.getId());
-      selection_merge_op->addImmediateOperand(
-          spv::SelectionControlDontFlattenMask);
-      discard_predecessor.addInstruction(std::move(selection_merge_op));
-    }
+    builder.createSelectionMerge(&discard_merge_block,
+                                 spv::SelectionControlDontFlattenMask);
     {
       std::unique_ptr<spv::Instruction> branch_conditional_op(
           std::make_unique<spv::Instruction>(spv::OpBranchConditional));
@@ -1295,14 +1289,8 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
     spv::Block& discard_predecessor = *builder.getBuildPoint();
     spv::Block& discard_then_block = builder.makeNewBlock();
     spv::Block& discard_merge_block = builder.makeNewBlock();
-    {
-      std::unique_ptr<spv::Instruction> selection_merge_op(
-          std::make_unique<spv::Instruction>(spv::OpSelectionMerge));
-      selection_merge_op->addIdOperand(discard_merge_block.getId());
-      selection_merge_op->addImmediateOperand(
-          spv::SelectionControlDontFlattenMask);
-      discard_predecessor.addInstruction(std::move(selection_merge_op));
-    }
+    builder.createSelectionMerge(&discard_merge_block,
+                                 spv::SelectionControlDontFlattenMask);
     {
       std::unique_ptr<spv::Instruction> branch_conditional_op(
           std::make_unique<spv::Instruction>(spv::OpBranchConditional));
@@ -1378,15 +1366,8 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       spv::Block& point_size_zero_predecessor = *builder.getBuildPoint();
       spv::Block& point_size_zero_then_block = builder.makeNewBlock();
       spv::Block& point_size_zero_merge_block = builder.makeNewBlock();
-      {
-        std::unique_ptr<spv::Instruction> selection_merge_op(
-            std::make_unique<spv::Instruction>(spv::OpSelectionMerge));
-        selection_merge_op->addIdOperand(point_size_zero_merge_block.getId());
-        selection_merge_op->addImmediateOperand(
-            spv::SelectionControlDontFlattenMask);
-        point_size_zero_predecessor.addInstruction(
-            std::move(selection_merge_op));
-      }
+      builder.createSelectionMerge(&point_size_zero_merge_block,
+                                   spv::SelectionControlDontFlattenMask);
       {
         std::unique_ptr<spv::Instruction> branch_conditional_op(
             std::make_unique<spv::Instruction>(spv::OpBranchConditional));
