@@ -1531,15 +1531,12 @@ void SpirvShaderTranslator::FSI_LoadSampleMask(spv::Id msaa_samples) {
         builder_->makeUintConstant(32 - 2));
   } else {
     // 0 and 3 to 0 and 1.
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(input_sample_mask_value);
-    id_vector_temp_.push_back(builder_->createTriOp(
-        spv::OpBitFieldUExtract, type_uint_, input_sample_mask_value,
-        const_uint_2, const_uint_1));
-    id_vector_temp_.push_back(const_uint_1);
-    id_vector_temp_.push_back(builder_->makeUintConstant(32 - 1));
-    sample_mask_2x =
-        builder_->createOp(spv::OpBitFieldInsert, type_uint_, id_vector_temp_);
+    sample_mask_2x = builder_->createQuadOp(
+        spv::OpBitFieldInsert, type_uint_, input_sample_mask_value,
+        builder_->createTriOp(spv::OpBitFieldUExtract, type_uint_,
+                              input_sample_mask_value, const_uint_2,
+                              const_uint_1),
+        const_uint_1, builder_->makeUintConstant(32 - 1));
   }
   builder_->createBranch(&block_msaa_merge);
 
@@ -1547,17 +1544,14 @@ void SpirvShaderTranslator::FSI_LoadSampleMask(spv::Id msaa_samples) {
   builder_->setBuildPoint(&block_msaa_4x);
   // Flip samples in bits 0:1 by reversing the whole coverage mask and inserting
   // the reversing bits.
-  id_vector_temp_.clear();
-  id_vector_temp_.push_back(input_sample_mask_value);
-  id_vector_temp_.push_back(builder_->createBinOp(
-      spv::OpShiftRightLogical, type_uint_,
-      builder_->createUnaryOp(spv::OpBitReverse, type_uint_,
-                              input_sample_mask_value),
-      builder_->makeUintConstant(32 - 1 - 2)));
-  id_vector_temp_.push_back(const_uint_1);
-  id_vector_temp_.push_back(const_uint_2);
-  spv::Id sample_mask_4x =
-      builder_->createOp(spv::OpBitFieldInsert, type_uint_, id_vector_temp_);
+  spv::Id sample_mask_4x = builder_->createQuadOp(
+      spv::OpBitFieldInsert, type_uint_, input_sample_mask_value,
+      builder_->createBinOp(
+          spv::OpShiftRightLogical, type_uint_,
+          builder_->createUnaryOp(spv::OpBitReverse, type_uint_,
+                                  input_sample_mask_value),
+          builder_->makeUintConstant(32 - 1 - 2)),
+      const_uint_1, const_uint_2);
   builder_->createBranch(&block_msaa_merge);
 
   // Select the result depending on the MSAA sample count.
@@ -1955,16 +1949,12 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
   // https://docs.microsoft.com/en-us/windows/desktop/direct3d9/depth-bias
   std::array<spv::Id, 2> depth_dxy_abs;
   for (uint32_t i = 0; i < 2; ++i) {
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(depth_dxy[i]);
-    depth_dxy_abs[i] = builder_->createBuiltinCall(
-        type_float_, ext_inst_glsl_std_450_, GLSLstd450FAbs, id_vector_temp_);
+    depth_dxy_abs[i] = builder_->createUnaryBuiltinCall(
+        type_float_, ext_inst_glsl_std_450_, GLSLstd450FAbs, depth_dxy[i]);
   }
-  id_vector_temp_.clear();
-  id_vector_temp_.push_back(depth_dxy_abs[0]);
-  id_vector_temp_.push_back(depth_dxy_abs[1]);
-  spv::Id depth_max_slope = builder_->createBuiltinCall(
-      type_float_, ext_inst_glsl_std_450_, GLSLstd450FMax, id_vector_temp_);
+  spv::Id depth_max_slope = builder_->createBinBuiltinCall(
+      type_float_, ext_inst_glsl_std_450_, GLSLstd450FMax, depth_dxy_abs[0],
+      depth_dxy_abs[1]);
   // Calculate the polygon offset.
   spv::Id slope_scaled_poly_offset = builder_->createNoContractionBinOp(
       spv::OpFMul, type_float_, poly_offset_scale, depth_max_slope);
@@ -2074,17 +2064,14 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
       sample_depth_dxy[j] = builder_->createNoContractionBinOp(
           spv::OpFMul, type_float_, sample_location[j], depth_dxy[j]);
     }
-    spv::Id sample_depth32 = builder_->createNoContractionBinOp(
-        spv::OpFAdd, type_float_, center_depth32_biased,
-        builder_->createNoContractionBinOp(spv::OpFAdd, type_float_,
-                                           sample_depth_dxy[0],
-                                           sample_depth_dxy[1]));
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(sample_depth32);
-    id_vector_temp_.push_back(const_float_0_);
-    id_vector_temp_.push_back(const_float_1_);
-    sample_depth32 = builder_->createBuiltinCall(
-        type_float_, ext_inst_glsl_std_450_, GLSLstd450NClamp, id_vector_temp_);
+    spv::Id sample_depth32 = builder_->createTriBuiltinCall(
+        type_float_, ext_inst_glsl_std_450_, GLSLstd450NClamp,
+        builder_->createNoContractionBinOp(
+            spv::OpFAdd, type_float_, center_depth32_biased,
+            builder_->createNoContractionBinOp(spv::OpFAdd, type_float_,
+                                               sample_depth_dxy[0],
+                                               sample_depth_dxy[1])),
+        const_float_0_, const_float_1_);
 
     // Convert the new depth to 24-bit.
     spv::Block& block_depth_format_float = builder_->makeNewBlock();
@@ -2105,14 +2092,13 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
     // Round to the nearest even integer. This seems to be the correct
     // conversion, adding +0.5 and rounding towards zero results in red instead
     // of black in the 4D5307E6 clear shader.
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(builder_->createNoContractionBinOp(
-        spv::OpFMul, type_float_, sample_depth32,
-        builder_->makeFloatConstant(float(0xFFFFFF))));
     spv::Id sample_depth_unorm24 = builder_->createUnaryOp(
         spv::OpConvertFToU, type_uint_,
-        builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                    GLSLstd450RoundEven, id_vector_temp_));
+        builder_->createUnaryBuiltinCall(
+            type_float_, ext_inst_glsl_std_450_, GLSLstd450RoundEven,
+            builder_->createNoContractionBinOp(
+                spv::OpFMul, type_float_, sample_depth32,
+                builder_->makeFloatConstant(float(0xFFFFFF)))));
     builder_->createBranch(&block_depth_format_merge);
     spv::Block& block_depth_format_unorm_end = *builder_->getBuildPoint();
     // Merge between the two formats.
@@ -2253,28 +2239,25 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
     builder_->createBranch(&block_stencil_op_merge);
     // Increment and clamp.
     builder_->setBuildPoint(&block_stencil_op_increment_clamp);
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(builder_->makeUintConstant(UINT8_MAX - 1));
-    id_vector_temp_.push_back(
-        builder_->createBinOp(spv::OpBitwiseAnd, type_uint_, old_depth_stencil,
-                              builder_->makeUintConstant(UINT8_MAX)));
     spv::Id new_stencil_in_low_bits_increment_clamp = builder_->createBinOp(
         spv::OpIAdd, type_uint_,
-        builder_->createBuiltinCall(type_uint_, ext_inst_glsl_std_450_,
-                                    GLSLstd450UMin, id_vector_temp_),
+        builder_->createBinBuiltinCall(
+            type_uint_, ext_inst_glsl_std_450_, GLSLstd450UMin,
+            builder_->makeUintConstant(UINT8_MAX - 1),
+            builder_->createBinOp(spv::OpBitwiseAnd, type_uint_,
+                                  old_depth_stencil,
+                                  builder_->makeUintConstant(UINT8_MAX))),
         const_uint_1);
     builder_->createBranch(&block_stencil_op_merge);
     // Decrement and clamp.
     builder_->setBuildPoint(&block_stencil_op_decrement_clamp);
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(const_uint_1);
-    id_vector_temp_.push_back(
-        builder_->createBinOp(spv::OpBitwiseAnd, type_uint_, old_depth_stencil,
-                              builder_->makeUintConstant(UINT8_MAX)));
     spv::Id new_stencil_in_low_bits_decrement_clamp = builder_->createBinOp(
         spv::OpISub, type_uint_,
-        builder_->createBuiltinCall(type_uint_, ext_inst_glsl_std_450_,
-                                    GLSLstd450UMax, id_vector_temp_),
+        builder_->createBinBuiltinCall(
+            type_uint_, ext_inst_glsl_std_450_, GLSLstd450UMax, const_uint_1,
+            builder_->createBinOp(spv::OpBitwiseAnd, type_uint_,
+                                  old_depth_stencil,
+                                  builder_->makeUintConstant(UINT8_MAX))),
         const_uint_1);
     builder_->createBranch(&block_stencil_op_merge);
     // Invert.
@@ -2360,13 +2343,9 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
 
     // Combine the new depth and the new stencil taking into account whether the
     // new depth should be written.
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(new_stencil_and_old_depth);
-    id_vector_temp_.push_back(sample_depth24);
-    id_vector_temp_.push_back(const_uint_8);
-    id_vector_temp_.push_back(builder_->makeUintConstant(24));
-    spv::Id new_stencil_and_unconditional_new_depth =
-        builder_->createOp(spv::OpBitFieldInsert, type_uint_, id_vector_temp_);
+    spv::Id new_stencil_and_unconditional_new_depth = builder_->createQuadOp(
+        spv::OpBitFieldInsert, type_uint_, new_stencil_and_old_depth,
+        sample_depth24, const_uint_8, builder_->makeUintConstant(24));
     spv::Id new_depth_stencil = builder_->createTriOp(
         spv::OpSelect, type_uint_,
         builder_->createBinOp(spv::OpLogicalAnd, type_bool_,
@@ -2568,14 +2547,11 @@ std::array<spv::Id, 2> SpirvShaderTranslator::FSI_ClampAndPackColor(
   spv::Id packed_8_8_8_8;
   {
     builder_->setBuildPoint(&block_format_8_8_8_8);
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(color_float4);
-    id_vector_temp_.push_back(const_float4_0_);
-    id_vector_temp_.push_back(const_float4_1_);
     spv::Id color_scaled = builder_->createNoContractionBinOp(
         spv::OpVectorTimesScalar, type_float4_,
-        builder_->createBuiltinCall(type_float4_, ext_inst_glsl_std_450_,
-                                    GLSLstd450NClamp, id_vector_temp_),
+        builder_->createTriBuiltinCall(type_float4_, ext_inst_glsl_std_450_,
+                                       GLSLstd450NClamp, color_float4,
+                                       const_float4_0_, const_float4_1_),
         builder_->makeFloatConstant(255.0f));
     spv::Id color_offset = builder_->createNoContractionBinOp(
         spv::OpFAdd, type_float4_, color_scaled, unorm_round_offset_float4);
@@ -2585,14 +2561,10 @@ std::array<spv::Id, 2> SpirvShaderTranslator::FSI_ClampAndPackColor(
         builder_->createCompositeExtract(color_uint4, type_uint_, 0);
     spv::Id component_width = builder_->makeUintConstant(8);
     for (uint32_t i = 1; i < 4; ++i) {
-      id_vector_temp_.clear();
-      id_vector_temp_.push_back(packed_8_8_8_8);
-      id_vector_temp_.push_back(
-          builder_->createCompositeExtract(color_uint4, type_uint_, i));
-      id_vector_temp_.push_back(builder_->makeUintConstant(8 * i));
-      id_vector_temp_.push_back(component_width);
-      packed_8_8_8_8 = builder_->createOp(spv::OpBitFieldInsert, type_uint_,
-                                          id_vector_temp_);
+      packed_8_8_8_8 = builder_->createQuadOp(
+          spv::OpBitFieldInsert, type_uint_, packed_8_8_8_8,
+          builder_->createCompositeExtract(color_uint4, type_uint_, i),
+          builder_->makeUintConstant(8 * i), component_width);
     }
     builder_->createBranch(&block_format_merge);
   }
@@ -2614,13 +2586,10 @@ std::array<spv::Id, 2> SpirvShaderTranslator::FSI_ClampAndPackColor(
         builder_->createRvalueSwizzle(spv::NoPrecision, type_float3_,
                                       color_float4, uint_vector_temp_),
         false);
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(
-        builder_->createCompositeExtract(color_float4, type_float_, 3));
-    id_vector_temp_.push_back(const_float_0_);
-    id_vector_temp_.push_back(const_float_1_);
-    spv::Id alpha_clamped = builder_->createBuiltinCall(
-        type_float_, ext_inst_glsl_std_450_, GLSLstd450NClamp, id_vector_temp_);
+    spv::Id alpha_clamped = builder_->createTriBuiltinCall(
+        type_float_, ext_inst_glsl_std_450_, GLSLstd450NClamp,
+        builder_->createCompositeExtract(color_float4, type_float_, 3),
+        const_float_0_, const_float_1_);
     // Bypass the `getNumTypeConstituents(typeId) == (int)constituents.size()`
     // assertion in createCompositeConstruct, OpCompositeConstruct can
     // construct vectors not only from scalars, but also from other vectors.
@@ -2646,14 +2615,10 @@ std::array<spv::Id, 2> SpirvShaderTranslator::FSI_ClampAndPackColor(
         builder_->createCompositeExtract(color_uint4, type_uint_, 0);
     spv::Id component_width = builder_->makeUintConstant(8);
     for (uint32_t i = 1; i < 4; ++i) {
-      id_vector_temp_.clear();
-      id_vector_temp_.push_back(packed_8_8_8_8_gamma);
-      id_vector_temp_.push_back(
-          builder_->createCompositeExtract(color_uint4, type_uint_, i));
-      id_vector_temp_.push_back(builder_->makeUintConstant(8 * i));
-      id_vector_temp_.push_back(component_width);
-      packed_8_8_8_8_gamma = builder_->createOp(spv::OpBitFieldInsert,
-                                                type_uint_, id_vector_temp_);
+      packed_8_8_8_8_gamma = builder_->createQuadOp(
+          spv::OpBitFieldInsert, type_uint_, packed_8_8_8_8_gamma,
+          builder_->createCompositeExtract(color_uint4, type_uint_, i),
+          builder_->makeUintConstant(8 * i), component_width);
     }
     builder_->createBranch(&block_format_merge);
   }
@@ -2666,13 +2631,9 @@ std::array<spv::Id, 2> SpirvShaderTranslator::FSI_ClampAndPackColor(
   spv::Id packed_2_10_10_10;
   {
     builder_->setBuildPoint(&block_format_2_10_10_10);
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(color_float4);
-    id_vector_temp_.push_back(const_float4_0_);
-    id_vector_temp_.push_back(const_float4_1_);
-    spv::Id color_clamped =
-        builder_->createBuiltinCall(type_float4_, ext_inst_glsl_std_450_,
-                                    GLSLstd450NClamp, id_vector_temp_);
+    spv::Id color_clamped = builder_->createTriBuiltinCall(
+        type_float4_, ext_inst_glsl_std_450_, GLSLstd450NClamp, color_float4,
+        const_float4_0_, const_float4_1_);
     id_vector_temp_.clear();
     id_vector_temp_.resize(3, builder_->makeFloatConstant(1023.0f));
     id_vector_temp_.push_back(builder_->makeFloatConstant(3.0f));
@@ -2688,14 +2649,10 @@ std::array<spv::Id, 2> SpirvShaderTranslator::FSI_ClampAndPackColor(
     spv::Id rgb_width = builder_->makeUintConstant(10);
     spv::Id alpha_width = builder_->makeUintConstant(2);
     for (uint32_t i = 1; i < 4; ++i) {
-      id_vector_temp_.clear();
-      id_vector_temp_.push_back(packed_2_10_10_10);
-      id_vector_temp_.push_back(
-          builder_->createCompositeExtract(color_uint4, type_uint_, i));
-      id_vector_temp_.push_back(builder_->makeUintConstant(10 * i));
-      id_vector_temp_.push_back(i == 3 ? alpha_width : rgb_width);
-      packed_2_10_10_10 = builder_->createOp(spv::OpBitFieldInsert, type_uint_,
-                                             id_vector_temp_);
+      packed_2_10_10_10 = builder_->createQuadOp(
+          spv::OpBitFieldInsert, type_uint_, packed_2_10_10_10,
+          builder_->createCompositeExtract(color_uint4, type_uint_, i),
+          builder_->makeUintConstant(10 * i), i == 3 ? alpha_width : rgb_width);
     }
     builder_->createBranch(&block_format_merge);
   }
@@ -2717,15 +2674,12 @@ std::array<spv::Id, 2> SpirvShaderTranslator::FSI_ClampAndPackColor(
           ext_inst_glsl_std_450_);
     }
     // Alpha.
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(
-        builder_->createCompositeExtract(color_float4, type_float_, 3));
-    id_vector_temp_.push_back(const_float_0_);
-    id_vector_temp_.push_back(const_float_1_);
     spv::Id alpha_scaled = builder_->createNoContractionBinOp(
         spv::OpFMul, type_float_,
-        builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                    GLSLstd450NClamp, id_vector_temp_),
+        builder_->createTriBuiltinCall(
+            type_float_, ext_inst_glsl_std_450_, GLSLstd450NClamp,
+            builder_->createCompositeExtract(color_float4, type_float_, 3),
+            const_float_0_, const_float_1_),
         builder_->makeFloatConstant(3.0f));
     spv::Id alpha_offset = builder_->createNoContractionBinOp(
         spv::OpFAdd, type_float_, alpha_scaled, unorm_round_offset_float);
@@ -2735,21 +2689,14 @@ std::array<spv::Id, 2> SpirvShaderTranslator::FSI_ClampAndPackColor(
     packed_2_10_10_10_float = color_components[0];
     spv::Id rgb_width = builder_->makeUintConstant(10);
     for (uint32_t i = 1; i < 3; ++i) {
-      id_vector_temp_.clear();
-      id_vector_temp_.push_back(packed_2_10_10_10_float);
-      id_vector_temp_.push_back(color_components[i]);
-      id_vector_temp_.push_back(builder_->makeUintConstant(10 * i));
-      id_vector_temp_.push_back(rgb_width);
-      packed_2_10_10_10_float = builder_->createOp(spv::OpBitFieldInsert,
-                                                   type_uint_, id_vector_temp_);
+      packed_2_10_10_10_float = builder_->createQuadOp(
+          spv::OpBitFieldInsert, type_uint_, packed_2_10_10_10_float,
+          color_components[i], builder_->makeUintConstant(10 * i), rgb_width);
     }
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(packed_2_10_10_10_float);
-    id_vector_temp_.push_back(color_components[3]);
-    id_vector_temp_.push_back(builder_->makeUintConstant(30));
-    id_vector_temp_.push_back(builder_->makeUintConstant(2));
-    packed_2_10_10_10_float =
-        builder_->createOp(spv::OpBitFieldInsert, type_uint_, id_vector_temp_);
+    packed_2_10_10_10_float = builder_->createQuadOp(
+        spv::OpBitFieldInsert, type_uint_, packed_2_10_10_10_float,
+        color_components[3], builder_->makeUintConstant(30),
+        builder_->makeUintConstant(2));
     builder_->createBranch(&block_format_merge);
   }
   spv::Block& block_format_2_10_10_10_float_end = *builder_->getBuildPoint();
@@ -2771,16 +2718,15 @@ std::array<spv::Id, 2> SpirvShaderTranslator::FSI_ClampAndPackColor(
         builder_->makeCompositeConstant(type_float4_, id_vector_temp_);
     id_vector_temp_.clear();
     // NaN to 0, not to -32.
-    id_vector_temp_.push_back(builder_->createTriOp(
-        spv::OpSelect, type_float4_,
-        builder_->createUnaryOp(spv::OpIsNan, type_bool4_, color_float4),
-        const_float4_0_, color_float4));
-    id_vector_temp_.push_back(const_float4_minus_32);
-    id_vector_temp_.push_back(const_float4_32);
     spv::Id color_scaled = builder_->createNoContractionBinOp(
         spv::OpVectorTimesScalar, type_float4_,
-        builder_->createBuiltinCall(type_float4_, ext_inst_glsl_std_450_,
-                                    GLSLstd450FClamp, id_vector_temp_),
+        builder_->createTriBuiltinCall(
+            type_float4_, ext_inst_glsl_std_450_, GLSLstd450FClamp,
+            builder_->createTriOp(spv::OpSelect, type_float4_,
+                                  builder_->createUnaryOp(
+                                      spv::OpIsNan, type_bool4_, color_float4),
+                                  const_float4_0_, color_float4),
+            const_float4_minus_32, const_float4_32),
         builder_->makeFloatConstant(32767.0f / 32.0f));
     id_vector_temp_.clear();
     id_vector_temp_.resize(4, builder_->makeFloatConstant(-0.5f));
@@ -2798,15 +2744,11 @@ std::array<spv::Id, 2> SpirvShaderTranslator::FSI_ClampAndPackColor(
         builder_->createUnaryOp(spv::OpConvertFToS, type_int4_, color_offset));
     spv::Id component_offset_width = builder_->makeUintConstant(16);
     for (uint32_t i = 0; i < 2; ++i) {
-      id_vector_temp_.clear();
-      id_vector_temp_.push_back(
-          builder_->createCompositeExtract(color_uint4, type_uint_, 2 * i));
-      id_vector_temp_.push_back(
-          builder_->createCompositeExtract(color_uint4, type_uint_, 2 * i + 1));
-      id_vector_temp_.push_back(component_offset_width);
-      id_vector_temp_.push_back(component_offset_width);
-      packed_16[i] = builder_->createOp(spv::OpBitFieldInsert, type_uint_,
-                                        id_vector_temp_);
+      packed_16[i] = builder_->createQuadOp(
+          spv::OpBitFieldInsert, type_uint_,
+          builder_->createCompositeExtract(color_uint4, type_uint_, 2 * i),
+          builder_->createCompositeExtract(color_uint4, type_uint_, 2 * i + 1),
+          component_offset_width, component_offset_width);
     }
     builder_->createBranch(&block_format_merge);
   }
@@ -2828,27 +2770,22 @@ std::array<spv::Id, 2> SpirvShaderTranslator::FSI_ClampAndPackColor(
     id_vector_temp_.resize(4, builder_->makeFloatConstant(65504.0f));
     spv::Id const_float4_float16_max =
         builder_->makeCompositeConstant(type_float4_, id_vector_temp_);
-    id_vector_temp_.clear();
     // NaN to 0, not to -max.
-    id_vector_temp_.push_back(builder_->createTriOp(
-        spv::OpSelect, type_float4_,
-        builder_->createUnaryOp(spv::OpIsNan, type_bool4_, color_float4),
-        const_float4_0_, color_float4));
-    id_vector_temp_.push_back(const_float4_minus_float16_max);
-    id_vector_temp_.push_back(const_float4_float16_max);
-    spv::Id color_clamped =
-        builder_->createBuiltinCall(type_float4_, ext_inst_glsl_std_450_,
-                                    GLSLstd450FClamp, id_vector_temp_);
+    spv::Id color_clamped = builder_->createTriBuiltinCall(
+        type_float4_, ext_inst_glsl_std_450_, GLSLstd450FClamp,
+        builder_->createTriOp(
+            spv::OpSelect, type_float4_,
+            builder_->createUnaryOp(spv::OpIsNan, type_bool4_, color_float4),
+            const_float4_0_, color_float4),
+        const_float4_minus_float16_max, const_float4_float16_max);
     for (uint32_t i = 0; i < 2; ++i) {
       uint_vector_temp_.clear();
       uint_vector_temp_.push_back(2 * i);
       uint_vector_temp_.push_back(2 * i + 1);
-      id_vector_temp_.clear();
-      id_vector_temp_.push_back(builder_->createRvalueSwizzle(
-          spv::NoPrecision, type_float2_, color_clamped, uint_vector_temp_));
-      packed_16_float[i] =
-          builder_->createBuiltinCall(type_uint_, ext_inst_glsl_std_450_,
-                                      GLSLstd450PackHalf2x16, id_vector_temp_);
+      packed_16_float[i] = builder_->createUnaryBuiltinCall(
+          type_uint_, ext_inst_glsl_std_450_, GLSLstd450PackHalf2x16,
+          builder_->createRvalueSwizzle(spv::NoPrecision, type_float2_,
+                                        color_clamped, uint_vector_temp_));
     }
     builder_->createBranch(&block_format_merge);
   }
@@ -3113,12 +3050,9 @@ std::array<spv::Id, 4> SpirvShaderTranslator::FSI_UnpackColor(
                                       builder_->makeUintConstant(16 * (j & 1)),
                                       component_width)),
             component_scale);
-        id_vector_temp_.clear();
-        id_vector_temp_.push_back(component_min);
-        id_vector_temp_.push_back(component);
-        component =
-            builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                        GLSLstd450FMax, id_vector_temp_);
+        component = builder_->createBinBuiltinCall(
+            type_float_, ext_inst_glsl_std_450_, GLSLstd450FMax, component_min,
+            component);
         unpacked_16[i][j] = component;
       }
       builder_->createBranch(&block_format_merge);
@@ -3141,11 +3075,9 @@ std::array<spv::Id, 4> SpirvShaderTranslator::FSI_UnpackColor(
                                 : &block_format_16_16_float);
       // TODO(Triang3l): Xenos extended-range float16.
       for (uint32_t j = 0; j <= i; ++j) {
-        id_vector_temp_.clear();
-        id_vector_temp_.push_back(color_packed[j]);
-        spv::Id components_float2 = builder_->createBuiltinCall(
+        spv::Id components_float2 = builder_->createUnaryBuiltinCall(
             type_float2_, ext_inst_glsl_std_450_, GLSLstd450UnpackHalf2x16,
-            id_vector_temp_);
+            color_packed[j]);
         for (uint32_t k = 0; k < 2; ++k) {
           unpacked_16_float[i][2 * j + k] = builder_->createCompositeExtract(
               components_float2, type_float_, k);
@@ -3236,19 +3168,16 @@ spv::Id SpirvShaderTranslator::FSI_FlushNaNClampAndInBlending(
   builder_->createConditionalBranch(is_fixed_point, &block_is_fixed_point_if,
                                     &block_is_fixed_point_merge);
   builder_->setBuildPoint(&block_is_fixed_point_if);
-  id_vector_temp_.clear();
   // Flush NaN to 0 even for signed (NMax would flush it to the minimum value).
-  id_vector_temp_.push_back(builder_->createTriOp(
-      spv::OpSelect, color_or_alpha_type,
-      builder_->createUnaryOp(spv::OpIsNan,
-                              type_bool_vectors_[component_count - 1],
-                              color_or_alpha),
-      const_float_vectors_0_[component_count - 1], color_or_alpha));
-  id_vector_temp_.push_back(min_value);
-  id_vector_temp_.push_back(max_value);
-  spv::Id color_or_alpha_clamped =
-      builder_->createBuiltinCall(color_or_alpha_type, ext_inst_glsl_std_450_,
-                                  GLSLstd450FClamp, id_vector_temp_);
+  spv::Id color_or_alpha_clamped = builder_->createTriBuiltinCall(
+      color_or_alpha_type, ext_inst_glsl_std_450_, GLSLstd450FClamp,
+      builder_->createTriOp(
+          spv::OpSelect, color_or_alpha_type,
+          builder_->createUnaryOp(spv::OpIsNan,
+                                  type_bool_vectors_[component_count - 1],
+                                  color_or_alpha),
+          const_float_vectors_0_[component_count - 1], color_or_alpha),
+      min_value, max_value);
   builder_->createBranch(&block_is_fixed_point_merge);
   builder_->setBuildPoint(&block_is_fixed_point_merge);
   id_vector_temp_.clear();
@@ -3426,16 +3355,12 @@ spv::Id SpirvShaderTranslator::FSI_ApplyColorBlendFactor(
   spv::Id result_source_alpha_saturate;
   {
     builder_->setBuildPoint(&block_factor_source_alpha_saturate);
-    spv::Id one_minus_dest_alpha = builder_->createNoContractionBinOp(
-        spv::OpFSub, type_float_, const_float_1_, dest_alpha);
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(source_alpha);
-    id_vector_temp_.push_back(one_minus_dest_alpha);
-    spv::Id factor_source_alpha_saturate = builder_->createBuiltinCall(
-        type_float_, ext_inst_glsl_std_450_, GLSLstd450NMin, id_vector_temp_);
     result_source_alpha_saturate = builder_->createNoContractionBinOp(
         spv::OpVectorTimesScalar, type_float3_, value,
-        factor_source_alpha_saturate);
+        builder_->createBinBuiltinCall(
+            type_float_, ext_inst_glsl_std_450_, GLSLstd450NMin, source_alpha,
+            builder_->createNoContractionBinOp(spv::OpFSub, type_float_,
+                                               const_float_1_, dest_alpha)));
     builder_->createBranch(&block_factor_merge);
   }
 
@@ -3605,15 +3530,12 @@ spv::Id SpirvShaderTranslator::FSI_ApplyAlphaBlendFactor(
   spv::Id result_source_alpha_saturate;
   {
     builder_->setBuildPoint(&block_factor_source_alpha_saturate);
-    spv::Id one_minus_dest_alpha = builder_->createNoContractionBinOp(
-        spv::OpFSub, type_float_, const_float_1_, dest_alpha);
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(source_alpha);
-    id_vector_temp_.push_back(one_minus_dest_alpha);
-    spv::Id factor_source_alpha_saturate = builder_->createBuiltinCall(
-        type_float_, ext_inst_glsl_std_450_, GLSLstd450NMin, id_vector_temp_);
     result_source_alpha_saturate = builder_->createNoContractionBinOp(
-        spv::OpFMul, type_float_, value, factor_source_alpha_saturate);
+        spv::OpFMul, type_float_, value,
+        builder_->createBinBuiltinCall(
+            type_float_, ext_inst_glsl_std_450_, GLSLstd450NMin, source_alpha,
+            builder_->createNoContractionBinOp(spv::OpFSub, type_float_,
+                                               const_float_1_, dest_alpha)));
     builder_->createBranch(&block_factor_merge);
   }
 
@@ -3687,22 +3609,18 @@ spv::Id SpirvShaderTranslator::FSI_BlendColorOrAlphaWithUnclampedResult(
 
   // Min case.
   builder_->setBuildPoint(&block_min_max_min);
-  id_vector_temp_.clear();
-  id_vector_temp_.push_back(is_alpha ? source_alpha_clamped
-                                     : source_color_clamped);
-  id_vector_temp_.push_back(is_alpha ? dest_alpha : dest_color);
-  spv::Id result_min = builder_->createBuiltinCall(
-      value_type, ext_inst_glsl_std_450_, GLSLstd450FMin, id_vector_temp_);
+  spv::Id result_min = builder_->createBinBuiltinCall(
+      value_type, ext_inst_glsl_std_450_, GLSLstd450FMin,
+      is_alpha ? source_alpha_clamped : source_color_clamped,
+      is_alpha ? dest_alpha : dest_color);
   builder_->createBranch(&block_min_max_merge);
 
   // Max case.
   builder_->setBuildPoint(&block_min_max_max);
-  id_vector_temp_.clear();
-  id_vector_temp_.push_back(is_alpha ? source_alpha_clamped
-                                     : source_color_clamped);
-  id_vector_temp_.push_back(is_alpha ? dest_alpha : dest_color);
-  spv::Id result_max = builder_->createBuiltinCall(
-      value_type, ext_inst_glsl_std_450_, GLSLstd450FMax, id_vector_temp_);
+  spv::Id result_max = builder_->createBinBuiltinCall(
+      value_type, ext_inst_glsl_std_450_, GLSLstd450FMax,
+      is_alpha ? source_alpha_clamped : source_color_clamped,
+      is_alpha ? dest_alpha : dest_color);
   builder_->createBranch(&block_min_max_merge);
 
   // Blending with factors.
