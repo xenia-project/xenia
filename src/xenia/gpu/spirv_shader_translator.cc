@@ -2037,19 +2037,15 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
     assert_true(input_fragment_coordinates_ != spv::NoResult);
     id_vector_temp_.clear();
     id_vector_temp_.push_back(const_int_0_);
-    spv::Id param_gen_x =
-        builder_->createLoad(builder_->createAccessChain(
-                                 spv::StorageClassInput,
-                                 input_fragment_coordinates_, id_vector_temp_),
-                             spv::NoPrecision);
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(param_gen_x);
-    param_gen_x = builder_->createBuiltinCall(
-        type_float_, ext_inst_glsl_std_450_, GLSLstd450Floor, id_vector_temp_);
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(param_gen_x);
-    param_gen_x = builder_->createBuiltinCall(
-        type_float_, ext_inst_glsl_std_450_, GLSLstd450FAbs, id_vector_temp_);
+    spv::Id param_gen_x = builder_->createUnaryBuiltinCall(
+        type_float_, ext_inst_glsl_std_450_, GLSLstd450FAbs,
+        builder_->createUnaryBuiltinCall(
+            type_float_, ext_inst_glsl_std_450_, GLSLstd450Floor,
+            builder_->createLoad(
+                builder_->createAccessChain(spv::StorageClassInput,
+                                            input_fragment_coordinates_,
+                                            id_vector_temp_),
+                spv::NoPrecision)));
     if (!modification.pixel.param_gen_point) {
       assert_true(input_front_facing_ != spv::NoResult);
       param_gen_x = builder_->createTriOp(
@@ -2076,19 +2072,15 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
     // Y - pixel Y .0 in the magnitude, is point in the sign bit.
     id_vector_temp_.clear();
     id_vector_temp_.push_back(builder_->makeIntConstant(1));
-    spv::Id param_gen_y =
-        builder_->createLoad(builder_->createAccessChain(
-                                 spv::StorageClassInput,
-                                 input_fragment_coordinates_, id_vector_temp_),
-                             spv::NoPrecision);
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(param_gen_y);
-    param_gen_y = builder_->createBuiltinCall(
-        type_float_, ext_inst_glsl_std_450_, GLSLstd450Floor, id_vector_temp_);
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(param_gen_y);
-    param_gen_y = builder_->createBuiltinCall(
-        type_float_, ext_inst_glsl_std_450_, GLSLstd450FAbs, id_vector_temp_);
+    spv::Id param_gen_y = builder_->createUnaryBuiltinCall(
+        type_float_, ext_inst_glsl_std_450_, GLSLstd450FAbs,
+        builder_->createUnaryBuiltinCall(
+            type_float_, ext_inst_glsl_std_450_, GLSLstd450Floor,
+            builder_->createLoad(
+                builder_->createAccessChain(spv::StorageClassInput,
+                                            input_fragment_coordinates_,
+                                            id_vector_temp_),
+                spv::NoPrecision)));
     if (modification.pixel.param_gen_point) {
       param_gen_y = builder_->createUnaryOp(
           spv::OpBitcast, type_float_,
@@ -2104,14 +2096,10 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
       assert_true(input_point_coordinates_ != spv::NoResult);
       // Saturate to avoid negative point coordinates if the center of the pixel
       // is not covered, and extrapolation is done.
-      id_vector_temp_.clear();
-      id_vector_temp_.push_back(
-          builder_->createLoad(input_point_coordinates_, spv::NoPrecision));
-      id_vector_temp_.push_back(const_float2_0_);
-      id_vector_temp_.push_back(const_float2_1_);
-      spv::Id param_gen_point_coordinates =
-          builder_->createBuiltinCall(type_float2_, ext_inst_glsl_std_450_,
-                                      GLSLstd450NClamp, id_vector_temp_);
+      spv::Id param_gen_point_coordinates = builder_->createTriBuiltinCall(
+          type_float2_, ext_inst_glsl_std_450_, GLSLstd450NClamp,
+          builder_->createLoad(input_point_coordinates_, spv::NoPrecision),
+          const_float2_0_, const_float2_1_);
       param_gen_z = builder_->createCompositeExtract(
           param_gen_point_coordinates, type_float_, 0);
       param_gen_w = builder_->createCompositeExtract(
@@ -2397,10 +2385,8 @@ spv::Id SpirvShaderTranslator::ApplyOperandModifiers(
   }
   if (original_operand.is_absolute_value || force_absolute) {
     EnsureBuildPointAvailable();
-    id_vector_temp_util_.clear();
-    id_vector_temp_util_.push_back(operand_value);
-    operand_value = builder_->createBuiltinCall(
-        type, ext_inst_glsl_std_450_, GLSLstd450FAbs, id_vector_temp_util_);
+    operand_value = builder_->createUnaryBuiltinCall(
+        type, ext_inst_glsl_std_450_, GLSLstd450FAbs, operand_value);
   }
   if (original_operand.is_negated != invert_negate) {
     EnsureBuildPointAvailable();
@@ -2464,11 +2450,9 @@ spv::Id SpirvShaderTranslator::GetAbsoluteOperand(
     return operand_storage;
   }
   EnsureBuildPointAvailable();
-  id_vector_temp_util_.clear();
-  id_vector_temp_util_.push_back(operand_storage);
-  return builder_->createBuiltinCall(builder_->getTypeId(operand_storage),
-                                     ext_inst_glsl_std_450_, GLSLstd450FAbs,
-                                     id_vector_temp_util_);
+  return builder_->createUnaryBuiltinCall(builder_->getTypeId(operand_storage),
+                                          ext_inst_glsl_std_450_,
+                                          GLSLstd450FAbs, operand_storage);
 }
 
 void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
@@ -2557,15 +2541,11 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
 
   if (result.is_clamped && non_constant_components) {
     // Apply the saturation modifier to the result.
-    id_vector_temp_util_.clear();
-    id_vector_temp_util_.push_back(value);
-    id_vector_temp_util_.push_back(
-        const_float_vectors_0_[value_num_components - 1]);
-    id_vector_temp_util_.push_back(
-        const_float_vectors_1_[value_num_components - 1]);
-    value = builder_->createBuiltinCall(
+    value = builder_->createTriBuiltinCall(
         type_float_vectors_[value_num_components - 1], ext_inst_glsl_std_450_,
-        GLSLstd450NClamp, id_vector_temp_util_);
+        GLSLstd450NClamp, value,
+        const_float_vectors_0_[value_num_components - 1],
+        const_float_vectors_1_[value_num_components - 1]);
   }
 
   // The value contains either result.GetUsedResultComponents() in a condensed
@@ -2783,12 +2763,9 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
                                         uniform_system_constants_,
                                         id_vector_temp_util_),
             spv::NoPrecision));
-    id_vector_temp_util_.clear();
-    id_vector_temp_util_.push_back(point_vertex_diameter_min);
-    id_vector_temp_util_.push_back(point_size);
-    point_size =
-        builder_->createBuiltinCall(type_int_, ext_inst_glsl_std_450_,
-                                    GLSLstd450SMax, id_vector_temp_util_);
+    point_size = builder_->createBinBuiltinCall(
+        type_int_, ext_inst_glsl_std_450_, GLSLstd450SMax,
+        point_vertex_diameter_min, point_size);
     id_vector_temp_util_.clear();
     id_vector_temp_util_.push_back(
         builder_->makeIntConstant(kSystemConstantPointVertexDiameterMax));
@@ -2799,12 +2776,9 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
                                         uniform_system_constants_,
                                         id_vector_temp_util_),
             spv::NoPrecision));
-    id_vector_temp_util_.clear();
-    id_vector_temp_util_.push_back(point_vertex_diameter_max);
-    id_vector_temp_util_.push_back(point_size);
-    point_size =
-        builder_->createBuiltinCall(type_int_, ext_inst_glsl_std_450_,
-                                    GLSLstd450SMin, id_vector_temp_util_);
+    point_size = builder_->createBinBuiltinCall(
+        type_int_, ext_inst_glsl_std_450_, GLSLstd450SMin,
+        point_vertex_diameter_max, point_size);
     value_to_store = builder_->createCompositeInsert(
         builder_->createUnaryOp(spv::OpBitcast, type_float_, point_size),
         value_to_store, type_float3_, 0);
@@ -2902,14 +2876,11 @@ spv::Id SpirvShaderTranslator::EndianSwap32Uint(spv::Id value, spv::Id endian) {
   builder_->createConditionalBranch(is_8in32_or_16in32, &block_16in32,
                                     &block_16in32_merge);
   builder_->setBuildPoint(&block_16in32);
-  id_vector_temp_.clear();
-  id_vector_temp_.push_back(builder_->createBinOp(
-      spv::OpShiftRightLogical, type, value, const_uint_16_typed));
-  id_vector_temp_.push_back(value);
-  id_vector_temp_.insert(id_vector_temp_.cend(), 2,
-                         builder_->makeIntConstant(16));
-  spv::Id swapped_16in32 =
-      builder_->createOp(spv::OpBitFieldInsert, type, id_vector_temp_);
+  spv::Id swapped_16in32 = builder_->createQuadOp(
+      spv::OpBitFieldInsert, type,
+      builder_->createBinOp(spv::OpShiftRightLogical, type, value,
+                            const_uint_16_typed),
+      value, builder_->makeIntConstant(16), builder_->makeIntConstant(16));
   builder_->createBranch(&block_16in32_merge);
   builder_->setBuildPoint(&block_16in32_merge);
   {
@@ -3021,12 +2992,9 @@ spv::Id SpirvShaderTranslator::PWLGammaToLinear(spv::Id gamma,
 
   if (!gamma_pre_saturated) {
     // Saturate, flushing NaN to 0.
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(gamma);
-    id_vector_temp_.push_back(const_vector_0);
-    id_vector_temp_.push_back(const_vector_1);
-    gamma = builder_->createBuiltinCall(value_type, ext_inst_glsl_std_450_,
-                                        GLSLstd450NClamp, id_vector_temp_);
+    gamma = builder_->createTriBuiltinCall(value_type, ext_inst_glsl_std_450_,
+                                           GLSLstd450NClamp, gamma,
+                                           const_vector_0, const_vector_1);
   }
 
   spv::Id is_piece_at_least_3 = builder_->createBinOp(
@@ -3086,14 +3054,12 @@ spv::Id SpirvShaderTranslator::PWLGammaToLinear(spv::Id gamma,
           scale),
       offset);
   // linear += trunc(linear * scale)
-  spv::Id linear_integer_term = builder_->createNoContractionBinOp(
-      spv::OpFMul, value_type, linear, scale);
-  id_vector_temp_.clear();
-  id_vector_temp_.push_back(linear_integer_term);
-  linear_integer_term = builder_->createBuiltinCall(
-      value_type, ext_inst_glsl_std_450_, GLSLstd450Trunc, id_vector_temp_);
-  linear = builder_->createNoContractionBinOp(spv::OpFAdd, value_type, linear,
-                                              linear_integer_term);
+  linear = builder_->createNoContractionBinOp(
+      spv::OpFAdd, value_type, linear,
+      builder_->createUnaryBuiltinCall(
+          value_type, ext_inst_glsl_std_450_, GLSLstd450Trunc,
+          builder_->createNoContractionBinOp(spv::OpFMul, value_type, linear,
+                                             scale)));
   // linear *= 1.0f / 1023.0f
   linear = builder_->createNoContractionBinOp(
       value_times_scalar_opcode, value_type, linear,
@@ -3117,12 +3083,9 @@ spv::Id SpirvShaderTranslator::LinearToPWLGamma(spv::Id linear,
 
   if (!linear_pre_saturated) {
     // Saturate, flushing NaN to 0.
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(linear);
-    id_vector_temp_.push_back(const_vector_0);
-    id_vector_temp_.push_back(const_vector_1);
-    linear = builder_->createBuiltinCall(value_type, ext_inst_glsl_std_450_,
-                                         GLSLstd450NClamp, id_vector_temp_);
+    linear = builder_->createTriBuiltinCall(value_type, ext_inst_glsl_std_450_,
+                                            GLSLstd450NClamp, linear,
+                                            const_vector_0, const_vector_1);
   }
 
   spv::Id is_piece_at_least_3 = builder_->createBinOp(
@@ -3170,19 +3133,16 @@ spv::Id SpirvShaderTranslator::LinearToPWLGamma(spv::Id linear,
                             offset_3_or_2, offset_1_or_0);
 
   // gamma = trunc(linear * scale) * (1.0f / 255.0f) + offset
-  spv::Id gamma = builder_->createNoContractionBinOp(spv::OpFMul, value_type,
-                                                     linear, scale);
-  id_vector_temp_.clear();
-  id_vector_temp_.push_back(gamma);
-  gamma = builder_->createBuiltinCall(value_type, ext_inst_glsl_std_450_,
-                                      GLSLstd450Trunc, id_vector_temp_);
-  gamma = builder_->createNoContractionBinOp(
+  return builder_->createNoContractionBinOp(
       spv::OpFAdd, value_type,
       builder_->createNoContractionBinOp(
-          is_vector ? spv::OpVectorTimesScalar : spv::OpFMul, value_type, gamma,
+          is_vector ? spv::OpVectorTimesScalar : spv::OpFMul, value_type,
+          builder_->createUnaryBuiltinCall(
+              value_type, ext_inst_glsl_std_450_, GLSLstd450Trunc,
+              builder_->createNoContractionBinOp(spv::OpFMul, value_type,
+                                                 linear, scale)),
           builder_->makeFloatConstant(1.0f / 255.0f)),
       offset);
-  return gamma;
 }
 
 }  // namespace gpu

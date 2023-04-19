@@ -83,12 +83,10 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
         index = builder_->createNoContractionBinOp(
             spv::OpFAdd, type_float_, index, builder_->makeFloatConstant(0.5f));
       }
-      id_vector_temp_.clear();
-      id_vector_temp_.push_back(index);
       index = builder_->createUnaryOp(
           spv::OpConvertFToS, type_int_,
-          builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                      GLSLstd450Floor, id_vector_temp_));
+          builder_->createUnaryBuiltinCall(type_float_, ext_inst_glsl_std_450_,
+                                           GLSLstd450Floor, index));
       if (instr.attributes.stride > 1) {
         index = builder_->createBinOp(
             spv::OpIMul, type_int_, index,
@@ -246,11 +244,9 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
         } else {
           word = words;
         }
-        id_vector_temp_.clear();
-        id_vector_temp_.push_back(word);
-        word = builder_->createBuiltinCall(type_float2_, ext_inst_glsl_std_450_,
-                                           GLSLstd450UnpackHalf2x16,
-                                           id_vector_temp_);
+        word = builder_->createUnaryBuiltinCall(type_float2_,
+                                                ext_inst_glsl_std_450_,
+                                                GLSLstd450UnpackHalf2x16, word);
         if (word_needed_components != 0b11) {
           // If only one of two components is needed, extract it.
           word = builder_->createCompositeExtract(
@@ -454,18 +450,14 @@ void SpirvShaderTranslator::ProcessVertexFetchInstruction(
             spv::Id const_minus_1 = builder_->makeFloatConstant(-1.0f);
             if (used_format_component_count > 1) {
               id_vector_temp_.clear();
-              id_vector_temp_.insert(id_vector_temp_.cend(),
-                                     used_format_component_count,
+              id_vector_temp_.resize(used_format_component_count,
                                      const_minus_1);
               const_minus_1 =
                   builder_->makeCompositeConstant(result_type, id_vector_temp_);
             }
-            id_vector_temp_.clear();
-            id_vector_temp_.push_back(result);
-            id_vector_temp_.push_back(const_minus_1);
-            result =
-                builder_->createBuiltinCall(result_type, ext_inst_glsl_std_450_,
-                                            GLSLstd450FMax, id_vector_temp_);
+            result = builder_->createBinBuiltinCall(
+                result_type, ext_inst_glsl_std_450_, GLSLstd450FMax, result,
+                const_minus_1);
           } break;
           case xenos::SignedRepeatingFractionMode::kNoZero:
             id_vector_temp_.clear();
@@ -1104,11 +1096,9 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
               builder_->makeFloatConstant(component_offset));
         }
         // 0.5 has already been subtracted via offsets previously.
-        id_vector_temp_.clear();
-        id_vector_temp_.push_back(result_component);
-        result_component =
-            builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                        GLSLstd450Fract, id_vector_temp_);
+        result_component = builder_->createUnaryBuiltinCall(
+            type_float_, ext_inst_glsl_std_450_, GLSLstd450Fract,
+            result_component);
         result[coordinate_component_index] = result_component;
       }
     } else {
@@ -1256,14 +1246,11 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
               spv::OpFAdd, type_float_, face,
               builder_->makeFloatConstant(offset_values[2]));
         }
-        id_vector_temp_.clear();
-        id_vector_temp_.push_back(face);
-        id_vector_temp_.push_back(const_float_0_);
-        id_vector_temp_.push_back(builder_->makeFloatConstant(5.0f));
         face = builder_->createUnaryOp(
             spv::OpConvertFToU, type_uint_,
-            builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                        GLSLstd450NClamp, id_vector_temp_));
+            builder_->createTriBuiltinCall(
+                type_float_, ext_inst_glsl_std_450_, GLSLstd450NClamp, face,
+                const_float_0_, builder_->makeFloatConstant(5.0f)));
         // Split the face index into the axis and the sign.
         spv::Id const_uint_1 = builder_->makeUintConstant(1);
         spv::Id face_axis = builder_->createBinOp(
@@ -1580,11 +1567,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           // in getCompTexLOD, so not doing it here too for now. Apply the
           // gradient exponent biases from the word 4 of the fetch constant in
           // the future when it's handled in getCompTexLOD somehow.
-          id_vector_temp_.clear();
-          id_vector_temp_.push_back(lod);
-          spv::Id lod_gradient_scale =
-              builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                          GLSLstd450Exp2, id_vector_temp_);
+          spv::Id lod_gradient_scale = builder_->createUnaryBuiltinCall(
+              type_float_, ext_inst_glsl_std_450_, GLSLstd450Exp2, lod);
           switch (instr.dimension) {
             case xenos::FetchOpDimension::k1D: {
               spv::Id gradient_h_1d, gradient_v_1d;
@@ -1841,14 +1825,10 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
               (vol_mag_filter_is_fetch_const || vol_min_filter_is_fetch_const ||
                vol_mag_filter_is_linear != vol_min_filter_is_linear)) {
             // Check if minifying along layers (derivative > 1 along any axis).
-            id_vector_temp_.clear();
-            for (uint32_t i = 0; i < 2; ++i) {
-              id_vector_temp_.push_back(builder_->createCompositeExtract(
-                  i ? gradients_v : gradients_h, type_float_, 2));
-            }
-            spv::Id layer_max_gradient =
-                builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                            GLSLstd450NMax, id_vector_temp_);
+            spv::Id layer_max_gradient = builder_->createBinBuiltinCall(
+                type_float_, ext_inst_glsl_std_450_, GLSLstd450NMax,
+                builder_->createCompositeExtract(gradients_h, type_float_, 2),
+                builder_->createCompositeExtract(gradients_v, type_float_, 2));
             if (!instr.attributes.unnormalized_coordinates) {
               // Denormalize the gradient if provided as normalized.
               assert_true(size[2] != spv::NoResult);
@@ -1927,11 +1907,9 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           // floor even for the layer index, but on the Xenos, addressing is
           // similar to that of 3D textures). This is needed for both point and
           // linear filtering (with linear, 0.5 was subtracted previously).
-          id_vector_temp_.clear();
-          id_vector_temp_.push_back(layer_coordinate);
-          spv::Id layer_0_coordinate =
-              builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                          GLSLstd450Floor, id_vector_temp_);
+          spv::Id layer_0_coordinate = builder_->createUnaryBuiltinCall(
+              type_float_, ext_inst_glsl_std_450_, GLSLstd450Floor,
+              layer_coordinate);
           id_vector_temp_.clear();
           id_vector_temp_.push_back(coordinates[0]);
           id_vector_temp_.push_back(coordinates[1]);
@@ -1972,11 +1950,9 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
             id_vector_temp_.push_back(layer_1_coordinate);
             texture_parameters.coords = builder_->createCompositeConstruct(
                 type_float3_, id_vector_temp_);
-            id_vector_temp_.clear();
-            id_vector_temp_.push_back(layer_coordinate);
-            spv::Id layer_lerp_factor =
-                builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                            GLSLstd450Fract, id_vector_temp_);
+            spv::Id layer_lerp_factor = builder_->createUnaryBuiltinCall(
+                type_float_, ext_inst_glsl_std_450_, GLSLstd450Fract,
+                layer_coordinate);
             spv::Id sample_result_unsigned_stacked_filtered;
             spv::Id sample_result_signed_stacked_filtered;
             SampleTexture(
@@ -2302,14 +2278,13 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
 
         // Apply the exponent bias from the bits 13:18 of the fetch constant
         // word 4.
-        id_vector_temp_.clear();
-        id_vector_temp_.push_back(builder_->makeFloatConstant(1.0f));
-        id_vector_temp_.push_back(builder_->createTriOp(
-            spv::OpBitFieldSExtract, type_int_, fetch_constant_word_4_signed,
-            builder_->makeUintConstant(13), builder_->makeUintConstant(6)));
-        spv::Id result_exponent_bias =
-            builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                        GLSLstd450Ldexp, id_vector_temp_);
+        spv::Id result_exponent_bias = builder_->createBinBuiltinCall(
+            type_float_, ext_inst_glsl_std_450_, GLSLstd450Ldexp,
+            const_float_1_,
+            builder_->createTriOp(spv::OpBitFieldSExtract, type_int_,
+                                  fetch_constant_word_4_signed,
+                                  builder_->makeUintConstant(13),
+                                  builder_->makeUintConstant(6)));
         {
           uint32_t result_remaining_components = used_result_nonzero_components;
           uint32_t result_component_index;

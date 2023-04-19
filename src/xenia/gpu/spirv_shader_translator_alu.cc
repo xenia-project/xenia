@@ -28,16 +28,13 @@ spv::Id SpirvShaderTranslator::ZeroIfAnyOperandIsZero(spv::Id value,
   int num_components = builder_->getNumComponents(value);
   assert_true(builder_->getNumComponents(operand_0_abs) == num_components);
   assert_true(builder_->getNumComponents(operand_1_abs) == num_components);
-  id_vector_temp_util_.clear();
-  id_vector_temp_util_.push_back(operand_0_abs);
-  id_vector_temp_util_.push_back(operand_1_abs);
   return builder_->createTriOp(
       spv::OpSelect, type_float_,
       builder_->createBinOp(
           spv::OpFOrdEqual, type_bool_vectors_[num_components - 1],
-          builder_->createBuiltinCall(type_float_vectors_[num_components - 1],
-                                      ext_inst_glsl_std_450_, GLSLstd450NMin,
-                                      id_vector_temp_util_),
+          builder_->createBinBuiltinCall(
+              type_float_vectors_[num_components - 1], ext_inst_glsl_std_450_,
+              GLSLstd450NMin, operand_0_abs, operand_1_abs),
           const_float_vectors_0_[num_components - 1]),
       const_float_vectors_0_[num_components - 1], value);
 }
@@ -252,15 +249,12 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
           different_operands[i] = GetAbsoluteOperand(different_operands[i],
                                                      instr.vector_operands[i]);
         }
-        id_vector_temp_.clear();
-        id_vector_temp_.push_back(different_operands[0]);
-        id_vector_temp_.push_back(different_operands[1]);
-        spv::Id different_abs_min =
-            builder_->createBuiltinCall(different_type, ext_inst_glsl_std_450_,
-                                        GLSLstd450NMin, id_vector_temp_);
         spv::Id different_zero = builder_->createBinOp(
             spv::OpFOrdEqual, type_bool_vectors_[different_count - 1],
-            different_abs_min, const_float_vectors_0_[different_count - 1]);
+            builder_->createBinBuiltinCall(
+                different_type, ext_inst_glsl_std_450_, GLSLstd450NMin,
+                different_operands[0], different_operands[1]),
+            const_float_vectors_0_[different_count - 1]);
         // Replace with +0.
         different_result = builder_->createTriOp(
             spv::OpSelect, different_type, different_zero,
@@ -325,23 +319,18 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
         } else {
           maxa_operand_0_w = operand_0;
         }
-        spv::Id maxa_address = builder_->createNoContractionBinOp(
-            spv::OpFAdd, type_float_, maxa_operand_0_w,
-            builder_->makeFloatConstant(0.5f));
-        id_vector_temp_.clear();
-        id_vector_temp_.push_back(maxa_address);
-        maxa_address =
-            builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                        GLSLstd450Floor, id_vector_temp_);
-        id_vector_temp_.clear();
-        id_vector_temp_.push_back(maxa_address);
-        id_vector_temp_.push_back(builder_->makeFloatConstant(-256.0f));
-        id_vector_temp_.push_back(builder_->makeFloatConstant(255.0f));
         builder_->createStore(
             builder_->createUnaryOp(
                 spv::OpConvertFToS, type_int_,
-                builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                            GLSLstd450NClamp, id_vector_temp_)),
+                builder_->createTriBuiltinCall(
+                    type_float_, ext_inst_glsl_std_450_, GLSLstd450NClamp,
+                    builder_->createUnaryBuiltinCall(
+                        type_float_, ext_inst_glsl_std_450_, GLSLstd450Floor,
+                        builder_->createNoContractionBinOp(
+                            spv::OpFAdd, type_float_, maxa_operand_0_w,
+                            builder_->makeFloatConstant(0.5f))),
+                    builder_->makeFloatConstant(-256.0f),
+                    builder_->makeFloatConstant(255.0f))),
             var_main_address_register_);
       }
       if (!used_result_components) {
@@ -455,13 +444,11 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
     case ucode::AluVectorOpcode::kFrc:
     case ucode::AluVectorOpcode::kTrunc:
     case ucode::AluVectorOpcode::kFloor:
-      id_vector_temp_.clear();
-      id_vector_temp_.push_back(GetOperandComponents(operand_storage[0],
-                                                     instr.vector_operands[0],
-                                                     used_result_components));
-      return builder_->createBuiltinCall(
+      return builder_->createUnaryBuiltinCall(
           result_type, ext_inst_glsl_std_450_,
-          GLSLstd450(kOps[size_t(instr.vector_opcode)]), id_vector_temp_);
+          GLSLstd450(kOps[size_t(instr.vector_opcode)]),
+          GetOperandComponents(operand_storage[0], instr.vector_operands[0],
+                               used_result_components));
 
     case ucode::AluVectorOpcode::kCndEq:
     case ucode::AluVectorOpcode::kCndGe:
@@ -553,11 +540,8 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       if (!instr.vector_operands[0].is_absolute_value ||
           instr.vector_operands[0].is_negated) {
         for (unsigned int i = 0; i < 3; ++i) {
-          id_vector_temp_.clear();
-          id_vector_temp_.push_back(operand[i]);
-          operand_abs[i] =
-              builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                          GLSLstd450FAbs, id_vector_temp_);
+          operand_abs[i] = builder_->createUnaryBuiltinCall(
+              type_float_, ext_inst_glsl_std_450_, GLSLstd450FAbs, operand[i]);
         }
       } else {
         for (unsigned int i = 0; i < 3; ++i) {
@@ -749,13 +733,10 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
           operand, type_float_, static_cast<unsigned int>(component));
       while (xe::bit_scan_forward(components_remaining, &component)) {
         components_remaining &= ~(uint32_t(1) << component);
-        id_vector_temp_.clear();
-        id_vector_temp_.push_back(result);
-        id_vector_temp_.push_back(builder_->createCompositeExtract(
-            operand, type_float_, static_cast<unsigned int>(component)));
-        result =
-            builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                        GLSLstd450NMax, id_vector_temp_);
+        result = builder_->createBinBuiltinCall(
+            type_float_, ext_inst_glsl_std_450_, GLSLstd450NMax, result,
+            builder_->createCompositeExtract(
+                operand, type_float_, static_cast<unsigned int>(component)));
       }
       return result;
     }
@@ -1014,12 +995,10 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
       spv::Id result =
           builder_->createNoContractionBinOp(spv::OpFMul, type_float_, a, ps);
       // Shader Model 3: +0 or denormal * anything = +-0.
-      id_vector_temp_.clear();
-      id_vector_temp_.push_back(ps);
       return ZeroIfAnyOperandIsZero(
           result, GetAbsoluteOperand(a, instr.scalar_operands[0]),
-          builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                      GLSLstd450FAbs, id_vector_temp_));
+          builder_->createUnaryBuiltinCall(type_float_, ext_inst_glsl_std_450_,
+                                           GLSLstd450FAbs, ps));
     }
     case ucode::AluScalarOpcode::kMulsPrev2: {
       // Check if need to select the src0.a * ps case.
@@ -1033,10 +1012,8 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
           spv::OpFUnordNotEqual, type_bool_, ps, const_float_max_neg);
       // isfinite(ps), or |ps| <= FLT_MAX, or -|ps| >= -FLT_MAX, since -FLT_MAX
       // is already loaded to an SGPR, this is also false if it's NaN.
-      id_vector_temp_.clear();
-      id_vector_temp_.push_back(ps);
-      spv::Id ps_abs = builder_->createBuiltinCall(
-          type_float_, ext_inst_glsl_std_450_, GLSLstd450FAbs, id_vector_temp_);
+      spv::Id ps_abs = builder_->createUnaryBuiltinCall(
+          type_float_, ext_inst_glsl_std_450_, GLSLstd450FAbs, ps);
       spv::Id ps_abs_neg = builder_->createNoContractionUnaryOp(
           spv::OpFNegate, type_float_, ps_abs);
       condition = builder_->createBinOp(
@@ -1048,11 +1025,8 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
                                        instr.scalar_operands[0], 0b0010);
       spv::Id b_abs_neg = b;
       if (!instr.scalar_operands[0].is_absolute_value) {
-        id_vector_temp_.clear();
-        id_vector_temp_.push_back(b_abs_neg);
-        b_abs_neg =
-            builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                        GLSLstd450FAbs, id_vector_temp_);
+        b_abs_neg = builder_->createUnaryBuiltinCall(
+            type_float_, ext_inst_glsl_std_450_, GLSLstd450FAbs, b_abs_neg);
       }
       if (!instr.scalar_operands[0].is_absolute_value ||
           !instr.scalar_operands[0].is_negated) {
@@ -1120,20 +1094,16 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
         } else {
           maxa_address = a;
         }
-        id_vector_temp_.clear();
-        id_vector_temp_.push_back(maxa_address);
-        maxa_address =
-            builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                        GLSLstd450Floor, id_vector_temp_);
-        id_vector_temp_.clear();
-        id_vector_temp_.push_back(maxa_address);
-        id_vector_temp_.push_back(builder_->makeFloatConstant(-256.0f));
-        id_vector_temp_.push_back(builder_->makeFloatConstant(255.0f));
         builder_->createStore(
             builder_->createUnaryOp(
                 spv::OpConvertFToS, type_int_,
-                builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                            GLSLstd450NClamp, id_vector_temp_)),
+                builder_->createTriBuiltinCall(
+                    type_float_, ext_inst_glsl_std_450_, GLSLstd450NClamp,
+                    builder_->createUnaryBuiltinCall(
+                        type_float_, ext_inst_glsl_std_450_, GLSLstd450Floor,
+                        maxa_address),
+                    builder_->makeFloatConstant(-256.0f),
+                    builder_->makeFloatConstant(255.0f))),
             var_main_address_register_);
       }
       if (a == b) {
@@ -1171,18 +1141,16 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
     case ucode::AluScalarOpcode::kSqrt:
     case ucode::AluScalarOpcode::kSin:
     case ucode::AluScalarOpcode::kCos:
-      id_vector_temp_.clear();
-      id_vector_temp_.push_back(GetOperandComponents(
-          operand_storage[0], instr.scalar_operands[0], 0b0001));
-      return builder_->createBuiltinCall(
+      return builder_->createUnaryBuiltinCall(
           type_float_, ext_inst_glsl_std_450_,
-          GLSLstd450(kOps[size_t(instr.scalar_opcode)]), id_vector_temp_);
+          GLSLstd450(kOps[size_t(instr.scalar_opcode)]),
+          GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
+                               0b0001));
     case ucode::AluScalarOpcode::kLogc: {
-      id_vector_temp_.clear();
-      id_vector_temp_.push_back(GetOperandComponents(
-          operand_storage[0], instr.scalar_operands[0], 0b0001));
-      spv::Id result = builder_->createBuiltinCall(
-          type_float_, ext_inst_glsl_std_450_, GLSLstd450Log2, id_vector_temp_);
+      spv::Id result = builder_->createUnaryBuiltinCall(
+          type_float_, ext_inst_glsl_std_450_, GLSLstd450Log2,
+          GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
+                               0b0001));
       return builder_->createTriOp(
           spv::OpSelect, type_float_,
           builder_->createBinOp(spv::OpFOrdEqual, type_bool_, result,
@@ -1232,12 +1200,10 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
                                0b0001));
     }
     case ucode::AluScalarOpcode::kRsqc: {
-      id_vector_temp_.clear();
-      id_vector_temp_.push_back(GetOperandComponents(
-          operand_storage[0], instr.scalar_operands[0], 0b0001));
-      spv::Id result =
-          builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                      GLSLstd450InverseSqrt, id_vector_temp_);
+      spv::Id result = builder_->createUnaryBuiltinCall(
+          type_float_, ext_inst_glsl_std_450_, GLSLstd450InverseSqrt,
+          GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
+                               0b0001));
       result = builder_->createTriOp(
           spv::OpSelect, type_float_,
           builder_->createBinOp(spv::OpFOrdEqual, type_bool_, result,
@@ -1250,12 +1216,10 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
           builder_->makeFloatConstant(FLT_MAX), result);
     }
     case ucode::AluScalarOpcode::kRsqf: {
-      id_vector_temp_.clear();
-      id_vector_temp_.push_back(GetOperandComponents(
-          operand_storage[0], instr.scalar_operands[0], 0b0001));
-      spv::Id result =
-          builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
-                                      GLSLstd450InverseSqrt, id_vector_temp_);
+      spv::Id result = builder_->createUnaryBuiltinCall(
+          type_float_, ext_inst_glsl_std_450_, GLSLstd450InverseSqrt,
+          GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
+                               0b0001));
       result = builder_->createTriOp(
           spv::OpSelect, type_float_,
           builder_->createBinOp(spv::OpFOrdEqual, type_bool_, result,

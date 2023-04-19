@@ -26,19 +26,22 @@ class SpirvBuilder : public spv::Builder {
   // Make public rather than protected.
   using spv::Builder::createSelectionMerge;
 
-  spv::Id createNoContractionUnaryOp(spv::Op op_code, spv::Id type_id,
-                                     spv::Id operand) {
-    spv::Id result = createUnaryOp(op_code, type_id, operand);
-    addDecoration(result, spv::DecorationNoContraction);
-    return result;
-  }
+  spv::Id createQuadOp(spv::Op op_code, spv::Id type_id, spv::Id operand1,
+                       spv::Id operand2, spv::Id operand3, spv::Id operand4);
 
+  spv::Id createNoContractionUnaryOp(spv::Op op_code, spv::Id type_id,
+                                     spv::Id operand);
   spv::Id createNoContractionBinOp(spv::Op op_code, spv::Id type_id,
-                                   spv::Id operand1, spv::Id operand2) {
-    spv::Id result = createBinOp(op_code, type_id, operand1, operand2);
-    addDecoration(result, spv::DecorationNoContraction);
-    return result;
-  }
+                                   spv::Id operand1, spv::Id operand2);
+
+  spv::Id createUnaryBuiltinCall(spv::Id result_type, spv::Id builtins,
+                                 int entry_point, spv::Id operand);
+  spv::Id createBinBuiltinCall(spv::Id result_type, spv::Id builtins,
+                               int entry_point, spv::Id operand1,
+                               spv::Id operand2);
+  spv::Id createTriBuiltinCall(spv::Id result_type, spv::Id builtins,
+                               int entry_point, spv::Id operand1,
+                               spv::Id operand2, spv::Id operand3);
 };
 
 }  // namespace gpu
