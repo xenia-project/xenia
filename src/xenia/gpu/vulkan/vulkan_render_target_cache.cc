@@ -20,13 +20,13 @@
 #include <vector>
 
 #include "third_party/glslang/SPIRV/GLSL.std.450.h"
-#include "third_party/glslang/SPIRV/SpvBuilder.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/registers.h"
+#include "xenia/gpu/spirv_builder.h"
 #include "xenia/gpu/spirv_shader_translator.h"
 #include "xenia/gpu/texture_cache.h"
 #include "xenia/gpu/vulkan/deferred_command_buffer.h"
@@ -2166,7 +2166,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
   std::vector<spv::Id> id_vector_temp;
   std::vector<unsigned int> uint_vector_temp;
 
-  spv::Builder builder(spv::Spv_1_0,
+  SpirvBuilder builder(spv::Spv_1_0,
                        (SpirvShaderTranslator::kSpirvMagicToolId << 16) | 1,
                        nullptr);
   spv::Id ext_inst_glsl_std_450 = builder.import("GLSL.std.450");
@@ -4213,16 +4213,8 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                   builder.makeNewBlock();
               depth24_to_depth32_merge = &depth24_to_depth32_merge_block;
             }
-            {
-              std::unique_ptr<spv::Instruction> depth24_to_depth32_merge_op =
-                  std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
-              depth24_to_depth32_merge_op->addIdOperand(
-                  depth24_to_depth32_merge->getId());
-              depth24_to_depth32_merge_op->addImmediateOperand(
-                  spv::SelectionControlMaskNone);
-              builder.getBuildPoint()->addInstruction(
-                  std::move(depth24_to_depth32_merge_op));
-            }
+            builder.createSelectionMerge(depth24_to_depth32_merge,
+                                         spv::SelectionControlMaskNone);
             builder.createConditionalBranch(host_depth_outdated,
                                             &depth24_to_depth32_convert_entry,
                                             depth24_to_depth32_merge);
@@ -4304,15 +4296,8 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               builder.makeUintConstant(0));
           spv::Block& stencil_bit_kill_block = builder.makeNewBlock();
           spv::Block& stencil_bit_merge_block = builder.makeNewBlock();
-          {
-            std::unique_ptr<spv::Instruction> stencil_bit_merge_op =
-                std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
-            stencil_bit_merge_op->addIdOperand(stencil_bit_merge_block.getId());
-            stencil_bit_merge_op->addImmediateOperand(
-                spv::SelectionControlMaskNone);
-            builder.getBuildPoint()->addInstruction(
-                std::move(stencil_bit_merge_op));
-          }
+          builder.createSelectionMerge(&stencil_bit_merge_block,
+                                       spv::SelectionControlMaskNone);
           builder.createConditionalBranch(stencil_sample_passed,
                                           &stencil_bit_merge_block,
                                           &stencil_bit_kill_block);
@@ -5582,7 +5567,7 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
 
   std::vector<spv::Id> id_vector_temp;
 
-  spv::Builder builder(spv::Spv_1_0,
+  SpirvBuilder builder(spv::Spv_1_0,
                        (SpirvShaderTranslator::kSpirvMagicToolId << 16) | 1,
                        nullptr);
   spv::Id ext_inst_glsl_std_450 = builder.import("GLSL.std.450");

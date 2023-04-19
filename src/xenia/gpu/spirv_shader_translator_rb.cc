@@ -23,7 +23,7 @@ namespace xe {
 namespace gpu {
 
 spv::Id SpirvShaderTranslator::PreClampedFloat32To7e3(
-    spv::Builder& builder, spv::Id f32_scalar, spv::Id ext_inst_glsl_std_450) {
+    SpirvBuilder& builder, spv::Id f32_scalar, spv::Id ext_inst_glsl_std_450) {
   // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
   // Assuming the value is already clamped to [0, 31.875].
 
@@ -107,7 +107,7 @@ spv::Id SpirvShaderTranslator::PreClampedFloat32To7e3(
 }
 
 spv::Id SpirvShaderTranslator::UnclampedFloat32To7e3(
-    spv::Builder& builder, spv::Id f32_scalar, spv::Id ext_inst_glsl_std_450) {
+    SpirvBuilder& builder, spv::Id f32_scalar, spv::Id ext_inst_glsl_std_450) {
   spv::Id type_float = builder.makeFloatType(32);
 
   // Need the source as float for clamping.
@@ -136,7 +136,7 @@ spv::Id SpirvShaderTranslator::UnclampedFloat32To7e3(
   return PreClampedFloat32To7e3(builder, f32_scalar, ext_inst_glsl_std_450);
 }
 
-spv::Id SpirvShaderTranslator::Float7e3To32(spv::Builder& builder,
+spv::Id SpirvShaderTranslator::Float7e3To32(SpirvBuilder& builder,
                                             spv::Id f10_uint_scalar,
                                             uint32_t f10_shift,
                                             bool result_as_uint,
@@ -234,7 +234,7 @@ spv::Id SpirvShaderTranslator::Float7e3To32(spv::Builder& builder,
 }
 
 spv::Id SpirvShaderTranslator::PreClampedDepthTo20e4(
-    spv::Builder& builder, spv::Id f32_scalar, bool round_to_nearest_even,
+    SpirvBuilder& builder, spv::Id f32_scalar, bool round_to_nearest_even,
     bool remap_from_0_to_0_5, spv::Id ext_inst_glsl_std_450) {
   // CFloat24 from d3dref9.dll +
   // https://github.com/Microsoft/DirectXTex/blob/master/DirectXTex/DirectXTexConvert.cpp
@@ -325,7 +325,7 @@ spv::Id SpirvShaderTranslator::PreClampedDepthTo20e4(
                              builder.makeUintConstant(24));
 }
 
-spv::Id SpirvShaderTranslator::Depth20e4To32(spv::Builder& builder,
+spv::Id SpirvShaderTranslator::Depth20e4To32(SpirvBuilder& builder,
                                              spv::Id f24_uint_scalar,
                                              uint32_t f24_shift,
                                              bool remap_to_0_to_0_5,
@@ -463,8 +463,8 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
             builder_->createLoad(var_main_kill_pixel_, spv::NoPrecision);
         spv::Block& block_kill = builder_->makeNewBlock();
         spv::Block& block_kill_merge = builder_->makeNewBlock();
-        SpirvCreateSelectionMerge(block_kill_merge.getId(),
-                                  spv::SelectionControlDontFlattenMask);
+        builder_->createSelectionMerge(&block_kill_merge,
+                                       spv::SelectionControlDontFlattenMask);
         builder_->createConditionalBranch(kill_pixel, &block_kill,
                                           &block_kill_merge);
         builder_->setBuildPoint(&block_kill);
@@ -500,8 +500,8 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
       spv::Block& block_fsi_rt_0_alpha_tests_rt_written =
           builder_->makeNewBlock();
       block_fsi_rt_0_alpha_tests_rt_written_merge = &builder_->makeNewBlock();
-      SpirvCreateSelectionMerge(
-          block_fsi_rt_0_alpha_tests_rt_written_merge->getId(),
+      builder_->createSelectionMerge(
+          block_fsi_rt_0_alpha_tests_rt_written_merge,
           spv::SelectionControlDontFlattenMask);
       {
         std::unique_ptr<spv::Instruction> rt_0_written_branch_conditional_op =
@@ -538,8 +538,8 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
         builder_->makeUintConstant(uint32_t(xenos::CompareFunction::kAlways)));
     spv::Block& block_alpha_test = builder_->makeNewBlock();
     spv::Block& block_alpha_test_merge = builder_->makeNewBlock();
-    SpirvCreateSelectionMerge(block_alpha_test_merge.getId(),
-                              spv::SelectionControlDontFlattenMask);
+    builder_->createSelectionMerge(&block_alpha_test_merge,
+                                   spv::SelectionControlDontFlattenMask);
     builder_->createConditionalBranch(alpha_test_function_is_non_always,
                                       &block_alpha_test,
                                       &block_alpha_test_merge);
@@ -571,8 +571,8 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
       spv::Block& block_alpha_test_not_equal = builder_->makeNewBlock();
       spv::Block& block_alpha_test_non_not_equal = builder_->makeNewBlock();
       spv::Block& block_alpha_test_not_equal_merge = builder_->makeNewBlock();
-      SpirvCreateSelectionMerge(block_alpha_test_not_equal_merge.getId(),
-                                spv::SelectionControlDontFlattenMask);
+      builder_->createSelectionMerge(&block_alpha_test_not_equal_merge,
+                                     spv::SelectionControlDontFlattenMask);
       builder_->createConditionalBranch(alpha_test_function_is_not_equal,
                                         &block_alpha_test_not_equal,
                                         &block_alpha_test_non_not_equal);
@@ -631,8 +631,8 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
         // since SPIR-V requires structured control flow in shaders.
         spv::Block& block_alpha_test_kill = builder_->makeNewBlock();
         spv::Block& block_alpha_test_kill_merge = builder_->makeNewBlock();
-        SpirvCreateSelectionMerge(block_alpha_test_kill_merge.getId(),
-                                  spv::SelectionControlDontFlattenMask);
+        builder_->createSelectionMerge(&block_alpha_test_kill_merge,
+                                       spv::SelectionControlDontFlattenMask);
         builder_->createConditionalBranch(alpha_test_result,
                                           &block_alpha_test_kill_merge,
                                           &block_alpha_test_kill);
@@ -707,8 +707,8 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
           spv::OpINotEqual, type_bool_, main_fsi_sample_mask_, const_uint_0_);
       block_fsi_if_after_kill = &builder_->makeNewBlock();
       block_fsi_if_after_kill_merge = &builder_->makeNewBlock();
-      SpirvCreateSelectionMerge(block_fsi_if_after_kill_merge->getId(),
-                                spv::SelectionControlDontFlattenMask);
+      builder_->createSelectionMerge(block_fsi_if_after_kill_merge,
+                                     spv::SelectionControlDontFlattenMask);
       builder_->createConditionalBranch(pixel_not_killed,
                                         block_fsi_if_after_kill,
                                         block_fsi_if_after_kill_merge);
@@ -729,8 +729,8 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
             builder_->makeNewBlock();
         spv::Block& block_sample_late_depth_stencil_write_merge =
             builder_->makeNewBlock();
-        SpirvCreateSelectionMerge(
-            block_sample_late_depth_stencil_write_merge.getId(),
+        builder_->createSelectionMerge(
+            &block_sample_late_depth_stencil_write_merge,
             spv::SelectionControlDontFlattenMask);
         builder_->createConditionalBranch(
             sample_late_depth_stencil_write_needed,
@@ -790,8 +790,8 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
       // Skip all color operations if the pixel has failed the tests entirely.
       block_fsi_if_after_depth_stencil = &builder_->makeNewBlock();
       block_fsi_if_after_depth_stencil_merge = &builder_->makeNewBlock();
-      SpirvCreateSelectionMerge(block_fsi_if_after_depth_stencil_merge->getId(),
-                                spv::SelectionControlDontFlattenMask);
+      builder_->createSelectionMerge(block_fsi_if_after_depth_stencil_merge,
+                                     spv::SelectionControlDontFlattenMask);
       builder_->createConditionalBranch(color_write_depth_stencil_condition,
                                         block_fsi_if_after_depth_stencil,
                                         block_fsi_if_after_depth_stencil_merge);
@@ -856,8 +856,8 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
         spv::Block& fsi_color_written_if_head = *builder_->getBuildPoint();
         spv::Block& fsi_color_written_if = builder_->makeNewBlock();
         spv::Block& fsi_color_written_if_merge = builder_->makeNewBlock();
-        SpirvCreateSelectionMerge(fsi_color_written_if_merge.getId(),
-                                  spv::SelectionControlDontFlattenMask);
+        builder_->createSelectionMerge(&fsi_color_written_if_merge,
+                                       spv::SelectionControlDontFlattenMask);
         {
           std::unique_ptr<spv::Instruction> rt_written_branch_conditional_op =
               std::make_unique<spv::Instruction>(spv::OpBranchConditional);
@@ -917,8 +917,8 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
                                   const_uint32_max));
         spv::Block& rt_write_mask_not_empty_if = builder_->makeNewBlock();
         spv::Block& rt_write_mask_not_empty_if_merge = builder_->makeNewBlock();
-        SpirvCreateSelectionMerge(rt_write_mask_not_empty_if_merge.getId(),
-                                  spv::SelectionControlDontFlattenMask);
+        builder_->createSelectionMerge(&rt_write_mask_not_empty_if_merge,
+                                       spv::SelectionControlDontFlattenMask);
         builder_->createConditionalBranch(rt_write_mask_not_empty,
                                           &rt_write_mask_not_empty_if,
                                           &rt_write_mask_not_empty_if_merge);
@@ -986,8 +986,8 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
         spv::Block& rt_blend_enabled_if = builder_->makeNewBlock();
         spv::Block& rt_blend_enabled_else = builder_->makeNewBlock();
         spv::Block& rt_blend_enabled_merge = builder_->makeNewBlock();
-        SpirvCreateSelectionMerge(rt_blend_enabled_merge.getId(),
-                                  spv::SelectionControlDontFlattenMask);
+        builder_->createSelectionMerge(&rt_blend_enabled_merge,
+                                       spv::SelectionControlDontFlattenMask);
         builder_->createConditionalBranch(
             rt_blend_enabled, &rt_blend_enabled_if, &rt_blend_enabled_else);
 
@@ -1100,8 +1100,9 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
           for (uint32_t i = 0; i < 4; ++i) {
             spv::Block& block_sample_covered = builder_->makeNewBlock();
             spv::Block& block_sample_covered_merge = builder_->makeNewBlock();
-            SpirvCreateSelectionMerge(block_sample_covered_merge.getId(),
-                                      spv::SelectionControlDontFlattenMask);
+            builder_->createSelectionMerge(
+                &block_sample_covered_merge,
+                spv::SelectionControlDontFlattenMask);
             builder_->createConditionalBranch(fsi_samples_covered[i],
                                               &block_sample_covered,
                                               &block_sample_covered_merge);
@@ -1134,8 +1135,9 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
               spv::Block& block_load_64bpp_head = *builder_->getBuildPoint();
               spv::Block& block_load_64bpp = builder_->makeNewBlock();
               spv::Block& block_load_64bpp_merge = builder_->makeNewBlock();
-              SpirvCreateSelectionMerge(block_load_64bpp_merge.getId(),
-                                        spv::SelectionControlDontFlattenMask);
+              builder_->createSelectionMerge(
+                  &block_load_64bpp_merge,
+                  spv::SelectionControlDontFlattenMask);
               builder_->createConditionalBranch(rt_is_64bpp, &block_load_64bpp,
                                                 &block_load_64bpp_merge);
               builder_->setBuildPoint(&block_load_64bpp);
@@ -1204,8 +1206,8 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
                 rt_access_chain_0);
             spv::Block& block_store_64bpp = builder_->makeNewBlock();
             spv::Block& block_store_64bpp_merge = builder_->makeNewBlock();
-            SpirvCreateSelectionMerge(block_store_64bpp_merge.getId(),
-                                      spv::SelectionControlDontFlattenMask);
+            builder_->createSelectionMerge(
+                &block_store_64bpp_merge, spv::SelectionControlDontFlattenMask);
             builder_->createConditionalBranch(rt_is_64bpp, &block_store_64bpp,
                                               &block_store_64bpp_merge);
             builder_->setBuildPoint(&block_store_64bpp);
@@ -1247,8 +1249,8 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
           spv::Block& rt_keep_mask_not_empty_if_else = builder_->makeNewBlock();
           spv::Block& rt_keep_mask_not_empty_if_merge =
               builder_->makeNewBlock();
-          SpirvCreateSelectionMerge(rt_keep_mask_not_empty_if_merge.getId(),
-                                    spv::SelectionControlDontFlattenMask);
+          builder_->createSelectionMerge(&rt_keep_mask_not_empty_if_merge,
+                                         spv::SelectionControlDontFlattenMask);
           builder_->createConditionalBranch(rt_keep_mask_not_empty,
                                             &rt_keep_mask_not_empty_if,
                                             &rt_keep_mask_not_empty_if_else);
@@ -1266,8 +1268,9 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
             for (uint32_t i = 0; i < 4; ++i) {
               spv::Block& block_sample_covered = builder_->makeNewBlock();
               spv::Block& block_sample_covered_merge = builder_->makeNewBlock();
-              SpirvCreateSelectionMerge(block_sample_covered_merge.getId(),
-                                        spv::SelectionControlDontFlattenMask);
+              builder_->createSelectionMerge(
+                  &block_sample_covered_merge,
+                  spv::SelectionControlDontFlattenMask);
               builder_->createConditionalBranch(fsi_samples_covered[i],
                                                 &block_sample_covered,
                                                 &block_sample_covered_merge);
@@ -1295,8 +1298,9 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
                   rt_access_chain_0);
               spv::Block& block_store_64bpp = builder_->makeNewBlock();
               spv::Block& block_store_64bpp_merge = builder_->makeNewBlock();
-              SpirvCreateSelectionMerge(block_store_64bpp_merge.getId(),
-                                        spv::SelectionControlDontFlattenMask);
+              builder_->createSelectionMerge(
+                  &block_store_64bpp_merge,
+                  spv::SelectionControlDontFlattenMask);
               builder_->createConditionalBranch(rt_is_64bpp, &block_store_64bpp,
                                                 &block_store_64bpp_merge);
               builder_->setBuildPoint(&block_store_64bpp);
@@ -1331,8 +1335,9 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
             for (uint32_t i = 0; i < 4; ++i) {
               spv::Block& block_sample_covered = builder_->makeNewBlock();
               spv::Block& block_sample_covered_merge = builder_->makeNewBlock();
-              SpirvCreateSelectionMerge(block_sample_covered_merge.getId(),
-                                        spv::SelectionControlDontFlattenMask);
+              builder_->createSelectionMerge(
+                  &block_sample_covered_merge,
+                  spv::SelectionControlDontFlattenMask);
               builder_->createConditionalBranch(fsi_samples_covered[i],
                                                 &block_sample_covered,
                                                 &block_sample_covered_merge);
@@ -1351,8 +1356,9 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
                                         buffer_edram_, id_vector_temp_));
               spv::Block& block_store_64bpp = builder_->makeNewBlock();
               spv::Block& block_store_64bpp_merge = builder_->makeNewBlock();
-              SpirvCreateSelectionMerge(block_store_64bpp_merge.getId(),
-                                        spv::SelectionControlDontFlattenMask);
+              builder_->createSelectionMerge(
+                  &block_store_64bpp_merge,
+                  spv::SelectionControlDontFlattenMask);
               builder_->createConditionalBranch(rt_is_64bpp, &block_store_64bpp,
                                                 &block_store_64bpp_merge);
               builder_->setBuildPoint(&block_store_64bpp);
@@ -1403,7 +1409,8 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
         spv::Block& block_gamma_head = *builder_->getBuildPoint();
         spv::Block& block_gamma = builder_->makeNewBlock();
         spv::Block& block_gamma_merge = builder_->makeNewBlock();
-        SpirvCreateSelectionMerge(block_gamma_merge.getId());
+        builder_->createSelectionMerge(&block_gamma_merge,
+                                       spv::SelectionControlDontFlattenMask);
         builder_->createConditionalBranch(is_gamma, &block_gamma,
                                           &block_gamma_merge);
         builder_->setBuildPoint(&block_gamma);
@@ -1491,7 +1498,8 @@ void SpirvShaderTranslator::FSI_LoadSampleMask(spv::Id msaa_samples) {
   spv::Block& block_msaa_2x = builder_->makeNewBlock();
   spv::Block& block_msaa_4x = builder_->makeNewBlock();
   spv::Block& block_msaa_merge = builder_->makeNewBlock();
-  SpirvCreateSelectionMerge(block_msaa_merge.getId());
+  builder_->createSelectionMerge(&block_msaa_merge,
+                                 spv::SelectionControlDontFlattenMask);
   {
     std::unique_ptr<spv::Instruction> msaa_switch_op =
         std::make_unique<spv::Instruction>(spv::OpSwitch);
@@ -1754,8 +1762,8 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
   spv::Block& block_depth_stencil_enabled_head = *builder_->getBuildPoint();
   spv::Block& block_depth_stencil_enabled = builder_->makeNewBlock();
   spv::Block& block_depth_stencil_enabled_merge = builder_->makeNewBlock();
-  SpirvCreateSelectionMerge(block_depth_stencil_enabled_merge.getId(),
-                            spv::SelectionControlDontFlattenMask);
+  builder_->createSelectionMerge(&block_depth_stencil_enabled_merge,
+                                 spv::SelectionControlDontFlattenMask);
   builder_->createConditionalBranch(depth_stencil_enabled,
                                     &block_depth_stencil_enabled,
                                     &block_depth_stencil_enabled_merge);
@@ -1788,8 +1796,8 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
     block_any_sample_covered_head = builder_->getBuildPoint();
     block_any_sample_covered = &builder_->makeNewBlock();
     block_any_sample_covered_merge = &builder_->makeNewBlock();
-    SpirvCreateSelectionMerge(block_any_sample_covered_merge->getId(),
-                              spv::SelectionControlDontFlattenMask);
+    builder_->createSelectionMerge(block_any_sample_covered_merge,
+                                   spv::SelectionControlDontFlattenMask);
     builder_->createConditionalBranch(any_sample_covered,
                                       block_any_sample_covered,
                                       block_any_sample_covered_merge);
@@ -1986,8 +1994,8 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
     spv::Block& block_sample_covered_head = *builder_->getBuildPoint();
     spv::Block& block_sample_covered = builder_->makeNewBlock();
     spv::Block& block_sample_covered_merge = builder_->makeNewBlock();
-    SpirvCreateSelectionMerge(block_sample_covered_merge.getId(),
-                              spv::SelectionControlDontFlattenMask);
+    builder_->createSelectionMerge(&block_sample_covered_merge,
+                                   spv::SelectionControlDontFlattenMask);
     builder_->createConditionalBranch(sample_covered, &block_sample_covered,
                                       &block_sample_covered_merge);
     builder_->setBuildPoint(&block_sample_covered);
@@ -2090,8 +2098,8 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
     spv::Block& block_depth_format_float = builder_->makeNewBlock();
     spv::Block& block_depth_format_unorm = builder_->makeNewBlock();
     spv::Block& block_depth_format_merge = builder_->makeNewBlock();
-    SpirvCreateSelectionMerge(block_depth_format_merge.getId(),
-                              spv::SelectionControlDontFlattenMask);
+    builder_->createSelectionMerge(&block_depth_format_merge,
+                                   spv::SelectionControlDontFlattenMask);
     builder_->createConditionalBranch(
         depth_is_float24, &block_depth_format_float, &block_depth_format_unorm);
     // Float24 case.
@@ -2151,8 +2159,8 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
     spv::Block& block_stencil_enabled_head = *builder_->getBuildPoint();
     spv::Block& block_stencil_enabled = builder_->makeNewBlock();
     spv::Block& block_stencil_enabled_merge = builder_->makeNewBlock();
-    SpirvCreateSelectionMerge(block_stencil_enabled_merge.getId(),
-                              spv::SelectionControlDontFlattenMask);
+    builder_->createSelectionMerge(&block_stencil_enabled_merge,
+                                   spv::SelectionControlDontFlattenMask);
     builder_->createConditionalBranch(stencil_enabled, &block_stencil_enabled,
                                       &block_stencil_enabled_merge);
     builder_->setBuildPoint(&block_stencil_enabled);
@@ -2200,8 +2208,8 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
     spv::Block& block_stencil_op_increment_wrap = builder_->makeNewBlock();
     spv::Block& block_stencil_op_decrement_wrap = builder_->makeNewBlock();
     spv::Block& block_stencil_op_merge = builder_->makeNewBlock();
-    SpirvCreateSelectionMerge(block_stencil_op_merge.getId(),
-                              spv::SelectionControlDontFlattenMask);
+    builder_->createSelectionMerge(&block_stencil_op_merge,
+                                   spv::SelectionControlDontFlattenMask);
     {
       std::unique_ptr<spv::Instruction> stencil_op_switch_op =
           std::make_unique<spv::Instruction>(spv::OpSwitch);
@@ -2409,8 +2417,8 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
     if (new_depth_stencil_write_condition != spv::NoResult) {
       spv::Block& block_depth_stencil_write = builder_->makeNewBlock();
       spv::Block& block_depth_stencil_write_merge = builder_->makeNewBlock();
-      SpirvCreateSelectionMerge(block_depth_stencil_write_merge.getId(),
-                                spv::SelectionControlDontFlattenMask);
+      builder_->createSelectionMerge(&block_depth_stencil_write_merge,
+                                     spv::SelectionControlDontFlattenMask);
       builder_->createConditionalBranch(new_depth_stencil_write_condition,
                                         &block_depth_stencil_write,
                                         &block_depth_stencil_write_merge);
@@ -2499,7 +2507,8 @@ std::array<spv::Id, 2> SpirvShaderTranslator::FSI_ClampAndPackColor(
   spv::Block& block_format_16_float = builder_->makeNewBlock();
   spv::Block& block_format_32_float = builder_->makeNewBlock();
   spv::Block& block_format_merge = builder_->makeNewBlock();
-  SpirvCreateSelectionMerge(block_format_merge.getId());
+  builder_->createSelectionMerge(&block_format_merge,
+                                 spv::SelectionControlDontFlattenMask);
   {
     std::unique_ptr<spv::Instruction> format_switch_op =
         std::make_unique<spv::Instruction>(spv::OpSwitch);
@@ -2939,7 +2948,8 @@ std::array<spv::Id, 4> SpirvShaderTranslator::FSI_UnpackColor(
   spv::Block& block_format_32_float = builder_->makeNewBlock();
   spv::Block& block_format_32_32_float = builder_->makeNewBlock();
   spv::Block& block_format_merge = builder_->makeNewBlock();
-  SpirvCreateSelectionMerge(block_format_merge.getId());
+  builder_->createSelectionMerge(&block_format_merge,
+                                 spv::SelectionControlDontFlattenMask);
   {
     std::unique_ptr<spv::Instruction> format_switch_op =
         std::make_unique<spv::Instruction>(spv::OpSwitch);
@@ -3247,8 +3257,8 @@ spv::Id SpirvShaderTranslator::FSI_FlushNaNClampAndInBlending(
   spv::Block& block_is_fixed_point_head = *builder_->getBuildPoint();
   spv::Block& block_is_fixed_point_if = builder_->makeNewBlock();
   spv::Block& block_is_fixed_point_merge = builder_->makeNewBlock();
-  SpirvCreateSelectionMerge(block_is_fixed_point_merge.getId(),
-                            spv::SelectionControlDontFlattenMask);
+  builder_->createSelectionMerge(&block_is_fixed_point_merge,
+                                 spv::SelectionControlDontFlattenMask);
   builder_->createConditionalBranch(is_fixed_point, &block_is_fixed_point_if,
                                     &block_is_fixed_point_merge);
   builder_->setBuildPoint(&block_is_fixed_point_if);
@@ -3290,7 +3300,8 @@ spv::Id SpirvShaderTranslator::FSI_ApplyColorBlendFactor(
   spv::Block& block_not_zero_head = *builder_->getBuildPoint();
   spv::Block& block_not_zero_if = builder_->makeNewBlock();
   spv::Block& block_not_zero_merge = builder_->makeNewBlock();
-  SpirvCreateSelectionMerge(block_not_zero_merge.getId());
+  builder_->createSelectionMerge(&block_not_zero_merge,
+                                 spv::SelectionControlDontFlattenMask);
   builder_->createConditionalBranch(factor_not_zero, &block_not_zero_if,
                                     &block_not_zero_merge);
 
@@ -3318,8 +3329,8 @@ spv::Id SpirvShaderTranslator::FSI_ApplyColorBlendFactor(
   one_minus_alpha_factor_blocks[2] = &builder_->makeNewBlock();
   spv::Block& block_factor_source_alpha_saturate = builder_->makeNewBlock();
   spv::Block& block_factor_merge = builder_->makeNewBlock();
-  SpirvCreateSelectionMerge(block_factor_merge.getId(),
-                            spv::SelectionControlDontFlattenMask);
+  builder_->createSelectionMerge(&block_factor_merge,
+                                 spv::SelectionControlDontFlattenMask);
   {
     std::unique_ptr<spv::Instruction> factor_switch_op =
         std::make_unique<spv::Instruction>(spv::OpSwitch);
@@ -3522,7 +3533,8 @@ spv::Id SpirvShaderTranslator::FSI_ApplyAlphaBlendFactor(
   spv::Block& block_not_zero_head = *builder_->getBuildPoint();
   spv::Block& block_not_zero_if = builder_->makeNewBlock();
   spv::Block& block_not_zero_merge = builder_->makeNewBlock();
-  SpirvCreateSelectionMerge(block_not_zero_merge.getId());
+  builder_->createSelectionMerge(&block_not_zero_merge,
+                                 spv::SelectionControlDontFlattenMask);
   builder_->createConditionalBranch(factor_not_zero, &block_not_zero_if,
                                     &block_not_zero_merge);
 
@@ -3542,8 +3554,8 @@ spv::Id SpirvShaderTranslator::FSI_ApplyAlphaBlendFactor(
   one_minus_alpha_factor_blocks[2] = &builder_->makeNewBlock();
   spv::Block& block_factor_source_alpha_saturate = builder_->makeNewBlock();
   spv::Block& block_factor_merge = builder_->makeNewBlock();
-  SpirvCreateSelectionMerge(block_factor_merge.getId(),
-                            spv::SelectionControlDontFlattenMask);
+  builder_->createSelectionMerge(&block_factor_merge,
+                                 spv::SelectionControlDontFlattenMask);
   {
     std::unique_ptr<spv::Instruction> factor_switch_op =
         std::make_unique<spv::Instruction>(spv::OpSwitch);
@@ -3710,8 +3722,8 @@ spv::Id SpirvShaderTranslator::FSI_BlendColorOrAlphaWithUnclampedResult(
   spv::Block& block_min_max_max = builder_->makeNewBlock();
   spv::Block& block_min_max_default = builder_->makeNewBlock();
   spv::Block& block_min_max_merge = builder_->makeNewBlock();
-  SpirvCreateSelectionMerge(block_min_max_merge.getId(),
-                            spv::SelectionControlDontFlattenMask);
+  builder_->createSelectionMerge(&block_min_max_merge,
+                                 spv::SelectionControlDontFlattenMask);
   {
     std::unique_ptr<spv::Instruction> min_max_switch_op =
         std::make_unique<spv::Instruction>(spv::OpSwitch);
@@ -3779,8 +3791,8 @@ spv::Id SpirvShaderTranslator::FSI_BlendColorOrAlphaWithUnclampedResult(
     spv::Block& block_signs_subtract = builder_->makeNewBlock();
     spv::Block& block_signs_reverse_subtract = builder_->makeNewBlock();
     spv::Block& block_signs_merge = builder_->makeNewBlock();
-    SpirvCreateSelectionMerge(block_signs_merge.getId(),
-                              spv::SelectionControlDontFlattenMask);
+    builder_->createSelectionMerge(&block_signs_merge,
+                                   spv::SelectionControlDontFlattenMask);
     {
       std::unique_ptr<spv::Instruction> signs_switch_op =
           std::make_unique<spv::Instruction>(spv::OpSwitch);
