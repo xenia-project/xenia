@@ -1393,21 +1393,19 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       id_vector_temp.push_back(builder.makeIntConstant(
           int32_t(kPointConstantScreenDiameterToNdcRadius)));
       id_vector_temp.push_back(const_int_0);
-      spv::Id point_radius_x = builder.createBinOp(
+      spv::Id point_radius_x = builder.createNoContractionBinOp(
           spv::OpFMul, type_float, point_guest_diameter_x,
           builder.createLoad(builder.createAccessChain(spv::StorageClassUniform,
                                                        uniform_system_constants,
                                                        id_vector_temp),
                              spv::NoPrecision));
-      builder.addDecoration(point_radius_x, spv::DecorationNoContraction);
       id_vector_temp.back() = const_int_1;
-      spv::Id point_radius_y = builder.createBinOp(
+      spv::Id point_radius_y = builder.createNoContractionBinOp(
           spv::OpFMul, type_float, point_guest_diameter_y,
           builder.createLoad(builder.createAccessChain(spv::StorageClassUniform,
                                                        uniform_system_constants,
                                                        id_vector_temp),
                              spv::NoPrecision));
-      builder.addDecoration(point_radius_y, spv::DecorationNoContraction);
       id_vector_temp.clear();
       // 0 is the input primitive vertex index.
       id_vector_temp.push_back(const_int_0);
@@ -1418,12 +1416,10 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
           spv::NoPrecision);
       spv::Id point_w =
           builder.createCompositeExtract(point_position, type_float, 3);
-      point_radius_x =
-          builder.createBinOp(spv::OpFMul, type_float, point_radius_x, point_w);
-      builder.addDecoration(point_radius_x, spv::DecorationNoContraction);
-      point_radius_y =
-          builder.createBinOp(spv::OpFMul, type_float, point_radius_y, point_w);
-      builder.addDecoration(point_radius_y, spv::DecorationNoContraction);
+      point_radius_x = builder.createNoContractionBinOp(
+          spv::OpFMul, type_float, point_radius_x, point_w);
+      point_radius_y = builder.createNoContractionBinOp(
+          spv::OpFMul, type_float, point_radius_y, point_w);
 
       // Load the inputs for the guest point.
       // Interpolators.
@@ -1445,12 +1441,10 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
       std::array<spv::Id, 2> point_edge_x, point_edge_y;
       for (uint32_t i = 0; i < 2; ++i) {
         spv::Op point_radius_add_op = i ? spv::OpFAdd : spv::OpFSub;
-        point_edge_x[i] = builder.createBinOp(point_radius_add_op, type_float,
-                                              point_x, point_radius_x);
-        builder.addDecoration(point_edge_x[i], spv::DecorationNoContraction);
-        point_edge_y[i] = builder.createBinOp(point_radius_add_op, type_float,
-                                              point_y, point_radius_y);
-        builder.addDecoration(point_edge_y[i], spv::DecorationNoContraction);
+        point_edge_x[i] = builder.createNoContractionBinOp(
+            point_radius_add_op, type_float, point_x, point_radius_x);
+        point_edge_y[i] = builder.createNoContractionBinOp(
+            point_radius_add_op, type_float, point_y, point_radius_y);
       };
       spv::Id point_z =
           builder.createCompositeExtract(point_position, type_float, 2);
@@ -1699,24 +1693,20 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                                       id_vector_temp),
             spv::NoPrecision);
         id_vector_temp[0] = vertex_indices[1];
-        spv::Id vertex_interpolator_v01 = builder.createBinOp(
+        spv::Id vertex_interpolator_v01 = builder.createNoContractionBinOp(
             spv::OpFSub, type_float4,
             builder.createLoad(
                 builder.createAccessChain(spv::StorageClassInput,
                                           in_interpolator, id_vector_temp),
                 spv::NoPrecision),
             vertex_interpolator_v0);
-        builder.addDecoration(vertex_interpolator_v01,
-                              spv::DecorationNoContraction);
         id_vector_temp[0] = vertex_indices[2];
-        spv::Id vertex_interpolator_v3 = builder.createBinOp(
+        spv::Id vertex_interpolator_v3 = builder.createNoContractionBinOp(
             spv::OpFAdd, type_float4, vertex_interpolator_v01,
             builder.createLoad(
                 builder.createAccessChain(spv::StorageClassInput,
                                           in_interpolator, id_vector_temp),
                 spv::NoPrecision));
-        builder.addDecoration(vertex_interpolator_v3,
-                              spv::DecorationNoContraction);
         builder.createStore(vertex_interpolator_v3, out_interpolators[i]);
       }
       // Point coordinates.
@@ -1733,22 +1723,20 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                                     id_vector_temp),
           spv::NoPrecision);
       id_vector_temp[0] = vertex_indices[1];
-      spv::Id vertex_position_v01 = builder.createBinOp(
+      spv::Id vertex_position_v01 = builder.createNoContractionBinOp(
           spv::OpFSub, type_float4,
           builder.createLoad(
               builder.createAccessChain(spv::StorageClassInput,
                                         in_gl_per_vertex, id_vector_temp),
               spv::NoPrecision),
           vertex_position_v0);
-      builder.addDecoration(vertex_position_v01, spv::DecorationNoContraction);
       id_vector_temp[0] = vertex_indices[2];
-      spv::Id vertex_position_v3 = builder.createBinOp(
+      spv::Id vertex_position_v3 = builder.createNoContractionBinOp(
           spv::OpFAdd, type_float4, vertex_position_v01,
           builder.createLoad(
               builder.createAccessChain(spv::StorageClassInput,
                                         in_gl_per_vertex, id_vector_temp),
               spv::NoPrecision));
-      builder.addDecoration(vertex_position_v3, spv::DecorationNoContraction);
       id_vector_temp.clear();
       id_vector_temp.push_back(const_member_out_gl_per_vertex_position);
       builder.createStore(
@@ -1767,24 +1755,20 @@ VkShaderModule VulkanPipelineCache::GetGeometryShader(GeometryShaderKey key) {
                                       id_vector_temp),
             spv::NoPrecision);
         id_vector_temp[0] = vertex_indices[1];
-        spv::Id vertex_clip_distance_v01 = builder.createBinOp(
+        spv::Id vertex_clip_distance_v01 = builder.createNoContractionBinOp(
             spv::OpFSub, type_float,
             builder.createLoad(
                 builder.createAccessChain(spv::StorageClassInput,
                                           in_gl_per_vertex, id_vector_temp),
                 spv::NoPrecision),
             vertex_clip_distance_v0);
-        builder.addDecoration(vertex_clip_distance_v01,
-                              spv::DecorationNoContraction);
         id_vector_temp[0] = vertex_indices[2];
-        spv::Id vertex_clip_distance_v3 = builder.createBinOp(
+        spv::Id vertex_clip_distance_v3 = builder.createNoContractionBinOp(
             spv::OpFAdd, type_float, vertex_clip_distance_v01,
             builder.createLoad(
                 builder.createAccessChain(spv::StorageClassInput,
                                           in_gl_per_vertex, id_vector_temp),
                 spv::NoPrecision));
-        builder.addDecoration(vertex_clip_distance_v3,
-                              spv::DecorationNoContraction);
         id_vector_temp.clear();
         id_vector_temp.push_back(const_member_in_gl_per_vertex_clip_distance);
         id_vector_temp.push_back(const_int_i);

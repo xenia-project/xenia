@@ -188,14 +188,12 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
 
   switch (instr.vector_opcode) {
     case ucode::AluVectorOpcode::kAdd: {
-      spv::Id result = builder_->createBinOp(
+      return builder_->createNoContractionBinOp(
           spv::OpFAdd, result_type,
           GetOperandComponents(operand_storage[0], instr.vector_operands[0],
                                used_result_components),
           GetOperandComponents(operand_storage[1], instr.vector_operands[1],
                                used_result_components));
-      builder_->addDecoration(result, spv::DecorationNoContraction);
-      return result;
     }
     case ucode::AluVectorOpcode::kMul:
     case ucode::AluVectorOpcode::kMad: {
@@ -205,9 +203,8 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
             GetOperandComponents(operand_storage[i], instr.vector_operands[i],
                                  used_result_components);
       }
-      spv::Id result = builder_->createBinOp(
+      spv::Id result = builder_->createNoContractionBinOp(
           spv::OpFMul, result_type, multiplicands[0], multiplicands[1]);
-      builder_->addDecoration(result, spv::DecorationNoContraction);
       uint32_t multiplicands_different =
           used_result_components &
           ~instr.vector_operands[0].GetIdenticalComponents(
@@ -302,11 +299,10 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       if (instr.vector_opcode == ucode::AluVectorOpcode::kMad) {
         // Not replacing true `0 + term` with conditional selection of the term
         // because +0 + -0 should result in +0, not -0.
-        result = builder_->createBinOp(
+        result = builder_->createNoContractionBinOp(
             spv::OpFAdd, result_type, result,
             GetOperandComponents(operand_storage[2], instr.vector_operands[2],
                                  used_result_components));
-        builder_->addDecoration(result, spv::DecorationNoContraction);
       }
       return result;
     }
@@ -329,10 +325,9 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
         } else {
           maxa_operand_0_w = operand_0;
         }
-        spv::Id maxa_address =
-            builder_->createBinOp(spv::OpFAdd, type_float_, maxa_operand_0_w,
-                                  builder_->makeFloatConstant(0.5f));
-        builder_->addDecoration(maxa_address, spv::DecorationNoContraction);
+        spv::Id maxa_address = builder_->createNoContractionBinOp(
+            spv::OpFAdd, type_float_, maxa_operand_0_w,
+            builder_->makeFloatConstant(0.5f));
         id_vector_temp_.clear();
         id_vector_temp_.push_back(maxa_address);
         maxa_address =
@@ -514,10 +509,9 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
           operand_components[j] =
               builder_->createCompositeExtract(operands[j], type_float_, i);
         }
-        spv::Id product =
-            builder_->createBinOp(spv::OpFMul, type_float_,
-                                  operand_components[0], operand_components[1]);
-        builder_->addDecoration(product, spv::DecorationNoContraction);
+        spv::Id product = builder_->createNoContractionBinOp(
+            spv::OpFMul, type_float_, operand_components[0],
+            operand_components[1]);
         if (different & (1 << i)) {
           // Shader Model 3: +0 or denormal * anything = +-0.
           product = ZeroIfAnyOperandIsZero(
@@ -531,16 +525,14 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
           result = product;
           continue;
         }
-        result =
-            builder_->createBinOp(spv::OpFAdd, type_float_, result, product);
-        builder_->addDecoration(result, spv::DecorationNoContraction);
+        result = builder_->createNoContractionBinOp(spv::OpFAdd, type_float_,
+                                                    result, product);
       }
       if (instr.vector_opcode == ucode::AluVectorOpcode::kDp2Add) {
-        result = builder_->createBinOp(
+        result = builder_->createNoContractionBinOp(
             spv::OpFAdd, type_float_, result,
             GetOperandComponents(operand_storage[2], instr.vector_operands[2],
                                  0b0001));
-        builder_->addDecoration(result, spv::DecorationNoContraction);
       }
       return result;
     }
@@ -574,17 +566,14 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       }
       spv::Id operand_neg[3] = {};
       if (used_result_components & 0b0001) {
-        operand_neg[1] =
-            builder_->createUnaryOp(spv::OpFNegate, type_float_, operand[1]);
-        builder_->addDecoration(operand_neg[1], spv::DecorationNoContraction);
+        operand_neg[1] = builder_->createNoContractionUnaryOp(
+            spv::OpFNegate, type_float_, operand[1]);
       }
       if (used_result_components & 0b0010) {
-        operand_neg[0] =
-            builder_->createUnaryOp(spv::OpFNegate, type_float_, operand[0]);
-        builder_->addDecoration(operand_neg[0], spv::DecorationNoContraction);
-        operand_neg[2] =
-            builder_->createUnaryOp(spv::OpFNegate, type_float_, operand[2]);
-        builder_->addDecoration(operand_neg[2], spv::DecorationNoContraction);
+        operand_neg[0] = builder_->createNoContractionUnaryOp(
+            spv::OpFNegate, type_float_, operand[0]);
+        operand_neg[2] = builder_->createNoContractionUnaryOp(
+            spv::OpFNegate, type_float_, operand[2]);
       }
 
       spv::Id ma_z_result[4] = {}, ma_yx_result[4] = {};
@@ -724,9 +713,8 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
         // Multiply the major axis by 2.
         spv::Id& ma2 = id_vector_temp_[xe::bit_count(used_result_components &
                                                      ((1 << 2) - 1))];
-        ma2 = builder_->createBinOp(spv::OpFMul, type_float_,
-                                    builder_->makeFloatConstant(2.0f), ma2);
-        builder_->addDecoration(ma2, spv::DecorationNoContraction);
+        ma2 = builder_->createNoContractionBinOp(
+            spv::OpFMul, type_float_, builder_->makeFloatConstant(2.0f), ma2);
       }
       if (used_result_component_count == 1) {
         // Only one component - not composite.
@@ -817,14 +805,12 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
           builder_->createBinOp(spv::OpFOrdEqual, type_bool_, operands_x[0],
                                 const_float_0_),
           builder_->createBinOp(op, type_bool_, operands_x[1], const_float_0_));
-      spv::Id result = builder_->createBinOp(
+      return builder_->createNoContractionBinOp(
           spv::OpFAdd, type_float_,
           builder_->createTriOp(spv::OpSelect, type_float_, condition,
                                 builder_->makeFloatConstant(-1.0f),
                                 operands_x[0]),
           const_float_1_);
-      builder_->addDecoration(result, spv::DecorationNoContraction);
-      return result;
     }
 
     case ucode::AluVectorOpcode::kKillEq:
@@ -872,9 +858,8 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
             (used_result_components & 0b1000)
                 ? builder_->createCompositeExtract(operands[1], type_float_, 0)
                 : operands[1];
-        result_y = builder_->createBinOp(spv::OpFMul, type_float_,
-                                         operands_y[0], operands_y[1]);
-        builder_->addDecoration(result_y, spv::DecorationNoContraction);
+        result_y = builder_->createNoContractionBinOp(
+            spv::OpFMul, type_float_, operands_y[0], operands_y[1]);
         if (!(instr.vector_operands[0].GetIdenticalComponents(
                   instr.vector_operands[1]) &
               0b0010)) {
@@ -997,26 +982,22 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
     case ucode::AluScalarOpcode::kSubs: {
       spv::Id a, b;
       GetOperandScalarXY(operand_storage[0], instr.scalar_operands[0], a, b);
-      spv::Id result = builder_->createBinOp(
+      return builder_->createNoContractionBinOp(
           spv::Op(kOps[size_t(instr.scalar_opcode)]), type_float_, a, b);
-      builder_->addDecoration(result, spv::DecorationNoContraction);
-      return result;
     }
     case ucode::AluScalarOpcode::kAddsPrev:
     case ucode::AluScalarOpcode::kSubsPrev: {
-      spv::Id result = builder_->createBinOp(
+      return builder_->createNoContractionBinOp(
           spv::Op(kOps[size_t(instr.scalar_opcode)]), type_float_,
           GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
                                0b0001),
           builder_->createLoad(var_main_previous_scalar_, spv::NoPrecision));
-      builder_->addDecoration(result, spv::DecorationNoContraction);
-      return result;
     }
     case ucode::AluScalarOpcode::kMuls: {
       spv::Id a, b;
       GetOperandScalarXY(operand_storage[0], instr.scalar_operands[0], a, b);
-      spv::Id result = builder_->createBinOp(spv::OpFMul, type_float_, a, b);
-      builder_->addDecoration(result, spv::DecorationNoContraction);
+      spv::Id result =
+          builder_->createNoContractionBinOp(spv::OpFMul, type_float_, a, b);
       if (a != b) {
         // Shader Model 3: +0 or denormal * anything = +-0.
         result = ZeroIfAnyOperandIsZero(
@@ -1030,8 +1011,8 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
                                        instr.scalar_operands[0], 0b0001);
       spv::Id ps =
           builder_->createLoad(var_main_previous_scalar_, spv::NoPrecision);
-      spv::Id result = builder_->createBinOp(spv::OpFMul, type_float_, a, ps);
-      builder_->addDecoration(result, spv::DecorationNoContraction);
+      spv::Id result =
+          builder_->createNoContractionBinOp(spv::OpFMul, type_float_, a, ps);
       // Shader Model 3: +0 or denormal * anything = +-0.
       id_vector_temp_.clear();
       id_vector_temp_.push_back(ps);
@@ -1056,9 +1037,8 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
       id_vector_temp_.push_back(ps);
       spv::Id ps_abs = builder_->createBuiltinCall(
           type_float_, ext_inst_glsl_std_450_, GLSLstd450FAbs, id_vector_temp_);
-      spv::Id ps_abs_neg =
-          builder_->createUnaryOp(spv::OpFNegate, type_float_, ps_abs);
-      builder_->addDecoration(ps_abs_neg, spv::DecorationNoContraction);
+      spv::Id ps_abs_neg = builder_->createNoContractionUnaryOp(
+          spv::OpFNegate, type_float_, ps_abs);
       condition = builder_->createBinOp(
           spv::OpLogicalAnd, type_bool_, condition,
           builder_->createBinOp(spv::OpFOrdGreaterThanEqual, type_bool_,
@@ -1076,9 +1056,8 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
       }
       if (!instr.scalar_operands[0].is_absolute_value ||
           !instr.scalar_operands[0].is_negated) {
-        b_abs_neg =
-            builder_->createUnaryOp(spv::OpFNegate, type_float_, b_abs_neg);
-        builder_->addDecoration(b_abs_neg, spv::DecorationNoContraction);
+        b_abs_neg = builder_->createNoContractionUnaryOp(
+            spv::OpFNegate, type_float_, b_abs_neg);
       }
       condition = builder_->createBinOp(
           spv::OpLogicalAnd, type_bool_, condition,
@@ -1101,8 +1080,8 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
                         ? GetOperandComponents(operand_storage[0],
                                                instr.scalar_operands[0], 0b0001)
                         : b;
-        product = builder_->createBinOp(spv::OpFMul, type_float_, a, ps);
-        builder_->addDecoration(product, spv::DecorationNoContraction);
+        product =
+            builder_->createNoContractionBinOp(spv::OpFMul, type_float_, a, ps);
         // Shader Model 3: +0 or denormal * anything = +-0.
         product = ZeroIfAnyOperandIsZero(
             product, GetAbsoluteOperand(a, instr.scalar_operands[0]), ps_abs);
@@ -1136,9 +1115,8 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
         // maxasf: a0 = (int)clamp(floor(src0.a), -256.0, 255.0)
         spv::Id maxa_address;
         if (instr.scalar_opcode == ucode::AluScalarOpcode::kMaxAs) {
-          maxa_address = builder_->createBinOp(
+          maxa_address = builder_->createNoContractionBinOp(
               spv::OpFAdd, type_float_, a, builder_->makeFloatConstant(0.5f));
-          builder_->addDecoration(maxa_address, spv::DecorationNoContraction);
         } else {
           maxa_address = a;
         }
@@ -1212,11 +1190,10 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
           builder_->makeFloatConstant(-FLT_MAX), result);
     }
     case ucode::AluScalarOpcode::kRcpc: {
-      spv::Id result = builder_->createBinOp(
+      spv::Id result = builder_->createNoContractionBinOp(
           spv::OpFDiv, type_float_, const_float_1_,
           GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
                                0b0001));
-      builder_->addDecoration(result, spv::DecorationNoContraction);
       result = builder_->createTriOp(
           spv::OpSelect, type_float_,
           builder_->createBinOp(spv::OpFOrdEqual, type_bool_, result,
@@ -1229,11 +1206,10 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
           builder_->makeFloatConstant(FLT_MAX), result);
     }
     case ucode::AluScalarOpcode::kRcpf: {
-      spv::Id result = builder_->createBinOp(
+      spv::Id result = builder_->createNoContractionBinOp(
           spv::OpFDiv, type_float_, const_float_1_,
           GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
                                0b0001));
-      builder_->addDecoration(result, spv::DecorationNoContraction);
       result = builder_->createTriOp(
           spv::OpSelect, type_float_,
           builder_->createBinOp(spv::OpFOrdEqual, type_bool_, result,
@@ -1250,12 +1226,10 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
       return builder_->createUnaryOp(spv::OpBitcast, type_float_, result);
     }
     case ucode::AluScalarOpcode::kRcp: {
-      spv::Id result = builder_->createBinOp(
+      return builder_->createNoContractionBinOp(
           spv::OpFDiv, type_float_, const_float_1_,
           GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
                                0b0001));
-      builder_->addDecoration(result, spv::DecorationNoContraction);
-      return result;
     }
     case ucode::AluScalarOpcode::kRsqc: {
       id_vector_temp_.clear();
@@ -1328,12 +1302,11 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
               const_float_1_, a));
     }
     case ucode::AluScalarOpcode::kSetpPop: {
-      spv::Id a_minus_1 = builder_->createBinOp(
+      spv::Id a_minus_1 = builder_->createNoContractionBinOp(
           spv::OpFSub, type_float_,
           GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
                                0b0001),
           const_float_1_);
-      builder_->addDecoration(a_minus_1, spv::DecorationNoContraction);
       spv::Id predicate = builder_->createBinOp(
           spv::OpFOrdLessThanEqual, type_bool_, a_minus_1, const_float_0_);
       builder_->createStore(predicate, var_main_predicate_);
@@ -1377,9 +1350,8 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
           operand_storage[0], instr.scalar_operands[0], 0b0001);
       spv::Id operand_1 = GetOperandComponents(
           operand_storage[1], instr.scalar_operands[1], 0b0001);
-      spv::Id result =
-          builder_->createBinOp(spv::OpFMul, type_float_, operand_0, operand_1);
-      builder_->addDecoration(result, spv::DecorationNoContraction);
+      spv::Id result = builder_->createNoContractionBinOp(
+          spv::OpFMul, type_float_, operand_0, operand_1);
       if (!(instr.scalar_operands[0].GetIdenticalComponents(
                 instr.scalar_operands[1]) &
             0b0001)) {
@@ -1394,14 +1366,12 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
     case ucode::AluScalarOpcode::kAddsc1:
     case ucode::AluScalarOpcode::kSubsc0:
     case ucode::AluScalarOpcode::kSubsc1: {
-      spv::Id result = builder_->createBinOp(
+      return builder_->createNoContractionBinOp(
           spv::Op(kOps[size_t(instr.scalar_opcode)]), type_float_,
           GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
                                0b0001),
           GetOperandComponents(operand_storage[1], instr.scalar_operands[1],
                                0b0001));
-      builder_->addDecoration(result, spv::DecorationNoContraction);
-      return result;
     }
 
     case ucode::AluScalarOpcode::kRetainPrev:

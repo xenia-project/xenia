@@ -835,13 +835,12 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
           builder_->makeIntConstant(kSystemConstantColorExpBias));
       id_vector_temp_.push_back(
           builder_->makeIntConstant(int32_t(color_target_index)));
-      color = builder_->createBinOp(
+      color = builder_->createNoContractionBinOp(
           spv::OpVectorTimesScalar, type_float4_, color,
           builder_->createLoad(builder_->createAccessChain(
                                    spv::StorageClassUniform,
                                    uniform_system_constants_, id_vector_temp_),
                                spv::NoPrecision));
-      builder_->addDecoration(color, spv::DecorationNoContraction);
 
       if (edram_fragment_shader_interlock_) {
         // Write the color to the target in the EDRAM only it was written on the
@@ -1967,20 +1966,16 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
   spv::Id depth_max_slope = builder_->createBuiltinCall(
       type_float_, ext_inst_glsl_std_450_, GLSLstd450FMax, id_vector_temp_);
   // Calculate the polygon offset.
-  spv::Id slope_scaled_poly_offset = builder_->createBinOp(
+  spv::Id slope_scaled_poly_offset = builder_->createNoContractionBinOp(
       spv::OpFMul, type_float_, poly_offset_scale, depth_max_slope);
-  builder_->addDecoration(slope_scaled_poly_offset,
-                          spv::DecorationNoContraction);
-  spv::Id poly_offset = builder_->createBinOp(
+  spv::Id poly_offset = builder_->createNoContractionBinOp(
       spv::OpFAdd, type_float_, slope_scaled_poly_offset, poly_offset_offset);
-  builder_->addDecoration(poly_offset, spv::DecorationNoContraction);
   // Apply the post-clip and post-viewport polygon offset to the fragment's
   // depth. Not clamping yet as this is at the center, which is not necessarily
   // covered and not necessarily inside the bounds - derivatives scaled by
   // sample locations will be added to this value, and it must be linear.
-  spv::Id center_depth32_biased = builder_->createBinOp(
+  spv::Id center_depth32_biased = builder_->createNoContractionBinOp(
       spv::OpFAdd, type_float_, center_depth32_unbiased, poly_offset);
-  builder_->addDecoration(center_depth32_biased, spv::DecorationNoContraction);
 
   // Perform depth and stencil testing for each covered sample.
   spv::Id new_sample_mask = main_fsi_sample_mask_;
@@ -2076,17 +2071,14 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
     }
     std::array<spv::Id, 2> sample_depth_dxy;
     for (uint32_t j = 0; j < 2; ++j) {
-      sample_depth_dxy[j] = builder_->createBinOp(
+      sample_depth_dxy[j] = builder_->createNoContractionBinOp(
           spv::OpFMul, type_float_, sample_location[j], depth_dxy[j]);
-      builder_->addDecoration(sample_depth_dxy[j],
-                              spv::DecorationNoContraction);
     }
-    spv::Id sample_depth32 = builder_->createBinOp(
-        spv::OpFAdd, type_float_, sample_depth_dxy[0], sample_depth_dxy[1]);
-    builder_->addDecoration(sample_depth32, spv::DecorationNoContraction);
-    sample_depth32 = builder_->createBinOp(
-        spv::OpFAdd, type_float_, center_depth32_biased, sample_depth32);
-    builder_->addDecoration(sample_depth32, spv::DecorationNoContraction);
+    spv::Id sample_depth32 = builder_->createNoContractionBinOp(
+        spv::OpFAdd, type_float_, center_depth32_biased,
+        builder_->createNoContractionBinOp(spv::OpFAdd, type_float_,
+                                           sample_depth_dxy[0],
+                                           sample_depth_dxy[1]));
     id_vector_temp_.clear();
     id_vector_temp_.push_back(sample_depth32);
     id_vector_temp_.push_back(const_float_0_);
@@ -2114,11 +2106,9 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
     // conversion, adding +0.5 and rounding towards zero results in red instead
     // of black in the 4D5307E6 clear shader.
     id_vector_temp_.clear();
-    id_vector_temp_.push_back(
-        builder_->createBinOp(spv::OpFMul, type_float_, sample_depth32,
-                              builder_->makeFloatConstant(float(0xFFFFFF))));
-    builder_->addDecoration(id_vector_temp_.back(),
-                            spv::DecorationNoContraction);
+    id_vector_temp_.push_back(builder_->createNoContractionBinOp(
+        spv::OpFMul, type_float_, sample_depth32,
+        builder_->makeFloatConstant(float(0xFFFFFF))));
     spv::Id sample_depth_unorm24 = builder_->createUnaryOp(
         spv::OpConvertFToU, type_uint_,
         builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
@@ -2582,15 +2572,13 @@ std::array<spv::Id, 2> SpirvShaderTranslator::FSI_ClampAndPackColor(
     id_vector_temp_.push_back(color_float4);
     id_vector_temp_.push_back(const_float4_0_);
     id_vector_temp_.push_back(const_float4_1_);
-    spv::Id color_scaled = builder_->createBinOp(
+    spv::Id color_scaled = builder_->createNoContractionBinOp(
         spv::OpVectorTimesScalar, type_float4_,
         builder_->createBuiltinCall(type_float4_, ext_inst_glsl_std_450_,
                                     GLSLstd450NClamp, id_vector_temp_),
         builder_->makeFloatConstant(255.0f));
-    builder_->addDecoration(color_scaled, spv::DecorationNoContraction);
-    spv::Id color_offset = builder_->createBinOp(
+    spv::Id color_offset = builder_->createNoContractionBinOp(
         spv::OpFAdd, type_float4_, color_scaled, unorm_round_offset_float4);
-    builder_->addDecoration(color_offset, spv::DecorationNoContraction);
     spv::Id color_uint4 =
         builder_->createUnaryOp(spv::OpConvertFToU, type_uint4_, color_offset);
     packed_8_8_8_8 =
@@ -2647,13 +2635,11 @@ std::array<spv::Id, 2> SpirvShaderTranslator::FSI_ClampAndPackColor(
       builder_->getBuildPoint()->addInstruction(
           std::move(color_gamma_composite_construct_op));
     }
-    spv::Id color_scaled =
-        builder_->createBinOp(spv::OpVectorTimesScalar, type_float4_,
-                              color_gamma, builder_->makeFloatConstant(255.0f));
-    builder_->addDecoration(color_scaled, spv::DecorationNoContraction);
-    spv::Id color_offset = builder_->createBinOp(
+    spv::Id color_scaled = builder_->createNoContractionBinOp(
+        spv::OpVectorTimesScalar, type_float4_, color_gamma,
+        builder_->makeFloatConstant(255.0f));
+    spv::Id color_offset = builder_->createNoContractionBinOp(
         spv::OpFAdd, type_float4_, color_scaled, unorm_round_offset_float4);
-    builder_->addDecoration(color_offset, spv::DecorationNoContraction);
     spv::Id color_uint4 =
         builder_->createUnaryOp(spv::OpConvertFToU, type_uint4_, color_offset);
     packed_8_8_8_8_gamma =
@@ -2690,13 +2676,11 @@ std::array<spv::Id, 2> SpirvShaderTranslator::FSI_ClampAndPackColor(
     id_vector_temp_.clear();
     id_vector_temp_.resize(3, builder_->makeFloatConstant(1023.0f));
     id_vector_temp_.push_back(builder_->makeFloatConstant(3.0f));
-    spv::Id color_scaled = builder_->createBinOp(
+    spv::Id color_scaled = builder_->createNoContractionBinOp(
         spv::OpFMul, type_float4_, color_clamped,
         builder_->makeCompositeConstant(type_float4_, id_vector_temp_));
-    builder_->addDecoration(color_scaled, spv::DecorationNoContraction);
-    spv::Id color_offset = builder_->createBinOp(
+    spv::Id color_offset = builder_->createNoContractionBinOp(
         spv::OpFAdd, type_float4_, color_scaled, unorm_round_offset_float4);
-    builder_->addDecoration(color_offset, spv::DecorationNoContraction);
     spv::Id color_uint4 =
         builder_->createUnaryOp(spv::OpConvertFToU, type_uint4_, color_offset);
     packed_2_10_10_10 =
@@ -2738,15 +2722,13 @@ std::array<spv::Id, 2> SpirvShaderTranslator::FSI_ClampAndPackColor(
         builder_->createCompositeExtract(color_float4, type_float_, 3));
     id_vector_temp_.push_back(const_float_0_);
     id_vector_temp_.push_back(const_float_1_);
-    spv::Id alpha_scaled = builder_->createBinOp(
+    spv::Id alpha_scaled = builder_->createNoContractionBinOp(
         spv::OpFMul, type_float_,
         builder_->createBuiltinCall(type_float_, ext_inst_glsl_std_450_,
                                     GLSLstd450NClamp, id_vector_temp_),
         builder_->makeFloatConstant(3.0f));
-    builder_->addDecoration(alpha_scaled, spv::DecorationNoContraction);
-    spv::Id alpha_offset = builder_->createBinOp(
+    spv::Id alpha_offset = builder_->createNoContractionBinOp(
         spv::OpFAdd, type_float_, alpha_scaled, unorm_round_offset_float);
-    builder_->addDecoration(alpha_offset, spv::DecorationNoContraction);
     color_components[3] =
         builder_->createUnaryOp(spv::OpConvertFToU, type_uint_, alpha_offset);
     // Pack.
@@ -2795,24 +2777,22 @@ std::array<spv::Id, 2> SpirvShaderTranslator::FSI_ClampAndPackColor(
         const_float4_0_, color_float4));
     id_vector_temp_.push_back(const_float4_minus_32);
     id_vector_temp_.push_back(const_float4_32);
-    spv::Id color_scaled = builder_->createBinOp(
+    spv::Id color_scaled = builder_->createNoContractionBinOp(
         spv::OpVectorTimesScalar, type_float4_,
         builder_->createBuiltinCall(type_float4_, ext_inst_glsl_std_450_,
                                     GLSLstd450FClamp, id_vector_temp_),
         builder_->makeFloatConstant(32767.0f / 32.0f));
-    builder_->addDecoration(color_scaled, spv::DecorationNoContraction);
     id_vector_temp_.clear();
     id_vector_temp_.resize(4, builder_->makeFloatConstant(-0.5f));
     spv::Id unorm_round_offset_negative_float4 =
         builder_->makeCompositeConstant(type_float4_, id_vector_temp_);
-    spv::Id color_offset = builder_->createBinOp(
+    spv::Id color_offset = builder_->createNoContractionBinOp(
         spv::OpFAdd, type_float4_, color_scaled,
         builder_->createTriOp(
             spv::OpSelect, type_float4_,
             builder_->createBinOp(spv::OpFOrdLessThan, type_bool4_,
                                   color_scaled, const_float4_0_),
             unorm_round_offset_negative_float4, unorm_round_offset_float4));
-    builder_->addDecoration(color_offset, spv::DecorationNoContraction);
     spv::Id color_uint4 = builder_->createUnaryOp(
         spv::OpBitcast, type_uint4_,
         builder_->createUnaryOp(spv::OpConvertFToS, type_int4_, color_offset));
@@ -3028,7 +3008,7 @@ std::array<spv::Id, 4> SpirvShaderTranslator::FSI_UnpackColor(
       builder_->setBuildPoint(i ? &block_format_8_8_8_8_gamma
                                 : &block_format_8_8_8_8);
       for (uint32_t j = 0; j < 4; ++j) {
-        spv::Id component = builder_->createBinOp(
+        spv::Id component = builder_->createNoContractionBinOp(
             spv::OpFMul, type_float_,
             builder_->createUnaryOp(
                 spv::OpConvertUToF, type_float_,
@@ -3036,7 +3016,6 @@ std::array<spv::Id, 4> SpirvShaderTranslator::FSI_UnpackColor(
                     spv::OpBitFieldUExtract, type_uint_, color_packed[0],
                     builder_->makeUintConstant(8 * j), component_width)),
             component_scale);
-        builder_->addDecoration(component, spv::DecorationNoContraction);
         if (i && j <= 2) {
           component = PWLGammaToLinear(component, true);
         }
@@ -3060,7 +3039,7 @@ std::array<spv::Id, 4> SpirvShaderTranslator::FSI_UnpackColor(
     spv::Id rgb_scale = builder_->makeFloatConstant(1.0f / 1023.0f);
     spv::Id alpha_scale = builder_->makeFloatConstant(1.0f / 3.0f);
     for (uint32_t i = 0; i < 4; ++i) {
-      spv::Id component = builder_->createBinOp(
+      unpacked_2_10_10_10[i] = builder_->createNoContractionBinOp(
           spv::OpFMul, type_float_,
           builder_->createUnaryOp(
               spv::OpConvertUToF, type_float_,
@@ -3069,8 +3048,6 @@ std::array<spv::Id, 4> SpirvShaderTranslator::FSI_UnpackColor(
                                     builder_->makeUintConstant(10 * i),
                                     i == 3 ? alpha_width : rgb_width)),
           i == 3 ? alpha_scale : rgb_scale);
-      builder_->addDecoration(component, spv::DecorationNoContraction);
-      unpacked_2_10_10_10[i] = component;
     }
     builder_->createBranch(&block_format_merge);
   }
@@ -3093,7 +3070,7 @@ std::array<spv::Id, 4> SpirvShaderTranslator::FSI_UnpackColor(
                            builder_->makeUintConstant(10 * i), rgb_width),
                        0, false, ext_inst_glsl_std_450_);
     }
-    spv::Id alpha = builder_->createBinOp(
+    unpacked_2_10_10_10_float[3] = builder_->createNoContractionBinOp(
         spv::OpFMul, type_float_,
         builder_->createUnaryOp(
             spv::OpConvertUToF, type_float_,
@@ -3101,8 +3078,6 @@ std::array<spv::Id, 4> SpirvShaderTranslator::FSI_UnpackColor(
                 spv::OpBitFieldUExtract, type_uint_, color_packed[0],
                 builder_->makeUintConstant(30), builder_->makeUintConstant(2))),
         builder_->makeFloatConstant(1.0f / 3.0f));
-    builder_->addDecoration(alpha, spv::DecorationNoContraction);
-    unpacked_2_10_10_10_float[3] = alpha;
     builder_->createBranch(&block_format_merge);
   }
   spv::Block& block_format_2_10_10_10_float_end = *builder_->getBuildPoint();
@@ -3129,7 +3104,7 @@ std::array<spv::Id, 4> SpirvShaderTranslator::FSI_UnpackColor(
             builder_->createUnaryOp(spv::OpBitcast, type_int_, color_packed[j]);
       }
       for (uint32_t j = 0; j < uint32_t(i ? 4 : 2); ++j) {
-        spv::Id component = builder_->createBinOp(
+        spv::Id component = builder_->createNoContractionBinOp(
             spv::OpFMul, type_float_,
             builder_->createUnaryOp(
                 spv::OpConvertSToF, type_float_,
@@ -3138,7 +3113,6 @@ std::array<spv::Id, 4> SpirvShaderTranslator::FSI_UnpackColor(
                                       builder_->makeUintConstant(16 * (j & 1)),
                                       component_width)),
             component_scale);
-        builder_->addDecoration(component, spv::DecorationNoContraction);
         id_vector_temp_.clear();
         id_vector_temp_.push_back(component_min);
         id_vector_temp_.push_back(component);
@@ -3414,51 +3388,36 @@ spv::Id SpirvShaderTranslator::FSI_ApplyColorBlendFactor(
     // kSrc/Dst/ConstantColor
     {
       builder_->setBuildPoint(color_factor_blocks[i]);
-      spv::Id result_color =
-          builder_->createBinOp(spv::OpFMul, type_float3_, value, color_factor);
-      builder_->addDecoration(result_color, spv::DecorationNoContraction);
-      color_factor_results[i] = result_color;
+      color_factor_results[i] = builder_->createNoContractionBinOp(
+          spv::OpFMul, type_float3_, value, color_factor);
       builder_->createBranch(&block_factor_merge);
     }
 
     // kOneMinusSrc/Dst/ConstantColor
     {
       builder_->setBuildPoint(one_minus_color_factor_blocks[i]);
-      spv::Id one_minus_color_factor = builder_->createBinOp(
-          spv::OpFSub, type_float3_, const_float3_1_, color_factor);
-      builder_->addDecoration(one_minus_color_factor,
-                              spv::DecorationNoContraction);
-      spv::Id result_one_minus_color = builder_->createBinOp(
-          spv::OpFMul, type_float3_, value, one_minus_color_factor);
-      builder_->addDecoration(result_one_minus_color,
-                              spv::DecorationNoContraction);
-      one_minus_color_factor_results[i] = result_one_minus_color;
+      one_minus_color_factor_results[i] = builder_->createNoContractionBinOp(
+          spv::OpFMul, type_float3_, value,
+          builder_->createNoContractionBinOp(spv::OpFSub, type_float3_,
+                                             const_float3_1_, color_factor));
       builder_->createBranch(&block_factor_merge);
     }
 
     // kSrc/Dst/ConstantAlpha
     {
       builder_->setBuildPoint(alpha_factor_blocks[i]);
-      spv::Id result_alpha = builder_->createBinOp(
+      alpha_factor_results[i] = builder_->createNoContractionBinOp(
           spv::OpVectorTimesScalar, type_float3_, value, alpha_factor);
-      builder_->addDecoration(result_alpha, spv::DecorationNoContraction);
-      alpha_factor_results[i] = result_alpha;
       builder_->createBranch(&block_factor_merge);
     }
 
     // kOneMinusSrc/Dst/ConstantAlpha
     {
       builder_->setBuildPoint(one_minus_alpha_factor_blocks[i]);
-      spv::Id one_minus_alpha_factor = builder_->createBinOp(
-          spv::OpFSub, type_float_, const_float_1_, alpha_factor);
-      builder_->addDecoration(one_minus_alpha_factor,
-                              spv::DecorationNoContraction);
-      spv::Id result_one_minus_alpha =
-          builder_->createBinOp(spv::OpVectorTimesScalar, type_float3_, value,
-                                one_minus_alpha_factor);
-      builder_->addDecoration(result_one_minus_alpha,
-                              spv::DecorationNoContraction);
-      one_minus_alpha_factor_results[i] = result_one_minus_alpha;
+      one_minus_alpha_factor_results[i] = builder_->createNoContractionBinOp(
+          spv::OpVectorTimesScalar, type_float3_, value,
+          builder_->createNoContractionBinOp(spv::OpFSub, type_float_,
+                                             const_float_1_, alpha_factor));
       builder_->createBranch(&block_factor_merge);
     }
   }
@@ -3467,19 +3426,16 @@ spv::Id SpirvShaderTranslator::FSI_ApplyColorBlendFactor(
   spv::Id result_source_alpha_saturate;
   {
     builder_->setBuildPoint(&block_factor_source_alpha_saturate);
-    spv::Id one_minus_dest_alpha = builder_->createBinOp(
+    spv::Id one_minus_dest_alpha = builder_->createNoContractionBinOp(
         spv::OpFSub, type_float_, const_float_1_, dest_alpha);
-    builder_->addDecoration(one_minus_dest_alpha, spv::DecorationNoContraction);
     id_vector_temp_.clear();
     id_vector_temp_.push_back(source_alpha);
     id_vector_temp_.push_back(one_minus_dest_alpha);
     spv::Id factor_source_alpha_saturate = builder_->createBuiltinCall(
         type_float_, ext_inst_glsl_std_450_, GLSLstd450NMin, id_vector_temp_);
-    result_source_alpha_saturate =
-        builder_->createBinOp(spv::OpVectorTimesScalar, type_float3_, value,
-                              factor_source_alpha_saturate);
-    builder_->addDecoration(result_source_alpha_saturate,
-                            spv::DecorationNoContraction);
+    result_source_alpha_saturate = builder_->createNoContractionBinOp(
+        spv::OpVectorTimesScalar, type_float3_, value,
+        factor_source_alpha_saturate);
     builder_->createBranch(&block_factor_merge);
   }
 
@@ -3629,25 +3585,18 @@ spv::Id SpirvShaderTranslator::FSI_ApplyAlphaBlendFactor(
     // kSrc/Dst/ConstantColor/Alpha
     {
       builder_->setBuildPoint(alpha_factor_blocks[i]);
-      spv::Id result_alpha =
-          builder_->createBinOp(spv::OpFMul, type_float_, value, alpha_factor);
-      builder_->addDecoration(result_alpha, spv::DecorationNoContraction);
-      alpha_factor_results[i] = result_alpha;
+      alpha_factor_results[i] = builder_->createNoContractionBinOp(
+          spv::OpFMul, type_float_, value, alpha_factor);
       builder_->createBranch(&block_factor_merge);
     }
 
     // kOneMinusSrc/Dst/ConstantColor/Alpha
     {
       builder_->setBuildPoint(one_minus_alpha_factor_blocks[i]);
-      spv::Id one_minus_alpha_factor = builder_->createBinOp(
-          spv::OpFSub, type_float_, const_float_1_, alpha_factor);
-      builder_->addDecoration(one_minus_alpha_factor,
-                              spv::DecorationNoContraction);
-      spv::Id result_one_minus_alpha = builder_->createBinOp(
-          spv::OpFMul, type_float_, value, one_minus_alpha_factor);
-      builder_->addDecoration(result_one_minus_alpha,
-                              spv::DecorationNoContraction);
-      one_minus_alpha_factor_results[i] = result_one_minus_alpha;
+      one_minus_alpha_factor_results[i] = builder_->createNoContractionBinOp(
+          spv::OpFMul, type_float_, value,
+          builder_->createNoContractionBinOp(spv::OpFSub, type_float_,
+                                             const_float_1_, alpha_factor));
       builder_->createBranch(&block_factor_merge);
     }
   }
@@ -3656,18 +3605,15 @@ spv::Id SpirvShaderTranslator::FSI_ApplyAlphaBlendFactor(
   spv::Id result_source_alpha_saturate;
   {
     builder_->setBuildPoint(&block_factor_source_alpha_saturate);
-    spv::Id one_minus_dest_alpha = builder_->createBinOp(
+    spv::Id one_minus_dest_alpha = builder_->createNoContractionBinOp(
         spv::OpFSub, type_float_, const_float_1_, dest_alpha);
-    builder_->addDecoration(one_minus_dest_alpha, spv::DecorationNoContraction);
     id_vector_temp_.clear();
     id_vector_temp_.push_back(source_alpha);
     id_vector_temp_.push_back(one_minus_dest_alpha);
     spv::Id factor_source_alpha_saturate = builder_->createBuiltinCall(
         type_float_, ext_inst_glsl_std_450_, GLSLstd450NMin, id_vector_temp_);
-    result_source_alpha_saturate = builder_->createBinOp(
+    result_source_alpha_saturate = builder_->createNoContractionBinOp(
         spv::OpFMul, type_float_, value, factor_source_alpha_saturate);
-    builder_->addDecoration(result_source_alpha_saturate,
-                            spv::DecorationNoContraction);
     builder_->createBranch(&block_factor_merge);
   }
 
@@ -3812,24 +3758,20 @@ spv::Id SpirvShaderTranslator::FSI_BlendColorOrAlphaWithUnclampedResult(
 
     // Addition case.
     builder_->setBuildPoint(&block_signs_add);
-    spv::Id result_add =
-        builder_->createBinOp(spv::OpFAdd, value_type, term_source, term_dest);
-    builder_->addDecoration(result_add, spv::DecorationNoContraction);
+    spv::Id result_add = builder_->createNoContractionBinOp(
+        spv::OpFAdd, value_type, term_source, term_dest);
     builder_->createBranch(&block_signs_merge);
 
     // Subtraction case.
     builder_->setBuildPoint(&block_signs_subtract);
-    spv::Id result_subtract =
-        builder_->createBinOp(spv::OpFSub, value_type, term_source, term_dest);
-    builder_->addDecoration(result_subtract, spv::DecorationNoContraction);
+    spv::Id result_subtract = builder_->createNoContractionBinOp(
+        spv::OpFSub, value_type, term_source, term_dest);
     builder_->createBranch(&block_signs_merge);
 
     // Reverse subtraction case.
     builder_->setBuildPoint(&block_signs_reverse_subtract);
-    spv::Id result_reverse_subtract =
-        builder_->createBinOp(spv::OpFSub, value_type, term_dest, term_source);
-    builder_->addDecoration(result_reverse_subtract,
-                            spv::DecorationNoContraction);
+    spv::Id result_reverse_subtract = builder_->createNoContractionBinOp(
+        spv::OpFSub, value_type, term_dest, term_source);
     builder_->createBranch(&block_signs_merge);
 
     // Selection between the signs involved in the addition.
