@@ -245,7 +245,7 @@ void KeSetCurrentStackPointers_entry(lpvoid_t stack_ptr,
   pcr->stack_base_ptr = stack_base.guest_address();
   pcr->stack_end_ptr = stack_limit.guest_address();
   context->r[1] = stack_ptr.guest_address();
-  
+
   // If a fiber is set, and the thread matches, reenter to avoid issues with
   // host stack overflowing.
   if (thread->fiber_ptr &&
@@ -337,8 +337,8 @@ DECLARE_XBOXKRNL_EXPORT2(KeQueryPerformanceFrequency, kThreading, kImplemented,
                          kHighFrequency);
 
 uint32_t KeDelayExecutionThread(uint32_t processor_mode,
-                                      uint32_t alertable,
-                                      uint64_t* interval_ptr) {
+                                uint32_t alertable,
+                                uint64_t* interval_ptr) {
   XThread* thread = XThread::GetCurrentThread();
   X_STATUS result = thread->Delay(processor_mode, alertable, *interval_ptr);
 
@@ -521,7 +521,7 @@ uint32_t xeNtSetEvent(uint32_t handle, xe::be<uint32_t>* previous_state_ptr) {
 	  //d3 ros does this
     if (ev->type() != XObject::Type::Event) {
       return X_STATUS_OBJECT_TYPE_MISMATCH;
-	}
+    }
     int32_t was_signalled = ev->Set(0, false);
     if (previous_state_ptr) {
       *previous_state_ptr = static_cast<uint32_t>(was_signalled);
@@ -746,7 +746,7 @@ dword_result_t NtReleaseMutant_entry(dword_t mutant_handle, dword_t unknown) {
   auto mutant =
       kernel_state()->object_table()->LookupObject<XMutant>(mutant_handle);
   if (mutant) {
-    result = mutant->ReleaseMutant(priority_increment, abandon, wait);
+    mutant->ReleaseMutant(priority_increment, abandon, wait);
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -992,11 +992,7 @@ dword_result_t NtSignalAndWaitForSingleObjectEx_entry(dword_t signal_handle,
 DECLARE_XBOXKRNL_EXPORT3(NtSignalAndWaitForSingleObjectEx, kThreading,
                          kImplemented, kBlocking, kHighFrequency);
 
-static void PrefetchForCAS(const void* value) {
-  if (amd64::GetFeatureFlags() & amd64::kX64EmitPrefetchW) {
-    swcache::PrefetchW(value);
-  }
-}
+static void PrefetchForCAS(const void* value) { swcache::PrefetchW(value); }
 
 uint32_t xeKeKfAcquireSpinLock(uint32_t* lock, uint64_t r13 = 1) {
   // XELOGD(
@@ -1111,20 +1107,57 @@ void KeLeaveCriticalRegion_entry() {
 DECLARE_XBOXKRNL_EXPORT2(KeLeaveCriticalRegion, kThreading, kImplemented,
                          kHighFrequency);
 
-dword_result_t KeRaiseIrqlToDpcLevel_entry() {
-  auto old_value = kernel_state()->processor()->RaiseIrql(cpu::Irql::DPC);
-  return (uint32_t)old_value;
+dword_result_t KeRaiseIrqlToDpcLevel_entry(const ppc_context_t& ctx) {
+  auto pcr = ctx.GetPCR();
+  uint32_t old_irql = pcr->current_irql;
+
+  if (old_irql > 2) {
+    XELOGE("KeRaiseIrqlToDpcLevel - old_irql > 2");
+  }
+
+  pcr->current_irql = 2;
+
+  return old_irql;
 }
 DECLARE_XBOXKRNL_EXPORT2(KeRaiseIrqlToDpcLevel, kThreading, kImplemented,
                          kHighFrequency);
 
-void KfLowerIrql_entry(dword_t old_value) {
-  kernel_state()->processor()->LowerIrql(
-      static_cast<cpu::Irql>((uint32_t)old_value));
+// irql is supposed to be per thread afaik...
+void KfLowerIrql_entry(dword_t new_irql, const ppc_context_t& ctx) {
+  X_KPCR* kpcr = ctx.GetPCR();
 
-  XThread::GetCurrentThread()->CheckApcs();
+  if (new_irql > kpcr->current_irql) {
+    XELOGE("KfLowerIrql : new_irql > kpcr->current_irql!");
+  }
+  kpcr->current_irql = new_irql;
+  if (new_irql < 2) {
+    {
+      // this actually calls a function that eventually calls checkapcs.
+      // the called function does a ton of other stuff including changing the
+      // irql and interrupt_related
+      ctx.CurrentXThread()->CheckApcs();
+    }
+  }
 }
 DECLARE_XBOXKRNL_EXPORT2(KfLowerIrql, kThreading, kImplemented, kHighFrequency);
+
+// used by aurora's nova plugin
+// like the other irql related functions, writes to an unknown mmio range (
+// 0x7FFF ). The range is indexed by the low 16 bits of the KPCR's pointer (so
+// r13)
+dword_result_t KfRaiseIrql_entry(dword_t new_irql, const ppc_context_t& ctx) {
+  X_KPCR* v1 = ctx.GetPCR();
+
+  uint32_t old_irql = v1->current_irql;
+  v1->current_irql = new_irql;
+
+  if (old_irql > (unsigned int)new_irql) {
+    XELOGE("KfRaiseIrql - old_irql > new_irql!");
+  }
+  return old_irql;
+}
+
+DECLARE_XBOXKRNL_EXPORT2(KfRaiseIrql, kThreading, kImplemented, kHighFrequency);
 
 void NtQueueApcThread_entry(dword_t thread_handle, lpvoid_t apc_routine,
                             lpvoid_t apc_routine_context, lpvoid_t arg1,

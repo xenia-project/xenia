@@ -134,6 +134,7 @@ class XObject {
     SymbolicLink,
     Thread,
     Timer,
+	Device
   };
 
   XObject(Type type);

@@ -203,8 +203,21 @@ class ContextParam : public Param {
 
   PPCContext* operator->() const { return ctx_; }
 
+  template <typename T>
+  inline T TranslateVirtual(uint32_t guest_addr) const {
+    return ctx_->TranslateVirtual<T>(guest_addr);
+  }
+
+  template <typename T>
+  inline T TranslateGPR(uint32_t which_gpr) const {
+    return ctx_->TranslateVirtualGPR<T>(ctx_->r[which_gpr]);
+  }
+
+  X_KPCR* GetPCR() const { return TranslateGPR<X_KPCR*>(13); }
+
+  XThread* CurrentXThread() const;
  protected:
-  PPCContext* ctx_;
+  PPCContext* XE_RESTRICT ctx_;
 };
 
 class PointerParam : public ParamBase<uint32_t> {

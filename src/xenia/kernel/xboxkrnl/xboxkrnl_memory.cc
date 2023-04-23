@@ -632,9 +632,30 @@ void ExFreePool_entry(lpvoid_t base_address) {
 }
 DECLARE_XBOXKRNL_EXPORT1(ExFreePool, kMemory, kImplemented);
 
-dword_result_t KeGetImagePageTableEntry_entry(lpvoid_t address) {
-  // Unknown
-  return 1;
+// hv syscall 15, jumps into (bootloader function table??) alternative table ptr
+// offset 224
+// this is not a correct implementation. i just wanted to get it to return a
+// value thats in the same range as the hv's values that kind of reflects the
+// pages index and heap
+dword_result_t KeGetImagePageTableEntry_entry(dword_t address,
+                                              const ppc_context_t& ctx) {
+  auto kernel_state = ctx->kernel_state;
+  xe::BaseHeap* image_heap = kernel_state->memory()->LookupHeap(address);
+  if (image_heap->heap_type() != HeapType::kGuestXex) {
+    return 0;
+  }
+  uint32_t returned_value = address - image_heap->heap_base();
+
+  // todo: its always a power of two, should shift
+  returned_value /= image_heap->page_size();
+
+  if (image_heap->page_size() < 65536) {
+    returned_value |= 0x40000000;
+  }
+
+  return returned_value & 0x400FFFFF;  // this is actually the mask it applies
+                                       // to the final
+  // result before returning it
 }
 DECLARE_XBOXKRNL_EXPORT1(KeGetImagePageTableEntry, kMemory, kStub);
 

@@ -22,6 +22,7 @@
 #include "xenia/base/cvar.h"
 #include "xenia/base/mutex.h"
 #include "xenia/cpu/export_resolver.h"
+#include "xenia/kernel/util/kernel_fwd.h"
 #include "xenia/kernel/util/native_list.h"
 #include "xenia/kernel/util/object_table.h"
 #include "xenia/kernel/util/xdbf_utils.h"
@@ -44,14 +45,6 @@ namespace xe {
 namespace kernel {
 
 constexpr fourcc_t kKernelSaveSignature = make_fourcc("KRNL");
-
-class Dispatcher;
-class XHostThread;
-class KernelModule;
-class XModule;
-class XNotifyListener;
-class XThread;
-class UserModule;
 
 // (?), used by KeGetCurrentProcessType
 constexpr uint32_t X_PROCTYPE_IDLE = 0;
@@ -292,7 +285,13 @@ class KernelState {
   BitMap tls_bitmap_;
   uint32_t ke_timestamp_bundle_ptr_ = 0;
   std::unique_ptr<xe::threading::HighResolutionTimer> timestamp_timer_;
+  //fixed address referenced by dashboards. Data is currently unknown
+  uint32_t strange_hardcoded_page_ = 0x8E038634 & (~0xFFFF);
+  uint32_t strange_hardcoded_location_ = 0x8E038634;
+
   friend class XObject;
+public:
+  uint32_t dash_context_ = 0;
 };
 
 }  // namespace kernel

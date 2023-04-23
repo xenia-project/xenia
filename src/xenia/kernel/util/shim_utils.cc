@@ -8,7 +8,7 @@
  */
 
 #include "xenia/kernel/util/shim_utils.h"
-
+#include "xenia/kernel/xthread.h"
 namespace xe {
 namespace kernel {
 namespace shim {
@@ -16,6 +16,10 @@ namespace shim {
 thread_local StringBuffer string_buffer_;
 
 StringBuffer* thread_local_string_buffer() { return &string_buffer_; }
+
+XThread* ContextParam::CurrentXThread() const {
+  return XThread::GetCurrentThread();
+}
 
 }  // namespace shim
 }  // namespace kernel
