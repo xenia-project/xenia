@@ -14,7 +14,7 @@
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/ui/imgui_notification.h"
 
-DEFINE_bool(show_achievement_notification, true,
+DEFINE_bool(show_achievement_notification, false,
             "Show achievement notification on screen.", "UI");
 
 DECLARE_int32(user_language);
