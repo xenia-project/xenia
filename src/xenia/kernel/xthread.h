@@ -71,7 +71,10 @@ struct XAPC {
 struct X_KPCR {
   xe::be<uint32_t> tls_ptr;         // 0x0
   xe::be<uint32_t> msr_mask;		// 0x4
-  uint8_t unk_08[0x28];             // 0x8
+  xe::be<uint16_t> interrupt_related;  // 0x8
+  uint8_t unk_08[0xE];                 // 0xA
+  uint8_t current_irql;                // 0x18
+  uint8_t unk_19[0x17];                // 0x19
   xe::be<uint32_t> pcr_ptr;         // 0x30
   uint8_t unk_34[0x38];             // 0x34
   xe::be<uint32_t> use_alternative_stack; //0x6C

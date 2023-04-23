@@ -83,12 +83,25 @@ dword_result_t ObLookupThreadByThreadId_entry(dword_t thread_id,
   return X_STATUS_SUCCESS;
 }
 DECLARE_XBOXKRNL_EXPORT1(ObLookupThreadByThreadId, kNone, kImplemented);
+
+template <uint32_t ordinal>
+static constexpr uint32_t object_type_id_for_ordinal_v =
+    0xD000BEEF | (ordinal << 16);
 // These values come from how Xenia handles uninitialized kernel data exports.
 // D###BEEF where ### is the ordinal.
 const static std::unordered_map<XObject::Type, uint32_t> object_types = {
-    {XObject::Type::Event, 0xD00EBEEF},
-    {XObject::Type::Semaphore, 0xD017BEEF},
-    {XObject::Type::Thread, 0xD01BBEEF}};
+    {XObject::Type::Event,
+     object_type_id_for_ordinal_v<ordinals::ExEventObjectType>},
+    {XObject::Type::Semaphore,
+     object_type_id_for_ordinal_v<ordinals::ExSemaphoreObjectType>},
+    {XObject::Type::Thread,
+     object_type_id_for_ordinal_v<ordinals::ExThreadObjectType>},
+    {XObject::Type::File,
+     object_type_id_for_ordinal_v<ordinals::IoFileObjectType>},
+    {XObject::Type::Mutant,
+     object_type_id_for_ordinal_v<ordinals::ExMutantObjectType>},
+    {XObject::Type::Device,
+     object_type_id_for_ordinal_v<ordinals::IoDeviceObjectType>}};
 dword_result_t ObReferenceObjectByHandle_entry(dword_t handle,
                                                dword_t object_type_ptr,
                                                lpdword_t out_object_ptr) {
@@ -113,6 +126,8 @@ dword_result_t ObReferenceObjectByHandle_entry(dword_t handle,
   // Caller takes the reference.
   // It's released in ObDereferenceObject.
   object->RetainHandle();
+
+  xenia_assert(native_ptr != 0);
   if (out_object_ptr.guest_address()) {
     *out_object_ptr = native_ptr;
   }
@@ -120,14 +135,17 @@ dword_result_t ObReferenceObjectByHandle_entry(dword_t handle,
 }
 DECLARE_XBOXKRNL_EXPORT1(ObReferenceObjectByHandle, kNone, kImplemented);
 
-dword_result_t ObReferenceObjectByName_entry(lpstring_t name,
+dword_result_t ObReferenceObjectByName_entry(pointer_t<X_ANSI_STRING> name,
                                              dword_t attributes,
                                              dword_t object_type_ptr,
                                              lpvoid_t parse_context,
-                                             lpdword_t out_object_ptr) {
+                                             lpdword_t out_object_ptr,
+                                             const ppc_context_t& ctx) {
   X_HANDLE handle = X_INVALID_HANDLE_VALUE;
+
+  char* name_str = ctx.TranslateVirtual<char*>(name->pointer);
   X_STATUS result =
-      kernel_state()->object_table()->GetObjectByName(name.value(), &handle);
+      kernel_state()->object_table()->GetObjectByName(name_str, &handle);
   if (XSUCCEEDED(result)) {
     return ObReferenceObjectByHandle_entry(handle, object_type_ptr,
                                            out_object_ptr);
@@ -140,6 +158,10 @@ DECLARE_XBOXKRNL_EXPORT1(ObReferenceObjectByName, kNone, kImplemented);
 void ObDereferenceObject_entry(dword_t native_ptr, const ppc_context_t& ctx) {
   // Check if a dummy value from ObReferenceObjectByHandle.
   if (native_ptr == 0xDEADF00D) {
+    return;
+  }
+  if (!native_ptr) {
+    XELOGE("Null native ptr in ObDereferenceObject!");
     return;
   }
 

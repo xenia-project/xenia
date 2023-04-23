@@ -52,6 +52,10 @@ XE_GPU_REGISTER(0x057F, kDword, SCRATCH_REG7)
 
 XE_GPU_REGISTER(0x05C8, kDword, WAIT_UNTIL)
 
+//src is flash_xam.xex, i've seen it used by the kernel and aurora
+//seems to have a negative value while the gpu is busy
+//XE_GPU_REGISTER(0x05D0, kDword, RBBM_STATUS)
+
 
 //update count = 6 bit field, bits 8- 14
 //there are several other fields here, they have an unknown purpose
@@ -271,6 +275,8 @@ XE_GPU_REGISTER(0x0F0C, kDword, BC_PERFCOUNTER2_LOW)
 XE_GPU_REGISTER(0x0F0D, kDword, BC_PERFCOUNTER2_HI)
 XE_GPU_REGISTER(0x0F0E, kDword, BC_PERFCOUNTER3_LOW)
 XE_GPU_REGISTER(0x0F0F, kDword, BC_PERFCOUNTER3_HI)
+//src is flash_xam.xex
+//XE_GPU_REGISTER(0x0F12, RB_SIDEBAND_DATA,
 
 XE_GPU_REGISTER(0x1004, kDword, HZ_PERFCOUNTER0_SELECT)
 XE_GPU_REGISTER(0x1005, kDword, HZ_PERFCOUNTER0_HI)

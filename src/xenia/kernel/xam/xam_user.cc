@@ -808,6 +808,28 @@ dword_result_t XamSessionRefObjByHandle_entry(dword_t handle,
 }
 DECLARE_XAM_EXPORT1(XamSessionRefObjByHandle, kUserProfiles, kStub);
 
+dword_result_t XamUserIsUnsafeProgrammingAllowed_entry(dword_t unk1, dword_t unk2,
+                                                       lpdword_t unk3, dword_t unk4,
+                                                       dword_t unk5, dword_t unk6) {
+  if (!unk3 || unk1 != 255 && unk1 >= 4) {
+    return 87;
+  }
+  *unk3 = 1;
+  return 0;
+}
+DECLARE_XAM_EXPORT1(XamUserIsUnsafeProgrammingAllowed, kUserProfiles, kStub);
+
+dword_result_t XamUserGetSubscriptionType_entry(dword_t user_index, dword_t unk2,
+                                                dword_t unk3, dword_t unk4,
+                                                dword_t unk5, dword_t unk6) {
+  if (!unk2 || !unk3 || user_index > 4) {
+    return 0x80070057;
+  }
+
+  return 0;
+}
+DECLARE_XAM_EXPORT1(XamUserGetSubscriptionType, kUserProfiles, kStub);
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe

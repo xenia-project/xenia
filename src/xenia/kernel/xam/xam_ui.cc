@@ -529,6 +529,22 @@ dword_result_t XamShowCommunitySessionsUI_entry(unknown_t r3, unknown_t r4) {
 }
 DECLARE_XAM_EXPORT1(XamShowCommunitySessionsUI, kNone, kStub);
 
+// this is supposed to do a lot more, calls another function that triggers some
+// cbs
+dword_result_t XamSetDashContext_entry(dword_t value,
+                                       const ppc_context_t& ctx) {
+  ctx->kernel_state->dash_context_ = value;
+  return 0;
+}
+
+DECLARE_XAM_EXPORT1(XamSetDashContext, kNone, kImplemented);
+
+dword_result_t XamGetDashContext_entry(const ppc_context_t& ctx) {
+  return ctx->kernel_state->dash_context_;
+}
+
+DECLARE_XAM_EXPORT1(XamGetDashContext, kNone, kImplemented);
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
