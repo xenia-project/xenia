@@ -11,8 +11,8 @@
 
 #include <algorithm>
 
+#include "xenia/base/logging.h"
 #include "xenia/vfs/devices/disc_image_entry.h"
-
 namespace xe {
 namespace vfs {
 
@@ -28,6 +28,12 @@ X_STATUS DiscImageFile::ReadSync(void* buffer, size_t buffer_length,
   if (byte_offset >= entry_->size()) {
     return X_STATUS_END_OF_FILE;
   }
+
+  if (entry_->data_offset() >= entry_->mmap()->size()) {
+    xe::FatalError("This ISO image is corrupted and cannot be played.");
+    return X_STATUS_END_OF_FILE;
+  }
+
   size_t real_offset = entry_->data_offset() + byte_offset;
   size_t real_length =
       std::min(buffer_length, entry_->data_size() - byte_offset);
