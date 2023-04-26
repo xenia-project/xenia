@@ -20,13 +20,13 @@
 #include <vector>
 
 #include "third_party/glslang/SPIRV/GLSL.std.450.h"
-#include "third_party/glslang/SPIRV/SpvBuilder.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/registers.h"
+#include "xenia/gpu/spirv_builder.h"
 #include "xenia/gpu/spirv_shader_translator.h"
 #include "xenia/gpu/texture_cache.h"
 #include "xenia/gpu/vulkan/deferred_command_buffer.h"
@@ -2166,7 +2166,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
   std::vector<spv::Id> id_vector_temp;
   std::vector<unsigned int> uint_vector_temp;
 
-  spv::Builder builder(spv::Spv_1_0,
+  SpirvBuilder builder(spv::Spv_1_0,
                        (SpirvShaderTranslator::kSpirvMagicToolId << 16) | 1,
                        nullptr);
   spv::Id ext_inst_glsl_std_450 = builder.import("GLSL.std.450");
@@ -2621,13 +2621,9 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         source_sample_id =
             builder.createBinOp(spv::OpBitwiseAnd, type_uint, dest_sample_id,
                                 builder.makeUintConstant(1 << 1));
-        id_vector_temp.clear();
-        id_vector_temp.push_back(dest_sample_id);
-        id_vector_temp.push_back(dest_tile_pixel_x);
-        id_vector_temp.push_back(builder.makeUintConstant(1));
-        id_vector_temp.push_back(builder.makeUintConstant(31));
-        source_tile_pixel_x =
-            builder.createOp(spv::OpBitFieldInsert, type_uint, id_vector_temp);
+        source_tile_pixel_x = builder.createQuadOp(
+            spv::OpBitFieldInsert, type_uint, dest_sample_id, dest_tile_pixel_x,
+            builder.makeUintConstant(1), builder.makeUintConstant(31));
       } else if (key.dest_msaa_samples == xenos::MsaaSamples::k2X) {
         // 32bpp -> 64bpp, 4x -> 2x.
         // 1 destination horizontal pixel = 2 source horizontal samples.
@@ -2655,13 +2651,10 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         // D p0,1 = S p0,0 s0,1 | S p0,0 s1,1
         // Horizontal pixel index can be reused. Vertical pixel 1 should
         // become sample 2.
-        id_vector_temp.clear();
-        id_vector_temp.push_back(builder.makeUintConstant(0));
-        id_vector_temp.push_back(dest_tile_pixel_y);
-        id_vector_temp.push_back(builder.makeUintConstant(1));
-        id_vector_temp.push_back(builder.makeUintConstant(1));
-        source_sample_id =
-            builder.createOp(spv::OpBitFieldInsert, type_uint, id_vector_temp);
+        source_sample_id = builder.createQuadOp(
+            spv::OpBitFieldInsert, type_uint, builder.makeUintConstant(0),
+            dest_tile_pixel_y, builder.makeUintConstant(1),
+            builder.makeUintConstant(1));
         source_tile_pixel_y =
             builder.createBinOp(spv::OpShiftRightLogical, type_uint,
                                 dest_tile_pixel_y, builder.makeUintConstant(1));
@@ -2673,15 +2666,12 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         // 32bpp -> 64bpp, 1x/2x -> 4x.
         // The X part.
         // 1 destination horizontal sample = 2 source horizontal pixels.
-        id_vector_temp.clear();
-        id_vector_temp.push_back(builder.createBinOp(
-            spv::OpShiftLeftLogical, type_uint, dest_tile_pixel_x,
-            builder.makeUintConstant(2)));
-        id_vector_temp.push_back(dest_sample_id);
-        id_vector_temp.push_back(builder.makeUintConstant(1));
-        id_vector_temp.push_back(builder.makeUintConstant(1));
-        source_tile_pixel_x =
-            builder.createOp(spv::OpBitFieldInsert, type_uint, id_vector_temp);
+        source_tile_pixel_x = builder.createQuadOp(
+            spv::OpBitFieldInsert, type_uint,
+            builder.createBinOp(spv::OpShiftLeftLogical, type_uint,
+                                dest_tile_pixel_x, builder.makeUintConstant(2)),
+            dest_sample_id, builder.makeUintConstant(1),
+            builder.makeUintConstant(1));
         // Y is handled by common code.
       } else {
         // 32bpp -> 64bpp, 1x/2x -> 1x/2x.
@@ -2706,13 +2696,9 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         // D p1,0 s1,0 = S s1,0 high
         // Vertical pixel and sample (second bit) addressing is the same.
         // However, 1 horizontal destination pixel = 1 horizontal source sample.
-        id_vector_temp.clear();
-        id_vector_temp.push_back(dest_sample_id);
-        id_vector_temp.push_back(dest_tile_pixel_x);
-        id_vector_temp.push_back(builder.makeUintConstant(0));
-        id_vector_temp.push_back(builder.makeUintConstant(1));
-        source_sample_id =
-            builder.createOp(spv::OpBitFieldInsert, type_uint, id_vector_temp);
+        source_sample_id = builder.createQuadOp(
+            spv::OpBitFieldInsert, type_uint, dest_sample_id, dest_tile_pixel_x,
+            builder.makeUintConstant(0), builder.makeUintConstant(1));
         // 2 destination horizontal samples = 1 source horizontal sample, thus
         // 2 destination horizontal pixels = 1 source horizontal pixel.
         source_tile_pixel_x =
@@ -2745,34 +2731,25 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           // 0/1 in the second bit for 2x as 4x) = source vertical samples
           // (second bit).
           if (msaa_2x_attachments_supported_) {
-            id_vector_temp.clear();
-            id_vector_temp.push_back(source_sample_id);
-            id_vector_temp.push_back(builder.createBinOp(
-                spv::OpBitwiseXor, type_uint, dest_sample_id,
-                builder.makeUintConstant(1)));
-            id_vector_temp.push_back(builder.makeUintConstant(1));
-            id_vector_temp.push_back(builder.makeUintConstant(1));
-            source_sample_id = builder.createOp(spv::OpBitFieldInsert,
-                                                type_uint, id_vector_temp);
+            source_sample_id = builder.createQuadOp(
+                spv::OpBitFieldInsert, type_uint, source_sample_id,
+                builder.createBinOp(spv::OpBitwiseXor, type_uint,
+                                    dest_sample_id,
+                                    builder.makeUintConstant(1)),
+                builder.makeUintConstant(1), builder.makeUintConstant(1));
           } else {
-            id_vector_temp.clear();
-            id_vector_temp.push_back(dest_sample_id);
-            id_vector_temp.push_back(source_sample_id);
-            id_vector_temp.push_back(builder.makeUintConstant(0));
-            id_vector_temp.push_back(builder.makeUintConstant(1));
-            source_sample_id = builder.createOp(spv::OpBitFieldInsert,
-                                                type_uint, id_vector_temp);
+            source_sample_id = builder.createQuadOp(
+                spv::OpBitFieldInsert, type_uint, dest_sample_id,
+                source_sample_id, builder.makeUintConstant(0),
+                builder.makeUintConstant(1));
           }
         } else {
           // 64bpp -> 32bpp, 4x -> 1x.
           // 1 destination vertical pixel = 1 source vertical sample.
-          id_vector_temp.clear();
-          id_vector_temp.push_back(source_sample_id);
-          id_vector_temp.push_back(source_tile_pixel_y);
-          id_vector_temp.push_back(builder.makeUintConstant(1));
-          id_vector_temp.push_back(builder.makeUintConstant(1));
-          source_sample_id = builder.createOp(spv::OpBitFieldInsert, type_uint,
-                                              id_vector_temp);
+          source_sample_id = builder.createQuadOp(
+              spv::OpBitFieldInsert, type_uint, source_sample_id,
+              source_tile_pixel_y, builder.makeUintConstant(1),
+              builder.makeUintConstant(1));
           source_tile_pixel_y = builder.createBinOp(
               spv::OpShiftRightLogical, type_uint, dest_tile_pixel_y,
               builder.makeUintConstant(1));
@@ -2808,23 +2785,17 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           // for native 2x or 0/1 in the second bit for 2x as 4x) to second
           // sample bit.
           if (msaa_2x_attachments_supported_) {
-            id_vector_temp.clear();
-            id_vector_temp.push_back(dest_tile_pixel_x);
-            id_vector_temp.push_back(builder.createBinOp(
-                spv::OpBitwiseXor, type_uint, dest_sample_id,
-                builder.makeUintConstant(1)));
-            id_vector_temp.push_back(builder.makeUintConstant(1));
-            id_vector_temp.push_back(builder.makeUintConstant(31));
-            source_sample_id = builder.createOp(spv::OpBitFieldInsert,
-                                                type_uint, id_vector_temp);
+            source_sample_id = builder.createQuadOp(
+                spv::OpBitFieldInsert, type_uint, dest_tile_pixel_x,
+                builder.createBinOp(spv::OpBitwiseXor, type_uint,
+                                    dest_sample_id,
+                                    builder.makeUintConstant(1)),
+                builder.makeUintConstant(1), builder.makeUintConstant(31));
           } else {
-            id_vector_temp.clear();
-            id_vector_temp.push_back(dest_sample_id);
-            id_vector_temp.push_back(dest_tile_pixel_x);
-            id_vector_temp.push_back(builder.makeUintConstant(0));
-            id_vector_temp.push_back(builder.makeUintConstant(1));
-            source_sample_id = builder.createOp(spv::OpBitFieldInsert,
-                                                type_uint, id_vector_temp);
+            source_sample_id = builder.createQuadOp(
+                spv::OpBitFieldInsert, type_uint, dest_sample_id,
+                dest_tile_pixel_x, builder.makeUintConstant(0),
+                builder.makeUintConstant(1));
           }
           source_tile_pixel_x = builder.createBinOp(
               spv::OpShiftRightLogical, type_uint, dest_tile_pixel_x,
@@ -2832,15 +2803,13 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         } else {
           // Same BPP, 4x -> 1x.
           // Pixels to samples.
-          id_vector_temp.clear();
-          id_vector_temp.push_back(builder.createBinOp(
-              spv::OpBitwiseAnd, type_uint, dest_tile_pixel_x,
-              builder.makeUintConstant(1)));
-          id_vector_temp.push_back(dest_tile_pixel_y);
-          id_vector_temp.push_back(builder.makeUintConstant(1));
-          id_vector_temp.push_back(builder.makeUintConstant(1));
-          source_sample_id = builder.createOp(spv::OpBitFieldInsert, type_uint,
-                                              id_vector_temp);
+          source_sample_id = builder.createQuadOp(
+              spv::OpBitFieldInsert, type_uint,
+              builder.createBinOp(spv::OpBitwiseAnd, type_uint,
+                                  dest_tile_pixel_x,
+                                  builder.makeUintConstant(1)),
+              dest_tile_pixel_y, builder.makeUintConstant(1),
+              builder.makeUintConstant(1));
           source_tile_pixel_x = builder.createBinOp(
               spv::OpShiftRightLogical, type_uint, dest_tile_pixel_x,
               builder.makeUintConstant(1));
@@ -2853,13 +2822,10 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         // Only the X part - Y is handled by common code.
         if (key.dest_msaa_samples >= xenos::MsaaSamples::k4X) {
           // Horizontal samples to pixels.
-          id_vector_temp.clear();
-          id_vector_temp.push_back(dest_sample_id);
-          id_vector_temp.push_back(dest_tile_pixel_x);
-          id_vector_temp.push_back(builder.makeUintConstant(1));
-          id_vector_temp.push_back(builder.makeUintConstant(31));
-          source_tile_pixel_x = builder.createOp(spv::OpBitFieldInsert,
-                                                 type_uint, id_vector_temp);
+          source_tile_pixel_x = builder.createQuadOp(
+              spv::OpBitFieldInsert, type_uint, dest_sample_id,
+              dest_tile_pixel_x, builder.makeUintConstant(1),
+              builder.makeUintConstant(31));
         }
       }
     }
@@ -2882,26 +2848,20 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                                                  source_sample_id,
                                                  builder.makeUintConstant(1));
         } else {
-          id_vector_temp.clear();
-          id_vector_temp.push_back(source_sample_id);
-          id_vector_temp.push_back(source_sample_id);
-          id_vector_temp.push_back(builder.makeUintConstant(1));
-          id_vector_temp.push_back(builder.makeUintConstant(1));
-          source_sample_id = builder.createOp(spv::OpBitFieldInsert, type_uint,
-                                              id_vector_temp);
+          source_sample_id = builder.createQuadOp(
+              spv::OpBitFieldInsert, type_uint, source_sample_id,
+              source_sample_id, builder.makeUintConstant(1),
+              builder.makeUintConstant(1));
         }
       } else {
         // 1x -> 4x.
         // Vertical samples (second bit) to Y pixels.
-        id_vector_temp.clear();
-        id_vector_temp.push_back(
+        source_tile_pixel_y = builder.createQuadOp(
+            spv::OpBitFieldInsert, type_uint,
             builder.createBinOp(spv::OpShiftRightLogical, type_uint,
-                                dest_sample_id, builder.makeUintConstant(1)));
-        id_vector_temp.push_back(dest_tile_pixel_y);
-        id_vector_temp.push_back(builder.makeUintConstant(1));
-        id_vector_temp.push_back(builder.makeUintConstant(31));
-        source_tile_pixel_y =
-            builder.createOp(spv::OpBitFieldInsert, type_uint, id_vector_temp);
+                                dest_sample_id, builder.makeUintConstant(1)),
+            dest_tile_pixel_y, builder.makeUintConstant(1),
+            builder.makeUintConstant(31));
       }
     } else {
       // 1x/2x -> different 1x/2x.
@@ -2917,13 +2877,10 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                                                  source_sample_id,
                                                  builder.makeUintConstant(1));
         } else {
-          id_vector_temp.clear();
-          id_vector_temp.push_back(source_sample_id);
-          id_vector_temp.push_back(source_sample_id);
-          id_vector_temp.push_back(builder.makeUintConstant(1));
-          id_vector_temp.push_back(builder.makeUintConstant(1));
-          source_sample_id = builder.createOp(spv::OpBitFieldInsert, type_uint,
-                                              id_vector_temp);
+          source_sample_id = builder.createQuadOp(
+              spv::OpBitFieldInsert, type_uint, source_sample_id,
+              source_sample_id, builder.makeUintConstant(1),
+              builder.makeUintConstant(1));
         }
         source_tile_pixel_y =
             builder.createBinOp(spv::OpShiftRightLogical, type_uint,
@@ -2934,25 +2891,19 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         // second bit for 2x as 4x) of 2x destination to vertical pixels of 1x
         // source.
         if (msaa_2x_attachments_supported_) {
-          id_vector_temp.clear();
-          id_vector_temp.push_back(
+          source_tile_pixel_y = builder.createQuadOp(
+              spv::OpBitFieldInsert, type_uint,
               builder.createBinOp(spv::OpBitwiseXor, type_uint, dest_sample_id,
-                                  builder.makeUintConstant(1)));
-          id_vector_temp.push_back(dest_tile_pixel_y);
-          id_vector_temp.push_back(builder.makeUintConstant(1));
-          id_vector_temp.push_back(builder.makeUintConstant(31));
-          source_tile_pixel_y = builder.createOp(spv::OpBitFieldInsert,
-                                                 type_uint, id_vector_temp);
+                                  builder.makeUintConstant(1)),
+              dest_tile_pixel_y, builder.makeUintConstant(1),
+              builder.makeUintConstant(31));
         } else {
-          id_vector_temp.clear();
-          id_vector_temp.push_back(
+          source_tile_pixel_y = builder.createQuadOp(
+              spv::OpBitFieldInsert, type_uint,
               builder.createBinOp(spv::OpShiftRightLogical, type_uint,
-                                  dest_sample_id, builder.makeUintConstant(1)));
-          id_vector_temp.push_back(dest_tile_pixel_y);
-          id_vector_temp.push_back(builder.makeUintConstant(1));
-          id_vector_temp.push_back(builder.makeUintConstant(31));
-          source_tile_pixel_y = builder.createOp(spv::OpBitFieldInsert,
-                                                 type_uint, id_vector_temp);
+                                  dest_sample_id, builder.makeUintConstant(1)),
+              dest_tile_pixel_y, builder.makeUintConstant(1),
+              builder.makeUintConstant(31));
         }
       }
     }
@@ -3183,19 +3134,16 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                                         source_color[i][0], unorm_scale),
                     unorm_round_offset));
             for (uint32_t j = 1; j < 4; ++j) {
-              id_vector_temp.clear();
-              id_vector_temp.push_back(packed[i]);
-              id_vector_temp.push_back(builder.createUnaryOp(
-                  spv::OpConvertFToU, type_uint,
-                  builder.createBinOp(
-                      spv::OpFAdd, type_float,
-                      builder.createBinOp(spv::OpFMul, type_float,
-                                          source_color[i][j], unorm_scale),
-                      unorm_round_offset)));
-              id_vector_temp.push_back(builder.makeUintConstant(8 * j));
-              id_vector_temp.push_back(component_width);
-              packed[i] = builder.createOp(spv::OpBitFieldInsert, type_uint,
-                                           id_vector_temp);
+              packed[i] = builder.createQuadOp(
+                  spv::OpBitFieldInsert, type_uint, packed[i],
+                  builder.createUnaryOp(
+                      spv::OpConvertFToU, type_uint,
+                      builder.createBinOp(
+                          spv::OpFAdd, type_float,
+                          builder.createBinOp(spv::OpFMul, type_float,
+                                              source_color[i][j], unorm_scale),
+                          unorm_round_offset)),
+                  builder.makeUintConstant(8 * j), component_width);
             }
           }
         } break;
@@ -3215,20 +3163,18 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                                         source_color[i][0], unorm_scale_rgb),
                     unorm_round_offset));
             for (uint32_t j = 1; j < 4; ++j) {
-              id_vector_temp.clear();
-              id_vector_temp.push_back(packed[i]);
-              id_vector_temp.push_back(builder.createUnaryOp(
-                  spv::OpConvertFToU, type_uint,
-                  builder.createBinOp(
-                      spv::OpFAdd, type_float,
+              packed[i] = builder.createQuadOp(
+                  spv::OpBitFieldInsert, type_uint, packed[i],
+                  builder.createUnaryOp(
+                      spv::OpConvertFToU, type_uint,
                       builder.createBinOp(
-                          spv::OpFMul, type_float, source_color[i][j],
-                          j == 3 ? unorm_scale_a : unorm_scale_rgb),
-                      unorm_round_offset)));
-              id_vector_temp.push_back(builder.makeUintConstant(10 * j));
-              id_vector_temp.push_back(j == 3 ? width_a : width_rgb);
-              packed[i] = builder.createOp(spv::OpBitFieldInsert, type_uint,
-                                           id_vector_temp);
+                          spv::OpFAdd, type_float,
+                          builder.createBinOp(
+                              spv::OpFMul, type_float, source_color[i][j],
+                              j == 3 ? unorm_scale_a : unorm_scale_rgb),
+                          unorm_round_offset)),
+                  builder.makeUintConstant(10 * j),
+                  j == 3 ? width_a : width_rgb);
             }
           }
         } break;
@@ -3248,37 +3194,26 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             packed[i] = SpirvShaderTranslator::UnclampedFloat32To7e3(
                 builder, source_color[i][0], ext_inst_glsl_std_450);
             for (uint32_t j = 1; j < 3; ++j) {
-              id_vector_temp.clear();
-              id_vector_temp.push_back(packed[i]);
-              id_vector_temp.push_back(
+              packed[i] = builder.createQuadOp(
+                  spv::OpBitFieldInsert, type_uint, packed[i],
                   SpirvShaderTranslator::UnclampedFloat32To7e3(
-                      builder, source_color[i][j], ext_inst_glsl_std_450));
-              id_vector_temp.push_back(builder.makeUintConstant(10 * j));
-              id_vector_temp.push_back(width_rgb);
-              packed[i] = builder.createOp(spv::OpBitFieldInsert, type_uint,
-                                           id_vector_temp);
+                      builder, source_color[i][j], ext_inst_glsl_std_450),
+                  builder.makeUintConstant(10 * j), width_rgb);
             }
             // Saturate and convert the alpha.
-            id_vector_temp.clear();
-            id_vector_temp.push_back(source_color[i][3]);
-            id_vector_temp.push_back(float_0);
-            id_vector_temp.push_back(float_1);
-            spv::Id alpha_saturated =
-                builder.createBuiltinCall(type_float, ext_inst_glsl_std_450,
-                                          GLSLstd450NClamp, id_vector_temp);
-            id_vector_temp.clear();
-            id_vector_temp.push_back(packed[i]);
-            id_vector_temp.push_back(builder.createUnaryOp(
-                spv::OpConvertFToU, type_uint,
-                builder.createBinOp(
-                    spv::OpFAdd, type_float,
-                    builder.createBinOp(spv::OpFMul, type_float,
-                                        alpha_saturated, unorm_scale_a),
-                    unorm_round_offset)));
-            id_vector_temp.push_back(offset_a);
-            id_vector_temp.push_back(width_a);
-            packed[i] = builder.createOp(spv::OpBitFieldInsert, type_uint,
-                                         id_vector_temp);
+            spv::Id alpha_saturated = builder.createTriBuiltinCall(
+                type_float, ext_inst_glsl_std_450, GLSLstd450NClamp,
+                source_color[i][3], float_0, float_1);
+            packed[i] = builder.createQuadOp(
+                spv::OpBitFieldInsert, type_uint, packed[i],
+                builder.createUnaryOp(
+                    spv::OpConvertFToU, type_uint,
+                    builder.createBinOp(
+                        spv::OpFAdd, type_float,
+                        builder.createBinOp(spv::OpFMul, type_float,
+                                            alpha_saturated, unorm_scale_a),
+                        unorm_round_offset)),
+                offset_a, width_a);
           }
         } break;
         // All 64bpp formats, and all 16 bits per component formats, are
@@ -3295,13 +3230,10 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             spv::Id component_offset_width = builder.makeUintConstant(16);
             spv::Id color_16_in_32[2];
             for (uint32_t i = 0; i < 2; ++i) {
-              id_vector_temp.clear();
-              id_vector_temp.push_back(source_color[i][0]);
-              id_vector_temp.push_back(source_color[i][1]);
-              id_vector_temp.push_back(component_offset_width);
-              id_vector_temp.push_back(component_offset_width);
-              color_16_in_32[i] = builder.createOp(spv::OpBitFieldInsert,
-                                                   type_uint, id_vector_temp);
+              color_16_in_32[i] = builder.createQuadOp(
+                  spv::OpBitFieldInsert, type_uint, source_color[i][0],
+                  source_color[i][1], component_offset_width,
+                  component_offset_width);
             }
             id_vector_temp.clear();
             id_vector_temp.push_back(color_16_in_32[0]);
@@ -3326,13 +3258,10 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             spv::Id component_offset_width = builder.makeUintConstant(16);
             spv::Id color_16_in_32[2];
             for (uint32_t i = 0; i < 2; ++i) {
-              id_vector_temp.clear();
-              id_vector_temp.push_back(source_color[0][i << 1]);
-              id_vector_temp.push_back(source_color[0][(i << 1) + 1]);
-              id_vector_temp.push_back(component_offset_width);
-              id_vector_temp.push_back(component_offset_width);
-              color_16_in_32[i] = builder.createOp(spv::OpBitFieldInsert,
-                                                   type_uint, id_vector_temp);
+              color_16_in_32[i] = builder.createQuadOp(
+                  spv::OpBitFieldInsert, type_uint, source_color[0][i << 1],
+                  source_color[0][(i << 1) + 1], component_offset_width,
+                  component_offset_width);
             }
             id_vector_temp.clear();
             id_vector_temp.push_back(color_16_in_32[0]);
@@ -3383,14 +3312,13 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             // Round to the nearest even integer. This seems to be the
             // correct conversion, adding +0.5 and rounding towards zero results
             // in red instead of black in the 4D5307E6 clear shader.
-            id_vector_temp.clear();
-            id_vector_temp.push_back(builder.createBinOp(
-                spv::OpFMul, type_float, source_depth_float[i],
-                builder.makeFloatConstant(float(0xFFFFFF))));
             depth24 = builder.createUnaryOp(
                 spv::OpConvertFToU, type_uint,
-                builder.createBuiltinCall(type_float, ext_inst_glsl_std_450,
-                                          GLSLstd450RoundEven, id_vector_temp));
+                builder.createUnaryBuiltinCall(
+                    type_float, ext_inst_glsl_std_450, GLSLstd450RoundEven,
+                    builder.createBinOp(
+                        spv::OpFMul, type_float, source_depth_float[i],
+                        builder.makeFloatConstant(float(0xFFFFFF)))));
           } break;
           case xenos::DepthRenderTargetFormat::kD24FS8: {
             depth24 = SpirvShaderTranslator::PreClampedDepthTo20e4(
@@ -3399,13 +3327,9 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           } break;
         }
         // Merge depth and stencil.
-        id_vector_temp.clear();
-        id_vector_temp.push_back(source_stencil[i]);
-        id_vector_temp.push_back(depth24);
-        id_vector_temp.push_back(depth_offset);
-        id_vector_temp.push_back(depth_width);
-        packed[i] =
-            builder.createOp(spv::OpBitFieldInsert, type_uint, id_vector_temp);
+        packed[i] = builder.createQuadOp(spv::OpBitFieldInsert, type_uint,
+                                         source_stencil[i], depth24,
+                                         depth_offset, depth_width);
       }
     }
     // Common path unless there was a specialized one - unpack two packed 32-bit
@@ -3509,21 +3433,18 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             if (mode.output != TransferOutput::kStencilBit) {
               spv::Id component_width = builder.makeUintConstant(8);
               for (uint32_t i = 1; i < 4 - packed_component_offset; ++i) {
-                id_vector_temp.clear();
-                id_vector_temp.push_back(packed);
-                id_vector_temp.push_back(builder.createUnaryOp(
-                    spv::OpConvertFToU, type_uint,
-                    builder.createBinOp(
-                        spv::OpFAdd, type_float,
+                packed = builder.createQuadOp(
+                    spv::OpBitFieldInsert, type_uint, packed,
+                    builder.createUnaryOp(
+                        spv::OpConvertFToU, type_uint,
                         builder.createBinOp(
-                            spv::OpFMul, type_float,
-                            source_color[0][packed_component_offset + i],
-                            unorm_scale),
-                        unorm_round_offset)));
-                id_vector_temp.push_back(builder.makeUintConstant(8 * i));
-                id_vector_temp.push_back(component_width);
-                packed = builder.createOp(spv::OpBitFieldInsert, type_uint,
-                                          id_vector_temp);
+                            spv::OpFAdd, type_float,
+                            builder.createBinOp(
+                                spv::OpFMul, type_float,
+                                source_color[0][packed_component_offset + i],
+                                unorm_scale),
+                            unorm_round_offset)),
+                    builder.makeUintConstant(8 * i), component_width);
               }
             }
           }
@@ -3557,20 +3478,18 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               spv::Id unorm_scale_a = builder.makeFloatConstant(3.0f);
               spv::Id width_a = builder.makeUintConstant(2);
               for (uint32_t i = 1; i < 4; ++i) {
-                id_vector_temp.clear();
-                id_vector_temp.push_back(packed);
-                id_vector_temp.push_back(builder.createUnaryOp(
-                    spv::OpConvertFToU, type_uint,
-                    builder.createBinOp(
-                        spv::OpFAdd, type_float,
+                packed = builder.createQuadOp(
+                    spv::OpBitFieldInsert, type_uint, packed,
+                    builder.createUnaryOp(
+                        spv::OpConvertFToU, type_uint,
                         builder.createBinOp(
-                            spv::OpFMul, type_float, source_color[0][i],
-                            i == 3 ? unorm_scale_a : unorm_scale_rgb),
-                        unorm_round_offset)));
-                id_vector_temp.push_back(builder.makeUintConstant(10 * i));
-                id_vector_temp.push_back(i == 3 ? width_a : width_rgb);
-                packed = builder.createOp(spv::OpBitFieldInsert, type_uint,
-                                          id_vector_temp);
+                            spv::OpFAdd, type_float,
+                            builder.createBinOp(
+                                spv::OpFMul, type_float, source_color[0][i],
+                                i == 3 ? unorm_scale_a : unorm_scale_rgb),
+                            unorm_round_offset)),
+                    builder.makeUintConstant(10 * i),
+                    i == 3 ? width_a : width_rgb);
               }
             }
           }
@@ -3598,38 +3517,28 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             if (mode.output != TransferOutput::kStencilBit) {
               spv::Id width_rgb = builder.makeUintConstant(10);
               for (uint32_t i = 1; i < 3; ++i) {
-                id_vector_temp.clear();
-                id_vector_temp.push_back(packed);
-                id_vector_temp.push_back(
+                packed = builder.createQuadOp(
+                    spv::OpBitFieldInsert, type_uint, packed,
                     SpirvShaderTranslator::UnclampedFloat32To7e3(
-                        builder, source_color[0][i], ext_inst_glsl_std_450));
-                id_vector_temp.push_back(builder.makeUintConstant(10 * i));
-                id_vector_temp.push_back(width_rgb);
-                packed = builder.createOp(spv::OpBitFieldInsert, type_uint,
-                                          id_vector_temp);
+                        builder, source_color[0][i], ext_inst_glsl_std_450),
+                    builder.makeUintConstant(10 * i), width_rgb);
               }
               // Saturate and convert the alpha.
-              id_vector_temp.clear();
-              id_vector_temp.push_back(source_color[0][3]);
-              id_vector_temp.push_back(builder.makeFloatConstant(0.0f));
-              id_vector_temp.push_back(builder.makeFloatConstant(1.0f));
-              spv::Id alpha_saturated =
-                  builder.createBuiltinCall(type_float, ext_inst_glsl_std_450,
-                                            GLSLstd450NClamp, id_vector_temp);
-              id_vector_temp.clear();
-              id_vector_temp.push_back(packed);
-              id_vector_temp.push_back(builder.createUnaryOp(
-                  spv::OpConvertFToU, type_uint,
-                  builder.createBinOp(
-                      spv::OpFAdd, type_float,
-                      builder.createBinOp(spv::OpFMul, type_float,
-                                          alpha_saturated,
-                                          builder.makeFloatConstant(3.0f)),
-                      builder.makeFloatConstant(0.5f))));
-              id_vector_temp.push_back(builder.makeUintConstant(30));
-              id_vector_temp.push_back(builder.makeUintConstant(2));
-              packed = builder.createOp(spv::OpBitFieldInsert, type_uint,
-                                        id_vector_temp);
+              spv::Id alpha_saturated = builder.createTriBuiltinCall(
+                  type_float, ext_inst_glsl_std_450, GLSLstd450NClamp,
+                  source_color[0][3], builder.makeFloatConstant(0.0f),
+                  builder.makeFloatConstant(1.0f));
+              packed = builder.createQuadOp(
+                  spv::OpBitFieldInsert, type_uint, packed,
+                  builder.createUnaryOp(
+                      spv::OpConvertFToU, type_uint,
+                      builder.createBinOp(
+                          spv::OpFAdd, type_float,
+                          builder.createBinOp(spv::OpFMul, type_float,
+                                              alpha_saturated,
+                                              builder.makeFloatConstant(3.0f)),
+                          builder.makeFloatConstant(0.5f))),
+                  builder.makeUintConstant(30), builder.makeUintConstant(2));
             }
           }
         } break;
@@ -3659,13 +3568,9 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             packed = source_color[0][0];
             if (mode.output != TransferOutput::kStencilBit) {
               spv::Id component_offset_width = builder.makeUintConstant(16);
-              id_vector_temp.clear();
-              id_vector_temp.push_back(packed);
-              id_vector_temp.push_back(source_color[0][1]);
-              id_vector_temp.push_back(component_offset_width);
-              id_vector_temp.push_back(component_offset_width);
-              packed = builder.createOp(spv::OpBitFieldInsert, type_uint,
-                                        id_vector_temp);
+              packed = builder.createQuadOp(
+                  spv::OpBitFieldInsert, type_uint, packed, source_color[0][1],
+                  component_offset_width, component_offset_width);
             }
           }
         } break;
@@ -3689,14 +3594,13 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             // Round to the nearest even integer. This seems to be the correct
             // conversion, adding +0.5 and rounding towards zero results in red
             // instead of black in the 4D5307E6 clear shader.
-            id_vector_temp.clear();
-            id_vector_temp.push_back(builder.createBinOp(
-                spv::OpFMul, type_float, source_depth_float[0],
-                builder.makeFloatConstant(float(0xFFFFFF))));
             packed = builder.createUnaryOp(
                 spv::OpConvertFToU, type_uint,
-                builder.createBuiltinCall(type_float, ext_inst_glsl_std_450,
-                                          GLSLstd450RoundEven, id_vector_temp));
+                builder.createUnaryBuiltinCall(
+                    type_float, ext_inst_glsl_std_450, GLSLstd450RoundEven,
+                    builder.createBinOp(
+                        spv::OpFMul, type_float, source_depth_float[0],
+                        builder.makeFloatConstant(float(0xFFFFFF)))));
           } break;
           case xenos::DepthRenderTargetFormat::kD24FS8: {
             packed = SpirvShaderTranslator::PreClampedDepthTo20e4(
@@ -3708,13 +3612,9 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           packed_only_depth = true;
         } else {
           // Merge depth and stencil.
-          id_vector_temp.clear();
-          id_vector_temp.push_back(source_stencil[0]);
-          id_vector_temp.push_back(packed);
-          id_vector_temp.push_back(builder.makeUintConstant(8));
-          id_vector_temp.push_back(builder.makeUintConstant(24));
-          packed = builder.createOp(spv::OpBitFieldInsert, type_uint,
-                                    id_vector_temp);
+          packed = builder.createQuadOp(
+              spv::OpBitFieldInsert, type_uint, source_stencil[0], packed,
+              builder.makeUintConstant(8), builder.makeUintConstant(24));
         }
       }
     }
@@ -3861,23 +3761,18 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                   // first bit for native 2x or 0/1 in the second bit for 2x as
                   // 4x) to second sample bit.
                   if (msaa_2x_attachments_supported_) {
-                    id_vector_temp.clear();
-                    id_vector_temp.push_back(dest_tile_pixel_x);
-                    id_vector_temp.push_back(builder.createBinOp(
-                        spv::OpBitwiseXor, type_uint, dest_sample_id,
-                        builder.makeUintConstant(1)));
-                    id_vector_temp.push_back(builder.makeUintConstant(1));
-                    id_vector_temp.push_back(builder.makeUintConstant(31));
-                    host_depth_source_sample_id = builder.createOp(
-                        spv::OpBitFieldInsert, type_uint, id_vector_temp);
+                    host_depth_source_sample_id = builder.createQuadOp(
+                        spv::OpBitFieldInsert, type_uint, dest_tile_pixel_x,
+                        builder.createBinOp(spv::OpBitwiseXor, type_uint,
+                                            dest_sample_id,
+                                            builder.makeUintConstant(1)),
+                        builder.makeUintConstant(1),
+                        builder.makeUintConstant(31));
                   } else {
-                    id_vector_temp.clear();
-                    id_vector_temp.push_back(dest_sample_id);
-                    id_vector_temp.push_back(dest_tile_pixel_x);
-                    id_vector_temp.push_back(builder.makeUintConstant(0));
-                    id_vector_temp.push_back(builder.makeUintConstant(1));
-                    host_depth_source_sample_id = builder.createOp(
-                        spv::OpBitFieldInsert, type_uint, id_vector_temp);
+                    host_depth_source_sample_id = builder.createQuadOp(
+                        spv::OpBitFieldInsert, type_uint, dest_sample_id,
+                        dest_tile_pixel_x, builder.makeUintConstant(0),
+                        builder.makeUintConstant(1));
                   }
                   host_depth_source_tile_pixel_x = builder.createBinOp(
                       spv::OpShiftRightLogical, type_uint, dest_tile_pixel_x,
@@ -3885,15 +3780,13 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                 } else {
                   // 4x -> 1x.
                   // Pixels to samples.
-                  id_vector_temp.clear();
-                  id_vector_temp.push_back(builder.createBinOp(
-                      spv::OpBitwiseAnd, type_uint, dest_tile_pixel_x,
-                      builder.makeUintConstant(1)));
-                  id_vector_temp.push_back(dest_tile_pixel_y);
-                  id_vector_temp.push_back(builder.makeUintConstant(1));
-                  id_vector_temp.push_back(builder.makeUintConstant(1));
-                  host_depth_source_sample_id = builder.createOp(
-                      spv::OpBitFieldInsert, type_uint, id_vector_temp);
+                  host_depth_source_sample_id = builder.createQuadOp(
+                      spv::OpBitFieldInsert, type_uint,
+                      builder.createBinOp(spv::OpBitwiseAnd, type_uint,
+                                          dest_tile_pixel_x,
+                                          builder.makeUintConstant(1)),
+                      dest_tile_pixel_y, builder.makeUintConstant(1),
+                      builder.makeUintConstant(1));
                   host_depth_source_tile_pixel_x = builder.createBinOp(
                       spv::OpShiftRightLogical, type_uint, dest_tile_pixel_x,
                       builder.makeUintConstant(1));
@@ -3906,13 +3799,10 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                 // Only the X part - Y is handled by common code.
                 if (key.dest_msaa_samples >= xenos::MsaaSamples::k4X) {
                   // Horizontal samples to pixels.
-                  id_vector_temp.clear();
-                  id_vector_temp.push_back(dest_sample_id);
-                  id_vector_temp.push_back(dest_tile_pixel_x);
-                  id_vector_temp.push_back(builder.makeUintConstant(1));
-                  id_vector_temp.push_back(builder.makeUintConstant(31));
-                  host_depth_source_tile_pixel_x = builder.createOp(
-                      spv::OpBitFieldInsert, type_uint, id_vector_temp);
+                  host_depth_source_tile_pixel_x = builder.createQuadOp(
+                      spv::OpBitFieldInsert, type_uint, dest_sample_id,
+                      dest_tile_pixel_x, builder.makeUintConstant(1),
+                      builder.makeUintConstant(31));
                 }
               }
               // Host depth source Y and sample index for 1x/2x AA sources.
@@ -3935,26 +3825,23 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                                               host_depth_source_sample_id,
                                               builder.makeUintConstant(1));
                     } else {
-                      id_vector_temp.clear();
-                      id_vector_temp.push_back(host_depth_source_sample_id);
-                      id_vector_temp.push_back(host_depth_source_sample_id);
-                      id_vector_temp.push_back(builder.makeUintConstant(1));
-                      id_vector_temp.push_back(builder.makeUintConstant(1));
-                      host_depth_source_sample_id = builder.createOp(
-                          spv::OpBitFieldInsert, type_uint, id_vector_temp);
+                      host_depth_source_sample_id =
+                          builder.createQuadOp(spv::OpBitFieldInsert, type_uint,
+                                               host_depth_source_sample_id,
+                                               host_depth_source_sample_id,
+                                               builder.makeUintConstant(1),
+                                               builder.makeUintConstant(1));
                     }
                   } else {
                     // 1x -> 4x.
                     // Vertical samples (second bit) to Y pixels.
-                    id_vector_temp.clear();
-                    id_vector_temp.push_back(builder.createBinOp(
-                        spv::OpShiftRightLogical, type_uint, dest_sample_id,
-                        builder.makeUintConstant(1)));
-                    id_vector_temp.push_back(dest_tile_pixel_y);
-                    id_vector_temp.push_back(builder.makeUintConstant(1));
-                    id_vector_temp.push_back(builder.makeUintConstant(31));
-                    host_depth_source_tile_pixel_y = builder.createOp(
-                        spv::OpBitFieldInsert, type_uint, id_vector_temp);
+                    host_depth_source_tile_pixel_y = builder.createQuadOp(
+                        spv::OpBitFieldInsert, type_uint,
+                        builder.createBinOp(spv::OpShiftRightLogical, type_uint,
+                                            dest_sample_id,
+                                            builder.makeUintConstant(1)),
+                        dest_tile_pixel_y, builder.makeUintConstant(1),
+                        builder.makeUintConstant(31));
                   }
                 } else {
                   // 1x/2x -> different 1x/2x.
@@ -3972,13 +3859,12 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                                               host_depth_source_sample_id,
                                               builder.makeUintConstant(1));
                     } else {
-                      id_vector_temp.clear();
-                      id_vector_temp.push_back(host_depth_source_sample_id);
-                      id_vector_temp.push_back(host_depth_source_sample_id);
-                      id_vector_temp.push_back(builder.makeUintConstant(1));
-                      id_vector_temp.push_back(builder.makeUintConstant(1));
-                      host_depth_source_sample_id = builder.createOp(
-                          spv::OpBitFieldInsert, type_uint, id_vector_temp);
+                      host_depth_source_sample_id =
+                          builder.createQuadOp(spv::OpBitFieldInsert, type_uint,
+                                               host_depth_source_sample_id,
+                                               host_depth_source_sample_id,
+                                               builder.makeUintConstant(1),
+                                               builder.makeUintConstant(1));
                     }
                     host_depth_source_tile_pixel_y = builder.createBinOp(
                         spv::OpShiftRightLogical, type_uint, dest_tile_pixel_y,
@@ -3989,25 +3875,21 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                     // 0/1 in the second bit for 2x as 4x) of 2x destination to
                     // vertical pixels of 1x source.
                     if (msaa_2x_attachments_supported_) {
-                      id_vector_temp.clear();
-                      id_vector_temp.push_back(builder.createBinOp(
-                          spv::OpBitwiseXor, type_uint, dest_sample_id,
-                          builder.makeUintConstant(1)));
-                      id_vector_temp.push_back(dest_tile_pixel_y);
-                      id_vector_temp.push_back(builder.makeUintConstant(1));
-                      id_vector_temp.push_back(builder.makeUintConstant(31));
-                      host_depth_source_tile_pixel_y = builder.createOp(
-                          spv::OpBitFieldInsert, type_uint, id_vector_temp);
+                      host_depth_source_tile_pixel_y = builder.createQuadOp(
+                          spv::OpBitFieldInsert, type_uint,
+                          builder.createBinOp(spv::OpBitwiseXor, type_uint,
+                                              dest_sample_id,
+                                              builder.makeUintConstant(1)),
+                          dest_tile_pixel_y, builder.makeUintConstant(1),
+                          builder.makeUintConstant(31));
                     } else {
-                      id_vector_temp.clear();
-                      id_vector_temp.push_back(builder.createBinOp(
-                          spv::OpShiftRightLogical, type_uint, dest_sample_id,
-                          builder.makeUintConstant(1)));
-                      id_vector_temp.push_back(dest_tile_pixel_y);
-                      id_vector_temp.push_back(builder.makeUintConstant(1));
-                      id_vector_temp.push_back(builder.makeUintConstant(31));
-                      host_depth_source_tile_pixel_y = builder.createOp(
-                          spv::OpBitFieldInsert, type_uint, id_vector_temp);
+                      host_depth_source_tile_pixel_y = builder.createQuadOp(
+                          spv::OpBitFieldInsert, type_uint,
+                          builder.createBinOp(spv::OpShiftRightLogical,
+                                              type_uint, dest_sample_id,
+                                              builder.makeUintConstant(1)),
+                          dest_tile_pixel_y, builder.makeUintConstant(1),
+                          builder.makeUintConstant(31));
                     }
                   }
                 }
@@ -4117,28 +3999,23 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             if (key.dest_msaa_samples >= xenos::MsaaSamples::k2X) {
               if (key.dest_msaa_samples >= xenos::MsaaSamples::k4X) {
                 // Horizontal sample index in bit 0.
-                id_vector_temp.clear();
-                id_vector_temp.push_back(dest_sample_id);
-                id_vector_temp.push_back(dest_tile_pixel_x);
-                id_vector_temp.push_back(builder.makeUintConstant(1));
-                id_vector_temp.push_back(builder.makeUintConstant(31));
-                dest_tile_sample_x = builder.createOp(
-                    spv::OpBitFieldInsert, type_uint, id_vector_temp);
+                dest_tile_sample_x = builder.createQuadOp(
+                    spv::OpBitFieldInsert, type_uint, dest_sample_id,
+                    dest_tile_pixel_x, builder.makeUintConstant(1),
+                    builder.makeUintConstant(31));
               }
               // Vertical sample index as 1 or 0 in bit 0 for true 2x or as 0
               // or 1 in bit 1 for 4x or for 2x emulated as 4x.
-              id_vector_temp.clear();
-              id_vector_temp.push_back(builder.createBinOp(
-                  (key.dest_msaa_samples == xenos::MsaaSamples::k2X &&
-                   msaa_2x_attachments_supported_)
-                      ? spv::OpBitwiseXor
-                      : spv::OpShiftRightLogical,
-                  type_uint, dest_sample_id, builder.makeUintConstant(1)));
-              id_vector_temp.push_back(dest_tile_pixel_y);
-              id_vector_temp.push_back(builder.makeUintConstant(1));
-              id_vector_temp.push_back(builder.makeUintConstant(31));
-              dest_tile_sample_y = builder.createOp(spv::OpBitFieldInsert,
-                                                    type_uint, id_vector_temp);
+              dest_tile_sample_y = builder.createQuadOp(
+                  spv::OpBitFieldInsert, type_uint,
+                  builder.createBinOp(
+                      (key.dest_msaa_samples == xenos::MsaaSamples::k2X &&
+                       msaa_2x_attachments_supported_)
+                          ? spv::OpBitwiseXor
+                          : spv::OpShiftRightLogical,
+                      type_uint, dest_sample_id, builder.makeUintConstant(1)),
+                  dest_tile_pixel_y, builder.makeUintConstant(1),
+                  builder.makeUintConstant(31));
             }
             // Combine the tile sample index and the tile index.
             // The tile index doesn't need to be wrapped, as the host depth is
@@ -4184,15 +4061,13 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                 // Round to the nearest even integer. This seems to be the
                 // correct conversion, adding +0.5 and rounding towards zero
                 // results in red instead of black in the 4D5307E6 clear shader.
-                id_vector_temp.clear();
-                id_vector_temp.push_back(builder.createBinOp(
-                    spv::OpFMul, type_float, host_depth32,
-                    builder.makeFloatConstant(float(0xFFFFFF))));
                 host_depth24 = builder.createUnaryOp(
                     spv::OpConvertFToU, type_uint,
-                    builder.createBuiltinCall(type_float, ext_inst_glsl_std_450,
-                                              GLSLstd450RoundEven,
-                                              id_vector_temp));
+                    builder.createUnaryBuiltinCall(
+                        type_float, ext_inst_glsl_std_450, GLSLstd450RoundEven,
+                        builder.createBinOp(
+                            spv::OpFMul, type_float, host_depth32,
+                            builder.makeFloatConstant(float(0xFFFFFF)))));
               } break;
               case xenos::DepthRenderTargetFormat::kD24FS8: {
                 host_depth24 = SpirvShaderTranslator::PreClampedDepthTo20e4(
@@ -4213,16 +4088,8 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                   builder.makeNewBlock();
               depth24_to_depth32_merge = &depth24_to_depth32_merge_block;
             }
-            {
-              std::unique_ptr<spv::Instruction> depth24_to_depth32_merge_op =
-                  std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
-              depth24_to_depth32_merge_op->addIdOperand(
-                  depth24_to_depth32_merge->getId());
-              depth24_to_depth32_merge_op->addImmediateOperand(
-                  spv::SelectionControlMaskNone);
-              builder.getBuildPoint()->addInstruction(
-                  std::move(depth24_to_depth32_merge_op));
-            }
+            builder.createSelectionMerge(depth24_to_depth32_merge,
+                                         spv::SelectionControlMaskNone);
             builder.createConditionalBranch(host_depth_outdated,
                                             &depth24_to_depth32_convert_entry,
                                             depth24_to_depth32_merge);
@@ -4304,15 +4171,8 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               builder.makeUintConstant(0));
           spv::Block& stencil_bit_kill_block = builder.makeNewBlock();
           spv::Block& stencil_bit_merge_block = builder.makeNewBlock();
-          {
-            std::unique_ptr<spv::Instruction> stencil_bit_merge_op =
-                std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
-            stencil_bit_merge_op->addIdOperand(stencil_bit_merge_block.getId());
-            stencil_bit_merge_op->addImmediateOperand(
-                spv::SelectionControlMaskNone);
-            builder.getBuildPoint()->addInstruction(
-                std::move(stencil_bit_merge_op));
-          }
+          builder.createSelectionMerge(&stencil_bit_merge_block,
+                                       spv::SelectionControlMaskNone);
           builder.createConditionalBranch(stencil_sample_passed,
                                           &stencil_bit_merge_block,
                                           &stencil_bit_kill_block);
@@ -5582,7 +5442,7 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
 
   std::vector<spv::Id> id_vector_temp;
 
-  spv::Builder builder(spv::Spv_1_0,
+  SpirvBuilder builder(spv::Spv_1_0,
                        (SpirvShaderTranslator::kSpirvMagicToolId << 16) | 1,
                        nullptr);
   spv::Id ext_inst_glsl_std_450 = builder.import("GLSL.std.450");
@@ -5832,14 +5692,11 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
                                            source_sample_x, const_uint_1);
       // 4x MSAA source texture sample index - bit 0 for horizontal, bit 1 for
       // vertical.
-      id_vector_temp.clear();
-      id_vector_temp.push_back(builder.createBinOp(
-          spv::OpBitwiseAnd, type_uint, source_sample_x, const_uint_1));
-      id_vector_temp.push_back(source_sample_y);
-      id_vector_temp.push_back(const_uint_1);
-      id_vector_temp.push_back(const_uint_1);
-      source_sample_id =
-          builder.createOp(spv::OpBitFieldInsert, type_uint, id_vector_temp);
+      source_sample_id = builder.createQuadOp(
+          spv::OpBitFieldInsert, type_uint,
+          builder.createBinOp(spv::OpBitwiseAnd, type_uint, source_sample_x,
+                              const_uint_1),
+          source_sample_y, const_uint_1, const_uint_1);
     } else {
       // 2x MSAA source texture sample index - convert from the guest to
       // the Vulkan standard sample locations.
@@ -5895,14 +5752,13 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
         // Round to the nearest even integer. This seems to be the correct
         // conversion, adding +0.5 and rounding towards zero results in red
         // instead of black in the 4D5307E6 clear shader.
-        id_vector_temp.clear();
-        id_vector_temp.push_back(
-            builder.createBinOp(spv::OpFMul, type_float, source_depth32,
-                                builder.makeFloatConstant(float(0xFFFFFF))));
         packed[0] = builder.createUnaryOp(
             spv::OpConvertFToU, type_uint,
-            builder.createBuiltinCall(type_float, ext_inst_glsl_std_450,
-                                      GLSLstd450RoundEven, id_vector_temp));
+            builder.createUnaryBuiltinCall(
+                type_float, ext_inst_glsl_std_450, GLSLstd450RoundEven,
+                builder.createBinOp(
+                    spv::OpFMul, type_float, source_depth32,
+                    builder.makeFloatConstant(float(0xFFFFFF)))));
       } break;
       case xenos::DepthRenderTargetFormat::kD24FS8: {
         packed[0] = SpirvShaderTranslator::PreClampedDepthTo20e4(
@@ -5910,13 +5766,9 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
             ext_inst_glsl_std_450);
       } break;
     }
-    id_vector_temp.clear();
-    id_vector_temp.push_back(source_stencil);
-    id_vector_temp.push_back(packed[0]);
-    id_vector_temp.push_back(builder.makeUintConstant(8));
-    id_vector_temp.push_back(builder.makeUintConstant(24));
-    packed[0] =
-        builder.createOp(spv::OpBitFieldInsert, type_uint, id_vector_temp);
+    packed[0] = builder.createQuadOp(
+        spv::OpBitFieldInsert, type_uint, source_stencil, packed[0],
+        builder.makeUintConstant(8), builder.makeUintConstant(24));
   } else {
     switch (key.GetColorFormat()) {
       case xenos::ColorRenderTargetFormat::k_8_8_8_8:
@@ -5934,21 +5786,18 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
                 unorm_round_offset));
         spv::Id component_width = builder.makeUintConstant(8);
         for (uint32_t i = 1; i < 4; ++i) {
-          id_vector_temp.clear();
-          id_vector_temp.push_back(packed[0]);
-          id_vector_temp.push_back(builder.createUnaryOp(
-              spv::OpConvertFToU, type_uint,
-              builder.createBinOp(
-                  spv::OpFAdd, type_float,
-                  builder.createBinOp(spv::OpFMul, type_float,
-                                      builder.createCompositeExtract(
-                                          source_vec4, type_float, i),
-                                      unorm_scale),
-                  unorm_round_offset)));
-          id_vector_temp.push_back(builder.makeUintConstant(8 * i));
-          id_vector_temp.push_back(component_width);
-          packed[0] = builder.createOp(spv::OpBitFieldInsert, type_uint,
-                                       id_vector_temp);
+          packed[0] = builder.createQuadOp(
+              spv::OpBitFieldInsert, type_uint, packed[0],
+              builder.createUnaryOp(
+                  spv::OpConvertFToU, type_uint,
+                  builder.createBinOp(
+                      spv::OpFAdd, type_float,
+                      builder.createBinOp(spv::OpFMul, type_float,
+                                          builder.createCompositeExtract(
+                                              source_vec4, type_float, i),
+                                          unorm_scale),
+                      unorm_round_offset)),
+              builder.makeUintConstant(8 * i), component_width);
         }
       } break;
       case xenos::ColorRenderTargetFormat::k_2_10_10_10:
@@ -5968,21 +5817,19 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
         spv::Id unorm_scale_a = builder.makeFloatConstant(3.0f);
         spv::Id width_a = builder.makeUintConstant(2);
         for (uint32_t i = 1; i < 4; ++i) {
-          id_vector_temp.clear();
-          id_vector_temp.push_back(packed[0]);
-          id_vector_temp.push_back(builder.createUnaryOp(
-              spv::OpConvertFToU, type_uint,
-              builder.createBinOp(
-                  spv::OpFAdd, type_float,
-                  builder.createBinOp(spv::OpFMul, type_float,
-                                      builder.createCompositeExtract(
-                                          source_vec4, type_float, i),
-                                      i == 3 ? unorm_scale_a : unorm_scale_rgb),
-                  unorm_round_offset)));
-          id_vector_temp.push_back(builder.makeUintConstant(10 * i));
-          id_vector_temp.push_back(i == 3 ? width_a : width_rgb);
-          packed[0] = builder.createOp(spv::OpBitFieldInsert, type_uint,
-                                       id_vector_temp);
+          packed[0] = builder.createQuadOp(
+              spv::OpBitFieldInsert, type_uint, packed[0],
+              builder.createUnaryOp(
+                  spv::OpConvertFToU, type_uint,
+                  builder.createBinOp(
+                      spv::OpFAdd, type_float,
+                      builder.createBinOp(
+                          spv::OpFMul, type_float,
+                          builder.createCompositeExtract(source_vec4,
+                                                         type_float, i),
+                          i == 3 ? unorm_scale_a : unorm_scale_rgb),
+                      unorm_round_offset)),
+              builder.makeUintConstant(10 * i), i == 3 ? width_a : width_rgb);
         }
       } break;
       case xenos::ColorRenderTargetFormat::k_2_10_10_10_FLOAT:
@@ -5994,39 +5841,30 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
             ext_inst_glsl_std_450);
         spv::Id width_rgb = builder.makeUintConstant(10);
         for (uint32_t i = 1; i < 3; ++i) {
-          id_vector_temp.clear();
-          id_vector_temp.push_back(packed[0]);
-          id_vector_temp.push_back(SpirvShaderTranslator::UnclampedFloat32To7e3(
-              builder,
-              builder.createCompositeExtract(source_vec4, type_float, i),
-              ext_inst_glsl_std_450));
-          id_vector_temp.push_back(builder.makeUintConstant(10 * i));
-          id_vector_temp.push_back(width_rgb);
-          packed[0] = builder.createOp(spv::OpBitFieldInsert, type_uint,
-                                       id_vector_temp);
-          // Saturate and convert the alpha.
-          id_vector_temp.clear();
-          id_vector_temp.push_back(
-              builder.createCompositeExtract(source_vec4, type_float, 3));
-          id_vector_temp.push_back(builder.makeFloatConstant(0.0f));
-          id_vector_temp.push_back(builder.makeFloatConstant(1.0f));
-          spv::Id alpha_saturated =
-              builder.createBuiltinCall(type_float, ext_inst_glsl_std_450,
-                                        GLSLstd450NClamp, id_vector_temp);
-          id_vector_temp.clear();
-          id_vector_temp.push_back(packed[0]);
-          id_vector_temp.push_back(builder.createUnaryOp(
-              spv::OpConvertFToU, type_uint,
-              builder.createBinOp(
-                  spv::OpFAdd, type_float,
-                  builder.createBinOp(spv::OpFMul, type_float, alpha_saturated,
-                                      builder.makeFloatConstant(3.0f)),
-                  builder.makeFloatConstant(0.5f))));
-          id_vector_temp.push_back(builder.makeUintConstant(30));
-          id_vector_temp.push_back(builder.makeUintConstant(2));
-          packed[0] = builder.createOp(spv::OpBitFieldInsert, type_uint,
-                                       id_vector_temp);
+          packed[0] = builder.createQuadOp(
+              spv::OpBitFieldInsert, type_uint, packed[0],
+              SpirvShaderTranslator::UnclampedFloat32To7e3(
+                  builder,
+                  builder.createCompositeExtract(source_vec4, type_float, i),
+                  ext_inst_glsl_std_450),
+              builder.makeUintConstant(10 * i), width_rgb);
         }
+        // Saturate and convert the alpha.
+        spv::Id alpha_saturated = builder.createTriBuiltinCall(
+            type_float, ext_inst_glsl_std_450, GLSLstd450NClamp,
+            builder.createCompositeExtract(source_vec4, type_float, 3),
+            builder.makeFloatConstant(0.0f), builder.makeFloatConstant(1.0f));
+        packed[0] = builder.createQuadOp(
+            spv::OpBitFieldInsert, type_uint, packed[0],
+            builder.createUnaryOp(
+                spv::OpConvertFToU, type_uint,
+                builder.createBinOp(
+                    spv::OpFAdd, type_float,
+                    builder.createBinOp(spv::OpFMul, type_float,
+                                        alpha_saturated,
+                                        builder.makeFloatConstant(3.0f)),
+                    builder.makeFloatConstant(0.5f))),
+            builder.makeUintConstant(30), builder.makeUintConstant(2));
       } break;
       case xenos::ColorRenderTargetFormat::k_16_16:
       case xenos::ColorRenderTargetFormat::k_16_16_16_16:
@@ -6041,15 +5879,11 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
         // anyway).
         spv::Id component_offset_width = builder.makeUintConstant(16);
         for (uint32_t i = 0; i <= uint32_t(format_is_64bpp); ++i) {
-          id_vector_temp.clear();
-          id_vector_temp.push_back(
-              builder.createCompositeExtract(source_vec4, type_uint, 2 * i));
-          id_vector_temp.push_back(builder.createCompositeExtract(
-              source_vec4, type_uint, 2 * i + 1));
-          id_vector_temp.push_back(component_offset_width);
-          id_vector_temp.push_back(component_offset_width);
-          packed[i] = builder.createOp(spv::OpBitFieldInsert, type_uint,
-                                       id_vector_temp);
+          packed[i] = builder.createQuadOp(
+              spv::OpBitFieldInsert, type_uint,
+              builder.createCompositeExtract(source_vec4, type_uint, 2 * i),
+              builder.createCompositeExtract(source_vec4, type_uint, 2 * i + 1),
+              component_offset_width, component_offset_width);
         }
       } break;
       // Float32 is transferred as uint32 to preserve NaN encodings. However,

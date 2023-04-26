@@ -161,7 +161,7 @@ uint32_t SpirvShaderTranslator::GetModificationRegisterCount() const {
 
 void SpirvShaderTranslator::StartTranslation() {
   // TODO(Triang3l): Logger.
-  builder_ = std::make_unique<spv::Builder>(
+  builder_ = std::make_unique<SpirvBuilder>(
       features_.spirv_version, (kSpirvMagicToolId << 16) | 1, nullptr);
 
   builder_->addCapability(IsSpirvTessEvalShader() ? spv::CapabilityTessellation
@@ -591,8 +591,8 @@ void SpirvShaderTranslator::StartTranslation() {
     main_switch_header_ = builder_->getBuildPoint();
     main_switch_merge_ =
         new spv::Block(builder_->getUniqueId(), *function_main_);
-    SpirvCreateSelectionMerge(main_switch_merge_->getId(),
-                              spv::SelectionControlDontFlattenMask);
+    builder_->createSelectionMerge(main_switch_merge_,
+                                   spv::SelectionControlDontFlattenMask);
     main_switch_op_ = std::make_unique<spv::Instruction>(spv::OpSwitch);
     main_switch_op_->addIdOperand(main_loop_pc_current);
     main_switch_op_->addIdOperand(main_switch_merge_->getId());
@@ -914,7 +914,7 @@ void SpirvShaderTranslator::ProcessLoopStartInstruction(
       spv::OpIEqual, type_bool_, loop_count_new, const_uint_0_);
   spv::Block& skip_block = builder_->makeNewBlock();
   spv::Block& body_block = builder_->makeNewBlock();
-  SpirvCreateSelectionMerge(body_block.getId());
+  builder_->createSelectionMerge(&body_block, spv::SelectionControlMaskNone);
   {
     std::unique_ptr<spv::Instruction> branch_conditional_op =
         std::make_unique<spv::Instruction>(spv::OpBranchConditional);
@@ -976,7 +976,7 @@ void SpirvShaderTranslator::ProcessLoopEndInstruction(
   spv::Block& body_block = *builder_->getBuildPoint();
   spv::Block& continue_block = builder_->makeNewBlock();
   spv::Block& break_block = builder_->makeNewBlock();
-  SpirvCreateSelectionMerge(break_block.getId());
+  builder_->createSelectionMerge(&break_block, spv::SelectionControlMaskNone);
   {
     std::unique_ptr<spv::Instruction> branch_conditional_op =
         std::make_unique<spv::Instruction>(spv::OpBranchConditional);
@@ -1110,7 +1110,6 @@ spv::Id SpirvShaderTranslator::SpirvSmearScalarResultOrConstant(
   }
   int num_components = builder_->getNumTypeComponents(vector_type);
   id_vector_temp_util_.clear();
-  id_vector_temp_util_.reserve(size_t(num_components));
   for (int i = 0; i < num_components; ++i) {
     id_vector_temp_util_.push_back(scalar);
   }
@@ -1294,8 +1293,8 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
         spv::Block& block_load_vertex_index_pre = *builder_->getBuildPoint();
         spv::Block& block_load_vertex_index_start = builder_->makeNewBlock();
         spv::Block& block_load_vertex_index_merge = builder_->makeNewBlock();
-        SpirvCreateSelectionMerge(block_load_vertex_index_merge.getId(),
-                                  spv::SelectionControlDontFlattenMask);
+        builder_->createSelectionMerge(&block_load_vertex_index_merge,
+                                       spv::SelectionControlDontFlattenMask);
         builder_->createConditionalBranch(load_vertex_index,
                                           &block_load_vertex_index_start,
                                           &block_load_vertex_index_merge);
@@ -1390,8 +1389,8 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
           spv::Block& block_load_vertex_index_pre = *builder_->getBuildPoint();
           spv::Block& block_load_vertex_index_start = builder_->makeNewBlock();
           spv::Block& block_load_vertex_index_merge = builder_->makeNewBlock();
-          SpirvCreateSelectionMerge(block_load_vertex_index_merge.getId(),
-                                    spv::SelectionControlDontFlattenMask);
+          builder_->createSelectionMerge(&block_load_vertex_index_merge,
+                                         spv::SelectionControlDontFlattenMask);
           builder_->createConditionalBranch(load_vertex_index,
                                             &block_load_vertex_index_start,
                                             &block_load_vertex_index_merge);
@@ -1491,9 +1490,8 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
           builder_->makeUintConstant(
               static_cast<unsigned int>(kSysFlag_WNotReciprocal))),
       const_uint_0_);
-  spv::Id guest_position_w_inv = builder_->createBinOp(
+  spv::Id guest_position_w_inv = builder_->createNoContractionBinOp(
       spv::OpFDiv, type_float_, const_float_1_, position_w);
-  builder_->addDecoration(guest_position_w_inv, spv::DecorationNoContraction);
   position_w =
       builder_->createTriOp(spv::OpSelect, type_float_, is_w_not_reciprocal,
                             position_w, guest_position_w_inv);
@@ -1517,10 +1515,8 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
             builder_->makeUintConstant(
                 static_cast<unsigned int>(kSysFlag_XYDividedByW))),
         const_uint_0_);
-    spv::Id guest_position_xy_mul_w = builder_->createBinOp(
+    spv::Id guest_position_xy_mul_w = builder_->createNoContractionBinOp(
         spv::OpVectorTimesScalar, type_float2_, position_xy, position_w);
-    builder_->addDecoration(guest_position_xy_mul_w,
-                            spv::DecorationNoContraction);
     position_xy = builder_->createTriOp(
         spv::OpSelect, type_float2_,
         builder_->smearScalar(spv::NoPrecision, is_xy_divided_by_w,
@@ -1538,10 +1534,8 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
             builder_->makeUintConstant(
                 static_cast<unsigned int>(kSysFlag_ZDividedByW))),
         const_uint_0_);
-    spv::Id guest_position_z_mul_w =
-        builder_->createBinOp(spv::OpFMul, type_float_, position_z, position_w);
-    builder_->addDecoration(guest_position_z_mul_w,
-                            spv::DecorationNoContraction);
+    spv::Id guest_position_z_mul_w = builder_->createNoContractionBinOp(
+        spv::OpFMul, type_float_, position_z, position_w);
     position_z =
         builder_->createTriOp(spv::OpSelect, type_float_, is_z_divided_by_w,
                               guest_position_z_mul_w, position_z);
@@ -1566,9 +1560,8 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
       builder_->createAccessChain(spv::StorageClassUniform,
                                   uniform_system_constants_, id_vector_temp_),
       spv::NoPrecision);
-  position_xyz =
-      builder_->createBinOp(spv::OpFMul, type_float3_, position_xyz, ndc_scale);
-  builder_->addDecoration(position_xyz, spv::DecorationNoContraction);
+  position_xyz = builder_->createNoContractionBinOp(spv::OpFMul, type_float3_,
+                                                    position_xyz, ndc_scale);
   id_vector_temp_.clear();
   id_vector_temp_.push_back(
       builder_->makeIntConstant(kSystemConstantNdcOffset));
@@ -1576,12 +1569,10 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
       builder_->createAccessChain(spv::StorageClassUniform,
                                   uniform_system_constants_, id_vector_temp_),
       spv::NoPrecision);
-  spv::Id ndc_offset_mul_w = builder_->createBinOp(
+  spv::Id ndc_offset_mul_w = builder_->createNoContractionBinOp(
       spv::OpVectorTimesScalar, type_float3_, ndc_offset, position_w);
-  builder_->addDecoration(ndc_offset_mul_w, spv::DecorationNoContraction);
-  position_xyz = builder_->createBinOp(spv::OpFAdd, type_float3_, position_xyz,
-                                       ndc_offset_mul_w);
-  builder_->addDecoration(position_xyz, spv::DecorationNoContraction);
+  position_xyz = builder_->createNoContractionBinOp(
+      spv::OpFAdd, type_float3_, position_xyz, ndc_offset_mul_w);
 
   // Write the point size.
   if (output_point_size_ != spv::NoResult) {
@@ -1667,36 +1658,29 @@ void SpirvShaderTranslator::CompleteVertexOrTessEvalShaderInMain() {
     id_vector_temp_.clear();
     id_vector_temp_.push_back(builder_->makeIntConstant(
         kSystemConstantPointScreenDiameterToNdcRadius));
-    spv::Id point_radius = builder_->createBinOp(
+    spv::Id point_radius = builder_->createNoContractionBinOp(
         spv::OpFMul, type_float2_, point_guest_diameter,
         builder_->createLoad(builder_->createAccessChain(
                                  spv::StorageClassUniform,
                                  uniform_system_constants_, id_vector_temp_),
                              spv::NoPrecision));
-    builder_->addDecoration(point_radius, spv::DecorationNoContraction);
     // Transform the radius from the normalized device coordinates to the clip
     // space.
-    point_radius = builder_->createBinOp(spv::OpVectorTimesScalar, type_float2_,
-                                         point_radius, position_w);
-    builder_->addDecoration(point_radius, spv::DecorationNoContraction);
+    point_radius = builder_->createNoContractionBinOp(
+        spv::OpVectorTimesScalar, type_float2_, point_radius, position_w);
 
-    // Apply the direction of expansion for the current host vertex.
-    spv::Id point_radius_negative =
-        builder_->createUnaryOp(spv::OpFNegate, type_float2_, point_radius);
-    builder_->addDecoration(point_radius_negative,
-                            spv::DecorationNoContraction);
-    // Expand the point sprite.
+    // Expand the point sprite in the direction for the current host vertex.
     uint_vector_temp_.clear();
     uint_vector_temp_.push_back(0);
     uint_vector_temp_.push_back(1);
-    spv::Id point_position_xy = builder_->createBinOp(
+    spv::Id point_position_xy = builder_->createNoContractionBinOp(
         spv::OpFAdd, type_float2_,
         builder_->createRvalueSwizzle(spv::NoPrecision, type_float2_,
                                       position_xyz, uint_vector_temp_),
         builder_->createTriOp(spv::OpSelect, type_float2_,
                               point_vertex_positive, point_radius,
-                              point_radius_negative));
-    builder_->addDecoration(point_position_xy, spv::DecorationNoContraction);
+                              builder_->createNoContractionUnaryOp(
+                                  spv::OpFNegate, type_float2_, point_radius)));
     // Store the position.
     spv::Id position;
     {
@@ -1993,8 +1977,8 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
           builder_->makeNewBlock();
       main_fsi_early_depth_stencil_execute_quad_merge_ =
           &builder_->makeNewBlock();
-      SpirvCreateSelectionMerge(
-          main_fsi_early_depth_stencil_execute_quad_merge_->getId(),
+      builder_->createSelectionMerge(
+          main_fsi_early_depth_stencil_execute_quad_merge_,
           spv::SelectionControlDontFlattenMask);
       builder_->createConditionalBranch(
           quad_needs_execution, &main_fsi_early_depth_stencil_execute_quad,
@@ -2053,19 +2037,15 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
     assert_true(input_fragment_coordinates_ != spv::NoResult);
     id_vector_temp_.clear();
     id_vector_temp_.push_back(const_int_0_);
-    spv::Id param_gen_x =
-        builder_->createLoad(builder_->createAccessChain(
-                                 spv::StorageClassInput,
-                                 input_fragment_coordinates_, id_vector_temp_),
-                             spv::NoPrecision);
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(param_gen_x);
-    param_gen_x = builder_->createBuiltinCall(
-        type_float_, ext_inst_glsl_std_450_, GLSLstd450Floor, id_vector_temp_);
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(param_gen_x);
-    param_gen_x = builder_->createBuiltinCall(
-        type_float_, ext_inst_glsl_std_450_, GLSLstd450FAbs, id_vector_temp_);
+    spv::Id param_gen_x = builder_->createUnaryBuiltinCall(
+        type_float_, ext_inst_glsl_std_450_, GLSLstd450FAbs,
+        builder_->createUnaryBuiltinCall(
+            type_float_, ext_inst_glsl_std_450_, GLSLstd450Floor,
+            builder_->createLoad(
+                builder_->createAccessChain(spv::StorageClassInput,
+                                            input_fragment_coordinates_,
+                                            id_vector_temp_),
+                spv::NoPrecision)));
     if (!modification.pixel.param_gen_point) {
       assert_true(input_front_facing_ != spv::NoResult);
       param_gen_x = builder_->createTriOp(
@@ -2092,19 +2072,15 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
     // Y - pixel Y .0 in the magnitude, is point in the sign bit.
     id_vector_temp_.clear();
     id_vector_temp_.push_back(builder_->makeIntConstant(1));
-    spv::Id param_gen_y =
-        builder_->createLoad(builder_->createAccessChain(
-                                 spv::StorageClassInput,
-                                 input_fragment_coordinates_, id_vector_temp_),
-                             spv::NoPrecision);
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(param_gen_y);
-    param_gen_y = builder_->createBuiltinCall(
-        type_float_, ext_inst_glsl_std_450_, GLSLstd450Floor, id_vector_temp_);
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(param_gen_y);
-    param_gen_y = builder_->createBuiltinCall(
-        type_float_, ext_inst_glsl_std_450_, GLSLstd450FAbs, id_vector_temp_);
+    spv::Id param_gen_y = builder_->createUnaryBuiltinCall(
+        type_float_, ext_inst_glsl_std_450_, GLSLstd450FAbs,
+        builder_->createUnaryBuiltinCall(
+            type_float_, ext_inst_glsl_std_450_, GLSLstd450Floor,
+            builder_->createLoad(
+                builder_->createAccessChain(spv::StorageClassInput,
+                                            input_fragment_coordinates_,
+                                            id_vector_temp_),
+                spv::NoPrecision)));
     if (modification.pixel.param_gen_point) {
       param_gen_y = builder_->createUnaryOp(
           spv::OpBitcast, type_float_,
@@ -2120,14 +2096,10 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
       assert_true(input_point_coordinates_ != spv::NoResult);
       // Saturate to avoid negative point coordinates if the center of the pixel
       // is not covered, and extrapolation is done.
-      id_vector_temp_.clear();
-      id_vector_temp_.push_back(
-          builder_->createLoad(input_point_coordinates_, spv::NoPrecision));
-      id_vector_temp_.push_back(const_float2_0_);
-      id_vector_temp_.push_back(const_float2_1_);
-      spv::Id param_gen_point_coordinates =
-          builder_->createBuiltinCall(type_float2_, ext_inst_glsl_std_450_,
-                                      GLSLstd450NClamp, id_vector_temp_);
+      spv::Id param_gen_point_coordinates = builder_->createTriBuiltinCall(
+          type_float2_, ext_inst_glsl_std_450_, GLSLstd450NClamp,
+          builder_->createLoad(input_point_coordinates_, spv::NoPrecision),
+          const_float2_0_, const_float2_1_);
       param_gen_z = builder_->createCompositeExtract(
           param_gen_point_coordinates, type_float_, 0);
       param_gen_w = builder_->createCompositeExtract(
@@ -2245,7 +2217,8 @@ void SpirvShaderTranslator::UpdateExecConditionals(
   cf_exec_condition_ = condition;
   cf_exec_conditional_merge_ = new spv::Block(
       builder_->getUniqueId(), builder_->getBuildPoint()->getParent());
-  SpirvCreateSelectionMerge(cf_exec_conditional_merge_->getId());
+  builder_->createSelectionMerge(cf_exec_conditional_merge_,
+                                 spv::SelectionControlDontFlattenMask);
   spv::Block& inner_block = builder_->makeNewBlock();
   builder_->createConditionalBranch(
       condition_id, condition ? &inner_block : cf_exec_conditional_merge_,
@@ -2285,7 +2258,8 @@ void SpirvShaderTranslator::UpdateInstructionPredication(bool predicated,
   spv::Block& predicated_block = builder_->makeNewBlock();
   cf_instruction_predicate_merge_ = new spv::Block(
       builder_->getUniqueId(), builder_->getBuildPoint()->getParent());
-  SpirvCreateSelectionMerge(cf_instruction_predicate_merge_->getId());
+  builder_->createSelectionMerge(cf_instruction_predicate_merge_,
+                                 spv::SelectionControlMaskNone);
   builder_->createConditionalBranch(
       predicate_id,
       condition ? &predicated_block : cf_instruction_predicate_merge_,
@@ -2386,7 +2360,6 @@ spv::Id SpirvShaderTranslator::LoadOperandStorage(
     case InstructionStorageSource::kConstantFloat:
       assert_true(uniform_float_constants_ != spv::NoResult);
       id_vector_temp_util_.clear();
-      id_vector_temp_util_.reserve(2);
       // The first and the only structure member.
       id_vector_temp_util_.push_back(const_int_0_);
       // Array element.
@@ -2412,16 +2385,13 @@ spv::Id SpirvShaderTranslator::ApplyOperandModifiers(
   }
   if (original_operand.is_absolute_value || force_absolute) {
     EnsureBuildPointAvailable();
-    id_vector_temp_util_.clear();
-    id_vector_temp_util_.push_back(operand_value);
-    operand_value = builder_->createBuiltinCall(
-        type, ext_inst_glsl_std_450_, GLSLstd450FAbs, id_vector_temp_util_);
+    operand_value = builder_->createUnaryBuiltinCall(
+        type, ext_inst_glsl_std_450_, GLSLstd450FAbs, operand_value);
   }
   if (original_operand.is_negated != invert_negate) {
     EnsureBuildPointAvailable();
-    operand_value =
-        builder_->createUnaryOp(spv::OpFNegate, type, operand_value);
-    builder_->addDecoration(operand_value, spv::DecorationNoContraction);
+    operand_value = builder_->createNoContractionUnaryOp(spv::OpFNegate, type,
+                                                         operand_value);
   }
   return operand_value;
 }
@@ -2448,7 +2418,6 @@ spv::Id SpirvShaderTranslator::GetUnmodifiedOperandComponents(
             static_cast<unsigned int>(SwizzleSource::kX));
   }
   uint_vector_temp_util_.clear();
-  uint_vector_temp_util_.reserve(component_count);
   uint32_t components_remaining = components;
   uint32_t component_index;
   while (xe::bit_scan_forward(components_remaining, &component_index)) {
@@ -2481,11 +2450,9 @@ spv::Id SpirvShaderTranslator::GetAbsoluteOperand(
     return operand_storage;
   }
   EnsureBuildPointAvailable();
-  id_vector_temp_util_.clear();
-  id_vector_temp_util_.push_back(operand_storage);
-  return builder_->createBuiltinCall(builder_->getTypeId(operand_storage),
-                                     ext_inst_glsl_std_450_, GLSLstd450FAbs,
-                                     id_vector_temp_util_);
+  return builder_->createUnaryBuiltinCall(builder_->getTypeId(operand_storage),
+                                          ext_inst_glsl_std_450_,
+                                          GLSLstd450FAbs, operand_storage);
 }
 
 void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
@@ -2574,16 +2541,11 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
 
   if (result.is_clamped && non_constant_components) {
     // Apply the saturation modifier to the result.
-    id_vector_temp_util_.clear();
-    id_vector_temp_util_.reserve(3);
-    id_vector_temp_util_.push_back(value);
-    id_vector_temp_util_.push_back(
-        const_float_vectors_0_[value_num_components - 1]);
-    id_vector_temp_util_.push_back(
-        const_float_vectors_1_[value_num_components - 1]);
-    value = builder_->createBuiltinCall(
+    value = builder_->createTriBuiltinCall(
         type_float_vectors_[value_num_components - 1], ext_inst_glsl_std_450_,
-        GLSLstd450NClamp, id_vector_temp_util_);
+        GLSLstd450NClamp, value,
+        const_float_vectors_0_[value_num_components - 1],
+        const_float_vectors_1_[value_num_components - 1]);
   }
 
   // The value contains either result.GetUsedResultComponents() in a condensed
@@ -2660,7 +2622,6 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
             value_to_store = value;
           } else {
             uint_vector_temp_util_.clear();
-            uint_vector_temp_util_.reserve(target_num_components);
             uint_vector_temp_util_.insert(
                 uint_vector_temp_util_.cend(), result_swizzled_value_components,
                 result_swizzled_value_components + target_num_components);
@@ -2686,7 +2647,6 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
       if (target_num_components > 1) {
         // Constants only - vector target.
         id_vector_temp_util_.clear();
-        id_vector_temp_util_.reserve(target_num_components);
         for (uint32_t i = 0; i < target_num_components; ++i) {
           id_vector_temp_util_.push_back(
               (constant_values & (1 << i)) ? const_float_1_ : const_float_0_);
@@ -2718,7 +2678,6 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
       } else {
         // Mixed non-constants and constants - scalar source.
         id_vector_temp_util_.clear();
-        id_vector_temp_util_.reserve(target_num_components);
         for (uint32_t i = 0; i < target_num_components; ++i) {
           if (constant_components & (1 << i)) {
             id_vector_temp_util_.push_back(
@@ -2804,13 +2763,9 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
                                         uniform_system_constants_,
                                         id_vector_temp_util_),
             spv::NoPrecision));
-    id_vector_temp_util_.clear();
-    id_vector_temp_util_.reserve(2);
-    id_vector_temp_util_.push_back(point_vertex_diameter_min);
-    id_vector_temp_util_.push_back(point_size);
-    point_size =
-        builder_->createBuiltinCall(type_int_, ext_inst_glsl_std_450_,
-                                    GLSLstd450SMax, id_vector_temp_util_);
+    point_size = builder_->createBinBuiltinCall(
+        type_int_, ext_inst_glsl_std_450_, GLSLstd450SMax,
+        point_vertex_diameter_min, point_size);
     id_vector_temp_util_.clear();
     id_vector_temp_util_.push_back(
         builder_->makeIntConstant(kSystemConstantPointVertexDiameterMax));
@@ -2821,13 +2776,9 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
                                         uniform_system_constants_,
                                         id_vector_temp_util_),
             spv::NoPrecision));
-    id_vector_temp_util_.clear();
-    id_vector_temp_util_.reserve(2);
-    id_vector_temp_util_.push_back(point_vertex_diameter_max);
-    id_vector_temp_util_.push_back(point_size);
-    point_size =
-        builder_->createBuiltinCall(type_int_, ext_inst_glsl_std_450_,
-                                    GLSLstd450SMin, id_vector_temp_util_);
+    point_size = builder_->createBinBuiltinCall(
+        type_int_, ext_inst_glsl_std_450_, GLSLstd450SMin,
+        point_vertex_diameter_max, point_size);
     value_to_store = builder_->createCompositeInsert(
         builder_->createUnaryOp(spv::OpBitcast, type_float_, point_size),
         value_to_store, type_float3_, 0);
@@ -2879,7 +2830,8 @@ spv::Id SpirvShaderTranslator::EndianSwap32Uint(spv::Id value, spv::Id endian) {
   assert_false(block_pre_8in16.isTerminated());
   spv::Block& block_8in16 = builder_->makeNewBlock();
   spv::Block& block_8in16_merge = builder_->makeNewBlock();
-  SpirvCreateSelectionMerge(block_8in16_merge.getId());
+  builder_->createSelectionMerge(&block_8in16_merge,
+                                 spv::SelectionControlMaskNone);
   builder_->createConditionalBranch(is_8in16_or_8in32, &block_8in16,
                                     &block_8in16_merge);
   builder_->setBuildPoint(&block_8in16);
@@ -2919,18 +2871,16 @@ spv::Id SpirvShaderTranslator::EndianSwap32Uint(spv::Id value, spv::Id endian) {
   spv::Block& block_pre_16in32 = *builder_->getBuildPoint();
   spv::Block& block_16in32 = builder_->makeNewBlock();
   spv::Block& block_16in32_merge = builder_->makeNewBlock();
-  SpirvCreateSelectionMerge(block_16in32_merge.getId());
+  builder_->createSelectionMerge(&block_16in32_merge,
+                                 spv::SelectionControlMaskNone);
   builder_->createConditionalBranch(is_8in32_or_16in32, &block_16in32,
                                     &block_16in32_merge);
   builder_->setBuildPoint(&block_16in32);
-  id_vector_temp_.clear();
-  id_vector_temp_.push_back(builder_->createBinOp(
-      spv::OpShiftRightLogical, type, value, const_uint_16_typed));
-  id_vector_temp_.push_back(value);
-  id_vector_temp_.insert(id_vector_temp_.cend(), 2,
-                         builder_->makeIntConstant(16));
-  spv::Id swapped_16in32 =
-      builder_->createOp(spv::OpBitFieldInsert, type, id_vector_temp_);
+  spv::Id swapped_16in32 = builder_->createQuadOp(
+      spv::OpBitFieldInsert, type,
+      builder_->createBinOp(spv::OpShiftRightLogical, type, value,
+                            const_uint_16_typed),
+      value, builder_->makeIntConstant(16), builder_->makeIntConstant(16));
   builder_->createBranch(&block_16in32_merge);
   builder_->setBuildPoint(&block_16in32_merge);
   {
@@ -2991,8 +2941,8 @@ spv::Id SpirvShaderTranslator::LoadUint32FromSharedMemory(
   std::unique_ptr<spv::Instruction> value_phi_op =
       std::make_unique<spv::Instruction>(value_phi_result, type_uint_,
                                          spv::OpPhi);
-  SpirvCreateSelectionMerge(switch_merge_block.getId(),
-                            spv::SelectionControlDontFlattenMask);
+  builder_->createSelectionMerge(&switch_merge_block,
+                                 spv::SelectionControlDontFlattenMask);
   {
     std::unique_ptr<spv::Instruction> switch_op =
         std::make_unique<spv::Instruction>(spv::OpSwitch);
@@ -3042,12 +2992,9 @@ spv::Id SpirvShaderTranslator::PWLGammaToLinear(spv::Id gamma,
 
   if (!gamma_pre_saturated) {
     // Saturate, flushing NaN to 0.
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(gamma);
-    id_vector_temp_.push_back(const_vector_0);
-    id_vector_temp_.push_back(const_vector_1);
-    gamma = builder_->createBuiltinCall(value_type, ext_inst_glsl_std_450_,
-                                        GLSLstd450NClamp, id_vector_temp_);
+    gamma = builder_->createTriBuiltinCall(value_type, ext_inst_glsl_std_450_,
+                                           GLSLstd450NClamp, gamma,
+                                           const_vector_0, const_vector_1);
   }
 
   spv::Id is_piece_at_least_3 = builder_->createBinOp(
@@ -3097,29 +3044,26 @@ spv::Id SpirvShaderTranslator::PWLGammaToLinear(spv::Id gamma,
   spv::Op value_times_scalar_opcode =
       is_vector ? spv::OpVectorTimesScalar : spv::OpFMul;
   // linear = gamma * (255.0f * 1024.0f) * scale + offset
-  spv::Id linear =
-      builder_->createBinOp(value_times_scalar_opcode, value_type, gamma,
-                            builder_->makeFloatConstant(255.0f * 1024.0f));
-  builder_->addDecoration(linear, spv::DecorationNoContraction);
-  linear = builder_->createBinOp(spv::OpFMul, value_type, linear, scale);
-  builder_->addDecoration(linear, spv::DecorationNoContraction);
-  linear = builder_->createBinOp(spv::OpFAdd, value_type, linear, offset);
-  builder_->addDecoration(linear, spv::DecorationNoContraction);
+  spv::Id linear = builder_->createNoContractionBinOp(
+      spv::OpFAdd, value_type,
+      builder_->createNoContractionBinOp(
+          spv::OpFMul, value_type,
+          builder_->createNoContractionBinOp(
+              value_times_scalar_opcode, value_type, gamma,
+              builder_->makeFloatConstant(255.0f * 1024.0f)),
+          scale),
+      offset);
   // linear += trunc(linear * scale)
-  spv::Id linear_integer_term =
-      builder_->createBinOp(spv::OpFMul, value_type, linear, scale);
-  builder_->addDecoration(linear_integer_term, spv::DecorationNoContraction);
-  id_vector_temp_.clear();
-  id_vector_temp_.push_back(linear_integer_term);
-  linear_integer_term = builder_->createBuiltinCall(
-      value_type, ext_inst_glsl_std_450_, GLSLstd450Trunc, id_vector_temp_);
-  linear = builder_->createBinOp(spv::OpFAdd, value_type, linear,
-                                 linear_integer_term);
-  builder_->addDecoration(linear, spv::DecorationNoContraction);
+  linear = builder_->createNoContractionBinOp(
+      spv::OpFAdd, value_type, linear,
+      builder_->createUnaryBuiltinCall(
+          value_type, ext_inst_glsl_std_450_, GLSLstd450Trunc,
+          builder_->createNoContractionBinOp(spv::OpFMul, value_type, linear,
+                                             scale)));
   // linear *= 1.0f / 1023.0f
-  linear = builder_->createBinOp(value_times_scalar_opcode, value_type, linear,
-                                 builder_->makeFloatConstant(1.0f / 1023.0f));
-  builder_->addDecoration(linear, spv::DecorationNoContraction);
+  linear = builder_->createNoContractionBinOp(
+      value_times_scalar_opcode, value_type, linear,
+      builder_->makeFloatConstant(1.0f / 1023.0f));
   return linear;
 }
 
@@ -3139,12 +3083,9 @@ spv::Id SpirvShaderTranslator::LinearToPWLGamma(spv::Id linear,
 
   if (!linear_pre_saturated) {
     // Saturate, flushing NaN to 0.
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(linear);
-    id_vector_temp_.push_back(const_vector_0);
-    id_vector_temp_.push_back(const_vector_1);
-    linear = builder_->createBuiltinCall(value_type, ext_inst_glsl_std_450_,
-                                         GLSLstd450NClamp, id_vector_temp_);
+    linear = builder_->createTriBuiltinCall(value_type, ext_inst_glsl_std_450_,
+                                            GLSLstd450NClamp, linear,
+                                            const_vector_0, const_vector_1);
   }
 
   spv::Id is_piece_at_least_3 = builder_->createBinOp(
@@ -3192,19 +3133,16 @@ spv::Id SpirvShaderTranslator::LinearToPWLGamma(spv::Id linear,
                             offset_3_or_2, offset_1_or_0);
 
   // gamma = trunc(linear * scale) * (1.0f / 255.0f) + offset
-  spv::Id gamma = builder_->createBinOp(spv::OpFMul, value_type, linear, scale);
-  builder_->addDecoration(gamma, spv::DecorationNoContraction);
-  id_vector_temp_.clear();
-  id_vector_temp_.push_back(gamma);
-  gamma = builder_->createBuiltinCall(value_type, ext_inst_glsl_std_450_,
-                                      GLSLstd450Trunc, id_vector_temp_);
-  gamma = builder_->createBinOp(
-      is_vector ? spv::OpVectorTimesScalar : spv::OpFMul, value_type, gamma,
-      builder_->makeFloatConstant(1.0f / 255.0f));
-  builder_->addDecoration(gamma, spv::DecorationNoContraction);
-  gamma = builder_->createBinOp(spv::OpFAdd, value_type, gamma, offset);
-  builder_->addDecoration(gamma, spv::DecorationNoContraction);
-  return gamma;
+  return builder_->createNoContractionBinOp(
+      spv::OpFAdd, value_type,
+      builder_->createNoContractionBinOp(
+          is_vector ? spv::OpVectorTimesScalar : spv::OpFMul, value_type,
+          builder_->createUnaryBuiltinCall(
+              value_type, ext_inst_glsl_std_450_, GLSLstd450Trunc,
+              builder_->createNoContractionBinOp(spv::OpFMul, value_type,
+                                                 linear, scale)),
+          builder_->makeFloatConstant(1.0f / 255.0f)),
+      offset);
 }
 
 }  // namespace gpu

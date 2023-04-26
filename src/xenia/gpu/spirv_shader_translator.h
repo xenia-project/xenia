@@ -17,8 +17,8 @@
 #include <utility>
 #include <vector>
 
-#include "third_party/glslang/SPIRV/SpvBuilder.h"
 #include "xenia/gpu/shader_translator.h"
+#include "xenia/gpu/spirv_builder.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 
@@ -374,30 +374,30 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   // Converts the color value externally clamped to [0, 31.875] to 7e3 floating
   // point, with zeros in bits 10:31, rounding to the nearest even.
-  static spv::Id PreClampedFloat32To7e3(spv::Builder& builder,
+  static spv::Id PreClampedFloat32To7e3(SpirvBuilder& builder,
                                         spv::Id f32_scalar,
                                         spv::Id ext_inst_glsl_std_450);
   // Same as PreClampedFloat32To7e3, but clamps the input to [0, 31.875].
-  static spv::Id UnclampedFloat32To7e3(spv::Builder& builder,
+  static spv::Id UnclampedFloat32To7e3(SpirvBuilder& builder,
                                        spv::Id f32_scalar,
                                        spv::Id ext_inst_glsl_std_450);
   // Converts the 7e3 number in bits [f10_shift, f10_shift + 10) to a 32-bit
   // float.
-  static spv::Id Float7e3To32(spv::Builder& builder, spv::Id f10_uint_scalar,
+  static spv::Id Float7e3To32(SpirvBuilder& builder, spv::Id f10_uint_scalar,
                               uint32_t f10_shift, bool result_as_uint,
                               spv::Id ext_inst_glsl_std_450);
   // Converts the depth value externally clamped to the representable [0, 2)
   // range to 20e4 floating point, with zeros in bits 24:31, rounding to the
   // nearest even or towards zero. If remap_from_0_to_0_5 is true, it's assumed
   // that 0...1 is pre-remapped to 0...0.5 in the input.
-  static spv::Id PreClampedDepthTo20e4(spv::Builder& builder,
+  static spv::Id PreClampedDepthTo20e4(SpirvBuilder& builder,
                                        spv::Id f32_scalar,
                                        bool round_to_nearest_even,
                                        bool remap_from_0_to_0_5,
                                        spv::Id ext_inst_glsl_std_450);
   // Converts the 20e4 number in bits [f24_shift, f24_shift + 10) to a 32-bit
   // float.
-  static spv::Id Depth20e4To32(spv::Builder& builder, spv::Id f24_uint_scalar,
+  static spv::Id Depth20e4To32(SpirvBuilder& builder, spv::Id f24_uint_scalar,
                                uint32_t f24_shift, bool remap_to_0_to_0_5,
                                bool result_as_uint,
                                spv::Id ext_inst_glsl_std_450);
@@ -451,15 +451,6 @@ class SpirvShaderTranslator : public ShaderTranslator {
 
   // Builder helpers.
   spv::Id SpirvSmearScalarResultOrConstant(spv::Id scalar, spv::Id vector_type);
-  void SpirvCreateSelectionMerge(
-      spv::Id merge_block_id, spv::SelectionControlMask selection_control_mask =
-                                  spv::SelectionControlMaskNone) {
-    std::unique_ptr<spv::Instruction> selection_merge_op =
-        std::make_unique<spv::Instruction>(spv::OpSelectionMerge);
-    selection_merge_op->addIdOperand(merge_block_id);
-    selection_merge_op->addImmediateOperand(selection_control_mask);
-    builder_->getBuildPoint()->addInstruction(std::move(selection_merge_op));
-  }
 
   Modification GetSpirvShaderModification() const {
     return Modification(current_translation().modification());
@@ -571,6 +562,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // must be called with absolute values of operands - use GetAbsoluteOperand!
   spv::Id ZeroIfAnyOperandIsZero(spv::Id value, spv::Id operand_0_abs,
                                  spv::Id operand_1_abs);
+  // Conditionally discard the current fragment. Changes the build point.
+  void KillPixel(spv::Id condition);
   // Return type is a xe::bit_count(result.GetUsedResultComponents())-component
   // float vector or a single float, depending on whether it's a reduction
   // instruction (check getTypeId of the result), or returns spv::NoResult if
@@ -687,7 +680,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   // and stencil testing with fragment shader interlock.
   bool is_depth_only_fragment_shader_ = false;
 
-  std::unique_ptr<spv::Builder> builder_;
+  std::unique_ptr<SpirvBuilder> builder_;
 
   std::vector<spv::Id> id_vector_temp_;
   // For helper functions like operand loading, so they don't conflict with
