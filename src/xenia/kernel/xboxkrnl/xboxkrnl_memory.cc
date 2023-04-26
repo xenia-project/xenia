@@ -347,6 +347,38 @@ dword_result_t NtQueryVirtualMemory_entry(
 }
 DECLARE_XBOXKRNL_EXPORT1(NtQueryVirtualMemory, kMemory, kImplemented);
 
+dword_result_t NtAllocateEncryptedMemory_entry(dword_t unk, dword_t region_size,
+                                               lpdword_t base_addr_ptr) {
+  if (!region_size) {
+    return X_STATUS_INVALID_PARAMETER;
+  }
+
+  const uint32_t region_size_adjusted =
+      xe::round_up(region_size, 64 * 1024, true);
+
+  if (region_size_adjusted > 16 * 1024 * 1024) {
+    return X_STATUS_INVALID_PARAMETER;
+  }
+
+  uint32_t out_address = 0;
+  auto heap = kernel_memory()->LookupHeap(0x8C000000);
+  const bool result =
+      heap->AllocRange(0x8C000000, 0x8FFFFFFF, region_size_adjusted, 64 * 1024,
+                       MemoryAllocationFlag::kMemoryAllocationCommit,
+                       MemoryProtectFlag::kMemoryProtectRead |
+                           MemoryProtectFlag::kMemoryProtectWrite,
+                       false, &out_address);
+
+  if (!result) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  XELOGD("NtAllocateEncryptedMemory = {:08X}", out_address);
+  *base_addr_ptr = out_address;
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(NtAllocateEncryptedMemory, kMemory, kImplemented);
+
 dword_result_t MmAllocatePhysicalMemoryEx_entry(
     dword_t flags, dword_t region_size, dword_t protect_bits,
     dword_t min_addr_range, dword_t max_addr_range, dword_t alignment) {
@@ -525,7 +557,7 @@ dword_result_t MmQueryStatistics_entry(
   stats_ptr->size = size;
 
   stats_ptr->total_physical_pages = 0x00020000;  // 512mb / 4kb pages
-  stats_ptr->kernel_pages = 0x00000100; // Previous value 0x300
+  stats_ptr->kernel_pages = 0x00000100;          // Previous value 0x300
 
   uint32_t reserved_pages = 0;
   uint32_t unreserved_pages = 0;
@@ -710,7 +742,6 @@ dword_result_t MmIsAddressValid_entry(dword_t address,
 }
 
 DECLARE_XBOXKRNL_EXPORT1(MmIsAddressValid, kMemory, kImplemented);
-
 
 }  // namespace xboxkrnl
 }  // namespace kernel
