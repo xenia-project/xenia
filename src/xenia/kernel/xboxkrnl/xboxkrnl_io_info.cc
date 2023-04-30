@@ -92,10 +92,15 @@ dword_result_t NtQueryInformationFile_entry(
       break;
     }
     case XFileSectorInformation: {
-      // TODO(benvanik): return sector this file's on.
-      XELOGE("NtQueryInformationFile(XFileSectorInformation) unimplemented");
-      status = X_STATUS_INVALID_PARAMETER;
-      out_length = 0;
+      // SW that uses this seems to use the output as a way of uniquely
+      // identifying a file for sorting/lookup so we can just give it an
+      // arbitrary 4 byte integer most of the time
+      XELOGW("Stub XFileSectorInformation!");
+      auto info = info_ptr.as<uint32_t*>();
+	  //low 32 bits of ptr. todo: maybe hash name?
+      *info = static_cast<uint32_t>(
+          reinterpret_cast<uintptr_t>(file->file()->entry()));
+      out_length = 4;
       break;
     }
     case XFileXctdCompressionInformation: {
@@ -338,9 +343,17 @@ dword_result_t NtQueryVolumeInformationFile_entry(
       }
       break;
     }
-    case XFileFsDeviceInformation:
+    case XFileFsDeviceInformation: {
+      auto info = info_ptr.as<X_FILE_FS_DEVICE_INFORMATION*>();
+      auto file_device = file->device();
+      XELOGW("Stub XFileFsDeviceInformation!");
+	  //FILE_DEVICE_UNKNOWN
+      info->device_type = 0x22;  // 415608D8 checks for 0x46;
+      info->characteristics = 0;
+      out_length = 8;
+      break;
+    }
     default: {
-      // Unsupported, for now.
       assert_always();
       out_length = 0;
       break;

@@ -431,6 +431,26 @@ dword_result_t XamGetLocaleEx_entry(dword_t max_country_id,
                           static_cast<uint8_t>(max_locale_id));
 }
 DECLARE_XAM_EXPORT1(XamGetLocaleEx, kLocale, kImplemented);
+//originally a switch table, wrote a script to extract the values for all possible cases
+
+static constexpr uint8_t XamLocaleDateFmtTable[] = {
+    2, 1, 3, 1, 3, 3, 3, 3, 3, 3, 3, 2, 3, 2, 1, 4, 2, 3, 1, 2, 2, 3,
+    3, 3, 3, 3, 2, 1, 3, 2, 2, 3, 0, 3, 0, 3, 3, 5, 3, 1, 3, 2, 3, 3,
+    3, 2, 3, 3, 5, 3, 3, 5, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+    2, 3, 3, 0, 2, 1, 3, 3, 3, 3, 3, 5, 3, 2, 3, 3, 3, 2, 3, 5, 0, 3,
+    1, 3, 3, 3, 3, 3, 3, 3, 4, 3, 3, 3, 3, 3, 3, 3, 5, 1, 1, 1, 1};
+
+dword_result_t XamGetLocaleDateFormat_entry(dword_t locale) {
+  uint32_t biased_locale = locale - 5;
+  int result = 3;
+  if (biased_locale > 0x68) {
+    return result;
+  } else {
+    return XamLocaleDateFmtTable[biased_locale];
+  }
+}
+
+DECLARE_XAM_EXPORT1(XamGetLocaleDateFormat, kLocale, kImplemented);
 
 }  // namespace xam
 }  // namespace kernel

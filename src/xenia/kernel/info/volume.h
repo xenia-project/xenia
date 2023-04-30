@@ -54,6 +54,12 @@ struct X_FILE_FS_ATTRIBUTE_INFORMATION {
 };
 static_assert_size(X_FILE_FS_ATTRIBUTE_INFORMATION, 16);
 
+struct X_FILE_FS_DEVICE_INFORMATION {
+  be<uint32_t> device_type;
+  be<uint32_t> characteristics;
+};
+static_assert_size(X_FILE_FS_DEVICE_INFORMATION, 8);
+
 #pragma pack(pop)
 
 }  // namespace kernel

@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <string>
 
+#include "third_party/pe/pe_image.h"
 #include "xenia/base/atomic.h"
 #include "xenia/base/chrono.h"
 #include "xenia/base/logging.h"
@@ -24,7 +25,6 @@
 #include "xenia/kernel/xboxkrnl/xboxkrnl_threading.h"
 #include "xenia/kernel/xevent.h"
 #include "xenia/kernel/xthread.h"
-
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {
@@ -402,14 +402,14 @@ DECLARE_XBOXKRNL_EXPORT3(RtlUnicodeToMultiByteN, kNone, kImplemented,
                          kHighFrequency, kSketchy);
 
 // https://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/Executable%20Images/RtlImageNtHeader.html
-pointer_result_t RtlImageNtHeader_entry(lpvoid_t module) {
+static IMAGE_NT_HEADERS32* ImageNtHeader(uint8_t* module) {
   if (!module) {
     return 0;
   }
 
   // Little-endian! no swapping!
 
-  auto dos_header = module.as<const uint8_t*>();
+  auto dos_header = module;
   auto dos_magic = *reinterpret_cast<const uint16_t*>(&dos_header[0x00]);
   if (dos_magic != 0x5A4D) {  // 'MZ'
     return 0;
@@ -421,9 +421,82 @@ pointer_result_t RtlImageNtHeader_entry(lpvoid_t module) {
   if (nt_magic != 0x4550) {  // 'PE'
     return 0;
   }
-  return kernel_memory()->HostToGuestVirtual(nt_header);
+  return reinterpret_cast<IMAGE_NT_HEADERS32*>(nt_header);
+}
+
+pointer_result_t RtlImageNtHeader_entry(lpvoid_t module) {
+  auto result = ImageNtHeader(module.as<uint8_t*>());
+  if (!result) {
+    return 0;
+  }
+
+  return kernel_memory()->HostToGuestVirtual(result);
 }
 DECLARE_XBOXKRNL_EXPORT1(RtlImageNtHeader, kNone, kImplemented);
+// https://learn.microsoft.com/en-us/windows/win32/api/dbghelp/nf-dbghelp-imagedirectoryentrytodata
+dword_result_t RtlImageDirectoryEntryToData_entry(dword_t Base, dword_t MappedAsImage_,
+                                           word_t DirectoryEntry, dword_t Size,
+                                           const ppc_context_t& ctx) {
+  bool MappedAsImage = static_cast<unsigned char>(MappedAsImage_);
+  uint32_t aligned_base = Base;
+  if ((Base & 1) != 0) {
+    aligned_base = Base & 0xFFFFFFFE;
+    MappedAsImage = false;
+  }
+  IMAGE_NT_HEADERS32* nt_header =
+      ImageNtHeader(ctx->TranslateVirtual<uint8_t*>(aligned_base));
+
+  if (!nt_header) {
+    return 0;
+  }
+  if (nt_header->OptionalHeader.Magic != 0x10B) {
+    return 0;
+  }
+  if (DirectoryEntry >= nt_header->OptionalHeader.NumberOfRvaAndSizes) {
+    return 0;
+  }
+  uint32_t Address =
+      nt_header->OptionalHeader.DataDirectory[DirectoryEntry].VirtualAddress;
+  if (!Address) {
+    return 0;
+  }
+  xe::store_and_swap<uint32_t>(
+      ctx->TranslateVirtual(Size),
+      nt_header->OptionalHeader.DataDirectory[DirectoryEntry].Size);
+  if (MappedAsImage || Address < nt_header->OptionalHeader.SizeOfHeaders) {
+    return aligned_base + Address;
+  }
+
+  uint32_t n_sections = nt_header->FileHeader.NumberOfSections;
+  IMAGE_SECTION_HEADER* v8 = reinterpret_cast<IMAGE_SECTION_HEADER*>(
+      reinterpret_cast<char*>(&nt_header->OptionalHeader) +
+      nt_header->FileHeader.SizeOfOptionalHeader);
+  if (!n_sections) {
+    return 0;
+  }
+
+  uint32_t i = 0;
+  while (true) {
+    uint32_t section_virtual_address = v8->VirtualAddress;
+    uint32_t sizeof_section = v8->SizeOfRawData;
+    if (Address >= section_virtual_address &&
+        Address < sizeof_section + section_virtual_address) {
+      break;
+    }
+    ++i;
+    ++v8;
+    if (i >= n_sections) {
+      return 0;
+    }
+  }
+
+  if (v8) {
+    return aligned_base + Address - v8->VirtualAddress;
+  }
+  return 0;
+}
+
+DECLARE_XBOXKRNL_EXPORT1(RtlImageDirectoryEntryToData, kNone, kImplemented);
 
 pointer_result_t RtlImageXexHeaderField_entry(pointer_t<xex2_header> xex_header,
                                               dword_t field_dword) {
