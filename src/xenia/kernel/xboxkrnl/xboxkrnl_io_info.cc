@@ -97,10 +97,9 @@ dword_result_t NtQueryInformationFile_entry(
       // arbitrary 4 byte integer most of the time
       XELOGW("Stub XFileSectorInformation!");
       auto info = info_ptr.as<uint32_t*>();
-	  //low 32 bits of ptr. todo: maybe hash name?
-      *info = static_cast<uint32_t>(
-          reinterpret_cast<uintptr_t>(file->file()->entry()));
-      out_length = 4;
+      size_t fname_hash = xe::memory::hash_combine(82589933LL, file->path());
+      *info = static_cast<uint32_t>(fname_hash ^ (fname_hash >> 32));
+      out_length = sizeof(uint32_t);
       break;
     }
     case XFileXctdCompressionInformation: {
@@ -347,10 +346,9 @@ dword_result_t NtQueryVolumeInformationFile_entry(
       auto info = info_ptr.as<X_FILE_FS_DEVICE_INFORMATION*>();
       auto file_device = file->device();
       XELOGW("Stub XFileFsDeviceInformation!");
-	  //FILE_DEVICE_UNKNOWN
-      info->device_type = 0x22;  // 415608D8 checks for 0x46;
+      info->device_type = FILE_DEVICE_UNKNOWN;  // 415608D8 checks for 0x46;
       info->characteristics = 0;
-      out_length = 8;
+      out_length = sizeof(X_FILE_FS_DEVICE_INFORMATION);
       break;
     }
     default: {

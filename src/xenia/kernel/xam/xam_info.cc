@@ -418,7 +418,12 @@ dword_result_t XamAlloc_entry(dword_t flags, dword_t size, lpdword_t out_ptr) {
 }
 DECLARE_XAM_EXPORT1(XamAlloc, kMemory, kImplemented);
 
-static const unsigned short XamPhysicalProtTable[4] = {2, 516, 4, 1028};
+static const unsigned short XamPhysicalProtTable[4] = {
+	X_PAGE_READONLY, 
+	X_PAGE_READWRITE | X_PAGE_NOCACHE,
+	X_PAGE_READWRITE,
+    X_PAGE_WRITECOMBINE | X_PAGE_READWRITE
+};
 
 dword_result_t XamAllocEx_entry(dword_t phys_flags, dword_t flags, dword_t size,
                                 lpdword_t out_ptr, const ppc_context_t& ctx) {
@@ -428,6 +433,7 @@ dword_result_t XamAllocEx_entry(dword_t phys_flags, dword_t flags, dword_t size,
 
   uint32_t flags_remapped = phys_flags;
   if ((phys_flags & 0xF000000) == 0) {
+	// setting default alignment
     flags_remapped = 0xC000000 | phys_flags & 0xF0FFFFFF;
   }
 

@@ -449,7 +449,7 @@ dword_result_t RtlImageDirectoryEntryToData_entry(dword_t Base, dword_t MappedAs
   if (!nt_header) {
     return 0;
   }
-  if (nt_header->OptionalHeader.Magic != 0x10B) {
+  if (nt_header->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC) {
     return 0;
   }
   if (DirectoryEntry >= nt_header->OptionalHeader.NumberOfRvaAndSizes) {
