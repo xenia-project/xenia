@@ -854,10 +854,11 @@ void KernelState::CompleteOverlappedDeferredEx(
   XOverlappedSetContext(ptr, XThread::GetCurrentThreadHandle());
   X_HANDLE event_handle = XOverlappedGetEvent(ptr);
   if (event_handle) {
-    auto ev = object_table()->LookupObject<XEvent>(event_handle);
+    auto ev = object_table()->LookupObject<XObject>(event_handle);
+
     assert_not_null(ev);
-    if (ev) {
-      ev->Reset();
+    if (ev && ev->type() == XObject::Type::Event) {
+      ev.get<XEvent>()->Reset();
     }
   }
   auto global_lock = global_critical_region_.Acquire();

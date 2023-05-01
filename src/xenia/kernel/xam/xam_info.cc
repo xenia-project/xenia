@@ -15,6 +15,7 @@
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_module.h"
 #include "xenia/kernel/xam/xam_private.h"
+#include "xenia/kernel/xboxkrnl/xboxkrnl_memory.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_threading.h"
 #include "xenia/kernel/xenumerator.h"
 #include "xenia/kernel/xthread.h"
@@ -261,10 +262,8 @@ dword_result_t RtlSleep_entry(dword_t dwMilliseconds, dword_t bAlertable) {
                        ? LLONG_MAX
                        : static_cast<LONGLONG>(-10000) * dwMilliseconds;
 
-  X_STATUS result = xboxkrnl::KeDelayExecutionThread(
-      MODE::UserMode,
-      bAlertable,
-      (uint64_t*)&delay);
+  X_STATUS result = xboxkrnl::KeDelayExecutionThread(MODE::UserMode, bAlertable,
+                                                     (uint64_t*)&delay);
 
   // If the delay was interrupted by an APC, keep delaying the thread
   while (bAlertable && result == X_STATUS_ALERTED) {
@@ -396,7 +395,8 @@ void XamLoaderTerminateTitle_entry() {
 }
 DECLARE_XAM_EXPORT1(XamLoaderTerminateTitle, kNone, kSketchy);
 
-dword_result_t XamAlloc_entry(dword_t flags, dword_t size, lpdword_t out_ptr) {
+uint32_t XamAllocImpl(uint32_t flags, uint32_t size,
+                      xe::be<uint32_t>* out_ptr) {
   if (flags & 0x00100000) {  // HEAP_ZERO_memory used unless this flag
     // do nothing!
     // maybe we ought to fill it with nonzero garbage, but otherwise this is a
@@ -412,7 +412,43 @@ dword_result_t XamAlloc_entry(dword_t flags, dword_t size, lpdword_t out_ptr) {
 
   return X_ERROR_SUCCESS;
 }
+
+dword_result_t XamAlloc_entry(dword_t flags, dword_t size, lpdword_t out_ptr) {
+  return XamAllocImpl(flags, size, out_ptr);
+}
 DECLARE_XAM_EXPORT1(XamAlloc, kMemory, kImplemented);
+
+static const unsigned short XamPhysicalProtTable[4] = {
+	X_PAGE_READONLY, 
+	X_PAGE_READWRITE | X_PAGE_NOCACHE,
+	X_PAGE_READWRITE,
+    X_PAGE_WRITECOMBINE | X_PAGE_READWRITE
+};
+
+dword_result_t XamAllocEx_entry(dword_t phys_flags, dword_t flags, dword_t size,
+                                lpdword_t out_ptr, const ppc_context_t& ctx) {
+  if ((flags & 0x40000000) == 0) {
+    return XamAllocImpl(flags, size, out_ptr);
+  }
+
+  uint32_t flags_remapped = phys_flags;
+  if ((phys_flags & 0xF000000) == 0) {
+	// setting default alignment
+    flags_remapped = 0xC000000 | phys_flags & 0xF0FFFFFF;
+  }
+
+  uint32_t result = xboxkrnl::xeMmAllocatePhysicalMemoryEx(
+      2, size, XamPhysicalProtTable[(flags_remapped >> 28) & 0b11], 0,
+      0xFFFFFFFF, 1 << ((flags_remapped >> 24) & 0xF));
+
+  if (result && (flags_remapped & 0x40000000) != 0) {
+    memset(ctx->TranslateVirtual<uint8_t*>(result), 0, size);
+  }
+
+  *out_ptr = result;
+  return result ? 0 : 0x8007000E;
+}
+DECLARE_XAM_EXPORT1(XamAllocEx, kMemory, kImplemented);
 
 dword_result_t XamFree_entry(lpdword_t ptr) {
   kernel_state()->memory()->SystemHeapFree(ptr.guest_address());
@@ -427,6 +463,11 @@ dword_result_t XamQueryLiveHiveW_entry(lpu16string_t name, lpvoid_t out_buf,
   return X_STATUS_INVALID_PARAMETER_1;
 }
 DECLARE_XAM_EXPORT1(XamQueryLiveHiveW, kNone, kStub);
+
+dword_result_t XamIsCurrentTitleDash_entry(const ppc_context_t& ctx) {
+  return ctx->kernel_state->title_id() == 0xFFFE07D1;
+}
+DECLARE_XAM_EXPORT1(XamIsCurrentTitleDash, kNone, kImplemented);
 
 }  // namespace xam
 }  // namespace kernel

@@ -16,7 +16,7 @@
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/xbox.h"
-
+#include "xenia/kernel/xboxkrnl/xboxkrnl_memory.h"
 DEFINE_bool(
     ignore_offset_for_ranged_allocations, false,
     "Allows to ignore 4k offset for physical allocations with provided range. "
@@ -379,9 +379,11 @@ dword_result_t NtAllocateEncryptedMemory_entry(dword_t unk, dword_t region_size,
 }
 DECLARE_XBOXKRNL_EXPORT1(NtAllocateEncryptedMemory, kMemory, kImplemented);
 
-dword_result_t MmAllocatePhysicalMemoryEx_entry(
-    dword_t flags, dword_t region_size, dword_t protect_bits,
-    dword_t min_addr_range, dword_t max_addr_range, dword_t alignment) {
+uint32_t xeMmAllocatePhysicalMemoryEx(uint32_t flags, uint32_t region_size,
+	uint32_t protect_bits,
+	uint32_t min_addr_range,
+	uint32_t max_addr_range,
+	uint32_t alignment) {
   // Type will usually be 0 (user request?), where 1 and 2 are sometimes made
   // by D3D/etc.
 
@@ -430,9 +432,9 @@ dword_result_t MmAllocatePhysicalMemoryEx_entry(
   }
 
   uint32_t heap_min_addr =
-      xe::sat_sub(min_addr_range.value(), heap_physical_address_offset);
+      xe::sat_sub(min_addr_range, heap_physical_address_offset);
   uint32_t heap_max_addr =
-      xe::sat_sub(max_addr_range.value(), heap_physical_address_offset);
+      xe::sat_sub(max_addr_range, heap_physical_address_offset);
   uint32_t heap_size = heap->heap_size();
   heap_min_addr = heap_base + std::min(heap_min_addr, heap_size - 1);
   heap_max_addr = heap_base + std::min(heap_max_addr, heap_size - 1);
@@ -447,12 +449,20 @@ dword_result_t MmAllocatePhysicalMemoryEx_entry(
 
   return base_address;
 }
+
+dword_result_t MmAllocatePhysicalMemoryEx_entry(
+    dword_t flags, dword_t region_size, dword_t protect_bits,
+    dword_t min_addr_range, dword_t max_addr_range, dword_t alignment) {
+  return xeMmAllocatePhysicalMemoryEx(flags, region_size, protect_bits,
+                                      min_addr_range, max_addr_range,
+                                      alignment);
+}
 DECLARE_XBOXKRNL_EXPORT1(MmAllocatePhysicalMemoryEx, kMemory, kImplemented);
 
 dword_result_t MmAllocatePhysicalMemory_entry(dword_t flags,
                                               dword_t region_size,
                                               dword_t protect_bits) {
-  return MmAllocatePhysicalMemoryEx_entry(flags, region_size, protect_bits, 0,
+  return xeMmAllocatePhysicalMemoryEx(flags, region_size, protect_bits, 0,
                                           0xFFFFFFFFu, 0);
 }
 DECLARE_XBOXKRNL_EXPORT1(MmAllocatePhysicalMemory, kMemory, kImplemented);

@@ -185,7 +185,7 @@ dword_result_t NtResumeThread_entry(dword_t handle,
 }
 DECLARE_XBOXKRNL_EXPORT1(NtResumeThread, kThreading, kImplemented);
 
-dword_result_t KeResumeThread_entry(lpvoid_t thread_ptr) {
+dword_result_t KeResumeThread_entry(pointer_t<X_KTHREAD> thread_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
   auto thread = XObject::GetNativeObject<XThread>(kernel_state(), thread_ptr);
   if (thread) {
@@ -230,11 +230,27 @@ dword_result_t NtSuspendThread_entry(dword_t handle,
 }
 DECLARE_XBOXKRNL_EXPORT1(NtSuspendThread, kThreading, kImplemented);
 
+dword_result_t KeSuspendThread_entry(pointer_t<X_KTHREAD> kthread,
+                                     const ppc_context_t& context) {
+  auto thread = XObject::GetNativeObject<XThread>(context->kernel_state, kthread);
+  uint32_t suspend_count_out = 0;
+
+  if (thread) {
+    suspend_count_out = thread->suspend_count();
+
+    uint32_t discarded_new_suspend_count = 0;
+    thread->Suspend(&discarded_new_suspend_count);
+  }
+
+  return suspend_count_out;
+}
+DECLARE_XBOXKRNL_EXPORT1(KeSuspendThread, kThreading, kImplemented);
+
 void KeSetCurrentStackPointers_entry(lpvoid_t stack_ptr,
                                      pointer_t<X_KTHREAD> thread,
                                      lpvoid_t stack_alloc_base,
-                                     lpvoid_t stack_base,
-                                     lpvoid_t stack_limit, const ppc_context_t& context) {
+                                     lpvoid_t stack_base, lpvoid_t stack_limit,
+                                     const ppc_context_t& context) {
   auto current_thread = XThread::GetCurrentThread();
 
   auto pcr = context->TranslateVirtualGPR<X_KPCR*>(context->r[13]);
