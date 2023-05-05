@@ -2125,7 +2125,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     return false;
   }
   pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
-  bool memexport_used_vertex = vertex_shader->is_valid_memexport_used();
+  bool memexport_used_vertex = vertex_shader->memexport_eM_written();
 
   // Pixel shader analysis.
   bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
@@ -2154,7 +2154,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     }
   }
   bool memexport_used_pixel =
-      pixel_shader && pixel_shader->is_valid_memexport_used();
+      pixel_shader && pixel_shader->memexport_eM_written();
   bool memexport_used = memexport_used_vertex || memexport_used_pixel;
 
   if (!BeginSubmission(true)) {
@@ -2341,100 +2341,20 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   // Gather memexport ranges and ensure the heaps for them are resident, and
   // also load the data surrounding the export and to fill the regions that
   // won't be modified by the shaders.
-  struct MemExportRange {
-    uint32_t base_address_dwords;
-    uint32_t size_dwords;
-  };
-  MemExportRange memexport_ranges[512];
-  uint32_t memexport_range_count = 0;
+  memexport_ranges_.clear();
   if (memexport_used_vertex) {
-    for (uint32_t constant_index :
-         vertex_shader->memexport_stream_constants()) {
-      const auto& memexport_stream = regs.Get<xenos::xe_gpu_memexport_stream_t>(
-          XE_GPU_REG_SHADER_CONSTANT_000_X + constant_index * 4);
-      if (memexport_stream.index_count == 0) {
-        continue;
-      }
-      uint32_t memexport_format_size =
-          GetSupportedMemExportFormatSize(memexport_stream.format);
-      if (memexport_format_size == 0) {
-        XELOGE("Unsupported memexport format {}",
-               FormatInfo::Get(
-                   xenos::TextureFormat(uint32_t(memexport_stream.format)))
-                   ->name);
-        return false;
-      }
-      uint32_t memexport_size_dwords =
-          memexport_stream.index_count * memexport_format_size;
-      // Try to reduce the number of shared memory operations when writing
-      // different elements into the same buffer through different exports
-      // (happens in 4D5307E6).
-      bool memexport_range_reused = false;
-      for (uint32_t i = 0; i < memexport_range_count; ++i) {
-        MemExportRange& memexport_range = memexport_ranges[i];
-        if (memexport_range.base_address_dwords ==
-            memexport_stream.base_address) {
-          memexport_range.size_dwords =
-              std::max(memexport_range.size_dwords, memexport_size_dwords);
-          memexport_range_reused = true;
-          break;
-        }
-      }
-      // Add a new range if haven't expanded an existing one.
-      if (!memexport_range_reused) {
-        MemExportRange& memexport_range =
-            memexport_ranges[memexport_range_count++];
-        memexport_range.base_address_dwords = memexport_stream.base_address;
-        memexport_range.size_dwords = memexport_size_dwords;
-      }
-    }
+    draw_util::AddMemExportRanges(regs, *vertex_shader, memexport_ranges_);
   }
   if (memexport_used_pixel) {
-    for (uint32_t constant_index : pixel_shader->memexport_stream_constants()) {
-      const auto& memexport_stream = regs.Get<xenos::xe_gpu_memexport_stream_t>(
-          XE_GPU_REG_SHADER_CONSTANT_256_X + constant_index * 4);
-      if (memexport_stream.index_count == 0) {
-        continue;
-      }
-      uint32_t memexport_format_size =
-          GetSupportedMemExportFormatSize(memexport_stream.format);
-      if (memexport_format_size == 0) {
-        XELOGE("Unsupported memexport format {}",
-               FormatInfo::Get(
-                   xenos::TextureFormat(uint32_t(memexport_stream.format)))
-                   ->name);
-        return false;
-      }
-      uint32_t memexport_size_dwords =
-          memexport_stream.index_count * memexport_format_size;
-      bool memexport_range_reused = false;
-      for (uint32_t i = 0; i < memexport_range_count; ++i) {
-        MemExportRange& memexport_range = memexport_ranges[i];
-        if (memexport_range.base_address_dwords ==
-            memexport_stream.base_address) {
-          memexport_range.size_dwords =
-              std::max(memexport_range.size_dwords, memexport_size_dwords);
-          memexport_range_reused = true;
-          break;
-        }
-      }
-      if (!memexport_range_reused) {
-        MemExportRange& memexport_range =
-            memexport_ranges[memexport_range_count++];
-        memexport_range.base_address_dwords = memexport_stream.base_address;
-        memexport_range.size_dwords = memexport_size_dwords;
-      }
-    }
+    draw_util::AddMemExportRanges(regs, *pixel_shader, memexport_ranges_);
   }
-  for (uint32_t i = 0; i < memexport_range_count; ++i) {
-    const MemExportRange& memexport_range = memexport_ranges[i];
+  for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
     if (!shared_memory_->RequestRange(memexport_range.base_address_dwords << 2,
-                                      memexport_range.size_dwords << 2)) {
+                                      memexport_range.size_bytes)) {
       XELOGE(
           "Failed to request memexport stream at 0x{:08X} (size {}) in the "
           "shared memory",
-          memexport_range.base_address_dwords << 2,
-          memexport_range.size_dwords << 2);
+          memexport_range.base_address_dwords << 2, memexport_range.size_bytes);
       return false;
     }
   }
@@ -2594,17 +2514,17 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     // when memexports should be awaited?
     shared_memory_->MarkUAVWritesCommitNeeded();
     // Invalidate textures in memexported memory and watch for changes.
-    for (uint32_t i = 0; i < memexport_range_count; ++i) {
-      const MemExportRange& memexport_range = memexport_ranges[i];
+    for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
       shared_memory_->RangeWrittenByGpu(
-          memexport_range.base_address_dwords << 2,
-          memexport_range.size_dwords << 2, false);
+          memexport_range.base_address_dwords << 2, memexport_range.size_bytes,
+          false);
     }
     if (cvars::d3d12_readback_memexport) {
       // Read the exported data on the CPU.
       uint32_t memexport_total_size = 0;
-      for (uint32_t i = 0; i < memexport_range_count; ++i) {
-        memexport_total_size += memexport_ranges[i].size_dwords << 2;
+      for (const draw_util::MemExportRange& memexport_range :
+           memexport_ranges_) {
+        memexport_total_size += memexport_range.size_bytes;
       }
       if (memexport_total_size != 0) {
         ID3D12Resource* readback_buffer =
@@ -2614,9 +2534,9 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
           SubmitBarriers();
           ID3D12Resource* shared_memory_buffer = shared_memory_->GetBuffer();
           uint32_t readback_buffer_offset = 0;
-          for (uint32_t i = 0; i < memexport_range_count; ++i) {
-            const MemExportRange& memexport_range = memexport_ranges[i];
-            uint32_t memexport_range_size = memexport_range.size_dwords << 2;
+          for (const draw_util::MemExportRange& memexport_range :
+               memexport_ranges_) {
+            uint32_t memexport_range_size = memexport_range.size_bytes;
             deferred_command_list_.D3DCopyBufferRegion(
                 readback_buffer, readback_buffer_offset, shared_memory_buffer,
                 memexport_range.base_address_dwords << 2, memexport_range_size);
@@ -2629,14 +2549,14 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
             void* readback_mapping;
             if (SUCCEEDED(readback_buffer->Map(0, &readback_range,
                                                &readback_mapping))) {
-              const uint32_t* readback_dwords =
-                  reinterpret_cast<const uint32_t*>(readback_mapping);
-              for (uint32_t i = 0; i < memexport_range_count; ++i) {
-                const MemExportRange& memexport_range = memexport_ranges[i];
+              const uint8_t* readback_bytes =
+                  reinterpret_cast<const uint8_t*>(readback_mapping);
+              for (const draw_util::MemExportRange& memexport_range :
+                   memexport_ranges_) {
                 std::memcpy(memory_->TranslatePhysical(
                                 memexport_range.base_address_dwords << 2),
-                            readback_dwords, memexport_range.size_dwords << 2);
-                readback_dwords += memexport_range.size_dwords;
+                            readback_bytes, memexport_range.size_bytes);
+                readback_bytes += memexport_range.size_bytes;
               }
               D3D12_RANGE readback_write_range = {};
               readback_buffer->Unmap(0, &readback_write_range);
@@ -4508,36 +4428,6 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
   }
 
   return true;
-}
-
-uint32_t D3D12CommandProcessor::GetSupportedMemExportFormatSize(
-    xenos::ColorFormat format) {
-  switch (format) {
-    case xenos::ColorFormat::k_8_8_8_8:
-    case xenos::ColorFormat::k_2_10_10_10:
-    // TODO(Triang3l): Investigate how k_8_8_8_8_A works - not supported in the
-    // texture cache currently.
-    // case xenos::ColorFormat::k_8_8_8_8_A:
-    case xenos::ColorFormat::k_10_11_11:
-    case xenos::ColorFormat::k_11_11_10:
-    case xenos::ColorFormat::k_16_16:
-    case xenos::ColorFormat::k_16_16_FLOAT:
-    case xenos::ColorFormat::k_32_FLOAT:
-    case xenos::ColorFormat::k_8_8_8_8_AS_16_16_16_16:
-    case xenos::ColorFormat::k_2_10_10_10_AS_16_16_16_16:
-    case xenos::ColorFormat::k_10_11_11_AS_16_16_16_16:
-    case xenos::ColorFormat::k_11_11_10_AS_16_16_16_16:
-      return 1;
-    case xenos::ColorFormat::k_16_16_16_16:
-    case xenos::ColorFormat::k_16_16_16_16_FLOAT:
-    case xenos::ColorFormat::k_32_32_FLOAT:
-      return 2;
-    case xenos::ColorFormat::k_32_32_32_32_FLOAT:
-      return 4;
-    default:
-      break;
-  }
-  return 0;
 }
 
 ID3D12Resource* D3D12CommandProcessor::RequestReadbackBuffer(uint32_t size) {

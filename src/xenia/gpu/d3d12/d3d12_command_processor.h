@@ -18,6 +18,7 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "xenia/base/assert.h"
 #include "xenia/gpu/command_processor.h"
@@ -378,13 +379,6 @@ class D3D12CommandProcessor : public CommandProcessor {
                       ID3D12RootSignature* root_signature,
                       bool shared_memory_is_uav);
 
-  // Returns dword count for one element for a memexport format, or 0 if it's
-  // not supported by the D3D12 command processor (if it's smaller that 1 dword,
-  // for instance).
-  // TODO(Triang3l): Check if any game uses memexport with formats smaller than
-  // 32 bits per element.
-  static uint32_t GetSupportedMemExportFormatSize(xenos::ColorFormat format);
-
   // Returns a buffer for reading GPU data back to the CPU. Assuming
   // synchronizing immediately after use. Always in COPY_DEST state.
   ID3D12Resource* RequestReadbackBuffer(uint32_t size);
@@ -684,6 +678,9 @@ class D3D12CommandProcessor : public CommandProcessor {
 
   // Current primitive topology.
   D3D_PRIMITIVE_TOPOLOGY primitive_topology_;
+
+  // Temporary storage for memexport stream constants used in the draw.
+  std::vector<draw_util::MemExportRange> memexport_ranges_;
 };
 
 }  // namespace d3d12
