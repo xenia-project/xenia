@@ -186,7 +186,6 @@ void Shader::AnalyzeUcode(StringBuffer& ucode_disasm_buffer) {
         constant_register_map_.bool_bitmap[bool_constant_index / 32] |=
             uint32_t(1) << (bool_constant_index % 32);
       }
-      // TODO(benvanik): break if (DoesControlFlowOpcodeEndShader(cf.opcode()))?
     }
   }
   ucode_disassembly_ = ucode_disasm_buffer.to_string();
