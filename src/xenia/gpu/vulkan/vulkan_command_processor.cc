@@ -2175,7 +2175,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     return false;
   }
   pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
-  bool memexport_used_vertex = vertex_shader->memexport_eM_written();
+  bool memexport_used_vertex = vertex_shader->memexport_eM_written() != 0;
 
   // Pixel shader analysis.
   bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
