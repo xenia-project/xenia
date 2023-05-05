@@ -67,7 +67,8 @@ void SpirvShaderTranslator::KillPixel(spv::Id condition) {
 }
 
 void SpirvShaderTranslator::ProcessAluInstruction(
-    const ParsedAluInstruction& instr) {
+    const ParsedAluInstruction& instr,
+    uint8_t memexport_eM_potentially_written_before) {
   if (instr.IsNop()) {
     // Don't even disassemble or update predication.
     return;
