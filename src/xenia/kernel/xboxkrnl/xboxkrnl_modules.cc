@@ -7,6 +7,7 @@
  ******************************************************************************
  */
 
+#include "xboxkrnl_modules.h"
 #include "xenia/base/logging.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/kernel/kernel_state.h"
@@ -39,14 +40,14 @@ dword_result_t XexCheckExecutablePrivilege_entry(dword_t privilege) {
 }
 DECLARE_XBOXKRNL_EXPORT1(XexCheckExecutablePrivilege, kModules, kImplemented);
 
-dword_result_t XexGetModuleHandle_entry(lpstring_t module_name,
-                                        lpdword_t hmodule_ptr) {
+dword_result_t XexGetModuleHandle(std::string module_name,
+                                  xe::be<uint32_t>* hmodule_ptr) {
   object_ref<XModule> module;
 
-  if (!module_name) {
+  if (module_name.empty()) {
     module = kernel_state()->GetExecutableModule();
   } else {
-    module = kernel_state()->GetModule(module_name.value());
+    module = kernel_state()->GetModule(module_name);
   }
 
   if (!module) {
@@ -58,6 +59,11 @@ dword_result_t XexGetModuleHandle_entry(lpstring_t module_name,
   *hmodule_ptr = module->hmodule_ptr();
 
   return X_ERROR_SUCCESS;
+}
+
+dword_result_t XexGetModuleHandle_entry(lpstring_t module_name,
+                                        lpdword_t hmodule_ptr) {
+  return XexGetModuleHandle(module_name.value(), hmodule_ptr);
 }
 DECLARE_XBOXKRNL_EXPORT1(XexGetModuleHandle, kModules, kImplemented);
 
@@ -118,6 +124,15 @@ dword_result_t XexLoadImage_entry(lpstring_t module_name, dword_t module_flags,
   return result;
 }
 DECLARE_XBOXKRNL_EXPORT1(XexLoadImage, kModules, kImplemented);
+
+dword_result_t XexLoadExecutable_entry(lpstring_t module_name,
+                                       dword_t module_flags,
+                                       dword_t min_version,
+                                       lpdword_t hmodule_ptr) {
+  return XexLoadImage_entry(module_name, module_flags, min_version,
+                            hmodule_ptr);
+}
+DECLARE_XBOXKRNL_EXPORT1(XexLoadExecutable, kModules, kSketchy);
 
 dword_result_t XexUnloadImage_entry(lpvoid_t hmodule) {
   auto module = XModule::GetFromHModule(kernel_state(), hmodule);

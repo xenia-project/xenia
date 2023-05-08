@@ -344,6 +344,44 @@ dword_result_t XamShowMessageBoxUIEx_entry(
                              overlapped);
 }
 DECLARE_XAM_EXPORT1(XamShowMessageBoxUIEx, kUI, kImplemented);
+
+dword_result_t XNotifyQueueUI_entry(dword_t exnq, dword_t dwUserIndex,
+                                    qword_t qwAreas,
+                                    lpu16string_t displayText_ptr,
+                                    lpvoid_t contextData) {
+  std::string displayText = "";
+
+  if (displayText_ptr) {
+    displayText = xe::to_utf8(displayText_ptr.value());
+  }
+
+  XELOGI("XNotifyQueueUI: {}", displayText);
+
+  if (cvars::headless) {
+    return X_ERROR_SUCCESS;
+  }
+
+  auto close = [](MessageBoxDialog* dialog) -> X_RESULT {
+    dialog->chosen_button();
+    return X_ERROR_SUCCESS;
+  };
+
+  std::vector<std::string> buttons(1, "OK");
+
+  const Emulator* emulator = kernel_state()->emulator();
+  ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
+
+  xeXamDispatchDialog<MessageBoxDialog>(
+      new MessageBoxDialog(imgui_drawer, "XNotifyQueueUI", displayText, buttons,
+                           0),
+      close, false);
+
+  // XNotifyQueueUI -> XNotifyQueueUIEx -> XMsgProcessRequest ->
+  // XMsgStartIORequestEx & XMsgInProcessCall
+  return X_ERROR_SUCCESS;
+}
+DECLARE_XAM_EXPORT1(XNotifyQueueUI, kUI, kSketchy);
+
 class KeyboardInputDialog : public XamDialog {
  public:
   KeyboardInputDialog(xe::ui::ImGuiDrawer* imgui_drawer, std::string title,

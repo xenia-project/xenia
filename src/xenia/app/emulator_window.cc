@@ -1191,7 +1191,7 @@ const std::map<int, EmulatorWindow::ControllerHotKey> controller_hotkey_map = {
     {X_INPUT_GAMEPAD_BACK | X_INPUT_GAMEPAD_START,
      EmulatorWindow::ControllerHotKey(
          EmulatorWindow::ButtonFunctions::ToggleLogging,
-         "Back + Start = Close Window", false, false)},
+         "Back + Start = Toggle between loglevel set in config and the 'Disabled' loglevel.", false, false)},
     {X_INPUT_GAMEPAD_DPAD_DOWN,
      EmulatorWindow::ControllerHotKey(
          EmulatorWindow::ButtonFunctions::IncTitleSelect,

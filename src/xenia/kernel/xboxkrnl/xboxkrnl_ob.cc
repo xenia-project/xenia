@@ -256,9 +256,11 @@ dword_result_t NtDuplicateObject_entry(dword_t handle, lpdword_t new_handle_ptr,
 }
 DECLARE_XBOXKRNL_EXPORT1(NtDuplicateObject, kNone, kImplemented);
 
-dword_result_t NtClose_entry(dword_t handle) {
+uint32_t NtClose(uint32_t handle) {
   return kernel_state()->object_table()->ReleaseHandle(handle);
 }
+
+dword_result_t NtClose_entry(dword_t handle) { return NtClose(handle); }
 DECLARE_XBOXKRNL_EXPORT1(NtClose, kNone, kImplemented);
 
 }  // namespace xboxkrnl

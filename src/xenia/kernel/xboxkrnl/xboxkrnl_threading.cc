@@ -96,12 +96,10 @@ object_ref<T> LookupNamedObject(KernelState* kernel_state,
   return nullptr;
 }
 
-dword_result_t ExCreateThread_entry(lpdword_t handle_ptr, dword_t stack_size,
-                                    lpdword_t thread_id_ptr,
-                                    dword_t xapi_thread_startup,
-                                    lpvoid_t start_address,
-                                    lpvoid_t start_context,
-                                    dword_t creation_flags) {
+uint32_t ExCreateThread(xe::be<uint32_t>* handle_ptr, uint32_t stack_size,
+                        xe::be<uint32_t>* thread_id_ptr,
+                        uint32_t xapi_thread_startup, uint32_t start_address,
+                        uint32_t start_context, uint32_t creation_flags) {
   // Invalid Link
   // http://jafile.com/uploads/scoop/main.cpp.txt
   // DWORD
@@ -126,8 +124,7 @@ dword_result_t ExCreateThread_entry(lpdword_t handle_ptr, dword_t stack_size,
 
   auto thread = object_ref<XThread>(
       new XThread(kernel_state(), actual_stack_size, xapi_thread_startup,
-                  start_address.guest_address(), start_context.guest_address(),
-                  creation_flags, true));
+                  start_address, start_context, creation_flags, true));
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
@@ -150,18 +147,32 @@ dword_result_t ExCreateThread_entry(lpdword_t handle_ptr, dword_t stack_size,
   }
   return result;
 }
+
+dword_result_t ExCreateThread_entry(lpdword_t handle_ptr, dword_t stack_size,
+                                    lpdword_t thread_id_ptr,
+                                    dword_t xapi_thread_startup,
+                                    lpvoid_t start_address,
+                                    lpvoid_t start_context,
+                                    dword_t creation_flags) {
+  return ExCreateThread(handle_ptr, stack_size, thread_id_ptr,
+                        xapi_thread_startup, start_address, start_context,
+                        creation_flags);
+}
 DECLARE_XBOXKRNL_EXPORT1(ExCreateThread, kThreading, kImplemented);
 
-dword_result_t ExTerminateThread_entry(dword_t exit_code) {
+uint32_t ExTerminateThread(uint32_t exit_code) {
   XThread* thread = XThread::GetCurrentThread();
 
   // NOTE: this kills us right now. We won't return from it.
   return thread->Exit(exit_code);
 }
+
+dword_result_t ExTerminateThread_entry(dword_t exit_code) {
+  return ExTerminateThread(exit_code);
+}
 DECLARE_XBOXKRNL_EXPORT1(ExTerminateThread, kThreading, kImplemented);
 
-dword_result_t NtResumeThread_entry(dword_t handle,
-                                    lpdword_t suspend_count_ptr) {
+uint32_t NtResumeThread(uint32_t handle, uint32_t* suspend_count_ptr) {
   X_RESULT result = X_STATUS_INVALID_HANDLE;
   uint32_t suspend_count = 0;
 
@@ -170,7 +181,6 @@ dword_result_t NtResumeThread_entry(dword_t handle,
   if (thread) {
     if (thread->type() == XObject::Type::Thread) {
       result = thread->Resume(&suspend_count);
-
     } else {
       return X_STATUS_OBJECT_TYPE_MISMATCH;
     }
@@ -182,6 +192,13 @@ dword_result_t NtResumeThread_entry(dword_t handle,
   }
 
   return result;
+}
+
+dword_result_t NtResumeThread_entry(dword_t handle,
+                                    lpdword_t suspend_count_ptr) {
+  uint32_t suspend_count =
+      suspend_count_ptr ? static_cast<uint32_t>(*suspend_count_ptr) : 0u;
+  return NtResumeThread(handle, suspend_count_ptr ? &suspend_count : nullptr);
 }
 DECLARE_XBOXKRNL_EXPORT1(NtResumeThread, kThreading, kImplemented);
 
@@ -232,7 +249,8 @@ DECLARE_XBOXKRNL_EXPORT1(NtSuspendThread, kThreading, kImplemented);
 
 dword_result_t KeSuspendThread_entry(pointer_t<X_KTHREAD> kthread,
                                      const ppc_context_t& context) {
-  auto thread = XObject::GetNativeObject<XThread>(context->kernel_state, kthread);
+  auto thread =
+      XObject::GetNativeObject<XThread>(context->kernel_state, kthread);
   uint32_t suspend_count_out = 0;
 
   if (thread) {
@@ -254,7 +272,7 @@ void KeSetCurrentStackPointers_entry(lpvoid_t stack_ptr,
   auto current_thread = XThread::GetCurrentThread();
 
   auto pcr = context->TranslateVirtualGPR<X_KPCR*>(context->r[13]);
-	//also supposed to load msr mask, and the current msr with that, and store
+  // also supposed to load msr mask, and the current msr with that, and store
   thread->stack_alloc_base = stack_alloc_base.value();
   thread->stack_base = stack_base.value();
   thread->stack_limit = stack_limit.value();
@@ -352,8 +370,7 @@ dword_result_t KeQueryPerformanceFrequency_entry() {
 DECLARE_XBOXKRNL_EXPORT2(KeQueryPerformanceFrequency, kThreading, kImplemented,
                          kHighFrequency);
 
-uint32_t KeDelayExecutionThread(uint32_t processor_mode,
-                                uint32_t alertable,
+uint32_t KeDelayExecutionThread(uint32_t processor_mode, uint32_t alertable,
                                 uint64_t* interval_ptr) {
   XThread* thread = XThread::GetCurrentThread();
   X_STATUS result = thread->Delay(processor_mode, alertable, *interval_ptr);
@@ -387,7 +404,7 @@ void KeQuerySystemTime_entry(lpqword_t time_ptr, const ppc_context_t& ctx) {
     // something uses this function, but also reads it directly
     uint32_t ts_bundle = ctx->kernel_state->GetKeTimestampBundle();
     uint64_t time = Clock::QueryGuestSystemTime();
-	//todo: cmpxchg?
+    // todo: cmpxchg?
     xe::store_and_swap<uint64_t>(
         &ctx->TranslateVirtual<X_TIME_STAMP_BUNDLE*>(ts_bundle)->system_time,
         time);
@@ -534,7 +551,7 @@ uint32_t xeNtSetEvent(uint32_t handle, xe::be<uint32_t>* previous_state_ptr) {
 
   auto ev = kernel_state()->object_table()->LookupObject<XEvent>(handle);
   if (ev) {
-	  //d3 ros does this
+    // d3 ros does this
     if (ev->type() != XObject::Type::Event) {
       return X_STATUS_OBJECT_TYPE_MISMATCH;
     }
@@ -583,7 +600,6 @@ dword_result_t NtQueryEvent_entry(dword_t handle, lpdword_t out_struc) {
 
     out_struc[0] = type_tmp;
     out_struc[1] = state_tmp;
-
   } else {
     result = X_STATUS_INVALID_HANDLE;
   }
@@ -881,10 +897,8 @@ dword_result_t KeWaitForSingleObject_entry(lpvoid_t object_ptr,
 DECLARE_XBOXKRNL_EXPORT3(KeWaitForSingleObject, kThreading, kImplemented,
                          kBlocking, kHighFrequency);
 
-dword_result_t NtWaitForSingleObjectEx_entry(dword_t object_handle,
-                                             dword_t wait_mode,
-                                             dword_t alertable,
-                                             lpqword_t timeout_ptr) {
+uint32_t NtWaitForSingleObjectEx(uint32_t object_handle, uint32_t wait_mode,
+                                 uint32_t alertable, uint64_t* timeout_ptr) {
   X_STATUS result = X_STATUS_SUCCESS;
 
   auto object =
@@ -898,6 +912,15 @@ dword_result_t NtWaitForSingleObjectEx_entry(dword_t object_handle,
   }
 
   return result;
+}
+
+dword_result_t NtWaitForSingleObjectEx_entry(dword_t object_handle,
+                                             dword_t wait_mode,
+                                             dword_t alertable,
+                                             lpqword_t timeout_ptr) {
+  uint64_t timeout = timeout_ptr ? static_cast<uint64_t>(*timeout_ptr) : 0u;
+  return NtWaitForSingleObjectEx(object_handle, wait_mode, alertable,
+                                 timeout_ptr ? &timeout : nullptr);
 }
 DECLARE_XBOXKRNL_EXPORT3(NtWaitForSingleObjectEx, kThreading, kImplemented,
                          kBlocking, kHighFrequency);
