@@ -980,19 +980,22 @@ void EmulatorWindow::ExportScreenshot(const xe::ui::RawImage& image) {
 // Converts a RawImage into a PNG file
 void EmulatorWindow::SaveImage(const std::filesystem::path& path,
                                const xe::ui::RawImage& image) {
-  auto file = std::ofstream(path, std::ios::binary);
+  std::ofstream file(path, std::ios::binary);
+
   if (!file.is_open()) {
     XELOGE("Failed to open file for writing: {}", path.string());
     return;
   }
 
-  auto result = stbi_write_png_to_func(
-      [](void* context, void* data, int size) {
-        auto file = reinterpret_cast<std::ofstream*>(context);
-        file->write(reinterpret_cast<const char*>(data), size);
-      },
-      &file, image.width, image.height, 4, image.data.data(),
-      (int)image.stride);
+  auto write_func = [](void* context, void* data, int size) {
+    std::ofstream* file = static_cast<std::ofstream*>(context);
+    file->write(static_cast<const char*>(data), size);
+  };
+
+  int stride = static_cast<int>(image.stride);
+
+  int result = stbi_write_png_to_func(write_func, &file, image.width, image.height, 4, image.data.data(), stride);
+
   if (result == 0) {
     XELOGE("Failed to write PNG to file: {}", path.string());
     return;
