@@ -57,6 +57,7 @@ class EmulatorWindow {
 
   void OnEmulatorInitialized();
 
+ public:
   void UpdateTitle();
   void SetFullscreen(bool fullscreen);
   void ToggleFullscreen();
@@ -126,8 +127,8 @@ class EmulatorWindow {
   GetGuestOutputPaintEffectForCvarValue(const std::string& cvar_value);
   static ui::Presenter::GuestOutputPaintConfig
   GetGuestOutputPaintConfigForCvars();
+ private:
   void ApplyDisplayConfigForCvars();
-
   void OnKeyDown(ui::KeyEvent& e);
   void FileDrop(const std::filesystem::path& filename);
   void FileOpen();
