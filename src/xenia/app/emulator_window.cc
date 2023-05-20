@@ -1304,8 +1304,9 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
       break;
   }
 
-  if (button_combination.function == ButtonFunctions::IncTitleSelect ||
-      button_combination.function == ButtonFunctions::DecTitleSelect) {
+  if ((button_combination.function == ButtonFunctions::IncTitleSelect ||
+      button_combination.function == ButtonFunctions::DecTitleSelect) &&
+      recently_launched_titles_.size() > 0) {
     selected_title_index = std::clamp(
         selected_title_index, 0, (int)recently_launched_titles_.size() - 1);
 
