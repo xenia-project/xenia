@@ -7,7 +7,7 @@ project("xenia-vfs")
   kind("StaticLib")
   language("C++")
   links({
-    "xenia-base",
+    "xenia-base", "zstd", "zarchive"
   })
   defines({
   })

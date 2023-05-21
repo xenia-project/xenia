@@ -196,6 +196,9 @@ class Emulator {
   // Launches a game from a disc image file (.iso, etc).
   X_STATUS LaunchDiscImage(const std::filesystem::path& path);
 
+  // Launches a game from a disc archive file (.zar, etc).
+  X_STATUS LaunchDiscArchive(const std::filesystem::path& path);
+
   // Launches a game from an STFS container file.
   X_STATUS LaunchStfsContainer(const std::filesystem::path& path);
 
