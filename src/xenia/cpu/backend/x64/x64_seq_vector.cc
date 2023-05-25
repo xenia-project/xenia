@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2022 Xenia Developers. All rights reserved.                      *
+ * Copyright 2018 Xenia Developers. All rights reserved.                      *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -83,19 +83,6 @@ struct VECTOR_CONVERT_F2I
                I<OPCODE_VECTOR_CONVERT_F2I, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
-      if (e.IsFeatureEnabled(kX64EmitAVX512Ortho)) {
-        Opmask mask = e.k1;
-        // Mask positive values and unordered values
-        // _CMP_NLT_UQ
-        e.vcmpps(mask, i.src1, e.GetXmmConstPtr(XMMZero), 0x15);
-
-        // vcvttps2udq will saturate overflowing positive values and unordered
-        // values to UINT_MAX. Mask registers will write zero everywhere
-        // else (negative values)
-        e.vcvttps2udq(i.dest.reg() | mask | e.T_z, i.src1);
-        return;
-      }
-
       // clamp to min 0
       e.vmaxps(e.xmm0, i.src1, e.GetXmmConstPtr(XMMZero));
 
@@ -560,15 +547,6 @@ struct VECTOR_ADD
             case INT32_TYPE:
               if (saturate) {
                 if (is_unsigned) {
-                  if (e.IsFeatureEnabled(kX64EmitAVX512Ortho)) {
-                    e.vpaddd(dest, src1, src2);
-                    Opmask saturate = e.k1;
-                    // _mm_cmplt_epu32_mask
-                    e.vpcmpud(saturate, dest, src1, 0x1);
-                    e.vpternlogd(dest | saturate, dest, dest, 0xFF);
-                    return;
-                  }
-
                   // xmm0 is the only temp register that can be used by
                   // src1/src2.
                   e.vpaddd(e.xmm1, src1, src2);
@@ -583,20 +561,6 @@ struct VECTOR_ADD
                   e.vpor(dest, e.xmm1, e.xmm0);
                 } else {
                   e.vpaddd(e.xmm1, src1, src2);
-
-                  if (e.IsFeatureEnabled(kX64EmitAVX512Ortho |
-                                         kX64EmitAVX512DQ)) {
-                    e.vmovdqa32(e.xmm3, src1);
-                    e.vpternlogd(e.xmm3, e.xmm1, src2, 0b00100100);
-
-                    const Opmask saturate = e.k1;
-                    e.vpmovd2m(saturate, e.xmm3);
-
-                    e.vpsrad(e.xmm2, e.xmm1, 31);
-                    e.vpxord(e.xmm2, e.xmm2, e.GetXmmConstPtr(XMMSignMaskI32));
-                    e.vpblendmd(dest | saturate, e.xmm1, e.xmm2);
-                    return;
-                  }
 
                   // Overflow results if two inputs are the same sign and the
                   // result isn't the same sign. if ((s32b)(~(src1 ^ src2) &
@@ -679,19 +643,6 @@ struct VECTOR_SUB
                   // src1/src2.
                   e.vpsubd(e.xmm1, src1, src2);
 
-                  if (e.IsFeatureEnabled(kX64EmitAVX512Ortho)) {
-                    // If the result is less or equal to the first operand then
-                    // we did not underflow
-                    Opmask not_underflow = e.k1;
-                    // _mm_cmple_epu32_mask
-                    e.vpcmpud(not_underflow, e.xmm1, src1, 0x2);
-
-                    // Copy over values that did not underflow, write zero
-                    // everywhere else
-                    e.vmovdqa32(dest | not_underflow | e.T_z, e.xmm1);
-                    return;
-                  }
-
                   // If result is greater than either of the inputs, we've
                   // underflowed (only need to check one input)
                   // if (res > src1) then underflowed
@@ -702,21 +653,6 @@ struct VECTOR_SUB
                   e.vpandn(dest, e.xmm0, e.xmm1);
                 } else {
                   e.vpsubd(e.xmm1, src1, src2);
-
-                  if (e.IsFeatureEnabled(kX64EmitAVX512Ortho |
-                                         kX64EmitAVX512DQ)) {
-                    e.vmovdqa32(e.xmm3, src1);
-                    e.vpternlogd(e.xmm3, e.xmm1, src2, 0b00011000);
-
-                    const Opmask saturate = e.k1;
-                    e.vpmovd2m(saturate, e.xmm3);
-
-                    e.vpsrad(e.xmm2, e.xmm1, 31);
-                    e.vpxord(e.xmm2, e.xmm2, e.GetXmmConstPtr(XMMSignMaskI32));
-
-                    e.vpblendmd(dest | saturate, e.xmm1, e.xmm2);
-                    return;
-                  }
 
                   // We can only overflow if the signs of the operands are
                   // opposite. If signs are opposite and result sign isn't the
@@ -1351,6 +1287,7 @@ static __m128i EmulateVectorRotateLeft(void*, __m128i src1, __m128i src2) {
   return _mm_load_si128(reinterpret_cast<__m128i*>(value));
 }
 
+// TODO(benvanik): AVX512 has a native variable rotate (rolv).
 struct VECTOR_ROTATE_LEFT_V128
     : Sequence<VECTOR_ROTATE_LEFT_V128,
                I<OPCODE_VECTOR_ROTATE_LEFT, V128Op, V128Op, V128Op>> {
@@ -1381,9 +1318,7 @@ struct VECTOR_ROTATE_LEFT_V128
         e.vmovaps(i.dest, e.xmm0);
         break;
       case INT32_TYPE: {
-        if (e.IsFeatureEnabled(kX64EmitAVX512Ortho)) {
-          e.vprolvd(i.dest, i.src1, i.src2);
-        } else if (e.IsFeatureEnabled(kX64EmitAVX2)) {
+        if (e.IsFeatureEnabled(kX64EmitAVX2)) {
           Xmm temp = i.dest;
           if (i.dest == i.src1 || i.dest == i.src2) {
             temp = e.xmm2;
@@ -1638,11 +1573,7 @@ EMITTER_OPCODE_TABLE(OPCODE_EXTRACT, EXTRACT_I8, EXTRACT_I16, EXTRACT_I32);
 struct SPLAT_I8 : Sequence<SPLAT_I8, I<OPCODE_SPLAT, V128Op, I8Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     if (i.src1.is_constant) {
-      if (e.IsFeatureEnabled(kX64EmitGFNI)) {
-        e.pxor(e.xmm0, e.xmm0);
-        e.gf2p8affineqb(i.dest, e.xmm0, i.src1.constant());
-        return;
-      }
+      // TODO(benvanik): faster constant splats.
       e.mov(e.eax, i.src1.constant());
       e.vmovd(e.xmm0, e.eax);
     } else {
@@ -1804,23 +1735,7 @@ struct PERMUTE_V128
         } else {
           e.vxorps(e.xmm0, i.src1, e.GetXmmConstPtr(XMMSwapWordMask));
         }
-
-        if (e.IsFeatureEnabled(kX64EmitAVX512Ortho | kX64EmitAVX512VBMI)) {
-          Xmm table_lo = e.xmm1;
-          if (i.src2.is_constant) {
-            e.LoadConstantXmm(table_lo, i.src2.constant());
-          } else {
-            table_lo = i.src2;
-          }
-          Opmask zeroes = e.k1;
-          // _mm_cmple_epu8_mask
-          e.vpcmpub(zeroes, e.xmm0, e.GetXmmConstPtr(XMMPermuteControl15), 2);
-          e.vpermb(i.dest.reg() | zeroes | e.T_z, e.xmm0, table_lo);
-          return;
-        }
-
         e.vpand(e.xmm0, e.GetXmmConstPtr(XMMPermuteByteMask));
-
         if (i.src2.is_constant) {
           e.LoadConstantXmm(i.dest, i.src2.constant());
           e.vpshufb(i.dest, i.dest, e.xmm0);
@@ -1836,39 +1751,6 @@ struct PERMUTE_V128
       // General permute.
       // Control mask needs to be shuffled.
       // TODO(benvanik): do constants here instead of in generated code.
-      if (e.IsFeatureEnabled(kX64EmitAVX512Ortho | kX64EmitAVX512BW |
-                             kX64EmitAVX512VBMI)) {
-        Xmm table_idx = e.xmm0;
-        if (i.src1.is_constant) {
-          e.LoadConstantXmm(table_idx, i.src1.constant());
-          e.vxorps(table_idx, table_idx, e.GetXmmConstPtr(XMMSwapWordMask));
-        } else {
-          e.vxorps(table_idx, i.src1, e.GetXmmConstPtr(XMMSwapWordMask));
-        }
-
-        Xmm table_lo = e.xmm1;
-        if (i.src2.value->IsConstantZero()) {
-          e.vpxor(table_lo, table_lo);
-        } else if (i.src2.is_constant) {
-          e.LoadConstantXmm(table_lo, i.src2.constant());
-        } else {
-          table_lo = i.src2;
-        }
-
-        Xmm table_hi = e.xmm2;
-        if (i.src3.value->IsConstantZero()) {
-          e.vpxor(table_hi, table_hi);
-        } else if (i.src3.is_constant) {
-          e.LoadConstantXmm(table_hi, i.src3.constant());
-        } else {
-          table_hi = i.src3;
-        }
-
-        e.vpermi2b(table_idx, table_lo, table_hi);
-        e.vmovdqu8(i.dest, table_idx);
-        return;
-      }
-
       if (i.src1.is_constant) {
         e.LoadConstantXmm(e.xmm2, i.src1.constant());
         e.vxorps(e.xmm2, e.xmm2, e.GetXmmConstPtr(XMMSwapWordMask));
@@ -1876,7 +1758,6 @@ struct PERMUTE_V128
         e.vxorps(e.xmm2, i.src1, e.GetXmmConstPtr(XMMSwapWordMask));
       }
       e.vpand(e.xmm2, e.GetXmmConstPtr(XMMPermuteByteMask));
-
       Xmm src2_shuf = e.xmm0;
       if (i.src2.value->IsConstantZero()) {
         e.vpxor(src2_shuf, src2_shuf);
@@ -1903,39 +1784,8 @@ struct PERMUTE_V128
 
   static void EmitByInt16(X64Emitter& e, const EmitArgType& i) {
     // src1 is an array of indices corresponding to positions within src2 and
-    // src3
-    if (e.IsFeatureEnabled(kX64EmitAVX512Ortho | kX64EmitAVX512BW)) {
-      e.LoadConstantXmm(e.xmm1, vec128s(0x1));
-
-      Xmm table_idx = e.xmm0;
-      if (i.src1.is_constant) {
-        e.LoadConstantXmm(table_idx, i.src1.constant());
-        e.vpxord(table_idx, table_idx, e.xmm1);
-      } else {
-        e.vpxord(table_idx, i.src1, e.xmm1);
-      }
-
-      Xmm table_lo = e.xmm1;
-      if (i.src2.is_constant) {
-        e.LoadConstantXmm(table_lo, i.src2.constant());
-      } else {
-        table_lo = i.src2;
-      }
-
-      Xmm table_hi = e.xmm2;
-      if (i.src3.is_constant) {
-        e.LoadConstantXmm(table_hi, i.src3.constant());
-      } else {
-        table_hi = i.src3;
-      }
-
-      e.vpermi2w(table_idx, table_lo, table_hi);
-      e.vmovdqu8(i.dest, table_idx);
-      return;
-    }
-
+    // src3.
     assert_true(i.src1.is_constant);
-
     vec128_t perm = (i.src1.constant() & vec128s(0xF)) ^ vec128s(0x1);
     vec128_t perm_ctrl = vec128b(0);
     for (int i = 0; i < 8; i++) {
