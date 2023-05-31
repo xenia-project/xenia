@@ -234,7 +234,7 @@ std::vector<FileInfo> ListFiles(const std::filesystem::path& path) {
     }
     result.push_back(info);
   }
-
+  closedir(dir);
   return result;
 }
 
