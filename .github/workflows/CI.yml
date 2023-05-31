@@ -21,7 +21,6 @@ on:
       - 'src/**/*_android.*'
       - 'src/**/*_mac.*'
       - 'LICENSE'
-      - 'README.md'
   pull_request:
     paths-ignore:
       - '.clang-format'
@@ -42,7 +41,6 @@ on:
       - 'src/**/*_android.*'
       - 'src/**/*_mac.*'
       - 'LICENSE'
-      - 'README.md'
   workflow_dispatch:
 
 jobs:
