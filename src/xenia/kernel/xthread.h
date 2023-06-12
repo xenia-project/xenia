@@ -166,6 +166,8 @@ class XThread : public XObject, public cpu::Thread {
   static constexpr uint32_t kStackAddressRangeBegin = 0x70000000;
   static constexpr uint32_t kStackAddressRangeEnd = 0x7F000000;
 
+  static constexpr uint32_t kThreadKernelStackSize = 0xF0;
+
   struct CreationParams {
     uint32_t stack_size;
     uint32_t xapi_thread_startup;
