@@ -84,6 +84,12 @@ dword_result_t ObLookupThreadByThreadId_entry(dword_t thread_id,
 }
 DECLARE_XBOXKRNL_EXPORT1(ObLookupThreadByThreadId, kNone, kImplemented);
 
+dword_result_t ObLookupAnyThreadByThreadId_entry(dword_t thread_id,
+                                                 lpdword_t out_object_ptr) {
+  return ObLookupThreadByThreadId_entry(thread_id, out_object_ptr);
+}
+DECLARE_XBOXKRNL_EXPORT1(ObLookupAnyThreadByThreadId, kNone, kImplemented);
+
 template <uint32_t ordinal>
 static constexpr uint32_t object_type_id_for_ordinal_v =
     0xD000BEEF | (ordinal << 16);
