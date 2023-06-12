@@ -35,8 +35,8 @@
 // implementations. They can be found in xboxkrnl_audio_xma.cc
 
 DEFINE_uint32(
-    max_queued_frames, 64,
-    "Allows changing max buffered audio frames to reduce audio delay.", "APU");
+    apu_max_queued_frames, 64,
+    "Allows changing max buffered audio frames to reduce audio delay. Minimum is 16.", "APU");
 
 namespace xe {
 namespace apu {
@@ -46,7 +46,7 @@ AudioSystem::AudioSystem(cpu::Processor* processor)
       processor_(processor),
       worker_running_(false) {
   std::memset(clients_, 0, sizeof(clients_));
-  queued_frames_ = std::max(cvars::max_queued_frames, (uint32_t)16);
+  queued_frames_ = std::max(cvars::apu_max_queued_frames, (uint32_t)16);
 
   for (size_t i = 0; i < kMaximumClientCount; ++i) {
     client_semaphores_[i] = xe::threading::Semaphore::Create(0, queued_frames_);
