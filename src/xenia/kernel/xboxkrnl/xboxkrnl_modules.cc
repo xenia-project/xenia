@@ -63,7 +63,8 @@ dword_result_t XexGetModuleHandle(std::string module_name,
 
 dword_result_t XexGetModuleHandle_entry(lpstring_t module_name,
                                         lpdword_t hmodule_ptr) {
-  return XexGetModuleHandle(module_name.value(), hmodule_ptr);
+  return XexGetModuleHandle(module_name ? module_name.value() : "",
+                            hmodule_ptr);
 }
 DECLARE_XBOXKRNL_EXPORT1(XexGetModuleHandle, kModules, kImplemented);
 
