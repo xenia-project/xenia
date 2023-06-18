@@ -198,7 +198,15 @@ dword_result_t NtResumeThread_entry(dword_t handle,
                                     lpdword_t suspend_count_ptr) {
   uint32_t suspend_count =
       suspend_count_ptr ? static_cast<uint32_t>(*suspend_count_ptr) : 0u;
-  return NtResumeThread(handle, suspend_count_ptr ? &suspend_count : nullptr);
+
+  const X_RESULT result =
+      NtResumeThread(handle, suspend_count_ptr ? &suspend_count : nullptr);
+
+  if (suspend_count_ptr) {
+    *suspend_count_ptr = suspend_count;
+  }
+
+  return result;
 }
 DECLARE_XBOXKRNL_EXPORT1(NtResumeThread, kThreading, kImplemented);
 
