@@ -299,11 +299,11 @@ X_STATUS Emulator::MountPath(const std::filesystem::path& path,
                              const std::string_view mount_path) {
   auto device = CreateVfsDeviceBasedOnPath(path, mount_path);
   if (!device->Initialize()) {
-    xe::FatalError("Unable to mount {}; file not found or corrupt.");
+    xe::FatalError(fmt::format("Unable to mount {}; file corrupt or not found.", xe::path_to_utf8(path)));
     return X_STATUS_NO_SUCH_FILE;
   }
   if (!file_system_->RegisterDevice(std::move(device))) {
-    xe::FatalError("Unable to register {}.");
+    xe::FatalError(fmt::format("Unable to register {} to {}.", xe::path_to_utf8(path), xe::path_to_utf8(mount_path)));
     return X_STATUS_NO_SUCH_FILE;
   }
 
