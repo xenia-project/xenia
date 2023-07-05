@@ -1,7 +1,7 @@
 version: 1.0.{build}-{branch}
 
 branches:
-  except: [gh-pages, master, canary_base]
+  except: [gh-pages, master, canary_base, wiki]
 
 skip_tags: true
 
