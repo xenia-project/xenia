@@ -615,7 +615,8 @@ void EmulatorApp::EmulatorThread() {
     // Normalize the path and make absolute.
     auto abs_path = std::filesystem::absolute(path);
 
-    result = app_context().CallInUIThread([this, abs_path]() { return emulator_->LaunchPath(abs_path); });
+    result = app_context().CallInUIThread(
+        [this, abs_path]() { return emulator_window_->RunTitle(abs_path); });
     if (XFAILED(result)) {
       xe::FatalError(fmt::format("Failed to launch target: {:08X}", result));
       app_context().RequestDeferredQuit();

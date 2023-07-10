@@ -69,6 +69,7 @@ class EmulatorWindow {
 
   void OnEmulatorInitialized();
 
+  xe::X_STATUS RunTitle(std::filesystem::path path_to_file);
   void UpdateTitle();
   void SetFullscreen(bool fullscreen);
   void ToggleFullscreen();
@@ -210,7 +211,6 @@ class EmulatorWindow {
   std::string BoolToString(bool value);
   void DisplayHotKeysConfig();
 
-  xe::X_STATUS RunTitle(std::filesystem::path path_to_file);
   void RunPreviouslyPlayedTitle();
   void FillRecentlyLaunchedTitlesMenu(xe::ui::MenuItem* recent_menu);
   void LoadRecentlyLaunchedTitles();
