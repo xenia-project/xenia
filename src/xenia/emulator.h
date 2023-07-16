@@ -22,6 +22,7 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/memory.h"
 #include "xenia/patcher/patcher.h"
+#include "xenia/patcher/plugin_loader.h"
 #include "xenia/vfs/device.h"
 #include "xenia/vfs/virtual_file_system.h"
 #include "xenia/xbox.h"
@@ -158,6 +159,8 @@ class Emulator {
 
   patcher::Patcher* patcher() const { return patcher_.get(); }
 
+  patcher::PluginLoader* plugin_loader() const { return plugin_loader_.get(); }
+
   // Initializes the emulator and configures all components.
   // The given window is used for display and the provided functions are used
   // to create subsystems as required.
@@ -259,6 +262,7 @@ class Emulator {
   std::unique_ptr<cpu::ExportResolver> export_resolver_;
   std::unique_ptr<vfs::VirtualFileSystem> file_system_;
   std::unique_ptr<patcher::Patcher> patcher_;
+  std::unique_ptr<patcher::PluginLoader> plugin_loader_;
 
   std::unique_ptr<kernel::KernelState> kernel_state_;
 
@@ -272,6 +276,7 @@ class Emulator {
   size_t game_config_load_callback_loop_next_index_ = SIZE_MAX;
 
   kernel::object_ref<kernel::XThread> main_thread_;
+  kernel::object_ref<kernel::XHostThread> plugin_loader_thread_;
   std::optional<uint32_t> title_id_;  // Currently running title ID
 
   bool paused_;

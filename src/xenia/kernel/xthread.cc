@@ -117,7 +117,7 @@ bool XThread::IsInThread(XThread* other) {
 XThread* XThread::GetCurrentThread() {
   XThread* thread = reinterpret_cast<XThread*>(current_xthread_tls_);
   if (!thread) {
-    assert_always("Attempting to use kernel stuff from a non-kernel thread");
+    assert_always("Attempting to use guest stuff from a non-guest thread.");
   }
   return thread;
 }

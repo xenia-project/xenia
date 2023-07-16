@@ -1100,6 +1100,12 @@ void EmulatorWindow::UpdateTitle() {
   if (patcher && patcher->IsAnyPatchApplied()) {
     sb.Append(u8" [Patches Applied]");
   }
+
+  patcher::PluginLoader* pluginloader = emulator()->plugin_loader();
+  if (pluginloader && pluginloader->IsAnyPluginLoaded()) {
+    sb.Append(u8" [Plugins Loaded]");
+  }
+
   window_->SetTitle(sb.to_string_view());
 }
 
@@ -1429,10 +1435,6 @@ bool EmulatorWindow::IsUseNexusForGameBarEnabled() {
 #endif
 }
 
-std::string EmulatorWindow::BoolToString(bool value) {
-  return std::string(value ? "true" : "false");
-}
-
 void EmulatorWindow::DisplayHotKeysConfig() {
   std::string msg = "";
   std::string msg_passthru = "";
@@ -1472,14 +1474,16 @@ void EmulatorWindow::DisplayHotKeysConfig() {
   msg.insert(0, msg_passthru);
   msg += "\n";
 
-  msg += "Readback Resolve: " + BoolToString(cvars::d3d12_readback_resolve);
+  msg += "Readback Resolve: " +
+         xe::string_util::BoolToString(cvars::d3d12_readback_resolve);
   msg += "\n";
 
   msg += "Clear Memory Page State: " +
-         BoolToString(cvars::d3d12_clear_memory_page_state);
+         xe::string_util::BoolToString(cvars::d3d12_clear_memory_page_state);
   msg += "\n";
 
-  msg += "Controller Hotkeys: " + BoolToString(cvars::controller_hotkeys);
+  msg += "Controller Hotkeys: " +
+         xe::string_util::BoolToString(cvars::controller_hotkeys);
 
   imgui_drawer_.get()->ClearDialogs();
   xe::ui::ImGuiDialog::ShowMessageBox(imgui_drawer_.get(), "Controller Hotkeys",

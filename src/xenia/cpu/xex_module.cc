@@ -48,6 +48,8 @@ DEFINE_bool(
     "finding/stress testing with the JIT",
     "CPU");
 
+DECLARE_bool(allow_plugins);
+
 static const uint8_t xe_xex2_retail_key[16] = {
     0x20, 0xB1, 0x85, 0xA5, 0x9D, 0x28, 0xFD, 0xC3,
     0x40, 0x58, 0x3F, 0xBB, 0x08, 0x96, 0xBF, 0x91};
@@ -1071,6 +1073,11 @@ bool XexModule::LoadContinue() {
     if (!ReadMap(cvars::load_module_map.c_str())) {
       return false;
     }
+  }
+
+  // Disable write protection if plugins are enabled
+  if (cvars::allow_plugins && !cvars::writable_code_segments) {
+    OVERRIDE_bool(writable_code_segments, true);
   }
 
   // Setup memory protection.
