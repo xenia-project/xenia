@@ -59,7 +59,7 @@ DECLARE_bool(d3d12_clear_memory_page_state);
 DEFINE_bool(fullscreen, false, "Whether to launch the emulator in fullscreen.",
             "Display");
 
-DEFINE_bool(controller_hotkeys, true, "Hotkeys for Xbox and PS controllers.",
+DEFINE_bool(controller_hotkeys, false, "Hotkeys for Xbox and PS controllers.",
             "General");
 
 DEFINE_string(
