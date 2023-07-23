@@ -850,7 +850,11 @@ void EmulatorWindow::OnKeyDown(ui::KeyEvent& e) {
     } break;
 
     case ui::VirtualKey::kF2: {
-      ShowBuildCommit();
+      if (e.is_ctrl_pressed()) {
+        emulator()->ClearStickyPersistentFlags();
+      } else {
+        ShowBuildCommit();
+      }
     } break;
 
     case ui::VirtualKey::kF9: {

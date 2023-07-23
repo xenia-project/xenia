@@ -672,19 +672,16 @@ dword_result_t FscSetCacheElementCount_entry(dword_t unk_0, dword_t unk_1) {
   return X_STATUS_SUCCESS;
 }
 DECLARE_XBOXKRNL_EXPORT1(FscSetCacheElementCount, kFileSystem, kStub);
-
+// todo: this should fill in the io status block and queue the apc
 dword_result_t NtDeviceIoControlFile_entry(
     dword_t handle, dword_t event_handle, dword_t apc_routine,
-    dword_t apc_context, dword_t io_status_block, dword_t io_control_code,
-    lpvoid_t input_buffer, dword_t input_buffer_len, lpvoid_t output_buffer,
-    dword_t output_buffer_len) {
+    dword_t apc_context, pointer_t<X_IO_STATUS_BLOCK> io_status_block,
+    dword_t io_control_code, lpvoid_t input_buffer, dword_t input_buffer_len,
+    lpvoid_t output_buffer, dword_t output_buffer_len) {
   // Called by XMountUtilityDrive cache-mounting code
   // (checks if the returned values look valid, values below seem to pass the
   // checks)
   const uint32_t cache_size = 0xFF000;
-
-  const uint32_t X_IOCTL_DISK_GET_DRIVE_GEOMETRY = 0x70000;
-  const uint32_t X_IOCTL_DISK_GET_PARTITION_INFO = 0x74004;
 
   if (io_control_code == X_IOCTL_DISK_GET_DRIVE_GEOMETRY) {
     if (output_buffer_len < 0x8) {
@@ -710,29 +707,88 @@ dword_result_t NtDeviceIoControlFile_entry(
   return X_STATUS_SUCCESS;
 }
 DECLARE_XBOXKRNL_EXPORT1(NtDeviceIoControlFile, kFileSystem, kStub);
+// device_extension_size = additional bytes of data (aligned up to 8 byte
+// granularity) that will be allocated at the tail of the resulting device
+// object. although it is allocated at the tail, it is accessed through a
+// pointer at offset 0x18 so in theory a guest could be unaware that its a
+// single allocation device_name is optional, extra_device_object_attributes
+// gets assigned to the attributes field of the OBJECT_ATTRIBUTES used for
+// ObCreateObject
 
-dword_result_t IoCreateDevice_entry(dword_t device_struct, dword_t r4,
-                                    dword_t r5, dword_t r6, dword_t r7,
-                                    lpdword_t out_struct) {
+// todo: need device guest object struct + host object for device
+dword_result_t IoCreateDevice_entry(dword_t driver_object,
+                                    dword_t device_extension_size,
+                                    pointer_t<X_ANSI_STRING> device_name,
+                                    dword_t device_type,
+                                    dword_t extra_device_object_attributes,
+                                    lpdword_t device_object,
+                                    const ppc_context_t& ctx) {
   // Called from XMountUtilityDrive XAM-task code
   // That code tries writing things to a pointer at out_struct+0x18
   // We'll alloc some scratch space for it so it doesn't cause any exceptions
 
   // 0x24 is guessed size from accesses to out_struct - likely incorrect
-  auto out_guest = kernel_memory()->SystemHeapAlloc(0x24);
+  auto current_kernel = ctx->kernel_state;
 
-  auto out = kernel_memory()->TranslateVirtual<uint8_t*>(out_guest);
-  memset(out, 0, 0x24);
+  uint32_t required_size = 80 + xe::align<uint32_t>(device_extension_size, 8);
 
-  // XMountUtilityDrive writes some kind of header here
-  // 0x1000 bytes should be enough to store it
-  auto out_guest2 = kernel_memory()->SystemHeapAlloc(0x1000);
-  xe::store_and_swap(out + 0x18, out_guest2);
+  auto kernel_mem = current_kernel->memory();
 
-  *out_struct = out_guest;
+  auto out_guest = kernel_mem->SystemHeapAlloc(required_size);
+
+  auto out = kernel_mem->TranslateVirtual<uint8_t*>(out_guest);
+
+  memset(out, 0, required_size);
+
+  xe::store<unsigned char>(out, 3);  // maybe device object's Ob type?
+
+  // this stores the total object size, without alignment!
+
+  xe::store_and_swap<uint16_t>(out + 2, device_extension_size + 80);
+
+  // from 17559
+  if (device_type == 7 || device_type == 58 || device_type == 62 ||
+      device_type == 45 || device_type == 2 || device_type == 60 ||
+      device_type == 61 || device_type == 36 || device_type == 64 ||
+      device_type == 65 || device_type == 66 || device_type == 67 ||
+      device_type == 68 || device_type == 69 || device_type == 70 ||
+      device_type == 72 || device_type == 73) {
+    xe::store_and_swap<uint32_t>(out + 0xC, 0);
+  } else {
+    // pointer to itself?
+    xe::store_and_swap<uint32_t>(out + 0xC, out_guest);
+  }
+  xe::store<uint8_t>(out + 0x1C, static_cast<uint8_t>(device_type));
+
+  uint32_t flags_field_value = 16;
+  if (device_name) {
+    flags_field_value |= 8;
+  }
+  xe::store<unsigned char>(out + 0x1e, 1);
+  xe::store_and_swap<uint32_t>(out + 0x14, flags_field_value);
+  if (device_extension_size != 0) {
+    // pointer to device specific data
+    //  XMountUtilityDrive writes some kind of header here
+    xe::store_and_swap<uint32_t>(out + 0x18, out_guest + 80);
+  }
+
+  xe::store_and_swap<uint32_t>(out + 8, driver_object);
+
+  *device_object = out_guest;
   return X_STATUS_SUCCESS;
 }
 DECLARE_XBOXKRNL_EXPORT1(IoCreateDevice, kFileSystem, kStub);
+
+//supposed to invoke a callback on the driver object! its some sort of destructor function
+//intended to be called for all devices created from the driver
+void IoDeleteDevice_entry(dword_t device_ptr, const ppc_context_t& ctx) {
+  if (device_ptr) {
+    auto kernel_mem = ctx->kernel_state->memory();
+    kernel_mem->SystemHeapFree(device_ptr);
+  }
+}
+
+DECLARE_XBOXKRNL_EXPORT1(IoDeleteDevice, kFileSystem, kStub);
 
 }  // namespace xboxkrnl
 }  // namespace kernel

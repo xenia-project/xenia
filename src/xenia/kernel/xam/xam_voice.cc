@@ -38,6 +38,13 @@ DECLARE_XAM_EXPORT1(XamVoiceClose, kNone, kStub);
 dword_result_t XamVoiceHeadsetPresent_entry(lpunknown_t voice_ptr) { return 0; }
 DECLARE_XAM_EXPORT1(XamVoiceHeadsetPresent, kNone, kStub);
 
+dword_result_t XamVoiceSubmitPacket_entry(lpdword_t unk1, dword_t unk2,
+                                          lpdword_t unk3) {
+  // also may return 0xD000009D
+  return 0x800700AA;
+}
+DECLARE_XAM_EXPORT1(XamVoiceSubmitPacket, kNone, kStub);
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
