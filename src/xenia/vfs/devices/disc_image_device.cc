@@ -30,10 +30,10 @@ DiscImageDevice::~DiscImageDevice() = default;
 bool DiscImageDevice::Initialize() {
   mmap_ = MappedMemory::Open(host_path_, MappedMemory::Mode::kRead);
   if (!mmap_) {
-    XELOGE("Disc image {} could not be mapped", xe::path_to_utf8(host_path_));
+    XELOGE("Disc image could not be mapped");
     return false;
   } else {
-    XELOGFS("DiscImageDevice::Initialize({})", xe::path_to_utf8(host_path_));
+    XELOGFS("DiscImageDevice::Initialize");
   }
 
   ParseState state = {0};

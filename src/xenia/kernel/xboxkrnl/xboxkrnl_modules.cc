@@ -13,6 +13,7 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
+#include "xenia/kernel/util/xex2_info.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/xbox.h"
 
@@ -215,6 +216,65 @@ void ExRegisterTitleTerminateNotification_entry(
 }
 DECLARE_XBOXKRNL_EXPORT1(ExRegisterTitleTerminateNotification, kModules,
                          kImplemented);
+// todo: replace magic numbers
+dword_result_t XexLoadImageHeaders_entry(pointer_t<X_ANSI_STRING> path,
+                                         pointer_t<xex2_header> header,
+                                         dword_t buffer_size,
+                                         const ppc_context_t& ctx) {
+  if (buffer_size < 0x800) {
+    return X_STATUS_BUFFER_TOO_SMALL;
+  }
+  auto current_kernel = ctx->kernel_state;
+  auto target_path = util::TranslateAnsiString(current_kernel->memory(), path);
+
+  vfs::File* vfs_file = nullptr;
+  vfs::FileAction file_action;
+  X_STATUS result = current_kernel->file_system()->OpenFile(
+      nullptr, target_path, vfs::FileDisposition::kOpen,
+      vfs::FileAccess::kGenericRead, false, true, &vfs_file, &file_action);
+
+  if (!vfs_file) {
+    return result;
+  }
+  size_t bytes_read = 0;
+
+  X_STATUS result_status = vfs_file->ReadSync(
+      reinterpret_cast<void*>(header.host_address()), 2048, 0, &bytes_read);
+
+  if (result_status < 0) {
+    vfs_file->Destroy();
+    return result_status;
+  }
+
+  if (header->magic != 'XEX2') {
+    vfs_file->Destroy();
+    return X_STATUS_INVALID_IMAGE_FORMAT;
+  }
+  unsigned int header_size = header->header_size;
+
+  if (header_size < 0x800 || header_size > 0x10000 ||
+      (header_size & 0x7FF) != 0) {
+    result_status = X_STATUS_INVALID_IMAGE_FORMAT;
+  } else if (header_size <= buffer_size) {
+    if (header_size <= 0x800) {
+      result_status = X_STATUS_SUCCESS;
+    } else {
+      result_status = vfs_file->ReadSync(
+          reinterpret_cast<void*>(header.host_address() + 2048),
+          header_size - 2048, 2048, &bytes_read);
+      if (result_status >= X_STATUS_SUCCESS) {
+        result_status = X_STATUS_SUCCESS;
+      }
+    }
+
+  } else {
+    result_status = X_STATUS_BUFFER_TOO_SMALL;
+  }
+
+  vfs_file->Destroy();
+  return result_status;
+}
+DECLARE_XBOXKRNL_EXPORT1(XexLoadImageHeaders, kModules, kImplemented);
 
 }  // namespace xboxkrnl
 }  // namespace kernel

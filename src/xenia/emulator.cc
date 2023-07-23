@@ -26,6 +26,7 @@
 #include "xenia/base/mapped_memory.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/string.h"
+#include "xenia/base/system.h"
 #include "xenia/cpu/backend/code_cache.h"
 #include "xenia/cpu/backend/null_backend.h"
 #include "xenia/cpu/cpu_flags.h"
@@ -109,7 +110,15 @@ Emulator::Emulator(const std::filesystem::path& command_line,
       title_id_(std::nullopt),
       paused_(false),
       restoring_(false),
-      restore_fence_() {}
+      restore_fence_() {
+  // show the quickstart guide the first time they ever open the emulator
+  uint64_t persistent_flags = GetPersistentEmulatorFlags();
+  if (!(persistent_flags & EmulatorFlagQuickstartShown)) {
+    LaunchWebBrowser(
+        "https://github.com/xenia-canary/xenia-canary/wiki/Quickstart");
+    SetPersistentEmulatorFlags(persistent_flags | EmulatorFlagQuickstartShown);
+  }
+}
 
 Emulator::~Emulator() {
   // Note that we delete things in the reverse order they were initialized.
@@ -280,30 +289,161 @@ X_STATUS Emulator::TerminateTitle() {
   return X_STATUS_SUCCESS;
 }
 
+std::string Emulator::CanonicalizeFileExtension(
+    const std::filesystem::path& path) {
+  return xe::utf8::lower_ascii(xe::path_to_utf8(path.extension()));
+}
+
 const std::unique_ptr<vfs::Device> Emulator::CreateVfsDeviceBasedOnPath(
     const std::filesystem::path& path, const std::string_view mount_path) {
   if (!path.has_extension()) {
     return std::make_unique<vfs::StfsContainerDevice>(mount_path, path);
   }
-  auto extension = xe::utf8::lower_ascii(xe::path_to_utf8(path.extension()));
+  auto extension = CanonicalizeFileExtension(path);
   if (extension == ".xex" || extension == ".elf" || extension == ".exe") {
     auto parent_path = path.parent_path();
     return std::make_unique<vfs::HostPathDevice>(
         mount_path, parent_path, !cvars::allow_game_relative_writes);
-  } else {
-    return std::make_unique<vfs::DiscImageDevice>(mount_path, path);
+  } else if (extension == ".7z" || extension == ".zip" || extension == ".rar") {
+    xe::ShowSimpleMessageBox(
+        xe::SimpleMessageBoxType::Error,
+        fmt::format("Xenia does not support running {} files, the file you "
+                    "actually want to run is inside of this {} file.",
+                    extension, extension));
+    // user likely compressed the file themselves, then suffered a traumatic
+    // brain injury that caused them to forget how archives work
+
+    LaunchWebBrowser(fmt::format(
+        "https://www.google.com/search?q=how+to+extract+{}+file", extension));
+
+    xe::FatalError("Terminating due to user's lack of basic computer skills.");
+  }
+  return std::make_unique<vfs::DiscImageDevice>(mount_path, path);
+}
+
+uint64_t Emulator::GetPersistentEmulatorFlags() {
+#if XE_PLATFORM_WIN32 == 1
+  uint64_t value = 0;
+  DWORD value_size = sizeof(value);
+  HKEY xenia_hkey = nullptr;
+  LSTATUS lstat =
+      RegOpenKeyA(HKEY_CURRENT_USER, "SOFTWARE\\Xenia", &xenia_hkey);
+  if (!xenia_hkey) {
+    // let the Set function create the key and initialize it to 0
+    SetPersistentEmulatorFlags(0ULL);
+    return 0ULL;
+  }
+
+  lstat = RegQueryValueExA(xenia_hkey, "XEFLAGS", 0, NULL,
+                           reinterpret_cast<LPBYTE>(&value), &value_size);
+  RegCloseKey(xenia_hkey);
+  if (lstat) {
+    return 0ULL;
+  }
+  return value;
+#else
+  return EmulatorFlagQuickstartShown | EmulatorFlagIsoWarningAcknowledged;
+#endif
+}
+void Emulator::SetPersistentEmulatorFlags(uint64_t new_flags) {
+#if XE_PLATFORM_WIN32 == 1
+  uint64_t value = new_flags;
+  DWORD value_size = sizeof(value);
+  HKEY xenia_hkey = nullptr;
+  LSTATUS lstat =
+      RegOpenKeyA(HKEY_CURRENT_USER, "SOFTWARE\\Xenia", &xenia_hkey);
+  if (!xenia_hkey) {
+    lstat = RegCreateKeyA(HKEY_CURRENT_USER, "SOFTWARE\\Xenia", &xenia_hkey);
+  }
+
+  lstat = RegSetValueExA(xenia_hkey, "XEFLAGS", 0, REG_QWORD,
+                         reinterpret_cast<const BYTE*>(&value), 8);
+  RegFlushKey(xenia_hkey);
+  RegCloseKey(xenia_hkey);
+#endif
+}
+
+void Emulator::ClearStickyPersistentFlags() {
+  SetPersistentEmulatorFlags(GetPersistentEmulatorFlags() &
+                             ~EmulatorFlagIsoWarningSticky);
+}
+
+void Emulator::CheckMountWarning(const std::filesystem::path& path) {
+  auto extension = CanonicalizeFileExtension(path);
+
+  uint64_t emu_flags = GetPersistentEmulatorFlags();
+
+  bool moron_flag_set = (emu_flags & EmulatorFlagIsoWarningSticky) != 0ULL;
+
+  if (!(emu_flags & EmulatorFlagIsoWarningAcknowledged) &&
+      extension == ".iso") {
+    // get their attention, they're more likely to read the message if they're
+    // worried something is wrong with their computer
+
+    // beep blocks for duration, so run it on another thread
+    // beep is better than MessageBeep; if the user has disabled all windows
+    // sounds, MessageBeep doesnt play, but beep does play
+
+    std::thread beep_thread{[]() {
+      for (uint32_t i = 0; i < 4; ++i) {
+#if XE_PLATFORM_WIN32 == 1
+        Beep(4096, 500);
+        Sleep(50);
+#endif
+      }
+    }};
+
+    uint64_t time_started_reading = Clock::QueryHostUptimeMillis();
+    // this isn't true really, they just won't be able to speak in discussion
+    // channels, and they can prove they have a physical copy
+    ShowSimpleMessageBox(
+        xe::SimpleMessageBoxType::Warning,
+        "PIRACY IS ILLEGAL, STAY OUT OF OUR DISCORD: ISO files are commonly "
+        "associated with piracy, which the "
+        "Xenia team "
+        "does not support or condone. Any users who come to the Xenia discord "
+        "for support who are found to be using pirated games will be banned "
+        "immediately, regardless of whether they own a physical copy.");
+    uint64_t time_finished_reading = Clock::QueryHostUptimeMillis();
+    // join AFTER getting the end time, otherwise the beep duration will knock
+    // us out of idiot range
+    beep_thread.join();
+    /*
+            we only show them this warning once.
+            if they immediately skipped it, assume they're an idiot and force
+       the warning every time they open the file don't do the check though if
+       we've already given them the moron flag
+    */
+    if (!moron_flag_set &&
+        (time_finished_reading - time_started_reading) < 2000) {
+      ShowSimpleMessageBox(xe::SimpleMessageBoxType::Warning,
+                           "You clearly didn't read the warning. It will now "
+                           "show every time you open an ISO file.");
+      SetPersistentEmulatorFlags(emu_flags | EmulatorFlagIsoWarningSticky);
+    } else {
+      // dont set the warning acknowledged bit, ever, if they skipped the first
+      // warning without reading it
+      if (!moron_flag_set) {
+        SetPersistentEmulatorFlags(emu_flags |
+                                   EmulatorFlagIsoWarningAcknowledged);
+      }
+    }
   }
 }
 
 X_STATUS Emulator::MountPath(const std::filesystem::path& path,
                              const std::string_view mount_path) {
+  CheckMountWarning(path);
   auto device = CreateVfsDeviceBasedOnPath(path, mount_path);
   if (!device->Initialize()) {
-    xe::FatalError(fmt::format("Unable to mount {}; file corrupt or not found.", xe::path_to_utf8(path)));
+    xe::FatalError(
+        "Unable to mount the selected file, it is an unsupported format or "
+        "corrupted.");
     return X_STATUS_NO_SUCH_FILE;
   }
   if (!file_system_->RegisterDevice(std::move(device))) {
-    xe::FatalError(fmt::format("Unable to register {} to {}.", xe::path_to_utf8(path), xe::path_to_utf8(mount_path)));
+    xe::FatalError(fmt::format("Unable to register the input file to {}.",
+                               xe::path_to_utf8(mount_path)));
     return X_STATUS_NO_SUCH_FILE;
   }
 
@@ -634,31 +774,34 @@ bool Emulator::ExceptionCallback(Exception* ex) {
          current_thread->thread()->system_id(), current_thread->thread_id()));
   crash_msg.append(fmt::format("Thread Handle: 0x{:08X}\n", current_thread->handle()));
   crash_msg.append(fmt::format("PC: 0x{:08X}\n",
-         guest_function->MapMachineCodeToGuestAddress(ex->pc())));
+                  guest_function->MapMachineCodeToGuestAddress(ex->pc())));
   crash_msg.append("Registers:\n");
   for (int i = 0; i < 32; i++) {
     crash_msg.append(fmt::format(" r{:<3} = {:016X}\n", i, context->r[i]));
   }
   for (int i = 0; i < 32; i++) {
-    crash_msg.append(fmt::format(" f{:<3} = {:016X} = (double){} = (float){}\n", i,
-           *reinterpret_cast<uint64_t*>(&context->f[i]), context->f[i],
-           *(float*)&context->f[i]));
+    crash_msg.append(fmt::format(" f{:<3} = {:016X} = (double){} = (float){}\n",
+                                 i,
+                                 *reinterpret_cast<uint64_t*>(&context->f[i]),
+                                 context->f[i], *(float*)&context->f[i]));
   }
   for (int i = 0; i < 128; i++) {
-    crash_msg.append(fmt::format(" v{:<3} = [0x{:08X}, 0x{:08X}, 0x{:08X}, 0x{:08X}]\n", i,
-           context->v[i].u32[0], context->v[i].u32[1], context->v[i].u32[2],
-           context->v[i].u32[3]));
+    crash_msg.append(
+        fmt::format(" v{:<3} = [0x{:08X}, 0x{:08X}, 0x{:08X}, 0x{:08X}]\n", i,
+                    context->v[i].u32[0], context->v[i].u32[1],
+                    context->v[i].u32[2], context->v[i].u32[3]));
   }
   XELOGE("{}", crash_msg);
   std::string crash_dlg = fmt::format(
-              "The guest has crashed.\n\n"
-              "Xenia has now paused itself.\n\n"
-              "{}", crash_msg);
+      "The guest has crashed.\n\n"
+      "Xenia has now paused itself.\n\n"
+      "{}",
+      crash_msg);
   // Display a dialog telling the user the guest has crashed.
   if (display_window_ && imgui_drawer_) {
-    display_window_->app_context().CallInUIThreadSynchronous([this, &crash_dlg]() {
-      xe::ui::ImGuiDialog::ShowMessageBox(
-          imgui_drawer_, "Uh-oh!", crash_dlg);
+    display_window_->app_context().CallInUIThreadSynchronous([this,
+                                                              &crash_dlg]() {
+      xe::ui::ImGuiDialog::ShowMessageBox(imgui_drawer_, "Uh-oh!", crash_dlg);
     });
   }
 
