@@ -25,11 +25,21 @@ std::shared_ptr<cpptoml::table> ParseFile(
                                    " could not be opened for parsing");
   }
   // since cpptoml can't parse files with a UTF-8 BOM we need to skip them
-  char bom[3];
+  char bom[3]{};
   file.read(bom, sizeof(bom));
   if (file.fail() || bom[0] != '\xEF' || bom[1] != '\xBB' || bom[2] != '\xBF') {
     file.clear();
     file.seekg(0);
+  }
+  if (xe::utf8::ends_with(filename.string(), ".config.toml")) {
+    std::string config_content{};
+    std::string config_line{};
+    // dump contents of loaded config file
+    // content is expected to be utf8
+    while (std::getline(file, config_line)) {
+      config_content.append(fmt::format("{}\n", config_line));
+    }
+    XELOGI("Loading config: {}\n{}", xe::path_to_utf8(filename), config_content);
   }
 
   cpptoml::parser p(file);
