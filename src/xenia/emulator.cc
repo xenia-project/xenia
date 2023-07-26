@@ -115,7 +115,7 @@ Emulator::Emulator(const std::filesystem::path& command_line,
   uint64_t persistent_flags = GetPersistentEmulatorFlags();
   if (!(persistent_flags & EmulatorFlagQuickstartShown)) {
     LaunchWebBrowser(
-        "https://github.com/xenia-canary/xenia-canary/wiki/Quickstart");
+        "https://github.com/xenia-canary/xenia-canary/wiki/Quickstart#how-to-rip-games");
     SetPersistentEmulatorFlags(persistent_flags | EmulatorFlagQuickstartShown);
   }
 }
@@ -385,9 +385,9 @@ void Emulator::CheckMountWarning(const std::filesystem::path& path) {
     // sounds, MessageBeep doesnt play, but beep does play
 
     std::thread beep_thread{[]() {
-      for (uint32_t i = 0; i < 4; ++i) {
+      for (uint32_t i = 0; i < 2; ++i) {
 #if XE_PLATFORM_WIN32 == 1
-        Beep(4096, 500);
+        Beep(60, 500);
         Sleep(50);
 #endif
       }
