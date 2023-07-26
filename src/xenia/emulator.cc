@@ -390,6 +390,7 @@ void Emulator::CheckMountWarning(const std::filesystem::path& path) {
         "does not support or condone. Any users who come to the Xenia discord "
         "for support who are found to be using pirated games will be banned "
         "immediately, regardless of whether they own a physical copy.");
+    uint64_t time_finished_reading = Clock::QueryHostUptimeMillis();
     /*
             we only show them this warning once.
             if they immediately skipped it, assume they're an idiot and force
