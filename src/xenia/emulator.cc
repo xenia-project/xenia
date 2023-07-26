@@ -379,20 +379,6 @@ void Emulator::CheckMountWarning(const std::filesystem::path& path) {
       extension == ".iso") {
     // get their attention, they're more likely to read the message if they're
     // worried something is wrong with their computer
-
-    // beep blocks for duration, so run it on another thread
-    // beep is better than MessageBeep; if the user has disabled all windows
-    // sounds, MessageBeep doesnt play, but beep does play
-
-    std::thread beep_thread{[]() {
-      for (uint32_t i = 0; i < 2; ++i) {
-#if XE_PLATFORM_WIN32 == 1
-        Beep(60, 500);
-        Sleep(50);
-#endif
-      }
-    }};
-
     uint64_t time_started_reading = Clock::QueryHostUptimeMillis();
     // this isn't true really, they just won't be able to speak in discussion
     // channels, and they can prove they have a physical copy
@@ -405,9 +391,6 @@ void Emulator::CheckMountWarning(const std::filesystem::path& path) {
         "for support who are found to be using pirated games will be banned "
         "immediately, regardless of whether they own a physical copy.");
     uint64_t time_finished_reading = Clock::QueryHostUptimeMillis();
-    // join AFTER getting the end time, otherwise the beep duration will knock
-    // us out of idiot range
-    beep_thread.join();
     /*
             we only show them this warning once.
             if they immediately skipped it, assume they're an idiot and force
