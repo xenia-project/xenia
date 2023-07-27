@@ -111,19 +111,28 @@ Emulator::Emulator(const std::filesystem::path& command_line,
       paused_(false),
       restoring_(false),
       restore_fence_() {
-  // show the quickstart guide the first time they ever open the emulator
+#if XE_PLATFORM_WIN32 == 1
+  // Show a disclaimer that links to the quickstart
+  // guide the first time they ever open the emulator
   uint64_t persistent_flags = GetPersistentEmulatorFlags();
-  if (!(persistent_flags & EmulatorFlagQuickstartShown)) {
-#if XE_PLATFORM_WIN32 == 1
-  if (MessageBoxW(nullptr, L"Xenia does not support or condone piracy in anyway shape or form\nDo you want to open the quickstart guide?", L"Xenia", MB_YESNO | MB_ICONQUESTION) == IDYES) {
-#endif
-    LaunchWebBrowser(
-        "https://github.com/xenia-canary/xenia-canary/wiki/Quickstart#how-to-rip-games");
-    SetPersistentEmulatorFlags(persistent_flags | EmulatorFlagQuickstartShown);
-#if XE_PLATFORM_WIN32 == 1
+  if (!(persistent_flags & EmulatorFlagDisclaimerAcknowledged)) {
+    if ((MessageBoxW(
+             nullptr,
+             L"DISCLAIMER: Xenia is not for enabling illegal activity, and "
+             "support is unavailable for illegally obtained software.\n\n"
+             "Please respect this policy as no further reminders will be "
+             "given.\n\nThe quickstart guide explains how to use digital or "
+             "physical games from your Xbox 360 console.\n\nWould you like "
+             "to open it?",
+             L"Xenia", MB_YESNO | MB_ICONQUESTION) == IDYES)) {
+      LaunchWebBrowser(
+          "https://github.com/xenia-project/xenia/wiki/"
+          "Quickstart#how-to-rip-games");
     }
-#endif
+    SetPersistentEmulatorFlags(persistent_flags |
+                               EmulatorFlagDisclaimerAcknowledged);
   }
+#endif
 }
 
 Emulator::~Emulator() {
@@ -310,8 +319,12 @@ const std::unique_ptr<vfs::Device> Emulator::CreateVfsDeviceBasedOnPath(
     auto parent_path = path.parent_path();
     return std::make_unique<vfs::HostPathDevice>(
         mount_path, parent_path, !cvars::allow_game_relative_writes);
-  } else if (extension == ".7z" || extension == ".zip" || extension == ".rar") {
-    xe::FatalError(fmt::format("Xenia does not support running {} files.", extension));
+  } else if (extension == ".7z" || extension == ".zip" || extension == ".rar" ||
+             extension == ".tar" || extension == ".gz") {
+    xe::ShowSimpleMessageBox(
+        xe::SimpleMessageBoxType::Error,
+        fmt::format("Unsupported format!"
+            "Xenia does not support running software in an archived format."));
   }
   return std::make_unique<vfs::DiscImageDevice>(mount_path, path);
 }
@@ -337,7 +350,7 @@ uint64_t Emulator::GetPersistentEmulatorFlags() {
   }
   return value;
 #else
-  return EmulatorFlagQuickstartShown | EmulatorFlagIsoWarningAcknowledged;
+  return EmulatorFlagDisclaimerAcknowledged;
 #endif
 }
 void Emulator::SetPersistentEmulatorFlags(uint64_t new_flags) {
@@ -356,11 +369,6 @@ void Emulator::SetPersistentEmulatorFlags(uint64_t new_flags) {
   RegFlushKey(xenia_hkey);
   RegCloseKey(xenia_hkey);
 #endif
-}
-
-void Emulator::ClearStickyPersistentFlags() {
-  SetPersistentEmulatorFlags(GetPersistentEmulatorFlags() &
-                             ~EmulatorFlagIsoWarningSticky);
 }
 
 X_STATUS Emulator::MountPath(const std::filesystem::path& path,
