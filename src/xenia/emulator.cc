@@ -332,7 +332,7 @@ X_STATUS Emulator::LaunchDiscImage(const std::filesystem::path& path) {
   // Register the disc image in the virtual filesystem.
   auto device = std::make_unique<vfs::DiscImageDevice>(mount_path, path);
   if (!device->Initialize()) {
-    xe::FatalError("Unable to mount disc image; file not found or corrupt.");
+    xe::FatalError(fmt::format("Unable to mount disc image {}; file corrupt or not found.", xe::path_to_utf8(path)));
     return X_STATUS_NO_SUCH_FILE;
   }
   if (!file_system_->RegisterDevice(std::move(device))) {
