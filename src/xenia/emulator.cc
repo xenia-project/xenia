@@ -114,9 +114,15 @@ Emulator::Emulator(const std::filesystem::path& command_line,
   // show the quickstart guide the first time they ever open the emulator
   uint64_t persistent_flags = GetPersistentEmulatorFlags();
   if (!(persistent_flags & EmulatorFlagQuickstartShown)) {
+#if XE_PLATFORM_WIN32 == 1
+  if (MessageBoxW(nullptr, L"Xenia does not support or condone piracy in anyway shape or form\nDo you want to open the quickstart guide?", L"Xenia", MB_YESNO | MB_ICONQUESTION) == IDYES) {
+#endif
     LaunchWebBrowser(
         "https://github.com/xenia-canary/xenia-canary/wiki/Quickstart#how-to-rip-games");
     SetPersistentEmulatorFlags(persistent_flags | EmulatorFlagQuickstartShown);
+#if XE_PLATFORM_WIN32 == 1
+    }
+#endif
   }
 }
 
@@ -305,18 +311,7 @@ const std::unique_ptr<vfs::Device> Emulator::CreateVfsDeviceBasedOnPath(
     return std::make_unique<vfs::HostPathDevice>(
         mount_path, parent_path, !cvars::allow_game_relative_writes);
   } else if (extension == ".7z" || extension == ".zip" || extension == ".rar") {
-    xe::ShowSimpleMessageBox(
-        xe::SimpleMessageBoxType::Error,
-        fmt::format("Xenia does not support running {} files, the file you "
-                    "actually want to run is inside of this {} file.",
-                    extension, extension));
-    // user likely compressed the file themselves, then suffered a traumatic
-    // brain injury that caused them to forget how archives work
-
-    LaunchWebBrowser(fmt::format(
-        "https://www.google.com/search?q=how+to+extract+{}+file", extension));
-
-    xe::FatalError("Terminating due to user's lack of basic computer skills.");
+    xe::FatalError(fmt::format("Xenia does not support running {} files.", extension));
   }
   return std::make_unique<vfs::DiscImageDevice>(mount_path, path);
 }
@@ -368,55 +363,8 @@ void Emulator::ClearStickyPersistentFlags() {
                              ~EmulatorFlagIsoWarningSticky);
 }
 
-void Emulator::CheckMountWarning(const std::filesystem::path& path) {
-  auto extension = CanonicalizeFileExtension(path);
-
-  uint64_t emu_flags = GetPersistentEmulatorFlags();
-
-  bool moron_flag_set = (emu_flags & EmulatorFlagIsoWarningSticky) != 0ULL;
-
-  if (!(emu_flags & EmulatorFlagIsoWarningAcknowledged) &&
-      extension == ".iso") {
-    // get their attention, they're more likely to read the message if they're
-    // worried something is wrong with their computer
-    uint64_t time_started_reading = Clock::QueryHostUptimeMillis();
-    // this isn't true really, they just won't be able to speak in discussion
-    // channels, and they can prove they have a physical copy
-    ShowSimpleMessageBox(
-        xe::SimpleMessageBoxType::Warning,
-        "PIRACY IS ILLEGAL, STAY OUT OF OUR DISCORD: ISO files are commonly "
-        "associated with piracy, which the "
-        "Xenia team "
-        "does not support or condone. Any users who come to the Xenia discord "
-        "for support who are found to be using pirated games will be banned "
-        "immediately, regardless of whether they own a physical copy.");
-    uint64_t time_finished_reading = Clock::QueryHostUptimeMillis();
-    /*
-            we only show them this warning once.
-            if they immediately skipped it, assume they're an idiot and force
-       the warning every time they open the file don't do the check though if
-       we've already given them the moron flag
-    */
-    if (!moron_flag_set &&
-        (time_finished_reading - time_started_reading) < 2000) {
-      ShowSimpleMessageBox(xe::SimpleMessageBoxType::Warning,
-                           "You clearly didn't read the warning. It will now "
-                           "show every time you open an ISO file.");
-      SetPersistentEmulatorFlags(emu_flags | EmulatorFlagIsoWarningSticky);
-    } else {
-      // dont set the warning acknowledged bit, ever, if they skipped the first
-      // warning without reading it
-      if (!moron_flag_set) {
-        SetPersistentEmulatorFlags(emu_flags |
-                                   EmulatorFlagIsoWarningAcknowledged);
-      }
-    }
-  }
-}
-
 X_STATUS Emulator::MountPath(const std::filesystem::path& path,
                              const std::string_view mount_path) {
-  CheckMountWarning(path);
   auto device = CreateVfsDeviceBasedOnPath(path, mount_path);
   if (!device->Initialize()) {
     xe::FatalError(

@@ -224,14 +224,12 @@ class Emulator {
   enum : uint64_t {
     EmulatorFlagQuickstartShown = 1ULL << 0,
     EmulatorFlagIsoWarningAcknowledged = 1ULL << 1,
-	EmulatorFlagIsoWarningSticky = 1ULL<<2,
-
+    EmulatorFlagIsoWarningSticky = 1ULL<<2,
   };
   static uint64_t GetPersistentEmulatorFlags();
   static void SetPersistentEmulatorFlags(uint64_t new_flags);
   static std::string CanonicalizeFileExtension(
       const std::filesystem::path& path);
-  void CheckMountWarning(const std::filesystem::path& path);
   static bool ExceptionCallbackThunk(Exception* ex, void* data);
   bool ExceptionCallback(Exception* ex);
 
