@@ -46,6 +46,7 @@
 #include "xenia/ui/window.h"
 #include "xenia/ui/windowed_app_context.h"
 #include "xenia/vfs/devices/disc_image_device.h"
+#include "xenia/vfs/devices/disc_zarchive_device.h"
 #include "xenia/vfs/devices/host_path_device.h"
 #include "xenia/vfs/devices/null_device.h"
 #include "xenia/vfs/devices/stfs_container_device.h"
@@ -285,6 +286,9 @@ X_STATUS Emulator::LaunchPath(const std::filesystem::path& path) {
   if (extension == ".xex" || extension == ".elf" || extension == ".exe") {
     // Treat as a naked xex file.
     return LaunchXexFile(path);
+  } else if (extension == ".zar") {
+    // Assume a disc image.
+    return LaunchDiscArchive(path);
   } else {
     // Assume a disc image.
     return LaunchDiscImage(path);
@@ -331,6 +335,29 @@ X_STATUS Emulator::LaunchDiscImage(const std::filesystem::path& path) {
 
   // Register the disc image in the virtual filesystem.
   auto device = std::make_unique<vfs::DiscImageDevice>(mount_path, path);
+  if (!device->Initialize()) {
+    xe::FatalError("Unable to mount disc image; file not found or corrupt.");
+    return X_STATUS_NO_SUCH_FILE;
+  }
+  if (!file_system_->RegisterDevice(std::move(device))) {
+    xe::FatalError("Unable to register disc image.");
+    return X_STATUS_NO_SUCH_FILE;
+  }
+
+  // Create symlinks to the device.
+  file_system_->RegisterSymbolicLink("game:", mount_path);
+  file_system_->RegisterSymbolicLink("d:", mount_path);
+
+  // Launch the game.
+  auto module_path(FindLaunchModule());
+  return CompleteLaunch(path, module_path);
+}
+
+X_STATUS Emulator::LaunchDiscArchive(const std::filesystem::path& path) {
+  auto mount_path = "\\Device\\Cdrom0";
+
+  // Register the disc image in the virtual filesystem.
+  auto device = std::make_unique<vfs::DiscZarchiveDevice>(mount_path, path);
   if (!device->Initialize()) {
     xe::FatalError("Unable to mount disc image; file not found or corrupt.");
     return X_STATUS_NO_SUCH_FILE;
