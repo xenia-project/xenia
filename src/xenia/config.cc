@@ -42,6 +42,9 @@ std::shared_ptr<cpptoml::table> ParseFile(
     XELOGI("Loading config: {}\n{}", xe::path_to_utf8(filename), config_content);
   }
 
+  file.clear();
+  file.seekg(0);
+
   cpptoml::parser p(file);
   return p.parse();
 }
