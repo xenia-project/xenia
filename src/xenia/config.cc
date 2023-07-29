@@ -25,25 +25,12 @@ std::shared_ptr<cpptoml::table> ParseFile(
                                    " could not be opened for parsing");
   }
   // since cpptoml can't parse files with a UTF-8 BOM we need to skip them
-  char bom[3]{};
+  char bom[3];
   file.read(bom, sizeof(bom));
   if (file.fail() || bom[0] != '\xEF' || bom[1] != '\xBB' || bom[2] != '\xBF') {
     file.clear();
     file.seekg(0);
   }
-  if (xe::utf8::ends_with(filename.string(), ".config.toml")) {
-    std::string config_content{};
-    std::string config_line{};
-    // dump contents of loaded config file
-    // content is expected to be utf8
-    while (std::getline(file, config_line)) {
-      config_content.append(fmt::format("{}\n", config_line));
-    }
-    XELOGI("Loading config: {}\n{}", xe::path_to_utf8(filename), config_content);
-  }
-
-  file.clear();
-  file.seekg(0);
 
   cpptoml::parser p(file);
   return p.parse();
@@ -81,12 +68,48 @@ std::shared_ptr<cpptoml::table> ParseConfig(
   }
 }
 
+void PrintConfigToLog(const std::filesystem::path& file_path) {
+  std::ifstream file(file_path);
+  if (!file.is_open()) {
+    return;
+  }
+
+  std::string config_dump = "----------- CONFIG DUMP -----------\n";
+  std::string config_line = "";
+  while (std::getline(file, config_line)) {
+    if (config_line.empty()) {
+      continue;
+    }
+
+    // Find place where comment begins and cut that part.
+    const size_t comment_mark_position = config_line.find_first_of("#");
+    if (comment_mark_position != std::string::npos) {
+      config_line.erase(comment_mark_position, config_line.length());
+    }
+
+    // Check if remaining part of line is empty.
+    if (std::all_of(config_line.cbegin(), config_line.cend(), isspace)) {
+      continue;
+    }
+    // Check if line is a category mark. If it is add new line on start for
+    // improved visibility.
+    const bool category_mark = config_line.at(0) == '[';
+    config_dump += (category_mark ? "\n" : "") + config_line + "\n";
+  }
+  config_dump += "----------- END OF CONFIG DUMP ----";
+  XELOGI("{}", config_dump);
+
+  file.close();
+}
+
 void ReadConfig(const std::filesystem::path& file_path,
                 bool update_if_no_version_stored) {
   if (!cvar::ConfigVars) {
     return;
   }
   const auto config = ParseConfig(file_path);
+
+  PrintConfigToLog(file_path);
   // Loading an actual global config file that exists - if there's no
   // defaults_date in it, it's very old (before updating was added at all, thus
   // all defaults need to be updated).
@@ -105,6 +128,7 @@ void ReadConfig(const std::filesystem::path& file_path,
   if (update_if_no_version_stored || config_defaults_date) {
     cvar::IConfigVarUpdate::ApplyUpdates(config_defaults_date);
   }
+
   XELOGI("Loaded config: {}", xe::path_to_utf8(file_path));
 }
 
