@@ -10,11 +10,37 @@
 #ifndef XENIA_VFS_DEVICES_STFS_XBOX_H_
 #define XENIA_VFS_DEVICES_STFS_XBOX_H_
 
+#include "xenia/xbox.h"
 #include "xenia/base/string_util.h"
 #include "xenia/kernel/util/xex2_info.h"
 
 namespace xe {
 namespace vfs {
+
+// Convert FAT timestamp to 100-nanosecond intervals since January 1, 1601 (UTC)
+inline uint64_t decode_fat_timestamp(const uint32_t date, const uint32_t time) {
+  struct tm tm = {0};
+  // 80 is the difference between 1980 (FAT) and 1900 (tm);
+  tm.tm_year = ((0xFE00 & date) >> 9) + 80;
+  tm.tm_mon = ((0x01E0 & date) >> 5);
+  tm.tm_mday = (0x001F & date) >> 0;
+  tm.tm_hour = (0xF800 & time) >> 11;
+  tm.tm_min = (0x07E0 & time) >> 5;
+  tm.tm_sec = (0x001F & time) << 1;  // the value stored in 2-seconds intervals
+  tm.tm_isdst = 0;
+
+  #if XE_PLATFORM_WIN32
+  time_t timet = _mkgmtime(&tm);
+#else
+  time_t timet = timegm(&tm);
+#endif
+
+  if (timet == -1) {
+    return 0;
+  }
+  // 11644473600LL is a difference between 1970 and 1601
+  return (timet + 11644473600LL) * 10000000;
+}
 
 // Structs used for interchange between Xenia and actual Xbox360 kernel/XAM
 
