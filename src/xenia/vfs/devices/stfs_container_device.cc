@@ -17,32 +17,8 @@
 #include "xenia/base/math.h"
 #include "xenia/vfs/devices/stfs_container_entry.h"
 
-#if XE_PLATFORM_WIN32
-#include "xenia/base/platform_win.h"
-#define timegm _mkgmtime
-#endif
-
 namespace xe {
 namespace vfs {
-
-// Convert FAT timestamp to 100-nanosecond intervals since January 1, 1601 (UTC)
-uint64_t decode_fat_timestamp(uint32_t date, uint32_t time) {
-  struct tm tm = {0};
-  // 80 is the difference between 1980 (FAT) and 1900 (tm);
-  tm.tm_year = ((0xFE00 & date) >> 9) + 80;
-  tm.tm_mon = (0x01E0 & date) >> 5;
-  tm.tm_mday = (0x001F & date) >> 0;
-  tm.tm_hour = (0xF800 & time) >> 11;
-  tm.tm_min = (0x07E0 & time) >> 5;
-  tm.tm_sec = (0x001F & time) << 1;  // the value stored in 2-seconds intervals
-  tm.tm_isdst = 0;
-  time_t timet = timegm(&tm);
-  if (timet == -1) {
-    return 0;
-  }
-  // 11644473600LL is a difference between 1970 and 1601
-  return (timet + 11644473600LL) * 10000000;
-}
 
 StfsContainerDevice::StfsContainerDevice(const std::string_view mount_path,
                                          const std::filesystem::path& host_path)
