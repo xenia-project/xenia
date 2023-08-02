@@ -38,6 +38,9 @@
 #include "xenia/ui/vulkan/vulkan_presenter.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 #include "xenia/ui/vulkan/vulkan_util.h"
+
+DECLARE_bool(clear_memory_page_state);
+
 namespace xe {
 namespace gpu {
 namespace vulkan {
@@ -3125,6 +3128,10 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
   }
 
   if (is_closing_frame) {
+    if (cvars::clear_memory_page_state) {
+      shared_memory_->SetSystemPageBlocksValidWithGpuDataWritten();
+    }
+
     frame_open_ = false;
     // Submission already closed now, so minus 1.
     closed_frame_submissions_[(frame_current_++) % kMaxFramesInFlight] =

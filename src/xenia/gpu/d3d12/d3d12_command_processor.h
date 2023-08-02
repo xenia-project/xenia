@@ -45,7 +45,6 @@ namespace gpu {
 
 enum class D3D12GPUSetting {
   ReadbackResolve,
-  ClearMemoryPageState,
 };
 
 void D3D12SaveGPUSetting(D3D12GPUSetting setting, uint64_t value);

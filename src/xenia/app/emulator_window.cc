@@ -52,9 +52,9 @@ DECLARE_string(hid);
 
 DECLARE_bool(guide_button);
 
-DECLARE_bool(d3d12_readback_resolve);
+DECLARE_bool(clear_memory_page_state);
 
-DECLARE_bool(d3d12_clear_memory_page_state);
+DECLARE_bool(d3d12_readback_resolve);
 
 DEFINE_bool(fullscreen, false, "Whether to launch the emulator in fullscreen.",
             "Display");
@@ -1265,7 +1265,7 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
       ToggleGPUSetting(gpu_cvar::ClearMemoryPageState);
 
       // Assume the user wants ClearCaches as well
-      if (cvars::d3d12_clear_memory_page_state) {
+      if (cvars::clear_memory_page_state) {
         GpuClearCaches();
       }
 
@@ -1407,8 +1407,8 @@ void EmulatorWindow::GamepadHotKeys() {
 void EmulatorWindow::ToggleGPUSetting(gpu_cvar value) {
   switch (value) {
     case gpu_cvar::ClearMemoryPageState:
-      D3D12SaveGPUSetting(D3D12GPUSetting::ClearMemoryPageState,
-                          !cvars::d3d12_clear_memory_page_state);
+      CommonSaveGPUSetting(CommonGPUSetting::ClearMemoryPageState,
+                          !cvars::clear_memory_page_state);
       break;
     case gpu_cvar::ReadbackResolve:
       D3D12SaveGPUSetting(D3D12GPUSetting::ReadbackResolve,
@@ -1479,7 +1479,7 @@ void EmulatorWindow::DisplayHotKeysConfig() {
   msg += "\n";
 
   msg += "Clear Memory Page State: " +
-         xe::string_util::BoolToString(cvars::d3d12_clear_memory_page_state);
+         xe::string_util::BoolToString(cvars::clear_memory_page_state);
   msg += "\n";
 
   msg += "Controller Hotkeys: " +

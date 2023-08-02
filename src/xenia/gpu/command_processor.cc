@@ -45,8 +45,21 @@ DEFINE_bool(
     "of the guest thread that wrote the new read position.",
     "GPU");
 
+DEFINE_bool(clear_memory_page_state, false,
+            "Refresh state of memory pages to enable gpu written data. (Use "
+            "for 'Team Ninja' Games to fix missing character models)",
+            "GPU");
+
 namespace xe {
 namespace gpu {
+
+void CommonSaveGPUSetting(CommonGPUSetting setting, uint64_t value) {
+  switch (setting) {
+    case CommonGPUSetting::ClearMemoryPageState:
+      OVERRIDE_bool(clear_memory_page_state, (bool)value);
+      break;
+  }
+}
 
 using namespace xe::gpu::xenos;
 
