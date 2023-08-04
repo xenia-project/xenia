@@ -22,7 +22,7 @@ inline uint64_t decode_fat_timestamp(const uint32_t date, const uint32_t time) {
   struct tm tm = {0};
   // 80 is the difference between 1980 (FAT) and 1900 (tm);
   tm.tm_year = ((0xFE00 & date) >> 9) + 80;
-  tm.tm_mon = ((0x01E0 & date) >> 5);
+  tm.tm_mon = ((0x01E0 & date) >> 5) - 1;
   tm.tm_mday = (0x001F & date) >> 0;
   tm.tm_hour = (0xF800 & time) >> 11;
   tm.tm_min = (0x07E0 & time) >> 5;
