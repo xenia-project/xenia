@@ -524,7 +524,32 @@ void UserModule::Dump() {
         }
       } break;
       case XEX_HEADER_CHECKSUM_TIMESTAMP: {
-        sb.Append("  XEX_HEADER_CHECKSUM_TIMESTAMP (TODO):\n");
+        // TODO(Byrom): Relocate parts of this to somewhere more suitable
+        // (if possible) to leave only the log printing portion.
+        auto opt_checksum_timedatestamp =
+            reinterpret_cast<const xex2_opt_checksum_timedatestamp*>(
+                opt_header_ptr);
+
+        // Store the checksum & timedatestamp just in case we need them later.
+        mod_checksum_ = opt_checksum_timedatestamp->checksum;
+        time_date_stamp_ = opt_checksum_timedatestamp->timedatestamp;
+        // Update the ldr data with the timedatestamp only.
+        // The checksum field is being used to store the kernel object handle
+        // (xmodule.cc XModule::XModule)
+        auto ldr_data =
+            memory()->TranslateVirtual<X_LDR_DATA_TABLE_ENTRY*>(hmodule_ptr_);
+        ldr_data->time_date_stamp = time_date_stamp_;
+
+        time_t time = (time_t)opt_checksum_timedatestamp->timedatestamp;
+        struct tm* timeinfo = localtime(&time);
+        sb.AppendFormat("  XEX_HEADER_CHECKSUM_TIMESTAMP:\n");
+        sb.AppendFormat(
+            "    Checksum : {:08X}\n",
+            static_cast<uint32_t>(opt_checksum_timedatestamp->checksum));
+        sb.AppendFormat(
+            "    Time Stamp: {:08X} - {}",
+            static_cast<uint32_t>(opt_checksum_timedatestamp->timedatestamp),
+            asctime(timeinfo));
       } break;
       case XEX_HEADER_ORIGINAL_PE_NAME: {
         auto opt_pe_name =
