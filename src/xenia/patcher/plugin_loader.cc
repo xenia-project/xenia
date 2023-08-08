@@ -29,6 +29,7 @@ PluginLoader::PluginLoader(kernel::KernelState* kernel_state,
                            const std::filesystem::path plugins_root) {
   kernel_state_ = kernel_state;
   plugins_root_ = plugins_root;
+  is_any_plugin_loaded_ = false;
 
   if (!cvars::allow_plugins) {
     return;
