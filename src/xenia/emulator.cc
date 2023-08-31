@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2023 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -45,11 +45,12 @@
 #include "xenia/ui/imgui_drawer.h"
 #include "xenia/ui/window.h"
 #include "xenia/ui/windowed_app_context.h"
+#include "xenia/vfs/device.h"
 #include "xenia/vfs/devices/disc_image_device.h"
 #include "xenia/vfs/devices/host_path_device.h"
 #include "xenia/vfs/devices/null_device.h"
-#include "xenia/vfs/devices/stfs_container_device.h"
 #include "xenia/vfs/virtual_file_system.h"
+#include "xenia/vfs/devices/xcontent_container_device.h"
 
 #if XE_ARCH_AMD64
 #include "xenia/cpu/backend/x64/x64_backend.h"
@@ -351,16 +352,21 @@ X_STATUS Emulator::LaunchDiscImage(const std::filesystem::path& path) {
 
 X_STATUS Emulator::LaunchStfsContainer(const std::filesystem::path& path) {
   auto mount_path = "\\Device\\Cdrom0";
+  auto device =
+      vfs::XContentContainerDevice::CreateContentDevice(mount_path, path);
 
+  if (!device) {
+    xe::FatalError("Cannot create XContent (STFS, SVOD) device.");
+    return X_STATUS_NO_SUCH_FILE;
+  }
   // Register the container in the virtual filesystem.
-  auto device = std::make_unique<vfs::StfsContainerDevice>(mount_path, path);
   if (!device->Initialize()) {
     xe::FatalError(
-        "Unable to mount STFS container; file not found or corrupt.");
+        "Unable to initialize XContent container; file not found or corrupt.");
     return X_STATUS_NO_SUCH_FILE;
   }
   if (!file_system_->RegisterDevice(std::move(device))) {
-    xe::FatalError("Unable to register STFS container.");
+    xe::FatalError("Unable to register XContent container.");
     return X_STATUS_NO_SUCH_FILE;
   }
 
