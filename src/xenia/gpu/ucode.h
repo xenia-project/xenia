@@ -210,7 +210,7 @@ enum class AllocType : uint32_t {
   kVsInterpolators = 2,
   // Pixel shader exports colors.
   kPsColors = 2,
-  // MEMEXPORT?
+  // Memory export.
   kMemory = 3,
 };
 
@@ -1781,6 +1781,9 @@ inline uint32_t GetAluVectorOpNeededSourceComponents(
   return components & GetAluVectorOpcodeInfo(vector_opcode)
                           .operand_components_used[src_index - 1];
 }
+
+// eM# (kExportData) register count.
+constexpr uint32_t kMaxMemExportElementCount = 5;
 
 enum class ExportRegister : uint32_t {
   kVSInterpolator0 = 0,

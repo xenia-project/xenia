@@ -913,6 +913,8 @@ enum class OperandModifier : uint32_t {
 
 struct Dest : OperandAddress {
   // Ignored for 0-component and 1-component operand types.
+  // For 4-component operand types, if the write mask is 0, it's treated as
+  // 0-component.
   uint32_t write_mask_;
 
   // Input destinations (v*) are for use only in declarations. Vector input
@@ -1028,12 +1030,16 @@ struct Dest : OperandAddress {
   void Write(std::vector<uint32_t>& code, bool in_dcl = false) const {
     uint32_t operand_token = GetOperandTokenTypeAndIndex();
     OperandDimension dimension = GetDimension(in_dcl);
-    operand_token |= uint32_t(dimension);
     if (dimension == OperandDimension::kVector) {
-      assert_true(write_mask_ > 0b0000 && write_mask_ <= 0b1111);
-      operand_token |=
-          (uint32_t(ComponentSelection::kMask) << 2) | (write_mask_ << 4);
+      if (write_mask_) {
+        assert_true(write_mask_ <= 0b1111);
+        operand_token |=
+            (uint32_t(ComponentSelection::kMask) << 2) | (write_mask_ << 4);
+      } else {
+        dimension = OperandDimension::kNoData;
+      }
     }
+    operand_token |= uint32_t(dimension);
     code.push_back(operand_token);
     OperandAddress::Write(code);
   }
@@ -1508,6 +1514,8 @@ enum class Opcode : uint32_t {
   kStoreUAVTyped = 164,
   kLdRaw = 165,
   kStoreRaw = 166,
+  kAtomicAnd = 169,
+  kAtomicOr = 170,
   kEvalSampleIndex = 204,
   kEvalCentroid = 205,
 };
@@ -2396,6 +2404,14 @@ class Assembler {
     ++stat_.instruction_count;
     ++stat_.c_texture_store_instructions;
   }
+  void OpAtomicAnd(const Dest& dest, const Src& address,
+                   uint32_t address_components, const Src& value) {
+    EmitAtomicOp(Opcode::kAtomicAnd, dest, address, address_components, value);
+  }
+  void OpAtomicOr(const Dest& dest, const Src& address,
+                  uint32_t address_components, const Src& value) {
+    EmitAtomicOp(Opcode::kAtomicOr, dest, address, address_components, value);
+  }
   void OpEvalSampleIndex(const Dest& dest, const Src& value,
                          const Src& sample_index) {
     uint32_t dest_write_mask = dest.GetMask();
@@ -2521,6 +2537,22 @@ class Assembler {
     src0.Write(code_, true, 0b0000);
     src1.Write(code_, true, 0b0000);
     ++stat_.instruction_count;
+  }
+  void EmitAtomicOp(Opcode opcode, const Dest& dest, const Src& address,
+                    uint32_t address_components, const Src& value) {
+    // Atomic operations require a 0-component memory destination.
+    assert_zero(dest.GetMask());
+    uint32_t address_mask = (1 << address_components) - 1;
+    uint32_t operands_length = dest.GetLength() +
+                               address.GetLength(address_mask) +
+                               value.GetLength(0b0001);
+    code_.reserve(code_.size() + 1 + operands_length);
+    code_.push_back(OpcodeToken(opcode, operands_length));
+    dest.Write(code_);
+    address.Write(code_, true, address_mask);
+    value.Write(code_, true, 0b0001);
+    ++stat_.instruction_count;
+    ++stat_.c_interlocked_instructions;
   }
 
   std::vector<uint32_t>& code_;

@@ -13,6 +13,7 @@
 #include <cmath>
 #include <cstdint>
 #include <utility>
+#include <vector>
 
 #include "xenia/base/assert.h"
 #include "xenia/gpu/register_file.h"
@@ -473,6 +474,19 @@ inline uint32_t GetD3D10SampleIndexForGuest2xMSAA(
   // bottom-right (3) samples of the guaranteed 4x MSAA.
   return guest_sample_index ? 3 : 0;
 }
+
+struct MemExportRange {
+  uint32_t base_address_dwords;
+  uint32_t size_bytes;
+
+  explicit MemExportRange(uint32_t base_address_dwords, uint32_t size_bytes)
+      : base_address_dwords(base_address_dwords), size_bytes(size_bytes) {}
+};
+
+// Gathers memory ranges involved in memexports in the shader with the float
+// constants from the registers, adding them to ranges_out.
+void AddMemExportRanges(const RegisterFile& regs, const Shader& shader,
+                        std::vector<MemExportRange>& ranges_out);
 
 // To avoid passing values that the shader won't understand (even though
 // Direct3D 9 shouldn't pass them anyway).

@@ -497,6 +497,18 @@ enum class TextureFormat : uint32_t {
   k_6_5_5 = 5,
   k_8_8_8_8 = 6,
   k_2_10_10_10 = 7,
+  // Possibly similar to k_8, but may be storing alpha instead of red when
+  // resolving/memexporting, though not exactly known. From the point of view of
+  // sampling, it should be treated the same as k_8 (given that textures have
+  // the last - and single-component textures have the only - component
+  // replicated into all the remaining ones before the swizzle).
+  // Used as:
+  // - Texture in 4B4E083C - text, starting from the "Loading..." and the "This
+  //   game saves data automatically" messages. The swizzle in the fetch
+  //   constant is 111W (suggesting that internally the only component may be
+  //   the alpha one, not red).
+  // TODO(Triang3l): Investigate how k_8_A and k_8_B work in resolves and
+  // memexports, whether they store alpha/blue of the input or red.
   k_8_A = 8,
   k_8_B = 9,
   k_8_8 = 10,
@@ -510,6 +522,12 @@ enum class TextureFormat : uint32_t {
   // Used for videos in 54540829.
   k_Y1_Cr_Y0_Cb_REP = 12,
   k_16_16_EDRAM = 13,
+  // Likely same as k_8_8_8_8.
+  // Used as:
+  // - Memexport destination in 4D5308BC - multiple small draws when looking
+  //   back at the door behind the player in the first room of gameplay.
+  // - Memexport destination in 4D53085B and 4D530919 - in 4D53085B, in a frame
+  //   between the intro video and the main menu, in a 8192-point draw.
   k_8_8_8_8_A = 14,
   k_4_4_4_4 = 15,
   k_10_11_11 = 16,
@@ -1373,8 +1391,7 @@ static_assert_size(xe_gpu_fetch_group_t, sizeof(uint32_t) * 6);
 // memexport on the Adreno 2xx using GL_OES_get_program_binary - it's also
 // interesting to see how alphatest interacts with it, whether it's still true
 // fixed-function alphatest, as it's claimed to be supported as usual by the
-// extension specification - it's likely, however, that memory exports are
-// discarded alongside other exports such as oC# and oDepth this way.
+// extension specification.
 //
 // Y of eA contains the offset in elements - this is what shaders are supposed
 // to calculate from something like the vertex index. Again, it's specified as
@@ -1396,6 +1413,69 @@ static_assert_size(xe_gpu_fetch_group_t, sizeof(uint32_t) * 6);
 // full 23 exponent just like Y and Z, there's no way to index more than 2^23
 // elements using packing via addition to 2^23, so this field also doesn't need
 // more bits than that.
+//
+// According to the sequencer specification from IPR2015-00325 (where memexport
+// is called "pass thru export"):
+// - Pass thru exports can occur anywhere in the shader program.
+// - There can be any number of pass thru exports.
+// - The address register is not kept across clause boundaries, so it must be
+//   refreshed after any Serialize (or yield), allocate instruction or resource
+//   change.
+// - The write to eM# may be predicated if the export is not needed.
+// - Exports are dropped if:
+//   - The index is above the maximum.
+//   - The index sign bit is 1.
+//   - The exponent of the index is not 23.
+// The requirement that eM4 must be written if any eM# other than eM0 is also
+// written doesn't apply to the final Xenos, it's likely an outdated note in the
+// specification considering that it's very preliminary.
+//
+// According to Microsoft's shader validator:
+// - eA can be written only by `mad`.
+// - A single eM# can be written by any number of instruction, including with
+//   write masking.
+// - eA must be written before eM#.
+// - Any alloc instruction or a `serialize` terminates the current memory
+//   export. This doesn't apply to `exec Yield=true`, however, and it's not
+//   clear if that's an oversight or if that's not considered a yield that
+//   terminates the export.
+//
+// From the emulation perspective, this means that:
+// - Alloc instructions (`alloc export` mandatorily, other allocs optionally),
+//   and optionally `serialize` instructions within `exec`, should be treated as
+//   the locations where the currently open export should be flushed to the
+//   memory. It should be taken into account that an export may be in looping
+//   control flow, and in this case it must be performed at every iteration.
+// - Whether each eM# was written to must be tracked at shader execution time,
+//   as predication can disable the export of an element.
+//
+// TODO(Triang3l): Investigate how memory export interacts with pixel killing.
+// Given that eM# writes disabled by predication don't cause an export, it's
+// possible that killed invocations are treated as inactive (invalid in Xenos
+// terms) overall, and thus new memory exports from them shouldn't be done, but
+// that's not verified. However, given that on Direct3D 11+, OpenGL and Vulkan
+// hosts, discarding disables subsequent storage resource writes, on the host,
+// it would be natural to perform all outstanding memory exports before
+// discarding if the kill condition passes.
+//
+// Memory exports can be performed to any ColorFormat, including 8bpp and 16bpp
+// ones. Hosts, however, may have the memory bound as a 32bpp buffer (for
+// instance, due to the minimum resource view size limitation on Direct3D 11).
+// In this case, bytes and shorts aren't addressable directly. However, taking
+// into account that memory accesses are coherent within one shader invocation
+// on Direct3D 11+, OpenGL and Vulkan and thus are done in order relatively to
+// each other, it should be possible to implement them by clearing the bits via
+// an atomic AND, and writing the new value using an atomic OR. This will, of
+// course, make the entire write operation non-atomic, and in case of a race
+// between writes to the same location, the final result may not even be just a
+// value from one of the invocations, but rather, it can be OR of the values
+// from any invocations involved. However, on the Xenos, there doesn't seem to
+// be any possibility of meaningfully accessing the same location from multiple
+// invocations if any of them is writing, memory exports are out-of-order, so
+// such an implementation shouldn't be causing issues in reality. Atomic
+// compare-exchange, however, should not be used for this purpose, as it may
+// result in an infinite loop if different invocations want to write different
+// values to the same memory location.
 //
 // Examples of setup in titles (Z from MSB to LSB):
 //
@@ -1432,6 +1512,11 @@ static_assert_size(xe_gpu_fetch_group_t, sizeof(uint32_t) * 6);
 // c0: Z = 010010110000|0|010|11|011010|00011|001
 //   8in16, 16_16_16_16, uint, RGBA - from 16_16_16_16 uint vfetch
 //   (16_16_16_16 is the largest color format without special values)
+//
+// 58410B86 hierarchical depth buffer occlusion culling with the result read on
+// the CPU (15000 VS invocations in the main menu):
+// c8: Z = 010010110000|0|010|00|000010|00000|000, count = invocation count
+//   No endian swap, 8, uint, RGBA
 union alignas(uint32_t) xe_gpu_memexport_stream_t {
   struct {
     uint32_t dword_0;

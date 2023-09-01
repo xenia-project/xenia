@@ -672,7 +672,7 @@ class Shader {
     // For implementation without unconditional support for memory writes from
     // vertex shaders, vertex shader converted to a compute shader doing only
     // memory export.
-    kMemexportCompute,
+    kMemExportCompute,
 
     // 4 host vertices for 1 guest vertex, for implementations without
     // unconditional geometry shader support.
@@ -769,9 +769,16 @@ class Shader {
     }
   };
 
-  // Based on the number of AS_VS/PS_EXPORT_STREAM_* enum sets found in a game
-  // .pdb.
-  static constexpr uint32_t kMaxMemExports = 16;
+  struct ControlFlowMemExportInfo {
+    // Which eM elements have potentially (regardless of conditionals, loop
+    // iteration counts, predication) been written earlier in the predecessor
+    // graph of the instruction since an `alloc export`.
+    uint8_t eM_potentially_written_before = 0;
+    // For exec sequences, which eM elements are potentially (regardless of
+    // predication) written by the instructions in the sequence. For other
+    // control flow instructions, it's 0.
+    uint8_t eM_potentially_written_by_exec = 0;
+  };
 
   class Translation {
    public:
@@ -879,18 +886,20 @@ class Shader {
     return constant_register_map_;
   }
 
-  // uint5[Shader::kMaxMemExports] - bits indicating which eM# registers have
-  // been written to after each `alloc export`, for up to Shader::kMaxMemExports
-  // exports. This will contain zero for certain corrupt exports - for those to
-  // which a valid eA was not written via a MAD with a stream constant.
-  const uint8_t* memexport_eM_written() const { return memexport_eM_written_; }
+  // Information about memory export state at each control flow instruction. May
+  // be empty if there are no eM# writes.
+  const std::vector<ControlFlowMemExportInfo>& cf_memexport_info() const {
+    return cf_memexport_info_;
+  }
 
-  // All c# registers used as the addend in MAD operations to eA.
+  uint8_t memexport_eM_written() const { return memexport_eM_written_; }
+  uint8_t memexport_eM_potentially_written_before_end() const {
+    return memexport_eM_potentially_written_before_end_;
+  }
+
+  // c# registers used as the addend in MAD operations to eA.
   const std::set<uint32_t>& memexport_stream_constants() const {
     return memexport_stream_constants_;
-  }
-  bool is_valid_memexport_used() const {
-    return !memexport_stream_constants_.empty();
   }
 
   // Labels that jumps (explicit or from loops) can be done to.
@@ -969,7 +978,7 @@ class Shader {
     // TODO(Triang3l): Investigate what happens to memexport when the pixel
     // fails the depth/stencil test, but in Direct3D 11 UAV writes disable early
     // depth/stencil.
-    return !kills_pixels() && !writes_depth() && !is_valid_memexport_used();
+    return !kills_pixels() && !writes_depth() && !memexport_eM_written();
   }
 
   // Whether each color render target is written to on any execution path.
@@ -1041,8 +1050,6 @@ class Shader {
   std::vector<VertexBinding> vertex_bindings_;
   std::vector<TextureBinding> texture_bindings_;
   ConstantRegisterMap constant_register_map_ = {0};
-  uint8_t memexport_eM_written_[kMaxMemExports] = {};
-  std::set<uint32_t> memexport_stream_constants_;
   std::set<uint32_t> label_addresses_;
   uint32_t cf_pair_index_bound_ = 0;
   uint32_t register_static_address_bound_ = 0;
@@ -1054,6 +1061,17 @@ class Shader {
   bool uses_texture_fetch_instruction_results_ = false;
   bool writes_depth_ = false;
 
+  // Memory export eM write info for each control flow instruction, if there are
+  // any eM writes in the shader.
+  std::vector<ControlFlowMemExportInfo> cf_memexport_info_;
+  // Which memexport elements (eM#) are written for any memexport in the shader.
+  uint8_t memexport_eM_written_ = 0;
+  // ControlFlowMemExportInfo::eM_potentially_written_before equivalent for the
+  // end of the shader, for the last memory export (or exports if the end has
+  // multiple predecessor chains exporting to memory).
+  uint8_t memexport_eM_potentially_written_before_end_ = 0;
+  std::set<uint32_t> memexport_stream_constants_;
+
   // Modification bits -> translation.
   std::unordered_map<uint64_t, Translation*> translations_;
 
@@ -1063,8 +1081,7 @@ class Shader {
   void GatherExecInformation(
       const ParsedExecInstruction& instr,
       ucode::VertexFetchInstruction& previous_vfetch_full,
-      uint32_t& unique_texture_bindings, uint32_t memexport_alloc_current_count,
-      uint32_t& memexport_eA_written, StringBuffer& ucode_disasm_buffer);
+      uint32_t& unique_texture_bindings, StringBuffer& ucode_disasm_buffer);
   void GatherVertexFetchInformation(
       const ucode::VertexFetchInstruction& op,
       ucode::VertexFetchInstruction& previous_vfetch_full,
@@ -1073,13 +1090,12 @@ class Shader {
                                      uint32_t& unique_texture_bindings,
                                      StringBuffer& ucode_disasm_buffer);
   void GatherAluInstructionInformation(const ucode::AluInstruction& op,
-                                       uint32_t memexport_alloc_current_count,
-                                       uint32_t& memexport_eA_written,
+                                       uint32_t exec_cf_index,
                                        StringBuffer& ucode_disasm_buffer);
   void GatherOperandInformation(const InstructionOperand& operand);
   void GatherFetchResultInformation(const InstructionResult& result);
   void GatherAluResultInformation(const InstructionResult& result,
-                                  uint32_t memexport_alloc_current_count);
+                                  uint32_t exec_cf_index);
 };
 
 }  // namespace gpu

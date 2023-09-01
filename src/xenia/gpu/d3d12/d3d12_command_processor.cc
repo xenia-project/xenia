@@ -2574,7 +2574,8 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     return false;
   }
   pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
-  const bool memexport_used_vertex = vertex_shader->is_valid_memexport_used();
+
+  const bool memexport_used_vertex = vertex_shader->memexport_eM_written() != 0;
 
   // Pixel shader analysis.
   bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
@@ -2604,7 +2605,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   }
 
   const bool memexport_used_pixel =
-      pixel_shader && pixel_shader->is_valid_memexport_used();
+      pixel_shader && (pixel_shader->memexport_eM_written() != 0);
   const bool memexport_used = memexport_used_vertex || memexport_used_pixel;
 
   if (!BeginSubmission(true)) {
@@ -2831,12 +2832,22 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   // Gather memexport ranges and ensure the heaps for them are resident, and
   // also load the data surrounding the export and to fill the regions that
   // won't be modified by the shaders.
-
-  memexport_range_count_ = 0;
-  if (memexport_used_vertex || memexport_used_pixel) {
-    bool retflag;
-    bool retval = GatherMemexportRangesAndMakeResident(retflag);
-    if (retflag) return retval;
+  memexport_ranges_.clear();
+  if (memexport_used_vertex) {
+    draw_util::AddMemExportRanges(regs, *vertex_shader, memexport_ranges_);
+  }
+  if (memexport_used_pixel) {
+    draw_util::AddMemExportRanges(regs, *pixel_shader, memexport_ranges_);
+  }
+  for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+    if (!shared_memory_->RequestRange(memexport_range.base_address_dwords << 2,
+                                      memexport_range.size_bytes)) {
+      XELOGE(
+          "Failed to request memexport stream at 0x{:08X} (size {}) in the "
+          "shared memory",
+          memexport_range.base_address_dwords << 2, memexport_range.size_bytes);
+      return false;
+    }
   }
   // Primitive topology.
   D3D_PRIMITIVE_TOPOLOGY primitive_topology;
@@ -2935,11 +2946,22 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
           // If the shared memory is a UAV, it can't be used as an index buffer
           // (UAV is a read/write state, index buffer is a read-only state).
           // Need to copy the indices to a buffer in the index buffer state.
-          bool retflag;
-          bool retval = HandleMemexportGuestDMA(
-              scratch_index_buffer, index_buffer_view,
-              primitive_processing_result.guest_index_base, retflag);
-          if (retflag) return retval;
+          scratch_index_buffer = RequestScratchGPUBuffer(
+              index_buffer_view.SizeInBytes, D3D12_RESOURCE_STATE_COPY_DEST);
+          if (scratch_index_buffer == nullptr) {
+            return false;
+          }
+          shared_memory_->UseAsCopySource();
+          SubmitBarriers();
+          deferred_command_list_.D3DCopyBufferRegion(
+              scratch_index_buffer, 0, shared_memory_->GetBuffer(),
+              primitive_processing_result.guest_index_base,
+              index_buffer_view.SizeInBytes);
+          PushTransitionBarrier(scratch_index_buffer,
+                                D3D12_RESOURCE_STATE_COPY_DEST,
+                                D3D12_RESOURCE_STATE_INDEX_BUFFER);
+          index_buffer_view.BufferLocation =
+              scratch_index_buffer->GetGPUVirtualAddress();
         } else {
           index_buffer_view.BufferLocation =
               shared_memory_->GetGPUAddress() +
@@ -2977,199 +2999,66 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   }
 
   if (memexport_used) {
-    HandleMemexportDrawOrdering_AndReadback();
-  }
-
-  return true;
-}
-XE_COLD
-XE_NOINLINE
-bool D3D12CommandProcessor::HandleMemexportGuestDMA(
-    ID3D12Resource*& scratch_index_buffer,
-    D3D12_INDEX_BUFFER_VIEW& index_buffer_view, uint32_t guest_index_base,
-    // xe::gpu::PrimitiveProcessor::ProcessingResult&
-    // primitive_processing_result,
-    bool& retflag) {
-  retflag = true;
-  scratch_index_buffer = RequestScratchGPUBuffer(
-      index_buffer_view.SizeInBytes, D3D12_RESOURCE_STATE_COPY_DEST);
-  if (scratch_index_buffer == nullptr) {
-    return false;
-  }
-  shared_memory_->UseAsCopySource();
-  SubmitBarriers();
-  deferred_command_list_.D3DCopyBufferRegion(
-      scratch_index_buffer, 0, shared_memory_->GetBuffer(), guest_index_base,
-      index_buffer_view.SizeInBytes);
-  PushTransitionBarrier(scratch_index_buffer, D3D12_RESOURCE_STATE_COPY_DEST,
-                        D3D12_RESOURCE_STATE_INDEX_BUFFER);
-  index_buffer_view.BufferLocation =
-      scratch_index_buffer->GetGPUVirtualAddress();
-  retflag = false;
-  return {};
-}
-XE_NOINLINE
-XE_COLD
-bool D3D12CommandProcessor::GatherMemexportRangesAndMakeResident(
-    bool& retflag) {
-  auto vertex_shader = static_cast<D3D12Shader*>(active_vertex_shader());
-  auto pixel_shader = static_cast<D3D12Shader*>(active_pixel_shader());
-  const xe::gpu::RegisterFile& regs = *register_file_;
-  const bool memexport_used_vertex = vertex_shader->is_valid_memexport_used();
-  const bool memexport_used_pixel =
-      pixel_shader && pixel_shader->is_valid_memexport_used();
-  retflag = true;
-  if (memexport_used_vertex) {
-    for (uint32_t constant_index :
-         vertex_shader->memexport_stream_constants()) {
-      const auto& memexport_stream = regs.Get<xenos::xe_gpu_memexport_stream_t>(
-          XE_GPU_REG_SHADER_CONSTANT_000_X + constant_index * 4);
-      if (memexport_stream.index_count == 0) {
-        continue;
-      }
-      uint32_t memexport_format_size =
-          GetSupportedMemExportFormatSize(memexport_stream.format);
-      if (memexport_format_size == 0) {
-        XELOGE("Unsupported memexport format {}",
-               FormatInfo::GetName(
-                   xenos::TextureFormat(uint32_t(memexport_stream.format))));
-        return false;
-      }
-      uint32_t memexport_size_dwords =
-          memexport_stream.index_count * memexport_format_size;
-      // Try to reduce the number of shared memory operations when writing
-      // different elements into the same buffer through different exports
-      // (happens in 4D5307E6).
-      bool memexport_range_reused = false;
-      for (uint32_t i = 0; i < memexport_range_count_; ++i) {
-        MemExportRange& memexport_range = memexport_ranges_[i];
-        if (memexport_range.base_address_dwords ==
-            memexport_stream.base_address) {
-          memexport_range.size_dwords =
-              std::max(memexport_range.size_dwords, memexport_size_dwords);
-          memexport_range_reused = true;
-          break;
-        }
-      }
-      // Add a new range if haven't expanded an existing one.
-      if (!memexport_range_reused) {
-        MemExportRange& memexport_range =
-            memexport_ranges_[memexport_range_count_++];
-        memexport_range.base_address_dwords = memexport_stream.base_address;
-        memexport_range.size_dwords = memexport_size_dwords;
-      }
+    // Make sure this memexporting draw is ordered with other work using shared
+    // memory as a UAV.
+    // TODO(Triang3l): Find some PM4 command that can be used for indication of
+    // when memexports should be awaited?
+    shared_memory_->MarkUAVWritesCommitNeeded();
+    // Invalidate textures in memexported memory and watch for changes.
+    for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+      shared_memory_->RangeWrittenByGpu(
+          memexport_range.base_address_dwords << 2, memexport_range.size_bytes,
+          false);
     }
-  }
-  if (memexport_used_pixel) {
-    for (uint32_t constant_index : pixel_shader->memexport_stream_constants()) {
-      const auto& memexport_stream = regs.Get<xenos::xe_gpu_memexport_stream_t>(
-          XE_GPU_REG_SHADER_CONSTANT_256_X + constant_index * 4);
-      if (memexport_stream.index_count == 0) {
-        continue;
+    if (cvars::d3d12_readback_memexport) {
+      // Read the exported data on the CPU.
+      uint32_t memexport_total_size = 0;
+      for (const draw_util::MemExportRange& memexport_range :
+           memexport_ranges_) {
+        memexport_total_size += memexport_range.size_bytes;
       }
-      uint32_t memexport_format_size =
-          GetSupportedMemExportFormatSize(memexport_stream.format);
-      if (memexport_format_size == 0) {
-        XELOGE("Unsupported memexport format {}",
-               FormatInfo::GetName(
-                   xenos::TextureFormat(uint32_t(memexport_stream.format))));
-        return false;
-      }
-      uint32_t memexport_size_dwords =
-          memexport_stream.index_count * memexport_format_size;
-      bool memexport_range_reused = false;
-      for (uint32_t i = 0; i < memexport_range_count_; ++i) {
-        MemExportRange& memexport_range = memexport_ranges_[i];
-        if (memexport_range.base_address_dwords ==
-            memexport_stream.base_address) {
-          memexport_range.size_dwords =
-              std::max(memexport_range.size_dwords, memexport_size_dwords);
-          memexport_range_reused = true;
-          break;
-        }
-      }
-      if (!memexport_range_reused) {
-        MemExportRange& memexport_range =
-            memexport_ranges_[memexport_range_count_++];
-        memexport_range.base_address_dwords = memexport_stream.base_address;
-        memexport_range.size_dwords = memexport_size_dwords;
-      }
-    }
-  }
-  for (uint32_t i = 0; i < memexport_range_count_; ++i) {
-    const MemExportRange& memexport_range = memexport_ranges_[i];
-    if (!shared_memory_->RequestRange(memexport_range.base_address_dwords << 2,
-                                      memexport_range.size_dwords << 2)) {
-      XELOGE(
-          "Failed to request memexport stream at 0x{:08X} (size {}) in the "
-          "shared memory",
-          memexport_range.base_address_dwords << 2,
-          memexport_range.size_dwords << 2);
-      return false;
-    }
-  }
-  retflag = false;
-  return {};
-}
-XE_NOINLINE
-XE_COLD
-void D3D12CommandProcessor::HandleMemexportDrawOrdering_AndReadback() {
-  // Make sure this memexporting draw is ordered with other work using shared
-  // memory as a UAV.
-  // TODO(Triang3l): Find some PM4 command that can be used for indication of
-  // when memexports should be awaited?
-  shared_memory_->MarkUAVWritesCommitNeeded();
-  // Invalidate textures in memexported memory and watch for changes.
-  for (uint32_t i = 0; i < memexport_range_count_; ++i) {
-    const MemExportRange& memexport_range = memexport_ranges_[i];
-    shared_memory_->RangeWrittenByGpu(memexport_range.base_address_dwords << 2,
-                                      memexport_range.size_dwords << 2, false);
-  }
-  if (cvars::d3d12_readback_memexport) {
-    // Read the exported data on the CPU.
-    uint32_t memexport_total_size = 0;
-    for (uint32_t i = 0; i < memexport_range_count_; ++i) {
-      memexport_total_size += memexport_ranges_[i].size_dwords << 2;
-    }
-    if (memexport_total_size != 0) {
-      ID3D12Resource* readback_buffer =
-          RequestReadbackBuffer(memexport_total_size);
-      if (readback_buffer != nullptr) {
-        shared_memory_->UseAsCopySource();
-        SubmitBarriers();
-        ID3D12Resource* shared_memory_buffer = shared_memory_->GetBuffer();
-        uint32_t readback_buffer_offset = 0;
-        for (uint32_t i = 0; i < memexport_range_count_; ++i) {
-          const MemExportRange& memexport_range = memexport_ranges_[i];
-          uint32_t memexport_range_size = memexport_range.size_dwords << 2;
-          deferred_command_list_.D3DCopyBufferRegion(
-              readback_buffer, readback_buffer_offset, shared_memory_buffer,
-              memexport_range.base_address_dwords << 2, memexport_range_size);
-          readback_buffer_offset += memexport_range_size;
-        }
-        if (AwaitAllQueueOperationsCompletion()) {
-          D3D12_RANGE readback_range;
-          readback_range.Begin = 0;
-          readback_range.End = memexport_total_size;
-          void* readback_mapping;
-          if (SUCCEEDED(readback_buffer->Map(0, &readback_range,
-                                             &readback_mapping))) {
-            const uint32_t* readback_dwords =
-                reinterpret_cast<const uint32_t*>(readback_mapping);
-            for (uint32_t i = 0; i < memexport_range_count_; ++i) {
-              const MemExportRange& memexport_range = memexport_ranges_[i];
-              std::memcpy(memory_->TranslatePhysical(
-                              memexport_range.base_address_dwords << 2),
-                          readback_dwords, memexport_range.size_dwords << 2);
-              readback_dwords += memexport_range.size_dwords;
+      if (memexport_total_size != 0) {
+        ID3D12Resource* readback_buffer =
+            RequestReadbackBuffer(memexport_total_size);
+        if (readback_buffer != nullptr) {
+          shared_memory_->UseAsCopySource();
+          SubmitBarriers();
+          ID3D12Resource* shared_memory_buffer = shared_memory_->GetBuffer();
+          uint32_t readback_buffer_offset = 0;
+          for (const draw_util::MemExportRange& memexport_range :
+               memexport_ranges_) {
+            uint32_t memexport_range_size = memexport_range.size_bytes;
+            deferred_command_list_.D3DCopyBufferRegion(
+                readback_buffer, readback_buffer_offset, shared_memory_buffer,
+                memexport_range.base_address_dwords << 2, memexport_range_size);
+            readback_buffer_offset += memexport_range_size;
+          }
+          if (AwaitAllQueueOperationsCompletion()) {
+            D3D12_RANGE readback_range;
+            readback_range.Begin = 0;
+            readback_range.End = memexport_total_size;
+            void* readback_mapping;
+            if (SUCCEEDED(readback_buffer->Map(0, &readback_range,
+                                               &readback_mapping))) {
+              const uint8_t* readback_bytes =
+                  reinterpret_cast<const uint8_t*>(readback_mapping);
+              for (const draw_util::MemExportRange& memexport_range :
+                   memexport_ranges_) {
+                std::memcpy(memory_->TranslatePhysical(
+                                memexport_range.base_address_dwords << 2),
+                            readback_bytes, memexport_range.size_bytes);
+                readback_bytes += memexport_range.size_bytes;
+              }
+              D3D12_RANGE readback_write_range = {};
+              readback_buffer->Unmap(0, &readback_write_range);
             }
-            D3D12_RANGE readback_write_range = {};
-            readback_buffer->Unmap(0, &readback_write_range);
           }
         }
       }
     }
   }
+
+  return true;
 }
 
 void D3D12CommandProcessor::InitializeTrace() {
@@ -5206,36 +5095,6 @@ bool D3D12CommandProcessor::UpdateBindings_BindfulPath(
   }
   retflag = false;
   return {};
-}
-
-uint32_t D3D12CommandProcessor::GetSupportedMemExportFormatSize(
-    xenos::ColorFormat format) {
-  switch (format) {
-    case xenos::ColorFormat::k_8_8_8_8:
-    case xenos::ColorFormat::k_2_10_10_10:
-    // TODO(Triang3l): Investigate how k_8_8_8_8_A works - not supported in the
-    // texture cache currently.
-    // case xenos::ColorFormat::k_8_8_8_8_A:
-    case xenos::ColorFormat::k_10_11_11:
-    case xenos::ColorFormat::k_11_11_10:
-    case xenos::ColorFormat::k_16_16:
-    case xenos::ColorFormat::k_16_16_FLOAT:
-    case xenos::ColorFormat::k_32_FLOAT:
-    case xenos::ColorFormat::k_8_8_8_8_AS_16_16_16_16:
-    case xenos::ColorFormat::k_2_10_10_10_AS_16_16_16_16:
-    case xenos::ColorFormat::k_10_11_11_AS_16_16_16_16:
-    case xenos::ColorFormat::k_11_11_10_AS_16_16_16_16:
-      return 1;
-    case xenos::ColorFormat::k_16_16_16_16:
-    case xenos::ColorFormat::k_16_16_16_16_FLOAT:
-    case xenos::ColorFormat::k_32_32_FLOAT:
-      return 2;
-    case xenos::ColorFormat::k_32_32_32_32_FLOAT:
-      return 4;
-    default:
-      break;
-  }
-  return 0;
 }
 
 ID3D12Resource* D3D12CommandProcessor::RequestReadbackBuffer(uint32_t size) {

@@ -646,8 +646,9 @@ bool ConstantPropagationPass::Run(HIRBuilder* builder, bool& result) {
           break;
         case OPCODE_AND_NOT:
           if (i->src1.value->IsConstant() && i->src2.value->IsConstant()) {
-            v->set_from(i->src1.value);
-            v->AndNot(i->src2.value);
+            v->set_from(i->src2.value);
+            v->Not();
+            v->And(i->src1.value);
             i->UnlinkAndNOP();
             result = true;
           }

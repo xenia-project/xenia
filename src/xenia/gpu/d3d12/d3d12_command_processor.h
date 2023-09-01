@@ -18,6 +18,7 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "xenia/base/assert.h"
 #include "xenia/gpu/command_processor.h"
@@ -319,18 +320,7 @@ class D3D12CommandProcessor final : public CommandProcessor {
   bool IssueDraw(xenos::PrimitiveType primitive_type, uint32_t index_count,
                  IndexBufferInfo* index_buffer_info,
                  bool major_mode_explicit) override;
-  XE_COLD
-  XE_NOINLINE
-  bool HandleMemexportGuestDMA(ID3D12Resource*& scratch_index_buffer,
-                               D3D12_INDEX_BUFFER_VIEW& index_buffer_view,
-                               uint32_t guest_index_base,
-                               bool& retflag);
-  XE_NOINLINE
-  XE_COLD
-  bool GatherMemexportRangesAndMakeResident(bool& retflag);
-  XE_NOINLINE
-  XE_COLD
-  void HandleMemexportDrawOrdering_AndReadback();
+
   bool IssueCopy() override;
   XE_NOINLINE
   bool IssueCopy_ReadbackResolvePath();
@@ -501,13 +491,6 @@ class D3D12CommandProcessor final : public CommandProcessor {
       const std::vector<xe::gpu::DxbcShader::TextureBinding>* textures_pixel,
       const size_t sampler_count_vertex, const size_t sampler_count_pixel,
       bool& retflag);
-
-  // Returns dword count for one element for a memexport format, or 0 if it's
-  // not supported by the D3D12 command processor (if it's smaller that 1 dword,
-  // for instance).
-  // TODO(Triang3l): Check if any game uses memexport with formats smaller than
-  // 32 bits per element.
-  static uint32_t GetSupportedMemExportFormatSize(xenos::ColorFormat format);
 
   // Returns a buffer for reading GPU data back to the CPU. Assuming
   // synchronizing immediately after use. Always in COPY_DEST state.
@@ -811,12 +794,13 @@ class D3D12CommandProcessor final : public CommandProcessor {
 
   draw_util::GetViewportInfoArgs previous_viewport_info_args_;
   draw_util::ViewportInfo previous_viewport_info_;
-  // scratch memexport data
-  MemExportRange memexport_ranges_[512];
-  uint32_t memexport_range_count_ = 0;
+
 
   std::atomic<bool> pix_capture_requested_ = false;
   bool pix_capturing_;
+
+  // Temporary storage for memexport stream constants used in the draw.
+  std::vector<draw_util::MemExportRange> memexport_ranges_;
 };
 
 }  // namespace d3d12

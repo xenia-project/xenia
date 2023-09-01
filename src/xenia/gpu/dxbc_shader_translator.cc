@@ -179,8 +179,6 @@ void DxbcShaderTranslator::Reset() {
 
   sampler_bindings_.clear();
 
-  memexport_alloc_current_count_ = 0;
-
   std::memset(&shader_feature_info_, 0, sizeof(shader_feature_info_));
   std::memset(&statistics_, 0, sizeof(statistics_));
 }
@@ -789,6 +787,63 @@ void DxbcShaderTranslator::StartPixelShader() {
       PopSystemTemp();
     }
   }
+
+  if (current_shader().memexport_eM_written()) {
+    // Make sure memexport is done only once for a guest pixel.
+    dxbc::Dest memexport_enabled_dest(
+        dxbc::Dest::R(system_temp_memexport_enabled_and_eM_written_, 0b0001));
+    dxbc::Src memexport_enabled_src(dxbc::Src::R(
+        system_temp_memexport_enabled_and_eM_written_, dxbc::Src::kXXXX));
+    uint32_t resolution_scaled_axes =
+        uint32_t(draw_resolution_scale_x_ > 1) |
+        (uint32_t(draw_resolution_scale_y_ > 1) << 1);
+    if (resolution_scaled_axes) {
+      uint32_t memexport_condition_temp = PushSystemTemp();
+      // Only do memexport for one host pixel in a guest pixel - prefer the
+      // host pixel closer to the center of the guest pixel, but one that's
+      // covered with the half-pixel offset according to the top-left rule (1
+      // for 2x because 0 isn't covered with the half-pixel offset, 1 for 3x
+      // because it's the center and is covered with the half-pixel offset too).
+      in_position_used_ |= resolution_scaled_axes;
+      a_.OpFToU(dxbc::Dest::R(memexport_condition_temp, resolution_scaled_axes),
+                dxbc::Src::V1D(in_reg_ps_position_));
+      a_.OpUDiv(dxbc::Dest::Null(),
+                dxbc::Dest::R(memexport_condition_temp, resolution_scaled_axes),
+                dxbc::Src::R(memexport_condition_temp),
+                dxbc::Src::LU(draw_resolution_scale_x_,
+                              draw_resolution_scale_y_, 0, 0));
+      a_.OpIEq(dxbc::Dest::R(memexport_condition_temp, resolution_scaled_axes),
+               dxbc::Src::R(memexport_condition_temp),
+               dxbc::Src::LU(draw_resolution_scale_x_ >> 1,
+                             draw_resolution_scale_y_ >> 1, 0, 0));
+      for (uint32_t i = 0; i < 2; ++i) {
+        if (!(resolution_scaled_axes & (1 << i))) {
+          continue;
+        }
+        a_.OpAnd(memexport_enabled_dest, memexport_enabled_src,
+                 dxbc::Src::R(memexport_condition_temp).Select(i));
+      }
+      // Release memexport_condition_temp.
+      PopSystemTemp();
+    }
+    // With sample-rate shading (with float24 conversion), only do memexport
+    // from one sample (as the shader is invoked multiple times for a pixel),
+    // if SV_SampleIndex == firstbit_lo(SV_Coverage). For zero coverage,
+    // firstbit_lo returns 0xFFFFFFFF.
+    if (IsSampleRate()) {
+      uint32_t memexport_condition_temp = PushSystemTemp();
+      a_.OpFirstBitLo(dxbc::Dest::R(memexport_condition_temp, 0b0001),
+                      dxbc::Src::VCoverage());
+      a_.OpIEq(
+          dxbc::Dest::R(memexport_condition_temp, 0b0001),
+          dxbc::Src::V1D(in_reg_ps_front_face_sample_index_, dxbc::Src::kYYYY),
+          dxbc::Src::R(memexport_condition_temp, dxbc::Src::kXXXX));
+      a_.OpAnd(memexport_enabled_dest, memexport_enabled_src,
+               dxbc::Src::R(memexport_condition_temp, dxbc::Src::kXXXX));
+      // Release memexport_condition_temp.
+      PopSystemTemp();
+    }
+  }
 }
 
 void DxbcShaderTranslator::StartTranslation() {
@@ -885,34 +940,27 @@ void DxbcShaderTranslator::StartTranslation() {
     }
   }
 
-  if (!is_depth_only_pixel_shader_) {
-    // Allocate temporary registers for memexport addresses and data.
-    std::memset(system_temps_memexport_address_, 0xFF,
-                sizeof(system_temps_memexport_address_));
-    std::memset(system_temps_memexport_data_, 0xFF,
-                sizeof(system_temps_memexport_data_));
-    system_temp_memexport_written_ = UINT32_MAX;
-    const uint8_t* memexports_written = current_shader().memexport_eM_written();
-    for (uint32_t i = 0; i < Shader::kMaxMemExports; ++i) {
-      uint32_t memexport_alloc_written = memexports_written[i];
-      if (memexport_alloc_written == 0) {
-        continue;
-      }
-      // If memexport is used at all, allocate a register containing whether eM#
-      // have actually been written to.
-      if (system_temp_memexport_written_ == UINT32_MAX) {
-        system_temp_memexport_written_ = PushSystemTemp(0b1111);
-      }
-      system_temps_memexport_address_[i] = PushSystemTemp(0b1111);
-      uint32_t memexport_data_index;
-      while (xe::bit_scan_forward(memexport_alloc_written,
-                                  &memexport_data_index)) {
-        memexport_alloc_written &= ~(1u << memexport_data_index);
-        system_temps_memexport_data_[i][memexport_data_index] =
-            PushSystemTemp();
-      }
+  // Allocate temporary registers for memexport.
+  uint8_t memexport_eM_written = current_shader().memexport_eM_written();
+  if (memexport_eM_written) {
+    system_temp_memexport_enabled_and_eM_written_ = PushSystemTemp(0b0010);
+    // Initialize the memexport conditional to whether the shared memory is
+    // currently bound as UAV (to 0 or UINT32_MAX). It can be made narrower
+    // later.
+    a_.OpIBFE(
+        dxbc::Dest::R(system_temp_memexport_enabled_and_eM_written_, 0b0001),
+        dxbc::Src::LU(1), dxbc::Src::LU(kSysFlag_SharedMemoryIsUAV_Shift),
+        LoadFlagsSystemConstant());
+    system_temp_memexport_address_ = PushSystemTemp(0b1111);
+    uint8_t memexport_eM_remaining = memexport_eM_written;
+    uint32_t memexport_eM_index;
+    while (xe::bit_scan_forward(memexport_eM_remaining, &memexport_eM_index)) {
+      memexport_eM_remaining &= ~(uint8_t(1) << memexport_eM_index);
+      system_temps_memexport_data_[memexport_eM_index] = PushSystemTemp(0b1111);
     }
+  }
 
+  if (!is_depth_only_pixel_shader_) {
     // Allocate system temporary variables for the translated code. Since access
     // depends on the guest code (thus no guarantees), initialize everything
     // now (except for pv, it's an internal temporary variable, not accessible
@@ -1091,27 +1139,19 @@ void DxbcShaderTranslator::CompleteShaderCode() {
     // - system_temp_grad_h_lod_.
     // - system_temp_grad_v_vfetch_address_.
     PopSystemTemp(6);
+  }
 
-    // Write memexported data to the shared memory UAV.
-    ExportToMemory();
+  uint8_t memexport_eM_written = current_shader().memexport_eM_written();
+  if (memexport_eM_written) {
+    // Write data for the last memexport.
+    ExportToMemory(
+        current_shader().memexport_eM_potentially_written_before_end());
 
-    // Release memexport temporary registers.
-    for (int i = Shader::kMaxMemExports - 1; i >= 0; --i) {
-      if (system_temps_memexport_address_[i] == UINT32_MAX) {
-        continue;
-      }
-      // Release exported data registers.
-      for (int j = 4; j >= 0; --j) {
-        if (system_temps_memexport_data_[i][j] != UINT32_MAX) {
-          PopSystemTemp();
-        }
-      }
-      // Release the address register.
-      PopSystemTemp();
-    }
-    if (system_temp_memexport_written_ != UINT32_MAX) {
-      PopSystemTemp();
-    }
+    // Release memexport temporary registers:
+    // - system_temp_memexport_enabled_and_eM_written_.
+    // - system_temp_memexport_address_.
+    // - system_temps_memexport_data_.
+    PopSystemTemp(xe::bit_count(uint32_t(memexport_eM_written)) + 2);
   }
 
   // Write stage-specific epilogue.
@@ -1514,36 +1554,22 @@ void DxbcShaderTranslator::StoreResult(const InstructionResult& result,
       dest = dxbc::Dest::R(system_temp_point_size_edge_flag_kill_vertex_);
       break;
     case InstructionStorageTarget::kExportAddress:
-      // Validate memexport writes (4D5307E6 has some completely invalid ones).
-      if (!can_store_memexport_address || memexport_alloc_current_count_ == 0 ||
-          memexport_alloc_current_count_ > Shader::kMaxMemExports ||
-          system_temps_memexport_address_[memexport_alloc_current_count_ - 1] ==
-              UINT32_MAX) {
+      if (!current_shader().memexport_eM_written()) {
         return;
       }
-      dest = dxbc::Dest::R(
-          system_temps_memexport_address_[memexport_alloc_current_count_ - 1]);
+      dest = dxbc::Dest::R(system_temp_memexport_address_);
       break;
     case InstructionStorageTarget::kExportData: {
-      // Validate memexport writes (4D5307E6 has some completely invalid ones).
-      if (memexport_alloc_current_count_ == 0 ||
-          memexport_alloc_current_count_ > Shader::kMaxMemExports ||
-          system_temps_memexport_data_[memexport_alloc_current_count_ - 1]
-                                      [result.storage_index] == UINT32_MAX) {
-        return;
-      }
-      dest = dxbc::Dest::R(
-          system_temps_memexport_data_[memexport_alloc_current_count_ - 1]
-                                      [result.storage_index]);
+      assert_not_zero(current_shader().memexport_eM_written() &
+                      (uint8_t(1) << result.storage_index));
+      dest = dxbc::Dest::R(system_temps_memexport_data_[result.storage_index]);
       // Mark that the eM# has been written to and needs to be exported.
       assert_not_zero(used_write_mask);
-      uint32_t memexport_index = memexport_alloc_current_count_ - 1;
-      a_.OpOr(dxbc::Dest::R(system_temp_memexport_written_,
-                            1 << (memexport_index >> 2)),
-              dxbc::Src::R(system_temp_memexport_written_)
-                  .Select(memexport_index >> 2),
-              dxbc::Src::LU(uint32_t(1) << (result.storage_index +
-                                            ((memexport_index & 3) << 3))));
+      a_.OpOr(
+          dxbc::Dest::R(system_temp_memexport_enabled_and_eM_written_, 0b0010),
+          dxbc::Src::R(system_temp_memexport_enabled_and_eM_written_,
+                       dxbc::Src::kYYYY),
+          dxbc::Src::LU(uint8_t(1) << result.storage_index));
     } break;
     case InstructionStorageTarget::kColor:
       assert_not_zero(used_write_mask);
@@ -1990,15 +2016,38 @@ void DxbcShaderTranslator::ProcessJumpInstruction(
 }
 
 void DxbcShaderTranslator::ProcessAllocInstruction(
-    const ParsedAllocInstruction& instr) {
+    const ParsedAllocInstruction& instr, uint8_t export_eM) {
+  bool start_memexport = instr.type == AllocType::kMemory &&
+                         current_shader().memexport_eM_written();
+  if (export_eM || start_memexport) {
+    CloseExecConditionals();
+  }
+
   if (emit_source_map_) {
     instruction_disassembly_buffer_.Reset();
     instr.Disassemble(&instruction_disassembly_buffer_);
     EmitInstructionDisassembly();
   }
 
-  if (instr.type == AllocType::kMemory) {
-    ++memexport_alloc_current_count_;
+  if (export_eM) {
+    ExportToMemory(export_eM);
+    // Reset which eM# elements have been written.
+    a_.OpMov(
+        dxbc::Dest::R(system_temp_memexport_enabled_and_eM_written_, 0b0010),
+        dxbc::Src::LU(0));
+    // Break dependencies from the previous memexport.
+    uint8_t export_eM_remaining = export_eM;
+    uint32_t eM_index;
+    while (xe::bit_scan_forward(export_eM_remaining, &eM_index)) {
+      export_eM_remaining &= ~(uint8_t(1) << eM_index);
+      a_.OpMov(dxbc::Dest::R(system_temps_memexport_data_[eM_index]),
+               dxbc::Src::LF(0.0f));
+    }
+  }
+
+  if (start_memexport) {
+    // Initialize eA to an invalid address.
+    a_.OpMov(dxbc::Dest::R(system_temp_memexport_address_), dxbc::Src::LU(0));
   }
 }
 
@@ -2851,7 +2900,7 @@ void DxbcShaderTranslator::WriteInputSignature() {
     // Sample index (SV_SampleIndex) for safe memexport with sample-rate
     // shading.
     size_t sample_index_position = SIZE_MAX;
-    if (current_shader().is_valid_memexport_used() && IsSampleRate()) {
+    if (current_shader().memexport_eM_written() && IsSampleRate()) {
       size_t sample_index_position = shader_object_.size();
       shader_object_.resize(shader_object_.size() + kParameterDwords);
       ++parameter_count;
@@ -3625,7 +3674,7 @@ void DxbcShaderTranslator::WriteShaderCode() {
           dxbc::Name::kPosition);
     }
     bool sample_rate_memexport =
-        current_shader().is_valid_memexport_used() && IsSampleRate();
+        current_shader().memexport_eM_written() && IsSampleRate();
     // Sample-rate shading can't be done with UAV-only rendering (sample-rate
     // shading is only needed for float24 depth conversion when using a float32
     // host depth buffer).

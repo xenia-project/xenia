@@ -217,6 +217,10 @@ std::vector<FileInfo> ListFiles(const std::filesystem::path& path) {
   }
 
   while (auto ent = readdir(dir)) {
+    if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {
+      continue;
+    }
+
     FileInfo info;
 
     info.name = ent->d_name;
@@ -225,6 +229,7 @@ std::vector<FileInfo> ListFiles(const std::filesystem::path& path) {
     info.create_timestamp = convertUnixtimeToWinFiletime(st.st_ctime);
     info.access_timestamp = convertUnixtimeToWinFiletime(st.st_atime);
     info.write_timestamp = convertUnixtimeToWinFiletime(st.st_mtime);
+    info.path = path;
     if (ent->d_type == DT_DIR) {
       info.type = FileInfo::Type::kDirectory;
       info.total_size = 0;
@@ -234,7 +239,7 @@ std::vector<FileInfo> ListFiles(const std::filesystem::path& path) {
     }
     result.push_back(info);
   }
-
+  closedir(dir);
   return result;
 }
 

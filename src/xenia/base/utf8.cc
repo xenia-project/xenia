@@ -10,6 +10,7 @@
 #include "xenia/base/utf8.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <locale>
 #include <numeric>
 #include <tuple>

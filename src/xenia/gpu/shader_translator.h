@@ -118,8 +118,10 @@ class ShaderTranslator {
   virtual void ProcessReturnInstruction(const ParsedReturnInstruction& instr) {}
   // Handles translation for jump instructions.
   virtual void ProcessJumpInstruction(const ParsedJumpInstruction& instr) {}
-  // Handles translation for alloc instructions.
-  virtual void ProcessAllocInstruction(const ParsedAllocInstruction& instr) {}
+  // Handles translation for alloc instructions. Memory exports for eM#
+  // indicated by export_eM must be performed, regardless of the alloc type.
+  virtual void ProcessAllocInstruction(const ParsedAllocInstruction& instr,
+                                       uint8_t export_eM) {}
 
   // Handles translation for vertex fetch instructions.
   virtual void ProcessVertexFetchInstruction(
@@ -128,7 +130,13 @@ class ShaderTranslator {
   virtual void ProcessTextureFetchInstruction(
       const ParsedTextureFetchInstruction& instr) {}
   // Handles translation for ALU instructions.
-  virtual void ProcessAluInstruction(const ParsedAluInstruction& instr) {}
+  // memexport_eM_potentially_written_before needs to be handled by `kill`
+  // instruction to make sure memory exports for the eM# writes earlier in
+  // previous execs and the current exec are done before the invocation becomes
+  // inactive.
+  virtual void ProcessAluInstruction(
+      const ParsedAluInstruction& instr,
+      uint8_t memexport_eM_potentially_written_before) {}
 
  private:
   void TranslateControlFlowInstruction(const ucode::ControlFlowInstruction& cf);

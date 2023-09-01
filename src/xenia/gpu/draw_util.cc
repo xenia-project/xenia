@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Copyright 2023 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -134,7 +134,7 @@ bool IsPixelShaderNeededWithRasterization(const Shader& shader,
   //
   // Memory export is an obvious intentional side effect.
   if (shader.kills_pixels() || shader.writes_depth() ||
-      shader.is_valid_memexport_used() ||
+      shader.memexport_eM_written() ||
       (shader.writes_color_target(0) &&
        DoesCoverageDependOnAlpha(regs.Get<reg::RB_COLORCONTROL>()))) {
     return true;
@@ -765,8 +765,70 @@ uint32_t GetNormalizedColorMask(const RegisterFile& regs,
   }
   return normalized_color_mask;
 }
+
+void AddMemExportRanges(const RegisterFile& regs, const Shader& shader,
+                        std::vector<MemExportRange>& ranges_out) {
+  if (!shader.memexport_eM_written()) {
+    // The shader has eA writes, but no real exports.
+    return;
+  }
+  uint32_t float_constants_base = shader.type() == xenos::ShaderType::kVertex
+                                      ? regs.Get<reg::SQ_VS_CONST>().base
+                                      : regs.Get<reg::SQ_PS_CONST>().base;
+  for (uint32_t constant_index : shader.memexport_stream_constants()) {
+    const auto& stream = regs.Get<xenos::xe_gpu_memexport_stream_t>(
+        XE_GPU_REG_SHADER_CONSTANT_000_X +
+        (float_constants_base + constant_index) * 4);
+    if (!stream.index_count) {
+      continue;
+    }
+    const FormatInfo& format_info =
+        *FormatInfo::Get(xenos::TextureFormat(stream.format));
+    if (format_info.type != FormatType::kResolvable) {
+      XELOGE("Unsupported memexport format {}",
+             FormatInfo::GetName(format_info.format));
+      // Translated shaders shouldn't be performing exports with an unknown
+      // format, the draw can still be performed.
+      continue;
+    }
+    // TODO(Triang3l): Remove the unresearched format logging when it's known
+    // how exactly these formats need to be handled (most importantly what
+    // components need to be stored and in which order).
+    switch (stream.format) {
+      case xenos::ColorFormat::k_8_A:
+      case xenos::ColorFormat::k_8_B:
+      case xenos::ColorFormat::k_8_8_8_8_A:
+        XELOGW(
+            "Memexport done to an unresearched format {}, report the game to "
+            "Xenia developers!",
+            FormatInfo::GetName(format_info.format));
+        break;
+      default:
+        break;
+    }
+    uint32_t stream_size_bytes =
+        stream.index_count * (format_info.bits_per_pixel >> 3);
+    // Try to reduce the number of shared memory operations when writing
+    // different elements into the same buffer through different exports
+    // (happens in 4D5307E6).
+    bool range_reused = false;
+    for (MemExportRange& range : ranges_out) {
+      if (range.base_address_dwords == stream.base_address) {
+        range.size_bytes = std::max(range.size_bytes, stream_size_bytes);
+        range_reused = true;
+        break;
+      }
+    }
+    // Add a new range if haven't expanded an existing one.
+    if (!range_reused) {
+      ranges_out.emplace_back(stream.base_address, stream_size_bytes);
+    }
+  }
+}
+
 XE_NOINLINE
 XE_NOALIAS
+
 xenos::CopySampleSelect SanitizeCopySampleSelect(
     xenos::CopySampleSelect copy_sample_select, xenos::MsaaSamples msaa_samples,
     bool is_depth) {

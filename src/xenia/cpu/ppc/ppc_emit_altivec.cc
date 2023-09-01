@@ -324,8 +324,13 @@ int InstrEmit_mtvscr(PPCHIRBuilder& f, const InstrData& i) {
 }
 
 int InstrEmit_vaddcuw(PPCHIRBuilder& f, const InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
-  return 1;
+  Value* sum = f.VectorAdd(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT32_TYPE,
+                           ARITHMETIC_UNSIGNED);
+  Value* overflow = f.VectorCompareUGT(f.LoadVR(i.VX.VA), sum, INT32_TYPE);
+  Value* carry =
+      f.VectorShr(overflow, f.LoadConstantVec128(vec128i(31)), INT32_TYPE);
+  f.StoreVR(i.VX.VD, carry);
+  return 0;
 }
 
 int InstrEmit_vaddfp_(PPCHIRBuilder& f, uint32_t vd, uint32_t va, uint32_t vb) {
@@ -1665,7 +1670,11 @@ int InstrEmit_vsrw128(PPCHIRBuilder& f, const InstrData& i) {
 }
 
 int InstrEmit_vsubcuw(PPCHIRBuilder& f, const InstrData& i) {
-  XEINSTRNOTIMPLEMENTED();
+  Value* underflow =
+      f.VectorCompareUGE(f.LoadVR(i.VX.VA), f.LoadVR(i.VX.VB), INT32_TYPE);
+  Value* borrow =
+      f.VectorShr(underflow, f.LoadConstantVec128(vec128i(31)), INT32_TYPE);
+  f.StoreVR(i.VX.VD, borrow);
   return 1;
 }
 

@@ -87,8 +87,6 @@ void Shader::AnalyzeUcode(StringBuffer& ucode_disasm_buffer) {
   VertexFetchInstruction previous_vfetch_full;
   std::memset(&previous_vfetch_full, 0, sizeof(previous_vfetch_full));
   uint32_t unique_texture_bindings = 0;
-  uint32_t memexport_alloc_count = 0;
-  uint32_t memexport_eA_written = 0;
   for (uint32_t i = 0; i < cf_pair_index_bound_; ++i) {
     ControlFlowInstruction cf_ab[2];
     UnpackControlFlowInstructions(ucode_data_.data() + i * 3, cf_ab);
@@ -111,8 +109,7 @@ void Shader::AnalyzeUcode(StringBuffer& ucode_disasm_buffer) {
           ParsedExecInstruction instr;
           ParseControlFlowExec(cf.exec, cf_index, instr);
           GatherExecInformation(instr, previous_vfetch_full,
-                                unique_texture_bindings, memexport_alloc_count,
-                                memexport_eA_written, ucode_disasm_buffer);
+                                unique_texture_bindings, ucode_disasm_buffer);
         } break;
         case ControlFlowOpcode::kCondExec:
         case ControlFlowOpcode::kCondExecEnd:
@@ -122,16 +119,14 @@ void Shader::AnalyzeUcode(StringBuffer& ucode_disasm_buffer) {
           ParsedExecInstruction instr;
           ParseControlFlowCondExec(cf.cond_exec, cf_index, instr);
           GatherExecInformation(instr, previous_vfetch_full,
-                                unique_texture_bindings, memexport_alloc_count,
-                                memexport_eA_written, ucode_disasm_buffer);
+                                unique_texture_bindings, ucode_disasm_buffer);
         } break;
         case ControlFlowOpcode::kCondExecPred:
         case ControlFlowOpcode::kCondExecPredEnd: {
           ParsedExecInstruction instr;
           ParseControlFlowCondExecPred(cf.cond_exec_pred, cf_index, instr);
           GatherExecInformation(instr, previous_vfetch_full,
-                                unique_texture_bindings, memexport_alloc_count,
-                                memexport_eA_written, ucode_disasm_buffer);
+                                unique_texture_bindings, ucode_disasm_buffer);
         } break;
         case ControlFlowOpcode::kLoopStart: {
           ParsedLoopStartInstruction instr;
@@ -173,9 +168,6 @@ void Shader::AnalyzeUcode(StringBuffer& ucode_disasm_buffer) {
           ParseControlFlowAlloc(cf.alloc, cf_index,
                                 type() == xenos::ShaderType::kVertex, instr);
           instr.Disassemble(&ucode_disasm_buffer);
-          if (instr.type == AllocType::kMemory) {
-            ++memexport_alloc_count;
-          }
         } break;
         case ControlFlowOpcode::kMarkVsFetchDone:
           break;
@@ -187,7 +179,6 @@ void Shader::AnalyzeUcode(StringBuffer& ucode_disasm_buffer) {
         constant_register_map_.bool_bitmap[bool_constant_index / 32] |=
             uint32_t(1) << (bool_constant_index % 32);
       }
-      // TODO(benvanik): break if (DoesControlFlowOpcodeEndShader(cf.opcode()))?
     }
   }
   ucode_disassembly_ = ucode_disasm_buffer.to_string();
@@ -206,16 +197,124 @@ void Shader::AnalyzeUcode(StringBuffer& ucode_disasm_buffer) {
     }
   }
 
-  // Cleanup invalid/unneeded memexport allocs.
-  for (uint32_t i = 0; i < kMaxMemExports; ++i) {
-    if (!(memexport_eA_written & (uint32_t(1) << i))) {
-      memexport_eM_written_[i] = 0;
-    } else if (!memexport_eM_written_[i]) {
-      memexport_eA_written &= ~(uint32_t(1) << i);
+  if (!cf_memexport_info_.empty()) {
+    // Gather potentially "dirty" memexport elements before each control flow
+    // instruction. `alloc` (any, not only `export`) flushes the previous memory
+    // export. On the guest GPU, yielding / serializing also terminates memory
+    // exports, but for simplicity disregarding that, as that functionally does
+    // nothing compared to flushing the previous memory export only at `alloc`
+    // or even only specifically at `alloc export`, Microsoft's validator checks
+    // if eM# aren't written after a `serialize`.
+    std::vector<uint32_t> successor_stack;
+    for (uint32_t i = 0; i < cf_pair_index_bound_; ++i) {
+      ControlFlowInstruction eM_writing_cf_ab[2];
+      UnpackControlFlowInstructions(ucode_data_.data() + i * 3,
+                                    eM_writing_cf_ab);
+      for (uint32_t j = 0; j < 2; ++j) {
+        uint32_t eM_writing_cf_index = i * 2 + j;
+        uint32_t eM_written_by_cf_instr =
+            cf_memexport_info_[eM_writing_cf_index]
+                .eM_potentially_written_by_exec;
+        if (eM_writing_cf_ab[j].opcode() == ControlFlowOpcode::kCondCall) {
+          // Until subroutine calls are handled accurately, assume that all eM#
+          // have potentially been written by the subroutine for simplicity.
+          eM_written_by_cf_instr = memexport_eM_written_;
+        }
+        if (!eM_written_by_cf_instr) {
+          continue;
+        }
+
+        // If the control flow instruction potentially results in any eM# being
+        // written, mark those eM# as potentially written before each successor.
+        bool is_successor_graph_head = true;
+        successor_stack.push_back(eM_writing_cf_index);
+        while (!successor_stack.empty()) {
+          uint32_t successor_cf_index = successor_stack.back();
+          successor_stack.pop_back();
+
+          ControlFlowMemExportInfo& successor_memexport_info =
+              cf_memexport_info_[successor_cf_index];
+          if ((successor_memexport_info.eM_potentially_written_before &
+               eM_written_by_cf_instr) == eM_written_by_cf_instr) {
+            // Already marked as written before this instruction (and thus
+            // before all its successors too). Possibly this instruction is in a
+            // loop, in this case an instruction may succeed itself.
+            break;
+          }
+          // The first instruction in the traversal is the writing instruction
+          // itself, not its successor. However, if it has been visited by the
+          // traversal twice, it's in a loop, so it succeeds itself, and thus
+          // writes from it are potentially done before it too.
+          if (!is_successor_graph_head) {
+            successor_memexport_info.eM_potentially_written_before |=
+                eM_written_by_cf_instr;
+          }
+          is_successor_graph_head = false;
+
+          ControlFlowInstruction successor_cf_ab[2];
+          UnpackControlFlowInstructions(
+              ucode_data_.data() + (successor_cf_index >> 1) * 3,
+              successor_cf_ab);
+          const ControlFlowInstruction& successor_cf =
+              successor_cf_ab[successor_cf_index & 1];
+
+          bool next_instr_is_new_successor = true;
+          switch (successor_cf.opcode()) {
+            case ControlFlowOpcode::kExecEnd:
+              // One successor: end.
+              memexport_eM_potentially_written_before_end_ |=
+                  eM_written_by_cf_instr;
+              next_instr_is_new_successor = false;
+              break;
+            case ControlFlowOpcode::kCondExecEnd:
+            case ControlFlowOpcode::kCondExecPredEnd:
+            case ControlFlowOpcode::kCondExecPredCleanEnd:
+              // Two successors: next, end.
+              memexport_eM_potentially_written_before_end_ |=
+                  eM_written_by_cf_instr;
+              break;
+            case ControlFlowOpcode::kLoopStart:
+              // Two successors: next, skip.
+              successor_stack.push_back(successor_cf.loop_start.address());
+              break;
+            case ControlFlowOpcode::kLoopEnd:
+              // Two successors: next, repeat.
+              successor_stack.push_back(successor_cf.loop_end.address());
+              break;
+            case ControlFlowOpcode::kCondCall:
+              // Two successors: next, target.
+              successor_stack.push_back(successor_cf.cond_call.address());
+              break;
+            case ControlFlowOpcode::kReturn:
+              // Currently treating all subroutine calls as potentially writing
+              // all eM# for simplicity, so just exit the subroutine.
+              next_instr_is_new_successor = false;
+              break;
+            case ControlFlowOpcode::kCondJmp:
+              // One or two successors: next if conditional, target.
+              successor_stack.push_back(successor_cf.cond_jmp.address());
+              if (successor_cf.cond_jmp.is_unconditional()) {
+                next_instr_is_new_successor = false;
+              }
+              break;
+            case ControlFlowOpcode::kAlloc:
+              // Any `alloc` ends the previous export.
+              next_instr_is_new_successor = false;
+              break;
+            default:
+              break;
+          }
+          if (next_instr_is_new_successor) {
+            if (successor_cf_index < (cf_pair_index_bound_ << 1)) {
+              successor_stack.push_back(successor_cf_index + 1);
+            } else {
+              memexport_eM_potentially_written_before_end_ |=
+                  eM_written_by_cf_instr;
+            }
+          }
+        }
+      }
     }
-  }
-  if (memexport_eA_written == 0) {
-    memexport_stream_constants_.clear();
   }
 
   is_ucode_analyzed_ = true;
@@ -250,8 +349,7 @@ uint32_t Shader::GetInterpolatorInputMask(reg::SQ_PROGRAM_CNTL sq_program_cntl,
 void Shader::GatherExecInformation(
     const ParsedExecInstruction& instr,
     ucode::VertexFetchInstruction& previous_vfetch_full,
-    uint32_t& unique_texture_bindings, uint32_t memexport_alloc_current_count,
-    uint32_t& memexport_eA_written, StringBuffer& ucode_disasm_buffer) {
+    uint32_t& unique_texture_bindings, StringBuffer& ucode_disasm_buffer) {
   instr.Disassemble(&ucode_disasm_buffer);
   uint32_t sequence = instr.sequence;
   for (uint32_t instr_offset = instr.instruction_address;
@@ -273,8 +371,7 @@ void Shader::GatherExecInformation(
       }
     } else {
       auto& op = *reinterpret_cast<const AluInstruction*>(op_ptr);
-      GatherAluInstructionInformation(op, memexport_alloc_current_count,
-                                      memexport_eA_written,
+      GatherAluInstructionInformation(op, instr.dword_index,
                                       ucode_disasm_buffer);
     }
   }
@@ -381,8 +478,8 @@ void Shader::GatherTextureFetchInformation(const TextureFetchInstruction& op,
 }
 
 void Shader::GatherAluInstructionInformation(
-    const AluInstruction& op, uint32_t memexport_alloc_current_count,
-    uint32_t& memexport_eA_written, StringBuffer& ucode_disasm_buffer) {
+    const AluInstruction& op, uint32_t exec_cf_index,
+    StringBuffer& ucode_disasm_buffer) {
   ParsedAluInstruction instr;
   ParseAluInstruction(op, type(), instr);
   instr.Disassemble(&ucode_disasm_buffer);
@@ -394,10 +491,8 @@ void Shader::GatherAluInstructionInformation(
       (ucode::GetAluScalarOpcodeInfo(op.scalar_opcode()).changed_state &
        ucode::kAluOpChangedStatePixelKill);
 
-  GatherAluResultInformation(instr.vector_and_constant_result,
-                             memexport_alloc_current_count);
-  GatherAluResultInformation(instr.scalar_result,
-                             memexport_alloc_current_count);
+  GatherAluResultInformation(instr.vector_and_constant_result, exec_cf_index);
+  GatherAluResultInformation(instr.scalar_result, exec_cf_index);
   for (size_t i = 0; i < instr.vector_operand_count; ++i) {
     GatherOperandInformation(instr.vector_operands[i]);
   }
@@ -405,9 +500,7 @@ void Shader::GatherAluInstructionInformation(
     GatherOperandInformation(instr.scalar_operands[i]);
   }
 
-  // Store used memexport constants because CPU code needs addresses and sizes,
-  // and also whether there have been writes to eA and eM# for register
-  // allocation in shader translator implementations.
+  // Store used memexport constants because CPU code needs addresses and sizes.
   // eA is (hopefully) always written to using:
   // mad eA, r#, const0100, c#
   // (though there are some exceptions, shaders in 4D5307E6 for some reason set
@@ -416,13 +509,9 @@ void Shader::GatherAluInstructionInformation(
   // Export is done to vector_dest of the ucode instruction for both vector and
   // scalar operations - no need to check separately.
   if (instr.vector_and_constant_result.storage_target ==
-          InstructionStorageTarget::kExportAddress &&
-      memexport_alloc_current_count > 0 &&
-      memexport_alloc_current_count <= Shader::kMaxMemExports) {
+      InstructionStorageTarget::kExportAddress) {
     uint32_t memexport_stream_constant = instr.GetMemExportStreamConstant();
     if (memexport_stream_constant != UINT32_MAX) {
-      memexport_eA_written |= uint32_t(1)
-                              << (memexport_alloc_current_count - 1);
       memexport_stream_constants_.insert(memexport_stream_constant);
     } else {
       XELOGE(
@@ -481,8 +570,8 @@ void Shader::GatherFetchResultInformation(const InstructionResult& result) {
   }
 }
 
-void Shader::GatherAluResultInformation(
-    const InstructionResult& result, uint32_t memexport_alloc_current_count) {
+void Shader::GatherAluResultInformation(const InstructionResult& result,
+                                        uint32_t exec_cf_index) {
   uint32_t used_write_mask = result.GetUsedWriteMask();
   if (!used_write_mask) {
     return;
@@ -504,11 +593,12 @@ void Shader::GatherAluResultInformation(
       writes_point_size_edge_flag_kill_vertex_ |= used_write_mask;
       break;
     case InstructionStorageTarget::kExportData:
-      if (memexport_alloc_current_count > 0 &&
-          memexport_alloc_current_count <= Shader::kMaxMemExports) {
-        memexport_eM_written_[memexport_alloc_current_count - 1] |=
-            uint32_t(1) << result.storage_index;
+      memexport_eM_written_ |= uint8_t(1) << result.storage_index;
+      if (cf_memexport_info_.empty()) {
+        cf_memexport_info_.resize(2 * cf_pair_index_bound_);
       }
+      cf_memexport_info_[exec_cf_index].eM_potentially_written_by_exec |=
+          uint32_t(1) << result.storage_index;
       break;
     case InstructionStorageTarget::kColor:
       writes_color_targets_ |= uint32_t(1) << result.storage_index;
@@ -665,7 +755,13 @@ void ShaderTranslator::TranslateControlFlowInstruction(
     case ControlFlowOpcode::kAlloc: {
       ParsedAllocInstruction instr;
       ParseControlFlowAlloc(cf.alloc, cf_index_, is_vertex_shader(), instr);
-      ProcessAllocInstruction(instr);
+      const std::vector<Shader::ControlFlowMemExportInfo>& cf_memexport_info =
+          current_shader().cf_memexport_info();
+      ProcessAllocInstruction(instr,
+                              instr.dword_index < cf_memexport_info.size()
+                                  ? cf_memexport_info[instr.dword_index]
+                                        .eM_potentially_written_before
+                                  : 0);
     } break;
     case ControlFlowOpcode::kMarkVsFetchDone:
       break;
@@ -807,6 +903,14 @@ void ParseControlFlowAlloc(const ControlFlowAllocInstruction& cf,
 void ShaderTranslator::TranslateExecInstructions(
     const ParsedExecInstruction& instr) {
   ProcessExecInstructionBegin(instr);
+
+  const std::vector<Shader::ControlFlowMemExportInfo>& cf_memexport_info =
+      current_shader().cf_memexport_info();
+  uint8_t eM_potentially_written_before =
+      instr.dword_index < cf_memexport_info.size()
+          ? cf_memexport_info[instr.dword_index].eM_potentially_written_before
+          : 0;
+
   const uint32_t* ucode_dwords = current_shader().ucode_data().data();
   uint32_t sequence = instr.sequence;
   for (uint32_t instr_offset = instr.instruction_address;
@@ -832,9 +936,22 @@ void ShaderTranslator::TranslateExecInstructions(
       auto& op = *reinterpret_cast<const AluInstruction*>(op_ptr);
       ParsedAluInstruction alu_instr;
       ParseAluInstruction(op, current_shader().type(), alu_instr);
-      ProcessAluInstruction(alu_instr);
+      ProcessAluInstruction(alu_instr, eM_potentially_written_before);
+      if (alu_instr.vector_and_constant_result.storage_target ==
+              InstructionStorageTarget::kExportData &&
+          alu_instr.vector_and_constant_result.GetUsedWriteMask()) {
+        eM_potentially_written_before |=
+            uint8_t(1) << alu_instr.vector_and_constant_result.storage_index;
+      }
+      if (alu_instr.scalar_result.storage_target ==
+              InstructionStorageTarget::kExportData &&
+          alu_instr.scalar_result.GetUsedWriteMask()) {
+        eM_potentially_written_before |=
+            uint8_t(1) << alu_instr.scalar_result.storage_index;
+      }
     }
   }
+
   ProcessExecInstructionEnd(instr);
 }
 
