@@ -33,10 +33,9 @@ X_STATUS DiscZarchiveFile::ReadSync(void* buffer, size_t buffer_length,
     return X_STATUS_END_OF_FILE;
   }
   ZArchiveReader* reader = static_cast<ZArchiveReader*>(entry_->opaque_);
-  uint64_t bytes_read =
+  const uint64_t bytes_read =
       reader->ReadFromFile(entry_->handle_, byte_offset, buffer_length, buffer);
-  size_t real_offset = entry_->data_offset() + byte_offset;
-  size_t real_length =
+  const size_t real_length =
       std::min(buffer_length, entry_->data_size() - byte_offset);
   *out_bytes_read = real_length;
   return X_STATUS_SUCCESS;
