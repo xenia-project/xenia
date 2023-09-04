@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2023 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -11,9 +11,8 @@
 
 #include <algorithm>
 
+#include "xenia/vfs/devices/disc_zarchive_device.h"
 #include "xenia/vfs/devices/disc_zarchive_entry.h"
-
-#include "third_party/zarchive/include/zarchive/zarchivereader.h"
 
 namespace xe {
 namespace vfs {
@@ -32,9 +31,10 @@ X_STATUS DiscZarchiveFile::ReadSync(void* buffer, size_t buffer_length,
   if (byte_offset >= entry_->size()) {
     return X_STATUS_END_OF_FILE;
   }
-  ZArchiveReader* reader = static_cast<ZArchiveReader*>(entry_->opaque_);
   const uint64_t bytes_read =
-      reader->ReadFromFile(entry_->handle_, byte_offset, buffer_length, buffer);
+      ((DiscZarchiveDevice*)entry_->device_)
+          ->reader()
+          ->ReadFromFile(entry_->handle_, byte_offset, buffer_length, buffer);
   const size_t real_length =
       std::min(buffer_length, entry_->data_size() - byte_offset);
   *out_bytes_read = real_length;

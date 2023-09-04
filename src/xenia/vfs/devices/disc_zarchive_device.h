@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2023 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -15,6 +15,8 @@
 
 #include "xenia/base/mapped_memory.h"
 #include "xenia/vfs/device.h"
+
+#include "third_party/zarchive/include/zarchive/zarchivereader.h"
 
 namespace xe {
 namespace vfs {
@@ -40,14 +42,16 @@ class DiscZarchiveDevice : public Device {
   uint32_t sectors_per_allocation_unit() const override { return 1; }
   uint32_t bytes_per_sector() const override { return 0x200; }
 
+  ZArchiveReader* reader() const { return reader_.get(); }
+
  private:
-  bool ReadAllEntries(void* opaque, const std::string& path,
-                      DiscZarchiveEntry* node, DiscZarchiveEntry* parent);
+  bool ReadAllEntries(const std::string& path, DiscZarchiveEntry* node,
+                      DiscZarchiveEntry* parent);
 
   std::string name_;
   std::filesystem::path host_path_;
   std::unique_ptr<Entry> root_entry_;
-  void* opaque_;
+  std::unique_ptr<ZArchiveReader> reader_;
 };
 
 }  // namespace vfs

@@ -15,13 +15,13 @@
 #include "xenia/vfs/devices/disc_zarchive_file.h"
 
 #include "third_party/zarchive/include/zarchive/zarchivereader.h"
+
 namespace xe {
 namespace vfs {
 
 DiscZarchiveEntry::DiscZarchiveEntry(Device* device, Entry* parent,
-                                     const std::string_view path, void* opaque)
+                                     const std::string_view path)
     : Entry(device, parent, path),
-      opaque_(opaque),
       data_offset_(0),
       data_size_(0),
       handle_(ZARCHIVE_INVALID_NODE) {}
@@ -29,10 +29,9 @@ DiscZarchiveEntry::DiscZarchiveEntry(Device* device, Entry* parent,
 DiscZarchiveEntry::~DiscZarchiveEntry() = default;
 
 std::unique_ptr<DiscZarchiveEntry> DiscZarchiveEntry::Create(
-    Device* device, Entry* parent, const std::string_view name, void* opaque) {
+    Device* device, Entry* parent, const std::string_view name) {
   auto path = name;  // xe::utf8::join_guest_paths(parent->path(), name);
-  auto entry =
-      std::make_unique<DiscZarchiveEntry>(device, parent, path, opaque);
+  auto entry = std::make_unique<DiscZarchiveEntry>(device, parent, path);
   return std::move(entry);
 }
 

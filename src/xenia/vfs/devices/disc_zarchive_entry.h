@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2023 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -23,14 +23,12 @@ class DiscZarchiveDevice;
 
 class DiscZarchiveEntry : public Entry {
  public:
-  DiscZarchiveEntry(Device* device, Entry* parent, const std::string_view path,
-                    void* opaque);
+  DiscZarchiveEntry(Device* device, Entry* parent, const std::string_view path);
   ~DiscZarchiveEntry() override;
 
   static std::unique_ptr<DiscZarchiveEntry> Create(Device* device,
                                                    Entry* parent,
-                                                   const std::string_view name,
-                                                   void* opaque);
+                                                   const std::string_view name);
 
   MappedMemory* mmap() const { return nullptr; }
   size_t data_offset() const { return data_offset_; }
@@ -47,7 +45,6 @@ class DiscZarchiveEntry : public Entry {
   friend class DiscZarchiveDevice;
   friend class DiscZarchiveFile;
 
-  void* opaque_;
   uint32_t handle_;
   size_t data_offset_;
   size_t data_size_;
