@@ -1537,7 +1537,7 @@ class LintCommand(Command):
             if os.path.exists(difftemp): os.remove(difftemp)
             ret = shell_call([
                 sys.executable,
-                'third_party/clang-format/git-clang-format',
+                '/git-clang-format',
                 '--binary=%s' % (clang_format_binary),
                 '--commit=%s' % ('origin/master' if args['origin'] else 'HEAD'),
                 '--style=file',
@@ -1554,7 +1554,7 @@ class LintCommand(Command):
                 print('')
                 shell_call([
                     sys.executable,
-                    'third_party/clang-format/git-clang-format',
+                    '/git-clang-format',
                     '--binary=%s' % (clang_format_binary),
                     '--commit=%s' % ('origin/master' if args['origin'] else 'HEAD'),
                     '--style=file',
@@ -1612,7 +1612,7 @@ class FormatCommand(Command):
             print('- git-clang-format')
             shell_call([
                 sys.executable,
-                'third_party/clang-format/git-clang-format',
+                '/git-clang-format',
                 '--binary=%s' % (clang_format_binary),
                 '--commit=%s' % ('origin/master' if args['origin'] else 'HEAD'),
                 ])
