@@ -60,6 +60,8 @@ class EmulatorWindow {
   void UpdateTitle();
   void SetFullscreen(bool fullscreen);
   void ToggleFullscreen();
+  void TakeScreenshot();
+  void ExportScreenshot(const xe::ui::RawImage& image);
   void SetInitializingShaderStorage(bool initializing);
 
  private:
@@ -138,6 +140,8 @@ class EmulatorWindow {
   void CpuBreakIntoHostDebugger();
   void GpuTraceFrame();
   void GpuClearCaches();
+  void SaveImage(const std::filesystem::path& path,
+                 const xe::ui::RawImage& image);
   void ToggleDisplayConfigDialog();
   void ShowCompatibility();
   void ShowFAQ();
