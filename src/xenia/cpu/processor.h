@@ -101,6 +101,7 @@ class Processor {
   }
 
   bool AddModule(std::unique_ptr<Module> module);
+  void RemoveModule(const std::string_view name);
   Module* GetModule(const std::string_view name);
   std::vector<Module*> GetModules();
 
@@ -111,6 +112,7 @@ class Processor {
 
   Function* QueryFunction(uint32_t address);
   std::vector<Function*> FindFunctionsWithAddress(uint32_t address);
+  void RemoveFunctionByAddress(uint32_t address);
 
   Function* LookupFunction(uint32_t address);
   Function* LookupFunction(Module* module, uint32_t address);

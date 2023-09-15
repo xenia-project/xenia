@@ -73,6 +73,15 @@ Entry::Status EntryTable::GetOrCreate(uint32_t address, Entry** out_entry) {
   return status;
 }
 
+void EntryTable::Delete(uint32_t address) {
+  auto global_lock = global_critical_region_.Acquire();
+  const auto itr = map_.find(address);
+
+  if (itr != map_.cend()) {
+    map_.erase(itr);
+  }
+}
+
 std::vector<Function*> EntryTable::FindWithAddress(uint32_t address) {
   auto global_lock = global_critical_region_.Acquire();
   std::vector<Function*> fns;
