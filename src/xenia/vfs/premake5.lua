@@ -32,4 +32,5 @@ project("xenia-vfs-dump")
   resincludedirs({
     project_root,
   })
+include("testing")
 

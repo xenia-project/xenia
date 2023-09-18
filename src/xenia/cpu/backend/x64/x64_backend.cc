@@ -480,9 +480,9 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   code_offsets.prolog = getSize();
 
   // rsp + 0 = return address
-  mov(qword[rsp + 8 * 3], rdx);
-  mov(qword[rsp + 8 * 2], rsi);
-  mov(qword[rsp + 8 * 1], rdi);
+  // mov(qword[rsp + 8 * 3], rdx);
+  // mov(qword[rsp + 8 * 2], rsi);
+  // mov(qword[rsp + 8 * 1], rdi);
   sub(rsp, stack_size);
 
   code_offsets.prolog_stack_alloc = getSize();
@@ -501,9 +501,9 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   code_offsets.epilog = getSize();
 
   add(rsp, stack_size);
-  mov(rdi, qword[rsp + 8 * 1]);
-  mov(rsi, qword[rsp + 8 * 2]);
-  mov(rdx, qword[rsp + 8 * 3]);
+  // mov(rdi, qword[rsp + 8 * 1]);
+  // mov(rsi, qword[rsp + 8 * 2]);
+  // mov(rdx, qword[rsp + 8 * 3]);
   ret();
 #else
   assert_always("Unknown platform ABI in host to guest thunk!");
