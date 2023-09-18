@@ -897,7 +897,17 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_EVENT_WRITE_SHD(
   auto endianness = static_cast<xenos::Endian>(address & 0x3);
   address &= ~0x3;
   data_value = GpuSwap(data_value, endianness);
-  xe::store(memory_->TranslatePhysical(address), data_value);
+  uint8_t* write_destination = memory_->TranslatePhysical(address);
+  if (address > 0x1FFFFFFF) {
+    uint32_t writeback_base = register_file_->values[XE_GPU_REG_WRITEBACK_BASE].u32;
+    uint32_t writeback_size = register_file_->values[XE_GPU_REG_WRITEBACK_SIZE].u32;
+    uint32_t writeback_offset = address - writeback_base;
+	//check whether the guest has written writeback base. if they haven't, skip the offset check
+    if (writeback_base != 0 && writeback_offset < writeback_size) {
+      write_destination = memory_->TranslateVirtual(0x7F000000 + writeback_offset);
+	}
+  }
+  xe::store(write_destination, data_value);
   trace_writer_.WriteMemoryWrite(CpuToGpu(address), 4);
   return true;
 }
