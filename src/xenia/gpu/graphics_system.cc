@@ -104,18 +104,26 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
   vsync_worker_running_ = true;
   vsync_worker_thread_ = kernel::object_ref<kernel::XHostThread>(
       new kernel::XHostThread(kernel_state_, 128 * 1024, 0, [this]() {
-        uint64_t vsync_duration =
-            cvars::vsync ? std::max<uint64_t>(5, cvars::vsync_interval) : 1;
+        double vsync_duration_d =
+            cvars::vsync
+                ? std::max<double>(
+                      5.0, 1000.0 / static_cast<double>(cvars::vsync_fps))
+                : 1.0;
         uint64_t last_frame_time = Clock::QueryGuestTickCount();
         while (vsync_worker_running_) {
           uint64_t current_time = Clock::QueryGuestTickCount();
-          uint64_t elapsed = (current_time - last_frame_time) /
-                             (Clock::guest_tick_frequency() / 1000);
-          if (elapsed >= vsync_duration) {
+
+          uint64_t tick_freq = Clock::guest_tick_frequency();
+          uint64_t time_delta = current_time - last_frame_time;
+          double elapsed_d = static_cast<double>(time_delta) /
+                             (static_cast<double>(tick_freq) / 1000.0);
+          if (elapsed_d >= vsync_duration_d) {
             MarkVblank();
             last_frame_time = current_time;
           }
-          xe::threading::Sleep(std::chrono::milliseconds(1));
+          if (!cvars::vsync) {
+            xe::threading::Sleep(std::chrono::milliseconds(1));
+		  }
         }
         return 0;
       }));
@@ -123,7 +131,7 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
   vsync_worker_thread_->set_can_debugger_suspend(true);
   vsync_worker_thread_->set_name("GPU VSync");
   vsync_worker_thread_->Create();
-
+  vsync_worker_thread_->thread()->set_priority(threading::ThreadPriority::kLowest);
   if (cvars::trace_gpu_stream) {
     BeginTracing();
   }

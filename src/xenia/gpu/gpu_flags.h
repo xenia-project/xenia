@@ -18,7 +18,7 @@ DECLARE_path(dump_shaders);
 
 DECLARE_bool(vsync);
 
-DECLARE_uint64(vsync_interval);
+DECLARE_uint64(vsync_fps);
 
 DECLARE_bool(gpu_allow_invalid_fetch_constants);
 
