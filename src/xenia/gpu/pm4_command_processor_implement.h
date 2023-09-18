@@ -690,34 +690,11 @@ static bool MatchValueAndRef(uint32_t value, uint32_t ref, uint32_t wait_info) {
 // we do technically have more instructions executed vs the switch case method,
 // but we have no mispredicts and most of our instructions are 0.25/0.3
 // throughput
-#if 1
-  uint32_t value_minus_ref =
-      static_cast<uint32_t>(static_cast<int32_t>(value - ref) >> 31);
-  uint32_t ref_minus_value =
-      static_cast<uint32_t>(static_cast<int32_t>(ref - value) >> 31);
-  uint32_t eqmask = ~(value_minus_ref | ref_minus_value);
-  uint32_t nemask = (value_minus_ref | ref_minus_value);
-
-  uint32_t value_lt_mask = value_minus_ref;
-  uint32_t value_gt_mask = ref_minus_value;
-  uint32_t value_lte_mask = value_lt_mask | eqmask;
-  uint32_t value_gte_mask = value_gt_mask | eqmask;
-
-  uint32_t bits_for_selecting =
-      (value_lt_mask & (1 << 1)) | (value_lte_mask & (1 << 2)) |
-      (eqmask & (1 << 3)) | (nemask & (1 << 4)) | (value_gte_mask & (1 << 5)) |
-      (value_gt_mask & (1 << 6)) | (1 << 7);
-
-  return (bits_for_selecting >> (wait_info & 7)) & 1;
-
-#else
-
   return ((((value < ref) << 1) | ((value <= ref) << 2) |
            ((value == ref) << 3) | ((value != ref) << 4) |
            ((value >= ref) << 5) | ((value > ref) << 6) | (1 << 7)) >>
           (wait_info & 7)) &
          1;
-#endif
 }
 XE_NOINLINE
 bool COMMAND_PROCESSOR::ExecutePacketType3_WAIT_REG_MEM(
