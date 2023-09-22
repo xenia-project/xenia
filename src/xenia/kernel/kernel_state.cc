@@ -553,7 +553,19 @@ X_RESULT KernelState::ApplyTitleUpdate(const object_ref<UserModule> module) {
       content_manager()->OpenContent("UPDATE", title_update, disc_number);
 
   // Use the corresponding patch for the launch module
-  std::filesystem::path patch_xexp = fmt::format("{0}.xexp", module->name());
+  std::filesystem::path patch_xexp;
+
+  std::string mount_path = "";
+  file_system()->FindSymbolicLink("game:", mount_path);
+
+  auto is_relative = std::filesystem::relative(module->path(), mount_path);
+
+  if (is_relative.empty()) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  patch_xexp =
+      is_relative.replace_extension(is_relative.extension().string() + "p");
 
   std::string resolved_path = "";
   file_system()->FindSymbolicLink("UPDATE:", resolved_path);

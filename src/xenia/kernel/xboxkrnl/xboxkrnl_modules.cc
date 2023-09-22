@@ -118,6 +118,7 @@ dword_result_t xeXexLoadImage(
     // Not found; attempt to load as a user module.
     auto user_module = load_callback();
     if (user_module) {
+      kernel_state()->ApplyTitleUpdate(user_module);
       kernel_state()->FinishLoadingUserModule(user_module);
       // Give up object ownership, this reference will be released by the last
       // XexUnloadImage call
