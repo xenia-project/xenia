@@ -61,11 +61,22 @@ struct X64BackendStackpoint {
   // use
   unsigned guest_return_address_;
 };
+enum : uint32_t { 
+    kX64BackendMXCSRModeBit = 0, 
+    kX64BackendHasReserveBit = 1,
+    kX64BackendNJMOn = 2, //non-java mode bit is currently set. for use in software fp routines
+    kX64BackendNonIEEEMode = 3, //non-ieee mode is currently enabled for scalar fpu.
+};
 // located prior to the ctx register
 // some things it would be nice to have be per-emulator instance instead of per
 // context (somehow placing a global X64BackendCtx prior to membase, so we can
 // negatively index the membase reg)
 struct X64BackendContext {
+  union {
+    __m128 helper_scratch_xmms[4];
+    uint64_t helper_scratch_u64s[8];
+    uint32_t helper_scratch_u32s[16];
+  };
   ReserveHelper* reserve_helper_;
   uint64_t cached_reserve_value_;
   // guest_tick_count is used if inline_loadclock is used
@@ -147,6 +158,13 @@ class X64Backend : public Backend {
   virtual void SetGuestRoundingMode(void* ctx, unsigned int mode) override;
   virtual bool PopulatePseudoStacktrace(GuestPseudoStackTrace* st) override;
   void RecordMMIOExceptionForGuestInstruction(void* host_address);
+
+  uint32_t LookupXMMConstantAddress32(unsigned index) {
+    return static_cast<uint32_t>(emitter_data() + sizeof(vec128_t) * index);
+  }
+  void* LookupXMMConstantAddress(unsigned index) {
+    return reinterpret_cast<void*>(emitter_data() + sizeof(vec128_t) * index);
+  }
 #if XE_X64_PROFILER_AVAILABLE == 1
   uint64_t* GetProfilerRecordForFunction(uint32_t guest_address);
 #endif
@@ -173,7 +191,8 @@ class X64Backend : public Backend {
   void* try_acquire_reservation_helper_ = nullptr;
   void* reserved_store_32_helper = nullptr;
   void* reserved_store_64_helper = nullptr;
-
+  void* vrsqrtefp_vector_helper = nullptr;
+  void* vrsqrtefp_scalar_helper = nullptr;
  private:
 #if XE_X64_PROFILER_AVAILABLE == 1
   GuestProfilerData profiler_data_;

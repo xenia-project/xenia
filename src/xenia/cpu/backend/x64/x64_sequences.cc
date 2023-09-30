@@ -2123,12 +2123,19 @@ struct RSQRT_V128 : Sequence<RSQRT_V128, I<OPCODE_RSQRT, V128Op, V128Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.ChangeMxcsrMode(MXCSRMode::Vmx);
     Xmm src1 = GetInputRegOrConstant(e, i.src1, e.xmm3);
-    if (e.IsFeatureEnabled(kX64EmitAVX512Ortho)) {
-      e.vrsqrt14ps(i.dest, src1);
+    /*
+        the vast majority of inputs to vrsqrte come from vmsum3 or vmsum4 as part
+        of a vector normalization sequence. in fact, its difficult to find uses of vrsqrte in titles
+        that have inputs which do not come from vmsum.
+    */
+    if (i.src1.value && i.src1.value->AllFloatVectorLanesSameValue()) {
+      e.vmovss(e.xmm0, src1);
+      e.call(e.backend()->vrsqrtefp_scalar_helper);
+      e.vshufps(i.dest, e.xmm0, e.xmm0, 0);
     } else {
-      e.vmovaps(e.xmm0, e.GetXmmConstPtr(XMMOne));
-      e.vsqrtps(e.xmm1, src1);
-      e.vdivps(i.dest, e.xmm0, e.xmm1);
+      e.vmovaps(e.xmm0, src1);
+      e.call(e.backend()->vrsqrtefp_vector_helper);
+      e.vmovaps(i.dest, e.xmm0);
     }
   }
 };
@@ -3183,16 +3190,37 @@ struct SET_ROUNDING_MODE_I32
     // removed the And with 7 and hoisted that and into the InstrEmit_'s that
     // generate OPCODE_SET_ROUNDING_MODE so that it can be constant folded and
     // backends dont have to worry about it
+    auto flags_ptr = e.GetBackendFlagsPtr();
     if (i.src1.is_constant) {
-      e.mov(e.eax, mxcsr_table[i.src1.constant()]);
+      unsigned constant_value = i.src1.constant();
+      e.mov(e.eax, mxcsr_table[constant_value]);
+
+      if (constant_value & 4) {
+        e.or_(flags_ptr, 1U << kX64BackendNonIEEEMode);
+      }
+      else {
+        e.btr(flags_ptr, kX64BackendNonIEEEMode);
+      }
       e.mov(e.dword[e.rsp + StackLayout::GUEST_SCRATCH], e.eax);
       e.mov(e.GetBackendCtxPtr(offsetof(X64BackendContext, mxcsr_fpu)), e.eax);
       e.vldmxcsr(e.dword[e.rsp + StackLayout::GUEST_SCRATCH]);
 
     } else {
-      e.mov(e.ecx, i.src1);
+      //can andnot, but this is a very infrequently used opcode
+      e.mov(e.eax, 1U << kX64BackendNonIEEEMode);
+      e.mov(e.edx, e.eax);
+      e.not_(e.edx);
+      e.mov(e.ecx, flags_ptr);
+      //edx = flags w/ non ieee cleared
+      e.and_(e.edx, e.ecx);
+      //eax = flags w/ non ieee set
+      e.or_(e.eax, e.ecx);
+      e.bt(i.src1, 2);
 
+      e.mov(e.ecx, i.src1);
+      e.cmovc(e.edx, e.eax);
       e.mov(e.rax, uintptr_t(mxcsr_table));
+      e.mov(flags_ptr, e.edx);
       e.mov(e.edx, e.ptr[e.rax + e.rcx * 4]);
       // this was not here
       e.mov(e.GetBackendCtxPtr(offsetof(X64BackendContext, mxcsr_fpu)), e.edx);

@@ -174,7 +174,9 @@ enum XmmConst {
   XMMSTVLShuffle,
   XMMSTVRSwapMask,  // swapwordmask with bit 7 set
   XMMVSRShlByteshuf,
-  XMMVSRMask
+  XMMVSRMask,
+  XMMVRsqrteTableStart,
+  XMMVRsqrteTableBase = XMMVRsqrteTableStart + (32 / 4), //32 4-byte elements in table, 4 4-byte elements fit in each xmm
 
 };
 using amdfx::xopcompare_e;
@@ -308,7 +310,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
 
   size_t stack_size() const { return stack_size_; }
   SimdDomain DeduceSimdDomain(const hir::Value* for_value);
-
+ 
   void ForgetMxcsrMode() { mxcsr_mode_ = MXCSRMode::Unknown; }
   /*
         returns true if had to load mxcsr. DOT_PRODUCT can use this to skip

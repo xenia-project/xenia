@@ -3376,17 +3376,28 @@ struct SET_NJM_I8 : Sequence<SET_NJM_I8, I<OPCODE_SET_NJM, VoidOp, I8Op>> {
     auto addr_vmx = e.GetBackendCtxPtr(offsetof(X64BackendContext, mxcsr_vmx));
 
     addr_vmx.setBit(32);
+    auto flags_ptr = e.GetBackendFlagsPtr();
     if (i.src1.is_constant) {
       if (i.src1.constant() == 0) {
         // turn off daz/flush2z
         e.mov(addr_vmx, _MM_MASK_MASK);
+        e.btr(flags_ptr, kX64BackendNJMOn);
 
       } else {
         e.mov(addr_vmx, DEFAULT_VMX_MXCSR);
+        e.bts(flags_ptr, kX64BackendNJMOn);
       }
 
     } else {
+      e.mov(e.eax, flags_ptr);
+      e.mov(e.edx, 1U << kX64BackendNJMOn);
+      e.mov(e.ecx, e.edx);
+      e.not_(e.ecx);
+      e.and_(e.ecx, e.eax);
+      e.or_(e.edx, e.eax);
       e.test(i.src1, i.src1);
+      e.cmove(e.edx, e.ecx);
+      e.mov(flags_ptr, e.edx);
       e.mov(e.edx, DEFAULT_VMX_MXCSR);
       e.mov(e.eax, _MM_MASK_MASK);
 

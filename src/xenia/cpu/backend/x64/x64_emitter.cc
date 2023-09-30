@@ -982,6 +982,16 @@ static inline vec128_t v128_setr_bytes(unsigned char v0, unsigned char v1,
   return result;
 }
 
+static inline vec128_t v128_setr_words(uint32_t v0, uint32_t v1, uint32_t v2,
+    uint32_t v3) {
+  vec128_t result;
+  result.u32[0] = v0;
+  result.u32[1] = v1;
+  result.u32[2] = v2;
+  result.u32[3] = v3;
+  return result;
+}
+
 static const vec128_t xmm_consts[] = {
     /* XMMZero                */ vec128f(0.0f),
     /* XMMByteSwapMask        */
@@ -1151,7 +1161,19 @@ static const vec128_t xmm_consts[] = {
     vec128b((uint8_t)0x83), /*XMMVSRShlByteshuf*/
     v128_setr_bytes(13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3, 0x80),
     // XMMVSRMask
-    vec128b(1)};
+    vec128b(1),
+    //XMMVRsqrteTableStart
+    v128_setr_words(0x568B4FD, 0x4F3AF97, 0x48DAAA5, 0x435A618),
+    v128_setr_words(0x3E7A1E4, 0x3A29DFE, 0x3659A5C, 0x32E96F8),
+    v128_setr_words(0x2FC93CA, 0x2D090CE, 0x2A88DFE, 0x2838B57),
+    v128_setr_words(0x26188D4, 0x2438673, 0x2268431, 0x20B820B),
+    v128_setr_words(0x3D27FFA, 0x3807C29, 0x33878AA, 0x2F97572),
+    v128_setr_words(0x2C27279, 0x2926FB7, 0x2666D26, 0x23F6AC0),
+    v128_setr_words(0x21D6881, 0x1FD6665, 0x1E16468, 0x1C76287),
+    v128_setr_words(0x1AF60C1, 0x1995F12, 0x1855D79, 0x1735BF4),
+    //XMMVRsqrteTableBase
+    vec128i(0) //filled in later
+};
 
 void* X64Emitter::FindByteConstantOffset(unsigned bytevalue) {
   for (auto& vec : xmm_consts) {
@@ -1223,7 +1245,17 @@ uintptr_t X64Emitter::PlaceConstData() {
 
   // The pointer must not be greater than 31 bits.
   assert_zero(reinterpret_cast<uintptr_t>(mem) & ~0x7FFFFFFF);
+
   std::memcpy(mem, xmm_consts, sizeof(xmm_consts));
+  /*
+    set each 32-bit element of the constant XMMVRsqrteTableBase to be the address of the start of the constant XMMVRsqrteTableStart
+    this 
+  */
+  vec128_t* deferred_constants = reinterpret_cast<vec128_t*>(mem);
+  vec128_t* vrsqrte_table_base = &deferred_constants[XMMVRsqrteTableBase];
+  uint32_t ptr_to_vrsqrte_table32 = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&deferred_constants[XMMVRsqrteTableStart]));
+  *vrsqrte_table_base = vec128i(ptr_to_vrsqrte_table32);
+
   memory::Protect(mem, kConstDataSize, memory::PageAccess::kReadOnly, nullptr);
 
   return reinterpret_cast<uintptr_t>(mem);
@@ -1237,8 +1269,9 @@ void X64Emitter::FreeConstData(uintptr_t data) {
 Xbyak::Address X64Emitter::GetXmmConstPtr(XmmConst id) {
   // Load through fixed constant table setup by PlaceConstData.
   // It's important that the pointer is not signed, as it will be sign-extended.
-  return ptr[reinterpret_cast<void*>(backend_->emitter_data() +
-                                     sizeof(vec128_t) * id)];
+  void* emitter_data_ptr = backend_->LookupXMMConstantAddress(static_cast<unsigned>(id));
+  xenia_assert(reinterpret_cast<uintptr_t>(emitter_data_ptr) < (1ULL << 31));//must not have signbit set
+  return ptr[emitter_data_ptr];
 }
 // Implies possible StashXmm(0, ...)!
 void X64Emitter::LoadConstantXmm(Xbyak::Xmm dest, const vec128_t& v) {
@@ -1634,9 +1667,9 @@ bool X64Emitter::ChangeMxcsrMode(MXCSRMode new_mode, bool already_set) {
     } else {  // even if already set, we still need to update flags to reflect
               // our mode
       if (new_mode == MXCSRMode::Fpu) {
-        btr(GetBackendFlagsPtr(), 0);
+        btr(GetBackendFlagsPtr(), kX64BackendMXCSRModeBit);
       } else if (new_mode == MXCSRMode::Vmx) {
-        bts(GetBackendFlagsPtr(), 0);
+        bts(GetBackendFlagsPtr(), kX64BackendMXCSRModeBit);
       } else {
         assert_unhandled_case(new_mode);
       }
@@ -1646,11 +1679,11 @@ bool X64Emitter::ChangeMxcsrMode(MXCSRMode new_mode, bool already_set) {
     if (!already_set) {
       if (new_mode == MXCSRMode::Fpu) {
         LoadFpuMxcsrDirect();
-        btr(GetBackendFlagsPtr(), 0);
+        btr(GetBackendFlagsPtr(), kX64BackendMXCSRModeBit);
         return true;
       } else if (new_mode == MXCSRMode::Vmx) {
         LoadVmxMxcsrDirect();
-        bts(GetBackendFlagsPtr(), 0);
+        bts(GetBackendFlagsPtr(), kX64BackendMXCSRModeBit);
         return true;
       } else {
         assert_unhandled_case(new_mode);

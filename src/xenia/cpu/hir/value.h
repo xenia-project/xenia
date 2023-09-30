@@ -618,8 +618,16 @@ class Value {
   bool MaybeFloaty() const {
     return type == FLOAT32_TYPE || type == FLOAT64_TYPE || type == VEC128_TYPE;
   }
-
+  bool AllFloatVectorLanesSameValue() const {
+    return Value::AllFloatVectorLanesSameValue(this);
+  }
  private:
+  /*
+returns true if for_value (which must be VEC128_TYPE) has the same value in
+every float
+*/
+  static bool AllFloatVectorLanesSameValue(const hir::Value* for_value,
+                                           uint32_t current_depth = 0);
   static bool CompareInt8(Opcode opcode, Value* a, Value* b);
   static bool CompareInt16(Opcode opcode, Value* a, Value* b);
   static bool CompareInt32(Opcode opcode, Value* a, Value* b);

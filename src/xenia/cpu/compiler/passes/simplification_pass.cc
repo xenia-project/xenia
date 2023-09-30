@@ -1370,6 +1370,38 @@ bool SimplificationPass::SimplifyVectorOps(hir::Instr* i,
       }
     }
   }
+
+  /*
+    splatting a 32-bit value extracted from a vector where all 4 32-bit values are the same should be eliminated and
+    instead use the vector extracted from, which will be identical
+    have seen this happen, some games vmsum and then splat the low float to all 4 floats, even though it already is there
+  */
+  if (opc == OPCODE_SPLAT) {
+    if (i->dest->type == VEC128_TYPE) {
+      auto splatted_value = i->src1.value;
+      auto splat_type = splatted_value->type;
+      if (splat_type == FLOAT32_TYPE || splat_type == INT32_TYPE) {
+        //its a splat of a fourbyte value, check the definition
+        auto splat_input_definition = splatted_value->GetDefSkipAssigns();
+        if (splat_input_definition) {
+          auto defining_opcode = splat_input_definition->GetOpcodeNum();
+          if (defining_opcode == OPCODE_EXTRACT) {
+            auto value_extracted_from = splat_input_definition->src1.value;
+            if (value_extracted_from->type == VEC128_TYPE) {
+
+              xenia_assert(splat_input_definition->dest->type == splat_type);
+
+              if (value_extracted_from->AllFloatVectorLanesSameValue()) {
+                i->Replace(&OPCODE_ASSIGN_info,0);
+                i->set_src1(value_extracted_from);
+                return true;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
   return false;
 }
 bool SimplificationPass::SimplifyVectorOps(hir::HIRBuilder* builder) {

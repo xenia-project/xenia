@@ -73,6 +73,9 @@ class X64HelperEmitter : public X64Emitter {
   void* EmitTryAcquireReservationHelper();
   void* EmitReservedStoreHelper(bool bit64 = false);
 
+  void* EmitScalarVRsqrteHelper();
+  void* EmitVectorVRsqrteHelper(void* scalar_helper);
+
  private:
   void* EmitCurrentForOffsets(const _code_offsets& offsets,
                               size_t stack_size = 0);
@@ -207,6 +210,8 @@ bool X64Backend::Initialize(Processor* processor) {
   if (!code_cache_->Initialize()) {
     return false;
   }
+  // Allocate emitter constant data.
+  emitter_data_ = X64Emitter::PlaceConstData();
 
   // Generate thunks used to transition between jitted code and host code.
   XbyakAllocator allocator;
@@ -233,7 +238,8 @@ bool X64Backend::Initialize(Processor* processor) {
       thunk_emitter.EmitTryAcquireReservationHelper();
   reserved_store_32_helper = thunk_emitter.EmitReservedStoreHelper(false);
   reserved_store_64_helper = thunk_emitter.EmitReservedStoreHelper(true);
-
+  vrsqrtefp_scalar_helper = thunk_emitter.EmitScalarVRsqrteHelper();
+  vrsqrtefp_vector_helper = thunk_emitter.EmitVectorVRsqrteHelper(vrsqrtefp_scalar_helper);
   // Set the code cache to use the ResolveFunction thunk for default
   // indirections.
   assert_zero(uint64_t(resolve_function_thunk_) & 0xFFFFFFFF00000000ull);
@@ -242,9 +248,6 @@ bool X64Backend::Initialize(Processor* processor) {
 
   // Allocate some special indirections.
   code_cache_->CommitExecutableRange(0x9FFF0000, 0x9FFFFFFF);
-
-  // Allocate emitter constant data.
-  emitter_data_ = X64Emitter::PlaceConstData();
 
   // Setup exception callback
   ExceptionHandler::Install(&ExceptionCallbackThunk, this);
@@ -844,7 +847,7 @@ void* X64HelperEmitter::EmitGuestAndHostSynchronizeStackSizeLoadThunk(
   _code_offsets code_offsets = {};
   code_offsets.prolog = getSize();
   pop(r8);  // return address
-
+  
   switch (stack_element_size) {
     case 4:
       mov(r11d, ptr[r8]);
@@ -865,6 +868,300 @@ void* X64HelperEmitter::EmitGuestAndHostSynchronizeStackSizeLoadThunk(
   return EmitCurrentForOffsets(code_offsets);
 }
 
+void* X64HelperEmitter::EmitScalarVRsqrteHelper() {
+  _code_offsets code_offsets = {};
+
+  Xbyak::Label L18, L2, L35, L4, L9, L8, L10, L11, L12, L13, L1;
+  Xbyak::Label LC1, _LCPI3_1;
+  Xbyak::Label handle_denormal_input;
+  Xbyak::Label specialcheck_1, convert_to_signed_inf_and_ret, handle_oddball_denormal;
+
+  auto emulate_lzcnt_helper_unary_reg = [this](auto& reg, auto& scratch_reg) {
+    inLocalLabel();
+    Xbyak::Label end_lzcnt;
+    bsr(scratch_reg, reg);
+    mov(reg, 0x20);
+    jz(end_lzcnt);
+    xor_(scratch_reg, 0x1F);
+    mov(reg, scratch_reg);
+    L(end_lzcnt);
+    outLocalLabel();
+  };
+
+  vmovd(r8d, xmm0);
+  vmovaps(xmm1, xmm0);
+  mov(ecx, r8d);
+  //extract mantissa
+  and_(ecx, 0x7fffff);
+  mov(edx, ecx);
+  cmp(r8d, 0xff800000);
+  jz(specialcheck_1, CodeGenerator::T_NEAR);
+  //is exponent zero?
+  test(r8d, 0x7f800000);
+  jne(L18);
+  test(ecx, ecx);
+  jne(L2);
+
+  L(L18);
+  //extract biased exponent and unbias
+  mov(r9d, r8d);
+  shr(r9d, 23);
+  movzx(r9d, r9b);
+  lea(eax, ptr[r9 - 127]);
+  cmp(r9d, 255);
+  jne(L4);
+  jmp(L35);
+
+  L(L2);
+
+  bt(GetBackendFlagsPtr(), kX64BackendNJMOn);
+  jnc(handle_denormal_input, CodeGenerator::T_NEAR);
+ 
+  // handle denormal input with NJM on 
+  // denorms get converted to zero w/ input sign, jump to our label
+  // that handles inputs of 0 for this
+  
+  jmp(convert_to_signed_inf_and_ret);
+  L(L35);
+
+  vxorps(xmm0, xmm0, xmm0);
+  mov(eax, 128);
+  vcomiss(xmm1, xmm0);
+  jb(L4);
+  test(ecx, ecx);
+  jne(L8);
+  ret();
+
+  L(L4);
+  cmp(eax, 128);
+  jne(L9);
+  vxorps(xmm0, xmm0, xmm0);
+  vcomiss(xmm0, xmm1);
+  jbe(L9);
+  vmovss(xmm2, ptr[rip+LC1]);
+  vandps(xmm1, GetXmmConstPtr(XMMSignMaskF32));
+
+  test(edx, edx);
+  jne(L8);
+  vorps(xmm0, xmm2, xmm2);
+  ret();
+
+  L(L9);
+  test(edx, edx);
+  je(L10);
+  cmp(eax, 128);
+  jne(L11);
+  L(L8);
+  or_(r8d, 0x400000);
+  vmovd(xmm0, r8d);
+  ret();
+  L(L10);
+  test(r9d, r9d);
+  jne(L11);
+  L(convert_to_signed_inf_and_ret);
+  not_(r8d);
+  shr(r8d, 31);
+
+  lea(rdx, ptr[rip + _LCPI3_1]);
+  shl(r8d, 2);
+  vmovss(xmm0, ptr[r8 + rdx]);
+  ret();
+
+  L(L11);
+  vxorps(xmm2, xmm2, xmm2);
+  vmovss(xmm0, ptr[rip+LC1]);
+  vcomiss(xmm2, xmm1);
+  ja(L1, CodeGenerator::T_NEAR);
+  mov(ecx, 127);
+  sal(eax, 4);
+  sub(ecx, r9d);
+  mov(r9d, edx);
+  and_(eax, 16);
+  shr(edx, 9);
+  shr(r9d, 19);
+  and_(edx, 1023);
+  sar(ecx, 1);
+  or_(eax, r9d);
+  xor_(eax, 16);
+  mov(r9d, ptr[backend()->LookupXMMConstantAddress32(XMMVRsqrteTableStart) +
+               rax * 4]);
+  mov(eax, r9d);
+  shr(r9d, 16);
+  imul(edx, r9d);
+  sal(eax, 10);
+  and_(eax, 0x3fffc00);
+  sub(eax, edx);
+  bt(eax, 25);
+  jc(L12);
+  mov(edx, eax);
+  add(ecx, 6);
+  and_(edx, 0x1ffffff);
+
+  if (IsFeatureEnabled(kX64EmitLZCNT)) {
+    lzcnt(edx, edx);
+  } else {
+    emulate_lzcnt_helper_unary_reg(edx, r9d);
+  }
+
+  lea(r9d, ptr[rdx - 6]);
+  sub(ecx, edx);
+  if (IsFeatureEnabled(kX64EmitBMI2)) {
+    shlx(eax, eax, r9d);
+  } else {
+    xchg(ecx, r9d);
+    shl(eax, cl);
+    xchg(ecx, r9d);
+  }
+
+  L(L12);
+  test(al, 5);
+  je(L13);
+  test(al, 2);
+  je(L13);
+  add(eax, 4);
+
+  L(L13);
+  sal(ecx, 23);
+  and_(r8d, 0x80000000);
+  shr(eax, 2);
+  add(ecx, 0x3f800000);
+  and_(eax, 0x7fffff);
+  vxorps(xmm1, xmm1);
+  or_(ecx, r8d);
+  or_(ecx, eax);
+  vmovd(xmm0, ecx);
+  vaddss(xmm0, xmm1);//apply DAZ behavior to output
+
+  L(L1);
+  ret();
+
+
+  L(handle_denormal_input);
+  mov(r9d, r8d);
+  and_(r9d, 0x7FFFFFFF);
+  cmp(r9d, 0x400000);
+  jz(handle_oddball_denormal);
+  if (IsFeatureEnabled(kX64EmitLZCNT)) {
+    lzcnt(ecx, ecx);
+  } else {
+    emulate_lzcnt_helper_unary_reg(ecx, r9d);
+  }
+
+  mov(r9d, 9);
+  mov(eax, -118);
+  lea(edx, ptr[rcx - 8]);
+  sub(r9d, ecx);
+  sub(eax, ecx);
+  if (IsFeatureEnabled(kX64EmitBMI2)) {
+    shlx(edx, r8d, edx);
+  } else {
+    xchg(ecx, edx);
+    // esi is just the value of xmm0's low word, so we can restore it from there
+    shl(r8d, cl);
+    mov(ecx, edx);  // restore ecx, dont xchg because we're going to spoil edx anyway
+    mov(edx, r8d);
+    vmovd(r8d, xmm0);
+  }
+  and_(edx, 0x7ffffe);
+  jmp(L4);
+
+  L(specialcheck_1);
+  //should be extremely rare
+  vmovss(xmm0, ptr[rip+LC1]);
+  ret();
+
+  L(handle_oddball_denormal);
+  not_(r8d);
+  lea(r9, ptr[rip + LC1]);
+
+  shr(r8d, 31);
+  movss(xmm0, ptr[r9 + r8 * 4]);
+  ret();
+
+  L(_LCPI3_1);
+  dd(0xFF800000);
+  dd(0x7F800000);
+  L(LC1);
+  //the position of 7FC00000 here matters, this address will be indexed in handle_oddball_denormal
+  dd(0x7FC00000);
+  dd(0x5F34FD00);
+
+
+  code_offsets.prolog_stack_alloc = getSize();
+  code_offsets.body = getSize();
+  code_offsets.prolog = getSize();
+  code_offsets.epilog = getSize();
+  code_offsets.tail = getSize();
+  return EmitCurrentForOffsets(code_offsets);
+}
+
+void* X64HelperEmitter::EmitVectorVRsqrteHelper(void* scalar_helper) {
+  _code_offsets code_offsets = {};
+  Xbyak::Label check_scalar_operation_in_vmx, actual_vector_version;
+  auto result_ptr =
+      GetBackendCtxPtr(offsetof(X64BackendContext, helper_scratch_xmms[0]));
+  auto counter_ptr = GetBackendCtxPtr(offsetof(X64BackendContext, helper_scratch_u64s[2]));
+  counter_ptr.setBit(64);
+
+  //shuffle and xor to check whether all lanes are equal
+  //sadly has to leave the float pipeline for the vptest, which is moderate yikes
+  vmovhlps(xmm2, xmm0, xmm0);
+  vmovsldup(xmm1, xmm0);
+  vxorps(xmm1, xmm1, xmm0);
+  vxorps(xmm2, xmm2, xmm0);
+  vorps(xmm2, xmm1, xmm2);
+  vptest(xmm2, xmm2);
+  jnz(check_scalar_operation_in_vmx);
+  //jmp(scalar_helper, CodeGenerator::T_NEAR);
+  call(scalar_helper);
+  vshufps(xmm0, xmm0, xmm0, 0);
+  ret();
+
+  L(check_scalar_operation_in_vmx);
+
+  vptest(xmm0, ptr[backend()->LookupXMMConstantAddress(XMMThreeFloatMask)]);
+  jnz(actual_vector_version);
+  vshufps(xmm0, xmm0,xmm0, _MM_SHUFFLE(3, 3, 3, 3));
+  call(scalar_helper);
+ // this->DebugBreak();
+  vinsertps(xmm0, xmm0, (3 << 4) | (0 << 6));
+
+  vblendps(xmm0, xmm0, ptr[backend()->LookupXMMConstantAddress(XMMFloatInf)],
+           0b0111);
+  
+  ret();
+
+
+  L(actual_vector_version);
+
+
+  xor_(ecx, ecx);
+  vmovaps(result_ptr, xmm0);
+
+  mov(counter_ptr, rcx);
+  Xbyak::Label loop;
+
+  L(loop);
+  lea(rax, result_ptr);
+  vmovss(xmm0, ptr[rax+rcx*4]);
+  call(scalar_helper);
+  mov(rcx, counter_ptr);
+  lea(rax, result_ptr);
+  vmovss(ptr[rax+rcx*4], xmm0);
+  inc(ecx);
+  cmp(ecx, 4);
+  mov(counter_ptr, rcx);
+  jl(loop);
+  vmovaps(xmm0, result_ptr);
+  ret();
+  code_offsets.prolog_stack_alloc = getSize();
+  code_offsets.body = getSize();
+  code_offsets.epilog = getSize();
+  code_offsets.tail = getSize();
+  code_offsets.prolog = getSize();
+  return EmitCurrentForOffsets(code_offsets);
+}
+
 void* X64HelperEmitter::EmitTryAcquireReservationHelper() {
   _code_offsets code_offsets = {};
   code_offsets.prolog = getSize();
@@ -872,7 +1169,7 @@ void* X64HelperEmitter::EmitTryAcquireReservationHelper() {
   Xbyak::Label already_has_a_reservation;
   Xbyak::Label acquire_new_reservation;
 
-  btr(GetBackendFlagsPtr(), 1);
+  btr(GetBackendFlagsPtr(), kX64BackendHasReserveBit);
   mov(r8, GetBackendCtxPtr(offsetof(X64BackendContext, reserve_helper_)));
   jc(already_has_a_reservation);
 
@@ -888,7 +1185,7 @@ void* X64HelperEmitter::EmitTryAcquireReservationHelper() {
   // set flag on local backend context for thread to indicate our previous
   // attempt to get the reservation succeeded
   setnc(r9b);  // success = bitmap did not have a set bit at the idx
-  shl(r9b, 1);
+  shl(r9b, kX64BackendHasReserveBit);
 
   mov(GetBackendCtxPtr(offsetof(X64BackendContext, cached_reserve_offset)),
       rdx);
@@ -917,7 +1214,7 @@ void* X64HelperEmitter::EmitReservedStoreHelper(bool bit64) {
   Xbyak::Label somehow_double_cleared;
   // carry must be set + zero flag must be set
 
-  btr(GetBackendFlagsPtr(), 1);
+  btr(GetBackendFlagsPtr(), kX64BackendHasReserveBit);
 
   jnc(done);
 
@@ -1097,7 +1394,7 @@ void X64Backend::InitializeBackendContext(void* ctx) {
                           : nullptr;
   bctx->current_stackpoint_depth = 0;
   bctx->mxcsr_vmx = DEFAULT_VMX_MXCSR;
-  bctx->flags = 0;
+  bctx->flags = (1U << kX64BackendNJMOn);  // NJM on by default
   // https://media.discordapp.net/attachments/440280035056943104/1000765256643125308/unknown.png
   bctx->Ox1000 = 0x1000;
   bctx->guest_tick_count = Clock::GetGuestTickCountPointer();
@@ -1128,7 +1425,9 @@ void X64Backend::SetGuestRoundingMode(void* ctx, unsigned int mode) {
   uint32_t control = mode & 7;
   _mm_setcsr(mxcsr_table[control]);
   bctx->mxcsr_fpu = mxcsr_table[control];
-  ((ppc::PPCContext*)ctx)->fpscr.bits.rn = control;
+  auto ppc_context = ((ppc::PPCContext*)ctx);
+  ppc_context->fpscr.bits.rn = control;
+  ppc_context->fpscr.bits.ni = control >> 2;
 }
 
 bool X64Backend::PopulatePseudoStacktrace(GuestPseudoStackTrace* st) {

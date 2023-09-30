@@ -1805,6 +1805,86 @@ bool Value::AllUsesByOneInsn() const {
   }
   return true;
 }
+bool Value::AllFloatVectorLanesSameValue(const hir::Value* for_value,
+                                              uint32_t current_depth) {
+  // limit recursion, otherwise this function will slow down emission
+  if (current_depth == 16) {
+    return false;
+  }
+  using namespace hir;
+  hir::Instr* definition;
+  Opcode definition_opcode_number;
+re_enter:
+  definition = for_value->def;
+  if (!definition) {
+    xenia_assert(for_value->IsConstant());
+
+    auto&& constant_value = for_value->constant.v128;
+    for (unsigned constant_lane_index = 1; constant_lane_index < 4; ++constant_lane_index) {
+      if (constant_value.u32[0] != constant_value.u32[constant_lane_index]) {
+        return false;
+      }
+    }
+    return true;
+  }
+  definition_opcode_number = definition->GetOpcodeNum();
+
+  if (definition_opcode_number == OPCODE_ASSIGN) {
+    for_value = definition->src1.value;
+    goto re_enter;
+  }
+
+  if (definition_opcode_number == OPCODE_VECTOR_DENORMFLUSH) {
+    for_value = definition->src1.value;
+    goto re_enter;
+  }
+  /*
+    vmsum propagates its result to every lane
+  */
+  if (definition_opcode_number == OPCODE_DOT_PRODUCT_4 ||
+      definition_opcode_number == OPCODE_DOT_PRODUCT_3) {
+    return true;
+  }
+  //if splat of 32-bit value type, return true
+  //technically a splat of int16 or int8 would also produce the same "float" in all lanes
+  //but i think its best to keep this function focused on specifically float data
+  if (definition_opcode_number == OPCODE_SPLAT) {
+    if (definition->dest->type == VEC128_TYPE) {
+      auto splat_src_value_type = definition->src1.value->type;
+      if (splat_src_value_type == INT32_TYPE ||
+          splat_src_value_type == FLOAT32_TYPE) {
+        return true;
+      }
+    }
+  }
+
+  switch (definition_opcode_number) { 
+      //all of these opcodes produce the same value for the same input
+  case OPCODE_RSQRT:
+  case OPCODE_RECIP:
+  case OPCODE_POW2:
+  case OPCODE_LOG2:
+      for_value = definition->src1.value;
+      goto re_enter;
+
+    //binary opcodes
+  case OPCODE_ADD:
+  case OPCODE_SUB:
+  case OPCODE_MUL:
+      if (!AllFloatVectorLanesSameValue(definition->src1.value,
+                                        current_depth + 1)) {
+        return false;
+      }
+      for_value = definition->src2.value;
+      goto re_enter;
+  default:
+      break;
+  }
+
+  return false;
+}
+
+
 }  // namespace hir
 }  // namespace cpu
 }  // namespace xe
