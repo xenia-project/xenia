@@ -76,6 +76,8 @@ class X64HelperEmitter : public X64Emitter {
   void* EmitScalarVRsqrteHelper();
   void* EmitVectorVRsqrteHelper(void* scalar_helper);
 
+  void* EmitFrsqrteHelper();
+
  private:
   void* EmitCurrentForOffsets(const _code_offsets& offsets,
                               size_t stack_size = 0);
@@ -240,6 +242,7 @@ bool X64Backend::Initialize(Processor* processor) {
   reserved_store_64_helper = thunk_emitter.EmitReservedStoreHelper(true);
   vrsqrtefp_scalar_helper = thunk_emitter.EmitScalarVRsqrteHelper();
   vrsqrtefp_vector_helper = thunk_emitter.EmitVectorVRsqrteHelper(vrsqrtefp_scalar_helper);
+  frsqrtefp_helper = thunk_emitter.EmitFrsqrteHelper();
   // Set the code cache to use the ResolveFunction thunk for default
   // indirections.
   assert_zero(uint64_t(resolve_function_thunk_) & 0xFFFFFFFF00000000ull);
@@ -1159,6 +1162,140 @@ void* X64HelperEmitter::EmitVectorVRsqrteHelper(void* scalar_helper) {
   code_offsets.epilog = getSize();
   code_offsets.tail = getSize();
   code_offsets.prolog = getSize();
+  return EmitCurrentForOffsets(code_offsets);
+}
+
+void* X64HelperEmitter::EmitFrsqrteHelper() {
+  _code_offsets code_offsets = {};
+  code_offsets.prolog_stack_alloc = getSize();
+  code_offsets.body = getSize();
+  code_offsets.epilog = getSize();
+  code_offsets.tail = getSize();
+  code_offsets.prolog = getSize();
+  
+  Xbyak::Label L2, L7, L6, L9, L1, L12, L24, L3, L25, frsqrte_table2, LC1;
+  bt(GetBackendFlagsPtr(), kX64BackendNonIEEEMode);
+  vmovq(rax, xmm0);
+  jc(L24, CodeGenerator::T_NEAR);
+  L(L2);
+  mov(rcx, rax);
+  add(rcx, rcx);
+  je(L3, CodeGenerator::T_NEAR);
+  mov(rdx, 0x7ff0000000000000ULL);
+  vxorpd(xmm1, xmm1, xmm1);
+  if (IsFeatureEnabled(kX64EmitBMI1)) {
+    andn(rcx, rax, rdx);
+  } else {
+    mov(rcx, rax);
+    not_(rcx);
+    and_(rcx, rdx);
+  }
+  
+  jne(L6);
+  cmp(rax, rdx);
+  je(L1, CodeGenerator::T_NEAR);
+  mov(r8, rax);
+  sal(r8, 12);
+  jne(L7);
+  vcomisd(xmm0, xmm1);
+  jb(L12, CodeGenerator::T_NEAR);
+  
+  L(L7);
+  mov(rdx, 0x7ff8000000000000ULL);
+  or_(rax, rdx);
+  vmovq(xmm1, rax);
+  vmovapd(xmm0, xmm1);
+  ret();
+
+  L(L6);
+  vcomisd(xmm1, xmm0);
+  ja(L12, CodeGenerator::T_NEAR);
+  mov(rcx, rax);
+  mov(rdx, 0xfffffffffffffULL);
+  shr(rcx, 52);
+  and_(ecx, 2047);
+  and_(rax, rdx);
+  je(L9);
+  test(ecx, ecx);
+  je(L25, CodeGenerator::T_NEAR);
+
+  L(L9);
+  lea(edx, ptr[0 + rcx * 8]);
+  shr(rax, 49);
+  sub(ecx, 1023);
+  and_(edx, 8);
+  and_(eax, 7);
+  shr(ecx, 1);
+  or_(eax, edx);
+  mov(edx, 1022);
+  xor_(eax, 8);
+  sub(edx, ecx);
+  lea(rcx, ptr[rip + frsqrte_table2]);
+  movzx(eax, byte[rax+rcx]);
+  sal(rdx, 52);
+  sal(rax, 44);
+  or_(rax, rdx);
+  vmovq(xmm1, rax);
+  
+  L(L1);
+  vmovapd(xmm0, xmm1);
+  ret();
+
+  L(L12);
+  vmovsd(xmm1, qword[rip + LC1]);
+  vmovapd(xmm0, xmm1);
+  ret();
+
+  L(L24);
+  mov(r8, rax);
+  sal(r8, 12);
+  je(L2);
+  mov(rdx, 0x7ff0000000000000);
+  test(rax, rdx);
+  jne(L2);
+  mov(rdx, 0x8000000000000000ULL);
+  and_(rax, rdx);
+  
+  L(L3);
+  mov(rdx, 0x8000000000000000ULL);
+  and_(rax, rdx);
+  mov(rdx, 0x7ff0000000000000ULL);
+  or_(rax, rdx);
+  vmovq(xmm1, rax);
+  vmovapd(xmm0, xmm1);
+  ret();
+
+  L(L25);
+  if (IsFeatureEnabled(kX64EmitLZCNT)) {
+    lzcnt(rdx, rax);
+  } else {
+    Xbyak::Label end_lzcnt;
+    bsr(rcx, rax);
+    mov(rdx, 0x40);
+    jz(end_lzcnt);
+    xor_(rcx, 0x3F);
+    mov(rdx, rcx);
+    L(end_lzcnt);
+  }
+  lea(ecx, ptr[rdx - 11]);
+  if (IsFeatureEnabled(kX64EmitBMI2)) {
+    shlx(rax, rax, rcx);
+  } else {
+    shl(rax, cl);
+  }
+  mov(ecx, 12);
+  sub(ecx, edx);
+  jmp(L9, CodeGenerator::T_NEAR);
+
+  L(frsqrte_table2);
+  static constexpr unsigned char table_values[] = {
+      241u, 216u, 192u, 168u, 152u, 136u, 128u, 112u,
+      96u,  76u,  60u,  48u,  32u,  24u,  16u,  8u};
+  db(table_values, sizeof(table_values));
+
+  L(LC1);
+  dd(0);
+  dd(0x7ff80000);
   return EmitCurrentForOffsets(code_offsets);
 }
 

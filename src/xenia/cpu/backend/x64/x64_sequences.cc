@@ -2110,13 +2110,9 @@ struct RSQRT_F64 : Sequence<RSQRT_F64, I<OPCODE_RSQRT, F64Op, F64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.ChangeMxcsrMode(MXCSRMode::Fpu);
     Xmm src1 = GetInputRegOrConstant(e, i.src1, e.xmm3);
-    if (e.IsFeatureEnabled(kX64EmitAVX512Ortho)) {
-      e.vrsqrt14sd(i.dest, src1, src1);
-    } else {
-      e.vmovapd(e.xmm0, e.GetXmmConstPtr(XMMOnePD));
-      e.vsqrtsd(e.xmm1, src1, src1);
-      e.vdivsd(i.dest, e.xmm0, e.xmm1);
-    }
+    e.vmovsd(e.xmm0, src1);
+    e.call(e.backend()->frsqrtefp_helper);
+    e.vmovsd(i.dest, e.xmm0);
   }
 };
 struct RSQRT_V128 : Sequence<RSQRT_V128, I<OPCODE_RSQRT, V128Op, V128Op>> {
