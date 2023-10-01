@@ -437,8 +437,9 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
     auto lock = global_critical_region_.Acquire();
     memory::PageAccess cur_access;
     size_t page_length = memory::page_size();
-    memory::QueryProtect(fault_host_address, page_length, cur_access);
-    if (cur_access != memory::PageAccess::kNoAccess &&
+    bool protect_result =
+        memory::QueryProtect(fault_host_address, page_length, cur_access);
+    if (protect_result == true && cur_access != memory::PageAccess::kNoAccess &&
         (!is_write || cur_access != memory::PageAccess::kReadOnly)) {
       // Another thread has cleared this watch. Abort.
       return true;
