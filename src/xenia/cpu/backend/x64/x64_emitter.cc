@@ -208,7 +208,26 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   // IMPORTANT: any changes to the prolog must be kept in sync with
   //     X64CodeCache, which dynamically generates exception information.
   //     Adding or changing anything here must be matched!
-  const size_t stack_size = StackLayout::GUEST_STACK_SIZE + stack_offset;
+
+  /*
+    pick a page to use as the local base as close to the commonly accessed page that contains most backend fields
+    the sizes that are checked are chosen based on PTE coalescing sizes. zen does 16k or 32k
+  */
+  size_t stack_size = StackLayout::GUEST_STACK_SIZE;
+  if (stack_offset < (4096 - sizeof(X64BackendContext))) {
+    locals_page_delta_ = 4096;
+  } else if (stack_offset < (16384 - sizeof(X64BackendContext))) {//16k PTE coalescing
+    locals_page_delta_ = 16384;
+  } else if (stack_offset < (32768 - sizeof(X64BackendContext))) {
+    locals_page_delta_ = 32768;
+  } else if (stack_offset < (65536 - sizeof(X64BackendContext))) {
+    locals_page_delta_ = 65536;
+  } else {
+    //extremely unlikely, fall back to stack
+    stack_size = xe::align<size_t>(StackLayout::GUEST_STACK_SIZE + stack_offset, 16);
+    locals_page_delta_ = 0;
+  }
+  
   assert_true((stack_size + 8) % 16 == 0);
   func_info.stack_size = stack_size;
   stack_size_ = stack_size;
@@ -1590,6 +1609,9 @@ SimdDomain X64Emitter::DeduceSimdDomain(const hir::Value* for_value) {
   }
 
   return SimdDomain::DONTCARE;
+}
+Xbyak::RegExp X64Emitter::GetLocalsBase() const { 
+    return !locals_page_delta_ ? rsp : GetContextReg() - locals_page_delta_; 
 }
 Xbyak::Address X64Emitter::GetBackendCtxPtr(int offset_in_x64backendctx) const {
   /*

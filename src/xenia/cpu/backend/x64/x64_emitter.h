@@ -309,6 +309,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   FunctionDebugInfo* debug_info() const { return debug_info_; }
 
   size_t stack_size() const { return stack_size_; }
+  Xbyak::RegExp GetLocalsBase() const;
   SimdDomain DeduceSimdDomain(const hir::Value* for_value);
  
   void ForgetMxcsrMode() { mxcsr_mode_ = MXCSRMode::Unknown; }
@@ -396,6 +397,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   XbyakAllocator* allocator_ = nullptr;
   XexModule* guest_module_ = nullptr;
   bool synchronize_stack_on_next_instruction_ = false;
+  int locals_page_delta_ = 0;
   Xbyak::util::Cpu cpu_;
   uint64_t feature_flags_ = 0;
   uint32_t current_guest_function_ = 0;
