@@ -10,15 +10,16 @@
 #ifndef XENIA_VFS_DEVICES_STFS_XBOX_H_
 #define XENIA_VFS_DEVICES_STFS_XBOX_H_
 
+#include <time.h>
+
+#include "xenia/xbox.h"
 #include "xenia/base/string_util.h"
 #include "xenia/kernel/util/xex2_info.h"
-#include "xenia/xbox.h"
 
 namespace xe {
 namespace vfs {
 
 // Convert FAT timestamp to 100-nanosecond intervals since January 1, 1601 (UTC)
-
 inline uint64_t decode_fat_timestamp(const uint32_t date, const uint32_t time) {
   struct tm tm = {0};
   // 80 is the difference between 1980 (FAT) and 1900 (tm);
