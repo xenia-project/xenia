@@ -1178,12 +1178,9 @@ void KfLowerIrql_entry(dword_t new_irql, const ppc_context_t& ctx) {
   }
   kpcr->current_irql = new_irql;
   if (new_irql < 2) {
-    {
-      // this actually calls a function that eventually calls checkapcs.
-      // the called function does a ton of other stuff including changing the
-      // irql and interrupt_related
-      ctx.CurrentXThread()->CheckApcs();
-    }
+    // this actually calls a function that eventually calls checkapcs.
+    // the called function does a ton of other stuff including changing the
+    // irql and interrupt_related 
   }
 }
 DECLARE_XBOXKRNL_EXPORT2(KfLowerIrql, kThreading, kImplemented, kHighFrequency);

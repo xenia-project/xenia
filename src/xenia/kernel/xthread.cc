@@ -33,7 +33,6 @@ DEFINE_bool(ignore_thread_priorities, true,
 DEFINE_bool(ignore_thread_affinities, true,
             "Ignores game-specified thread affinities.", "Kernel");
 
-
 #if 0
 DEFINE_int64(stack_size_multiplier_hack, 1,
              "A hack for games with setjmp/longjmp issues.", "Kernel");
@@ -41,7 +40,7 @@ DEFINE_int64(main_xthread_stack_size_multiplier_hack, 1,
              "A hack for games with setjmp/longjmp issues.", "Kernel");
 #endif
 namespace xe {
-  namespace kernel {
+namespace kernel {
 
 const uint32_t XAPC::kSize;
 const uint32_t XAPC::kDummyKernelRoutine;
@@ -377,22 +376,20 @@ X_STATUS XThread::Create() {
   RetainHandle();
 
   xe::threading::Thread::CreationParameters params;
-  
-
 
   params.create_suspended = true;
 
-  #if 0
+#if 0
   uint64_t stack_size_mult = cvars::stack_size_multiplier_hack;
   
   if (main_thread_) {
     stack_size_mult =
         static_cast<uint64_t>(cvars::main_xthread_stack_size_multiplier_hack);
 
-  } 
-  #else
+  }
+#else
   uint64_t stack_size_mult = 1;
-  #endif
+#endif
   params.stack_size = 16_MiB * stack_size_mult;  // Allocate a big host stack.
   thread_ = xe::threading::Thread::Create(params, [this]() {
     // Set thread ID override. This is used by logging.
@@ -454,7 +451,6 @@ X_STATUS XThread::Exit(int exit_code) {
   assert_true(XThread::GetCurrentThread() == this);
   //TODO(chrispy): not sure if this order is correct, should it come after apcs?
   guest_object<X_KTHREAD>()->terminated = 1;
- 
 
   // TODO(benvanik): dispatch events? waiters? etc?
   RundownAPCs();
@@ -590,10 +586,8 @@ void XThread::EnterCriticalRegion() {
 
 void XThread::LeaveCriticalRegion() {
   auto kthread = guest_object<X_KTHREAD>();
+  // this has nothing to do with user mode apcs!
   auto apc_disable_count = ++kthread->apc_disable_count;
-  if (apc_disable_count == 0) {
-    CheckApcs();
-  }
 }
 
 uint32_t XThread::RaiseIrql(uint32_t new_irql) {
@@ -610,7 +604,13 @@ void XThread::UnlockApc(bool queue_delivery) {
   bool needs_apc = apc_list_.HasPending();
   global_critical_region_.mutex().unlock();
   if (needs_apc && queue_delivery) {
-    thread_->QueueUserCallback([this]() { DeliverAPCs(); });
+    thread_->QueueUserCallback([this]() {
+      cpu::ThreadState::Bind(this->thread_state());
+      this->SetCurrentThread();  // we store current thread in TLS, but tls
+                                 // slots are different in windows user
+                                 // callback!
+      DeliverAPCs();
+    });
   }
 }
 
@@ -637,6 +637,8 @@ void XThread::EnqueueApc(uint32_t normal_routine, uint32_t normal_context,
 
   UnlockApc(true);
 }
+
+void XThread::SetCurrentThread() { current_xthread_tls_ = this; }
 
 void XThread::DeliverAPCs() {
   // https://www.drdobbs.com/inside-nts-asynchronous-procedure-call/184416590?pgno=1
@@ -789,7 +791,7 @@ void XThread::SetActiveCpu(uint8_t cpu_index) {
     }
   } else {
 	  //there no good reason why we need to log this... we don't perfectly emulate the 360's scheduler in any way
-   // XELOGW("Too few processor cores - scheduling will be wonky");
+    // XELOGW("Too few processor cores - scheduling will be wonky");
   }
 }
 

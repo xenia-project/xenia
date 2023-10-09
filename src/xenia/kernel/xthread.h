@@ -259,7 +259,7 @@ class XThread : public XObject, public cpu::Thread {
   void AcquireMutantOnStartup(object_ref<XMutant> mutant) {
     pending_mutant_acquires_.push_back(mutant);
   }
-
+  void SetCurrentThread();
  protected:
   bool AllocateStack(uint32_t size);
   void FreeStack();
