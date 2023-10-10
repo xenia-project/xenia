@@ -26,8 +26,8 @@ void KeEnableFpuExceptions_entry(
   // has to be saved to kthread, the irql changes, the machine state register is
   // changed to enable exceptions
 
-  X_KTHREAD* kthread = ctx->TranslateVirtual<X_KTHREAD*>(
-      ctx->TranslateVirtualGPR<X_KPCR*>(ctx->r[13])->current_thread);
+  X_KTHREAD* kthread = ctx->TranslateVirtual(
+      ctx->TranslateVirtualGPR<X_KPCR*>(ctx->r[13])->prcb_data.current_thread);
   kthread->fpu_exceptions_on = static_cast<uint32_t>(ctx->r[3]) != 0;
 }
 DECLARE_XBOXKRNL_EXPORT1(KeEnableFpuExceptions, kNone, kStub);

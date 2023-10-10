@@ -20,7 +20,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/base/mutex.h"
 #include "xenia/cpu/mmio_handler.h"
-
+#include "xenia/guest_pointers.h"
 namespace xe {
 class ByteStream;
 }  // namespace xe
@@ -368,6 +368,10 @@ class Memory {
     return reinterpret_cast<T>(host_address);
 
 #endif
+  }
+  template <typename T>
+  inline T* TranslateVirtual(TypedGuestPointer<T> guest_address) {
+    return TranslateVirtual<T*>(guest_address.m_ptr);
   }
 
   // Base address of physical memory in the host address space.

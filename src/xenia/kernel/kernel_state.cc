@@ -138,13 +138,13 @@ util::XdbfGameData KernelState::module_xdbf(
 
 uint32_t KernelState::process_type() const {
   auto pib =
-      memory_->TranslateVirtual<ProcessInfoBlock*>(process_info_block_address_);
+      memory_->TranslateVirtual<X_KPROCESS*>(process_info_block_address_);
   return pib->process_type;
 }
 
 void KernelState::set_process_type(uint32_t value) {
   auto pib =
-      memory_->TranslateVirtual<ProcessInfoBlock*>(process_info_block_address_);
+      memory_->TranslateVirtual<X_KPROCESS*>(process_info_block_address_);
   pib->process_type = uint8_t(value);
 }
 
@@ -328,7 +328,7 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
   process_info_block_address_ = memory_->SystemHeapAlloc(0x60);
 
   auto pib =
-      memory_->TranslateVirtual<ProcessInfoBlock*>(process_info_block_address_);
+      memory_->TranslateVirtual<X_KPROCESS*>(process_info_block_address_);
   // TODO(benvanik): figure out what this list is.
   pib->unk_04 = pib->unk_08 = 0;
   pib->unk_0C = 0x0000007F;
@@ -343,7 +343,7 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
   xex2_opt_tls_info* tls_header = nullptr;
   executable_module_->GetOptHeader(XEX_HEADER_TLS_INFO, &tls_header);
   if (tls_header) {
-    auto pib = memory_->TranslateVirtual<ProcessInfoBlock*>(
+    auto pib = memory_->TranslateVirtual<X_KPROCESS*>(
         process_info_block_address_);
     pib->tls_data_size = tls_header->data_size;
     pib->tls_raw_data_size = tls_header->raw_data_size;

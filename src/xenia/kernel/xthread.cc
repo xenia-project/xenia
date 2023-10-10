@@ -365,12 +365,12 @@ X_STATUS XThread::Create() {
 
   pcr->tls_ptr = tls_static_address_;
   pcr->pcr_ptr = pcr_address_;
-  pcr->current_thread = guest_object();
+  pcr->prcb_data.current_thread = guest_object();
 
   pcr->stack_base_ptr = stack_base_;
   pcr->stack_end_ptr = stack_limit_;
 
-  pcr->dpc_active = 0;  // DPC active bool?
+  pcr->prcb_data.dpc_active = 0;  // DPC active bool?
 
   // Always retain when starting - the thread owns itself until exited.
   RetainHandle();
@@ -623,7 +623,8 @@ void XThread::EnqueueApc(uint32_t normal_routine, uint32_t normal_context,
   uint32_t apc_ptr = memory()->SystemHeapAlloc(XAPC::kSize);
   auto apc = reinterpret_cast<XAPC*>(memory()->TranslateVirtual(apc_ptr));
 
-  apc->Initialize();
+  apc->type = 18;
+  apc->apc_mode = 1;
   apc->kernel_routine = XAPC::kDummyKernelRoutine;
   apc->rundown_routine = XAPC::kDummyRundownRoutine;
   apc->normal_routine = normal_routine;
@@ -768,7 +769,7 @@ void XThread::SetAffinity(uint32_t affinity) {
 
 uint8_t XThread::active_cpu() const {
   const X_KPCR& pcr = *memory()->TranslateVirtual<const X_KPCR*>(pcr_address_);
-  return pcr.current_cpu;
+  return pcr.prcb_data.current_cpu;
 }
 
 void XThread::SetActiveCpu(uint8_t cpu_index) {
@@ -777,7 +778,7 @@ void XThread::SetActiveCpu(uint8_t cpu_index) {
   assert_true(cpu_index < 6);
 
   X_KPCR& pcr = *memory()->TranslateVirtual<X_KPCR*>(pcr_address_);
-  pcr.current_cpu = cpu_index;
+  pcr.prcb_data.current_cpu = cpu_index;
 
   if (is_guest_thread()) {
     X_KTHREAD& thread_object =

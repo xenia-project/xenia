@@ -329,6 +329,10 @@ typedef struct {
 } X_EXCEPTION_RECORD;
 static_assert_size(X_EXCEPTION_RECORD, 0x50);
 
+struct X_KSPINLOCK {
+  xe::be<uint32_t> prcb_of_owner;
+};
+static_assert_size(X_KSPINLOCK, 4);
 #pragma pack(pop)
 
 // Found by dumping the kSectionStringTable sections of various games:

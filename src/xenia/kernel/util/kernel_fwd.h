@@ -9,7 +9,7 @@ class XModule;
 class XNotifyListener;
 class XThread;
 class UserModule;
-struct ProcessInfoBlock;
+struct X_KPROCESS;
 struct TerminateNotification;
 struct X_TIME_STAMP_BUNDLE;
 class KernelState;

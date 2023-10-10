@@ -50,6 +50,16 @@ uint32_t ExTerminateThread(uint32_t exit_code);
 uint32_t NtResumeThread(uint32_t handle, uint32_t* suspend_count_ptr);
 
 uint32_t NtClose(uint32_t handle);
+void xeKeInitializeApc(XAPC* apc, uint32_t thread_ptr, uint32_t kernel_routine,
+                       uint32_t rundown_routine, uint32_t normal_routine,
+                       uint32_t apc_mode, uint32_t normal_context);
+
+void xeKfLowerIrql(PPCContext* ctx, unsigned char new_irql);
+unsigned char xeKfRaiseIrql(PPCContext* ctx, unsigned char new_irql);
+
+void xeKeKfReleaseSpinLock(PPCContext* ctx, X_KSPINLOCK* lock, dword_t old_irql, bool change_irql=true);
+uint32_t xeKeKfAcquireSpinLock(PPCContext* ctx, X_KSPINLOCK* lock, bool change_irql=true);
+
 
 }  // namespace xboxkrnl
 }  // namespace kernel
