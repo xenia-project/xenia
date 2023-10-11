@@ -38,7 +38,8 @@ uint32_t NtWaitForSingleObjectEx(uint32_t object_handle, uint32_t wait_mode,
 uint32_t xeKeSetEvent(X_KEVENT* event_ptr, uint32_t increment, uint32_t wait);
 
 uint32_t KeDelayExecutionThread(uint32_t processor_mode, uint32_t alertable,
-                                uint64_t* interval_ptr);
+                                uint64_t* interval_ptr,
+                                cpu::ppc::PPCContext* ctx);
 
 uint32_t ExCreateThread(xe::be<uint32_t>* handle_ptr, uint32_t stack_size,
                         xe::be<uint32_t>* thread_id_ptr,
@@ -53,13 +54,21 @@ uint32_t NtClose(uint32_t handle);
 void xeKeInitializeApc(XAPC* apc, uint32_t thread_ptr, uint32_t kernel_routine,
                        uint32_t rundown_routine, uint32_t normal_routine,
                        uint32_t apc_mode, uint32_t normal_context);
-
+uint32_t xeKeInsertQueueApc(XAPC* apc, uint32_t arg1, uint32_t arg2,
+                            uint32_t priority_increment,
+                            cpu::ppc::PPCContext* context);
+uint32_t xeNtQueueApcThread(uint32_t thread_handle, uint32_t apc_routine,
+                            uint32_t apc_routine_context, uint32_t arg1,
+                            uint32_t arg2, cpu::ppc::PPCContext* context);
 void xeKfLowerIrql(PPCContext* ctx, unsigned char new_irql);
 unsigned char xeKfRaiseIrql(PPCContext* ctx, unsigned char new_irql);
 
 void xeKeKfReleaseSpinLock(PPCContext* ctx, X_KSPINLOCK* lock, dword_t old_irql, bool change_irql=true);
 uint32_t xeKeKfAcquireSpinLock(PPCContext* ctx, X_KSPINLOCK* lock, bool change_irql=true);
 
+X_STATUS xeProcessUserApcs(PPCContext* ctx);
+
+void xeRundownApcs(PPCContext* ctx);
 
 }  // namespace xboxkrnl
 }  // namespace kernel

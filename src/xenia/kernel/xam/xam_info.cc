@@ -435,12 +435,12 @@ dword_result_t RtlSleep_entry(dword_t dwMilliseconds, dword_t bAlertable) {
                        : static_cast<LONGLONG>(-10000) * dwMilliseconds;
 
   X_STATUS result = xboxkrnl::KeDelayExecutionThread(MODE::UserMode, bAlertable,
-                                                     (uint64_t*)&delay);
+                                                     (uint64_t*)&delay, nullptr);
 
   // If the delay was interrupted by an APC, keep delaying the thread
   while (bAlertable && result == X_STATUS_ALERTED) {
     result = xboxkrnl::KeDelayExecutionThread(MODE::UserMode, bAlertable,
-                                              (uint64_t*)&delay);
+                                              (uint64_t*)&delay, nullptr);
   }
 
   return result == X_STATUS_SUCCESS ? X_STATUS_SUCCESS : X_STATUS_USER_APC;

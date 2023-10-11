@@ -207,7 +207,8 @@ struct X_KTHREAD {
   TypedGuestPointer<X_KPROCESS> process;  // 0x84
   uint8_t unk_88[0x3];                    // 0x88
   uint8_t apc_related;                    // 0x8B
-  uint8_t unk_8C[0x10];                   // 0x8C
+  X_KSPINLOCK apc_lock;                   // 0x8C
+  uint8_t unk_90[0xC];                    // 0x90
   xe::be<uint32_t> msr_mask;              // 0x9C
   uint8_t unk_A0[4];                      // 0xA0
   uint8_t unk_A4;                         // 0xA4
@@ -313,13 +314,7 @@ class XThread : public XObject, public cpu::Thread {
 
   void EnterCriticalRegion();
   void LeaveCriticalRegion();
-  uint32_t RaiseIrql(uint32_t new_irql);
-  void LowerIrql(uint32_t new_irql);
 
-  void CheckApcs();
-  void LockApc();
-  void UnlockApc(bool queue_delivery);
-  util::NativeList* apc_list() { return &apc_list_; }
   void EnqueueApc(uint32_t normal_routine, uint32_t normal_context,
                   uint32_t arg1, uint32_t arg2);
 
@@ -388,10 +383,6 @@ class XThread : public XObject, public cpu::Thread {
   bool running_ = false;
 
   int32_t priority_ = 0;
-
-  xe::global_critical_region global_critical_region_;
-  std::atomic<uint32_t> irql_ = {0};
-  util::NativeList apc_list_;
 };
 
 class XHostThread : public XThread {
