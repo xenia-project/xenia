@@ -38,7 +38,9 @@ struct GuestPseudoStackTrace {
 };
 class Assembler;
 class CodeCache;
-
+using GuestTrampolineProc = void (*)(ppc::PPCContext* context, void* userarg1,
+                                     void* userarg2);
+using SimpleGuestTrampolineProc = void (*)(ppc::PPCContext*);
 class Backend {
  public:
   explicit Backend();
@@ -95,10 +97,73 @@ class Backend {
   virtual bool PopulatePseudoStacktrace(GuestPseudoStackTrace* st) {
     return false;
   }
+
+  virtual uint32_t CreateGuestTrampoline(GuestTrampolineProc proc,
+                                         void* userdata1, void* userdata2,
+                                         bool long_term = false) {
+    return 0;
+  }
+  uint32_t CreateGuestTrampoline(void (*func)(ppc::PPCContext*),
+                                 bool long_term = false) {
+    return CreateGuestTrampoline(
+        reinterpret_cast<GuestTrampolineProc>(reinterpret_cast<void*>(func)),
+        nullptr, nullptr);
+  }
+  // if long-term, allocate towards the back of bitset to make allocating short
+  // term ones faster
+  uint32_t CreateLongTermGuestTrampoline(void (*func)(ppc::PPCContext*)) {
+    return CreateGuestTrampoline(
+        reinterpret_cast<GuestTrampolineProc>(reinterpret_cast<void*>(func)),
+        nullptr, nullptr, true);
+  }
+  virtual void FreeGuestTrampoline(uint32_t trampoline_addr) {}
+
  protected:
   Processor* processor_ = nullptr;
   MachineInfo machine_info_;
   CodeCache* code_cache_ = nullptr;
+};
+/*
+ * a set of guest trampolines that all have shared ownership.
+ */
+struct GuestTrampolineGroup
+    : public std::map<SimpleGuestTrampolineProc, uint32_t> {
+  Backend* const m_backend;
+  xe_mutex m_mutex;
+
+  uint32_t _NewTrampoline(SimpleGuestTrampolineProc proc, bool longterm) {
+    uint32_t result;
+    m_mutex.lock();
+    auto iter = this->find(proc);
+    if (iter == this->end()) {
+      uint32_t new_entry = longterm
+                               ? m_backend->CreateLongTermGuestTrampoline(proc)
+                               : m_backend->CreateGuestTrampoline(proc);
+      this->emplace_hint(iter, proc, new_entry);
+      result = new_entry;
+    } else {
+      result = iter->second;
+    }
+    m_mutex.unlock();
+    return result;
+  }
+
+ public:
+  GuestTrampolineGroup(Backend* backend) : m_backend(backend) {}
+  ~GuestTrampolineGroup() {
+    m_mutex.lock();
+    for (auto&& entry : *this) {
+      m_backend->FreeGuestTrampoline(entry.second);
+    }
+    m_mutex.unlock();
+  }
+
+  uint32_t NewLongtermTrampoline(SimpleGuestTrampolineProc proc) {
+    return _NewTrampoline(proc, true);
+  }
+  uint32_t NewTrampoline(SimpleGuestTrampolineProc proc) {
+    return _NewTrampoline(proc, false);
+  }
 };
 
 }  // namespace backend

@@ -90,6 +90,25 @@ class X64HelperEmitter : public X64Emitter {
   void EmitLoadNonvolatileRegs();
 };
 
+#if XE_PLATFORM_WIN32
+static constexpr unsigned char guest_trampoline_template[] = {
+    0x48, 0xBA, 0x99, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x00, 0x49,
+    0xB8, 0x99, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x00, 0x48, 0xB9,
+    0x99, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x00, 0x48, 0xB8, 0x99,
+    0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x00, 0xFF, 0xE0};
+
+#else
+// sysv x64 abi, exact same offsets for args
+static constexpr unsigned char guest_trampoline_template[] = {
+    0x48, 0xBF, 0x99, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x00, 0x48,
+    0xBE, 0x99, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x00, 0x48, 0xB9,
+    0x99, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x00, 0x48, 0xB8, 0x99,
+    0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x00, 0xFF, 0xE0};
+#endif
+static constexpr uint32_t guest_trampoline_template_offset_arg1 = 2,
+                          guest_trampoline_template_offset_arg2 = 0xC,
+                          guest_trampoline_template_offset_rcx = 0x16,
+                          guest_trampoline_template_offset_rax = 0x20;
 X64Backend::X64Backend() : Backend(), code_cache_(nullptr) {
   if (cs_open(CS_ARCH_X86, CS_MODE_64, &capstone_handle_) != CS_ERR_OK) {
     assert_always("Failed to initialize capstone");
@@ -97,6 +116,23 @@ X64Backend::X64Backend() : Backend(), code_cache_(nullptr) {
   cs_option(capstone_handle_, CS_OPT_SYNTAX, CS_OPT_SYNTAX_INTEL);
   cs_option(capstone_handle_, CS_OPT_DETAIL, CS_OPT_ON);
   cs_option(capstone_handle_, CS_OPT_SKIPDATA, CS_OPT_OFF);
+  uint32_t base_address = 0x10000;
+  void* buf_trampoline_code = nullptr;
+  while (base_address < 0x80000000) {
+    buf_trampoline_code = memory::AllocFixed(
+        (void*)(uintptr_t)base_address,
+        sizeof(guest_trampoline_template) * MAX_GUEST_TRAMPOLINES,
+        xe::memory::AllocationType::kReserveCommit,
+        xe::memory::PageAccess::kExecuteReadWrite);
+    if (!buf_trampoline_code) {
+      base_address += 65536;
+    } else {
+      break;
+    }
+  }
+  xenia_assert(buf_trampoline_code);
+  guest_trampoline_memory_ = (uint8_t*)buf_trampoline_code;
+  guest_trampoline_address_bitmap_.Resize(MAX_GUEST_TRAMPOLINES);
 }
 
 X64Backend::~X64Backend() {
@@ -106,6 +142,13 @@ X64Backend::~X64Backend() {
 
   X64Emitter::FreeConstData(emitter_data_);
   ExceptionHandler::Uninstall(&ExceptionCallbackThunk, this);
+  if (guest_trampoline_memory_) {
+    memory::DeallocFixed(
+        guest_trampoline_memory_,
+        sizeof(guest_trampoline_template) * MAX_GUEST_TRAMPOLINES,
+        memory::DeallocationType::kRelease);
+    guest_trampoline_memory_ = nullptr;
+  }
 }
 
 static void ForwardMMIOAccessForRecording(void* context, void* hostaddr) {
@@ -212,6 +255,9 @@ bool X64Backend::Initialize(Processor* processor) {
   if (!code_cache_->Initialize()) {
     return false;
   }
+  // HV range
+  code_cache()->CommitExecutableRange(GUEST_TRAMPOLINE_BASE,
+                                      GUEST_TRAMPOLINE_END);
   // Allocate emitter constant data.
   emitter_data_ = X64Emitter::PlaceConstData();
 
@@ -241,7 +287,8 @@ bool X64Backend::Initialize(Processor* processor) {
   reserved_store_32_helper = thunk_emitter.EmitReservedStoreHelper(false);
   reserved_store_64_helper = thunk_emitter.EmitReservedStoreHelper(true);
   vrsqrtefp_scalar_helper = thunk_emitter.EmitScalarVRsqrteHelper();
-  vrsqrtefp_vector_helper = thunk_emitter.EmitVectorVRsqrteHelper(vrsqrtefp_scalar_helper);
+  vrsqrtefp_vector_helper =
+      thunk_emitter.EmitVectorVRsqrteHelper(vrsqrtefp_scalar_helper);
   frsqrtefp_helper = thunk_emitter.EmitFrsqrteHelper();
   // Set the code cache to use the ResolveFunction thunk for default
   // indirections.
@@ -850,7 +897,7 @@ void* X64HelperEmitter::EmitGuestAndHostSynchronizeStackSizeLoadThunk(
   _code_offsets code_offsets = {};
   code_offsets.prolog = getSize();
   pop(r8);  // return address
-  
+
   switch (stack_element_size) {
     case 4:
       mov(r11d, ptr[r8]);
@@ -919,11 +966,11 @@ void* X64HelperEmitter::EmitScalarVRsqrteHelper() {
 
   bt(GetBackendFlagsPtr(), kX64BackendNJMOn);
   jnc(handle_denormal_input, CodeGenerator::T_NEAR);
- 
-  // handle denormal input with NJM on 
+
+  // handle denormal input with NJM on
   // denorms get converted to zero w/ input sign, jump to our label
   // that handles inputs of 0 for this
-  
+
   jmp(convert_to_signed_inf_and_ret);
   L(L35);
 
@@ -1038,7 +1085,6 @@ void* X64HelperEmitter::EmitScalarVRsqrteHelper() {
   L(L1);
   ret();
 
-
   L(handle_denormal_input);
   mov(r9d, r8d);
   and_(r9d, 0x7FFFFFFF);
@@ -1089,7 +1135,6 @@ void* X64HelperEmitter::EmitScalarVRsqrteHelper() {
   dd(0x7FC00000);
   dd(0x5F34FD00);
 
-
   code_offsets.prolog_stack_alloc = getSize();
   code_offsets.body = getSize();
   code_offsets.prolog = getSize();
@@ -1126,17 +1171,15 @@ void* X64HelperEmitter::EmitVectorVRsqrteHelper(void* scalar_helper) {
   jnz(actual_vector_version);
   vshufps(xmm0, xmm0,xmm0, _MM_SHUFFLE(3, 3, 3, 3));
   call(scalar_helper);
- // this->DebugBreak();
+  // this->DebugBreak();
   vinsertps(xmm0, xmm0, (3 << 4) | (0 << 6));
 
   vblendps(xmm0, xmm0, ptr[backend()->LookupXMMConstantAddress(XMMFloatInf)],
            0b0111);
-  
+
   ret();
 
-
   L(actual_vector_version);
-
 
   xor_(ecx, ecx);
   vmovaps(result_ptr, xmm0);
@@ -1172,7 +1215,7 @@ void* X64HelperEmitter::EmitFrsqrteHelper() {
   code_offsets.epilog = getSize();
   code_offsets.tail = getSize();
   code_offsets.prolog = getSize();
-  
+
   Xbyak::Label L2, L7, L6, L9, L1, L12, L24, L3, L25, frsqrte_table2, LC1;
   bt(GetBackendFlagsPtr(), kX64BackendNonIEEEMode);
   vmovq(rax, xmm0);
@@ -1190,7 +1233,7 @@ void* X64HelperEmitter::EmitFrsqrteHelper() {
     not_(rcx);
     and_(rcx, rdx);
   }
-  
+
   jne(L6);
   cmp(rax, rdx);
   je(L1, CodeGenerator::T_NEAR);
@@ -1199,7 +1242,7 @@ void* X64HelperEmitter::EmitFrsqrteHelper() {
   jne(L7);
   vcomisd(xmm0, xmm1);
   jb(L12, CodeGenerator::T_NEAR);
-  
+
   L(L7);
   mov(rdx, 0x7ff8000000000000ULL);
   or_(rax, rdx);
@@ -1236,7 +1279,7 @@ void* X64HelperEmitter::EmitFrsqrteHelper() {
   sal(rax, 44);
   or_(rax, rdx);
   vmovq(xmm1, rax);
-  
+
   L(L1);
   vmovapd(xmm0, xmm1);
   ret();
@@ -1255,7 +1298,7 @@ void* X64HelperEmitter::EmitFrsqrteHelper() {
   jne(L2);
   mov(rdx, 0x8000000000000000ULL);
   and_(rax, rdx);
-  
+
   L(L3);
   mov(rdx, 0x8000000000000000ULL);
   and_(rax, rdx);
@@ -1617,6 +1660,53 @@ uint64_t* X64Backend::GetProfilerRecordForFunction(uint32_t guest_address) {
 }
 
 #endif
+
+// todo:flush cache
+uint32_t X64Backend::CreateGuestTrampoline(GuestTrampolineProc proc,
+                                           void* userdata1, void* userdata2,
+                                           bool longterm) {
+  size_t new_index;
+  if (longterm) {
+    new_index = guest_trampoline_address_bitmap_.AcquireFromBack();
+  } else {
+    new_index = guest_trampoline_address_bitmap_.Acquire();
+  }
+
+  xenia_assert(new_index != (size_t)-1);
+
+  uint8_t* write_pos =
+      &guest_trampoline_memory_[sizeof(guest_trampoline_template) * new_index];
+
+  memcpy(write_pos, guest_trampoline_template,
+         sizeof(guest_trampoline_template));
+
+  *reinterpret_cast<void**>(&write_pos[guest_trampoline_template_offset_arg1]) =
+      userdata1;
+  *reinterpret_cast<void**>(&write_pos[guest_trampoline_template_offset_arg2]) =
+      userdata2;
+  *reinterpret_cast<GuestTrampolineProc*>(
+      &write_pos[guest_trampoline_template_offset_rcx]) = proc;
+  *reinterpret_cast<GuestToHostThunk*>(
+      &write_pos[guest_trampoline_template_offset_rax]) = guest_to_host_thunk_;
+
+  uint32_t indirection_guest_addr =
+      GUEST_TRAMPOLINE_BASE +
+      (static_cast<uint32_t>(new_index) * GUEST_TRAMPOLINE_MIN_LEN);
+
+  code_cache()->AddIndirection(
+      indirection_guest_addr,
+      static_cast<uint32_t>(reinterpret_cast<uintptr_t>(write_pos)));
+
+  return indirection_guest_addr;
+}
+
+void X64Backend::FreeGuestTrampoline(uint32_t trampoline_addr) {
+  xenia_assert(trampoline_addr >= GUEST_TRAMPOLINE_BASE &&
+               trampoline_addr < GUEST_TRAMPOLINE_END);
+  size_t index =
+      (trampoline_addr - GUEST_TRAMPOLINE_BASE) / GUEST_TRAMPOLINE_MIN_LEN;
+  guest_trampoline_address_bitmap_.Release(index);
+}
 }  // namespace x64
 }  // namespace backend
 }  // namespace cpu

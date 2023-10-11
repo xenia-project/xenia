@@ -32,7 +32,7 @@ class BitMap {
   // (threadsafe) Acquires an entry and returns its index. Returns -1 if there
   // are no more free entries.
   size_t Acquire();
-
+  size_t AcquireFromBack();
   // (threadsafe) Releases an entry by an index.
   void Release(size_t index);
 
@@ -49,6 +49,7 @@ class BitMap {
   const static size_t kDataSize = 8;
   const static size_t kDataSizeBits = kDataSize * 8;
   std::vector<uint64_t> data_;
+  inline size_t TryAcquireAt(size_t i);
 };
 
 }  // namespace xe

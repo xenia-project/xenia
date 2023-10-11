@@ -25,37 +25,57 @@ BitMap::BitMap(uint64_t* data, size_t size_bits) {
   data_.resize(size_bits / kDataSizeBits);
   std::memcpy(data_.data(), data, size_bits / kDataSizeBits);
 }
+inline size_t BitMap::TryAcquireAt(size_t i) {
+  uint64_t entry = 0;
+  uint64_t new_entry = 0;
+  int64_t acquired_idx = -1LL;
 
+  do {
+    entry = data_[i];
+    uint8_t index = lzcnt(entry);
+    if (index == kDataSizeBits) {
+      // None free.
+      acquired_idx = -1;
+      break;
+    }
+
+    // Entry has a free bit. Acquire it.
+    uint64_t bit = 1ull << (kDataSizeBits - index - 1);
+    new_entry = entry & ~bit;
+    assert_not_zero(entry & bit);
+
+    acquired_idx = index;
+  } while (!atomic_cas(entry, new_entry, &data_[i]));
+
+  if (acquired_idx != -1) {
+    // Acquired.
+    return (i * kDataSizeBits) + acquired_idx;
+  }
+  return -1LL;
+}
 size_t BitMap::Acquire() {
   for (size_t i = 0; i < data_.size(); i++) {
-    uint64_t entry = 0;
-    uint64_t new_entry = 0;
-    int64_t acquired_idx = -1;
-
-    do {
-      entry = data_[i];
-      uint8_t index = lzcnt(entry);
-      if (index == kDataSizeBits) {
-        // None free.
-        acquired_idx = -1;
-        break;
-      }
-
-      // Entry has a free bit. Acquire it.
-      uint64_t bit = 1ull << (kDataSizeBits - index - 1);
-      new_entry = entry & ~bit;
-      assert_not_zero(entry & bit);
-
-      acquired_idx = index;
-    } while (!atomic_cas(entry, new_entry, &data_[i]));
-
-    if (acquired_idx != -1) {
-      // Acquired.
-      return (i * kDataSizeBits) + acquired_idx;
+    size_t attempt_result = TryAcquireAt(i);
+    if (attempt_result != -1LL) {
+      return attempt_result;
     }
   }
 
-  return -1;
+  return -1LL;
+}
+
+size_t BitMap::AcquireFromBack() {
+  if (!data_.size()) {
+    return -1LL;
+  }
+  for (ptrdiff_t i = data_.size() - 1; i >= 0; i--) {
+    size_t attempt_result = TryAcquireAt(static_cast<size_t>(i));
+    if (attempt_result != -1LL) {
+      return attempt_result;
+    }
+  }
+
+  return -1LL;
 }
 
 void BitMap::Release(size_t index) {

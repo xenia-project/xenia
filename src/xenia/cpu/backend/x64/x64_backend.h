@@ -13,6 +13,7 @@
 #include <memory>
 
 #include "xenia/base/cvar.h"
+#include "xenia/base/bit_map.h"
 #include "xenia/cpu/backend/backend.h"
 
 #if XE_PLATFORM_WIN32 == 1
@@ -41,6 +42,19 @@ class X64CodeCache;
 typedef void* (*HostToGuestThunk)(void* target, void* arg0, void* arg1);
 typedef void* (*GuestToHostThunk)(void* target, void* arg0, void* arg1);
 typedef void (*ResolveFunctionThunk)();
+
+/*
+    place guest trampolines in the memory range that the HV normally occupies. 
+    This way guests can call in via the indirection table and we don't have to clobber/reuse an existing memory range
+    The xboxkrnl range is already used by export trampolines (see kernel/kernel_module.cc)
+*/
+static constexpr uint32_t GUEST_TRAMPOLINE_BASE = 0x80000000;
+static constexpr uint32_t GUEST_TRAMPOLINE_END = 0x80040000;
+
+static constexpr uint32_t GUEST_TRAMPOLINE_MIN_LEN = 8;
+
+static constexpr uint32_t MAX_GUEST_TRAMPOLINES =
+    (GUEST_TRAMPOLINE_END - GUEST_TRAMPOLINE_BASE) / GUEST_TRAMPOLINE_MIN_LEN;
 
 #define RESERVE_BLOCK_SHIFT 16
 
@@ -155,6 +169,11 @@ class X64Backend : public Backend {
     return reinterpret_cast<X64BackendContext*>(
         reinterpret_cast<intptr_t>(ctx) - sizeof(X64BackendContext));
   }
+  virtual uint32_t CreateGuestTrampoline(GuestTrampolineProc proc,
+                                         void* userdata1,
+                                         void* userdata2, bool long_term) override;
+
+  virtual void FreeGuestTrampoline(uint32_t trampoline_addr) override;
   virtual void SetGuestRoundingMode(void* ctx, unsigned int mode) override;
   virtual bool PopulatePseudoStacktrace(GuestPseudoStackTrace* st) override;
   void RecordMMIOExceptionForGuestInstruction(void* host_address);
@@ -200,6 +219,11 @@ class X64Backend : public Backend {
 #endif
 
   alignas(64) ReserveHelper reserve_helper_;
+  // allocates 8-byte aligned addresses in a normally not executable guest
+  // address
+  // range that will be used to dispatch to host code
+  BitMap guest_trampoline_address_bitmap_;
+  uint8_t* guest_trampoline_memory_;
 };
 
 }  // namespace x64
