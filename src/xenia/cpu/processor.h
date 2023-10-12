@@ -123,11 +123,6 @@ class Processor {
   bool ExecuteRaw(ThreadState* thread_state, uint32_t address);
   uint64_t Execute(ThreadState* thread_state, uint32_t address, uint64_t args[],
                    size_t arg_count);
-  uint64_t ExecuteInterrupt(ThreadState* thread_state, uint32_t address,
-                            uint64_t args[], size_t arg_count);
-
-  Irql RaiseIrql(Irql new_value);
-  void LowerIrql(Irql old_value);
 
   bool Save(ByteStream* stream);
   bool Restore(ByteStream* stream);

@@ -19,7 +19,7 @@
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/kernel/xthread.h"
-
+#include "xenia/kernel/kernel_state.h"
 extern "C" {
 #include "third_party/FFmpeg/libavutil/log.h"
 }  // extern "C"
@@ -145,7 +145,7 @@ X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
       new kernel::XHostThread(kernel_state, 128 * 1024, 0, [this]() {
         WorkerThreadMain();
         return 0;
-      }));
+      }, kernel_state->GetIdleProcess()));//this one doesnt need any process actually. never calls any guest code
   worker_thread_->set_name("XMA Decoder");
   worker_thread_->set_can_debugger_suspend(true);
   worker_thread_->Create();

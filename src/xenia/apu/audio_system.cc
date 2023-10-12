@@ -21,6 +21,7 @@
 #include "xenia/base/string_buffer.h"
 #include "xenia/base/threading.h"
 #include "xenia/cpu/thread_state.h"
+#include "xenia/kernel/kernel_state.h"
 
 // As with normal Microsoft, there are like twelve different ways to access
 // the audio APIs. Early games use XMA*() methods almost exclusively to touch
@@ -79,7 +80,7 @@ X_STATUS AudioSystem::Setup(kernel::KernelState* kernel_state) {
       new kernel::XHostThread(kernel_state, 128 * 1024, 0, [this]() {
         WorkerThreadMain();
         return 0;
-      }));
+      }, kernel_state->GetSystemProcess()));
   // As we run audio callbacks the debugger must be able to suspend us.
   worker_thread_->set_can_debugger_suspend(true);
   worker_thread_->set_name("Audio Worker");

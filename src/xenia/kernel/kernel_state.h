@@ -48,33 +48,41 @@ constexpr fourcc_t kKernelSaveSignature = make_fourcc("KRNL");
 
 // (?), used by KeGetCurrentProcessType
 constexpr uint32_t X_PROCTYPE_IDLE = 0;
-constexpr uint32_t X_PROCTYPE_USER = 1;
+constexpr uint32_t X_PROCTYPE_TITLE = 1;
 constexpr uint32_t X_PROCTYPE_SYSTEM = 2;
 
 struct X_KPROCESS {
-  xe::be<uint32_t> unk_00;
-  xe::be<uint32_t> unk_04;  // blink
-  xe::be<uint32_t> unk_08;  // flink
+  X_KSPINLOCK thread_list_spinlock;
+  // list of threads in this process, guarded by the spinlock above
+  X_LIST_ENTRY thread_list;
+
   xe::be<uint32_t> unk_0C;
-  xe::be<uint32_t> unk_10;
+  // kernel sets this to point to a section of size 0x2F700 called CLRDATAA,
+  // except it clears bit 31 of the pointer. in 17559 the address is 0x801C0000,
+  // so it sets this ptr to 0x1C0000
+  xe::be<uint32_t> clrdataa_masked_ptr;
   xe::be<uint32_t> thread_count;
   uint8_t unk_18;
   uint8_t unk_19;
   uint8_t unk_1A;
   uint8_t unk_1B;
   xe::be<uint32_t> kernel_stack_size;
-  xe::be<uint32_t> unk_20;
+  xe::be<uint32_t> tls_static_data_address;
   xe::be<uint32_t> tls_data_size;
   xe::be<uint32_t> tls_raw_data_size;
   xe::be<uint16_t> tls_slot_size;
-  uint8_t unk_2E;
+  // ExCreateThread calls a subfunc references this field, returns
+  // X_STATUS_PROCESS_IS_TERMINATING if true
+  uint8_t is_terminating;
+  // one of X_PROCTYPE_
   uint8_t process_type;
-  xe::be<uint32_t> bitmap[0x20 / 4];
+  xe::be<uint32_t> bitmap[8];
   xe::be<uint32_t> unk_50;
-  xe::be<uint32_t> unk_54;  // blink
-  xe::be<uint32_t> unk_58;  // flink
+  X_LIST_ENTRY unk_54;
   xe::be<uint32_t> unk_5C;
 };
+static_assert_size(X_KPROCESS, 0x60);
+
 
 struct TerminateNotification {
   uint32_t guest_routine;
@@ -92,6 +100,16 @@ struct X_TIME_STAMP_BUNDLE {
   uint32_t padding;
 };
 
+struct KernelGuestGlobals {
+  X_KPROCESS idle_process;    // X_PROCTYPE_IDLE. runs in interrupt contexts. is also the context the kernel starts in?
+  X_KPROCESS title_process;   // X_PROCTYPE_TITLE
+  X_KPROCESS system_process;  // X_PROCTYPE_SYSTEM. no idea when this runs. can
+                              // create threads in this process with
+                              // ExCreateThread and the thread flag 0x2
+};
+struct DPCImpersonationScope {
+  uint8_t previous_irql_;
+};
 class KernelState {
  public:
   explicit KernelState(Emulator* emulator);
@@ -147,10 +165,16 @@ class KernelState {
   // Access must be guarded by the global critical region.
   util::ObjectTable* object_table() { return &object_table_; }
 
-  uint32_t process_type() const;
-  void set_process_type(uint32_t value);
-  uint32_t process_info_block_address() const {
-    return process_info_block_address_;
+  uint32_t GetSystemProcess() const {
+    return kernel_guest_globals_ + offsetof(KernelGuestGlobals, system_process);
+  }
+
+  uint32_t GetTitleProcess() const {
+    return kernel_guest_globals_ + offsetof(KernelGuestGlobals, title_process);
+  }
+  // also the "interrupt" process
+  uint32_t GetIdleProcess() const {
+    return kernel_guest_globals_ + offsetof(KernelGuestGlobals, idle_process);
   }
 
   uint32_t AllocateTLS();
@@ -246,9 +270,20 @@ class KernelState {
   uint32_t CreateKeTimestampBundle();
   void UpdateKeTimestampBundle();
 
+  void BeginDPCImpersonation(cpu::ppc::PPCContext* context, DPCImpersonationScope& scope);
+  void EndDPCImpersonation(cpu::ppc::PPCContext* context,
+                           DPCImpersonationScope& end_scope);
+
+  void EmulateCPInterruptDPC(uint32_t interrupt_callback,uint32_t interrupt_callback_data, uint32_t source,
+                             uint32_t cpu);
+
  private:
   void LoadKernelModule(object_ref<KernelModule> kernel_module);
-
+  void InitializeProcess(X_KPROCESS* process, uint32_t type, char unk_18,
+                         char unk_19, char unk_1A);
+  void SetProcessTLSVars(X_KPROCESS* process, int num_slots, int tls_data_size,
+                         int tls_static_data_address);
+  void InitializeKernelGuestGlobals();
   Emulator* emulator_;
   Memory* memory_;
   cpu::Processor* processor_;
@@ -267,13 +302,11 @@ class KernelState {
   std::vector<object_ref<XNotifyListener>> notify_listeners_;
   bool has_notified_startup_ = false;
 
-  uint32_t process_type_ = X_PROCTYPE_USER;
   object_ref<UserModule> executable_module_;
   std::vector<object_ref<KernelModule>> kernel_modules_;
   std::vector<object_ref<UserModule>> user_modules_;
   std::vector<TerminateNotification> terminate_notifications_;
-
-  uint32_t process_info_block_address_ = 0;
+  uint32_t kernel_guest_globals_ = 0;
 
   std::atomic<bool> dispatch_thread_running_;
   object_ref<XHostThread> dispatch_thread_;

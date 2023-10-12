@@ -28,7 +28,7 @@
 #include "xenia/ui/graphics_provider.h"
 #include "xenia/ui/window.h"
 #include "xenia/ui/windowed_app_context.h"
-
+#include "xenia/kernel/kernel_state.h"
 DEFINE_bool(
     store_shaders, true,
     "Store shaders persistently and load them when loading games to avoid "
@@ -138,7 +138,7 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
           }
         }
         return 0;
-      }));
+      }, kernel_state->GetIdleProcess()));
   // As we run vblank interrupts the debugger must be able to suspend us.
   vsync_worker_thread_->set_can_debugger_suspend(true);
   vsync_worker_thread_->set_name("GPU VSync");
@@ -267,25 +267,7 @@ void GraphicsSystem::SetInterruptCallback(uint32_t callback,
 }
 
 void GraphicsSystem::DispatchInterruptCallback(uint32_t source, uint32_t cpu) {
-  if (!interrupt_callback_) {
-    return;
-  }
-
-  auto thread = kernel::XThread::GetCurrentThread();
-  assert_not_null(thread);
-
-  // Pick a CPU, if needed. We're going to guess 2. Because.
-  if (cpu == 0xFFFFFFFF) {
-    cpu = 2;
-  }
-  thread->SetActiveCpu(cpu);
-
-  // XELOGGPU("Dispatching GPU interrupt at {:08X} w/ mode {} on cpu {}",
-  //          interrupt_callback_, source, cpu);
-
-  uint64_t args[] = {source, interrupt_callback_data_};
-  processor_->ExecuteInterrupt(thread->thread_state(), interrupt_callback_,
-                               args, xe::countof(args));
+  kernel_state()->EmulateCPInterruptDPC(interrupt_callback_,interrupt_callback_data_, source, cpu);
 }
 
 void GraphicsSystem::MarkVblank() {

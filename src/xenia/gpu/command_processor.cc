@@ -104,7 +104,7 @@ bool CommandProcessor::Initialize() {
       new kernel::XHostThread(kernel_state_, 128 * 1024, 0, [this]() {
         WorkerThreadMain();
         return 0;
-      }));
+      }, kernel_state_->GetIdleProcess()));
   worker_thread_->set_name("GPU Commands");
   worker_thread_->Create();
 

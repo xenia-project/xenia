@@ -68,7 +68,7 @@ dword_result_t XamTaskSchedule_entry(lpvoid_t callback,
 
   auto thread =
       object_ref<XThread>(new XThread(kernel_state(), stack_size, 0, callback,
-                                      message.guest_address(), 0, true));
+                                      message.guest_address(), 0, true, false, kernel_state()->GetSystemProcess()));
 
   X_STATUS result = thread->Create();
 

@@ -206,7 +206,7 @@ struct X_KTHREAD {
   util::X_TYPED_LIST<XAPC, offsetof(XAPC, list_entry)> apc_lists[2]; 
   TypedGuestPointer<X_KPROCESS> process;  // 0x84
   uint8_t unk_88[0x3];                    // 0x88
-  uint8_t apc_related;                    // 0x8B
+  uint8_t may_queue_apcs;                    // 0x8B
   X_KSPINLOCK apc_lock;                   // 0x8C
   uint8_t unk_90[0xC];                    // 0x90
   xe::be<uint32_t> msr_mask;              // 0x9C
@@ -214,7 +214,11 @@ struct X_KTHREAD {
   uint8_t unk_A4;                         // 0xA4
   uint8_t unk_A5[0xB];                    // 0xA5
   int32_t apc_disable_count;              // 0xB0
-  uint8_t unk_B4[0x8];                    // 0xB4
+  uint8_t unk_B4[4];                      // 0xB4
+  uint8_t unk_B8;                         // 0xB8
+  uint8_t unk_B9;                         // 0xB9
+  uint8_t unk_BA;                         // 0xBA
+  uint8_t boost_disabled;                 // 0xBB
   uint8_t suspend_count;                  // 0xBC
   uint8_t unk_BD;                         // 0xBD
   uint8_t terminated;                     // 0xBE
@@ -273,13 +277,14 @@ class XThread : public XObject, public cpu::Thread {
     uint32_t start_address;
     uint32_t start_context;
     uint32_t creation_flags;
+    uint32_t guest_process;
   };
 
   XThread(KernelState* kernel_state);
   XThread(KernelState* kernel_state, uint32_t stack_size,
           uint32_t xapi_thread_startup, uint32_t start_address,
           uint32_t start_context, uint32_t creation_flags, bool guest_thread,
-          bool main_thread = false);
+          bool main_thread = false, uint32_t guest_process = 0);
   ~XThread() override;
 
   static bool IsInThread(XThread* other);
@@ -368,8 +373,6 @@ class XThread : public XObject, public cpu::Thread {
   std::vector<object_ref<XMutant>> pending_mutant_acquires_;
 
   uint32_t thread_id_ = 0;
-  uint32_t scratch_address_ = 0;
-  uint32_t scratch_size_ = 0;
   uint32_t tls_static_address_ = 0;
   uint32_t tls_dynamic_address_ = 0;
   uint32_t tls_total_size_ = 0;
@@ -388,7 +391,7 @@ class XThread : public XObject, public cpu::Thread {
 class XHostThread : public XThread {
  public:
   XHostThread(KernelState* kernel_state, uint32_t stack_size,
-              uint32_t creation_flags, std::function<int()> host_fn);
+              uint32_t creation_flags, std::function<int()> host_fn, uint32_t guest_process=0);
 
   virtual void Execute();
 

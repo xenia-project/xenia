@@ -111,20 +111,31 @@ uint32_t ExCreateThread(xe::be<uint32_t>* handle_ptr, uint32_t stack_size,
   // LPVOID   StartContext,
   // DWORD    CreationFlags // 0x80?
 
+  auto kernel_state_var = kernel_state();
+  // xenia_assert((creation_flags & 2) == 0);  // creating system thread?
+  if (creation_flags & 2) {
+    XELOGE("Guest is creating a system thread!");
+  }
+
+  uint32_t thread_process = (creation_flags & 2)
+                                ? kernel_state_var->GetSystemProcess()
+                                : kernel_state_var->GetTitleProcess();
+  X_KPROCESS* target_process =
+      kernel_state_var->memory()->TranslateVirtual<X_KPROCESS*>(thread_process);
   // Inherit default stack size
   uint32_t actual_stack_size = stack_size;
 
   if (actual_stack_size == 0) {
-    actual_stack_size = kernel_state()->GetExecutableModule()->stack_size();
+    actual_stack_size = target_process->kernel_stack_size;
   }
 
   // Stack must be aligned to 16kb pages
   actual_stack_size =
       std::max((uint32_t)0x4000, ((actual_stack_size + 0xFFF) & 0xFFFFF000));
 
-  auto thread = object_ref<XThread>(
-      new XThread(kernel_state(), actual_stack_size, xapi_thread_startup,
-                  start_address, start_context, creation_flags, true));
+  auto thread = object_ref<XThread>(new XThread(
+      kernel_state(), actual_stack_size, xapi_thread_startup, start_address,
+      start_context, creation_flags, true, false, thread_process));
 
   X_STATUS result = thread->Create();
   if (XFAILED(result)) {
@@ -345,29 +356,42 @@ dword_result_t KeSetBasePriorityThread_entry(lpvoid_t thread_ptr,
 }
 DECLARE_XBOXKRNL_EXPORT1(KeSetBasePriorityThread, kThreading, kImplemented);
 
-dword_result_t KeSetDisableBoostThread_entry(lpvoid_t thread_ptr,
+dword_result_t KeSetDisableBoostThread_entry(pointer_t<X_KTHREAD> thread_ptr,
                                              dword_t disabled) {
-  auto thread = XObject::GetNativeObject<XThread>(kernel_state(), thread_ptr);
-  if (thread) {
-    // Uhm?
-  }
+  // supposed to acquire dispatcher lock + a prcb lock, all just to exchange
+  // this char there is no other special behavior going on in this function,
+  // just acquiring locks to do this exchange
+  auto old_boost_disabled =
+      reinterpret_cast<std::atomic_uint8_t*>(&thread_ptr->boost_disabled)
+          ->exchange(static_cast<uint8_t>(disabled));
 
-  return 0;
+  return old_boost_disabled;
 }
 DECLARE_XBOXKRNL_EXPORT1(KeSetDisableBoostThread, kThreading, kImplemented);
 
-dword_result_t KeGetCurrentProcessType_entry() {
-  return kernel_state()->process_type();
+uint32_t xeKeGetCurrentProcessType(cpu::ppc::PPCContext* context) {
+  auto pcr = context->TranslateVirtualGPR<X_KPCR*>(context->r[13]);
+
+  if (!pcr->prcb_data.dpc_active)
+    return context->TranslateVirtual(pcr->prcb_data.current_thread)
+        ->process_type;
+  return pcr->processtype_value_in_dpc;
+}
+void xeKeSetCurrentProcessType(uint32_t type, cpu::ppc::PPCContext* context) {
+  auto pcr = context->TranslateVirtualGPR<X_KPCR*>(context->r[13]);
+  if (pcr->prcb_data.dpc_active) {
+    pcr->processtype_value_in_dpc = type;
+  }
+}
+
+dword_result_t KeGetCurrentProcessType_entry(const ppc_context_t& context) {
+  return xeKeGetCurrentProcessType(context);
 }
 DECLARE_XBOXKRNL_EXPORT2(KeGetCurrentProcessType, kThreading, kImplemented,
                          kHighFrequency);
 
-void KeSetCurrentProcessType_entry(dword_t type) {
-  // One of X_PROCTYPE_?
-
-  assert_true(type <= 2);
-
-  kernel_state()->set_process_type(type);
+void KeSetCurrentProcessType_entry(dword_t type, const ppc_context_t& context) {
+  xeKeSetCurrentProcessType(type, context);
 }
 DECLARE_XBOXKRNL_EXPORT1(KeSetCurrentProcessType, kThreading, kImplemented);
 
@@ -1108,7 +1132,7 @@ dword_result_t KfAcquireSpinLock_entry(pointer_t<X_KSPINLOCK> lock_ptr,
 DECLARE_XBOXKRNL_EXPORT3(KfAcquireSpinLock, kThreading, kImplemented, kBlocking,
                          kHighFrequency);
 
-void xeKeKfReleaseSpinLock(PPCContext* ctx, X_KSPINLOCK* lock, dword_t old_irql,
+void xeKeKfReleaseSpinLock(PPCContext* ctx, X_KSPINLOCK* lock, uint32_t old_irql,
                            bool change_irql) {
   assert_true(lock->prcb_of_owner == static_cast<uint32_t>(ctx->r[13]));
   // Unlock.
@@ -1385,7 +1409,7 @@ static void YankApcList(PPCContext* ctx, X_KTHREAD* current_thread, unsigned apc
   }
 }
 
-void xeRundownApcs(PPCContext* ctx) {
+void xeRundownApcs(cpu::ppc::PPCContext* ctx) {
   auto kpcr = ctx->TranslateVirtualGPR<X_KPCR*>(ctx->r[13]);
 
   auto current_thread = ctx->TranslateVirtual(kpcr->prcb_data.current_thread);
@@ -1429,7 +1453,7 @@ uint32_t xeKeInsertQueueApc(XAPC* apc, uint32_t arg1, uint32_t arg2,
   auto target_thread = context->TranslateVirtual<X_KTHREAD*>(apc->thread_ptr);
   auto old_irql = xeKeKfAcquireSpinLock(context, &target_thread->apc_lock);
   uint32_t result;
-  if (!target_thread->apc_related || apc->enqueued) {
+  if (!target_thread->may_queue_apcs || apc->enqueued) {
     result = 0;
   } else {
     apc->arg1 = arg1;
@@ -1470,16 +1494,13 @@ uint32_t xeKeInsertQueueApc(XAPC* apc, uint32_t arg1, uint32_t arg2,
 dword_result_t KeInsertQueueApc_entry(pointer_t<XAPC> apc, lpvoid_t arg1,
                                       lpvoid_t arg2, dword_t priority_increment,
                                       const ppc_context_t& context) {
-
   return xeKeInsertQueueApc(apc, arg1, arg2, priority_increment, context);
-
 }
 DECLARE_XBOXKRNL_EXPORT1(KeInsertQueueApc, kThreading, kImplemented);
 
 dword_result_t KeRemoveQueueApc_entry(pointer_t<XAPC> apc,
                                       const ppc_context_t& context) {
   bool result = false;
-
 
   uint32_t thread_guest_pointer = apc->thread_ptr;
   if (!thread_guest_pointer) {

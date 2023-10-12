@@ -58,7 +58,7 @@ XThread::XThread(KernelState* kernel_state)
 XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
                  uint32_t xapi_thread_startup, uint32_t start_address,
                  uint32_t start_context, uint32_t creation_flags,
-                 bool guest_thread, bool main_thread)
+                 bool guest_thread, bool main_thread, uint32_t guest_process)
     : XObject(kernel_state, kObjectType, !guest_thread),
       thread_id_(++next_xthread_id_),
       guest_thread_(guest_thread),
@@ -76,7 +76,7 @@ XThread::XThread(KernelState* kernel_state, uint32_t stack_size,
   if (creation_params_.stack_size < 16 * 1024) {
     creation_params_.stack_size = 16 * 1024;
   }
-
+  creation_params_.guest_process = guest_process;
   // The kernel does not take a reference. We must unregister in the dtor.
   kernel_state_->RegisterThread(this);
 }
@@ -93,7 +93,6 @@ XThread::~XThread() {
   if (thread_state_) {
     delete thread_state_;
   }
-  kernel_state()->memory()->SystemHeapFree(scratch_address_);
   kernel_state()->memory()->SystemHeapFree(tls_static_address_);
   kernel_state()->memory()->SystemHeapFree(pcr_address_);
   FreeStack();
@@ -197,13 +196,14 @@ void XThread::InitializeGuestObject() {
   guest_thread->tls_address = (this->tls_static_address_);
   guest_thread->thread_state = 0;
   uint32_t process_info_block_address =
-      kernel_state_->process_info_block_address();
+      creation_params_.guest_process ? creation_params_.guest_process
+                                     : this->kernel_state_->GetTitleProcess();
 
   X_KPROCESS* process =
       memory()->TranslateVirtual<X_KPROCESS*>(process_info_block_address);
   uint32_t kpcrb = pcr_address_ + offsetof(X_KPCR, prcb_data);
 
-  auto process_type = X_PROCTYPE_USER;  // process->process_type;
+  auto process_type = process->process_type;
   guest_thread->process_type_dup = process_type;
   guest_thread->process_type = process_type;
   guest_thread->apc_lists[0].Initialize(memory());
@@ -212,7 +212,7 @@ void XThread::InitializeGuestObject() {
   guest_thread->a_prcb_ptr = kpcrb;
   guest_thread->another_prcb_ptr = kpcrb;
 
-  guest_thread->apc_related = 1;
+  guest_thread->may_queue_apcs = 1;
   guest_thread->msr_mask = 0xFDFFD7FF;
   guest_thread->process = process_info_block_address;
   guest_thread->stack_alloc_base = this->stack_base_;
@@ -227,6 +227,24 @@ void XThread::InitializeGuestObject() {
   guest_thread->unk_158 = v9 + 340;
   guest_thread->creation_flags = this->creation_params_.creation_flags;
   guest_thread->unk_17C = 1;
+
+  /*
+   * not doing this right at all! we're not using our threads context, because
+   * we may be on the host and have no underlying context. in reality we should
+   * have a context and acquire any locks using that context!
+   */
+  auto context_here = thread_state_->context();
+  auto old_irql = xboxkrnl::xeKeKfAcquireSpinLock(
+      context_here, &process->thread_list_spinlock);
+
+  // todo: acquire dispatcher lock here?
+
+  util::XeInsertTailList(&process->thread_list, &guest_thread->process_threads,
+                         context_here);
+  process->thread_count += 1;
+  // todo: release dispatcher lock here?
+  xboxkrnl::xeKeKfReleaseSpinLock(context_here, &process->thread_list_spinlock,
+                                  old_irql);
 }
 
 bool XThread::AllocateStack(uint32_t size) {
@@ -283,11 +301,6 @@ X_STATUS XThread::Create() {
   if (!AllocateStack(creation_params_.stack_size)) {
     return X_STATUS_NO_MEMORY;
   }
-
-  // Allocate thread scratch.
-  // This is used by interrupts/APCs/etc so we can round-trip pointers through.
-  scratch_size_ = 4 * 16;
-  scratch_address_ = memory()->SystemHeapAlloc(scratch_size_);
 
   // Allocate TLS block.
   // Games will specify a certain number of 4b slots that each thread will get.
@@ -368,7 +381,8 @@ X_STATUS XThread::Create() {
   pcr->tls_ptr = tls_static_address_;
   pcr->pcr_ptr = pcr_address_;
   pcr->prcb_data.current_thread = guest_object();
-
+  pcr->prcb = pcr_address_ + offsetof(X_KPCR, prcb_data);
+  pcr->host_stash = reinterpret_cast<uint64_t>(thread_state_->context());
   pcr->stack_base_ptr = stack_base_;
   pcr->stack_end_ptr = stack_limit_;
 
@@ -381,18 +395,7 @@ X_STATUS XThread::Create() {
 
   params.create_suspended = true;
 
-#if 0
-  uint64_t stack_size_mult = cvars::stack_size_multiplier_hack;
-  
-  if (main_thread_) {
-    stack_size_mult =
-        static_cast<uint64_t>(cvars::main_xthread_stack_size_multiplier_hack);
-
-  }
-#else
-  uint64_t stack_size_mult = 1;
-#endif
-  params.stack_size = 16_MiB * stack_size_mult;  // Allocate a big host stack.
+  params.stack_size = 16_MiB;  // Allocate a big host stack.
   thread_ = xe::threading::Thread::Create(params, [this]() {
     // Set thread ID override. This is used by logging.
     xe::threading::set_current_thread_id(handle());
@@ -406,6 +409,7 @@ X_STATUS XThread::Create() {
     // Execute user code.
     current_xthread_tls_ = this;
     current_thread_ = this;
+    cpu::ThreadState::Bind(this->thread_state());
     running_ = true;
     Execute();
     running_ = false;
@@ -453,15 +457,28 @@ X_STATUS XThread::Exit(int exit_code) {
   assert_true(XThread::GetCurrentThread() == this);
   // TODO(chrispy): not sure if this order is correct, should it come after
   // apcs?
-  guest_object<X_KTHREAD>()->terminated = 1;
+  auto kthread = guest_object<X_KTHREAD>();
+  auto cpu_context = thread_state_->context();
+  kthread->terminated = 1;
 
   // TODO(benvanik): dispatch events? waiters? etc?
   RundownAPCs();
 
   // Set exit code.
-  X_KTHREAD* thread = guest_object<X_KTHREAD>();
-  thread->header.signal_state = 1;
-  thread->exit_status = exit_code;
+  kthread->header.signal_state = 1;
+  kthread->exit_status = exit_code;
+
+  auto kprocess = cpu_context->TranslateVirtual(kthread->process);
+
+  uint32_t old_irql = xboxkrnl::xeKeKfAcquireSpinLock(
+      cpu_context, &kprocess->thread_list_spinlock);
+
+  util::XeRemoveEntryList(&kthread->process_threads, cpu_context);
+
+  kprocess->thread_count = kprocess->thread_count - 1;
+
+  xboxkrnl::xeKeKfReleaseSpinLock(cpu_context, &kprocess->thread_list_spinlock,
+                                  old_irql);
 
   kernel_state()->OnThreadExit(this);
 
@@ -517,7 +534,6 @@ class reenter_exception {
 void XThread::Execute() {
   XELOGKERNEL("XThread::Execute thid {} (handle={:08X}, '{}', native={:08X})",
               thread_id_, handle(), thread_name_, thread_->system_id());
-
   // Let the kernel know we are starting.
   kernel_state()->OnThreadExecute(this);
 
@@ -699,9 +715,16 @@ uint32_t XThread::suspend_count() {
 }
 
 X_STATUS XThread::Resume(uint32_t* out_suspend_count) {
-  --guest_object<X_KTHREAD>()->suspend_count;
+  auto guest_thread = guest_object<X_KTHREAD>();
 
-  if (thread_->Resume(out_suspend_count)) {
+  uint8_t previous_suspend_count =
+      reinterpret_cast<std::atomic_uint8_t*>(&guest_thread->suspend_count)
+          ->fetch_sub(1);
+  if (out_suspend_count) {
+    *out_suspend_count = previous_suspend_count;
+  }
+  uint32_t unused_host_suspend_count = 0;
+  if (thread_->Resume(&unused_host_suspend_count)) {
     return X_STATUS_SUCCESS;
   } else {
     return X_STATUS_UNSUCCESSFUL;
@@ -709,20 +732,20 @@ X_STATUS XThread::Resume(uint32_t* out_suspend_count) {
 }
 
 X_STATUS XThread::Suspend(uint32_t* out_suspend_count) {
-  
-  //this normally holds the apc lock for the thread, because it queues a kernel mode apc that does the actual suspension
+  // this normally holds the apc lock for the thread, because it queues a kernel
+  // mode apc that does the actual suspension
 
   X_KTHREAD* guest_thread = guest_object<X_KTHREAD>();
 
   uint8_t previous_suspend_count =
       reinterpret_cast<std::atomic_uint8_t*>(&guest_thread->suspend_count)
           ->fetch_add(1);
-
-  *out_suspend_count = previous_suspend_count;
-
+  if (out_suspend_count) {
+    *out_suspend_count = previous_suspend_count;
+  }
   // If we are suspending ourselves, we can't hold the lock.
-
-  if (thread_->Suspend(out_suspend_count)) {
+  uint32_t unused_host_suspend_count = 0;
+  if (thread_->Suspend(&unused_host_suspend_count)) {
     return X_STATUS_SUCCESS;
   } else {
     return X_STATUS_UNSUCCESSFUL;
@@ -975,8 +998,10 @@ object_ref<XThread> XThread::Restore(KernelState* kernel_state,
 }
 
 XHostThread::XHostThread(KernelState* kernel_state, uint32_t stack_size,
-                         uint32_t creation_flags, std::function<int()> host_fn)
-    : XThread(kernel_state, stack_size, 0, 0, 0, creation_flags, false),
+                         uint32_t creation_flags, std::function<int()> host_fn,
+                         uint32_t guest_process)
+    : XThread(kernel_state, stack_size, 0, 0, 0, creation_flags, false, false,
+              guest_process),
       host_fn_(host_fn) {
   // By default host threads are not debugger suspendable. If the thread runs
   // any guest code this must be overridden.
@@ -987,10 +1012,8 @@ void XHostThread::Execute() {
   XELOGKERNEL(
       "XThread::Execute thid {} (handle={:08X}, '{}', native={:08X}, <host>)",
       thread_id_, handle(), thread_name_, thread_->system_id());
-
   // Let the kernel know we are starting.
   kernel_state()->OnThreadExecute(this);
-
   int ret = host_fn_();
 
   // Exit.
