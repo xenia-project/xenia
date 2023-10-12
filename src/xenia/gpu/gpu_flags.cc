@@ -23,7 +23,7 @@ DEFINE_bool(vsync, true, "Enable VSYNC.", "GPU");
 DEFINE_uint64(vsync_fps, 60, "VSYNC frames per second", "GPU");
 
 DEFINE_bool(
-    gpu_allow_invalid_fetch_constants, false,
+    gpu_allow_invalid_fetch_constants, true,
     "Allow texture and vertex fetch constants with invalid type - generally "
     "unsafe because the constant may contain completely invalid values, but "
     "may be used to bypass fetch constant type errors in certain games until "
