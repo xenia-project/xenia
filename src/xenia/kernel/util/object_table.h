@@ -80,6 +80,9 @@ class ObjectTable {
   std::vector<object_ref<XObject>> GetAllObjects();
   void PurgeAllObjects();  // Purges the object table of all guest objects
 
+  void MapGuestObjectToHostHandle(uint32_t guest_object, X_HANDLE host_handle);
+  void UnmapGuestObjectHostHandle(uint32_t guest_object);
+  bool HostHandleForGuestObject(uint32_t guest_object, X_HANDLE& out);
  private:
   struct ObjectTableEntry {
     int handle_ref_count = 0;
@@ -107,6 +110,7 @@ class ObjectTable {
   uint32_t last_free_entry_ = 0;
   uint32_t last_free_host_entry_ = 0;
   std::unordered_map<string_key_case, X_HANDLE> name_table_;
+  std::unordered_map<uint32_t, X_HANDLE> guest_to_host_handle_;
 };
 
 // Generic lookup

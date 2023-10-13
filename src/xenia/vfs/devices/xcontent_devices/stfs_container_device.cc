@@ -250,7 +250,7 @@ void StfsContainerDevice::UpdateCachedHashTable(
     xe::filesystem::Seek(file, hash_offset + secondary_table_offset, SEEK_SET);
     StfsHashTable table;
     if (fread(&table, sizeof(StfsHashTable), 1, file) != 1) {
-      XELOGE("GetBlockHash failed to read level{} hash table at 0x{X}",
+      XELOGE("GetBlockHash failed to read level{} hash table at 0x{:08X}",
              hash_level, hash_offset + secondary_table_offset);
       return;
     }

@@ -25,6 +25,7 @@
 #include "xenia/kernel/xsemaphore.h"
 #include "xenia/kernel/xsymboliclink.h"
 #include "xenia/kernel/xthread.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
@@ -328,14 +329,11 @@ uint8_t* XObject::CreateNative(uint32_t size) {
   SetNativePointer(mem + sizeof(X_OBJECT_HEADER), true);
 
   auto header = memory()->TranslateVirtual<X_OBJECT_HEADER*>(mem);
-
-  auto object_type = memory()->SystemHeapAlloc(sizeof(X_OBJECT_TYPE));
-  if (object_type) {
-    // Set it up in the header.
-    // Some kernel method is accessing this struct and dereferencing a member
-    // @ offset 0x14
-    header->object_type_ptr = object_type;
-  }
+  // todo: should check whether
+  header->flags = OBJECT_HEADER_IS_TITLE_OBJECT;
+  header->pointer_count = 1;
+  header->handle_count = 0;
+  header->object_type_ptr = 0;
 
   return memory()->TranslateVirtual(guest_object_ptr_);
 }
@@ -346,17 +344,11 @@ void XObject::SetNativePointer(uint32_t native_ptr, bool uninitialized) {
   // If hit: We've already setup the native ptr with CreateNative!
   assert_zero(guest_object_ptr_);
 
-  auto header =
-      kernel_state_->memory()->TranslateVirtual<X_DISPATCH_HEADER*>(native_ptr);
-
-  // Memory uninitialized, so don't bother with the check.
-  if (!uninitialized) {
-    assert_true(!(header->wait_list_blink & 0x1));
-  }
-
   // Stash pointer in struct.
   // FIXME: This assumes the object has a dispatch header (some don't!)
-  StashHandle(header, handle());
+  //StashHandle(header, handle());
+  kernel_state()->object_table()->MapGuestObjectToHostHandle(native_ptr,
+                                                             handle());
 
   guest_object_ptr_ = native_ptr;
 }
@@ -375,22 +367,30 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
   // We identify this by setting wait_list_flink to a magic value. When set,
   // wait_list_blink will hold a handle to our object.
 
+  auto guest_ptr = kernel_state->memory()->HostToGuestVirtual(native_ptr);
   if (!already_locked) {
     global_critical_region::mutex().lock();
   }
 
-  auto header = reinterpret_cast<X_DISPATCH_HEADER*>(native_ptr);
   XObject* result;
+
+  auto header = reinterpret_cast<X_DISPATCH_HEADER*>(native_ptr);
   if (as_type == -1) {
     as_type = header->type;
   }
+  auto true_object_header =
+      kernel_state->memory()->TranslateVirtual<X_OBJECT_HEADER*>(guest_ptr-sizeof(X_OBJECT_HEADER));
 
-  if (header->wait_list_flink == kXObjSignature) {
+  X_HANDLE host_handle;
+  
+
+  if (kernel_state->object_table()->HostHandleForGuestObject(guest_ptr, host_handle)) {
     // Already initialized.
     // TODO: assert if the type of the object != as_type
-    uint32_t handle = header->wait_list_blink;
+    
+        
     result = kernel_state->object_table()
-                 ->LookupObject<XObject>(handle, true)
+                 ->LookupObject<XObject>(host_handle, true)
                  .release();
     goto return_result;
     // TODO(benvanik): assert nothing has been changed in the struct.
@@ -444,7 +444,9 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
 
     // Stash pointer in struct.
     // FIXME: This assumes the object contains a dispatch header (some don't!)
-    StashHandle(header, object->handle());
+   // StashHandle(header, object->handle());
+    kernel_state->object_table()->MapGuestObjectToHostHandle(guest_ptr,
+                                                             object->handle());
     result = object;
 
   return_result:

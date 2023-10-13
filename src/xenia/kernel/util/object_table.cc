@@ -479,6 +479,31 @@ X_STATUS ObjectTable::RestoreHandle(X_HANDLE handle, XObject* object) {
   return X_STATUS_SUCCESS;
 }
 
+void ObjectTable::MapGuestObjectToHostHandle(uint32_t guest_object,
+                                             X_HANDLE host_handle) {
+  auto global_lock = global_critical_region_.Acquire();
+  guest_to_host_handle_[guest_object] = host_handle;
+}
+bool ObjectTable::HostHandleForGuestObject(uint32_t guest_object, X_HANDLE& out) {
+  auto global_lock = global_critical_region_.Acquire();
+  auto gobj_iter = guest_to_host_handle_.find(guest_object);
+  if (gobj_iter == guest_to_host_handle_.end()) {
+    return false;
+  }
+  out = gobj_iter->second;
+  return true;
+}
+
+void ObjectTable::UnmapGuestObjectHostHandle(uint32_t guest_object) {
+  auto global_lock = global_critical_region_.Acquire();
+  auto iter = guest_to_host_handle_.find(guest_object);
+  if (iter == guest_to_host_handle_.end()) {
+    return;
+  } else {
+    guest_to_host_handle_.erase(iter);
+  }
+}
+
 }  // namespace util
 }  // namespace kernel
 }  // namespace xe
