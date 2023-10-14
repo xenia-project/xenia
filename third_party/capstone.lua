@@ -39,6 +39,8 @@ project("capstone")
     "capstone/SStream.h",
     "capstone/utils.c",
     "capstone/utils.h",
+    "capstone/Mapping.c",
+    "capstone/Mapping.h",
 
     "capstone/arch/X86/*.c",
     "capstone/arch/X86/*.h",

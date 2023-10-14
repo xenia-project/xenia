@@ -1,6 +1,6 @@
 [submodule "third_party/xbyak"]
 	path = third_party/xbyak
-	url = https://github.com/xenia-project/xbyak.git
+	url = https://github.com/herumi/xbyak.git
 [submodule "third_party/imgui"]
 	path = third_party/imgui
 	url = https://github.com/ocornut/imgui.git
@@ -30,7 +30,7 @@
 	url = https://github.com/openluopworld/aes_128.git
 [submodule "third_party/capstone"]
 	path = third_party/capstone
-	url = https://github.com/xenia-project/capstone.git
+	url = https://github.com/capstone-engine/capstone.git
 [submodule "third_party/cpptoml"]
 	path = third_party/cpptoml
 	url = https://github.com/skystrife/cpptoml.git
