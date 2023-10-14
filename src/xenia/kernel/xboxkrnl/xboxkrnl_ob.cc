@@ -12,6 +12,7 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
+#include "xenia/kernel/xboxkrnl/xboxkrnl_ob.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/kernel/xsemaphore.h"
 #include "xenia/kernel/xthread.h"
@@ -90,24 +91,6 @@ dword_result_t ObLookupAnyThreadByThreadId_entry(dword_t thread_id,
 }
 DECLARE_XBOXKRNL_EXPORT1(ObLookupAnyThreadByThreadId, kNone, kImplemented);
 
-template <uint32_t ordinal>
-static constexpr uint32_t object_type_id_for_ordinal_v =
-    0xD000BEEF | (ordinal << 16);
-// These values come from how Xenia handles uninitialized kernel data exports.
-// D###BEEF where ### is the ordinal.
-const static std::unordered_map<XObject::Type, uint32_t> object_types = {
-    {XObject::Type::Event,
-     object_type_id_for_ordinal_v<ordinals::ExEventObjectType>},
-    {XObject::Type::Semaphore,
-     object_type_id_for_ordinal_v<ordinals::ExSemaphoreObjectType>},
-    {XObject::Type::Thread,
-     object_type_id_for_ordinal_v<ordinals::ExThreadObjectType>},
-    {XObject::Type::File,
-     object_type_id_for_ordinal_v<ordinals::IoFileObjectType>},
-    {XObject::Type::Mutant,
-     object_type_id_for_ordinal_v<ordinals::ExMutantObjectType>},
-    {XObject::Type::Device,
-     object_type_id_for_ordinal_v<ordinals::IoDeviceObjectType>}};
 dword_result_t ObReferenceObjectByHandle_entry(dword_t handle,
                                                dword_t object_type_ptr,
                                                lpdword_t out_object_ptr) {
@@ -120,6 +103,8 @@ dword_result_t ObReferenceObjectByHandle_entry(dword_t handle,
   }
 
   uint32_t native_ptr = object->guest_object();
+  auto& object_types =
+      kernel_state()->host_object_type_enum_to_guest_object_type_ptr_;
   auto object_type = object_types.find(object->type());
   if (object_type != object_types.end()) {
     if (object_type_ptr && object_type_ptr != object_type->second) {
@@ -161,7 +146,7 @@ dword_result_t ObReferenceObjectByName_entry(pointer_t<X_ANSI_STRING> name,
 }
 DECLARE_XBOXKRNL_EXPORT1(ObReferenceObjectByName, kNone, kImplemented);
 
-void ObDereferenceObject_entry(dword_t native_ptr, const ppc_context_t& ctx) {
+void xeObDereferenceObject(PPCContext* context, uint32_t native_ptr) {
   // Check if a dummy value from ObReferenceObjectByHandle.
   if (native_ptr == 0xDEADF00D) {
     return;
@@ -179,10 +164,15 @@ void ObDereferenceObject_entry(dword_t native_ptr, const ppc_context_t& ctx) {
   } else {
     if (native_ptr) {
       XELOGW("Unregistered guest object provided to ObDereferenceObject {:08X}",
-             native_ptr.value());
+             native_ptr);
     }
   }
   return;
+}
+
+
+void ObDereferenceObject_entry(dword_t native_ptr, const ppc_context_t& ctx) {
+  xeObDereferenceObject(ctx, native_ptr);
 }
 DECLARE_XBOXKRNL_EXPORT1(ObDereferenceObject, kNone, kImplemented);
 

@@ -368,6 +368,12 @@ struct X_OBJECT_TYPE {
   xe::be<uint32_t> pool_tag;    // 0x18
 };
 static_assert_size(X_OBJECT_TYPE, 0x1C);
+
+struct X_KSYMLINK {
+  xe::be<uint32_t> refed_object_maybe;
+  X_ANSI_STRING refed_object_name_maybe;
+};
+static_assert_size(X_KSYMLINK, 0xC);
 // https://msdn.microsoft.com/en-us/library/windows/desktop/aa363082.aspx
 typedef struct {
   // Renamed due to a collision with exception_code from Windows excpt.h.

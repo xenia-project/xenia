@@ -21,6 +21,7 @@
 #include "xenia/base/bit_map.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/mutex.h"
+#include "xenia/cpu/backend/backend.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/kernel/util/kernel_fwd.h"
 #include "xenia/kernel/util/native_list.h"
@@ -29,6 +30,7 @@
 #include "xenia/kernel/xam/app_manager.h"
 #include "xenia/kernel/xam/content_manager.h"
 #include "xenia/kernel/xam/user_profile.h"
+#include "xenia/kernel/xevent.h"
 #include "xenia/memory.h"
 #include "xenia/vfs/virtual_file_system.h"
 #include "xenia/xbox.h"
@@ -83,7 +85,6 @@ struct X_KPROCESS {
 };
 static_assert_size(X_KPROCESS, 0x60);
 
-
 struct TerminateNotification {
   uint32_t guest_routine;
   uint32_t priority;
@@ -99,13 +100,46 @@ struct X_TIME_STAMP_BUNDLE {
   uint32_t tick_count;
   uint32_t padding;
 };
-
+struct X_UNKNOWN_TYPE_REFED {
+  xe::be<uint32_t> field0;
+  xe::be<uint32_t> field4;
+  // this is definitely a LIST_ENTRY?
+  xe::be<uint32_t> points_to_self;  // this field points to itself
+  xe::be<uint32_t>
+      points_to_prior;  // points to the previous field, which points to itself
+};
+static_assert_size(X_UNKNOWN_TYPE_REFED, 16);
 struct KernelGuestGlobals {
-  X_KPROCESS idle_process;    // X_PROCTYPE_IDLE. runs in interrupt contexts. is also the context the kernel starts in?
+  X_OBJECT_TYPE ExThreadObjectType;
+  X_OBJECT_TYPE ExEventObjectType;
+  X_OBJECT_TYPE ExMutantObjectType;
+  X_OBJECT_TYPE ExSemaphoreObjectType;
+  X_OBJECT_TYPE ExTimerObjectType;
+  X_OBJECT_TYPE IoCompletionObjectType;
+  X_OBJECT_TYPE IoDeviceObjectType;
+  X_OBJECT_TYPE IoFileObjectType;
+  X_OBJECT_TYPE ObDirectoryObjectType;
+  X_OBJECT_TYPE ObSymbolicLinkObjectType;
+  // a constant buffer that some object types' "unknown_size_or_object" field
+  // points to
+  X_UNKNOWN_TYPE_REFED OddObj;
+  X_KPROCESS idle_process;    // X_PROCTYPE_IDLE. runs in interrupt contexts. is
+                              // also the context the kernel starts in?
   X_KPROCESS title_process;   // X_PROCTYPE_TITLE
   X_KPROCESS system_process;  // X_PROCTYPE_SYSTEM. no idea when this runs. can
                               // create threads in this process with
                               // ExCreateThread and the thread flag 0x2
+
+  // locks.
+  X_KSPINLOCK dispatcher_lock;  // called the "dispatcher lock" in nt 3.5 ppc
+                                // .dbg file. Used basically everywhere that
+                                // DISPATCHER_HEADER'd objects appear
+  // this lock is only used in some Ob functions. It's odd that it is used at
+  // all, as each table already has its own spinlock.
+  X_KSPINLOCK ob_lock;
+
+  // if LLE emulating Xam, this is needed or you get an immediate freeze
+  X_KEVENT UsbdBootEnumerationDoneEvent;
 };
 struct DPCImpersonationScope {
   uint8_t previous_irql_;
@@ -318,13 +352,17 @@ class KernelState {
   BitMap tls_bitmap_;
   uint32_t ke_timestamp_bundle_ptr_ = 0;
   std::unique_ptr<xe::threading::HighResolutionTimer> timestamp_timer_;
+  cpu::backend::GuestTrampolineGroup kernel_trampoline_group_;
   //fixed address referenced by dashboards. Data is currently unknown
   uint32_t strange_hardcoded_page_ = 0x8E038634 & (~0xFFFF);
   uint32_t strange_hardcoded_location_ = 0x8E038634;
 
   friend class XObject;
-public:
+ public:
   uint32_t dash_context_ = 0;
+  std::unordered_map<XObject::Type, uint32_t>
+      host_object_type_enum_to_guest_object_type_ptr_;
+  uint32_t GetKernelGuestGlobals() const { return kernel_guest_globals_; }
 };
 
 }  // namespace kernel

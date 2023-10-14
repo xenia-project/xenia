@@ -218,6 +218,23 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   export_resolver_->SetVariableMapping("xboxkrnl.exe",
                                        ordinals::KeTimeStampBundle,
                                        kernel_state->GetKeTimestampBundle());
+#define EXPORT_KVAR(typ)                                                       \
+  export_resolver_->SetVariableMapping("xboxkrnl.exe", ordinals::typ,          \
+                                       kernel_state->GetKernelGuestGlobals() + \
+                                           offsetof(KernelGuestGlobals, typ))
+
+  EXPORT_KVAR(ExThreadObjectType);
+  EXPORT_KVAR(ExEventObjectType);
+  EXPORT_KVAR(ExMutantObjectType);
+  EXPORT_KVAR(ExSemaphoreObjectType);
+  EXPORT_KVAR(ExTimerObjectType);
+  EXPORT_KVAR(IoCompletionObjectType);
+  EXPORT_KVAR(IoDeviceObjectType);
+  EXPORT_KVAR(IoFileObjectType);
+  EXPORT_KVAR(ObDirectoryObjectType);
+  EXPORT_KVAR(ObSymbolicLinkObjectType);
+  EXPORT_KVAR(UsbdBootEnumerationDoneEvent);
+#undef EXPORT_KVAR
 }
 
 static auto& get_xboxkrnl_exports() {
