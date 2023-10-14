@@ -58,11 +58,7 @@ XObject::~XObject() {
     uint32_t ptr = guest_object_ptr_ - sizeof(X_OBJECT_HEADER);
     auto header = memory()->TranslateVirtual<X_OBJECT_HEADER*>(ptr);
 
-    // Free the object creation info
-    if (header->object_type_ptr) {
-      memory()->SystemHeapFree(header->object_type_ptr);
-    }
-
+    kernel_state()->object_table()->UnmapGuestObjectHostHandle(ptr);
     memory()->SystemHeapFree(ptr);
   }
 }
