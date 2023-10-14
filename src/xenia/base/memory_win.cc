@@ -162,7 +162,7 @@ bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
   MEMORY_BASIC_INFORMATION info;
   ZeroMemory(&info, sizeof(info));
 
-  SIZE_T result = VirtualQuery(base_address, &info, length);
+  SIZE_T result = VirtualQuery(base_address, &info, sizeof(info));
   if (!result) {
     return false;
   }
