@@ -1132,8 +1132,8 @@ dword_result_t KfAcquireSpinLock_entry(pointer_t<X_KSPINLOCK> lock_ptr,
 DECLARE_XBOXKRNL_EXPORT3(KfAcquireSpinLock, kThreading, kImplemented, kBlocking,
                          kHighFrequency);
 
-void xeKeKfReleaseSpinLock(PPCContext* ctx, X_KSPINLOCK* lock, uint32_t old_irql,
-                           bool change_irql) {
+void xeKeKfReleaseSpinLock(PPCContext* ctx, X_KSPINLOCK* lock,
+                           uint32_t old_irql, bool change_irql) {
   assert_true(lock->prcb_of_owner == static_cast<uint32_t>(ctx->r[13]));
   // Unlock.
   lock->prcb_of_owner.value = 0;
@@ -1170,8 +1170,9 @@ dword_result_t KeTryToAcquireSpinLockAtRaisedIrql_entry(
   auto lock = reinterpret_cast<uint32_t*>(lock_ptr.host_address());
   assert_true(lock_ptr->prcb_of_owner != static_cast<uint32_t>(ppc_ctx->r[13]));
   PrefetchForCAS(lock);
-  if (!xe::atomic_cas(0, xe::byte_swap(static_cast<uint32_t>(ppc_ctx->r[13])),
-                      lock)) {
+  if (!ppc_ctx->processor->GuestAtomicCAS32(
+          ppc_ctx, 0, static_cast<uint32_t>(ppc_ctx->r[13]),
+          lock_ptr.guest_address())) {
     return 0;
   }
   return 1;
@@ -1361,8 +1362,8 @@ X_STATUS xeProcessUserApcs(PPCContext* ctx) {
   return alert_status;
 }
 
-static void YankApcList(PPCContext* ctx, X_KTHREAD* current_thread, unsigned apc_mode,
-                 bool rundown) {
+static void YankApcList(PPCContext* ctx, X_KTHREAD* current_thread,
+                        unsigned apc_mode, bool rundown) {
   uint32_t unlocked_irql =
       xeKeKfAcquireSpinLock(ctx, &current_thread->apc_lock);
 

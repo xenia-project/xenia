@@ -14,9 +14,9 @@
 #include "xenia/base/math.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
+#include "xenia/kernel/xboxkrnl/xboxkrnl_memory.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/xbox.h"
-#include "xenia/kernel/xboxkrnl/xboxkrnl_memory.h"
 DEFINE_bool(
     ignore_offset_for_ranged_allocations, false,
     "Allows to ignore 4k offset for physical allocations with provided range. "
@@ -380,10 +380,10 @@ dword_result_t NtAllocateEncryptedMemory_entry(dword_t unk, dword_t region_size,
 DECLARE_XBOXKRNL_EXPORT1(NtAllocateEncryptedMemory, kMemory, kImplemented);
 
 uint32_t xeMmAllocatePhysicalMemoryEx(uint32_t flags, uint32_t region_size,
-	uint32_t protect_bits,
-	uint32_t min_addr_range,
-	uint32_t max_addr_range,
-	uint32_t alignment) {
+                                      uint32_t protect_bits,
+                                      uint32_t min_addr_range,
+                                      uint32_t max_addr_range,
+                                      uint32_t alignment) {
   // Type will usually be 0 (user request?), where 1 and 2 are sometimes made
   // by D3D/etc.
 
@@ -463,7 +463,7 @@ dword_result_t MmAllocatePhysicalMemory_entry(dword_t flags,
                                               dword_t region_size,
                                               dword_t protect_bits) {
   return xeMmAllocatePhysicalMemoryEx(flags, region_size, protect_bits, 0,
-                                          0xFFFFFFFFu, 0);
+                                      0xFFFFFFFFu, 0);
 }
 DECLARE_XBOXKRNL_EXPORT1(MmAllocatePhysicalMemory, kMemory, kImplemented);
 
@@ -642,35 +642,64 @@ dword_result_t MmMapIoSpace_entry(dword_t unk0, lpvoid_t src_address,
 }
 DECLARE_XBOXKRNL_EXPORT1(MmMapIoSpace, kMemory, kImplemented);
 
-dword_result_t ExAllocatePoolTypeWithTag_entry(dword_t size, dword_t tag,
-                                               dword_t zero) {
-  uint32_t alignment = 8;
-  uint32_t adjusted_size = size;
-  if (adjusted_size < 4 * 1024) {
-    adjusted_size = xe::round_up(adjusted_size, 4 * 1024);
+struct X_POOL_ALLOC_HEADER {
+  uint8_t unk_0;
+  uint8_t unk_1;
+  uint8_t unk_2;  // set this to 170
+  uint8_t unk_3;
+  xe::be<uint32_t> tag;
+};
+
+uint32_t xeAllocatePoolTypeWithTag(PPCContext* context, uint32_t size,
+                                   uint32_t tag, uint32_t zero) {
+  if (size <= 0xFD8) {
+    uint32_t adjusted_size = size + sizeof(X_POOL_ALLOC_HEADER);
+
+    uint32_t addr =
+        kernel_state()->memory()->SystemHeapAlloc(adjusted_size, 64);
+
+    auto result_ptr = context->TranslateVirtual<X_POOL_ALLOC_HEADER*>(addr);
+    result_ptr->unk_2 = 170;
+    result_ptr->tag = tag;
+
+    return addr + sizeof(X_POOL_ALLOC_HEADER);
   } else {
-    alignment = 4 * 1024;
+    return kernel_state()->memory()->SystemHeapAlloc(size, 4096);
   }
+}
 
-  uint32_t addr =
-      kernel_state()->memory()->SystemHeapAlloc(adjusted_size, alignment);
-
-  return addr;
+dword_result_t ExAllocatePoolTypeWithTag_entry(dword_t size, dword_t tag,
+                                               dword_t zero,
+                                               const ppc_context_t& context) {
+  return xeAllocatePoolTypeWithTag(context, size, tag, zero);
 }
 DECLARE_XBOXKRNL_EXPORT1(ExAllocatePoolTypeWithTag, kMemory, kImplemented);
-dword_result_t ExAllocatePoolWithTag_entry(dword_t numbytes, dword_t tag) {
-  return ExAllocatePoolTypeWithTag_entry(numbytes, tag, 0);
+
+dword_result_t ExAllocatePoolWithTag_entry(dword_t numbytes, dword_t tag,
+                                           const ppc_context_t& context) {
+  return xeAllocatePoolTypeWithTag(context, numbytes, tag, 0);
 }
 DECLARE_XBOXKRNL_EXPORT1(ExAllocatePoolWithTag, kMemory, kImplemented);
 
-dword_result_t ExAllocatePool_entry(dword_t size) {
+dword_result_t ExAllocatePool_entry(dword_t size,
+                                    const ppc_context_t& context) {
   const uint32_t none = 0x656E6F4E;  // 'None'
-  return ExAllocatePoolTypeWithTag_entry(size, none, 0);
+  return xeAllocatePoolTypeWithTag(context, size, none, 0);
 }
 DECLARE_XBOXKRNL_EXPORT1(ExAllocatePool, kMemory, kImplemented);
 
-void ExFreePool_entry(lpvoid_t base_address) {
-  kernel_state()->memory()->SystemHeapFree(base_address);
+void xeFreePool(PPCContext* context, uint32_t base_address) {
+  auto memory = context->kernel_state->memory();
+  //if 4kb aligned, there is no pool header!
+  if ((base_address & (4096 - 1)) == 0) {
+    memory->SystemHeapFree(base_address);
+  } else {
+    memory->SystemHeapFree(base_address - sizeof(X_POOL_ALLOC_HEADER));
+  }
+}
+
+void ExFreePool_entry(lpvoid_t base_address, const ppc_context_t& context) {
+  xeFreePool(context, base_address.guest_address());
 }
 DECLARE_XBOXKRNL_EXPORT1(ExFreePool, kMemory, kImplemented);
 
@@ -710,9 +739,7 @@ DECLARE_XBOXKRNL_EXPORT1(KeLockL2, kMemory, kStub);
 void KeUnlockL2_entry() {}
 DECLARE_XBOXKRNL_EXPORT1(KeUnlockL2, kMemory, kStub);
 
-dword_result_t MmCreateKernelStack_entry(dword_t stack_size, dword_t r4) {
-  assert_zero(r4);  // Unknown argument.
-
+uint32_t xeMmCreateKernelStack(uint32_t stack_size, uint32_t r4) {
   auto stack_size_aligned = (stack_size + 0xFFF) & 0xFFFFF000;
   uint32_t stack_alignment = (stack_size & 0xF000) ? 0x1000 : 0x10000;
 
@@ -724,6 +751,9 @@ dword_result_t MmCreateKernelStack_entry(dword_t stack_size, dword_t r4) {
                    kMemoryProtectRead | kMemoryProtectWrite, false,
                    &stack_address);
   return stack_address + stack_size;
+}
+dword_result_t MmCreateKernelStack_entry(dword_t stack_size, dword_t r4) {
+  return xeMmCreateKernelStack(stack_size, r4);
 }
 DECLARE_XBOXKRNL_EXPORT1(MmCreateKernelStack, kMemory, kImplemented);
 

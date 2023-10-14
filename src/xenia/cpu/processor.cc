@@ -1291,6 +1291,62 @@ uint32_t Processor::CalculateNextGuestInstruction(ThreadDebugInfo* thread_info,
     return current_pc + 4;
   }
 }
+uint32_t Processor::GuestAtomicIncrement32(ppc::PPCContext* context,
+                                           uint32_t guest_address) {
+  uint32_t* host_address = context->TranslateVirtual<uint32_t*>(guest_address);
 
+  uint32_t result;
+  while (true) {
+    result = *host_address;
+    // todo: should call a processor->backend function that acquires a
+    // reservation instead of using host atomics
+    if (xe::atomic_cas(xe::byte_swap(result), xe::byte_swap(result + 1),
+                       host_address)) {
+      break;
+    }
+  }
+  return result;
+}
+uint32_t Processor::GuestAtomicDecrement32(ppc::PPCContext* context,
+                                           uint32_t guest_address) {
+  uint32_t* host_address = context->TranslateVirtual<uint32_t*>(guest_address);
+
+  uint32_t result;
+  while (true) {
+    result = *host_address;
+    // todo: should call a processor->backend function that acquires a
+    // reservation instead of using host atomics
+    if (xe::atomic_cas(xe::byte_swap(result), xe::byte_swap(result - 1),
+                       host_address)) {
+      break;
+    }
+  }
+  return result;
+}
+
+uint32_t Processor::GuestAtomicOr32(ppc::PPCContext* context,
+                                    uint32_t guest_address, uint32_t mask) {
+  return xe::atomic_or(
+      context->TranslateVirtual<volatile int32_t*>(guest_address),
+      xe::byte_swap(mask));
+}
+uint32_t Processor::GuestAtomicXor32(ppc::PPCContext* context,
+                                     uint32_t guest_address, uint32_t mask) {
+  return xe::atomic_xor(
+      context->TranslateVirtual<volatile int32_t*>(guest_address),
+      xe::byte_swap(mask));
+}
+uint32_t Processor::GuestAtomicAnd32(ppc::PPCContext* context,
+                                     uint32_t guest_address, uint32_t mask) {
+  return xe::atomic_and(
+      context->TranslateVirtual<volatile int32_t*>(guest_address),
+      xe::byte_swap(mask));
+}
+
+bool Processor::GuestAtomicCAS32(ppc::PPCContext* context, uint32_t old_value,
+                                 uint32_t new_value, uint32_t guest_address) {
+  return xe::atomic_cas(xe::byte_swap(old_value), xe::byte_swap(new_value),
+                        context->TranslateVirtual<uint32_t*>(guest_address));
+}
 }  // namespace cpu
 }  // namespace xe

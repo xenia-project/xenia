@@ -45,17 +45,19 @@ constexpr bool is_pow2(T value) {
   return (value & (value - 1)) == 0;
 }
 /*
-	Use this in place of the shift + and not sequence that is being used currently in bit iteration code. This is more efficient 
-	because it does not introduce a dependency on to the previous bit scanning operation. The shift and not sequence does get translated to a single instruction (the bit test and reset instruction),
-	but this code can be executed alongside the scan
+        Use this in place of the shift + and not sequence that is being used
+   currently in bit iteration code. This is more efficient because it does not
+   introduce a dependency on to the previous bit scanning operation. The shift
+   and not sequence does get translated to a single instruction (the bit test
+   and reset instruction), but this code can be executed alongside the scan
 */
-template<typename T>
+template <typename T>
 constexpr T clear_lowest_bit(T value) {
   static_assert(std::is_integral_v<T>);
 
   return (value - static_cast<T>(1)) & value;
 }
-    // Rounds up the given value to the given alignment.
+// Rounds up the given value to the given alignment.
 template <typename T>
 constexpr T align(T value, T alignment) {
   return (value + alignment - 1) & ~(alignment - 1);
@@ -319,7 +321,14 @@ inline T log2_ceil(T v) {
 
 template <typename T>
 inline T rotate_left(T v, uint8_t sh) {
-  return (T(v) << sh) | (T(v) >> ((sizeof(T) * 8) - sh));
+  return (T(v) << sh) | (T(v) >> ((sizeof(T) * CHAR_BIT) - sh));
+}
+template <typename T>
+inline T rotate_right(T v, uint8_t sh) {
+  constexpr unsigned char SHIFT_MASK = (CHAR_BIT * sizeof(T)) - 1;
+  uint8_t rshr = sh & SHIFT_MASK;
+  uint8_t lshl = static_cast<uint8_t>(-static_cast<int8_t>(sh)) & SHIFT_MASK;
+  return (n >> rshr) | (n << lshl);
 }
 #if XE_PLATFORM_WIN32
 template <>
@@ -337,6 +346,22 @@ inline uint32_t rotate_left(uint32_t v, uint8_t sh) {
 template <>
 inline uint64_t rotate_left(uint64_t v, uint8_t sh) {
   return _rotl64(v, sh);
+}
+template <>
+inline uint8_t rotate_right(uint8_t v, uint8_t sh) {
+  return _rotr8(v, sh);
+}
+template <>
+inline uint16_t rotate_right(uint16_t v, uint8_t sh) {
+  return _rotr16(v, sh);
+}
+template <>
+inline uint32_t rotate_right(uint32_t v, uint8_t sh) {
+  return _rotr(v, sh);
+}
+template <>
+inline uint64_t rotate_right(uint64_t v, uint8_t sh) {
+  return _rotr64(v, sh);
 }
 #endif  // XE_PLATFORM_WIN32
 
@@ -410,7 +435,6 @@ static float ArchReciprocal(float den) {
   return _mm_cvtss_f32(_mm_rcp_ss(_mm_set_ss(den)));
 }
 
- 
 using ArchFloatMask = __m128;
 
 XE_FORCEINLINE
@@ -437,7 +461,7 @@ static uint32_t ArchFloatMaskSignbit(ArchFloatMask x) {
 }
 
 constexpr ArchFloatMask floatmask_zero{.0f};
- 
+
 #else
 static float ArchMin(float x, float y) { return std::min<float>(x, y); }
 static float ArchMax(float x, float y) { return std::max<float>(x, y); }
@@ -463,7 +487,6 @@ static ArchFloatMask ArchANDFloatMask(ArchFloatMask x, ArchFloatMask y) {
   return x & y;
 }
 constexpr ArchFloatMask floatmask_zero = 0;
-
 
 XE_FORCEINLINE
 static uint32_t ArchFloatMaskSignbit(ArchFloatMask x) { return x >> 31; }
@@ -634,7 +657,7 @@ static constexpr uint32_t PregenerateUint32Div(uint32_t _denom, uint32_t& out_ex
 }
 
 static constexpr uint32_t ApplyUint32Div(uint32_t num, uint32_t mul,
-                                      uint32_t extradata) {
+                                         uint32_t extradata) {
   IDivExtraInfo extra{};
 
   extra.value_ = extradata;

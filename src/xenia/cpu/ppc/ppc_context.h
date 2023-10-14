@@ -432,9 +432,11 @@ typedef struct alignas(64) PPCContext_s {
 
   template <typename T = uint8_t*>
   inline T TranslateVirtual(uint32_t guest_address) XE_RESTRICT const {
+    static_assert(std::is_pointer_v<T>);
 #if XE_PLATFORM_WIN32 == 1
     uint8_t* host_address = virtual_membase + guest_address;
-    if (guest_address >= static_cast<uint32_t>(reinterpret_cast<uintptr_t>(this))) {
+    if (guest_address >=
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(this))) {
       host_address += 0x1000;
     }
     return reinterpret_cast<T>(host_address);
@@ -443,11 +445,17 @@ typedef struct alignas(64) PPCContext_s {
 
 #endif
   }
-  //for convenience in kernel functions, version that auto narrows to uint32
+  template <typename T>
+  inline xe::be<T>* TranslateVirtualBE(uint32_t guest_address)
+      XE_RESTRICT const {
+    static_assert(!std::is_pointer_v<T> &&
+                  sizeof(T) > 1);  // maybe assert is_integral?
+    return TranslateVirtual<xe::be<T>*>(guest_address);
+  }
+  // for convenience in kernel functions, version that auto narrows to uint32
   template <typename T = uint8_t*>
   inline T TranslateVirtualGPR(uint64_t guest_address) XE_RESTRICT const {
     return TranslateVirtual<T>(static_cast<uint32_t>(guest_address));
-  
   }
 
   template <typename T>

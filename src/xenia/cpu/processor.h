@@ -184,6 +184,19 @@ class Processor {
   // Returns the new PC guest address.
   uint32_t StepToGuestSafePoint(uint32_t thread_id, bool ignore_host = false);
 
+  uint32_t GuestAtomicIncrement32(ppc::PPCContext* context,
+                                  uint32_t guest_address);
+  uint32_t GuestAtomicDecrement32(ppc::PPCContext* context,
+                                  uint32_t guest_address);
+  uint32_t GuestAtomicOr32(ppc::PPCContext* context, uint32_t guest_address,
+                         uint32_t mask);
+  uint32_t GuestAtomicXor32(ppc::PPCContext* context, uint32_t guest_address,
+                         uint32_t mask);
+  uint32_t GuestAtomicAnd32(ppc::PPCContext* context, uint32_t guest_address,
+                         uint32_t mask);
+  bool GuestAtomicCAS32(ppc::PPCContext* context, uint32_t old_value,
+                        uint32_t new_value, uint32_t guest_address);
+
  public:
   // TODO(benvanik): hide.
   void OnThreadCreated(uint32_t handle, ThreadState* thread_state,

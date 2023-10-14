@@ -24,6 +24,17 @@ inline int32_t atomic_inc(volatile int32_t* value) {
 inline int32_t atomic_dec(volatile int32_t* value) {
   return _InterlockedDecrement(reinterpret_cast<volatile long*>(value));
 }
+inline int32_t atomic_or(volatile int32_t* value, int32_t nv) {
+  return _InterlockedOr(reinterpret_cast<volatile long*>(value), nv);
+}
+
+inline int32_t atomic_and(volatile int32_t* value, int32_t nv) {
+  return _InterlockedAnd(reinterpret_cast<volatile long*>(value), nv);
+}
+
+inline int32_t atomic_xor(volatile int32_t* value, int32_t nv) {
+  return _InterlockedXor(reinterpret_cast<volatile long*>(value), nv);
+}
 
 inline int32_t atomic_exchange(int32_t new_value, volatile int32_t* value) {
   return _InterlockedExchange(reinterpret_cast<volatile long*>(value),
