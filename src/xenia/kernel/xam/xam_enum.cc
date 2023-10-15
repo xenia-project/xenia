@@ -93,8 +93,8 @@ dword_result_t XamCreateEnumeratorHandle_entry(
   auto e = object_ref<XStaticUntypedEnumerator>(
       new XStaticUntypedEnumerator(kernel_state(), item_count, extra_size));
 
-  auto result =
-      e->Initialize(user_index, app_id, open_message, close_message, flags);
+  auto result = e->Initialize(user_index, app_id, open_message, close_message,
+                              flags, extra_size, nullptr);
   if (XFAILED(result)) {
     return result;
   }
