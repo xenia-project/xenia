@@ -11,6 +11,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/atomic.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/utf8.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
@@ -23,68 +24,12 @@
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {
+
 void xeObSplitName(X_ANSI_STRING input_string,
                    X_ANSI_STRING* leading_path_component,
                    X_ANSI_STRING* remaining_path_components,
                    PPCContext* context) {
-  leading_path_component->length = 0;
-  leading_path_component->maximum_length = 0;
-
-  leading_path_component->pointer = 0;
-  remaining_path_components->length = 0;
-  remaining_path_components->maximum_length = 0;
-  remaining_path_components->pointer = 0;
-  uint32_t input_length32 = input_string.length;
-  if (!input_length32) {
-    return;
-  }
-  unsigned char* input_string_buffer =
-      context->TranslateVirtual<uint8_t*>(input_string.pointer);
-  unsigned char first_char = *input_string_buffer;
-  // if it begins with a sep, start iterating at index 1
-
-  uint32_t starting_index = first_char == '\\' ? 1U : 0U;
-  // if the string is just a single sep and nothing else, set leading component
-  // to empty string w/ valid pointer and terminate
-  if (starting_index >= input_length32) {
-    leading_path_component->length = 0U;
-    leading_path_component->maximum_length = 0U;
-    leading_path_component->pointer =
-        context->HostToGuestVirtual(&input_string_buffer[starting_index]);
-    return;
-  }
-
-  int32_t decrementer = (-static_cast<int32_t>(starting_index)) -1;
-  unsigned char* current_character_ptr = &input_string_buffer[starting_index];
-  uint32_t leading_path_component_length = 0;
-  uint16_t full_possible_length =
-      static_cast<uint16_t>(input_length32 - starting_index);
-  while (*current_character_ptr != '\\') {
-    ++leading_path_component_length;
-    ++current_character_ptr;
-    int32_t check_done = input_length32 + decrementer - 1;
-    decrementer--;
-    if (check_done == -1) {
-      // hit the end of the string! no remaining path components
-
-      leading_path_component->length = full_possible_length;
-      leading_path_component->maximum_length = full_possible_length;
-      leading_path_component->pointer =
-          context->HostToGuestVirtual(&input_string_buffer[starting_index]);
-      return;
-    }
-  }
-  // hit the end of the current components, but more components remain
-  leading_path_component->length = leading_path_component_length;
-  leading_path_component->maximum_length = leading_path_component_length;
-  leading_path_component->pointer =
-      context->HostToGuestVirtual(&input_string_buffer[starting_index]);
-  uint16_t remainder_length = static_cast<uint16_t>(
-      input_length32 - (first_char == '\\') + ~leading_path_component_length);
-  remaining_path_components->length = remainder_length;
-  remaining_path_components->pointer =
-      context->HostToGuestVirtual(&input_string_buffer[-decrementer]);
-  remaining_path_components->maximum_length = remainder_length;
+  xe::FatalError("xeObSplitName unimplemented!");
 }
 
 uint32_t xeObHashObjectName(X_ANSI_STRING* ElementName, PPCContext* context) {
