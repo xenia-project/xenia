@@ -48,13 +48,14 @@ uint32_t xeObHashObjectName(X_ANSI_STRING* ElementName, PPCContext* context) {
 
 uint32_t xeObCreateObject(X_OBJECT_TYPE* object_factory,
                           X_OBJECT_ATTRIBUTES* optional_attributes,
-                          uint32_t object_size_sans_headers,
+                          uint32_t object_size_without_headers,
                           uint32_t* out_object, cpu::ppc::PPCContext* context) {
   unsigned int resulting_header_flags = 0;
   *out_object = 0;
   unsigned int poolarg = 0;
 
-  if (!optional_attributes) {
+  auto get_flags_and_poolarg_for_process_type = [&resulting_header_flags,
+                                                 &poolarg, context]() {
     uint32_t process_type = xboxkrnl::xeKeGetCurrentProcessType(context);
     if (process_type == X_PROCTYPE_TITLE) {
       poolarg = 1;
@@ -62,19 +63,16 @@ uint32_t xeObCreateObject(X_OBJECT_TYPE* object_factory,
     } else {
       poolarg = 2;
     }
+  };
+  if (!optional_attributes) {
+    get_flags_and_poolarg_for_process_type();
   }
 
   else if ((optional_attributes->attributes & 0x1000) == 0) {
     if ((optional_attributes->attributes & 0x2000) != 0) {
       poolarg = 2;
     } else {
-      uint32_t process_type = xboxkrnl::xeKeGetCurrentProcessType(context);
-      if (process_type == X_PROCTYPE_TITLE) {
-        poolarg = 1;
-        resulting_header_flags = OBJECT_HEADER_IS_TITLE_OBJECT;
-      } else {
-        poolarg = 2;
-      }
+      get_flags_and_poolarg_for_process_type();
     }
   } else {
     poolarg = 1;
@@ -88,7 +86,7 @@ uint32_t xeObCreateObject(X_OBJECT_TYPE* object_factory,
         object has no name provided, just allocate an object with a basic header
     */
     uint64_t allocate_args[] = {
-        object_size_sans_headers + sizeof(X_OBJECT_HEADER),
+        object_size_without_headers + sizeof(X_OBJECT_HEADER),
         object_factory->pool_tag, poolarg};
     context->processor->Execute(
         context->thread_state, object_factory->allocate_proc, allocate_args, 3);
@@ -136,7 +134,7 @@ uint32_t xeObCreateObject(X_OBJECT_TYPE* object_factory,
   // the object and its name are all created in a single allocation
   
   unsigned int aligned_object_size =
-      xe::align<uint32_t>(object_size_sans_headers, 4);
+      xe::align<uint32_t>(object_size_without_headers, 4);
   {
     uint64_t allocate_args[] = {
         trailing_path_component.length + aligned_object_size +
