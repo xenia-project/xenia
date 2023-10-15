@@ -102,9 +102,39 @@ class XObject {
     SymbolicLink,
     Thread,
     Timer,
-	Device
+    Device
   };
 
+  static bool HasDispatcherHeader(Type type) {
+    switch (type) {
+      case Type::Event:
+      case Type::Mutant:
+      case Type::Semaphore:
+      case Type::Thread:
+      case Type::Timer:
+        return true;
+    }
+    return false;
+  }
+
+  static Type MapGuestTypeToHost(uint16_t type) {
+    // todo: this is not fully filled in
+    switch (type) {
+      case 0:
+      case 1:
+        return Type::Event;
+      case 2:
+        return Type::Mutant;
+      case 5:
+        return Type::Semaphore;
+      case 6:
+        return Type::Thread;
+      case 8:
+      case 9:
+        return Type::Timer;
+    }
+    return Type::Undefined;
+  }
   XObject(Type type);
   XObject(KernelState* kernel_state, Type type, bool host_object = false);
   virtual ~XObject();
@@ -188,8 +218,6 @@ class XObject {
   T* CreateNative() {
     return reinterpret_cast<T*>(CreateNative(sizeof(T)));
   }
-
-
 
   static uint32_t TimeoutTicksToMs(int64_t timeout_ticks);
 

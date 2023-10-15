@@ -511,7 +511,7 @@ class Memory {
                            uint32_t system_heap_flags = kSystemHeapDefault);
 
   // Frees memory allocated with SystemHeapAlloc.
-  void SystemHeapFree(uint32_t address);
+  void SystemHeapFree(uint32_t address, uint32_t* out_region_size=nullptr);
 
   // Gets the heap for the address space containing the given address.
   XE_NOALIAS

@@ -503,6 +503,19 @@ void ObjectTable::UnmapGuestObjectHostHandle(uint32_t guest_object) {
     guest_to_host_handle_.erase(iter);
   }
 }
+void ObjectTable::FlushGuestToHostMapping(uint32_t base_address,
+                                          uint32_t length) {
+  auto global_lock = global_critical_region_.Acquire();
+  auto iterator = guest_to_host_handle_.lower_bound(base_address);
+
+  while (iterator !=guest_to_host_handle_.end() && iterator->first >= base_address && iterator->first < (base_address + length)) {
+    auto old_mapping = iterator;
+
+    iterator++;
+    auto node_handle = guest_to_host_handle_.extract(old_mapping);
+
+  }
+}
 
 }  // namespace util
 }  // namespace kernel

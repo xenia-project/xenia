@@ -7,21 +7,234 @@
  ******************************************************************************
  */
 
+#include "xenia/kernel/xboxkrnl/xboxkrnl_ob.h"
 #include "xenia/base/assert.h"
+#include "xenia/base/atomic.h"
 #include "xenia/base/logging.h"
+#include "xenia/cpu/processor.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
-#include "xenia/kernel/xboxkrnl/xboxkrnl_ob.h"
+#include "xenia/kernel/xboxkrnl/xboxkrnl_threading.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/kernel/xsemaphore.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
-
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {
+void xeObSplitName(X_ANSI_STRING input_string,
+                   X_ANSI_STRING* leading_path_component,
+                   X_ANSI_STRING* remaining_path_components,
+                   PPCContext* context) {
+  leading_path_component->length = 0;
+  leading_path_component->maximum_length = 0;
 
+  leading_path_component->pointer = 0;
+  remaining_path_components->length = 0;
+  remaining_path_components->maximum_length = 0;
+  remaining_path_components->pointer = 0;
+  uint32_t input_length32 = input_string.length;
+  if (!input_length32) {
+    return;
+  }
+  unsigned char* input_string_buffer =
+      context->TranslateVirtual<uint8_t*>(input_string.pointer);
+  unsigned char first_char = *input_string_buffer;
+  // if it begins with a sep, start iterating at index 1
+
+  uint32_t starting_index = first_char == '\\' ? 1U : 0U;
+  // if the string is just a single sep and nothing else, set leading component
+  // to empty string w/ valid pointer and terminate
+  if (starting_index >= input_length32) {
+    leading_path_component->length = 0U;
+    leading_path_component->maximum_length = 0U;
+    leading_path_component->pointer =
+        context->HostToGuestVirtual(&input_string_buffer[starting_index]);
+    return;
+  }
+
+  int32_t decrementer = (-static_cast<int32_t>(starting_index)) -1;
+  unsigned char* current_character_ptr = &input_string_buffer[starting_index];
+  uint32_t leading_path_component_length = 0;
+  uint16_t full_possible_length =
+      static_cast<uint16_t>(input_length32 - starting_index);
+  while (*current_character_ptr != '\\') {
+    ++leading_path_component_length;
+    ++current_character_ptr;
+    int32_t check_done = input_length32 + decrementer - 1;
+    decrementer--;
+    if (check_done == -1) {
+      // hit the end of the string! no remaining path components
+
+      leading_path_component->length = full_possible_length;
+      leading_path_component->maximum_length = full_possible_length;
+      leading_path_component->pointer =
+          context->HostToGuestVirtual(&input_string_buffer[starting_index]);
+      return;
+    }
+  }
+  // hit the end of the current components, but more components remain
+  leading_path_component->length = leading_path_component_length;
+  leading_path_component->maximum_length = leading_path_component_length;
+  leading_path_component->pointer =
+      context->HostToGuestVirtual(&input_string_buffer[starting_index]);
+  uint16_t remainder_length = static_cast<uint16_t>(
+      input_length32 - (first_char == '\\') + ~leading_path_component_length);
+  remaining_path_components->length = remainder_length;
+  remaining_path_components->pointer =
+      context->HostToGuestVirtual(&input_string_buffer[-decrementer]);
+  remaining_path_components->maximum_length = remainder_length;
+}
+
+uint32_t xeObHashObjectName(X_ANSI_STRING* ElementName, PPCContext* context) {
+  uint8_t* current_character_ptr =
+      context->TranslateVirtual(ElementName->pointer);
+  uint32_t result = 0;
+  uint8_t* name_span_end = &current_character_ptr[ElementName->length];
+  while (current_character_ptr < name_span_end) {
+    uint32_t current_character = *current_character_ptr++;
+    if (current_character < 0x80) {
+      result = (current_character | 0x20) + (result >> 1) + 3 * result;
+    }
+  }
+  return result % 0xD;
+}
+
+uint32_t xeObCreateObject(X_OBJECT_TYPE* object_factory,
+                          X_OBJECT_ATTRIBUTES* optional_attributes,
+                          uint32_t object_size_sans_headers,
+                          uint32_t* out_object, cpu::ppc::PPCContext* context) {
+  unsigned int resulting_header_flags = 0;
+  *out_object = 0;
+  unsigned int poolarg = 0;
+
+  if (!optional_attributes) {
+    uint32_t process_type = xboxkrnl::xeKeGetCurrentProcessType(context);
+    if (process_type == X_PROCTYPE_TITLE) {
+      poolarg = 1;
+      resulting_header_flags = OBJECT_HEADER_IS_TITLE_OBJECT;
+    } else {
+      poolarg = 2;
+    }
+  }
+
+  else if ((optional_attributes->attributes & 0x1000) == 0) {
+    if ((optional_attributes->attributes & 0x2000) != 0) {
+      poolarg = 2;
+    } else {
+      uint32_t process_type = xboxkrnl::xeKeGetCurrentProcessType(context);
+      if (process_type == X_PROCTYPE_TITLE) {
+        poolarg = 1;
+        resulting_header_flags = OBJECT_HEADER_IS_TITLE_OBJECT;
+      } else {
+        poolarg = 2;
+      }
+    }
+  } else {
+    poolarg = 1;
+    resulting_header_flags = OBJECT_HEADER_IS_TITLE_OBJECT;
+  }
+  uint32_t desired_object_path_ptr;
+
+  if (!optional_attributes ||
+      (desired_object_path_ptr = optional_attributes->name_ptr) == 0) {
+    /*
+        object has no name provided, just allocate an object with a basic header
+    */
+    uint64_t allocate_args[] = {
+        object_size_sans_headers + sizeof(X_OBJECT_HEADER),
+        object_factory->pool_tag, poolarg};
+    context->processor->Execute(
+        context->thread_state, object_factory->allocate_proc, allocate_args, 3);
+
+    uint32_t allocation = static_cast<uint32_t>(context->r[3]);
+
+    if (allocation) {
+      X_OBJECT_HEADER* new_object_header =
+          context->TranslateVirtual<X_OBJECT_HEADER*>(allocation);
+      new_object_header->pointer_count = 1;
+      new_object_header->handle_count = 0;
+      new_object_header->object_type_ptr =
+          context->HostToGuestVirtual(object_factory);
+      new_object_header->flags = resulting_header_flags;
+
+      *out_object = allocation + sizeof(X_OBJECT_HEADER);
+      return X_STATUS_SUCCESS;
+    }
+    return X_STATUS_INSUFFICIENT_RESOURCES;
+  }
+  /*
+    iterate through all path components until we obtain the final one, which is
+    the objects actual name
+  */
+  X_ANSI_STRING trailing_path_component;
+  X_ANSI_STRING remaining_path;
+  X_ANSI_STRING loaded_object_name;
+  loaded_object_name =
+      *context->TranslateVirtual<X_ANSI_STRING*>(desired_object_path_ptr);
+  trailing_path_component.pointer = 0;
+  trailing_path_component.length = 0;
+  remaining_path = loaded_object_name;
+  while (remaining_path.length) {
+    xeObSplitName(remaining_path, &trailing_path_component, &remaining_path,
+                  context);
+    if (remaining_path.length) {
+      if (*context->TranslateVirtual<char*>(remaining_path.pointer) == '\\') {
+        return X_STATUS_OBJECT_NAME_INVALID;
+      }
+    }
+  }
+  if (!trailing_path_component.length) {
+    return X_STATUS_OBJECT_NAME_INVALID;
+  }
+  // the object and its name are all created in a single allocation
+  
+  unsigned int aligned_object_size =
+      xe::align<uint32_t>(object_size_sans_headers, 4);
+  {
+    uint64_t allocate_args[] = {
+        trailing_path_component.length + aligned_object_size +
+            sizeof(X_OBJECT_HEADER_NAME_INFO) + sizeof(X_OBJECT_HEADER),
+        object_factory->pool_tag, poolarg};
+
+    context->processor->Execute(
+        context->thread_state, object_factory->allocate_proc, allocate_args, 3);
+  }
+  uint32_t named_object_allocation = static_cast<uint32_t>(context->r[3]);
+  if (!named_object_allocation) {
+    return X_STATUS_INSUFFICIENT_RESOURCES;
+  }
+
+  X_OBJECT_HEADER_NAME_INFO* nameinfo =
+      context->TranslateVirtual<X_OBJECT_HEADER_NAME_INFO*>(
+          named_object_allocation);
+  nameinfo->next_in_directory = 0;
+  nameinfo->object_directory = 0;
+
+  X_OBJECT_HEADER* header_for_named_object =
+      reinterpret_cast<X_OBJECT_HEADER*>(nameinfo + 1);
+
+  char* name_string_memory_for_named_object = &reinterpret_cast<char*>(
+      header_for_named_object + 1)[aligned_object_size];
+  nameinfo->name.pointer =
+      context->HostToGuestVirtual(name_string_memory_for_named_object);
+  nameinfo->name.length = trailing_path_component.length;
+  nameinfo->name.maximum_length = trailing_path_component.length;
+
+  memcpy(name_string_memory_for_named_object,
+         context->TranslateVirtual<char*>(trailing_path_component.pointer),
+         trailing_path_component.length);
+
+  header_for_named_object->pointer_count = 1;
+  header_for_named_object->handle_count = 0;
+  header_for_named_object->object_type_ptr =
+      context->HostToGuestVirtual(object_factory);
+  header_for_named_object->flags =
+      resulting_header_flags & 0xFFFE | OBJECT_HEADER_FLAG_NAMED_OBJECT;
+  *out_object = context->HostToGuestVirtual(&header_for_named_object[1]);
+  return X_STATUS_SUCCESS;
+}
 dword_result_t ObOpenObjectByName_entry(lpunknown_t obj_attributes_ptr,
                                         lpunknown_t object_type_ptr,
                                         dword_t unk, lpdword_t handle_ptr) {
@@ -170,7 +383,6 @@ void xeObDereferenceObject(PPCContext* context, uint32_t native_ptr) {
   return;
 }
 
-
 void ObDereferenceObject_entry(dword_t native_ptr, const ppc_context_t& ctx) {
   xeObDereferenceObject(ctx, native_ptr);
 }
@@ -252,6 +464,21 @@ uint32_t NtClose(uint32_t handle) {
 
 dword_result_t NtClose_entry(dword_t handle) { return NtClose(handle); }
 DECLARE_XBOXKRNL_EXPORT1(NtClose, kNone, kImplemented);
+
+dword_result_t ObCreateObject_entry(
+    pointer_t<X_OBJECT_TYPE> object_factory,
+    pointer_t<X_OBJECT_ATTRIBUTES> optional_attributes,
+    dword_t object_size_sans_headers, lpdword_t out_object,
+    const ppc_context_t& context) {
+  uint32_t out_object_tmp = 0;
+
+  uint32_t result =
+      xeObCreateObject(object_factory, optional_attributes,
+                       object_size_sans_headers, &out_object_tmp, context);
+  *out_object = out_object_tmp;
+  return result;
+}
+DECLARE_XBOXKRNL_EXPORT1(ObCreateObject, kNone, kImplemented);
 
 }  // namespace xboxkrnl
 }  // namespace kernel

@@ -608,13 +608,13 @@ uint32_t Memory::SystemHeapAlloc(uint32_t size, uint32_t alignment,
   return address;
 }
 
-void Memory::SystemHeapFree(uint32_t address) {
+void Memory::SystemHeapFree(uint32_t address, uint32_t* out_region_size) {
   if (!address) {
     return;
   }
   // TODO(benvanik): lightweight pool.
   auto heap = LookupHeap(address);
-  heap->Release(address);
+  heap->Release(address, out_region_size);
 }
 
 void Memory::DumpMap() {
