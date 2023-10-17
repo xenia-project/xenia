@@ -202,6 +202,8 @@ class Emulator {
   // Launches a game from an STFS container file.
   X_STATUS LaunchStfsContainer(const std::filesystem::path& path);
 
+  X_STATUS LaunchDefaultModule(const std::filesystem::path& path);
+
   // Extract content of package to content specific directory.
   X_STATUS InstallContentPackage(const std::filesystem::path& path);
 
