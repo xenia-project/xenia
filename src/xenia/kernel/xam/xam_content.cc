@@ -216,6 +216,10 @@ dword_result_t xeXamContentCreate(dword_t user_index, lpstring_t root_name,
     extended_error = X_HRESULT_FROM_WIN32(result);
     length = static_cast<uint32_t>(disposition);
 
+    if (disposition_ptr) {
+      *disposition_ptr = static_cast<uint32_t>(disposition);
+    }
+
     if (result && overlapped_ptr) {
       result = X_ERROR_FUNCTION_FAILED;
     }
