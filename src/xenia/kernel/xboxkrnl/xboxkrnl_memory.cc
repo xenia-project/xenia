@@ -108,6 +108,13 @@ dword_result_t NtAllocateVirtualMemory_entry(lpdword_t base_addr_ptr,
   if (*base_addr_ptr != 0) {
     // ignore specified page size when base address is specified.
     auto heap = kernel_memory()->LookupHeap(*base_addr_ptr);
+    // Edge case when title can check for XPS/MMIO range and will receive
+    // nullptr.
+    if (!heap) {
+      // Code returned in this case is unknown but probably this one.
+      return X_STATUS_INVALID_PARAMETER;
+    }
+
     if (heap->heap_type() != HeapType::kGuestVirtual) {
       return X_STATUS_INVALID_PARAMETER;
     }
