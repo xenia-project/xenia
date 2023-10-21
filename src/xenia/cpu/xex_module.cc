@@ -1120,7 +1120,7 @@ void XexModule::Precompile() {
 
   char fmtbuf[16];
 
-  for (unsigned i = 0; i < 16; ++i) {
+  for (unsigned i = 0; i < 20; ++i) {
     sprintf_s(fmtbuf, "%X", image_sha_bytes_[i]);
     image_sha_str_ += &fmtbuf[0];
   }

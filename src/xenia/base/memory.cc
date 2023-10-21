@@ -176,8 +176,12 @@ static void vastcpy_impl_movdir64m(CacheLine* XE_RESTRICT physaddr,
 static void vastcpy_impl_repmovs(CacheLine* XE_RESTRICT physaddr,
                                  CacheLine* XE_RESTRICT rdmapping,
                                  uint32_t written_length) {
+#if XE_ARCH_AMD64 == 1 && XE_COMPILER_MSVC == 1
   __movsq((unsigned long long*)physaddr, (unsigned long long*)rdmapping,
           written_length / 8);
+#else
+  memcpy((unsigned char*)physaddr, (const unsigned char*)rdmapping, written_length);
+#endif
 }
 XE_COLD
 static void first_vastcpy(CacheLine* XE_RESTRICT physaddr,
