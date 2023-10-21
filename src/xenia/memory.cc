@@ -871,9 +871,18 @@ bool BaseHeap::Alloc(uint32_t size, uint32_t alignment,
   *out_address = 0;
   size = xe::round_up(size, page_size_);
   alignment = xe::round_up(alignment, page_size_);
+
+  // TODO(Gliniak): Find better way to deal with this!
+  // Because 0x3XXXXXX and 0x7XXXXXX is used strictly as place for thread stacks
+  // 0x3 is probably for system threads and 0x7 for title threads
   uint32_t heap_virtual_guest_offset = 0;
   if (heap_type_ == HeapType::kGuestVirtual) {
     heap_virtual_guest_offset = 0x10000000;
+
+    // Adjust for 64k pages region, to prevent having a bit too little memory
+    if (page_size_ == 0x10000) {
+      heap_virtual_guest_offset = 0x0F000000;
+    }
   }
 
   uint32_t low_address = heap_base_;
