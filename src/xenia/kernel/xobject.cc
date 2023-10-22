@@ -177,10 +177,8 @@ void XObject::SetAttributes(uint32_t obj_attributes_ptr) {
 
 uint32_t XObject::TimeoutTicksToMs(int64_t timeout_ticks) {
   if (timeout_ticks > 0) {
-    // Absolute time, based on January 1, 1601.
-    // TODO(benvanik): convert time to relative time.
-    assert_always();
-    return 0;
+    // NetDll_WSAWaitForMultipleEvents provides timeout in form of MS.
+    return (uint32_t)timeout_ticks;
   } else if (timeout_ticks < 0) {
     // Relative time.
     return (uint32_t)(-timeout_ticks / 10000);  // Ticks -> MS
