@@ -10,6 +10,7 @@
 #ifndef XENIA_KERNEL_ACHIEVEMENT_MANAGER_H_
 #define XENIA_KERNEL_ACHIEVEMENT_MANAGER_H_
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -25,7 +26,11 @@ class AchievementManager {
   void EarnAchievement(uint64_t xuid, uint32_t title_id,
                        uint32_t achievement_id);
 
+  bool IsAchievementUnlocked(uint32_t achievement_id);
+  uint64_t GetAchievementUnlockTime(uint32_t achievement_id);
+
  private:
+  std::map<uint32_t, uint64_t> unlocked_achievements;
   // void Load();
   // void Save();
 };
