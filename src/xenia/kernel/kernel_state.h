@@ -239,6 +239,13 @@ class KernelState {
   friend class XObject;
 };
 
+enum : XNotificationID {
+  kXNotificationIDSystemUI = 0x00000009,
+  kXNotificationIDSystemSignInChanged = 0x0000000A,
+  kXNotificationIDSystemInputDevicesChanged = 0x00000012,
+  kXNotificationIDSystemInputDeviceConfigChanged = 0x00000013,
+};
+
 }  // namespace kernel
 }  // namespace xe
 

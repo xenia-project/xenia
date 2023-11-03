@@ -657,17 +657,19 @@ void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
   if (!has_notified_startup_ && listener->mask() & 0x00000001) {
     has_notified_startup_ = true;
     // XN_SYS_UI (on, off)
-    listener->EnqueueNotification(0x00000009, 1);
-    listener->EnqueueNotification(0x00000009, 0);
+    listener->EnqueueNotification(kXNotificationIDSystemUI, 1);
+    listener->EnqueueNotification(kXNotificationIDSystemUI, 0);
     // XN_SYS_SIGNINCHANGED x2
-    listener->EnqueueNotification(0x0000000A, 1);
-    listener->EnqueueNotification(0x0000000A, 1);
+    listener->EnqueueNotification(kXNotificationIDSystemSignInChanged, 1);
+    listener->EnqueueNotification(kXNotificationIDSystemSignInChanged, 1);
     // XN_SYS_INPUTDEVICESCHANGED x2
-    listener->EnqueueNotification(0x00000012, 0);
-    listener->EnqueueNotification(0x00000012, 0);
+    listener->EnqueueNotification(kXNotificationIDSystemSignInChanged, 0);
+    listener->EnqueueNotification(kXNotificationIDSystemSignInChanged, 0);
     // XN_SYS_INPUTDEVICECONFIGCHANGED x2
-    listener->EnqueueNotification(0x00000013, 0);
-    listener->EnqueueNotification(0x00000013, 0);
+    listener->EnqueueNotification(
+      kXNotificationIDSystemInputDeviceConfigChanged, 0);
+    listener->EnqueueNotification(
+      kXNotificationIDSystemInputDeviceConfigChanged, 0);
   }
 }
 
