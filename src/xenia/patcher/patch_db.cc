@@ -201,8 +201,7 @@ std::vector<PatchFileEntry> PatchDB::GetTitlePatches(
         bool hash_exist = std::find(entry.hashes.cbegin(), entry.hashes.cend(),
                                     hash) != entry.hashes.cend();
 
-        return entry.title_id == title_id &&
-               (entry.hashes.empty() || hash_exist);
+        return entry.title_id == title_id && hash_exist;
       });
 
   return title_patches;
