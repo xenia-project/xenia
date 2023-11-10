@@ -55,10 +55,10 @@ XObject::~XObject() {
   assert_zero(pointer_ref_count_);
 
   if (allocated_guest_object_) {
-    uint32_t ptr = guest_object_ptr_ - sizeof(X_OBJECT_HEADER);
-    auto header = memory()->TranslateVirtual<X_OBJECT_HEADER*>(ptr);
+    kernel_state()->object_table()->UnmapGuestObjectHostHandle(
+        guest_object_ptr_);
 
-    kernel_state()->object_table()->UnmapGuestObjectHostHandle(ptr);
+    const uint32_t ptr = guest_object_ptr_ - sizeof(X_OBJECT_HEADER);
     memory()->SystemHeapFree(ptr);
   }
 }
@@ -338,9 +338,6 @@ void XObject::SetNativePointer(uint32_t native_ptr, bool uninitialized) {
   // If hit: We've already setup the native ptr with CreateNative!
   assert_zero(guest_object_ptr_);
 
-  // Stash pointer in struct.
-  // FIXME: This assumes the object has a dispatch header (some don't!)
-  //StashHandle(header, handle());
   kernel_state()->object_table()->MapGuestObjectToHostHandle(native_ptr,
                                                              handle());
 
@@ -372,23 +369,15 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
   if (as_type == -1) {
     as_type = header->type;
   }
-  auto true_object_header =
-      kernel_state->memory()->TranslateVirtual<X_OBJECT_HEADER*>(guest_ptr-sizeof(X_OBJECT_HEADER));
 
   X_HANDLE host_handle;
   
-
   if (kernel_state->object_table()->HostHandleForGuestObject(guest_ptr, host_handle)) {
     // Already initialized.
     // TODO: assert if the type of the object != as_type
-    
-        
     result = kernel_state->object_table()
                  ->LookupObject<XObject>(host_handle, true)
                  .release();
-    goto return_result;
-    // TODO(benvanik): assert nothing has been changed in the struct.
-    // return object;
   } else {
     // First use, create new.
     // https://www.nirsoft.net/kernel_struct/vista/KOBJECTS.html
@@ -431,24 +420,19 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
       default:
         assert_always();
         result = nullptr;
-        goto return_result;
-
-        // return NULL;
     }
 
-    // Stash pointer in struct.
-    // FIXME: This assumes the object contains a dispatch header (some don't!)
-   // StashHandle(header, object->handle());
-    kernel_state->object_table()->MapGuestObjectToHostHandle(guest_ptr,
-                                                             object->handle());
-    result = object;
-
-  return_result:
-    if (!already_locked) {
-      global_critical_region::mutex().unlock();
+    if (object) {
+      kernel_state->object_table()->MapGuestObjectToHostHandle(
+          guest_ptr, object->handle());
+      result = object;
     }
-    return object_ref<XObject>(result);
   }
+
+  if (!already_locked) {
+    global_critical_region::mutex().unlock();
+  }
+  return object_ref<XObject>(result);
 }
 
 }  // namespace kernel
