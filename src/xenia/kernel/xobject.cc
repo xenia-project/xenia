@@ -323,11 +323,16 @@ uint8_t* XObject::CreateNative(uint32_t size) {
   SetNativePointer(mem + sizeof(X_OBJECT_HEADER), true);
 
   auto header = memory()->TranslateVirtual<X_OBJECT_HEADER*>(mem);
-  // todo: should check whether
   header->flags = OBJECT_HEADER_IS_TITLE_OBJECT;
   header->pointer_count = 1;
   header->handle_count = 0;
-  header->object_type_ptr = 0;
+
+  // Added to prevent having nullptr crashes on semaphore.
+  // This should probably work differently, but for now it is good enough (hopefully).
+  auto object_type = memory()->SystemHeapAlloc(sizeof(X_OBJECT_TYPE));
+  if (object_type) {
+    header->object_type_ptr = object_type;
+  }
 
   return memory()->TranslateVirtual(guest_object_ptr_);
 }
