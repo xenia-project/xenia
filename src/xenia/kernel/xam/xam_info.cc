@@ -21,6 +21,10 @@
 #include "xenia/kernel/xboxkrnl/xboxkrnl_threading.h"
 #include "xenia/kernel/xenumerator.h"
 #include "xenia/kernel/xthread.h"
+#include "xenia/ui/imgui_dialog.h"
+#include "xenia/ui/imgui_drawer.h"
+#include "xenia/ui/window.h"
+#include "xenia/ui/windowed_app_context.h"
 #include "xenia/xbox.h"
 
 #if XE_PLATFORM_WIN32
@@ -287,6 +291,24 @@ dword_result_t XamLoaderSetLaunchData_entry(lpvoid_t data, dword_t size) {
   loader_data.launch_data_present = size ? true : false;
   loader_data.launch_data.resize(size);
   std::memcpy(loader_data.launch_data.data(), data, size);
+
+  // Because we have no way to restart game while it is working. Remove as soon
+  // as possible.
+  const std::filesystem::path launch_data_dir = "launch_data";
+
+  std::filesystem::path file_path =
+      launch_data_dir /
+      fmt::format("{:08X}_launch_data.bin", kernel_state()->title_id());
+
+  if (!std::filesystem::exists(launch_data_dir)) {
+    std::filesystem::create_directories(launch_data_dir);
+  }
+
+  auto file = xe::filesystem::OpenFile(file_path, "wb+");
+  if (file) {
+    fwrite(loader_data.launch_data.data(), size, 1, file);
+    fclose(file);
+  }
   return 0;
 }
 DECLARE_XAM_EXPORT1(XamLoaderSetLaunchData, kNone, kSketchy);
@@ -342,6 +364,21 @@ void XamLoaderLaunchTitle_entry(lpstring_t raw_name_ptr, dword_t flags) {
             path);
       }
       loader_data.launch_path = path;
+    }
+
+    if (loader_data.launch_data_present) {
+      auto display_window = kernel_state()->emulator()->display_window();
+      auto imgui_drawer = kernel_state()->emulator()->imgui_drawer();
+
+      if (display_window && imgui_drawer) {
+        display_window->app_context().CallInUIThreadSynchronous(
+            [imgui_drawer]() {
+              xe::ui::ImGuiDialog::ShowMessageBox(
+                  imgui_drawer, "Title was restarted",
+                  "Title closed with new launch data. \nPlease close Xenia and "
+                  "start title again.");
+            });
+      }
     }
   } else {
     assert_always("Game requested exit to dashboard via XamLoaderLaunchTitle");
@@ -434,8 +471,8 @@ dword_result_t RtlSleep_entry(dword_t dwMilliseconds, dword_t bAlertable) {
                        ? LLONG_MAX
                        : static_cast<LONGLONG>(-10000) * dwMilliseconds;
 
-  X_STATUS result = xboxkrnl::KeDelayExecutionThread(MODE::UserMode, bAlertable,
-                                                     (uint64_t*)&delay, nullptr);
+  X_STATUS result = xboxkrnl::KeDelayExecutionThread(
+      MODE::UserMode, bAlertable, (uint64_t*)&delay, nullptr);
 
   // If the delay was interrupted by an APC, keep delaying the thread
   while (bAlertable && result == X_STATUS_ALERTED) {

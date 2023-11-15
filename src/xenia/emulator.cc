@@ -985,7 +985,26 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
       title_version_ = format_version(title_version);
     }
   }
- 
+
+  if (xam) {
+    const std::filesystem::path launch_data_dir = "launch_data";
+    const std::filesystem::path file_path =
+        launch_data_dir /
+        fmt::format("{:08X}_launch_data.bin", title_id_.value());
+
+    auto file = xe::filesystem::OpenFile(file_path, "rb");
+    if (file) {
+      XELOGI("Found launch_data for {}", title_name_);
+      const uint64_t file_size = std::filesystem::file_size(file_path);
+      xam->loader_data().launch_data_present = true;
+      xam->loader_data().launch_data.resize(file_size);
+      fread(xam->loader_data().launch_data.data(), file_size, 1, file);
+
+      fclose(file);
+    }
+  }
+
+
   // Try and load the resource database (xex only).
   if (module->title_id()) {
     auto title_id = fmt::format("{:08X}", module->title_id());
