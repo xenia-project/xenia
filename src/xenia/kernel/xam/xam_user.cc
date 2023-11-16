@@ -521,10 +521,10 @@ dword_result_t XamShowSigninUI_entry(dword_t unk, dword_t unk_mask) {
   // To fix game modes that display a 4 profile signin UI (even if playing
   // alone):
   // XN_SYS_SIGNINCHANGED
-  kernel_state()->BroadcastNotification(0x0000000A, 1);
+  kernel_state()->BroadcastNotification(kXNotificationIDSystemSignInChanged, 1);
   // Games seem to sit and loop until we trigger this notification:
   // XN_SYS_UI (off)
-  kernel_state()->BroadcastNotification(0x00000009, 0);
+  kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, 0);
   return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamShowSigninUI, kUserProfiles, kStub);

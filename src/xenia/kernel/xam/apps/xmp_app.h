@@ -46,6 +46,11 @@ class XmpApp : public App {
     // kNoRepeat = ?,
     kUnknown = 0,
   };
+  enum : XNotificationID {
+    kNotificationStateChanged = 0x0A000001,
+    kNotificationPlaybackBehaviorChanged = 0x0A000002,
+    kNotificationPlaybackControllerChanged = 0x0A000003,
+  };
   struct Song {
     enum class Format : uint32_t {
       kWma = 0,
@@ -92,10 +97,6 @@ class XmpApp : public App {
                                 uint32_t buffer_length) override;
 
  private:
-  static const uint32_t kMsgStateChanged = 0x0A000001;
-  static const uint32_t kMsgPlaybackBehaviorChanged = 0x0A000002;
-  static const uint32_t kMsgPlaybackControllerChanged = 0x0A000003;
-
   void OnStateChanged();
 
   State state_;
