@@ -2289,7 +2289,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         builder.addCapability(spv::CapabilityStencilExportEXT);
         output_fragment_stencil_ref =
             builder.createVariable(spv::NoPrecision, spv::StorageClassOutput,
-                                   type_uint, "gl_FragStencilRefARB");
+                                   type_int, "gl_FragStencilRefARB");
         builder.addDecoration(output_fragment_stencil_ref,
                               spv::DecorationBuiltIn,
                               spv::BuiltInFragStencilRefEXT);
