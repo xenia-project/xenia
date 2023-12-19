@@ -14,6 +14,7 @@
 #include <cstring>
 #include <vector>
 
+#include "xenia/kernel/achievement_manager.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
 
@@ -111,6 +112,66 @@ class XStaticEnumerator : public XStaticUntypedEnumerator {
     auto ptr = AppendItem();
     item.Write(ptr);
   }
+};
+
+class XAchievementEnumerator : public XEnumerator {
+ public:
+  struct AchievementDetails {
+    uint32_t id;
+    std::u16string label;
+    std::u16string description;
+    std::u16string unachieved;
+    uint32_t image_id;
+    uint32_t gamerscore;
+    struct {
+      uint32_t unk_0;
+      uint32_t unk_4;
+    } unlock_time;
+    uint32_t flags;
+  };
+
+  XAchievementEnumerator(KernelState* kernel_state, size_t items_per_enumerate,
+                         uint32_t flags)
+      : XEnumerator(
+            kernel_state, items_per_enumerate,
+            sizeof(X_ACHIEVEMENT_DETAILS) +
+                (!!(flags & 7) ? X_ACHIEVEMENT_DETAILS::kStringBufferSize : 0)),
+        flags_(flags) {}
+
+  void AppendItem(AchievementDetails item) {
+    items_.push_back(std::move(item));
+  }
+
+  uint32_t WriteItems(uint32_t buffer_ptr, uint8_t* buffer_data,
+                      uint32_t* written_count) override;
+
+ private:
+  struct StringBuffer {
+    uint32_t ptr;
+    uint8_t* data;
+    size_t remaining_bytes;
+  };
+
+  uint32_t AppendString(StringBuffer& sb, const std::u16string_view string) {
+    size_t count = string.length() + 1;
+    size_t size = count * sizeof(char16_t);
+    if (size > sb.remaining_bytes) {
+      assert_always();
+      return 0;
+    }
+    auto ptr = sb.ptr;
+    string_util::copy_and_swap_truncating(reinterpret_cast<char16_t*>(sb.data),
+                                          string, count);
+    sb.ptr += static_cast<uint32_t>(size);
+    sb.data += size;
+    sb.remaining_bytes -= size;
+    return ptr;
+  }
+
+ private:
+  uint32_t flags_;
+  std::vector<AchievementDetails> items_;
+  size_t current_item_ = 0;
 };
 
 }  // namespace kernel

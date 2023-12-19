@@ -78,5 +78,44 @@ uint32_t XStaticUntypedEnumerator::WriteItems(uint32_t buffer_ptr,
   return X_ERROR_SUCCESS;
 }
 
+uint32_t XAchievementEnumerator::WriteItems(uint32_t buffer_ptr,
+                                            uint8_t* buffer_data,
+                                            uint32_t* written_count) {
+  size_t count = std::min(items_.size() - current_item_, items_per_enumerate());
+  if (!count) {
+    return X_ERROR_NO_MORE_FILES;
+  }
+
+  size_t size = count * item_size();
+
+  auto details = reinterpret_cast<X_ACHIEVEMENT_DETAILS*>(buffer_data);
+  size_t string_offset = items_per_enumerate() * sizeof(X_ACHIEVEMENT_DETAILS);
+  auto string_buffer =
+      StringBuffer{buffer_ptr + static_cast<uint32_t>(string_offset),
+                   &buffer_data[string_offset],
+                   count * X_ACHIEVEMENT_DETAILS::kStringBufferSize};
+  for (size_t i = 0, o = current_item_; i < count; ++i, ++current_item_) {
+    const auto& item = items_[current_item_];
+    details[i].id = item.id;
+    details[i].label_ptr =
+        !!(flags_ & 1) ? AppendString(string_buffer, item.label) : 0;
+    details[i].description_ptr =
+        !!(flags_ & 2) ? AppendString(string_buffer, item.description) : 0;
+    details[i].unachieved_ptr =
+        !!(flags_ & 4) ? AppendString(string_buffer, item.unachieved) : 0;
+    details[i].image_id = item.image_id;
+    details[i].gamerscore = item.gamerscore;
+    details[i].unlock_time.unk_0 = item.unlock_time.unk_0;
+    details[i].unlock_time.unk_4 = item.unlock_time.unk_4;
+    details[i].flags = item.flags;
+  }
+
+  if (written_count) {
+    *written_count = static_cast<uint32_t>(count);
+  }
+
+  return X_ERROR_SUCCESS;
+}
+
 }  // namespace kernel
 }  // namespace xe
