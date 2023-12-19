@@ -174,6 +174,18 @@ class XAchievementEnumerator : public XEnumerator {
   size_t current_item_ = 0;
 };
 
+class XUserStatsEnumerator : public XEnumerator {
+ public:
+  XUserStatsEnumerator(KernelState* kernel_state, size_t items_per_enumerate)
+      : XEnumerator(kernel_state, items_per_enumerate, 0) {}
+
+  uint32_t WriteItems(uint32_t buffer_ptr, uint8_t* buffer_data,
+                      uint32_t* written_count) override;
+
+ private:
+  size_t current_item_ = 0;
+};
+
 }  // namespace kernel
 }  // namespace xe
 

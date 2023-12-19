@@ -117,5 +117,11 @@ uint32_t XAchievementEnumerator::WriteItems(uint32_t buffer_ptr,
   return X_ERROR_SUCCESS;
 }
 
+uint32_t XUserStatsEnumerator::WriteItems(uint32_t buffer_ptr,
+                                          uint8_t* buffer_data,
+                                          uint32_t* written_count) {
+  return X_ERROR_SUCCESS;
+}
+
 }  // namespace kernel
 }  // namespace xe

@@ -752,11 +752,11 @@ dword_result_t XamUserCreateStatsEnumerator_entry(
   }
 
   if (buffer_size_ptr) {
-    *buffer_size_ptr = sizeof(X_STATS_DETAILS) * stats_ptr->stats_amount;
+    *buffer_size_ptr = 0; // sizeof(X_STATS_DETAILS) * stats_ptr->stats_amount;
   }
 
-  auto e = object_ref<XStaticUntypedEnumerator>(
-      new XStaticUntypedEnumerator(kernel_state(), count, flags));
+  auto e = object_ref<XUserStatsEnumerator>(
+      new XUserStatsEnumerator(kernel_state(), 0));
   const X_STATUS result = e->Initialize(user_index, 0xFB, 0xB0023, 0xB0024, 0);
   if (XFAILED(result)) {
     return result;
