@@ -276,6 +276,14 @@ void EmulatorWindow::EmulatorWindowListener::OnKeyDown(ui::KeyEvent& e) {
   emulator_window_.OnKeyDown(e);
 }
 
+void EmulatorWindow::EmulatorWindowListener::OnMouseDown(ui::MouseEvent& e) {
+  emulator_window_.OnMouseDown(e);
+}
+
+void EmulatorWindow::EmulatorWindowListener::OnMouseUp(ui::MouseEvent& e) {
+  emulator_window_.OnMouseUp(e);
+}
+
 void EmulatorWindow::DisplayConfigGameConfigLoadCallback::PostGameConfigLoad() {
   emulator_window_.ApplyDisplayConfigForCvars();
 }
@@ -862,6 +870,40 @@ void EmulatorWindow::OnKeyDown(ui::KeyEvent& e) {
   }
 
   e.set_handled(true);
+}
+
+void EmulatorWindow::OnMouseDown(const ui::MouseEvent& e) {
+  ToggleFullscreenOnDoubleClick();
+}
+
+void EmulatorWindow::OnMouseUp(const ui::MouseEvent& e) {
+  last_mouse_up = steady_clock::now();
+}
+
+void EmulatorWindow::ToggleFullscreenOnDoubleClick() {
+  // this function tests if user has double clicked.
+  // if double click was achieved the fullscreen gets toggled
+  const auto now = steady_clock::now();  // current mouse event time
+  const int16_t mouse_down_max_threshold = 250;
+  const int16_t mouse_up_max_threshold = 250;
+  const int16_t mouse_up_down_max_delta = 100;
+  // max delta to prevent 'chaining' of double clicks with next mouse events
+
+  const auto last_mouse_down_delta = diff_in_ms(now, last_mouse_down);
+  if (last_mouse_down_delta >= mouse_down_max_threshold) {
+    last_mouse_down = now;
+    return;
+  }
+
+  const auto last_mouse_up_delta = diff_in_ms(now, last_mouse_up);
+  const auto mouse_event_deltas = diff_in_ms(last_mouse_up, last_mouse_down);
+  if (last_mouse_up_delta >= mouse_up_max_threshold) {
+    return;
+  }
+
+  if (mouse_event_deltas < mouse_up_down_max_delta) {
+    ToggleFullscreen();
+  }
 }
 
 void EmulatorWindow::FileDrop(const std::filesystem::path& path) {
