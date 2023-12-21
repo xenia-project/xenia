@@ -36,36 +36,38 @@ void AchievementManager::EarnAchievement(uint64_t xuid, uint32_t title_id,
   ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
 
   const util::XdbfGameData title_xdbf = kernel_state()->title_xdbf();
-  const std::vector<util::XdbfAchievementTableEntry> achievements =
-      title_xdbf.GetAchievements();
+  const util::XdbfAchievementTableEntry achievement =
+      title_xdbf.GetAchievement(achievement_id);
+
+  if (!achievement.id) {
+    return;
+  }
+
   const XLanguage title_language = title_xdbf.GetExistingLanguage(
       static_cast<XLanguage>(cvars::user_language));
 
-  for (const util::XdbfAchievementTableEntry& entry : achievements) {
-    if (entry.id == achievement_id) {
-      const std::string label =
-          title_xdbf.GetStringTableEntry(title_language, entry.label_id);
-      const std::string desc =
-          title_xdbf.GetStringTableEntry(title_language, entry.description_id);
+  const std::string label =
+      title_xdbf.GetStringTableEntry(title_language, achievement.label_id);
+  const std::string desc = title_xdbf.GetStringTableEntry(
+      title_language, achievement.description_id);
 
-      XELOGI("Achievement unlocked: {}", label);
-      const std::string description =
-          fmt::format("{}G - {}", entry.gamerscore, label);
+  XELOGI("Achievement unlocked: {}", label);
 
-      unlocked_achievements[achievement_id] = Clock::QueryHostSystemTime();
-      // Even if we disable popup we still should store info that this
-      // achievement was earned.
-      if (!cvars::show_achievement_notification) {
-        continue;
-      }
-
-      app_context.CallInUIThread([imgui_drawer, description]() {
-        new xe::ui::AchievementNotificationWindow(
-            imgui_drawer, "Achievement unlocked", description, 0,
-            kernel_state()->notification_position_);
-      });
-    }
+  unlocked_achievements[achievement_id] = Clock::QueryHostSystemTime();
+  // Even if we disable popup we still should store info that this
+  // achievement was earned.
+  if (!cvars::show_achievement_notification) {
+    return;
   }
+
+  const std::string description =
+      fmt::format("{}G - {}", achievement.gamerscore, label);
+
+  app_context.CallInUIThread([imgui_drawer, description]() {
+    new xe::ui::AchievementNotificationWindow(
+        imgui_drawer, "Achievement unlocked", description, 0,
+        kernel_state()->notification_position_);
+  });
 }
 
 bool AchievementManager::IsAchievementUnlocked(uint32_t achievement_id) {

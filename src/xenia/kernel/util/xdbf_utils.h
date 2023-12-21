@@ -62,19 +62,59 @@ struct XdbfXstc {
 };
 static_assert_size(XdbfXstc, 16);
 
-struct XdbfSectionHeader {
+struct XdbfXstrSectionHeader {
   xe::be<uint32_t> magic;
   xe::be<uint32_t> version;
   xe::be<uint32_t> size;
   xe::be<uint16_t> count;
 };
-static_assert_size(XdbfSectionHeader, 14);
+static_assert_size(XdbfXstrSectionHeader, 14);
+
+struct XdbfXprpSectionHeader {
+  xe::be<uint32_t> magic;
+  xe::be<uint32_t> version;
+  xe::be<uint32_t> size;
+  xe::be<uint16_t> count;
+};
+static_assert_size(XdbfXprpSectionHeader, 14);
+
+struct XdbfXachSectionHeader {
+  xe::be<uint32_t> magic;
+  xe::be<uint32_t> version;
+  xe::be<uint32_t> size;
+  xe::be<uint16_t> count;
+};
+static_assert_size(XdbfXachSectionHeader, 14);
+
+struct XdbfXcxtSectionHeader {
+  xe::be<uint32_t> magic;
+  xe::be<uint32_t> version;
+  xe::be<uint32_t> size;
+  xe::be<uint32_t> count;
+};
+static_assert_size(XdbfXcxtSectionHeader, 16);
 
 struct XdbfStringTableEntry {
   xe::be<uint16_t> id;
   xe::be<uint16_t> string_length;
 };
 static_assert_size(XdbfStringTableEntry, 4);
+
+struct XdbfContextTableEntry {
+  xe::be<uint32_t> id;
+  xe::be<uint16_t> unk1;
+  xe::be<uint16_t> string_id;
+  xe::be<uint32_t> unk2;
+  xe::be<uint32_t> unk3;
+};
+static_assert_size(XdbfContextTableEntry, 16);
+
+struct XdbfPropertyTableEntry {
+  xe::be<uint32_t> id;
+  xe::be<uint16_t> string_id;
+  xe::be<uint16_t> data_size;
+};
+static_assert_size(XdbfPropertyTableEntry, 8);
 
 struct XdbfAchievementTableEntry {
   xe::be<uint16_t> id;
@@ -117,6 +157,12 @@ class XdbfWrapper {
   // Returns the empty string if the entry is not found.
   std::string GetStringTableEntry(XLanguage language, uint16_t string_id) const;
   std::vector<XdbfAchievementTableEntry> GetAchievements() const;
+  std::vector<XdbfPropertyTableEntry> GetProperties() const;
+  std::vector<XdbfContextTableEntry> GetContexts() const;
+
+  XdbfAchievementTableEntry GetAchievement(const uint32_t id) const;
+  XdbfPropertyTableEntry GetProperty(const uint32_t id) const;
+  XdbfContextTableEntry GetContext(const uint32_t id) const;
 
  private:
   const uint8_t* data_ = nullptr;

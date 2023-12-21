@@ -17,10 +17,14 @@ constexpr fourcc_t kXdbfSignatureXdbf = make_fourcc("XDBF");
 constexpr fourcc_t kXdbfSignatureXstc = make_fourcc("XSTC");
 constexpr fourcc_t kXdbfSignatureXstr = make_fourcc("XSTR");
 constexpr fourcc_t kXdbfSignatureXach = make_fourcc("XACH");
+constexpr fourcc_t kXdbfSignatureXprp = make_fourcc("XPRP");
+constexpr fourcc_t kXdbfSignatureXcxt = make_fourcc("XCXT");
 
 constexpr uint64_t kXdbfIdTitle = 0x8000;
 constexpr uint64_t kXdbfIdXstc = 0x58535443;
 constexpr uint64_t kXdbfIdXach = 0x58414348;
+constexpr uint64_t kXdbfIdXprp = 0x58505250;
+constexpr uint64_t kXdbfIdXctx = 0x58435854;
 
 XdbfWrapper::XdbfWrapper(const uint8_t* data, size_t data_size)
     : data_(data), data_size_(data_size) {
@@ -69,11 +73,11 @@ std::string XdbfWrapper::GetStringTableEntry(XLanguage language,
   }
 
   auto xstr_head =
-      reinterpret_cast<const XdbfSectionHeader*>(language_block.buffer);
+      reinterpret_cast<const XdbfXstrSectionHeader*>(language_block.buffer);
   assert_true(xstr_head->magic == kXdbfSignatureXstr);
   assert_true(xstr_head->version == 1);
 
-  const uint8_t* ptr = language_block.buffer + sizeof(XdbfSectionHeader);
+  const uint8_t* ptr = language_block.buffer + sizeof(XdbfXstrSectionHeader);
   for (uint16_t i = 0; i < xstr_head->count; ++i) {
     auto entry = reinterpret_cast<const XdbfStringTableEntry*>(ptr);
     ptr += sizeof(XdbfStringTableEntry);
@@ -95,17 +99,97 @@ std::vector<XdbfAchievementTableEntry> XdbfWrapper::GetAchievements() const {
   }
 
   auto xach_head =
-      reinterpret_cast<const XdbfSectionHeader*>(achievement_table.buffer);
+      reinterpret_cast<const XdbfXachSectionHeader*>(achievement_table.buffer);
   assert_true(xach_head->magic == kXdbfSignatureXach);
   assert_true(xach_head->version == 1);
 
-  const uint8_t* ptr = achievement_table.buffer + sizeof(XdbfSectionHeader);
+  const uint8_t* ptr = achievement_table.buffer + sizeof(XdbfXachSectionHeader);
   for (uint16_t i = 0; i < xach_head->count; ++i) {
     auto entry = reinterpret_cast<const XdbfAchievementTableEntry*>(ptr);
     ptr += sizeof(XdbfAchievementTableEntry);
     achievements.push_back(*entry);
   }
   return achievements;
+}
+
+std::vector<XdbfPropertyTableEntry> XdbfWrapper::GetProperties() const {
+  std::vector<XdbfPropertyTableEntry> properties;
+
+  auto property_table = GetEntry(XdbfSection::kMetadata, kXdbfIdXprp);
+  if (!property_table) {
+    return properties;
+  }
+
+  auto xprp_head =
+      reinterpret_cast<const XdbfXprpSectionHeader*>(property_table.buffer);
+  assert_true(xprp_head->magic == kXdbfSignatureXprp);
+  assert_true(xprp_head->version == 1);
+
+  const uint8_t* ptr = property_table.buffer + sizeof(XdbfXprpSectionHeader);
+  for (uint16_t i = 0; i < xprp_head->count; ++i) {
+    auto entry = reinterpret_cast<const XdbfPropertyTableEntry*>(ptr);
+    ptr += sizeof(XdbfPropertyTableEntry);
+    properties.push_back(*entry);
+  }
+  return properties;
+}
+
+std::vector<XdbfContextTableEntry> XdbfWrapper::GetContexts() const {
+  std::vector<XdbfContextTableEntry> contexts;
+
+  auto contexts_table = GetEntry(XdbfSection::kMetadata, kXdbfIdXctx);
+  if (!contexts_table) {
+    return contexts;
+  }
+
+  auto xcxt_head =
+      reinterpret_cast<const XdbfXcxtSectionHeader*>(contexts_table.buffer);
+  assert_true(xcxt_head->magic == kXdbfSignatureXcxt);
+  assert_true(xcxt_head->version == 1);
+
+  const uint8_t* ptr = contexts_table.buffer + sizeof(XdbfXcxtSectionHeader);
+  for (uint16_t i = 0; i < xcxt_head->count; ++i) {
+    auto entry = reinterpret_cast<const XdbfContextTableEntry*>(ptr);
+    ptr += sizeof(XdbfContextTableEntry);
+    contexts.push_back(*entry);
+  }
+  return contexts;
+}
+
+XdbfAchievementTableEntry XdbfWrapper::GetAchievement(const uint32_t id) const {
+  const auto achievements = GetAchievements();
+
+  for (const auto& entry : achievements) {
+    if (entry.id != id) {
+      continue;
+    }
+    return entry;
+  }
+  return {};
+}
+
+XdbfPropertyTableEntry XdbfWrapper::GetProperty(const uint32_t id) const {
+  const auto properties = GetProperties();
+
+  for (const auto& entry : properties) {
+    if (entry.id != id) {
+      continue;
+    }
+    return entry;
+  }
+  return {};
+}
+
+XdbfContextTableEntry XdbfWrapper::GetContext(const uint32_t id) const {
+  const auto contexts = GetContexts();
+
+  for (const auto& entry : contexts) {
+    if (entry.id != id) {
+      continue;
+    }
+    return entry;
+  }
+  return {};
 }
 
 XLanguage XdbfGameData::GetExistingLanguage(XLanguage language_to_check) const {
