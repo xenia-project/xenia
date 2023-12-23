@@ -10,6 +10,7 @@
 #ifndef XENIA_KERNEL_XAM_USER_PROFILE_H_
 #define XENIA_KERNEL_XAM_USER_PROFILE_H_
 
+#include <map>
 #include <memory>
 #include <string>
 #include <unordered_map>
