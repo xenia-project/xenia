@@ -53,6 +53,11 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
             title_xdbf.GetStringTableEntry(title_language, context.string_id);
         XELOGD("XGIUserSetContextEx: {} - Set to value: {}", desc,
                context_value);
+
+        UserProfile* user_profile = kernel_state_->user_profile(user_index);
+        if (user_profile) {
+          user_profile->contexts_[context_id] = context_value;
+        }
       }
       return X_E_SUCCESS;
     }
@@ -155,6 +160,13 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
              context_ptr, context_id);
       uint32_t value = 0;
       if (context) {
+        UserProfile* user_profile = kernel_state_->user_profile(user_index);
+        if (user_profile) {
+          if (user_profile->contexts_.find(context_id) !=
+              user_profile->contexts_.cend()) {
+            value = user_profile->contexts_[context_id];
+          }
+        }
         xe::store_and_swap<uint32_t>(context + 4, value);
       }
       return X_E_FAIL;

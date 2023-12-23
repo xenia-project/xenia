@@ -232,6 +232,8 @@ class UserProfile {
   void AddSetting(std::unique_ptr<Setting> setting);
   Setting* GetSetting(uint32_t setting_id);
 
+  std::map<uint32_t, uint32_t> contexts_;
+
  private:
   uint64_t xuid_;
   std::string name_;
