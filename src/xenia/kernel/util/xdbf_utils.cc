@@ -8,6 +8,7 @@
  */
 
 #include "xenia/kernel/util/xdbf_utils.h"
+#include <map>
 
 namespace xe {
 namespace kernel {
@@ -19,12 +20,16 @@ constexpr fourcc_t kXdbfSignatureXstr = make_fourcc("XSTR");
 constexpr fourcc_t kXdbfSignatureXach = make_fourcc("XACH");
 constexpr fourcc_t kXdbfSignatureXprp = make_fourcc("XPRP");
 constexpr fourcc_t kXdbfSignatureXcxt = make_fourcc("XCXT");
+constexpr fourcc_t kXdbfSignatureXvc2 = make_fourcc("XVC2");
+constexpr fourcc_t kXdbfSignatureXmat = make_fourcc("XMAT");
 
 constexpr uint64_t kXdbfIdTitle = 0x8000;
 constexpr uint64_t kXdbfIdXstc = 0x58535443;
 constexpr uint64_t kXdbfIdXach = 0x58414348;
 constexpr uint64_t kXdbfIdXprp = 0x58505250;
 constexpr uint64_t kXdbfIdXctx = 0x58435854;
+constexpr uint64_t kXdbfIdXvc2 = 0x58564332;
+constexpr uint64_t kXdbfIdXmat = 0x584D4154;
 
 XdbfWrapper::XdbfWrapper(const uint8_t* data, size_t data_size)
     : data_(data), data_size_(data_size) {
@@ -73,12 +78,15 @@ std::string XdbfWrapper::GetStringTableEntry(XLanguage language,
   }
 
   auto xstr_head =
-      reinterpret_cast<const XdbfXstrSectionHeader*>(language_block.buffer);
+      reinterpret_cast<const XdbfSectionHeader*>(language_block.buffer);
   assert_true(xstr_head->magic == kXdbfSignatureXstr);
   assert_true(xstr_head->version == 1);
 
-  const uint8_t* ptr = language_block.buffer + sizeof(XdbfXstrSectionHeader);
-  for (uint16_t i = 0; i < xstr_head->count; ++i) {
+  const uint8_t* ptr = language_block.buffer + sizeof(XdbfSectionHeader);
+  const uint16_t string_count = xe::byte_swap<uint16_t>(*(uint16_t*)ptr);
+  ptr += sizeof(uint16_t);
+
+  for (uint16_t i = 0; i < string_count; ++i) {
     auto entry = reinterpret_cast<const XdbfStringTableEntry*>(ptr);
     ptr += sizeof(XdbfStringTableEntry);
     if (entry->id == string_id) {
@@ -99,12 +107,15 @@ std::vector<XdbfAchievementTableEntry> XdbfWrapper::GetAchievements() const {
   }
 
   auto xach_head =
-      reinterpret_cast<const XdbfXachSectionHeader*>(achievement_table.buffer);
+      reinterpret_cast<const XdbfSectionHeader*>(achievement_table.buffer);
   assert_true(xach_head->magic == kXdbfSignatureXach);
   assert_true(xach_head->version == 1);
 
-  const uint8_t* ptr = achievement_table.buffer + sizeof(XdbfXachSectionHeader);
-  for (uint16_t i = 0; i < xach_head->count; ++i) {
+  const uint8_t* ptr = achievement_table.buffer + sizeof(XdbfSectionHeader);
+  const uint16_t achievement_count = xe::byte_swap<uint16_t>(*(uint16_t*)ptr);
+  ptr += sizeof(uint16_t);
+
+  for (uint16_t i = 0; i < achievement_count; ++i) {
     auto entry = reinterpret_cast<const XdbfAchievementTableEntry*>(ptr);
     ptr += sizeof(XdbfAchievementTableEntry);
     achievements.push_back(*entry);
@@ -121,12 +132,15 @@ std::vector<XdbfPropertyTableEntry> XdbfWrapper::GetProperties() const {
   }
 
   auto xprp_head =
-      reinterpret_cast<const XdbfXprpSectionHeader*>(property_table.buffer);
+      reinterpret_cast<const XdbfSectionHeader*>(property_table.buffer);
   assert_true(xprp_head->magic == kXdbfSignatureXprp);
   assert_true(xprp_head->version == 1);
 
-  const uint8_t* ptr = property_table.buffer + sizeof(XdbfXprpSectionHeader);
-  for (uint16_t i = 0; i < xprp_head->count; ++i) {
+  const uint8_t* ptr = property_table.buffer + sizeof(XdbfSectionHeader);
+  const uint16_t properties_count = xe::byte_swap<uint16_t>(*(uint16_t*)ptr);
+  ptr += sizeof(uint16_t);
+
+  for (uint16_t i = 0; i < properties_count; i++) {
     auto entry = reinterpret_cast<const XdbfPropertyTableEntry*>(ptr);
     ptr += sizeof(XdbfPropertyTableEntry);
     properties.push_back(*entry);
@@ -143,17 +157,60 @@ std::vector<XdbfContextTableEntry> XdbfWrapper::GetContexts() const {
   }
 
   auto xcxt_head =
-      reinterpret_cast<const XdbfXcxtSectionHeader*>(contexts_table.buffer);
+      reinterpret_cast<const XdbfSectionHeader*>(contexts_table.buffer);
   assert_true(xcxt_head->magic == kXdbfSignatureXcxt);
   assert_true(xcxt_head->version == 1);
 
-  const uint8_t* ptr = contexts_table.buffer + sizeof(XdbfXcxtSectionHeader);
-  for (uint16_t i = 0; i < xcxt_head->count; ++i) {
+  const uint8_t* ptr = contexts_table.buffer + sizeof(XdbfSectionHeader);
+  const uint32_t contexts_count = xe::byte_swap<uint32_t>(*(uint32_t*)ptr);
+  ptr += sizeof(uint32_t);
+
+  for (uint32_t i = 0; i < contexts_count; i++) {
     auto entry = reinterpret_cast<const XdbfContextTableEntry*>(ptr);
     ptr += sizeof(XdbfContextTableEntry);
     contexts.push_back(*entry);
   }
   return contexts;
+}
+
+std::vector<XdbfViewTable> XdbfWrapper::GetStatsView() const {
+  std::vector<XdbfViewTable> entries;
+
+  auto stats_table = GetEntry(XdbfSection::kMetadata, kXdbfIdXvc2);
+  if (!stats_table) {
+    return entries;
+  }
+
+  auto xvc2_head =
+      reinterpret_cast<const XdbfSectionHeader*>(stats_table.buffer);
+  assert_true(xvc2_head->magic == kXdbfSignatureXvc2);
+  assert_true(xvc2_head->version == 1);
+
+  const uint8_t* ptr = stats_table.buffer + sizeof(XdbfSectionHeader);
+  const uint16_t shared_view_count = xe::byte_swap<uint16_t>(*(uint16_t*)ptr);
+  ptr += sizeof(uint16_t);
+
+  std::map<uint16_t, XdbfSharedView> shared_view_entries;
+  for (uint16_t i = 0; i < shared_view_count; i++) {
+    uint32_t byte_count = 0;
+    shared_view_entries.emplace(i, GetSharedView(ptr, byte_count));
+    ptr += byte_count;
+  }
+
+  const uint16_t views_count = xe::byte_swap(*(uint16_t*)ptr);
+  ptr += sizeof(uint16_t);
+
+  for (uint16_t i = 0; i < views_count; i++) {
+    auto stat = reinterpret_cast<const XdbfStatsViewTableEntry*>(
+        ptr + i * sizeof(XdbfStatsViewTableEntry));
+
+    XdbfViewTable table;
+    table.view_entry = *stat;
+    table.shared_view = shared_view_entries[stat->shared_index];
+    entries.push_back(table);
+  }
+
+  return entries;
 }
 
 XdbfAchievementTableEntry XdbfWrapper::GetAchievement(const uint32_t id) const {
@@ -190,6 +247,95 @@ XdbfContextTableEntry XdbfWrapper::GetContext(const uint32_t id) const {
     return entry;
   }
   return {};
+}
+
+XdbfSharedView XdbfWrapper::GetSharedView(const uint8_t* ptr,
+                                          uint32_t& byte_count) const {
+  XdbfSharedView shared_view;
+
+  byte_count += sizeof(XdbfSharedViewMetaTableEntry);
+  auto table_header =
+      reinterpret_cast<const XdbfSharedViewMetaTableEntry*>(ptr);
+  ptr += sizeof(XdbfSharedViewMetaTableEntry);
+
+  for (uint16_t i = 0; i < table_header->column_count - 1; i++) {
+    auto view_field = reinterpret_cast<const XdbfViewFieldEntry*>(
+        ptr + (i * sizeof(XdbfViewFieldEntry)));
+    shared_view.column_entries.push_back(*view_field);
+  }
+
+  // Move pointer forward to next data
+  ptr += (table_header->column_count * sizeof(XdbfViewFieldEntry));
+  byte_count += (table_header->column_count * sizeof(XdbfViewFieldEntry));
+
+  for (uint16_t i = 0; i < table_header->row_count - 1; i++) {
+    auto view_field = reinterpret_cast<const XdbfViewFieldEntry*>(
+        ptr + (i * sizeof(XdbfViewFieldEntry)));
+    shared_view.row_entries.push_back(*view_field);
+  }
+
+  ptr += (table_header->row_count * sizeof(XdbfViewFieldEntry));
+  byte_count += (table_header->row_count * sizeof(XdbfViewFieldEntry));
+
+  std::vector<xe::be<uint32_t>> contexts, properties;
+  GetPropertyBagMetadata(ptr, byte_count, contexts, properties);
+
+  shared_view.property_bag.contexts = contexts;
+  shared_view.property_bag.properties = properties;
+
+  return shared_view;
+}
+
+void XdbfWrapper::GetPropertyBagMetadata(
+    const uint8_t* ptr, uint32_t& byte_count,
+    std::vector<xe::be<uint32_t>>& contexts,
+    std::vector<xe::be<uint32_t>>& properties) const {
+  auto xpbm_header = reinterpret_cast<const XdbfSectionHeader*>(ptr);
+  ptr += sizeof(XdbfSectionHeader);
+
+  byte_count += sizeof(XdbfSectionHeader) + 2 * sizeof(uint32_t);
+
+  uint32_t context_count = xe::byte_swap<uint32_t>(*(uint32_t*)ptr);
+  ptr += sizeof(uint32_t);
+
+  uint32_t properties_count = xe::byte_swap<uint32_t>(*(uint32_t*)ptr);
+  ptr += sizeof(uint32_t);
+
+  contexts = std::vector<xe::be<uint32_t>>(context_count);
+  std::memcpy(contexts.data(), ptr, context_count * sizeof(uint32_t));
+
+  ptr += context_count * sizeof(uint32_t);
+
+  properties = std::vector<xe::be<uint32_t>>(properties_count);
+  std::memcpy(properties.data(), ptr, sizeof(uint32_t) * properties_count);
+
+  byte_count += (context_count + properties_count) * sizeof(uint32_t);
+}
+
+XdbfPropertyBag XdbfWrapper::GetMatchCollection() const {
+  XdbfPropertyBag property_bag;
+
+  auto stats_table = GetEntry(XdbfSection::kMetadata, kXdbfIdXmat);
+  if (!stats_table) {
+    return property_bag;
+  }
+
+  auto xvc2_head =
+      reinterpret_cast<const XdbfSectionHeader*>(stats_table.buffer);
+  assert_true(xvc2_head->magic == kXdbfSignatureXmat);
+  assert_true(xvc2_head->version == 1);
+
+  const uint8_t* ptr = stats_table.buffer + sizeof(XdbfSectionHeader);
+
+  std::vector<xe::be<uint32_t>> contexts, properties;
+  uint32_t byte_count = 0;
+
+  GetPropertyBagMetadata(ptr, byte_count, contexts, properties);
+
+  property_bag.contexts = contexts;
+  property_bag.properties = properties;
+
+  return property_bag;
 }
 
 XLanguage XdbfGameData::GetExistingLanguage(XLanguage language_to_check) const {
