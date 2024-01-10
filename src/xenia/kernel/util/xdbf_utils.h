@@ -196,6 +196,8 @@ class XdbfWrapper {
 
   XdbfPropertyBag GetMatchCollection() const;
 
+  const uint8_t* ReadXLast(uint32_t& compressed_size, uint32_t& decompressed_size) const;
+
  private:
   const uint8_t* data_ = nullptr;
   size_t data_size_ = 0;

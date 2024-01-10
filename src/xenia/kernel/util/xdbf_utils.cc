@@ -22,6 +22,7 @@ constexpr fourcc_t kXdbfSignatureXprp = make_fourcc("XPRP");
 constexpr fourcc_t kXdbfSignatureXcxt = make_fourcc("XCXT");
 constexpr fourcc_t kXdbfSignatureXvc2 = make_fourcc("XVC2");
 constexpr fourcc_t kXdbfSignatureXmat = make_fourcc("XMAT");
+constexpr fourcc_t kXdbfSignatureXsrc = make_fourcc("XSRC");
 
 constexpr uint64_t kXdbfIdTitle = 0x8000;
 constexpr uint64_t kXdbfIdXstc = 0x58535443;
@@ -30,6 +31,7 @@ constexpr uint64_t kXdbfIdXprp = 0x58505250;
 constexpr uint64_t kXdbfIdXctx = 0x58435854;
 constexpr uint64_t kXdbfIdXvc2 = 0x58564332;
 constexpr uint64_t kXdbfIdXmat = 0x584D4154;
+constexpr uint64_t kXdbfIdXsrc = 0x58535243;
 
 XdbfWrapper::XdbfWrapper(const uint8_t* data, size_t data_size)
     : data_(data), data_size_(data_size) {
@@ -211,6 +213,32 @@ std::vector<XdbfViewTable> XdbfWrapper::GetStatsView() const {
   }
 
   return entries;
+}
+
+const uint8_t* XdbfWrapper::ReadXLast(uint32_t& compressed_size,
+    uint32_t& decompressed_size) const {
+  auto xlast_table = GetEntry(XdbfSection::kMetadata, kXdbfIdXsrc);
+  if (!xlast_table) {
+    return nullptr;
+  }
+
+  auto xlast_head =
+      reinterpret_cast<const XdbfSectionHeader*>(xlast_table.buffer);
+  assert_true(xlast_head->magic == kXdbfSignatureXsrc);
+  assert_true(xlast_head->version == 1);
+
+  const uint8_t* ptr = xlast_table.buffer + sizeof(XdbfSectionHeader);
+
+  const uint32_t filename_length = xe::byte_swap(*(uint32_t*)ptr);
+  ptr += sizeof(uint32_t) + filename_length;
+
+  decompressed_size = xe::byte_swap(*(uint32_t*)ptr);
+  ptr += sizeof(uint32_t);
+
+  compressed_size = xe::byte_swap(*(uint32_t*)ptr);
+  ptr += sizeof(uint32_t);
+
+  return ptr;
 }
 
 XdbfAchievementTableEntry XdbfWrapper::GetAchievement(const uint32_t id) const {
