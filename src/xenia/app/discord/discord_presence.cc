@@ -29,7 +29,7 @@ void DiscordPresence::Initialize() {
   handlers.joinGame = &HandleDiscordJoinGame;
   handlers.joinRequest = &HandleDiscordJoinRequest;
   handlers.spectateGame = &HandleDiscordSpectateGame;
-  Discord_Initialize("616128086999695367", &handlers, 0, "");
+  Discord_Initialize("1193272084797849762", &handlers, 0, "");
 }
 
 void DiscordPresence::NotPlaying() {
