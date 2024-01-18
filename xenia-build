@@ -17,6 +17,7 @@ import re
 import shutil
 import subprocess
 import sys
+import stat
 
 __author__ = 'ben.vanik@gmail.com (Ben Vanik)'
 
@@ -1268,11 +1269,23 @@ class GenTestsCommand(Command):
         print('Generating test binaries...')
         print('')
 
-        binutils_path = os.path.join('third_party', 'binutils-ppc-cygwin')
+        if sys.platform == 'win32':
+            binutils_path = os.path.join('third_party', 'binutils-ppc-cygwin')
+        else:
+            binutils_path = os.path.join('third_party', 'binutils', 'bin')
         ppc_as = os.path.join(binutils_path, 'powerpc-none-elf-as')
         ppc_ld = os.path.join(binutils_path, 'powerpc-none-elf-ld')
         ppc_objdump = os.path.join(binutils_path, 'powerpc-none-elf-objdump')
         ppc_nm = os.path.join(binutils_path, 'powerpc-none-elf-nm')
+
+        if not os.path.exists(ppc_as) and sys.platform == 'linux':
+            print('Binaries are missing, binutils build required')
+            print('')
+            shell_script = os.path.join('third_party', 'binutils', 'build.sh')
+            # Set executable bit for build script before running it
+            os.chmod(shell_script, stat.S_IRUSR | stat.S_IWUSR |
+                     stat.S_IXUSR | stat.S_IRGRP | stat.S_IROTH)
+            shell_call([shell_script])
 
         test_src = os.path.join('src', 'xenia', 'cpu', 'ppc', 'testing')
         test_bin = os.path.join(test_src, 'bin')
