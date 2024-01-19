@@ -109,6 +109,7 @@ struct X_UNKNOWN_TYPE_REFED {
       points_to_prior;  // points to the previous field, which points to itself
 };
 static_assert_size(X_UNKNOWN_TYPE_REFED, 16);
+
 struct KernelGuestGlobals {
   X_OBJECT_TYPE ExThreadObjectType;
   X_OBJECT_TYPE ExEventObjectType;

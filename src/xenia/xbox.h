@@ -323,19 +323,6 @@ enum X_OBJECT_HEADER_FLAGS : uint16_t {
 
 };
 
-// https://www.nirsoft.net/kernel_struct/vista/OBJECT_HEADER.html
-struct X_OBJECT_HEADER {
-  xe::be<uint32_t> pointer_count;
-  xe::be<uint32_t> handle_count;
-  xe::be<uint32_t> object_type_ptr;  // -0x8 POBJECT_TYPE
-  xe::be<uint16_t> flags;
-  uint8_t unknownE;
-  uint8_t unknownF;
-  // Object lives after this header.
-  // (There's actually a body field here which is the object itself)
-};
-static_assert_size(X_OBJECT_HEADER, 0x10);
-
 struct X_OBJECT_DIRECTORY {
   // each is a pointer to X_OBJECT_HEADER_NAME_INFO
   // i believe offset 0 = pointer to next in bucket
@@ -351,11 +338,13 @@ struct X_OBJECT_HEADER_NAME_INFO {
   xe::be<uint32_t> object_directory;  // pointer to X_OBJECT_DIRECTORY
   X_ANSI_STRING name;
 };
+
 struct X_OBJECT_ATTRIBUTES {
   xe::be<uint32_t> root_directory;  // 0x0
   xe::be<uint32_t> name_ptr;        // 0x4 PANSI_STRING
   xe::be<uint32_t> attributes;      // 0xC
 };
+
 struct X_OBJECT_TYPE {
   xe::be<uint32_t> allocate_proc;  // 0x0
   xe::be<uint32_t> free_proc;      // 0x4
