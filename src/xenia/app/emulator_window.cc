@@ -1613,8 +1613,8 @@ void EmulatorWindow::LoadRecentlyLaunchedTitles() {
   try {
     cpptoml::parser p(file);
     parsed_file = p.parse();
-  } catch (cpptoml::parse_exception exception) {
-    // TODO(Gliniak): Better handling of errors, but good enough for now.
+  } catch (cpptoml::parse_exception& exception) {
+    XELOGE("Cannot parse file: recent.toml. Error: {}", exception.what());
     return;
   }
 

@@ -1213,7 +1213,7 @@ void KernelState::InitializeKernelGuestGlobals() {
 
   KernelGuestGlobals* block =
       memory_->TranslateVirtual<KernelGuestGlobals*>(kernel_guest_globals_);
-  memset(block, 0, sizeof(block));
+  memset(block, 0, sizeof(KernelGuestGlobals));
 
   auto idle_process = memory()->TranslateVirtual<X_KPROCESS*>(GetIdleProcess());
   InitializeProcess(idle_process, X_PROCTYPE_IDLE, 0, 0, 0);

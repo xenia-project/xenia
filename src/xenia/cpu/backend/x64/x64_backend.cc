@@ -1172,7 +1172,7 @@ void* X64HelperEmitter::EmitVectorVRsqrteHelper(void* scalar_helper) {
   vshufps(xmm0, xmm0,xmm0, _MM_SHUFFLE(3, 3, 3, 3));
   call(scalar_helper);
   // this->DebugBreak();
-  vinsertps(xmm0, xmm0, (3 << 4) | (0 << 6));
+  vinsertps(xmm0, xmm0, (3 << 4));
 
   vblendps(xmm0, xmm0, ptr[backend()->LookupXMMConstantAddress(XMMFloatInf)],
            0b0111);

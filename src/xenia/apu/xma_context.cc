@@ -385,7 +385,6 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
       data->input_buffer_0_packet_count * kBytesPerPacket;
   size_t input_buffer_1_size =
       data->input_buffer_1_packet_count * kBytesPerPacket;
-  size_t input_total_size = input_buffer_0_size + input_buffer_1_size;
 
   size_t current_input_size =
       data->current_buffer ? input_buffer_1_size : input_buffer_0_size;
@@ -420,7 +419,6 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
   assert_false(data->stop_when_done);
   assert_false(data->interrupt_when_done);
   static int total_samples = 0;
-  bool reuse_input_buffer = false;
   // Decode until we can't write any more data.
   while (output_remaining_bytes > 0) {
     if (!data->input_buffer_0_valid && !data->input_buffer_1_valid) {
@@ -429,7 +427,7 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
     }
     // Setup the input buffer if we are at loop_end.
     // The input buffer must not be swapped out until all loops are processed.
-    reuse_input_buffer = TrySetupNextLoop(data, false);
+    bool reuse_input_buffer = TrySetupNextLoop(data, false);
 
     // assert_true(packets_skip_ == 0);
     // assert_true(split_frame_len_ == 0);

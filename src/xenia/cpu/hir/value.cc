@@ -1593,7 +1593,6 @@ void Value::VectorAverage(Value* other, TypeName type, bool is_unsigned,
 void Value::ByteSwap() {
   switch (type) {
     case INT8_TYPE:
-      constant.i8 = constant.i8;
       break;
     case INT16_TYPE:
       constant.i16 = xe::byte_swap(constant.i16);

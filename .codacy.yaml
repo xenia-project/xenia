@@ -5,3 +5,4 @@ exclude_paths:
   - 'docs/**'
   - 'android/**'
   - '**.md'
+  - 'src/xenia/gpu/shaders/**'

@@ -118,7 +118,7 @@ static uint64_t convertUnixtimeToWinFiletime(time_t unixtime) {
   // so we convert linux time to nanoseconds and then add the number of
   // nanoseconds from 1601 to 1970
   // see https://msdn.microsoft.com/en-us/library/ms724228
-  uint64_t filetime = filetime = (unixtime * 10000000) + 116444736000000000;
+  uint64_t filetime = (unixtime * 10000000) + 116444736000000000;
   return filetime;
 }
 

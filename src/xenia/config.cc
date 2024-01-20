@@ -61,7 +61,7 @@ std::shared_ptr<cpptoml::table> ParseConfig(
     const std::filesystem::path& config_path) {
   try {
     return ParseFile(config_path);
-  } catch (cpptoml::parse_exception e) {
+  } catch (cpptoml::parse_exception& e) {
     xe::FatalError(fmt::format("Failed to parse config file '{}':\n\n{}",
                                xe::path_to_utf8(config_path), e.what()));
     return nullptr;
