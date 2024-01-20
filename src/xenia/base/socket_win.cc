@@ -36,7 +36,7 @@ class Win32Socket : public Socket {
   Win32Socket() = default;
   ~Win32Socket() override { Close(); }
 
-  bool Connect(std::string hostname, uint16_t port) {
+  bool Connect(std::string& hostname, uint16_t port) {
     addrinfo hints = {0};
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;

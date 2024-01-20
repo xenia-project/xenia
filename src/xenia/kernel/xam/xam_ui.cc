@@ -209,8 +209,8 @@ DECLARE_XAM_EXPORT2(XamIsUIActive, kUI, kImplemented, kHighFrequency);
 
 class MessageBoxDialog : public XamDialog {
  public:
-  MessageBoxDialog(xe::ui::ImGuiDrawer* imgui_drawer, std::string title,
-                   std::string description, std::vector<std::string> buttons,
+  MessageBoxDialog(xe::ui::ImGuiDrawer* imgui_drawer, std::string& title,
+                   std::string& description, std::vector<std::string> buttons,
                    uint32_t default_button)
       : XamDialog(imgui_drawer),
         title_(title),
@@ -349,6 +349,7 @@ dword_result_t XNotifyQueueUI_entry(dword_t exnq, dword_t dwUserIndex,
                                     qword_t qwAreas,
                                     lpu16string_t displayText_ptr,
                                     lpvoid_t contextData) {
+  std::string title_text = "XNotifyQueueUI";
   std::string displayText = "";
 
   if (displayText_ptr) {
@@ -372,8 +373,7 @@ dword_result_t XNotifyQueueUI_entry(dword_t exnq, dword_t dwUserIndex,
   ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
 
   xeXamDispatchDialog<MessageBoxDialog>(
-      new MessageBoxDialog(imgui_drawer, "XNotifyQueueUI", displayText, buttons,
-                           0),
+      new MessageBoxDialog(imgui_drawer, title_text, displayText, buttons, 0),
       close, false);
 
   // XNotifyQueueUI -> XNotifyQueueUIEx -> XMsgProcessRequest ->
@@ -384,8 +384,8 @@ DECLARE_XAM_EXPORT1(XNotifyQueueUI, kUI, kSketchy);
 
 class KeyboardInputDialog : public XamDialog {
  public:
-  KeyboardInputDialog(xe::ui::ImGuiDrawer* imgui_drawer, std::string title,
-                      std::string description, std::string default_text,
+  KeyboardInputDialog(xe::ui::ImGuiDrawer* imgui_drawer, std::string& title,
+                      std::string& description, std::string& default_text,
                       size_t max_length)
       : XamDialog(imgui_drawer),
         title_(title),
@@ -542,14 +542,16 @@ void XamShowDirtyDiscErrorUI_entry(dword_t user_index) {
     exit(1);
     return;
   }
+
+  std::string title = "Disc Read Error";
+  std::string desc =
+      "There's been an issue reading content from the game disc.\nThis is "
+      "likely caused by bad or unimplemented file IO calls.";
+
   const Emulator* emulator = kernel_state()->emulator();
   ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
   xeXamDispatchDialog<MessageBoxDialog>(
-      new MessageBoxDialog(
-          imgui_drawer, "Disc Read Error",
-          "There's been an issue reading content from the game disc.\nThis is "
-          "likely caused by bad or unimplemented file IO calls.",
-          {"OK"}, 0),
+      new MessageBoxDialog(imgui_drawer, title, desc, {"OK"}, 0),
       [](MessageBoxDialog*) -> X_RESULT { return X_ERROR_SUCCESS; }, 0);
   // This is death, and should never return.
   // TODO(benvanik): cleaner exit.

@@ -125,7 +125,7 @@ std::vector<uint64_t> PluginLoader::GetHashes(
     const auto arr = toml_entry->as_array();
 
     for (cpptoml::array::const_iterator itr = arr->begin(); itr != arr->end();
-         itr++) {
+         ++itr) {
       const std::string hash_entry = itr->get()->as<std::string>()->get();
       hashes.push_back(strtoull(hash_entry.c_str(), NULL, 16));
     }
