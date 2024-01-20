@@ -434,7 +434,9 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
     }
     // Stash pointer in struct.
     // FIXME: This assumes the object contains a dispatch header (some don't!)
-    StashHandle(header, object->handle());
+    if (object) {
+      StashHandle(header, object->handle());
+    }
     result = object;
   }
 
