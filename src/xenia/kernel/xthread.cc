@@ -268,9 +268,6 @@ bool XThread::AllocateStack(uint32_t size) {
   stack_limit_ = address + (padding / 2);
   stack_base_ = stack_limit_ + size;
 
-  // Initialize the stack with junk. 0x42 because you know
-  memory()->Fill(stack_alloc_base_, actual_size, 0x42);
-
   // Setup the guard pages
   heap->Protect(stack_alloc_base_, padding / 2, kMemoryProtectNoAccess);
   heap->Protect(stack_base_, padding / 2, kMemoryProtectNoAccess);
