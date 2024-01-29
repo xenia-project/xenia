@@ -268,6 +268,10 @@ X_STATUS XFile::Write(uint32_t buffer_guest_address, uint32_t buffer_length,
 }
 
 X_STATUS XFile::SetLength(size_t length) { return file_->SetLength(length); }
+X_STATUS XFile::Rename(const std::filesystem::path file_path) {
+  entry()->Rename(file_path);
+  return X_STATUS_SUCCESS;
+}
 
 void XFile::RegisterIOCompletionPort(uint32_t key,
                                      object_ref<XIOCompletion> port) {

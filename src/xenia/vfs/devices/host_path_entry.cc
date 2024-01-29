@@ -15,6 +15,7 @@
 #include "xenia/base/math.h"
 #include "xenia/base/string.h"
 #include "xenia/vfs/device.h"
+#include "xenia/vfs/devices/host_path_device.h"
 #include "xenia/vfs/devices/host_path_file.h"
 
 namespace xe {
@@ -108,6 +109,15 @@ bool HostPathEntry::DeleteEntryInternal(Entry* entry) {
            (!std::filesystem::exists(full_path) ||
             std::filesystem::remove(full_path, ec));
   }
+}
+
+void HostPathEntry::RenameEntryInternal(const std::filesystem::path file_path) {
+  const std::string new_host_path_ = xe::utf8::join_paths(
+      xe::path_to_utf8(((HostPathDevice*)device_)->host_path()),
+      xe::path_to_utf8(file_path));
+
+  std::filesystem::rename(host_path_, new_host_path_);
+  host_path_ = new_host_path_;
 }
 
 void HostPathEntry::update() {

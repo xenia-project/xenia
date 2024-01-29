@@ -73,6 +73,62 @@ class X_FILE_DIRECTORY_INFORMATION {
   }
 };
 
+static bool IsValidPath(const std::string_view s, bool is_pattern) {
+  // TODO(gibbed): validate path components individually
+  bool got_asterisk = false;
+  for (const auto& c : s) {
+    if (c <= 31 || c >= 127) {
+      return false;
+    }
+    if (got_asterisk) {
+      // * must be followed by a . (*.)
+      //
+      // 4D530819 has a bug in its game code where it attempts to
+      // FindFirstFile() with filters of "Game:\\*_X3.rkv", "Game:\\m*_X3.rkv",
+      // and "Game:\\w*_X3.rkv" and will infinite loop if the path filter is
+      // allowed.
+      if (c != '.') {
+        return false;
+      }
+      got_asterisk = false;
+    }
+    switch (c) {
+      case '"':
+      // case '*':
+      case '+':
+      case ',':
+      // case ':':
+      case ';':
+      case '<':
+      case '=':
+      case '>':
+      // case '?':
+      case '|': {
+        return false;
+      }
+      case '*': {
+        // Pattern-specific (for NtQueryDirectoryFile)
+        if (!is_pattern) {
+          return false;
+        }
+        got_asterisk = true;
+        break;
+      }
+      case '?': {
+        // Pattern-specific (for NtQueryDirectoryFile)
+        if (!is_pattern) {
+          return false;
+        }
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+  }
+  return true;
+}
+
 class XFile : public XObject {
  public:
   static const XObject::Type kObjectType = XObject::Type::File;
@@ -110,6 +166,7 @@ class XFile : public XObject {
                  uint32_t apc_context);
 
   X_STATUS SetLength(size_t length);
+  X_STATUS Rename(const std::filesystem::path file_path);
 
   void RegisterIOCompletionPort(uint32_t key, object_ref<XIOCompletion> port);
   void RemoveIOCompletionPort(uint32_t key);

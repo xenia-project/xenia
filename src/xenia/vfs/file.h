@@ -45,6 +45,9 @@ class File {
   }
 
   virtual X_STATUS SetLength(size_t length) { return X_STATUS_NOT_IMPLEMENTED; }
+  virtual X_STATUS Rename(const std::filesystem::path file_path) {
+    return X_STATUS_NOT_IMPLEMENTED;
+  }
 
   // xe::filesystem::FileAccess
   uint32_t file_access() const { return file_access_; }

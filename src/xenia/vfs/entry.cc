@@ -133,5 +133,22 @@ void Entry::Touch() {
   // TODO(benvanik): update timestamps.
 }
 
+void Entry::Rename(const std::filesystem::path file_path) {
+  std::vector<std::string_view> splitted_path =
+      xe::utf8::split_path(xe::path_to_utf8(file_path));
+
+  splitted_path.erase(splitted_path.begin());
+
+  const std::string guest_path_without_root =
+      xe::utf8::join_guest_paths(splitted_path);
+
+  RenameEntryInternal(guest_path_without_root);
+
+  absolute_path_ = xe::utf8::join_guest_paths(device_->mount_path(),
+                                              guest_path_without_root);
+  path_ = guest_path_without_root;
+  name_ = xe::path_to_utf8(file_path.filename());
+}
+
 }  // namespace vfs
 }  // namespace xe

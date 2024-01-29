@@ -111,6 +111,7 @@ class Entry {
   bool Delete();
   void Touch();
 
+  void Rename(const std::filesystem::path file_path);
   // If successful, out_file points to a new file. When finished, call
   // file->Destroy()
   virtual X_STATUS Open(uint32_t desired_access, File** out_file) = 0;
@@ -131,6 +132,7 @@ class Entry {
     return nullptr;
   }
   virtual bool DeleteEntryInternal(Entry* entry) { return false; }
+  virtual void RenameEntryInternal(const std::filesystem::path file_path) {}
 
   xe::global_critical_region global_critical_region_;
   Device* device_;

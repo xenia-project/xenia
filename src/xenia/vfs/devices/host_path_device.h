@@ -40,6 +40,10 @@ class HostPathDevice : public Device {
   uint32_t sectors_per_allocation_unit() const override { return 1; }
   uint32_t bytes_per_sector() const override { return 0x200; }
 
+ protected:
+  friend class HostPathEntry;
+  std::filesystem::path host_path() const { return host_path_; }
+
  private:
   void PopulateEntry(HostPathEntry* parent_entry);
 
