@@ -816,6 +816,41 @@ struct VECTOR_SHL_V128
       }
       e.lea(e.GetNativeParam(1), e.StashConstantXmm(1, i.src2.constant()));
     } else {
+      // gf2p8mulb's "x8 + x4 + x3 + x + 1"-polynomial-reduction only
+      // applies when the multiplication overflows. Masking away any bits
+      // that would have overflowed turns the polynomial-multiplication into
+      // regular modulo-multiplication
+      const uint64_t shift_mask = UINT64_C(0x01'03'07'0f'1f'3f'7f'ff);
+      // n << 0 == n * 1 | n << 1 == n * 2 | n << 2 == n * 4 | etc
+      const uint64_t multiply_table = UINT64_C(0x80'40'20'10'08'04'02'01);
+
+      if (e.IsFeatureEnabled(kX64EmitGFNI | kX64EmitAVX512Ortho |
+                             kX64EmitAVX512VBMI)) {
+        e.LoadConstantXmm(e.xmm0, vec128q(shift_mask, shift_mask));
+        e.vpermb(e.xmm0, i.src2, e.xmm0);
+        e.vpand(e.xmm0, i.src1, e.xmm0);
+
+        e.LoadConstantXmm(e.xmm1, vec128q(multiply_table, multiply_table));
+        e.vpermb(e.xmm1, i.src2, e.xmm1);
+
+        e.vgf2p8mulb(i.dest, e.xmm0, e.xmm1);
+        return;
+      } else if (e.IsFeatureEnabled(kX64EmitGFNI)) {
+        // Only use the lower 4 bits
+        // This also protects from vpshufb from writing zero when the MSB is set
+        e.LoadConstantXmm(e.xmm0, vec128b(0x0F));
+        e.vpand(e.xmm2, i.src2, e.xmm0);
+
+        e.LoadConstantXmm(e.xmm0, vec128q(shift_mask, shift_mask));
+        e.vpshufb(e.xmm0, e.xmm0, e.xmm2);
+        e.vpand(e.xmm0, i.src1, e.xmm0);
+
+        e.LoadConstantXmm(e.xmm1, vec128q(multiply_table, multiply_table));
+        e.vpshufb(e.xmm1, e.xmm1, e.xmm2);
+
+        e.vgf2p8mulb(i.dest, e.xmm0, e.xmm1);
+        return;
+      }
       e.lea(e.GetNativeParam(1), e.StashXmm(1, i.src2));
     }
     e.lea(e.GetNativeParam(0), e.StashXmm(0, i.src1));
