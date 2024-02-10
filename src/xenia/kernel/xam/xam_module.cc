@@ -63,6 +63,82 @@ void XamModule::RegisterExportTable(xe::cpu::ExportResolver* export_resolver) {
 
 XamModule::~XamModule() {}
 
+void XamModule::LoadLoaderData() {
+  FILE* file = xe::filesystem::OpenFile(kXamModuleLoaderDataFileName, "rb");
+
+  if (!file) {
+    loader_data_.launch_data_present = false;
+    return;
+  }
+
+  loader_data_.launch_data_present = true;
+
+  auto string_read = [file]() {
+    uint16_t string_size = 0;
+    fread(&string_size, sizeof(string_size), 1, file);
+
+    std::string result_string;
+    result_string.resize(string_size);
+    fread(result_string.data(), string_size, 1, file);
+    return result_string;
+  };
+
+  loader_data_.host_path = string_read();
+  loader_data_.launch_path = string_read();
+
+  fread(&loader_data_.launch_flags, sizeof(loader_data_.launch_flags), 1, file);
+
+  uint16_t launch_data_size = 0;
+  fread(&launch_data_size, sizeof(launch_data_size), 1, file);
+
+  if (launch_data_size > 0) {
+    loader_data_.launch_data.resize(launch_data_size);
+    fread(loader_data_.launch_data.data(), launch_data_size, 1, file);
+  }
+
+  fclose(file);
+  // We read launch data. Let's remove it till next request.
+  std::filesystem::remove(kXamModuleLoaderDataFileName);
+}
+
+void XamModule::SaveLoaderData() {
+  FILE* file = xe::filesystem::OpenFile(kXamModuleLoaderDataFileName, "wb");
+
+  if (!file) {
+    return;
+  }
+
+  std::filesystem::path host_path = loader_data_.host_path;
+  if (host_path.extension() == ".xex") {
+    host_path.remove_filename();
+    host_path = host_path / loader_data_.launch_path;
+    loader_data_.launch_path = "";
+  }
+
+  const std::string host_path_as_string = xe::path_to_utf8(host_path);
+  const uint16_t host_path_length =
+      static_cast<uint16_t>(host_path_as_string.size());
+
+  fwrite(&host_path_length, sizeof(host_path_length), 1, file);
+  fwrite(host_path_as_string.c_str(), host_path_length, 1, file);
+
+  const uint16_t launch_path_length =
+      static_cast<uint16_t>(loader_data_.launch_path.size());
+  fwrite(&launch_path_length, sizeof(launch_path_length), 1, file);
+  fwrite(loader_data_.launch_path.c_str(), launch_path_length, 1, file);
+
+  fwrite(&loader_data_.launch_flags, sizeof(loader_data_.launch_flags), 1,
+         file);
+
+  const uint16_t launch_data_size =
+      static_cast<uint16_t>(loader_data_.launch_data.size());
+  fwrite(&launch_data_size, sizeof(launch_data_size), 1, file);
+
+  fwrite(loader_data_.launch_data.data(), launch_data_size, 1, file);
+
+  fclose(file);
+}
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe

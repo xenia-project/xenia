@@ -34,6 +34,7 @@
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/hid/input_system.h"
+#include "xenia/kernel/xam/xam_module.h"
 #include "xenia/ui/file_picker.h"
 #include "xenia/ui/graphics_provider.h"
 #include "xenia/ui/imgui_dialog.h"
@@ -1451,7 +1452,7 @@ void EmulatorWindow::ToggleGPUSetting(gpu_cvar value) {
   switch (value) {
     case gpu_cvar::ClearMemoryPageState:
       CommonSaveGPUSetting(CommonGPUSetting::ClearMemoryPageState,
-                          !cvars::clear_memory_page_state);
+                           !cvars::clear_memory_page_state);
       break;
     case gpu_cvar::ReadbackResolve:
       D3D12SaveGPUSetting(D3D12GPUSetting::ReadbackResolve,
@@ -1575,6 +1576,12 @@ xe::X_STATUS EmulatorWindow::RunTitle(std::filesystem::path path_to_file) {
         "Failed to launch title.\n\nCheck xenia.log for technical details.");
   } else {
     AddRecentlyLaunchedTitle(path_to_file, emulator_->title_name());
+
+    auto xam =
+        emulator_->kernel_state()->GetKernelModule<kernel::xam::XamModule>(
+            "xam.xex");
+
+    xam->loader_data().host_path = xe::path_to_utf8(abs_path);
   }
 
   return result;

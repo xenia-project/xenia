@@ -291,24 +291,6 @@ dword_result_t XamLoaderSetLaunchData_entry(lpvoid_t data, dword_t size) {
   loader_data.launch_data_present = size ? true : false;
   loader_data.launch_data.resize(size);
   std::memcpy(loader_data.launch_data.data(), data, size);
-
-  // Because we have no way to restart game while it is working. Remove as soon
-  // as possible.
-  const std::filesystem::path launch_data_dir = "launch_data";
-
-  std::filesystem::path file_path =
-      launch_data_dir /
-      fmt::format("{:08X}_launch_data.bin", kernel_state()->title_id());
-
-  if (!std::filesystem::exists(launch_data_dir)) {
-    std::filesystem::create_directories(launch_data_dir);
-  }
-
-  auto file = xe::filesystem::OpenFile(file_path, "wb+");
-  if (file) {
-    fwrite(loader_data.launch_data.data(), size, 1, file);
-    fclose(file);
-  }
   return 0;
 }
 DECLARE_XAM_EXPORT1(XamLoaderSetLaunchData, kNone, kSketchy);
@@ -357,14 +339,11 @@ void XamLoaderLaunchTitle_entry(lpstring_t raw_name_ptr, dword_t flags) {
     if (path.empty()) {
       loader_data.launch_path = "game:\\default.xex";
     } else {
-      if (xe::utf8::find_name_from_guest_path(path) == path) {
-        path = xe::utf8::join_guest_paths(
-            xe::utf8::find_base_guest_path(
-                kernel_state()->GetExecutableModule()->path()),
-            path);
-      }
-      loader_data.launch_path = path;
+      loader_data.launch_path = xe::path_to_utf8(path);
+      loader_data.launch_data_present = true;
     }
+
+    xam->SaveLoaderData();
 
     if (loader_data.launch_data_present) {
       auto display_window = kernel_state()->emulator()->display_window();
@@ -375,8 +354,8 @@ void XamLoaderLaunchTitle_entry(lpstring_t raw_name_ptr, dword_t flags) {
             [imgui_drawer]() {
               xe::ui::ImGuiDialog::ShowMessageBox(
                   imgui_drawer, "Title was restarted",
-                  "Title closed with new launch data. \nPlease close Xenia and "
-                  "start title again.");
+                  "Title closed with new launch data. \nPlease restart Xenia. "
+                  "Game will be loaded automatically.");
             });
       }
     }

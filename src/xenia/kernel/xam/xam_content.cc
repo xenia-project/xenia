@@ -14,10 +14,13 @@
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_content_device.h"
+#include "xenia/kernel/xam/xam_module.h"
 #include "xenia/kernel/xam/xam_private.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_threading.h"
 #include "xenia/kernel/xenumerator.h"
+#include "xenia/ui/imgui_dialog.h"
+#include "xenia/ui/imgui_drawer.h"
 #include "xenia/xbox.h"
 
 DEFINE_int32(
@@ -497,6 +500,50 @@ dword_result_t XamLoaderGetMediaInfoEx_entry(dword_t unk1, dword_t unk2,
 }
 
 DECLARE_XAM_EXPORT1(XamLoaderGetMediaInfoEx, kContent, kStub);
+
+dword_result_t XamContentLaunchImageFromFileInternal_entry(
+    lpstring_t image_location, lpstring_t xex_name, dword_t unk) {
+  const std::string image_path = image_location;
+  const std::string xex_name_ = xex_name;
+
+  vfs::Entry* entry = kernel_state()->file_system()->ResolvePath(image_path);
+
+  if (!entry) {
+    return 0;
+  }
+
+  const std::filesystem::path host_path =
+      kernel_state()->emulator()->content_root() / entry->name();
+  if (!std::filesystem::exists(host_path)) {
+    vfs::VirtualFileSystem::ExtractContentFile(
+        entry, kernel_state()->emulator()->content_root(), true);
+  }
+
+  auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
+
+  auto& loader_data = xam->loader_data();
+  loader_data.host_path = xe::path_to_utf8(host_path);
+  loader_data.launch_path = xex_name_;
+
+  xam->SaveLoaderData();
+
+  auto display_window = kernel_state()->emulator()->display_window();
+  auto imgui_drawer = kernel_state()->emulator()->imgui_drawer();
+
+  if (display_window && imgui_drawer) {
+    display_window->app_context().CallInUIThreadSynchronous([imgui_drawer]() {
+      xe::ui::ImGuiDialog::ShowMessageBox(
+          imgui_drawer, "Launching new title!",
+          "Launching new title. \nPlease close Xenia and launch it again. Game "
+          "should load automatically.");
+    });
+  }
+
+  kernel_state()->TerminateTitle();
+  return 0;
+}
+
+DECLARE_XAM_EXPORT1(XamContentLaunchImageFromFileInternal, kContent, kStub);
 
 }  // namespace xam
 }  // namespace kernel

@@ -47,6 +47,9 @@ class VirtualFileSystem {
                     bool is_non_directory, File** out_file,
                     FileAction* out_action);
 
+  static X_STATUS ExtractContentFile(Entry* entry,
+                                     std::filesystem::path base_path,
+                                     bool extract_to_root = false);
   static X_STATUS ExtractContentFiles(Device* device,
                                       std::filesystem::path base_path);
   static void ExtractContentHeader(Device* device,

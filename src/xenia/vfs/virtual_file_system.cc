@@ -329,16 +329,79 @@ X_STATUS VirtualFileSystem::OpenFile(Entry* root_entry,
   return result;
 }
 
+X_STATUS VirtualFileSystem::ExtractContentFile(Entry* entry,
+                                               std::filesystem::path base_path,
+                                               bool extract_to_root) {
+  // Allocate a buffer when needed.
+  size_t buffer_size = 0;
+  uint8_t* buffer = nullptr;
+
+  XELOGI("Extracting file: {}", entry->path());
+
+  auto dest_name = base_path / xe::to_path(entry->path());
+
+  if (extract_to_root) {
+    dest_name = base_path / xe::to_path(entry->name());
+  }
+
+  if (entry->attributes() & kFileAttributeDirectory) {
+    std::error_code error_code;
+    std::filesystem::create_directories(dest_name, error_code);
+    if (error_code) {
+      return error_code.value();
+    }
+    return 0;
+  }
+
+  vfs::File* in_file = nullptr;
+  X_STATUS result = entry->Open(FileAccess::kFileReadData, &in_file);
+  if (result != X_STATUS_SUCCESS) {
+    return result;
+  }
+
+  auto file = xe::filesystem::OpenFile(dest_name, "wb");
+  if (!file) {
+    in_file->Destroy();
+    return 1;
+  }
+
+  if (entry->can_map()) {
+    auto map = entry->OpenMapped(xe::MappedMemory::Mode::kRead);
+    fwrite(map->data(), map->size(), 1, file);
+    map->Close();
+  } else {
+    // Can't map the file into memory. Read it into a temporary buffer.
+    if (!buffer || entry->size() > buffer_size) {
+      // Resize the buffer.
+      if (buffer) {
+        delete[] buffer;
+      }
+
+      // Allocate a buffer rounded up to the nearest 512MB.
+      buffer_size = xe::round_up(entry->size(), 512_MiB);
+      buffer = new uint8_t[buffer_size];
+    }
+
+    size_t bytes_read = 0;
+    in_file->ReadSync(buffer, entry->size(), 0, &bytes_read);
+    fwrite(buffer, bytes_read, 1, file);
+  }
+
+  fclose(file);
+  in_file->Destroy();
+
+  if (buffer) {
+    delete[] buffer;
+  }
+  return 0;
+}
+
 X_STATUS VirtualFileSystem::ExtractContentFiles(
     Device* device, std::filesystem::path base_path) {
   // Run through all the files, breadth-first style.
   std::queue<vfs::Entry*> queue;
   auto root = device->ResolvePath("/");
   queue.push(root);
-
-  // Allocate a buffer when needed.
-  size_t buffer_size = 0;
-  uint8_t* buffer = nullptr;
 
   while (!queue.empty()) {
     auto entry = queue.front();
@@ -347,58 +410,8 @@ X_STATUS VirtualFileSystem::ExtractContentFiles(
       queue.push(entry.get());
     }
 
-    XELOGI("Extracting file: {}", entry->path());
-    auto dest_name = base_path / xe::to_path(entry->path());
-    if (entry->attributes() & kFileAttributeDirectory) {
-      std::error_code error_code;
-      std::filesystem::create_directories(dest_name, error_code);
-      if (error_code) {
-        return error_code.value();
-      }
-      continue;
-    }
-
-    vfs::File* in_file = nullptr;
-    if (entry->Open(FileAccess::kFileReadData, &in_file) != X_STATUS_SUCCESS) {
-      continue;
-    }
-
-    auto file = xe::filesystem::OpenFile(dest_name, "wb");
-    if (!file) {
-      in_file->Destroy();
-      continue;
-    }
-
-    if (entry->can_map()) {
-      auto map = entry->OpenMapped(xe::MappedMemory::Mode::kRead);
-      fwrite(map->data(), map->size(), 1, file);
-      map->Close();
-    } else {
-      // Can't map the file into memory. Read it into a temporary buffer.
-      if (!buffer || entry->size() > buffer_size) {
-        // Resize the buffer.
-        if (buffer) {
-          delete[] buffer;
-        }
-
-        // Allocate a buffer rounded up to the nearest 512MB.
-        buffer_size = xe::round_up(entry->size(), 512_MiB);
-        buffer = new uint8_t[buffer_size];
-      }
-
-      size_t bytes_read = 0;
-      in_file->ReadSync(buffer, entry->size(), 0, &bytes_read);
-      fwrite(buffer, bytes_read, 1, file);
-    }
-
-    fclose(file);
-    in_file->Destroy();
+    ExtractContentFile(entry, base_path);
   }
-
-  if (buffer) {
-    delete[] buffer;
-  }
-
   return X_STATUS_SUCCESS;
 }
 
