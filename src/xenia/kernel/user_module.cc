@@ -643,7 +643,22 @@ void UserModule::Dump() {
         sb.Append("  XEX_HEADER_MULTIDISC_MEDIA_IDS (TODO):\n");
       } break;
       case XEX_HEADER_ALTERNATE_TITLE_IDS: {
-        sb.Append("  XEX_HEADER_ALTERNATE_TITLE_IDS (TODO):\n");
+        sb.Append("  XEX_HEADER_ALTERNATE_TITLE_IDS:");
+        auto opt_alternate_title_id =
+            reinterpret_cast<const xex2_opt_generic_u32*>(opt_header_ptr);
+
+        std::string title_ids = "";
+
+        for (uint32_t i = 0; i < opt_alternate_title_id->count(); i++) {
+          if (opt_alternate_title_id->values[i] != 0) {
+            title_ids.append(fmt::format(" {:08X},", opt_alternate_title_id->values[i]));
+          }
+        }
+        // Remove last character as it is not necessary
+        if (!title_ids.empty()) {
+          title_ids.pop_back();
+          sb.AppendFormat("{}\n", title_ids);
+        }
       } break;
       case XEX_HEADER_ADDITIONAL_TITLE_MEMORY: {
         sb.AppendFormat("  XEX_HEADER_ADDITIONAL_TITLE_MEMORY: {}\n",
