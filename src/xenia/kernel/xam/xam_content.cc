@@ -509,7 +509,7 @@ dword_result_t XamContentLaunchImageFromFileInternal_entry(
   vfs::Entry* entry = kernel_state()->file_system()->ResolvePath(image_path);
 
   if (!entry) {
-    return 0;
+    return X_STATUS_NO_SUCH_FILE;
   }
 
   const std::filesystem::path host_path =
@@ -540,11 +540,65 @@ dword_result_t XamContentLaunchImageFromFileInternal_entry(
   }
 
   kernel_state()->TerminateTitle();
-  return 0;
+  return X_ERROR_SUCCESS;
 }
 
 DECLARE_XAM_EXPORT1(XamContentLaunchImageFromFileInternal, kContent, kStub);
 
+dword_result_t XamContentLaunchImageInternal_entry(lpvoid_t content_data_ptr,
+                                                   lpstring_t xex_path) {
+  XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
+
+  // title_id is written into first 8 characters of filename
+  const uint32_t title_id = xe::string_util::from_string<uint32_t>(
+      content_data.file_name().substr(0, 8), true);
+
+  // This should be done via content_manager, however as it isn't capable of
+  // such action we need to improvise.
+  const std::string package_path =
+      fmt::format("GAME:/Content/0000000000000000/{:08X}/{:08X}/{}", title_id,
+                  static_cast<uint32_t>(content_data.content_type.get()),
+                  content_data.file_name());
+
+  auto entry = kernel_state()->file_system()->ResolvePath(package_path);
+
+  if (!entry) {
+    return X_STATUS_NO_SUCH_FILE;
+  }
+
+  const std::filesystem::path host_path =
+      kernel_state()->emulator()->content_root() / entry->name();
+
+  if (!std::filesystem::exists(host_path)) {
+    kernel_state()->file_system()->ExtractContentFile(
+        entry, kernel_state()->emulator()->content_root(), true);
+  }
+
+  auto xam = kernel_state()->GetKernelModule<XamModule>("xam.xex");
+
+  auto& loader_data = xam->loader_data();
+  loader_data.host_path = xe::path_to_utf8(host_path);
+  loader_data.launch_path = xex_path;
+
+  xam->SaveLoaderData();
+
+  auto display_window = kernel_state()->emulator()->display_window();
+  auto imgui_drawer = kernel_state()->emulator()->imgui_drawer();
+
+  if (display_window && imgui_drawer) {
+    display_window->app_context().CallInUIThreadSynchronous([imgui_drawer]() {
+      xe::ui::ImGuiDialog::ShowMessageBox(
+          imgui_drawer, "Launching new title!",
+          "Launching new title. \nPlease close Xenia and launch it again. Game "
+          "should load automatically.");
+    });
+  }
+
+  kernel_state()->TerminateTitle();
+  return X_ERROR_SUCCESS;
+}
+
+DECLARE_XAM_EXPORT1(XamContentLaunchImageInternal, kContent, kStub);
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
