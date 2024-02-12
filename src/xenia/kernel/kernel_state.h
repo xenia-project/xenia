@@ -297,6 +297,7 @@ class KernelState {
   bool Restore(ByteStream* stream);
 
   uint32_t notification_position_ = 2;
+  XDeploymentType deployment_type_ = XDeploymentType::kUnknown;
 
   uint32_t GetKeTimestampBundle();
 
@@ -305,11 +306,13 @@ class KernelState {
   uint32_t CreateKeTimestampBundle();
   void UpdateKeTimestampBundle();
 
-  void BeginDPCImpersonation(cpu::ppc::PPCContext* context, DPCImpersonationScope& scope);
+  void BeginDPCImpersonation(cpu::ppc::PPCContext* context,
+                             DPCImpersonationScope& scope);
   void EndDPCImpersonation(cpu::ppc::PPCContext* context,
                            DPCImpersonationScope& end_scope);
 
-  void EmulateCPInterruptDPC(uint32_t interrupt_callback,uint32_t interrupt_callback_data, uint32_t source,
+  void EmulateCPInterruptDPC(uint32_t interrupt_callback,
+                             uint32_t interrupt_callback_data, uint32_t source,
                              uint32_t cpu);
 
  private:
@@ -354,11 +357,12 @@ class KernelState {
   uint32_t ke_timestamp_bundle_ptr_ = 0;
   std::unique_ptr<xe::threading::HighResolutionTimer> timestamp_timer_;
   cpu::backend::GuestTrampolineGroup kernel_trampoline_group_;
-  //fixed address referenced by dashboards. Data is currently unknown
+  // fixed address referenced by dashboards. Data is currently unknown
   uint32_t strange_hardcoded_page_ = 0x8E038634 & (~0xFFFF);
   uint32_t strange_hardcoded_location_ = 0x8E038634;
 
   friend class XObject;
+
  public:
   uint32_t dash_context_ = 0;
   std::unordered_map<XObject::Type, uint32_t>

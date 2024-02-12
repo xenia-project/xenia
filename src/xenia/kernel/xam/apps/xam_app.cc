@@ -90,14 +90,15 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     }
     case 0x00022005: {
       struct message_data {
-        xe::be<uint32_t> unk_00;  // ? output_ptr ?
-        xe::be<uint32_t> unk_04;  // ? value/jump to? ?
+        xe::be<uint32_t> deployment_type_ptr;
+        xe::be<uint32_t> overlapped_ptr;
       }* data = reinterpret_cast<message_data*>(buffer);
       assert_true(buffer_length == sizeof(message_data));
-      auto unk = memory_->TranslateVirtual<xe::be<uint32_t>*>(data->unk_00);
-      auto adr = *unk;
-      XELOGD("XamApp(0x00022005)(%.8X, %.8X)", (uint32_t)data->unk_00,
-             (uint32_t)data->unk_04);
+      auto deployment_type =
+          memory_->TranslateVirtual<uint32_t*>(data->deployment_type_ptr);
+      *deployment_type = static_cast<uint32_t>(kernel_state_->deployment_type_);
+      XELOGD("XTitleGetDeploymentType({:08X}, {:08X}",
+             data->deployment_type_ptr, data->overlapped_ptr);
       return X_E_SUCCESS;
     }
   }

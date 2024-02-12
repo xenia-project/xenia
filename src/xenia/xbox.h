@@ -439,6 +439,13 @@ enum class XContentType : uint32_t {
   kCommunityGame = 0x02000000,
 };
 
+enum class XDeploymentType : uint32_t {
+  kOpticalDisc = 0,
+  kHardDrive = 1,  // Like extracted?
+  kGoD = 2,
+  kUnknown = 0xFF,
+};
+
 }  // namespace xe
 
 // clang-format on
