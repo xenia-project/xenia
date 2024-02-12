@@ -2895,12 +2895,17 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
         if (IsPackOutSaturate(flags)) {
           // signed -> unsigned + saturate
           // PACKUSWB / SaturateSignedWordToUnsignedByte
-          Xbyak::Xmm src2 = i.src2.is_constant ? e.xmm0 : i.src2;
+          Xbyak::Xmm src1 = i.src1.is_constant ? e.xmm0 : i.src1;
+          if (i.src1.is_constant) {
+            e.LoadConstantXmm(src1, i.src1.constant());
+          }
+
+          Xbyak::Xmm src2 = i.src2.is_constant ? e.xmm1 : i.src2;
           if (i.src2.is_constant) {
             e.LoadConstantXmm(src2, i.src2.constant());
           }
 
-          e.vpackuswb(i.dest, i.src1, src2);
+          e.vpackuswb(i.dest, src1, src2);
           e.vpshufb(i.dest, i.dest, e.GetXmmConstPtr(XMMByteOrderMask));
         } else {
           // signed -> unsigned
