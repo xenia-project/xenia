@@ -34,6 +34,10 @@
 
 DEFINE_bool(apply_title_update, true, "Apply title updates.", "Kernel");
 
+DEFINE_uint32(max_signed_profiles, 4,
+              "Limits how many profiles can be assigned. Possible values: 1-4",
+              "Kernel");
+
 namespace xe {
 namespace kernel {
 
@@ -1091,7 +1095,7 @@ void KernelState::EmulateCPInterruptDPC(uint32_t interrupt_callback,
 void KernelState::UpdateUsedUserProfiles() {
   const uint8_t used_slots_bitmask = GetConnectedUsers();
 
-  for (uint32_t i = 1; i < 4; i++) {
+  for (uint32_t i = 1; i < cvars::max_signed_profiles; i++) {
     bool is_used = used_slots_bitmask & (1 << i);
 
     if (IsUserSignedIn(i) && !is_used) {
