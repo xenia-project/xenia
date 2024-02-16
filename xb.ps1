@@ -14,7 +14,7 @@ foreach ($pythonExecutable in $pythonExecutables) {
     }
 }
 # Neither found, error and exit
-$pythonMinimumVer = 3,6
+$pythonMinimumVer = 3,8
 if (!$pythonPath) {
     Write-FatalError "ERROR: Python $($pythonMinimumVer[0]).$($pythonMinimumVer[1])+ must be installed and on PATH:`nhttps://www.python.org/"
 }

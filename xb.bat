@@ -8,7 +8,7 @@ REM Environment Validation
 REM ============================================================================
 
 SET "PYTHON_MINIMUM_VERSION[0]=3"
-SET "PYTHON_MINIMUM_VERSION[1]=6"
+SET "PYTHON_MINIMUM_VERSION[1]=8"
 CALL :check_python
 IF %_RESULT% NEQ 0 (
   ECHO.
@@ -35,13 +35,14 @@ SETLOCAL ENABLEDELAYEDEXPANSION
 
 SET FOUND_PATH=""
 
-SET "CANDIDATE_PATHS[0]=C:\python310\python.exe"
-SET "CANDIDATE_PATHS[1]=C:\python39\python.exe"
-SET "CANDIDATE_PATHS[2]=C:\python38\python.exe"
-SET "CANDIDATE_PATHS[3]=C:\python37\python.exe"
-SET "CANDIDATE_PATHS[4]=C:\python%PYTHON_MINIMUM_VERSION[0]%%PYTHON_MINIMUM_VERSION[1]%\python.exe"
-SET "CANDIDATE_PATHS[5]=C:\Windows\py.exe"
-SET OUTPUT_INDEX=6
+SET "CANDIDATE_PATHS[0]=C:\python313\python.exe"
+SET "CANDIDATE_PATHS[1]=C:\python312\python.exe"
+SET "CANDIDATE_PATHS[2]=C:\python311\python.exe"
+SET "CANDIDATE_PATHS[3]=C:\python310\python.exe"
+SET "CANDIDATE_PATHS[4]=C:\python39\python.exe"
+SET "CANDIDATE_PATHS[5]=C:\python%PYTHON_MINIMUM_VERSION[0]%%PYTHON_MINIMUM_VERSION[1]%\python.exe"
+SET "CANDIDATE_PATHS[6]=C:\Windows\py.exe"
+SET OUTPUT_INDEX=7
 
 FOR /F "usebackq delims=" %%L IN (`2^>NUL where python3`) DO (
   IF %%~zL NEQ 0 (

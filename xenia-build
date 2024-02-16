@@ -137,7 +137,7 @@ def main():
         print('')
 
     # Check python version.
-    python_minimum_ver=3,6
+    python_minimum_ver=3,8
     if not sys.version_info[:2] >= (python_minimum_ver[0], python_minimum_ver[1]):
         print('ERROR: Python ', python_minimum_ver[0], '.', python_minimum_ver[1], '+ must be installed and on PATH', sep='')
         sys.exit(1)
