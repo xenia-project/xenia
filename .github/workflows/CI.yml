@@ -45,16 +45,10 @@ on:
 
 jobs:
   build-windows:
-    name: Build (Windows, ${{ matrix.config.vsver }}) #  runner.os can't be used here
-    runs-on: ${{ matrix.config.runs-on }}
+    name: Build (Windows) #  runner.os can't be used here
+    runs-on: windows-2022
     env:
       POWERSHELL_TELEMETRY_OPTOUT: 1
-    strategy:
-      fail-fast: false
-      matrix:
-        config:
-          - {vsver: VS2022, runs-on: windows-2022}
-          - {vsver: VS2019, runs-on: windows-2019}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -72,18 +66,17 @@ jobs:
       - name: Upload xenia-vfs-dump artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: xenia-vfs-dump_canary_${{ matrix.config.vsver }}
+          name: xenia-vfs-dump_canary
           path: artifacts\xenia-vfs-dump
           if-no-files-found: error
-      - name: Upload xenia artifacts
+      - name: Upload xenia canary artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: xenia_canary_${{ matrix.config.vsver }}
+          name: xenia_canary
           path: artifacts\xenia_canary
           if-no-files-found: error
       - name: Create release
         if: |
-          matrix.config.runs-on == 'windows-2022' &&
           github.repository == 'xenia-canary/xenia-canary' &&
           github.event.action != 'pull_request' &&
           contains(github.ref, 'refs/heads/canary') &&
