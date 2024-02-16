@@ -13,12 +13,14 @@
 #include "xenia/kernel/xbdm/xbdm_private.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
-//chrispy: no idea what a real valid value is for this
+// chrispy: no idea what a real valid value is for this
 static constexpr const char DmXboxName[] = "Xbox360Name";
 namespace xe {
-  namespace kernel {
+namespace kernel {
 namespace xbdm {
-#define XBDM_SUCCESSFULL 0x02DA0000
+#define XBDM_SUCCESSFUL 0x02DA0000
+#define XBDM_UNSUCCESSFUL 0x82DA0000
+
 #define MAKE_DUMMY_STUB_PTR(x)             \
   dword_result_t x##_entry() { return 0; } \
   DECLARE_XBDM_EXPORT1(x, kDebug, kStub)
@@ -37,7 +39,7 @@ MAKE_DUMMY_STUB_STATUS(DmFreePool);
 dword_result_t DmGetXbeInfo_entry() {
   // TODO(gibbed): 4D5307DC appears to expect this as success?
   // Unknown arguments -- let's hope things don't explode.
-  return XBDM_SUCCESSFULL;
+  return XBDM_SUCCESSFUL;
 }
 DECLARE_XBDM_EXPORT1(DmGetXbeInfo, kDebug, kStub);
 
@@ -54,8 +56,7 @@ dword_result_t DmGetXboxName_entry(const ppc_context_t& ctx) {
   uint32_t max_name_chars = xe::load_and_swap<uint32_t>(max_name_chars_ptr);
   strncpy(name_out, DmXboxName, sizeof(DmXboxName));
 
-
-  return XBDM_SUCCESSFULL;
+  return XBDM_SUCCESSFUL;
 }
 DECLARE_XBDM_EXPORT1(DmGetXboxName, kDebug, kImplemented)
 
@@ -68,7 +69,7 @@ DECLARE_XBDM_EXPORT1(DmSendNotificationString, kDebug, kStub);
 dword_result_t DmRegisterCommandProcessor_entry(lpdword_t name_ptr,
                                                 lpdword_t handler_fn) {
   // Return success to prevent some games from crashing
-  return X_STATUS_SUCCESS;
+  return XBDM_SUCCESSFUL;
 }
 DECLARE_XBDM_EXPORT1(DmRegisterCommandProcessor, kDebug, kStub);
 
@@ -76,7 +77,7 @@ dword_result_t DmRegisterCommandProcessorEx_entry(lpdword_t name_ptr,
                                                   lpdword_t handler_fn,
                                                   dword_t unk3) {
   // Return success to prevent some games from stalling
-  return X_STATUS_SUCCESS;
+  return XBDM_SUCCESSFUL;
 }
 DECLARE_XBDM_EXPORT1(DmRegisterCommandProcessorEx, kDebug, kStub);
 
@@ -114,10 +115,39 @@ dword_result_t DmFindPdbSignature_entry(lpdword_t unk0_ptr,
 }
 DECLARE_XBDM_EXPORT1(DmFindPdbSignature, kDebug, kStub);
 
-dword_result_t DmGetConsoleDebugMemoryStatus_entry() {
-  return X_STATUS_SUCCESS;
-}
+dword_result_t DmGetConsoleDebugMemoryStatus_entry() { return XBDM_SUCCESSFUL; }
 DECLARE_XBDM_EXPORT1(DmGetConsoleDebugMemoryStatus, kDebug, kStub);
+
+struct XBDM_VERSION_INFO {
+  xe::be<uint16_t> major;
+  xe::be<uint16_t> minor;
+  xe::be<uint16_t> build;
+  xe::be<uint16_t> qfe;
+};
+
+struct XBDM_SYSTEM_INFO {
+  xe::be<uint32_t> size;
+  XBDM_VERSION_INFO base_kernel_version;
+  XBDM_VERSION_INFO kernel_version;
+  XBDM_VERSION_INFO xdk_version;
+  xe::be<uint32_t> flags;
+};
+
+dword_result_t DmGetSystemInfo_entry(pointer_t<XBDM_SYSTEM_INFO> info) {
+  if (!info) {
+    return XBDM_UNSUCCESSFUL;
+  }
+
+  info->base_kernel_version.major = info->kernel_version.major = 2;
+  info->base_kernel_version.minor = info->kernel_version.minor = 0;
+  info->base_kernel_version.qfe = info->kernel_version.qfe = 0;
+
+  info->base_kernel_version.build = 1888;
+  info->kernel_version.build = 13139;
+
+  return XBDM_SUCCESSFUL;
+}
+DECLARE_XBDM_EXPORT1(DmGetSystemInfo, kDebug, kStub);
 
 void __CAP_Start_Profiling_entry(dword_t a1, dword_t a2) {}
 
