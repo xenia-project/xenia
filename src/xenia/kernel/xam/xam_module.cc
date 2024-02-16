@@ -109,10 +109,16 @@ void XamModule::SaveLoaderData() {
   }
 
   std::filesystem::path host_path = loader_data_.host_path;
+  std::string launch_path = loader_data_.launch_path;
+  const std::string launch_prefix = "game:\\";
+  if (launch_path.compare(0, launch_prefix.length(), launch_prefix) == 0) {
+    launch_path = launch_path.substr(launch_prefix.length());
+  }
+
   if (host_path.extension() == ".xex") {
     host_path.remove_filename();
-    host_path = host_path / loader_data_.launch_path;
-    loader_data_.launch_path = "";
+    host_path = host_path / launch_path;
+    launch_path = "";
   }
 
   const std::string host_path_as_string = xe::path_to_utf8(host_path);
@@ -122,10 +128,9 @@ void XamModule::SaveLoaderData() {
   fwrite(&host_path_length, sizeof(host_path_length), 1, file);
   fwrite(host_path_as_string.c_str(), host_path_length, 1, file);
 
-  const uint16_t launch_path_length =
-      static_cast<uint16_t>(loader_data_.launch_path.size());
+  const uint16_t launch_path_length = static_cast<uint16_t>(launch_path.size());
   fwrite(&launch_path_length, sizeof(launch_path_length), 1, file);
-  fwrite(loader_data_.launch_path.c_str(), launch_path_length, 1, file);
+  fwrite(launch_path.c_str(), launch_path_length, 1, file);
 
   fwrite(&loader_data_.launch_flags, sizeof(loader_data_.launch_flags), 1,
          file);
