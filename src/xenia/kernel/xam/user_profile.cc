@@ -32,74 +32,74 @@ UserProfile::UserProfile(uint8_t index) {
   // https://cs.rin.ru/forum/viewtopic.php?f=38&t=60668&hilit=gfwl+live&start=195
   // https://github.com/arkem/py360/blob/master/py360/constants.py
   // XPROFILE_GAMER_YAXIS_INVERSION
-  AddSetting(std::make_unique<Int32Setting>(0x10040002, 0));
+  AddSetting(std::make_unique<UserSetting>(0x10040002, 0));
   // XPROFILE_OPTION_CONTROLLER_VIBRATION
-  AddSetting(std::make_unique<Int32Setting>(0x10040003, 3));
+  AddSetting(std::make_unique<UserSetting>(0x10040003, 3));
   // XPROFILE_GAMERCARD_ZONE
-  AddSetting(std::make_unique<Int32Setting>(0x10040004, 0));
+  AddSetting(std::make_unique<UserSetting>(0x10040004, 0));
   // XPROFILE_GAMERCARD_REGION
-  AddSetting(std::make_unique<Int32Setting>(0x10040005, 0));
+  AddSetting(std::make_unique<UserSetting>(0x10040005, 0));
   // XPROFILE_GAMERCARD_CRED
-  AddSetting(std::make_unique<Int32Setting>(0x10040006, 0xFA));
-  // XPROFILE_GAMERCARD_REP
-  AddSetting(std::make_unique<FloatSetting>(0x5004000B, 0.0f));
+  AddSetting(std::make_unique<UserSetting>(0x10040006, 0xFA));
   // XPROFILE_OPTION_VOICE_MUTED
-  AddSetting(std::make_unique<Int32Setting>(0x1004000C, 0));
+  AddSetting(std::make_unique<UserSetting>(0x1004000C, 3));
   // XPROFILE_OPTION_VOICE_THRU_SPEAKERS
-  AddSetting(std::make_unique<Int32Setting>(0x1004000D, 0));
+  AddSetting(std::make_unique<UserSetting>(0x1004000D, 3));
   // XPROFILE_OPTION_VOICE_VOLUME
-  AddSetting(std::make_unique<Int32Setting>(0x1004000E, 0x64));
-  // XPROFILE_GAMERCARD_MOTTO
-  AddSetting(std::make_unique<UnicodeSetting>(0x402C0011, u""));
+  AddSetting(std::make_unique<UserSetting>(0x1004000E, 0x64));
   // XPROFILE_GAMERCARD_TITLES_PLAYED
-  AddSetting(std::make_unique<Int32Setting>(0x10040012, 1));
+  AddSetting(std::make_unique<UserSetting>(0x10040012, 1));
   // XPROFILE_GAMERCARD_ACHIEVEMENTS_EARNED
-  AddSetting(std::make_unique<Int32Setting>(0x10040013, 0));
+  AddSetting(std::make_unique<UserSetting>(0x10040013, 0));
   // XPROFILE_GAMER_DIFFICULTY
-  AddSetting(std::make_unique<Int32Setting>(0x10040015, 0));
+  AddSetting(std::make_unique<UserSetting>(0x10040015, 0));
   // XPROFILE_GAMER_CONTROL_SENSITIVITY
-  AddSetting(std::make_unique<Int32Setting>(0x10040018, 0));
+  AddSetting(std::make_unique<UserSetting>(0x10040018, 0));
   // Preferred color 1
-  AddSetting(std::make_unique<Int32Setting>(0x1004001D, 0xFFFF0000u));
+  AddSetting(std::make_unique<UserSetting>(0x1004001D, 0xFFFF0000u));
   // Preferred color 2
-  AddSetting(std::make_unique<Int32Setting>(0x1004001E, 0xFF00FF00u));
+  AddSetting(std::make_unique<UserSetting>(0x1004001E, 0xFF00FF00u));
   // XPROFILE_GAMER_ACTION_AUTO_AIM
-  AddSetting(std::make_unique<Int32Setting>(0x10040022, 1));
+  AddSetting(std::make_unique<UserSetting>(0x10040022, 1));
   // XPROFILE_GAMER_ACTION_AUTO_CENTER
-  AddSetting(std::make_unique<Int32Setting>(0x10040023, 0));
+  AddSetting(std::make_unique<UserSetting>(0x10040023, 0));
   // XPROFILE_GAMER_ACTION_MOVEMENT_CONTROL
-  AddSetting(std::make_unique<Int32Setting>(0x10040024, 0));
+  AddSetting(std::make_unique<UserSetting>(0x10040024, 0));
   // XPROFILE_GAMER_RACE_TRANSMISSION
-  AddSetting(std::make_unique<Int32Setting>(0x10040026, 0));
+  AddSetting(std::make_unique<UserSetting>(0x10040026, 0));
   // XPROFILE_GAMER_RACE_CAMERA_LOCATION
-  AddSetting(std::make_unique<Int32Setting>(0x10040027, 0));
+  AddSetting(std::make_unique<UserSetting>(0x10040027, 0));
   // XPROFILE_GAMER_RACE_BRAKE_CONTROL
-  AddSetting(std::make_unique<Int32Setting>(0x10040028, 0));
+  AddSetting(std::make_unique<UserSetting>(0x10040028, 0));
   // XPROFILE_GAMER_RACE_ACCELERATOR_CONTROL
-  AddSetting(std::make_unique<Int32Setting>(0x10040029, 0));
+  AddSetting(std::make_unique<UserSetting>(0x10040029, 0));
   // XPROFILE_GAMERCARD_TITLE_CRED_EARNED
-  AddSetting(std::make_unique<Int32Setting>(0x10040038, 0));
+  AddSetting(std::make_unique<UserSetting>(0x10040038, 0));
   // XPROFILE_GAMERCARD_TITLE_ACHIEVEMENTS_EARNED
-  AddSetting(std::make_unique<Int32Setting>(0x10040039, 0));
+  AddSetting(std::make_unique<UserSetting>(0x10040039, 0));
 
-  // If we set this, games will try to get it.
+  // XPROFILE_GAMERCARD_MOTTO
+  AddSetting(std::make_unique<UserSetting>(0x402C0011, u""));
   // XPROFILE_GAMERCARD_PICTURE_KEY
   AddSetting(
-      std::make_unique<UnicodeSetting>(0x4064000F, u"gamercard_picture_key"));
+      std::make_unique<UserSetting>(0x4064000F, u"gamercard_picture_key"));
+  // XPROFILE_GAMERCARD_REP
+  AddSetting(std::make_unique<UserSetting>(0x5004000B, 0.0f));
 
   // XPROFILE_TITLE_SPECIFIC1
-  AddSetting(std::make_unique<BinarySetting>(0x63E83FFF));
+  AddSetting(std::make_unique<UserSetting>(0x63E83FFF, std::vector<uint8_t>()));
   // XPROFILE_TITLE_SPECIFIC2
-  AddSetting(std::make_unique<BinarySetting>(0x63E83FFE));
+  AddSetting(std::make_unique<UserSetting>(0x63E83FFE, std::vector<uint8_t>()));
   // XPROFILE_TITLE_SPECIFIC3
-  AddSetting(std::make_unique<BinarySetting>(0x63E83FFD));
+  AddSetting(std::make_unique<UserSetting>(0x63E83FFD, std::vector<uint8_t>()));
 }
 
-void UserProfile::AddSetting(std::unique_ptr<Setting> setting) {
-  Setting* previous_setting = setting.get();
-  std::swap(settings_[setting->setting_id], previous_setting);
+void UserProfile::AddSetting(std::unique_ptr<UserSetting> setting) {
+  UserSetting* previous_setting = setting.get();
 
-  if (setting->is_set && setting->is_title_specific()) {
+  std::swap(settings_[setting->GetSettingId()], previous_setting);
+
+  if (setting->is_title_specific()) {
     SaveSetting(setting.get());
   }
 
@@ -118,40 +118,59 @@ void UserProfile::AddSetting(std::unique_ptr<Setting> setting) {
   }
 }
 
-UserProfile::Setting* UserProfile::GetSetting(uint32_t setting_id) {
+UserSetting* UserProfile::GetSetting(uint32_t setting_id) {
   const auto& it = settings_.find(setting_id);
   if (it == settings_.end()) {
     return nullptr;
   }
-  UserProfile::Setting* setting = it->second;
+
+  UserSetting* setting = it->second;
   if (setting->is_title_specific()) {
     // If what we have loaded in memory isn't for the title that is running
     // right now, then load it from disk.
-    if (kernel_state()->title_id() != setting->loaded_title_id) {
-      LoadSetting(setting);
-    }
+    LoadSetting(setting);
   }
   return setting;
 }
 
-void UserProfile::LoadSetting(UserProfile::Setting* setting) {
+void UserProfile::LoadSetting(UserSetting* setting) {
   if (setting->is_title_specific()) {
-    auto content_dir =
+    const std::filesystem::path content_dir =
         kernel_state()->content_manager()->ResolveGameUserContentPath();
-    auto setting_id = fmt::format("{:08X}", setting->setting_id);
-    auto file_path = content_dir / setting_id;
-    auto file = xe::filesystem::OpenFile(file_path, "rb");
-    if (file) {
-      fseek(file, 0, SEEK_END);
-      uint32_t input_file_size = static_cast<uint32_t>(ftell(file));
-      fseek(file, 0, SEEK_SET);
-
-      std::vector<uint8_t> serialized_data(input_file_size);
-      fread(serialized_data.data(), 1, serialized_data.size(), file);
-      fclose(file);
-      setting->Deserialize(serialized_data);
-      setting->loaded_title_id = kernel_state()->title_id();
+    const std::string setting_id_str =
+        fmt::format("{:08X}", setting->GetSettingId());
+    const std::filesystem::path file_path = content_dir / setting_id_str;
+    FILE* file = xe::filesystem::OpenFile(file_path, "rb");
+    if (!file) {
+      return;
     }
+
+    const uint32_t input_file_size =
+        static_cast<uint32_t>(std::filesystem::file_size(file_path));
+
+    if (input_file_size < sizeof(X_USER_PROFILE_SETTING_HEADER)) {
+      fclose(file);
+      // Setting seems to be invalid, remove it.
+      std::filesystem::remove(file_path);
+      return;
+    }
+
+    X_USER_PROFILE_SETTING_HEADER header;
+    fread(&header, sizeof(X_USER_PROFILE_SETTING_HEADER), 1, file);
+    if (header.setting_id != setting->GetSettingId()) {
+      // It's setting with different ID? Corrupted perhaps.
+      fclose(file);
+      std::filesystem::remove(file_path);
+      return;
+    }
+
+    // TODO(Gliniak): Right now we only care about CONTENT, WSTRING, BINARY
+    setting->SetNewSettingHeader(&header);
+    setting->SetNewSettingSource(X_USER_PROFILE_SETTING_SOURCE::TITLE);
+    std::vector<uint8_t> serialized_data(setting->GetSettingHeader()->size);
+    fread(serialized_data.data(), 1, serialized_data.size(), file);
+    fclose(file);
+    setting->GetSettingData()->Deserialize(serialized_data);
   } else {
     // Unsupported for now.  Other settings aren't per-game and need to be
     // stored some other way.
@@ -159,16 +178,32 @@ void UserProfile::LoadSetting(UserProfile::Setting* setting) {
   }
 }
 
-void UserProfile::SaveSetting(UserProfile::Setting* setting) {
-  if (setting->is_title_specific()) {
-    auto serialized_setting = setting->Serialize();
-    auto content_dir =
+void UserProfile::SaveSetting(UserSetting* setting) {
+  if (setting->is_title_specific() &&
+      setting->GetSettingSource() == X_USER_PROFILE_SETTING_SOURCE::TITLE) {
+    const std::filesystem::path content_dir =
         kernel_state()->content_manager()->ResolveGameUserContentPath();
+
     std::filesystem::create_directories(content_dir);
-    auto setting_id = fmt::format("{:08X}", setting->setting_id);
-    auto file_path = content_dir / setting_id;
-    auto file = xe::filesystem::OpenFile(file_path, "wb");
-    fwrite(serialized_setting.data(), 1, serialized_setting.size(), file);
+
+    const std::string setting_id_str =
+        fmt::format("{:08X}", setting->GetSettingId());
+    std::filesystem::path file_path = content_dir / setting_id_str;
+    FILE* file = xe::filesystem::OpenFile(file_path, "wb");
+
+    if (!file) {
+      return;
+    }
+
+    const std::vector<uint8_t> serialized_setting =
+        setting->GetSettingData()->Serialize();
+    const uint32_t serialized_setting_length = std::min(
+        kMaxSettingSize, static_cast<uint32_t>(serialized_setting.size()));
+
+    fwrite(setting->GetSettingHeader(), sizeof(X_USER_PROFILE_SETTING_HEADER),
+           1, file);
+    // Writing data
+    fwrite(serialized_setting.data(), 1, serialized_setting_length, file);
     fclose(file);
   } else {
     // Unsupported for now.  Other settings aren't per-game and need to be
