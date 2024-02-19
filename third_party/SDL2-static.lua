@@ -7,8 +7,8 @@ project("SDL2")
 
   defines({
     "HAVE_LIBC",
-	"SDL_LEAN_AND_MEAN=1",
-	"SDL_RENDER_DISABLED=1"
+       "SDL_LEAN_AND_MEAN=1",
+       "SDL_RENDER_DISABLED=1"
   })
   links({
     "setupapi.lib",
@@ -139,8 +139,10 @@ project("SDL2")
     "SDL2/src/hidapi/hidapi/hidapi.h",
     "SDL2/src/hidapi/SDL_hidapi_c.h",
     "SDL2/src/joystick/controller_type.h",
+    "SDL2/src/joystick/SDL_steam_virtual_gamepad.h",
     "SDL2/src/joystick/hidapi/SDL_hidapijoystick_c.h",
     "SDL2/src/joystick/hidapi/SDL_hidapi_rumble.h",
+    "SDL2/src/joystick/hidapi/SDL_hidapi_nintendo.h",
     "SDL2/src/joystick/SDL_gamecontrollerdb.h",
     "SDL2/src/joystick/SDL_joystick_c.h",
     "SDL2/src/joystick/SDL_sysjoystick.h",
@@ -288,17 +290,22 @@ project("SDL2")
     "SDL2/src/haptic/windows/SDL_xinputhaptic.c",
     "SDL2/src/hidapi/SDL_hidapi.c",
     "SDL2/src/joystick/controller_type.c",
+    "SDL2/src/joystick/SDL_steam_virtual_gamepad.c",
     "SDL2/src/joystick/dummy/SDL_sysjoystick.c",
     "SDL2/src/joystick/hidapi/SDL_hidapijoystick.c",
     "SDL2/src/joystick/hidapi/SDL_hidapi_combined.c",
     "SDL2/src/joystick/hidapi/SDL_hidapi_gamecube.c",
     "SDL2/src/joystick/hidapi/SDL_hidapi_luna.c",
+    "SDL2/src/joystick/hidapi/SDL_hidapi_ps3.c",
     "SDL2/src/joystick/hidapi/SDL_hidapi_ps4.c",
     "SDL2/src/joystick/hidapi/SDL_hidapi_ps5.c",
     "SDL2/src/joystick/hidapi/SDL_hidapi_rumble.c",
     "SDL2/src/joystick/hidapi/SDL_hidapi_shield.c",
     "SDL2/src/joystick/hidapi/SDL_hidapi_stadia.c",
+    "SDL2/src/joystick/hidapi/SDL_hidapi_steam.c",
+    "SDL2/src/joystick/hidapi/SDL_hidapi_steamdeck.c",
     "SDL2/src/joystick/hidapi/SDL_hidapi_switch.c",
+    "SDL2/src/joystick/hidapi/SDL_hidapi_wii.c",
     "SDL2/src/joystick/hidapi/SDL_hidapi_xbox360.c",
     "SDL2/src/joystick/hidapi/SDL_hidapi_xbox360w.c",
     "SDL2/src/joystick/hidapi/SDL_hidapi_xboxone.c",
@@ -425,5 +432,4 @@ project("SDL2")
     "SDL2/src/video/windows/SDL_windowsvideo.c",
     "SDL2/src/video/windows/SDL_windowsvulkan.c",
     "SDL2/src/video/windows/SDL_windowswindow.c",
-    "SDL2/src/video/yuv2rgb/yuv_rgb.c",
   })
