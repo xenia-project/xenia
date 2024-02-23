@@ -214,8 +214,6 @@ X_RESULT SDLInputDriver::SetState(uint32_t user_index,
 
   QueueControllerUpdate();
 
-  std::unique_lock<std::mutex> guard(controllers_mutex_);
-
   auto controller = GetControllerState(user_index);
   if (!controller) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
