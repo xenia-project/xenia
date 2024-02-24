@@ -84,7 +84,6 @@ class SDLInputDriver final : public InputDriver {
   int sdl_events_unflushed_;
   std::atomic<bool> sdl_pumpevents_queued_;
   std::array<ControllerState, HID_SDL_USER_COUNT> controllers_;
-  std::mutex controllers_mutex_;
   std::array<KeystrokeState, HID_SDL_USER_COUNT> keystroke_states_;
 };
 
