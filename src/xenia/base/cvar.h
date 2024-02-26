@@ -15,9 +15,9 @@
 #include <string>
 #include <vector>
 
-#include "third_party/cpptoml/include/cpptoml.h"
 #include "third_party/cxxopts/include/cxxopts.hpp"
 #include "third_party/fmt/include/fmt/format.h"
+#include "third_party/tomlplusplus/include/toml++/toml.hpp"
 #include "xenia/base/assert.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/platform.h"
@@ -29,7 +29,7 @@
 
 namespace cvar {
 
-namespace toml {
+namespace toml_internal {
 std::string EscapeString(const std::string_view str);
 }
 
@@ -48,8 +48,8 @@ class IConfigVar : virtual public ICommandVar {
   virtual const std::string& category() const = 0;
   virtual bool is_transient() const = 0;
   virtual std::string config_value() const = 0;
-  virtual void LoadConfigValue(std::shared_ptr<cpptoml::base> result) = 0;
-  virtual void LoadGameConfigValue(std::shared_ptr<cpptoml::base> result) = 0;
+  virtual void LoadConfigValue(const toml::node* result) = 0;
+  virtual void LoadGameConfigValue(const toml::node* result) = 0;
   virtual void ResetConfigValueToDefault() = 0;
 };
 
@@ -87,8 +87,8 @@ class ConfigVar : public CommandVar<T>, virtual public IConfigVar {
   const std::string& category() const override;
   bool is_transient() const override;
   void AddToLaunchOptions(cxxopts::Options* options) override;
-  void LoadConfigValue(std::shared_ptr<cpptoml::base> result) override;
-  void LoadGameConfigValue(std::shared_ptr<cpptoml::base> result) override;
+  void LoadConfigValue(const toml::node* result) override;
+  void LoadGameConfigValue(const toml::node* result) override;
   void SetConfigValue(T val);
   void SetGameConfigValue(T val);
   // Changes the actual value used to the one specified, and also makes it the
@@ -146,24 +146,24 @@ inline void CommandVar<std::filesystem::path>::LoadFromLaunchOptions(
   SetCommandLineValue(value);
 }
 template <class T>
-void ConfigVar<T>::LoadConfigValue(std::shared_ptr<cpptoml::base> result) {
-  SetConfigValue(*cpptoml::get_impl<T>(result));
+void ConfigVar<T>::LoadConfigValue(const toml::node* result) {
+  SetConfigValue(result->value<T>().value());
 }
 template <>
 inline void ConfigVar<std::filesystem::path>::LoadConfigValue(
-    std::shared_ptr<cpptoml::base> result) {
+    const toml::node* result) {
   SetConfigValue(
-      xe::utf8::fix_path_separators(*cpptoml::get_impl<std::string>(result)));
+      xe::utf8::fix_path_separators(result->as_string()->value_or("")));
 }
 template <class T>
-void ConfigVar<T>::LoadGameConfigValue(std::shared_ptr<cpptoml::base> result) {
-  SetGameConfigValue(*cpptoml::get_impl<T>(result));
+void ConfigVar<T>::LoadGameConfigValue(const toml::node* result) {
+  SetGameConfigValue(result->value<T>().value());
 }
 template <>
 inline void ConfigVar<std::filesystem::path>::LoadGameConfigValue(
-    std::shared_ptr<cpptoml::base> result) {
+    const toml::node* result) {
   SetGameConfigValue(
-      xe::utf8::fix_path_separators(*cpptoml::get_impl<std::string>(result)));
+      xe::utf8::fix_path_separators(result->as_string()->value_or("")));
 }
 template <class T>
 CommandVar<T>::CommandVar(const char* name, T* default_value,
@@ -215,12 +215,12 @@ inline std::string CommandVar<bool>::ToString(bool val) {
 }
 template <>
 inline std::string CommandVar<std::string>::ToString(std::string val) {
-  return toml::EscapeString(val);
+  return toml_internal::EscapeString(val);
 }
 template <>
 inline std::string CommandVar<std::filesystem::path>::ToString(
     std::filesystem::path val) {
-  return toml::EscapeString(
+  return toml_internal::EscapeString(
       xe::utf8::fix_path_separators(xe::path_to_utf8(val), '/'));
 }
 
