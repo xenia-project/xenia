@@ -10,6 +10,7 @@
 #ifndef XENIA_PLUGIN_LOADER_H_
 #define XENIA_PLUGIN_LOADER_H_
 
+#include "third_party/tomlplusplus/toml.hpp"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/memory.h"
 
@@ -41,8 +42,7 @@ class PluginLoader {
   void CreatePluginDevice(const uint32_t title_id);
   void LoadTitlePlugin(const PluginInfoEntry& entry);
 
-  std::vector<uint64_t> GetHashes(
-      const std::shared_ptr<cpptoml::base> toml_entry);
+  std::vector<uint64_t> GetHashes(const toml::node* toml_entry) const;
 
   kernel::KernelState* kernel_state_;
   std::filesystem::path plugins_root_;

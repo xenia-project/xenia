@@ -57,9 +57,10 @@ void PatchDB::LoadPatches() {
   XELOGI("PatchDB: Loaded patches for {} titles", loaded_patches_.size());
 }
 
-PatchFileEntry PatchDB::ReadPatchFile(const std::filesystem::path& file_path) {
+PatchFileEntry PatchDB::ReadPatchFile(
+    const std::filesystem::path& file_path) const {
   PatchFileEntry patch_file;
-  std::shared_ptr<cpptoml::table> patch_toml_fields;
+  toml::parse_result patch_toml_fields;
 
   try {
     patch_toml_fields = ParseFile(file_path);
@@ -69,108 +70,118 @@ PatchFileEntry PatchDB::ReadPatchFile(const std::filesystem::path& file_path) {
     return patch_file;
   };
 
-  auto title_name = patch_toml_fields->get_as<std::string>("title_name");
-  auto title_id = patch_toml_fields->get_as<std::string>("title_id");
+  auto title_name = patch_toml_fields.get_as<std::string>("title_name");
+  auto title_id = patch_toml_fields.get_as<std::string>("title_id");
+  auto hashes_node = patch_toml_fields.get("hash");
 
-  patch_file.title_id = strtoul((*title_id).c_str(), NULL, 16);
-  patch_file.title_name = *title_name;
-  ReadHashes(patch_file, patch_toml_fields);
+  patch_file.title_id = strtoul(title_id->get().c_str(), NULL, 16);
+  patch_file.title_name = title_name->get();
+  ReadHashes(patch_file, hashes_node);
 
-  auto patch_table = patch_toml_fields->get_table_array("patch");
+  auto patch_array = patch_toml_fields.get("patch");
+  if (!patch_array->is_array()) {
+    return patch_file;
+  }
 
-  for (auto patch_table_entry : *patch_table) {
-    PatchInfoEntry patch = PatchInfoEntry();
-    auto patch_name = *patch_table_entry->get_as<std::string>("name");
-    auto patch_desc = *patch_table_entry->get_as<std::string>("desc");
-    auto patch_author = *patch_table_entry->get_as<std::string>("author");
-    auto is_enabled = *patch_table_entry->get_as<bool>("is_enabled");
-
-    patch.id = 0;  // Todo(Gliniak): Implement id for future GUI stuff
-    patch.patch_name = patch_name;
-    patch.patch_desc = patch_desc;
-    patch.patch_author = patch_author;
-    patch.is_enabled = is_enabled;
-
-    // Iterate through all available data sizes
-    for (const auto& patch_data_type : patch_data_types_size_) {
-      bool success =
-          ReadPatchData(patch.patch_data, patch_data_type, patch_table_entry);
-
-      if (!success) {
-        XELOGE("PatchDB: Cannot read patch {}", patch_name);
-        break;
-      }
+  for (const auto& patch_entry : *patch_array->as_array()) {
+    if (!patch_entry.is_table()) {
+      continue;
     }
+
+    PatchInfoEntry patch = PatchInfoEntry();
+    ReadPatchHeader(patch, patch_entry.as_table());
     patch_file.patch_info.push_back(patch);
   }
   return patch_file;
 }
 
-bool PatchDB::ReadPatchData(
-    std::vector<PatchDataEntry>& patch_data,
-    const std::pair<std::string, PatchData> data_type,
-    const std::shared_ptr<cpptoml::table>& patch_table) {
-  auto patch_data_tarr = patch_table->get_table_array(data_type.first);
-  if (!patch_data_tarr) {
+bool PatchDB::ReadPatchData(std::vector<PatchDataEntry>& patch_data,
+                            const std::pair<std::string, PatchData> data_type,
+                            const toml::table* patch_fields) const {
+  auto patch_data_fields = patch_fields->get_as<toml::array>(data_type.first);
+  if (!patch_data_fields) {
     return true;
   }
 
-  for (const auto& patch_data_table : *patch_data_tarr) {
-    uint32_t address = *patch_data_table->get_as<std::uint32_t>("address");
+  for (const auto& patch_data_table : *patch_data_fields) {
+    if (!patch_data_table.is_table()) {
+      continue;
+    }
+
+    auto table = patch_data_table.as_table();
+    auto address =
+        static_cast<uint32_t>(table->get_as<int64_t>("address")->get());
     size_t alloc_size = (size_t)data_type.second.size;
 
     switch (data_type.second.type) {
       case PatchDataType::kBE8: {
-        uint16_t value = *patch_data_table->get_as<uint8_t>("value");
+        uint16_t value =
+            static_cast<uint16_t>(table->get_as<int64_t>("value")->get());
         patch_data.push_back({address, PatchDataValue(alloc_size, value)});
         break;
       }
       case PatchDataType::kBE16: {
-        uint16_t value = *patch_data_table->get_as<uint16_t>("value");
+        uint16_t value =
+            static_cast<uint16_t>(table->get_as<int64_t>("value")->get());
         patch_data.push_back(
             {address, PatchDataValue(alloc_size, xe::byte_swap(value))});
         break;
       }
       case PatchDataType::kBE32: {
-        uint32_t value = *patch_data_table->get_as<uint32_t>("value");
+        uint32_t value =
+            static_cast<uint32_t>(table->get_as<int64_t>("value")->get());
         patch_data.push_back(
             {address, PatchDataValue(alloc_size, xe::byte_swap(value))});
         break;
       }
       case PatchDataType::kBE64: {
-        uint64_t value = *patch_data_table->get_as<uint64_t>("value");
+        uint64_t value = table->get_as<int64_t>("value")->get();
         patch_data.push_back(
             {address, PatchDataValue(alloc_size, xe::byte_swap(value))});
         break;
       }
       case PatchDataType::kF64: {
-        double val = *patch_data_table->get_as<double>("value");
-        uint64_t value = *reinterpret_cast<uint64_t*>(&val);
+        const auto value_field = table->get("value");
+        double value = 0.0;
+        if (value_field->is_floating_point()) {
+          value = value_field->as_floating_point()->get();
+        }
+        if (value_field->is_integer()) {
+          value = static_cast<double>(value_field->as_integer()->get());
+        }
+
         patch_data.push_back(
             {address, PatchDataValue(alloc_size, xe::byte_swap(value))});
         break;
       }
       case PatchDataType::kF32: {
-        float value = float(*patch_data_table->get_as<double>("value"));
+        const auto value_field = table->get("value");
+        float value = 0.0f;
+        if (value_field->is_floating_point()) {
+          value = static_cast<float>(value_field->as_floating_point()->get());
+        }
+        if (value_field->is_integer()) {
+          value = static_cast<float>(value_field->as_integer()->get());
+        }
+
         patch_data.push_back(
             {address, PatchDataValue(alloc_size, xe::byte_swap(value))});
         break;
       }
       case PatchDataType::kString: {
-        std::string value = *patch_data_table->get_as<std::string>("value");
+        std::string value = table->get_as<std::string>("value")->get();
         patch_data.push_back({address, PatchDataValue(value)});
         break;
       }
       case PatchDataType::kU16String: {
         std::u16string value =
-            xe::to_utf16(*patch_data_table->get_as<std::string>("value"));
+            xe::to_utf16(table->get_as<std::string>("value")->get());
         patch_data.push_back({address, PatchDataValue(value)});
         break;
       }
       case PatchDataType::kByteArray: {
         std::vector<uint8_t> data;
-        const std::string value =
-            *patch_data_table->get_as<std::string>("value");
+        const std::string value = table->get_as<std::string>("value")->get();
 
         bool success = string_util::hex_string_to_array(data, value);
         if (!success) {
@@ -208,16 +219,67 @@ std::vector<PatchFileEntry> PatchDB::GetTitlePatches(
 }
 
 void PatchDB::ReadHashes(PatchFileEntry& patch_entry,
-                         std::shared_ptr<cpptoml::table> patch_toml_fields) {
-  auto title_hashes = patch_toml_fields->get_array_of<std::string>("hash");
+                         const toml::node* hashes_node) const {
+  auto add_hash = [&patch_entry](const toml::node* hash_node) {
+    if (!hash_node->is_string()) {
+      return;
+    }
 
-  for (const auto& hash : *title_hashes) {
-    patch_entry.hashes.push_back(strtoull(hash.c_str(), NULL, 16));
+    const auto string_hash = hash_node->as_string()->get();
+    if (string_hash.empty()) {
+      return;
+    }
+
+    patch_entry.hashes.push_back(
+        xe::string_util::from_string<uint64_t>(string_hash, true));
+  };
+
+  if (hashes_node->is_value()) {
+    add_hash(hashes_node);
   }
 
-  auto single_hash = patch_toml_fields->get_as<std::string>("hash");
-  if (single_hash) {
-    patch_entry.hashes.push_back(strtoull((*single_hash).c_str(), NULL, 16));
+  if (hashes_node->is_array()) {
+    for (const auto& hash_entry : *hashes_node->as_array()) {
+      add_hash(&hash_entry);
+    }
+  }
+}
+
+void PatchDB::ReadPatchHeader(PatchInfoEntry& patch_info,
+                              const toml::table* patch_fields) const {
+  std::string patch_name = {};
+  std::string patch_desc = {};
+  std::string patch_author = {};
+  bool is_enabled = false;
+
+  if (patch_fields->contains("name")) {
+    patch_name = patch_fields->get_as<std::string>("name")->get();
+  }
+  if (patch_fields->contains("desc")) {
+    patch_desc = patch_fields->get_as<std::string>("desc")->get();
+  }
+  if (patch_fields->contains("author")) {
+    patch_author = patch_fields->get_as<std::string>("author")->get();
+  }
+  if (patch_fields->contains("is_enabled")) {
+    is_enabled = patch_fields->get_as<bool>("is_enabled")->get();
+  }
+
+  patch_info.id = 0;  // Todo(Gliniak): Implement id for future GUI stuff
+  patch_info.patch_name = patch_name;
+  patch_info.patch_desc = patch_desc;
+  patch_info.patch_author = patch_author;
+  patch_info.is_enabled = is_enabled;
+
+  // Iterate through all available data sizes
+  for (const auto& patch_data_type : patch_data_types_size_) {
+    bool success =
+        ReadPatchData(patch_info.patch_data, patch_data_type, patch_fields);
+
+    if (!success) {
+      XELOGE("PatchDB: Cannot read patch {}", patch_name);
+      break;
+    }
   }
 }
 

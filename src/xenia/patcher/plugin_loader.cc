@@ -65,7 +65,7 @@ void PluginLoader::LoadTitleConfig(const uint32_t title_id) {
     return;
   }
 
-  std::shared_ptr<cpptoml::table> plugins_config;
+  toml::parse_result plugins_config;
 
   try {
     plugins_config = ParseFile(title_plugins_config);
@@ -76,64 +76,79 @@ void PluginLoader::LoadTitleConfig(const uint32_t title_id) {
   }
 
   const std::string title_name =
-      *plugins_config->get_as<std::string>("title_name");
+      plugins_config.get_as<std::string>("title_name")->get();
 
-  const std::string patch_title_id =
-      *plugins_config->get_as<std::string>("title_id");
+  const std::string plugin_title_id =
+      plugins_config.get_as<std::string>("title_id")->get();
 
-  const auto plugin_tabels = plugins_config->get_table_array("plugin");
-
-  if (!plugin_tabels) {
+  if (!plugins_config.contains("plugin")) {
     XELOGE("Plugins: Cannot find [[plugin]] table in {}",
            path_to_utf8(title_plugins_config));
     return;
   }
 
-  for (auto& plugin : *plugin_tabels) {
+  const auto plugin_array = plugins_config.get_as<toml::array>("plugin");
+  if (!plugin_array) {
+    return;
+  }
+
+  for (const auto& plugin_entry : *plugin_array) {
     PluginInfoEntry entry;
 
-    const std::string name = *plugin->get_as<std::string>("name");
-    const std::string file = *plugin->get_as<std::string>("file");
-    const std::string desc = *plugin->get_as<std::string>("desc");
-    const bool is_enabled = *plugin->get_as<bool>("is_enabled");
+    if (!plugin_entry.is_table()) {
+      return;
+    }
+    entry.title_id =
+        xe::string_util::from_string<uint32_t>(plugin_title_id, true);
 
-    if (!plugin->contains("hash")) {
-      XELOGE("Hash error! skipping plugin {} in: {}", name,
+    if (plugin_entry.as_table()->contains("name")) {
+      entry.name = plugin_entry.as_table()->get_as<std::string>("name")->get();
+    }
+    if (plugin_entry.as_table()->contains("file")) {
+      entry.file = xe::string_util::trim(
+          plugin_entry.as_table()->get_as<std::string>("file")->get());
+    }
+    if (plugin_entry.as_table()->contains("desc")) {
+      entry.desc = plugin_entry.as_table()->get_as<std::string>("desc")->get();
+    }
+    if (plugin_entry.as_table()->contains("is_enabled")) {
+      entry.is_enabled =
+          plugin_entry.as_table()->get_as<bool>("is_enabled")->get();
+    }
+
+    if (!plugin_entry.as_table()->contains("hash")) {
+      XELOGE("Hash error! skipping plugin {} in: {}", entry.name,
              path_to_utf8(title_plugins_config));
       continue;
     }
 
-    entry.hashes = GetHashes(plugin->get("hash"));
-    entry.name = name;
-    entry.file = xe::string_util::trim(file);
-    entry.desc = desc;
-    entry.title_id = title_id;
-    entry.is_enabled = is_enabled;
+    entry.hashes = GetHashes(plugin_entry.as_table()->get("hash"));
     plugin_configs_.push_back(entry);
   }
 }
 
 std::vector<uint64_t> PluginLoader::GetHashes(
-    const std::shared_ptr<cpptoml::base> toml_entry) {
+    const toml::node* toml_entry) const {
   std::vector<uint64_t> hashes;
 
   if (!toml_entry) {
     return hashes;
   }
 
-  if (toml_entry->is_array()) {
-    const auto arr = toml_entry->as_array();
-
-    for (cpptoml::array::const_iterator itr = arr->begin(); itr != arr->end();
-         ++itr) {
-      const std::string hash_entry = itr->get()->as<std::string>()->get();
-      hashes.push_back(strtoull(hash_entry.c_str(), NULL, 16));
-    }
+  if (toml_entry->is_value()) {
+    hashes.push_back(xe::string_util::from_string<uint64_t>(
+        toml_entry->as_string()->get(), true));
   }
 
-  if (toml_entry->is_value()) {
-    const std::string hash = toml_entry->as<std::string>()->get();
-    hashes.push_back(strtoull(hash.c_str(), NULL, 16));
+  if (toml_entry->is_array()) {
+    for (const auto& hash_entry : *toml_entry->as_array()) {
+      if (hash_entry.as_string()->get().empty()) {
+        continue;
+      }
+
+      hashes.push_back(xe::string_util::from_string<uint64_t>(
+          hash_entry.as_string()->get(), true));
+    }
   }
   return hashes;
 }

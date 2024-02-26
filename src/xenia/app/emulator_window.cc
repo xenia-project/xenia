@@ -16,11 +16,11 @@
 #include <string>
 #include <utility>
 
-#include "third_party/cpptoml/include/cpptoml.h"
 #include "third_party/fmt/include/fmt/chrono.h"
 #include "third_party/fmt/include/fmt/format.h"
 #include "third_party/imgui/imgui.h"
 #include "third_party/stb/stb_image_write.h"
+#include "third_party/tomlplusplus/toml.hpp"
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/cvar.h"
@@ -2012,27 +2012,27 @@ void EmulatorWindow::LoadRecentlyLaunchedTitles() {
     return;
   }
 
-  std::shared_ptr<cpptoml::table> parsed_file;
+  toml::parse_result parsed_file;
   try {
-    cpptoml::parser p(file);
-    parsed_file = p.parse();
-  } catch (cpptoml::parse_exception& exception) {
+    parsed_file = toml::parse(file);
+  } catch (toml::parse_error& exception) {
     XELOGE("Cannot parse file: recent.toml. Error: {}", exception.what());
     return;
   }
 
-  if (parsed_file->is_table()) {
-    for (const auto& [index, entry] : *parsed_file->as_table()) {
-      if (!entry->is_table()) {
+  if (parsed_file.is_table()) {
+    for (const auto& [index, entry] : *parsed_file.as_table()) {
+      if (!entry.is_table()) {
         continue;
       }
 
-      const std::shared_ptr<cpptoml::table> entry_table = entry->as_table();
+      const toml::table* entry_table = entry.as_table();
 
-      std::string title_name = *entry_table->get_as<std::string>("title_name");
-      std::string path = *entry_table->get_as<std::string>("path");
+      std::string title_name =
+          entry_table->get_as<std::string>("title_name")->get();
+      std::string path = entry_table->get_as<std::string>("path")->get();
       std::time_t last_run_time =
-          *entry_table->get_as<uint64_t>("last_run_time");
+          entry_table->get_as<int64_t>("last_run_time")->get();
 
       std::error_code ec = {};
       if (path.empty() || !std::filesystem::exists(path, ec)) {
@@ -2063,31 +2063,28 @@ void EmulatorWindow::AddRecentlyLaunchedTitle(
   recently_launched_titles_.insert(recently_launched_titles_.cbegin(),
                                    {title_name, path_to_file, time(nullptr)});
   // Serialize to toml
-  auto toml_table = cpptoml::make_table();
+  auto toml_table = toml::table();
 
   uint8_t index = 0;
   for (const RecentTitleEntry& entry : recently_launched_titles_) {
-    auto entry_table = cpptoml::make_table();
+    auto entry_table = toml::table();
 
     // Fill entry under specific index.
     std::string str_path = xe::path_to_utf8(entry.path_to_file);
-    entry_table->insert("title_name", entry.title_name);
-    entry_table->insert("path", str_path);
-    entry_table->insert("last_run_time", entry.last_run_time);
-    entry_table->end();
+    entry_table.insert("title_name", entry.title_name);
+    entry_table.insert("path", str_path);
+    entry_table.insert("last_run_time", entry.last_run_time);
 
-    toml_table->insert(std::to_string(index++), entry_table);
+    toml_table.insert(std::to_string(index++), entry_table);
 
     if (index >= cvars::recent_titles_entry_amount) {
       break;
     }
   }
-  toml_table->end();
-
   // Open and write serialized data.
   std::ofstream file(emulator()->storage_root() / kRecentlyPlayedTitlesFilename,
                      std::ofstream::trunc);
-  file << *toml_table;
+  file << toml_table;
   file.close();
 }
 

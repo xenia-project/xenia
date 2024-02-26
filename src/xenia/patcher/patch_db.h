@@ -15,7 +15,7 @@
 #include <optional>
 #include <regex>
 
-#include "third_party/cpptoml/include/cpptoml.h"
+#include "third_party/tomlplusplus/toml.hpp"
 
 namespace xe {
 namespace patcher {
@@ -96,10 +96,7 @@ class PatchDB {
 
   void LoadPatches();
 
-  PatchFileEntry ReadPatchFile(const std::filesystem::path& file_path);
-  bool ReadPatchData(std::vector<PatchDataEntry>& patch_data,
-                     const std::pair<std::string, PatchData> data_type,
-                     const std::shared_ptr<cpptoml::table>& patch_table);
+  PatchFileEntry ReadPatchFile(const std::filesystem::path& file_path) const;
 
   std::vector<PatchFileEntry> GetTitlePatches(
       const uint32_t title_id, const std::optional<uint64_t> hash);
@@ -107,7 +104,12 @@ class PatchDB {
 
  private:
   void ReadHashes(PatchFileEntry& patch_entry,
-                  std::shared_ptr<cpptoml::table> patch_toml_fields);
+                  const toml::node* patch_toml_fields) const;
+  void ReadPatchHeader(PatchInfoEntry& patch_info,
+                       const toml::table* patch_fields) const;
+  bool ReadPatchData(std::vector<PatchDataEntry>& patch_data,
+                     const std::pair<std::string, PatchData> data_type,
+                     const toml::table* patch_fields) const;
 
   inline static const std::regex patch_filename_regex_ =
       std::regex("^[A-Fa-f0-9]{8}.*\\.patch\\.toml$");
