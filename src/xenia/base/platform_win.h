@@ -56,7 +56,7 @@
     }                                                                        \
     template <typename TRet = void, typename... TArgs>                       \
     inline TRet invoke(TArgs... args) {                                      \
-      return reinterpret_cast<NTSYSAPI TRet(NTAPI*)(TArgs...)>(fn)(args...); \
+      return reinterpret_cast<TRet(NTAPI*)(TArgs...)>(fn)(args...);          \
     }                                                                        \
     inline operator bool() const { return fn != nullptr; }                   \
   } clsvar
