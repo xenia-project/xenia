@@ -2940,7 +2940,7 @@ void DxbcShaderTranslator::CompletePixelShader() {
           SystemConstants::Index::kAlphaTestReference,
           offsetof(SystemConstants, alpha_test_reference), dxbc::Src::kXXXX));
       // Epsilon for alpha checks
-      dxbc::Src fuzzy_epsilon = dxbc::Src::LF(0.01f);
+      dxbc::Src fuzzy_epsilon = dxbc::Src::LF(1e-3f);
       // Handle "not equal" specially (specifically as "not equal" so it's true
       // for NaN, not "less or greater" which is false for NaN).
       a_.OpIEq(alpha_test_op_dest, alpha_test_mask_src,
