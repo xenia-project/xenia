@@ -13,8 +13,10 @@
 #include "xenia/kernel/xbdm/xbdm_private.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
+
 // chrispy: no idea what a real valid value is for this
 static constexpr const char DmXboxName[] = "Xbox360Name";
+
 namespace xe {
 namespace kernel {
 namespace xbdm {
@@ -142,8 +144,8 @@ dword_result_t DmGetSystemInfo_entry(pointer_t<XBDM_SYSTEM_INFO> info) {
   info->base_kernel_version.minor = info->kernel_version.minor = 0;
   info->base_kernel_version.qfe = info->kernel_version.qfe = 0;
 
-  info->base_kernel_version.build = 1888;
-  info->kernel_version.build = 13139;
+  info->base_kernel_version.build = kBaseKernelBuildVersion;
+  info->kernel_version.build = kernel_state()->GetKernelVersion()->build;
 
   return XBDM_SUCCESSFUL;
 }

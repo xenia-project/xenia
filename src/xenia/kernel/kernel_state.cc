@@ -38,6 +38,9 @@ DEFINE_uint32(max_signed_profiles, 4,
               "Limits how many profiles can be assigned. Possible values: 1-4",
               "Kernel");
 
+DEFINE_uint32(kernel_build_version, 1888, "Define current kernel version",
+              "Kernel");
+
 namespace xe {
 namespace kernel {
 
@@ -66,6 +69,7 @@ KernelState::KernelState(Emulator* emulator)
   user_profiles_.emplace(0, std::make_unique<xam::UserProfile>(0));
 
   InitializeKernelGuestGlobals();
+  kernel_version_ = KernelVersion(cvars::kernel_build_version);
 
   auto content_root = emulator_->content_root();
   if (!content_root.empty()) {

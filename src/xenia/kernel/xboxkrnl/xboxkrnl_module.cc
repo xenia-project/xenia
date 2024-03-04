@@ -205,15 +205,12 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
   // XboxKrnlVersion (8b)
   // Kernel version, looks like 2b.2b.2b.2b.
   // I've only seen games check >=, so we just fake something here.
-  uint32_t pXboxKrnlVersion = memory_->SystemHeapAlloc(8);
+  uint32_t pXboxKrnlVersion = memory_->SystemHeapAlloc(sizeof(KernelVersion));
   auto lpXboxKrnlVersion = memory_->TranslateVirtual(pXboxKrnlVersion);
   export_resolver_->SetVariableMapping(
       "xboxkrnl.exe", ordinals::XboxKrnlVersion, pXboxKrnlVersion);
-  xe::store_and_swap<uint16_t>(lpXboxKrnlVersion + 0, 2);
-  xe::store_and_swap<uint16_t>(lpXboxKrnlVersion + 2, 0xFFFF);
-  xe::store_and_swap<uint16_t>(lpXboxKrnlVersion + 4, 0xFFFF);
-  xe::store_and_swap<uint8_t>(lpXboxKrnlVersion + 6, 0x80);
-  xe::store_and_swap<uint8_t>(lpXboxKrnlVersion + 7, 0x00);
+  std::memcpy(lpXboxKrnlVersion, kernel_state_->GetKernelVersion(),
+              sizeof(KernelVersion));
 
   export_resolver_->SetVariableMapping("xboxkrnl.exe",
                                        ordinals::KeTimeStampBundle,
