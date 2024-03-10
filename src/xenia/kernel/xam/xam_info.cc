@@ -33,7 +33,19 @@
 
 #include "third_party/fmt/include/fmt/format.h"
 
-DEFINE_int32(avpack, 8, "Video modes", "Video");
+DEFINE_int32(
+    avpack, 8,
+    "Video modes\n"
+    " 0 = PAL-60 Component (SD)\n"
+    " 1 = Unused\n"
+    " 2 = PAL-60 SCART\n"
+    " 3 = 480p Component (HD)\n"
+    " 4 = HDMI+A\n"
+    " 5 = PAL-60 Composite/S-Video\n"
+    " 6 = VGA\n"
+    " 7 = TV PAL-60\n"
+    " 8 = HDMI (default)",
+    "Video");
 DECLARE_int32(user_country);
 DECLARE_int32(user_language);
 
