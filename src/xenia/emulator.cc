@@ -398,13 +398,13 @@ X_STATUS Emulator::MountPath(const std::filesystem::path& path,
     return X_STATUS_NO_SUCH_FILE;
   }
 
-  file_system_->UnregisterSymbolicLink(kDefaultPartitonSymbolicLink);
+  file_system_->UnregisterSymbolicLink(kDefaultPartitionSymbolicLink);
   file_system_->UnregisterSymbolicLink(kDefaultGameSymbolicLink);
   file_system_->UnregisterSymbolicLink("plugins:");
 
   // Create symlinks to the device.
   file_system_->RegisterSymbolicLink(kDefaultGameSymbolicLink, mount_path);
-  file_system_->RegisterSymbolicLink(kDefaultPartitonSymbolicLink, mount_path);
+  file_system_->RegisterSymbolicLink(kDefaultPartitionSymbolicLink, mount_path);
 
   return X_STATUS_SUCCESS;
 }
@@ -875,14 +875,14 @@ std::string Emulator::FindLaunchModule() {
       // Remove previous symbolic links.
       // Some titles can provide root within specific directory.
       kernel_state_->file_system()->UnregisterSymbolicLink(
-          kDefaultPartitonSymbolicLink);
+          kDefaultPartitionSymbolicLink);
       kernel_state_->file_system()->UnregisterSymbolicLink(
           kDefaultGameSymbolicLink);
 
       file_path /= std::filesystem::path(xam->loader_data().launch_path);
 
       kernel_state_->file_system()->RegisterSymbolicLink(
-          kDefaultPartitonSymbolicLink,
+          kDefaultPartitionSymbolicLink,
           xe::path_to_utf8(file_path.parent_path()));
       kernel_state_->file_system()->RegisterSymbolicLink(
           kDefaultGameSymbolicLink, xe::path_to_utf8(file_path.parent_path()));
