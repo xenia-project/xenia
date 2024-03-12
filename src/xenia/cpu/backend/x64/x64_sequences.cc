@@ -2120,9 +2120,9 @@ struct RSQRT_V128 : Sequence<RSQRT_V128, I<OPCODE_RSQRT, V128Op, V128Op>> {
     e.ChangeMxcsrMode(MXCSRMode::Vmx);
     Xmm src1 = GetInputRegOrConstant(e, i.src1, e.xmm3);
     /*
-        the vast majority of inputs to vrsqrte come from vmsum3 or vmsum4 as part
-        of a vector normalization sequence. in fact, its difficult to find uses of vrsqrte in titles
-        that have inputs which do not come from vmsum.
+        the vast majority of inputs to vrsqrte come from vmsum3 or vmsum4 as
+       part of a vector normalization sequence. in fact, its difficult to find
+       uses of vrsqrte in titles that have inputs which do not come from vmsum.
     */
     if (i.src1.value && i.src1.value->AllFloatVectorLanesSameValue()) {
       e.vmovss(e.xmm0, src1);
@@ -3193,8 +3193,7 @@ struct SET_ROUNDING_MODE_I32
 
       if (constant_value & 4) {
         e.or_(flags_ptr, 1U << kX64BackendNonIEEEMode);
-      }
-      else {
+      } else {
         e.btr(flags_ptr, kX64BackendNonIEEEMode);
       }
       e.mov(e.dword[e.rsp + StackLayout::GUEST_SCRATCH], e.eax);
@@ -3202,14 +3201,14 @@ struct SET_ROUNDING_MODE_I32
       e.vldmxcsr(e.dword[e.rsp + StackLayout::GUEST_SCRATCH]);
 
     } else {
-      //can andnot, but this is a very infrequently used opcode
+      // can andnot, but this is a very infrequently used opcode
       e.mov(e.eax, 1U << kX64BackendNonIEEEMode);
       e.mov(e.edx, e.eax);
       e.not_(e.edx);
       e.mov(e.ecx, flags_ptr);
-      //edx = flags w/ non ieee cleared
+      // edx = flags w/ non ieee cleared
       e.and_(e.edx, e.ecx);
-      //eax = flags w/ non ieee set
+      // eax = flags w/ non ieee set
       e.or_(e.eax, e.ecx);
       e.bt(i.src1, 2);
 

@@ -13,7 +13,7 @@
 // Almost all of these values are taken directly from:
 // https://github.com/freedreno/amd-gpu/blob/master/include/reg/yamato/22/yamato_offset.h
 
-//#define XE_GPU_REGISTER(index, type, name)
+// #define XE_GPU_REGISTER(index, type, name)
 
 XE_GPU_REGISTER(0x0048, kDword, BIF_PERFCOUNTER0_SELECT)
 XE_GPU_REGISTER(0x0049, kDword, BIF_PERFCOUNTER0_HI)
@@ -36,35 +36,36 @@ XE_GPU_REGISTER(0x0398, kDword, RBBM_PERFCOUNTER0_HI)
 XE_GPU_REGISTER(0x0399, kDword, RBBM_PERFCOUNTER1_LOW)
 XE_GPU_REGISTER(0x039A, kDword, RBBM_PERFCOUNTER1_HI)
 
-//XAM reads this directly and stores it to a struct, have not tracked where it goes from there
-//PM4 command PM4_MEM_WRITE_CNTR is supposed to write this to memory
-//XE_GPU_REGISTER(0x44b, kDword,CP_PROG_COUNTER )
+// XAM reads this directly and stores it to a struct, have not tracked where it
+// goes from there PM4 command PM4_MEM_WRITE_CNTR is supposed to write this to
+// memory XE_GPU_REGISTER(0x44b, kDword,CP_PROG_COUNTER )
 XE_GPU_REGISTER(0x045E, kDword, CALLBACK_ACK)
 
 XE_GPU_REGISTER(0x0578, kDword, SCRATCH_REG0)  // interrupt sync
 XE_GPU_REGISTER(0x0579, kDword, SCRATCH_REG1)  // present interval
 XE_GPU_REGISTER(0x057A, kDword, SCRATCH_REG2)
 XE_GPU_REGISTER(0x057B, kDword, SCRATCH_REG3)
-XE_GPU_REGISTER(0x057C, kDword, SCRATCH_REG4) //originally this was named CALLBACK_ADDRESS, but that didnt make sense
+XE_GPU_REGISTER(0x057C, kDword,
+                SCRATCH_REG4)  // originally this was named CALLBACK_ADDRESS,
+                               // but that didnt make sense
 XE_GPU_REGISTER(0x057D, kDword, SCRATCH_REG5)
 XE_GPU_REGISTER(0x057E, kDword, SCRATCH_REG6)
 XE_GPU_REGISTER(0x057F, kDword, SCRATCH_REG7)
 
 XE_GPU_REGISTER(0x05C8, kDword, WAIT_UNTIL)
 
-//src is flash_xam.xex, i've seen it used by the kernel and aurora
-//seems to have a negative value while the gpu is busy
-//XE_GPU_REGISTER(0x05D0, kDword, RBBM_STATUS)
+// src is flash_xam.xex, i've seen it used by the kernel and aurora
+// seems to have a negative value while the gpu is busy
+// XE_GPU_REGISTER(0x05D0, kDword, RBBM_STATUS)
 
+// update count = 6 bit field, bits 8- 14
+// there are several other fields here, they have an unknown purpose
+// XE_GPU_REGISTER(0x704, kDword, CP_RB_CNTL)
 
-//update count = 6 bit field, bits 8- 14
-//there are several other fields here, they have an unknown purpose
-//XE_GPU_REGISTER(0x704, kDword, CP_RB_CNTL)
-
-//address must be 4 byte aligned
-//low 2 bits encode two different fields?
-//xboxkrnl just does addr |2 when assigning
-//XE_GPU_REGISTER(0x70C, kDword, CP_RB_RPTR_ADDR)
+// address must be 4 byte aligned
+// low 2 bits encode two different fields?
+// xboxkrnl just does addr |2 when assigning
+// XE_GPU_REGISTER(0x70C, kDword, CP_RB_RPTR_ADDR)
 XE_GPU_REGISTER(0x0815, kDword, MC0_PERFCOUNTER0_SELECT)
 XE_GPU_REGISTER(0x0816, kDword, MC0_PERFCOUNTER0_HI)
 XE_GPU_REGISTER(0x0817, kDword, MC0_PERFCOUNTER0_LOW)
@@ -72,13 +73,13 @@ XE_GPU_REGISTER(0x0855, kDword, MC1_PERFCOUNTER0_SELECT)
 XE_GPU_REGISTER(0x0856, kDword, MC1_PERFCOUNTER0_HI)
 XE_GPU_REGISTER(0x0857, kDword, MC1_PERFCOUNTER0_LOW)
 
-//base GPU virtual address of the xps region. Most guests write 0xC0100000 here
+// base GPU virtual address of the xps region. Most guests write 0xC0100000 here
 XE_GPU_REGISTER(0x0A02, kDword, XPS_BASE)
-//will usually be set higher, but is effectively 0x700000 bytes long
+// will usually be set higher, but is effectively 0x700000 bytes long
 XE_GPU_REGISTER(0x0A03, kDword, XPS_SIZE)
-//usually 0xC0000000
+// usually 0xC0000000
 XE_GPU_REGISTER(0x0A04, kDword, WRITEBACK_BASE)
-//usually 0x0100000
+// usually 0x0100000
 XE_GPU_REGISTER(0x0A05, kDword, WRITEBACK_SIZE)
 
 XE_GPU_REGISTER(0x0A18, kDword, MH_PERFCOUNTER0_SELECT)
@@ -279,8 +280,8 @@ XE_GPU_REGISTER(0x0F0C, kDword, BC_PERFCOUNTER2_LOW)
 XE_GPU_REGISTER(0x0F0D, kDword, BC_PERFCOUNTER2_HI)
 XE_GPU_REGISTER(0x0F0E, kDword, BC_PERFCOUNTER3_LOW)
 XE_GPU_REGISTER(0x0F0F, kDword, BC_PERFCOUNTER3_HI)
-//src is flash_xam.xex
-//XE_GPU_REGISTER(0x0F12, RB_SIDEBAND_DATA,
+// src is flash_xam.xex
+// XE_GPU_REGISTER(0x0F12, RB_SIDEBAND_DATA,
 
 XE_GPU_REGISTER(0x1004, kDword, HZ_PERFCOUNTER0_SELECT)
 XE_GPU_REGISTER(0x1005, kDword, HZ_PERFCOUNTER0_HI)

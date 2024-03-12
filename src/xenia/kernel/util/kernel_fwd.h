@@ -25,5 +25,5 @@ struct X_OBJECT_CREATE_INFORMATION;
 namespace xe::kernel::util {
 class NativeList;
 class ObjectTable;
-}
+}  // namespace xe::kernel::util
 #endif

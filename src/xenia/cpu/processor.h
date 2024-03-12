@@ -189,11 +189,11 @@ class Processor {
   uint32_t GuestAtomicDecrement32(ppc::PPCContext* context,
                                   uint32_t guest_address);
   uint32_t GuestAtomicOr32(ppc::PPCContext* context, uint32_t guest_address,
-                         uint32_t mask);
+                           uint32_t mask);
   uint32_t GuestAtomicXor32(ppc::PPCContext* context, uint32_t guest_address,
-                         uint32_t mask);
+                            uint32_t mask);
   uint32_t GuestAtomicAnd32(ppc::PPCContext* context, uint32_t guest_address,
-                         uint32_t mask);
+                            uint32_t mask);
   bool GuestAtomicCAS32(ppc::PPCContext* context, uint32_t old_value,
                         uint32_t new_value, uint32_t guest_address);
 

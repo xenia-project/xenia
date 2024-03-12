@@ -117,7 +117,7 @@ class UserModule : public XModule {
   bool is_dll_module_ = false;
   uint32_t entry_point_ = 0;
   uint32_t stack_size_ = 0;
-  uint32_t workspace_size_ = 384*1024;
+  uint32_t workspace_size_ = 384 * 1024;
 
   uint32_t mod_checksum_ = 0;
   uint32_t time_date_stamp_ = 0;

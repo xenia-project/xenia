@@ -225,7 +225,6 @@ class CommandProcessor {
   virtual void PrepareForWait();
   virtual void ReturnFromWait();
 
-  
   virtual void OnPrimaryBufferEnd() {}
 
 #include "pm4_command_processor_declare.h"

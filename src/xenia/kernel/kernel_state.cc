@@ -1322,7 +1322,7 @@ void KernelState::InitializeKernelGuestGlobals() {
   block->ObSymbolicLinkObjectType.delete_proc =
       kernel_trampoline_group_.NewLongtermTrampoline(DeleteSymlink);
 
-#define offsetof32(s, m) static_cast<uint32_t>( offsetof(s, m) )
+#define offsetof32(s, m) static_cast<uint32_t>(offsetof(s, m))
 
   host_object_type_enum_to_guest_object_type_ptr_ = {
       {XObject::Type::Event,

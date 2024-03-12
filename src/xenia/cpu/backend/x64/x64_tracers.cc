@@ -29,15 +29,14 @@ namespace x64 {
 
 bool trace_enabled = true;
 
-#define THREAD_MATCH \
-  (!TARGET_THREAD || ppc_context->thread_id == TARGET_THREAD)
+#define THREAD_MATCH (!TARGET_THREAD || ppc_context->thread_id == TARGET_THREAD)
 #define IFLUSH()
 #define IPRINT(s)                    \
   if (trace_enabled && THREAD_MATCH) \
   xe::logging::AppendLogLine(xe::LogLevel::Debug, 't', s, xe::LogSrc::Cpu)
 #define DFLUSH()
-#define DPRINT(...)                  \
-  if (trace_enabled && THREAD_MATCH) \
+#define DPRINT(...)                                                           \
+  if (trace_enabled && THREAD_MATCH)                                          \
   xe::logging::AppendLogLineFormat(xe::LogSrc::Cpu, xe::LogLevel::Debug, 't', \
                                    __VA_ARGS__)
 

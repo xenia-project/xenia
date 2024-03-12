@@ -168,8 +168,8 @@ static void XeInsertHeadList(uint32_t list_head, X_LIST_ENTRY* entry,
 template <typename VirtualTranslator>
 static void XeInsertHeadList(X_LIST_ENTRY* list_head, X_LIST_ENTRY* entry,
                              VirtualTranslator context) {
-  XeInsertHeadList(list_head, XeGuestList(list_head, context),
-                   entry, XeGuestList(entry, context), context);
+  XeInsertHeadList(list_head, XeGuestList(list_head, context), entry,
+                   XeGuestList(entry, context), context);
 }
 
 template <typename TObject, size_t EntryListOffset>
@@ -216,7 +216,7 @@ struct X_TYPED_LIST : public X_LIST_ENTRY {
 
     uint32_t end() { return vt->HostToGuestVirtual(thiz); }
   };
-  template<typename VirtualTranslator>
+  template <typename VirtualTranslator>
   ForwardIteratorBegin<VirtualTranslator> IterateForward(VirtualTranslator vt) {
     return ForwardIteratorBegin<VirtualTranslator>{vt, this};
   }
@@ -227,13 +227,14 @@ struct X_TYPED_LIST : public X_LIST_ENTRY {
   }
   template <typename VirtualTranslator>
   void InsertHead(TObject* entry, VirtualTranslator translator) {
-    XeInsertHeadList(static_cast<X_LIST_ENTRY*>(this), ObjectListEntry(entry), translator);
+    XeInsertHeadList(static_cast<X_LIST_ENTRY*>(this), ObjectListEntry(entry),
+                     translator);
   }
   template <typename VirtualTranslator>
   void InsertTail(TObject* entry, VirtualTranslator translator) {
     XeInsertTailList(this, ObjectListEntry(entry), translator);
   }
-  template<typename VirtualTranslator>
+  template <typename VirtualTranslator>
   bool empty(VirtualTranslator vt) const {
     return vt->TranslateVirtual<X_LIST_ENTRY*>(flink_ptr) == this;
   }

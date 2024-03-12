@@ -457,7 +457,7 @@ static ArchFloatMask ArchANDFloatMask(ArchFloatMask x, ArchFloatMask y) {
 
 XE_FORCEINLINE
 static uint32_t ArchFloatMaskSignbit(ArchFloatMask x) {
-  return static_cast<uint32_t>(_mm_movemask_ps(x) &1);
+  return static_cast<uint32_t>(_mm_movemask_ps(x) & 1);
 }
 
 constexpr ArchFloatMask floatmask_zero{.0f};
@@ -606,12 +606,13 @@ union IDivExtraInfo {
   } info;
 };
 // returns magicnum multiplier
-static constexpr uint32_t PregenerateUint32Div(uint32_t _denom, uint32_t& out_extra) {
+static constexpr uint32_t PregenerateUint32Div(uint32_t _denom,
+                                               uint32_t& out_extra) {
   IDivExtraInfo extra{};
 
   uint32_t d = _denom;
-  int p=0;
-  uint32_t nc=0, delta=0, q1=0, r1=0, q2=0, r2=0;
+  int p = 0;
+  uint32_t nc = 0, delta = 0, q1 = 0, r1 = 0, q2 = 0, r2 = 0;
   struct {
     unsigned M;
     int a;
@@ -662,7 +663,8 @@ static constexpr uint32_t ApplyUint32Div(uint32_t num, uint32_t mul,
 
   extra.value_ = extradata;
 
-  uint32_t result = static_cast<uint32_t>((static_cast<uint64_t>(num) * static_cast<uint64_t>(mul)) >> 32);
+  uint32_t result = static_cast<uint32_t>(
+      (static_cast<uint64_t>(num) * static_cast<uint64_t>(mul)) >> 32);
   if (extra.info.add_) {
     uint32_t addend = result + num;
     addend = ((addend < result ? 0x80000000 : 0) | addend);
@@ -672,7 +674,8 @@ static constexpr uint32_t ApplyUint32Div(uint32_t num, uint32_t mul,
 }
 
 static constexpr uint32_t ApplyUint32UMod(uint32_t num, uint32_t mul,
-                                       uint32_t extradata, uint32_t original) {
+                                          uint32_t extradata,
+                                          uint32_t original) {
   uint32_t dived = ApplyUint32Div(num, mul, extradata);
   unsigned result = num - (dived * original);
 
@@ -701,8 +704,7 @@ struct MagicDiv {
     return extra.info.shift_;
   }
 
-  constexpr uint32_t GetMultiplier() const { return multiplier_;
-  }
+  constexpr uint32_t GetMultiplier() const { return multiplier_; }
   constexpr uint32_t Apply(uint32_t numerator) const {
     return ApplyUint32Div(numerator, multiplier_, extradata_);
   }

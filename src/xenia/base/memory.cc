@@ -180,7 +180,8 @@ static void vastcpy_impl_repmovs(CacheLine* XE_RESTRICT physaddr,
   __movsq((unsigned long long*)physaddr, (unsigned long long*)rdmapping,
           written_length / 8);
 #else
-  memcpy((unsigned char*)physaddr, (const unsigned char*)rdmapping, written_length);
+  memcpy((unsigned char*)physaddr, (const unsigned char*)rdmapping,
+         written_length);
 #endif
 }
 XE_COLD
@@ -331,17 +332,17 @@ void copy_and_swap_32_unaligned(void* dest_ptr, const void* src_ptr,
 
       __m256i output1 = _mm256_shuffle_epi8(input1, shufmask);
       __m256i output2 = _mm256_shuffle_epi8(input2, shufmask);
-	  //chrispy: todo, benchmark this w/ and w/out these prefetches here on multiple machines
-	  //finding a good distance for prefetchw in particular is probably important
-	  //for when we're writing across 2 cachelines
-	  #if 0
+// chrispy: todo, benchmark this w/ and w/out these prefetches here on multiple
+// machines finding a good distance for prefetchw in particular is probably
+// important for when we're writing across 2 cachelines
+#if 0
       if (i + 48 <= count) {
         swcache::PrefetchNTA(&src[i + 32]);
         if (amd64::GetFeatureFlags() & amd64::kX64EmitPrefetchW) {
           swcache::PrefetchW(&dest[i + 32]);
         }
       }
-	  #endif
+#endif
       _mm256_storeu_si256(reinterpret_cast<__m256i*>(&dest[i]), output1);
       _mm256_storeu_si256(reinterpret_cast<__m256i*>(&dest[i + 8]), output2);
     }

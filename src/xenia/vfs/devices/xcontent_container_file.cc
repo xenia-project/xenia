@@ -18,7 +18,7 @@ namespace xe {
 namespace vfs {
 
 XContentContainerFile::XContentContainerFile(uint32_t file_access,
-                                     XContentContainerEntry* entry)
+                                             XContentContainerEntry* entry)
     : File(file_access, entry), entry_(entry) {}
 
 XContentContainerFile::~XContentContainerFile() = default;
@@ -26,8 +26,8 @@ XContentContainerFile::~XContentContainerFile() = default;
 void XContentContainerFile::Destroy() { delete this; }
 
 X_STATUS XContentContainerFile::ReadSync(void* buffer, size_t buffer_length,
-                                     size_t byte_offset,
-                                     size_t* out_bytes_read) {
+                                         size_t byte_offset,
+                                         size_t* out_bytes_read) {
   if (byte_offset >= entry_->size()) {
     return X_STATUS_END_OF_FILE;
   }

@@ -30,9 +30,7 @@ class Label {
   // this will later be used as an input to xbyak. xbyak only accepts
   // std::string as a value, not passed by reference, so precomputing the
   // stringification does not help
-  std::string GetIdString() {
-	  return std::to_string(id);
-  }
+  std::string GetIdString() { return std::to_string(id); }
 };
 
 }  // namespace hir

@@ -176,7 +176,10 @@ enum XmmConst {
   XMMVSRShlByteshuf,
   XMMVSRMask,
   XMMVRsqrteTableStart,
-  XMMVRsqrteTableBase = XMMVRsqrteTableStart + (32 / 4), //32 4-byte elements in table, 4 4-byte elements fit in each xmm
+  XMMVRsqrteTableBase =
+      XMMVRsqrteTableStart +
+      (32 /
+       4),  // 32 4-byte elements in table, 4 4-byte elements fit in each xmm
 
 };
 using amdfx::xopcompare_e;
@@ -311,7 +314,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   size_t stack_size() const { return stack_size_; }
   Xbyak::RegExp GetLocalsBase() const;
   SimdDomain DeduceSimdDomain(const hir::Value* for_value);
- 
+
   void ForgetMxcsrMode() { mxcsr_mode_ = MXCSRMode::Unknown; }
   /*
         returns true if had to load mxcsr. DOT_PRODUCT can use this to skip
@@ -390,6 +393,7 @@ class X64Emitter : public Xbyak::CodeGenerator {
   void EmitGetCurrentThreadId();
   void EmitTraceUserCallReturn();
   static void HandleStackpointOverflowError(ppc::PPCContext* context);
+
  protected:
   Processor* processor_ = nullptr;
   X64Backend* backend_ = nullptr;

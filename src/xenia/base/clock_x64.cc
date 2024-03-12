@@ -41,9 +41,6 @@
                  "\n"                                                       \
                  "Set the cvar 'clock_source_raw' to 'false'.");
 
-
-
-
 namespace xe {
 // Getting the TSC frequency can be a bit tricky. This method here only works on
 // Intel as it seems. There is no easy way to get the frequency outside of ring0
@@ -75,8 +72,6 @@ uint64_t Clock::host_tick_frequency_raw() {
     return 0;
   }
 
-
-  
   if (max_cpuid >= 0x15) {
     // 15H Get TSC/Crystal ratio and Crystal Hz.
     xe_cpu_cpuid(0x15, eax, ebx, ecx, edx);
@@ -97,7 +92,6 @@ uint64_t Clock::host_tick_frequency_raw() {
     assert(cpu_base_freq);
     return cpu_base_freq;
   }
-
 
   CLOCK_FATAL("The clock frequency could not be determined.");
   return 0;

@@ -46,7 +46,7 @@ struct PPCDecodeData {
     uint32_t LEV() const { return bits_.LEV; }
 
    private:
-	   XE_MAYBE_UNUSED
+    XE_MAYBE_UNUSED
     uint32_t address_;
     union {
       uint32_t value_;

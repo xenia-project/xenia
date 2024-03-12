@@ -723,8 +723,9 @@ dword_result_t IoCreateDevice_entry(dword_t driver_object,
 }
 DECLARE_XBOXKRNL_EXPORT1(IoCreateDevice, kFileSystem, kStub);
 
-//supposed to invoke a callback on the driver object! its some sort of destructor function
-//intended to be called for all devices created from the driver
+// supposed to invoke a callback on the driver object! its some sort of
+// destructor function intended to be called for all devices created from the
+// driver
 void IoDeleteDevice_entry(dword_t device_ptr, const ppc_context_t& ctx) {
   if (device_ptr) {
     auto kernel_mem = ctx->kernel_state->memory();

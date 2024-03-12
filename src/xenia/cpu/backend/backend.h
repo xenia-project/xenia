@@ -78,7 +78,8 @@ class Backend {
   virtual void InitializeBackendContext(void* ctx) {}
 
   /*
-	Free any dynamically allocated data/resources that the backendcontext uses
+        Free any dynamically allocated data/resources that the backendcontext
+     uses
   */
   virtual void DeinitializeBackendContext(void* ctx) {}
   virtual void SetGuestRoundingMode(void* ctx, unsigned int mode){};

@@ -10,10 +10,8 @@
 #ifndef XENIA_GPU_XENOS_H_
 #define XENIA_GPU_XENOS_H_
 
-
-#include "xenia/base/memory.h"
 #include "xenia/base/math.h"
-
+#include "xenia/base/memory.h"
 
 namespace xe {
 namespace gpu {
@@ -421,7 +419,7 @@ float Float7e3To32(uint32_t f10);
 // floating-point number.
 // Converts an IEEE-754 32-bit floating-point number to Xenos floating-point
 // depth, rounding to the nearest even or towards zero.
-XE_NOALIAS 
+XE_NOALIAS
 uint32_t Float32To20e4(float f32, bool round_to_nearest_even) noexcept;
 // Converts Xenos floating-point depth in bits 0:23 (not clamping) to an
 // IEEE-754 32-bit floating-point number.

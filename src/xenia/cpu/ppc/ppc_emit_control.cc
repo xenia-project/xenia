@@ -132,23 +132,23 @@ int InstrEmit_branch(PPCHIRBuilder& f, const char* src, uint64_t cia,
 #else
     {
 #endif
-    // Jump to pointer.
-    bool likely_return = !lk && nia_is_lr;
-    if (likely_return) {
-      call_flags |= CALL_POSSIBLE_RETURN;
-    }
-    if (cond) {
-      if (!expect_true) {
-        cond = f.IsFalse(cond);
+      // Jump to pointer.
+      bool likely_return = !lk && nia_is_lr;
+      if (likely_return) {
+        call_flags |= CALL_POSSIBLE_RETURN;
       }
-      f.CallIndirectTrue(cond, nia, call_flags);
-    } else {
-      f.CallIndirect(nia, call_flags);
+      if (cond) {
+        if (!expect_true) {
+          cond = f.IsFalse(cond);
+        }
+        f.CallIndirectTrue(cond, nia, call_flags);
+      } else {
+        f.CallIndirect(nia, call_flags);
+      }
     }
   }
-}
 
-return 0;
+  return 0;
 }  // namespace ppc
 
 int InstrEmit_bx(PPCHIRBuilder& f, const InstrData& i) {
@@ -789,9 +789,8 @@ int InstrEmit_mtspr(PPCHIRBuilder& f, const InstrData& i) {
 // code requires it. Sequences of mtmsr/lwar/stcw/mtmsr come up a lot, and
 // without the lock here threads can livelock.
 
-
-//0x400 = debug singlestep i think
-//ive seen 0x8000 used in kernel code 
+// 0x400 = debug singlestep i think
+// ive seen 0x8000 used in kernel code
 int InstrEmit_mfmsr(PPCHIRBuilder& f, const InstrData& i) {
   // bit 48 = EE; interrupt enabled
   // bit 62 = RI; recoverable interrupt
@@ -806,7 +805,7 @@ int InstrEmit_mtmsr(PPCHIRBuilder& f, const InstrData& i) {
 }
 
 int InstrEmit_mtmsrd(PPCHIRBuilder& f, const InstrData& i) {
-	//todo: this is moving msr under a mask, so only writing EE and RI
+  // todo: this is moving msr under a mask, so only writing EE and RI
 
   Value* from = f.LoadGPR(i.X.RT);
   Value* mtmsrd_mask = f.LoadConstantUint64((1ULL << 15));

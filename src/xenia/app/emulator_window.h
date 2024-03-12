@@ -61,8 +61,8 @@ class EmulatorWindow {
   int32_t selected_title_index = -1;
 
   static constexpr int64_t diff_in_ms(
-    const steady_clock::time_point t1,
-    const steady_clock::time_point t2) noexcept {
+      const steady_clock::time_point t1,
+      const steady_clock::time_point t2) noexcept {
     using ms = std::chrono::milliseconds;
     return std::chrono::duration_cast<ms>(t1 - t2).count();
   }

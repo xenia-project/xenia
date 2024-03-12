@@ -429,7 +429,7 @@ bool RegisterAllocationPass::SpillOneRegister(HIRBuilder* builder, Block* block,
 
   // Set the local slot of the new value to our existing one. This way we will
   // reuse that same memory if needed.
-  new_value->SetLocalSlot( spill_value->GetLocalSlot());
+  new_value->SetLocalSlot(spill_value->GetLocalSlot());
 
   // Rename all future uses of the SSA value to the new value as loaded
   // from the local.

@@ -115,7 +115,6 @@ uintptr_t GuestFunction::MapGuestAddressToMachineCode(
     return reinterpret_cast<uintptr_t>(machine_code()) + entry->code_offset;
   } else {
     return 0;
-  
   }
 }
 

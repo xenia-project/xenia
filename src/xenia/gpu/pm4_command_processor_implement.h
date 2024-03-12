@@ -683,13 +683,12 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_INDIRECT_BUFFER(
    to 54 bytes
 */
 static bool MatchValueAndRef(uint32_t value, uint32_t ref, uint32_t wait_info) {
-// smaller code is generated than the #else path, although whether it is faster
-// i do not know. i don't think games do an enormous number of cond_write
-// though, so we have picked
-// the path with the smaller codegen.
-// we do technically have more instructions executed vs the switch case method,
-// but we have no mispredicts and most of our instructions are 0.25/0.3
-// throughput
+  // smaller code is generated than the #else path, although whether it is
+  // faster i do not know. i don't think games do an enormous number of
+  // cond_write though, so we have picked the path with the smaller codegen. we
+  // do technically have more instructions executed vs the switch case method,
+  // but we have no mispredicts and most of our instructions are 0.25/0.3
+  // throughput
   return ((((value < ref) << 1) | ((value <= ref) << 2) |
            ((value == ref) << 3) | ((value != ref) << 4) |
            ((value >= ref) << 5) | ((value > ref) << 6) | (1 << 7)) >>
@@ -899,13 +898,17 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_EVENT_WRITE_SHD(
   data_value = GpuSwap(data_value, endianness);
   uint8_t* write_destination = memory_->TranslatePhysical(address);
   if (address > 0x1FFFFFFF) {
-    uint32_t writeback_base = register_file_->values[XE_GPU_REG_WRITEBACK_BASE].u32;
-    uint32_t writeback_size = register_file_->values[XE_GPU_REG_WRITEBACK_SIZE].u32;
+    uint32_t writeback_base =
+        register_file_->values[XE_GPU_REG_WRITEBACK_BASE].u32;
+    uint32_t writeback_size =
+        register_file_->values[XE_GPU_REG_WRITEBACK_SIZE].u32;
     uint32_t writeback_offset = address - writeback_base;
-	//check whether the guest has written writeback base. if they haven't, skip the offset check
+    // check whether the guest has written writeback base. if they haven't, skip
+    // the offset check
     if (writeback_base != 0 && writeback_offset < writeback_size) {
-      write_destination = memory_->TranslateVirtual(0x7F000000 + writeback_offset);
-	}
+      write_destination =
+          memory_->TranslateVirtual(0x7F000000 + writeback_offset);
+    }
   }
   xe::store(write_destination, data_value);
   trace_writer_.WriteMemoryWrite(CpuToGpu(address), 4);

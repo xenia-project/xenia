@@ -209,10 +209,10 @@ class SharedMemory {
     uint64_t valid_and_gpu_resolved;
   };
 
-  //chrispy: todo, systempageflagsblock should be 3 different arrays
-  // Flags for each 64 system pages, interleaved as blocks, so bit scan can be
-  // used to quickly extract ranges.
- // std::vector<SystemPageFlagsBlock> system_page_flags_;
+  // chrispy: todo, systempageflagsblock should be 3 different arrays
+  //  Flags for each 64 system pages, interleaved as blocks, so bit scan can be
+  //  used to quickly extract ranges.
+  // std::vector<SystemPageFlagsBlock> system_page_flags_;
 
   uint64_t *system_page_flags_valid_ = nullptr,
            *system_page_flags_valid_and_gpu_written_ = nullptr,

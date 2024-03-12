@@ -44,37 +44,51 @@ on:
   workflow_dispatch:
 
 jobs:
+  lint:
+    name: Lint
+    runs-on: windows-2022
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Check Clang-Format Version
+      run: clang-format --version
+
+    - name: Lint
+      run: .\xb lint --all
+
   build-windows:
     name: Build (Windows) #  runner.os can't be used here
     runs-on: windows-2022
     env:
       POWERSHELL_TELEMETRY_OPTOUT: 1
+    needs: lint
+
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Setup
         run: .\xb setup
+
       - name: Build
-        run: .\xb build --config=Release --target=src\xenia-app --target=src\xenia-vfs-dump
+        run: .\xb build --config=Release --target=src\xenia-app
+
       - name: Prepare artifacts
         run: |
           robocopy . build\bin\${{ runner.os }}\Release                                                                LICENSE /r:0 /w:0
           robocopy   build\bin\${{ runner.os }}\Release artifacts\xenia_canary   xenia_canary.exe   xenia_canary.pdb   LICENSE /r:0 /w:0
-          robocopy   build\bin\${{ runner.os }}\Release artifacts\xenia-vfs-dump xenia-vfs-dump.exe xenia-vfs-dump.pdb LICENSE /r:0 /w:0
           If ($LastExitCode -le 7) { echo "LastExitCode = $LastExitCode";$LastExitCode = 0 }
-      - name: Upload xenia-vfs-dump artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: xenia-vfs-dump_canary
-          path: artifacts\xenia-vfs-dump
-          if-no-files-found: error
+
       - name: Upload xenia canary artifacts
         uses: actions/upload-artifact@v4
         with:
           name: xenia_canary
           path: artifacts\xenia_canary
           if-no-files-found: error
+
       - name: Create release
         if: |
           github.repository == 'xenia-canary/xenia-canary' &&

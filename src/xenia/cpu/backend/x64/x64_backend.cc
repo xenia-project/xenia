@@ -924,7 +924,8 @@ void* X64HelperEmitter::EmitScalarVRsqrteHelper() {
   Xbyak::Label L18, L2, L35, L4, L9, L8, L10, L11, L12, L13, L1;
   Xbyak::Label LC1, _LCPI3_1;
   Xbyak::Label handle_denormal_input;
-  Xbyak::Label specialcheck_1, convert_to_signed_inf_and_ret, handle_oddball_denormal;
+  Xbyak::Label specialcheck_1, convert_to_signed_inf_and_ret,
+      handle_oddball_denormal;
 
   auto emulate_lzcnt_helper_unary_reg = [this](auto& reg, auto& scratch_reg) {
     inLocalLabel();
@@ -941,19 +942,19 @@ void* X64HelperEmitter::EmitScalarVRsqrteHelper() {
   vmovd(r8d, xmm0);
   vmovaps(xmm1, xmm0);
   mov(ecx, r8d);
-  //extract mantissa
+  // extract mantissa
   and_(ecx, 0x7fffff);
   mov(edx, ecx);
   cmp(r8d, 0xff800000);
   jz(specialcheck_1, CodeGenerator::T_NEAR);
-  //is exponent zero?
+  // is exponent zero?
   test(r8d, 0x7f800000);
   jne(L18);
   test(ecx, ecx);
   jne(L2);
 
   L(L18);
-  //extract biased exponent and unbias
+  // extract biased exponent and unbias
   mov(r9d, r8d);
   shr(r9d, 23);
   movzx(r9d, r9b);
@@ -988,7 +989,7 @@ void* X64HelperEmitter::EmitScalarVRsqrteHelper() {
   vxorps(xmm0, xmm0, xmm0);
   vcomiss(xmm0, xmm1);
   jbe(L9);
-  vmovss(xmm2, ptr[rip+LC1]);
+  vmovss(xmm2, ptr[rip + LC1]);
   vandps(xmm1, GetXmmConstPtr(XMMSignMaskF32));
 
   test(edx, edx);
@@ -1019,7 +1020,7 @@ void* X64HelperEmitter::EmitScalarVRsqrteHelper() {
 
   L(L11);
   vxorps(xmm2, xmm2, xmm2);
-  vmovss(xmm0, ptr[rip+LC1]);
+  vmovss(xmm0, ptr[rip + LC1]);
   vcomiss(xmm2, xmm1);
   ja(L1, CodeGenerator::T_NEAR);
   mov(ecx, 127);
@@ -1080,7 +1081,7 @@ void* X64HelperEmitter::EmitScalarVRsqrteHelper() {
   or_(ecx, r8d);
   or_(ecx, eax);
   vmovd(xmm0, ecx);
-  vaddss(xmm0, xmm1);//apply DAZ behavior to output
+  vaddss(xmm0, xmm1);  // apply DAZ behavior to output
 
   L(L1);
   ret();
@@ -1107,7 +1108,8 @@ void* X64HelperEmitter::EmitScalarVRsqrteHelper() {
     xchg(ecx, edx);
     // esi is just the value of xmm0's low word, so we can restore it from there
     shl(r8d, cl);
-    mov(ecx, edx);  // restore ecx, dont xchg because we're going to spoil edx anyway
+    mov(ecx,
+        edx);  // restore ecx, dont xchg because we're going to spoil edx anyway
     mov(edx, r8d);
     vmovd(r8d, xmm0);
   }
@@ -1115,8 +1117,8 @@ void* X64HelperEmitter::EmitScalarVRsqrteHelper() {
   jmp(L4);
 
   L(specialcheck_1);
-  //should be extremely rare
-  vmovss(xmm0, ptr[rip+LC1]);
+  // should be extremely rare
+  vmovss(xmm0, ptr[rip + LC1]);
   ret();
 
   L(handle_oddball_denormal);
@@ -1131,7 +1133,8 @@ void* X64HelperEmitter::EmitScalarVRsqrteHelper() {
   dd(0xFF800000);
   dd(0x7F800000);
   L(LC1);
-  //the position of 7FC00000 here matters, this address will be indexed in handle_oddball_denormal
+  // the position of 7FC00000 here matters, this address will be indexed in
+  // handle_oddball_denormal
   dd(0x7FC00000);
   dd(0x5F34FD00);
 
@@ -1148,11 +1151,13 @@ void* X64HelperEmitter::EmitVectorVRsqrteHelper(void* scalar_helper) {
   Xbyak::Label check_scalar_operation_in_vmx, actual_vector_version;
   auto result_ptr =
       GetBackendCtxPtr(offsetof(X64BackendContext, helper_scratch_xmms[0]));
-  auto counter_ptr = GetBackendCtxPtr(offsetof(X64BackendContext, helper_scratch_u64s[2]));
+  auto counter_ptr =
+      GetBackendCtxPtr(offsetof(X64BackendContext, helper_scratch_u64s[2]));
   counter_ptr.setBit(64);
 
-  //shuffle and xor to check whether all lanes are equal
-  //sadly has to leave the float pipeline for the vptest, which is moderate yikes
+  // shuffle and xor to check whether all lanes are equal
+  // sadly has to leave the float pipeline for the vptest, which is moderate
+  // yikes
   vmovhlps(xmm2, xmm0, xmm0);
   vmovsldup(xmm1, xmm0);
   vxorps(xmm1, xmm1, xmm0);
@@ -1160,7 +1165,7 @@ void* X64HelperEmitter::EmitVectorVRsqrteHelper(void* scalar_helper) {
   vorps(xmm2, xmm1, xmm2);
   vptest(xmm2, xmm2);
   jnz(check_scalar_operation_in_vmx);
-  //jmp(scalar_helper, CodeGenerator::T_NEAR);
+  // jmp(scalar_helper, CodeGenerator::T_NEAR);
   call(scalar_helper);
   vshufps(xmm0, xmm0, xmm0, 0);
   ret();
@@ -1169,7 +1174,7 @@ void* X64HelperEmitter::EmitVectorVRsqrteHelper(void* scalar_helper) {
 
   vptest(xmm0, ptr[backend()->LookupXMMConstantAddress(XMMThreeFloatMask)]);
   jnz(actual_vector_version);
-  vshufps(xmm0, xmm0,xmm0, _MM_SHUFFLE(3, 3, 3, 3));
+  vshufps(xmm0, xmm0, xmm0, _MM_SHUFFLE(3, 3, 3, 3));
   call(scalar_helper);
   // this->DebugBreak();
   vinsertps(xmm0, xmm0, (3 << 4));
@@ -1189,11 +1194,11 @@ void* X64HelperEmitter::EmitVectorVRsqrteHelper(void* scalar_helper) {
 
   L(loop);
   lea(rax, result_ptr);
-  vmovss(xmm0, ptr[rax+rcx*4]);
+  vmovss(xmm0, ptr[rax + rcx * 4]);
   call(scalar_helper);
   mov(rcx, counter_ptr);
   lea(rax, result_ptr);
-  vmovss(ptr[rax+rcx*4], xmm0);
+  vmovss(ptr[rax + rcx * 4], xmm0);
   inc(ecx);
   cmp(ecx, 4);
   mov(counter_ptr, rcx);
@@ -1274,7 +1279,7 @@ void* X64HelperEmitter::EmitFrsqrteHelper() {
   xor_(eax, 8);
   sub(edx, ecx);
   lea(rcx, ptr[rip + frsqrte_table2]);
-  movzx(eax, byte[rax+rcx]);
+  movzx(eax, byte[rax + rcx]);
   sal(rdx, 52);
   sal(rax, 44);
   or_(rax, rdx);

@@ -705,7 +705,8 @@ struct STORE_LOCAL_I16
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // e.TraceStoreI16(DATA_LOCAL, i.src1.constant, i.src2);
     if (LocalStoreMayUseMembaseLow(e, i)) {
-      e.mov(e.word[e.GetLocalsBase() + i.src1.constant()], e.GetMembaseReg().cvt16());
+      e.mov(e.word[e.GetLocalsBase() + i.src1.constant()],
+            e.GetMembaseReg().cvt16());
     } else {
       e.mov(e.word[e.GetLocalsBase() + i.src1.constant()], i.src2);
     }
@@ -716,7 +717,8 @@ struct STORE_LOCAL_I32
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     // e.TraceStoreI32(DATA_LOCAL, i.src1.constant, i.src2);
     if (LocalStoreMayUseMembaseLow(e, i)) {
-      e.mov(e.dword[e.GetLocalsBase() + i.src1.constant()], e.GetMembaseReg().cvt32());
+      e.mov(e.dword[e.GetLocalsBase() + i.src1.constant()],
+            e.GetMembaseReg().cvt32());
     } else {
       e.mov(e.dword[e.GetLocalsBase() + i.src1.constant()], i.src2);
     }

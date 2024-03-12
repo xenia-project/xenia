@@ -49,7 +49,7 @@ class EntryTable {
   xe::global_critical_region global_critical_region_;
   // TODO(benvanik): replace with a better data structure.
   xe::split_map<uint32_t, Entry*> map_;
-  //std::unordered_map<uint32_t, Entry*> map_;
+  // std::unordered_map<uint32_t, Entry*> map_;
 };
 
 }  // namespace cpu

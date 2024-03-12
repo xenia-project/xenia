@@ -883,8 +883,7 @@ class PrimitiveProcessor {
   // Must be called in a global critical region.
   void UpdateCacheBucketsNonEmptyL2(
       uint32_t bucket_index_div_64,
-      [[maybe_unused]] const global_unique_lock_type&
-          global_lock) {
+      [[maybe_unused]] const global_unique_lock_type& global_lock) {
     uint64_t& cache_buckets_non_empty_l2_ref =
         cache_buckets_non_empty_l2_[bucket_index_div_64 >> 6];
     uint64_t cache_buckets_non_empty_l2_bit = uint64_t(1)

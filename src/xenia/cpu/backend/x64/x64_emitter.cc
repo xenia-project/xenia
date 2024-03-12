@@ -210,24 +210,27 @@ bool X64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   //     Adding or changing anything here must be matched!
 
   /*
-    pick a page to use as the local base as close to the commonly accessed page that contains most backend fields
-    the sizes that are checked are chosen based on PTE coalescing sizes. zen does 16k or 32k
+    pick a page to use as the local base as close to the commonly accessed page
+    that contains most backend fields the sizes that are checked are chosen
+    based on PTE coalescing sizes. zen does 16k or 32k
   */
   size_t stack_size = StackLayout::GUEST_STACK_SIZE;
   if (stack_offset < (4096 - sizeof(X64BackendContext))) {
     locals_page_delta_ = 4096;
-  } else if (stack_offset < (16384 - sizeof(X64BackendContext))) {//16k PTE coalescing
+  } else if (stack_offset <
+             (16384 - sizeof(X64BackendContext))) {  // 16k PTE coalescing
     locals_page_delta_ = 16384;
   } else if (stack_offset < (32768 - sizeof(X64BackendContext))) {
     locals_page_delta_ = 32768;
   } else if (stack_offset < (65536 - sizeof(X64BackendContext))) {
     locals_page_delta_ = 65536;
   } else {
-    //extremely unlikely, fall back to stack
-    stack_size = xe::align<size_t>(StackLayout::GUEST_STACK_SIZE + stack_offset, 16);
+    // extremely unlikely, fall back to stack
+    stack_size =
+        xe::align<size_t>(StackLayout::GUEST_STACK_SIZE + stack_offset, 16);
     locals_page_delta_ = 0;
   }
-  
+
   assert_true((stack_size + 8) % 16 == 0);
   func_info.stack_size = stack_size;
   stack_size_ = stack_size;
@@ -1002,7 +1005,7 @@ static inline vec128_t v128_setr_bytes(unsigned char v0, unsigned char v1,
 }
 
 static inline vec128_t v128_setr_words(uint32_t v0, uint32_t v1, uint32_t v2,
-    uint32_t v3) {
+                                       uint32_t v3) {
   vec128_t result;
   result.u32[0] = v0;
   result.u32[1] = v1;
@@ -1181,7 +1184,7 @@ static const vec128_t xmm_consts[] = {
     v128_setr_bytes(13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3, 0x80),
     // XMMVSRMask
     vec128b(1),
-    //XMMVRsqrteTableStart
+    // XMMVRsqrteTableStart
     v128_setr_words(0x568B4FD, 0x4F3AF97, 0x48DAAA5, 0x435A618),
     v128_setr_words(0x3E7A1E4, 0x3A29DFE, 0x3659A5C, 0x32E96F8),
     v128_setr_words(0x2FC93CA, 0x2D090CE, 0x2A88DFE, 0x2838B57),
@@ -1190,8 +1193,8 @@ static const vec128_t xmm_consts[] = {
     v128_setr_words(0x2C27279, 0x2926FB7, 0x2666D26, 0x23F6AC0),
     v128_setr_words(0x21D6881, 0x1FD6665, 0x1E16468, 0x1C76287),
     v128_setr_words(0x1AF60C1, 0x1995F12, 0x1855D79, 0x1735BF4),
-    //XMMVRsqrteTableBase
-    vec128i(0) //filled in later
+    // XMMVRsqrteTableBase
+    vec128i(0)  // filled in later
 };
 
 void* X64Emitter::FindByteConstantOffset(unsigned bytevalue) {
@@ -1267,12 +1270,13 @@ uintptr_t X64Emitter::PlaceConstData() {
 
   std::memcpy(mem, xmm_consts, sizeof(xmm_consts));
   /*
-    set each 32-bit element of the constant XMMVRsqrteTableBase to be the address of the start of the constant XMMVRsqrteTableStart
-    this 
+    set each 32-bit element of the constant XMMVRsqrteTableBase to be the
+    address of the start of the constant XMMVRsqrteTableStart this
   */
   vec128_t* deferred_constants = reinterpret_cast<vec128_t*>(mem);
   vec128_t* vrsqrte_table_base = &deferred_constants[XMMVRsqrteTableBase];
-  uint32_t ptr_to_vrsqrte_table32 = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&deferred_constants[XMMVRsqrteTableStart]));
+  uint32_t ptr_to_vrsqrte_table32 = static_cast<uint32_t>(
+      reinterpret_cast<uintptr_t>(&deferred_constants[XMMVRsqrteTableStart]));
   *vrsqrte_table_base = vec128i(ptr_to_vrsqrte_table32);
 
   memory::Protect(mem, kConstDataSize, memory::PageAccess::kReadOnly, nullptr);
@@ -1288,8 +1292,10 @@ void X64Emitter::FreeConstData(uintptr_t data) {
 Xbyak::Address X64Emitter::GetXmmConstPtr(XmmConst id) {
   // Load through fixed constant table setup by PlaceConstData.
   // It's important that the pointer is not signed, as it will be sign-extended.
-  void* emitter_data_ptr = backend_->LookupXMMConstantAddress(static_cast<unsigned>(id));
-  xenia_assert(reinterpret_cast<uintptr_t>(emitter_data_ptr) < (1ULL << 31));//must not have signbit set
+  void* emitter_data_ptr =
+      backend_->LookupXMMConstantAddress(static_cast<unsigned>(id));
+  xenia_assert(reinterpret_cast<uintptr_t>(emitter_data_ptr) <
+               (1ULL << 31));  // must not have signbit set
   return ptr[emitter_data_ptr];
 }
 // Implies possible StashXmm(0, ...)!
@@ -1610,8 +1616,8 @@ SimdDomain X64Emitter::DeduceSimdDomain(const hir::Value* for_value) {
 
   return SimdDomain::DONTCARE;
 }
-Xbyak::RegExp X64Emitter::GetLocalsBase() const { 
-    return !locals_page_delta_ ? rsp : GetContextReg() - locals_page_delta_; 
+Xbyak::RegExp X64Emitter::GetLocalsBase() const {
+  return !locals_page_delta_ ? rsp : GetContextReg() - locals_page_delta_;
 }
 Xbyak::Address X64Emitter::GetBackendCtxPtr(int offset_in_x64backendctx) const {
   /*

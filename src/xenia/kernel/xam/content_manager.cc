@@ -10,8 +10,8 @@
 #include "xenia/kernel/xam/content_manager.h"
 
 #include <array>
-#include <string>
 #include <set>
+#include <string>
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/filesystem.h"

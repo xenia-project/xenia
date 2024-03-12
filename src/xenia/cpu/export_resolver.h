@@ -95,7 +95,6 @@ class Export {
     uint32_t variable_ptr;
 
     struct {
-
       // Trampoline that is called from the guest-to-host thunk.
       // Expects only PPC context as first arg.
       ExportTrampoline trampoline;

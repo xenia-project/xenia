@@ -8,10 +8,10 @@
  */
 #include <regex>
 
-#include "xenia/config.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
+#include "xenia/config.h"
 #include "xenia/memory.h"
 
 #include "xenia/patcher/patch_db.h"

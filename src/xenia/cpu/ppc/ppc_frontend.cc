@@ -106,16 +106,17 @@ bool PPCFrontend::Initialize() {
 }
 
 bool PPCFrontend::DeclareFunction(GuestFunction* function) {
-
-	//chrispy: make sure we aren't declaring a function that is actually padding data, this will mess up PPCScanner and is hard to debug
-	//wow, this halo reach actually has branches into 0 opcodes, look into further
-  //xenia_assert(*reinterpret_cast<const uint32_t*>(
-  //                 this->memory()->TranslateVirtual(function->address())) != 0);
-  // Could scan or something here.
-  // Could also check to see if it's a well-known function type and classify
-  // for later.
-  // Could also kick off a precompiler, since we know it's likely the function
-  // will be demanded soon.
+  // chrispy: make sure we aren't declaring a function that is actually padding
+  // data, this will mess up PPCScanner and is hard to debug wow, this halo
+  // reach actually has branches into 0 opcodes, look into further
+  // xenia_assert(*reinterpret_cast<const uint32_t*>(
+  //                  this->memory()->TranslateVirtual(function->address())) !=
+  //                  0);
+  //  Could scan or something here.
+  //  Could also check to see if it's a well-known function type and classify
+  //  for later.
+  //  Could also kick off a precompiler, since we know it's likely the function
+  //  will be demanded soon.
   return true;
 }
 

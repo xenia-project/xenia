@@ -267,7 +267,7 @@ Function* Processor::ResolveFunction(uint32_t address) {
       entry->status = Entry::STATUS_FAILED;
       return nullptr;
     }
-    //only add it to the list of resolved functions if resolving succeeded
+    // only add it to the list of resolved functions if resolving succeeded
     auto module_for = function->module();
 
     auto xexmod = dynamic_cast<XexModule*>(module_for);
@@ -1300,7 +1300,7 @@ uint32_t Processor::GuestAtomicIncrement32(ppc::PPCContext* context,
     result = *host_address;
     // todo: should call a processor->backend function that acquires a
     // reservation instead of using host atomics
-    if (xe::atomic_cas(result, xe::byte_swap(xe::byte_swap(result)+1),
+    if (xe::atomic_cas(result, xe::byte_swap(xe::byte_swap(result) + 1),
                        host_address)) {
       break;
     }
@@ -1316,7 +1316,7 @@ uint32_t Processor::GuestAtomicDecrement32(ppc::PPCContext* context,
     result = *host_address;
     // todo: should call a processor->backend function that acquires a
     // reservation instead of using host atomics
-    if (xe::atomic_cas(result,xe::byte_swap( xe::byte_swap(result)-1),
+    if (xe::atomic_cas(result, xe::byte_swap(xe::byte_swap(result) - 1),
                        host_address)) {
       break;
     }
@@ -1326,9 +1326,9 @@ uint32_t Processor::GuestAtomicDecrement32(ppc::PPCContext* context,
 
 uint32_t Processor::GuestAtomicOr32(ppc::PPCContext* context,
                                     uint32_t guest_address, uint32_t mask) {
-  return xe::byte_swap(xe::atomic_or(
-      context->TranslateVirtual<volatile int32_t*>(guest_address),
-      xe::byte_swap(mask)));
+  return xe::byte_swap(
+      xe::atomic_or(context->TranslateVirtual<volatile int32_t*>(guest_address),
+                    xe::byte_swap(mask)));
 }
 uint32_t Processor::GuestAtomicXor32(ppc::PPCContext* context,
                                      uint32_t guest_address, uint32_t mask) {

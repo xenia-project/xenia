@@ -621,6 +621,7 @@ class Value {
   bool AllFloatVectorLanesSameValue() const {
     return Value::AllFloatVectorLanesSameValue(this);
   }
+
  private:
   /*
 returns true if for_value (which must be VEC128_TYPE) has the same value in

@@ -2,8 +2,8 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2023 Xenia Canary. All rights reserved.                             *
- * Released under the BSD license - see LICENSE in the root for more details. *
+ * Copyright 2023 Xenia Canary. All rights reserved. * Released under the BSD
+ *license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
@@ -95,9 +95,10 @@ bool GrowHandleTable(uint32_t table_ptr, PPCContext* context) {
       /*
         copy old bucket list contents to new, larger bucket list
       */
-      memcpy(context->TranslateVirtual(new_dynamic_buckets),
-             context->TranslateVirtual(table->table_dynamic_buckets),
-             sizeof(uint32_t) * (new_bucket_handle_base / SIZE_PER_HANDLE_BUCKET));
+      memcpy(
+          context->TranslateVirtual(new_dynamic_buckets),
+          context->TranslateVirtual(table->table_dynamic_buckets),
+          sizeof(uint32_t) * (new_bucket_handle_base / SIZE_PER_HANDLE_BUCKET));
 
       if (context->TranslateVirtualBE<uint32_t>(table->table_dynamic_buckets) !=
           &table->table_static_buckets[0]) {

@@ -230,9 +230,7 @@ class Emulator {
   xe::Delegate<> on_exit;
 
  private:
-  enum : uint64_t {
-    EmulatorFlagDisclaimerAcknowledged = 1ULL << 0
-  };
+  enum : uint64_t { EmulatorFlagDisclaimerAcknowledged = 1ULL << 0 };
   static uint64_t GetPersistentEmulatorFlags();
   static void SetPersistentEmulatorFlags(uint64_t new_flags);
   static std::string CanonicalizeFileExtension(

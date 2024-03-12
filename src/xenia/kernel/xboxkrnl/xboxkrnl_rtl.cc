@@ -434,9 +434,11 @@ pointer_result_t RtlImageNtHeader_entry(lpvoid_t module) {
 }
 DECLARE_XBOXKRNL_EXPORT1(RtlImageNtHeader, kNone, kImplemented);
 // https://learn.microsoft.com/en-us/windows/win32/api/dbghelp/nf-dbghelp-imagedirectoryentrytodata
-dword_result_t RtlImageDirectoryEntryToData_entry(dword_t Base, dword_t MappedAsImage_,
-                                           word_t DirectoryEntry, dword_t Size,
-                                           const ppc_context_t& ctx) {
+dword_result_t RtlImageDirectoryEntryToData_entry(dword_t Base,
+                                                  dword_t MappedAsImage_,
+                                                  word_t DirectoryEntry,
+                                                  dword_t Size,
+                                                  const ppc_context_t& ctx) {
   bool MappedAsImage = static_cast<unsigned char>(MappedAsImage_);
   uint32_t aligned_base = Base;
   if ((Base & 1) != 0) {
@@ -830,7 +832,7 @@ static void RtlRip_entry(const ppc_context_t& ctx) {
 
   XELOGE("RtlRip called, arg1 = {}, arg2 = {}\n", msg_str1, msg_str2);
 
-  //we should break here... not sure what to do exactly
+  // we should break here... not sure what to do exactly
 }
 DECLARE_XBOXKRNL_EXPORT1(RtlRip, kNone, kImportant);
 

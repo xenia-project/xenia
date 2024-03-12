@@ -14,7 +14,7 @@
 #include <atomic>
 #include <mutex>
 #include <queue>
-//#include <vector>
+// #include <vector>
 
 #include "xenia/memory.h"
 #include "xenia/xbox.h"
@@ -79,8 +79,8 @@ struct XMA_CONTEXT_DATA {
   uint32_t unk_dword_2 : 6;                // ErrorStatus/ErrorSet (?)
 
   // DWORD 3
-  uint32_t loop_start : 26;  // XMASetLoopData LoopStartOffset
-                             // frame offset in bits
+  uint32_t loop_start : 26;          // XMASetLoopData LoopStartOffset
+                                     // frame offset in bits
   uint32_t parser_error_status : 6;  // ? ParserErrorStatus/ParserErrorSet(?)
 
   // DWORD 4

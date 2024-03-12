@@ -132,7 +132,7 @@ uint32_t xeObCreateObject(X_OBJECT_TYPE* object_factory,
     return X_STATUS_OBJECT_NAME_INVALID;
   }
   // the object and its name are all created in a single allocation
-  
+
   unsigned int aligned_object_size =
       xe::align<uint32_t>(object_size_without_headers, 4);
   {

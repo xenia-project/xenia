@@ -111,8 +111,8 @@ class ObjectTable {
 
 // Generic lookup
 template <>
-object_ref<XObject> ObjectTable::LookupObject<XObject>(
-    X_HANDLE handle, bool already_locked);
+object_ref<XObject> ObjectTable::LookupObject<XObject>(X_HANDLE handle,
+                                                       bool already_locked);
 
 }  // namespace util
 }  // namespace kernel

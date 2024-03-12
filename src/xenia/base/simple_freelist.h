@@ -34,7 +34,6 @@ struct SimpleFreelist {
     node->next_ = head_;
     head_ = node;
   }
-  void Reset() { head_ = nullptr;
-  }
+  void Reset() { head_ = nullptr; }
 };
 }  // namespace xe

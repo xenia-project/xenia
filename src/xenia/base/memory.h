@@ -17,9 +17,7 @@
 #include <string>
 #include <string_view>
 
-
 #include "xenia/base/byte_order.h"
-
 
 namespace xe {
 namespace memory {

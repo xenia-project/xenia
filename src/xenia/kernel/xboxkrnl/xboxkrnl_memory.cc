@@ -697,7 +697,7 @@ DECLARE_XBOXKRNL_EXPORT1(ExAllocatePool, kMemory, kImplemented);
 
 void xeFreePool(PPCContext* context, uint32_t base_address) {
   auto memory = context->kernel_state->memory();
-  //if 4kb aligned, there is no pool header!
+  // if 4kb aligned, there is no pool header!
   if ((base_address & (4096 - 1)) == 0) {
     memory->SystemHeapFree(base_address);
   } else {

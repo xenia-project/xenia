@@ -21,6 +21,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/threading.h"
+
 #include "xenia/cpu/mmio_handler.h"
 
 // TODO(benvanik): move xbox.h out
@@ -972,7 +973,7 @@ bool BaseHeap::AllocFixed(uint32_t base_address, uint32_t size,
 
   return true;
 }
-template<typename T>
+template <typename T>
 static inline T QuickMod(T value, uint32_t modv) {
   if (xe::is_pow2(modv)) {
     return value & (modv - 1);

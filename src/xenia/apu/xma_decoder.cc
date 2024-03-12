@@ -18,8 +18,8 @@
 #include "xenia/base/string_buffer.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/thread_state.h"
-#include "xenia/kernel/xthread.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/xthread.h"
 extern "C" {
 #include "third_party/FFmpeg/libavutil/log.h"
 }  // extern "C"
@@ -102,8 +102,7 @@ void av_log_callback(void* avcl, int level, const char* fmt, va_list va) {
   StringBuffer buff;
   buff.AppendVarargs(fmt, va);
   xe::logging::AppendLogLineFormat(LogSrc::Apu, log_level, level_char,
-                                   "ffmpeg: {}",
-                                   buff.to_string_view());
+                                   "ffmpeg: {}", buff.to_string_view());
 }
 
 X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
@@ -141,11 +140,16 @@ X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
   worker_running_ = true;
   work_event_ = xe::threading::Event::CreateAutoResetEvent(false);
   assert_not_null(work_event_);
-  worker_thread_ = kernel::object_ref<kernel::XHostThread>(
-      new kernel::XHostThread(kernel_state, 128 * 1024, 0, [this]() {
-        WorkerThreadMain();
-        return 0;
-      }, kernel_state->GetIdleProcess()));//this one doesnt need any process actually. never calls any guest code
+  worker_thread_ =
+      kernel::object_ref<kernel::XHostThread>(new kernel::XHostThread(
+          kernel_state, 128 * 1024, 0,
+          [this]() {
+            WorkerThreadMain();
+            return 0;
+          },
+          kernel_state
+              ->GetIdleProcess()));  // this one doesnt need any process
+                                     // actually. never calls any guest code
   worker_thread_->set_name("XMA Decoder");
   worker_thread_->set_can_debugger_suspend(true);
   worker_thread_->Create();

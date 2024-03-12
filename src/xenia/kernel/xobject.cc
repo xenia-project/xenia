@@ -388,7 +388,9 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
     // Already initialized.
     // TODO: assert if the type of the object != as_type
     uint32_t handle = header->wait_list_blink;
-    result = kernel_state->object_table()->LookupObject<XObject>(handle, true).release();
+    result = kernel_state->object_table()
+                 ->LookupObject<XObject>(handle, true)
+                 .release();
   } else {
     // First use, create new.
     // https://www.nirsoft.net/kernel_struct/vista/KOBJECTS.html

@@ -213,7 +213,8 @@ Win32X64CodeCache::RequestUnwindReservation(uint8_t* entry_address) {
   if (unwind_table_count_ >= kMaximumFunctionCount) {
     // we should not just be ignoring this in release if it happens
     xe::FatalError(
-        "Unwind table count (unwind_table_count_) exceeded maximum! Please report this to "
+        "Unwind table count (unwind_table_count_) exceeded maximum! Please "
+        "report this to "
         "Xenia/Canary developers");
   }
 #else

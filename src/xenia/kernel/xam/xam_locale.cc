@@ -431,7 +431,8 @@ dword_result_t XamGetLocaleEx_entry(dword_t max_country_id,
                           static_cast<uint8_t>(max_locale_id));
 }
 DECLARE_XAM_EXPORT1(XamGetLocaleEx, kLocale, kImplemented);
-//originally a switch table, wrote a script to extract the values for all possible cases
+// originally a switch table, wrote a script to extract the values for all
+// possible cases
 
 static constexpr uint8_t XamLocaleDateFmtTable[] = {
     2, 1, 3, 1, 3, 3, 3, 3, 3, 3, 3, 2, 3, 2, 1, 4, 2, 3, 1, 2, 2, 3,

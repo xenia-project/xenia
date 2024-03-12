@@ -552,9 +552,8 @@ void GetHostViewportInfo(GetViewportInfoArgs* XE_RESTRICT args,
   }
 }
 template <bool clamp_to_surface_pitch>
-static inline
-void GetScissorTmpl(const RegisterFile& XE_RESTRICT regs,
-                           Scissor& XE_RESTRICT scissor_out) {
+static inline void GetScissorTmpl(const RegisterFile& XE_RESTRICT regs,
+                                  Scissor& XE_RESTRICT scissor_out) {
 #if XE_ARCH_AMD64 == 1
   auto pa_sc_window_scissor_tl = regs.Get<reg::PA_SC_WINDOW_SCISSOR_TL>();
   auto pa_sc_window_scissor_br = regs.Get<reg::PA_SC_WINDOW_SCISSOR_BR>();
@@ -623,8 +622,7 @@ void GetScissorTmpl(const RegisterFile& XE_RESTRICT regs,
     // interlock-based custom RB implementations) and using conventional render
     // targets, but padded to EDRAM tiles.
     tmp1 = _mm_blend_epi16(
-        tmp1, _mm_min_epi32(tmp1, _mm_set1_epi32(surface_pitch)),
-                            0b00110011);
+        tmp1, _mm_min_epi32(tmp1, _mm_set1_epi32(surface_pitch)), 0b00110011);
   }
 
   tmp1 = _mm_max_epi32(tmp1, _mm_setzero_si128());

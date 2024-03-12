@@ -1083,7 +1083,7 @@ dword_result_t NetDll_XNetRegisterKey_entry(dword_t caller, lpdword_t key_id,
 DECLARE_XAM_EXPORT1(NetDll_XNetRegisterKey, kNetworking, kStub);
 
 dword_result_t NetDll_XNetUnregisterKey_entry(dword_t caller, lpdword_t key_id,
-                                            lpdword_t exchange_key) {
+                                              lpdword_t exchange_key) {
   return 0;
 }
 DECLARE_XAM_EXPORT1(NetDll_XNetUnregisterKey, kNetworking, kStub);

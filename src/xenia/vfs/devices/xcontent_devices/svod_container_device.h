@@ -53,7 +53,7 @@ class SvodContainerDevice : public XContentContainerDevice {
 
   Result Read() override;
   Result ReadEntry(uint32_t sector, uint32_t ordinal,
-                  XContentContainerEntry* parent);
+                   XContentContainerEntry* parent);
   void BlockToOffset(size_t sector, size_t* address, size_t* file_index) const;
 
   Result SetLayout(FILE* header, size_t& magic_offset);

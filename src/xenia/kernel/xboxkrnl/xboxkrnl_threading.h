@@ -63,7 +63,8 @@ uint32_t xeNtQueueApcThread(uint32_t thread_handle, uint32_t apc_routine,
 void xeKfLowerIrql(PPCContext* ctx, unsigned char new_irql);
 unsigned char xeKfRaiseIrql(PPCContext* ctx, unsigned char new_irql);
 
-void xeKeKfReleaseSpinLock(PPCContext* ctx, X_KSPINLOCK* lock, uint32_t old_irql, bool change_irql=true);
+void xeKeKfReleaseSpinLock(PPCContext* ctx, X_KSPINLOCK* lock,
+                           uint32_t old_irql, bool change_irql = true);
 uint32_t xeKeKfAcquireSpinLock(PPCContext* ctx, X_KSPINLOCK* lock,
                                bool change_irql = true);
 

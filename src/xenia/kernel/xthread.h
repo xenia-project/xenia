@@ -59,8 +59,8 @@ struct XAPC {
   // KAPC is 0x28(40) bytes? (what's passed to ExAllocatePoolWithTag)
   // This is 4b shorter than NT - looks like the reserved dword at +4 is gone.
   // NOTE: stored in guest memory.
-  uint16_t type;                      // +0
-  uint8_t apc_mode;            // +2
+  uint16_t type;                     // +0
+  uint8_t apc_mode;                  // +2
   uint8_t enqueued;                  // +3
   xe::be<uint32_t> thread_ptr;       // +4
   X_LIST_ENTRY list_entry;           // +8
@@ -202,11 +202,11 @@ struct X_KTHREAD {
   // times while the process is being created
   uint8_t process_type_dup;
   uint8_t process_type;
-  //apc_mode determines which list an apc goes into
-  util::X_TYPED_LIST<XAPC, offsetof(XAPC, list_entry)> apc_lists[2]; 
+  // apc_mode determines which list an apc goes into
+  util::X_TYPED_LIST<XAPC, offsetof(XAPC, list_entry)> apc_lists[2];
   TypedGuestPointer<X_KPROCESS> process;  // 0x84
   uint8_t unk_88[0x3];                    // 0x88
-  uint8_t may_queue_apcs;                    // 0x8B
+  uint8_t may_queue_apcs;                 // 0x8B
   X_KSPINLOCK apc_lock;                   // 0x8C
   uint8_t unk_90[0xC];                    // 0x90
   xe::be<uint32_t> msr_mask;              // 0x9C
@@ -358,6 +358,7 @@ class XThread : public XObject, public cpu::Thread {
     pending_mutant_acquires_.push_back(mutant);
   }
   void SetCurrentThread();
+
  protected:
   bool AllocateStack(uint32_t size);
   void FreeStack();
@@ -391,7 +392,8 @@ class XThread : public XObject, public cpu::Thread {
 class XHostThread : public XThread {
  public:
   XHostThread(KernelState* kernel_state, uint32_t stack_size,
-              uint32_t creation_flags, std::function<int()> host_fn, uint32_t guest_process=0);
+              uint32_t creation_flags, std::function<int()> host_fn,
+              uint32_t guest_process = 0);
 
   virtual void Execute();
 

@@ -79,10 +79,11 @@ class Instr {
   void MoveBefore(Instr* other);
   void Replace(const OpcodeInfo* new_opcode, uint16_t new_flags);
   void UnlinkAndNOP();
-  //chrispy: wanted to change this one to Remove, but i changed Remove's name to UnlinkAndNOP,
-  //so if changes happened in master that we wanted to port over, and those changes used Remove, then we would have a lot of issues that the cause of would
-  //be difficult to track 
-  //^todo: rework this comment, im frazzled
+  // chrispy: wanted to change this one to Remove, but i changed Remove's name
+  // to UnlinkAndNOP, so if changes happened in master that we wanted to port
+  // over, and those changes used Remove, then we would have a lot of issues
+  // that the cause of would be difficult to track ^todo: rework this comment,
+  // im frazzled
   void Deallocate();
   const OpcodeInfo* GetOpcodeInfo() const { return opcode; }
   // if opcode is null, we have bigger problems

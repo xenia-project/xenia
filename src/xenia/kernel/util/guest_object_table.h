@@ -2,8 +2,8 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2023 Xenia Canary. All rights reserved.                             *
- * Released under the BSD license - see LICENSE in the root for more details. *
+ * Copyright 2023 Xenia Canary. All rights reserved. * Released under the BSD
+ *license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
@@ -26,7 +26,7 @@ struct X_HANDLE_TABLE {
   xe::be<uint32_t> table_dynamic_buckets;
   xe::be<uint32_t> table_static_buckets[8];
   X_KSPINLOCK table_lock;
-  //used as unknown arg 3 to pool allocations
+  // used as unknown arg 3 to pool allocations
   uint8_t unk_pool_arg_34;
   uint8_t handle_high_byte;
   uint8_t unk_36;

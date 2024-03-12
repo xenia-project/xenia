@@ -100,11 +100,14 @@ bool CommandProcessor::Initialize() {
   }
 
   worker_running_ = true;
-  worker_thread_ = kernel::object_ref<kernel::XHostThread>(
-      new kernel::XHostThread(kernel_state_, 128 * 1024, 0, [this]() {
-        WorkerThreadMain();
-        return 0;
-      }, kernel_state_->GetIdleProcess()));
+  worker_thread_ =
+      kernel::object_ref<kernel::XHostThread>(new kernel::XHostThread(
+          kernel_state_, 128 * 1024, 0,
+          [this]() {
+            WorkerThreadMain();
+            return 0;
+          },
+          kernel_state_->GetIdleProcess()));
   worker_thread_->set_name("GPU Commands");
   worker_thread_->Create();
 
@@ -270,7 +273,8 @@ void CommandProcessor::WorkerThreadMain() {
 
     // TODO(benvanik): use reader->Read_update_freq_ and only issue after moving
     //     that many indices.
-	// Keep in mind that the gpu also updates the cpu-side copy if the write pointer and read pointer would be equal
+    // Keep in mind that the gpu also updates the cpu-side copy if the write
+    // pointer and read pointer would be equal
     if (read_ptr_writeback_ptr_) {
       xe::store_and_swap<uint32_t>(
           memory_->TranslatePhysical(read_ptr_writeback_ptr_), read_ptr_index_);
@@ -360,9 +364,8 @@ void CommandProcessor::EnableReadPointerWriteBack(uint32_t ptr,
 XE_NOINLINE XE_COLD void CommandProcessor::LogKickoffInitator(uint32_t value) {
   cpu::backend::GuestPseudoStackTrace st;
 
-  if (logging::internal::ShouldLog(LogLevel::Debug) && kernel_state_->processor()
-            ->backend()
-            ->PopulatePseudoStacktrace(&st)) {
+  if (logging::internal::ShouldLog(LogLevel::Debug) &&
+      kernel_state_->processor()->backend()->PopulatePseudoStacktrace(&st)) {
     logging::LoggerBatch<LogLevel::Debug> log_initiator{};
 
     log_initiator("Updating read ptr to {}, initiator stacktrace below\n",
@@ -381,7 +384,7 @@ XE_NOINLINE XE_COLD void CommandProcessor::LogKickoffInitator(uint32_t value) {
 }
 
 void CommandProcessor::UpdateWritePointer(uint32_t value) {
-  XE_UNLIKELY_IF (cvars::log_ringbuffer_kickoff_initiator_bts) {
+  XE_UNLIKELY_IF(cvars::log_ringbuffer_kickoff_initiator_bts) {
     LogKickoffInitator(value);
   }
   write_ptr_index_ = value;
@@ -390,7 +393,8 @@ void CommandProcessor::UpdateWritePointer(uint32_t value) {
 
 void CommandProcessor::LogRegisterSet(uint32_t register_index, uint32_t value) {
 #if XE_ENABLE_GPU_REG_WRITE_LOGGING == 1
-  if (cvars::log_guest_driven_gpu_register_written_values && logging::internal::ShouldLog(LogLevel::Debug)) {
+  if (cvars::log_guest_driven_gpu_register_written_values &&
+      logging::internal::ShouldLog(LogLevel::Debug)) {
     const RegisterInfo* reginfo = RegisterFile::GetRegisterInfo(register_index);
 
     if (!reginfo) {
@@ -733,7 +737,6 @@ void CommandProcessor::MakeCoherent() {
 void CommandProcessor::PrepareForWait() { trace_writer_.Flush(); }
 
 void CommandProcessor::ReturnFromWait() {}
-
 
 void CommandProcessor::InitializeTrace() {
   // Write the initial register values, to be loaded directly into the

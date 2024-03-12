@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#include "xenia/base/logging.h"
 #include "xenia/vfs/devices/xcontent_container_device.h"
+#include "xenia/base/logging.h"
 #include "xenia/vfs/devices/xcontent_devices/stfs_container_device.h"
 #include "xenia/vfs/devices/xcontent_devices/svod_container_device.h"
 

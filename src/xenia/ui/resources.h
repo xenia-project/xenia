@@ -1,5 +1,5 @@
-#include <vector>
 #include <utility>
+#include <vector>
 
 static const uint8_t player_one_notification_icon[] = {
     0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
@@ -4269,8 +4269,8 @@ static const uint8_t player_any_notification_icon[] = {
     0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82};
 static const uint32_t player_any_notification_icon_len = 10320;
 
-
-static const std::vector<std::pair<const uint8_t*, uint32_t>> notification_icons = {
+static const std::vector<std::pair<const uint8_t*, uint32_t>>
+    notification_icons = {
         {player_one_notification_icon, player_one_notification_icon_len},
         {player_two_notification_icon, player_two_notification_icon_len},
         {player_three_notification_icon, player_three_notification_icon_len},

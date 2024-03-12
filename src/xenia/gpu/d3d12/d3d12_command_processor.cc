@@ -22,9 +22,9 @@
 #include "xenia/gpu/d3d12/d3d12_shader.h"
 #include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/gpu_flags.h"
+#include "xenia/gpu/packet_disassembler.h"
 #include "xenia/gpu/registers.h"
 #include "xenia/gpu/xenos.h"
-#include "xenia/gpu/packet_disassembler.h"
 #include "xenia/ui/d3d12/d3d12_presenter.h"
 #include "xenia/ui/d3d12/d3d12_util.h"
 
@@ -62,10 +62,9 @@ void D3D12SaveGPUSetting(D3D12GPUSetting setting, uint64_t value) {
       break;
   }
 }
-    
+
 namespace d3d12 {
 
-    
 // Generated with `xb buildshaders`.
 namespace shaders {
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/apply_gamma_pwl_cs.h"
@@ -4992,7 +4991,8 @@ bool D3D12CommandProcessor::UpdateBindings_BindfulPath(
     }
     // Null SRV + UAV + EDRAM.
     gpu_handle_shared_memory_uav_and_edram_ = view_gpu_handle;
-    ui::d3d12::util::CreateBufferRawSRV(provider.GetDevice(), view_cpu_handle, nullptr, 0);
+    ui::d3d12::util::CreateBufferRawSRV(provider.GetDevice(), view_cpu_handle,
+                                        nullptr, 0);
     view_cpu_handle.ptr += descriptor_size_view;
     view_gpu_handle.ptr += descriptor_size_view;
     shared_memory_->WriteRawUAVDescriptor(view_cpu_handle);

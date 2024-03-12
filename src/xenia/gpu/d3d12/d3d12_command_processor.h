@@ -231,13 +231,13 @@ class D3D12CommandProcessor final : public CommandProcessor {
   XE_FORCEINLINE
   void WriteRegisterForceinline(uint32_t index, uint32_t value);
   void WriteRegister(uint32_t index, uint32_t value) override;
-  
+
   virtual void WriteRegistersFromMem(uint32_t start_index, uint32_t* base,
                                      uint32_t num_registers) override;
   /*helper functions for WriteRegistersFromMem*/
   XE_FORCEINLINE
   void WriteShaderConstantsFromMem(uint32_t start_index, uint32_t* base,
-                                     uint32_t num_registers);
+                                   uint32_t num_registers);
   XE_FORCEINLINE
   void WriteBoolLoopFromMem(uint32_t start_index, uint32_t* base,
                             uint32_t num_registers);
@@ -245,8 +245,9 @@ class D3D12CommandProcessor final : public CommandProcessor {
   void WriteFetchFromMem(uint32_t start_index, uint32_t* base,
                          uint32_t num_registers);
 
-  void WritePossiblySpecialRegistersFromMem(uint32_t start_index, uint32_t* base,
-                                           uint32_t num_registers);
+  void WritePossiblySpecialRegistersFromMem(uint32_t start_index,
+                                            uint32_t* base,
+                                            uint32_t num_registers);
   template <uint32_t register_lower_bound, uint32_t register_upper_bound>
   XE_FORCEINLINE void WriteRegisterRangeFromMem_WithKnownBound(
       uint32_t start_index, uint32_t* base, uint32_t num_registers);
@@ -262,8 +263,7 @@ class D3D12CommandProcessor final : public CommandProcessor {
                                                  uint32_t base,
                                                  uint32_t num_registers);
   XE_NOINLINE
-  void WriteOneRegisterFromRing(uint32_t base,
-                                        uint32_t num_times);
+  void WriteOneRegisterFromRing(uint32_t base, uint32_t num_times);
 
   XE_FORCEINLINE
   void WriteALURangeFromRing(xe::RingBuffer* ring, uint32_t base,
@@ -794,7 +794,6 @@ class D3D12CommandProcessor final : public CommandProcessor {
 
   draw_util::GetViewportInfoArgs previous_viewport_info_args_;
   draw_util::ViewportInfo previous_viewport_info_;
-
 
   std::atomic<bool> pix_capture_requested_ = false;
   bool pix_capturing_;

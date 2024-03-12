@@ -35,8 +35,7 @@ using PPCContext = xe::cpu::ppc::PPCContext;
       library_name, ordinals::export_name,                     \
       (xe::cpu::xe_kernel_export_shim_fn)export_name##_entry);
 
-#define SHIM_MEM_ADDR(a) \
-  ((a) ? ppc_context->TranslateVirtual(a) : nullptr)
+#define SHIM_MEM_ADDR(a) ((a) ? ppc_context->TranslateVirtual(a) : nullptr)
 
 #define SHIM_MEM_8(a) xe::load_and_swap<uint8_t>(SHIM_MEM_ADDR(a))
 #define SHIM_MEM_16(a) xe::load_and_swap<uint16_t>(SHIM_MEM_ADDR(a))
@@ -158,9 +157,8 @@ class Param {
     } else {
       uint32_t stack_ptr =
           uint32_t(init.ppc_context->r[1]) + 0x54 + (ordinal_ - 8) * 8;
-      *out_value = xe::load_and_swap<V>(
-          init.ppc_context->TranslateVirtual(
-              stack_ptr));
+      *out_value =
+          xe::load_and_swap<V>(init.ppc_context->TranslateVirtual(stack_ptr));
     }
   }
 
@@ -216,6 +214,7 @@ class ContextParam : public Param {
   X_KPCR* GetPCR() const { return TranslateGPR<X_KPCR*>(13); }
 
   XThread* CurrentXThread() const;
+
  protected:
   PPCContext* XE_RESTRICT ctx_;
 };
@@ -223,10 +222,7 @@ class ContextParam : public Param {
 class PointerParam : public ParamBase<uint32_t> {
  public:
   PointerParam(Init& init) : ParamBase(init) {
-    host_ptr_ =
-        value_
-            ? init.ppc_context->TranslateVirtual(value_)
-            : nullptr;
+    host_ptr_ = value_ ? init.ppc_context->TranslateVirtual(value_) : nullptr;
   }
   PointerParam(void* host_ptr) : ParamBase(), host_ptr_(host_ptr) {}
   PointerParam& operator=(void*& other) {
@@ -296,10 +292,7 @@ class StringPointerParam : public ParamBase<uint32_t> {
  public:
   StringPointerParam(Init& init) : ParamBase(init) {
     host_ptr_ =
-        value_
-            ? init.ppc_context->TranslateVirtual<CHAR*>(
-                  value_)
-            : nullptr;
+        value_ ? init.ppc_context->TranslateVirtual<CHAR*>(value_) : nullptr;
   }
   StringPointerParam(CHAR* host_ptr) : ParamBase(), host_ptr_(host_ptr) {}
   StringPointerParam& operator=(const CHAR*& other) {
@@ -323,9 +316,7 @@ class TypedPointerParam : public ParamBase<uint32_t> {
  public:
   TypedPointerParam(Init& init) : ParamBase(init) {
     host_ptr_ =
-        value_ ? init.ppc_context->TranslateVirtual<T*>(
-                     value_)
-               : nullptr;
+        value_ ? init.ppc_context->TranslateVirtual<T*>(value_) : nullptr;
   }
   TypedPointerParam(T* host_ptr) : ParamBase(), host_ptr_(host_ptr) {}
   TypedPointerParam& operator=(const T*& other) {

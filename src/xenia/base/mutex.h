@@ -10,8 +10,8 @@
 #ifndef XENIA_BASE_MUTEX_H_
 #define XENIA_BASE_MUTEX_H_
 #include <mutex>
-#include "platform.h"
 #include "memory.h"
+#include "platform.h"
 #define XE_ENABLE_FAST_WIN32_MUTEX 1
 namespace xe {
 
@@ -25,7 +25,7 @@ namespace xe {
 */
 
 class alignas(4096) xe_global_mutex {
-	XE_MAYBE_UNUSED
+  XE_MAYBE_UNUSED
   char detail[64];
 
  public:
@@ -39,7 +39,7 @@ class alignas(4096) xe_global_mutex {
 using global_mutex_type = xe_global_mutex;
 
 class alignas(64) xe_fast_mutex {
-	XE_MAYBE_UNUSED
+  XE_MAYBE_UNUSED
   char detail[64];
 
  public:

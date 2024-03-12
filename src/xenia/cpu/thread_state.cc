@@ -77,8 +77,7 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
 
   // Allocate with 64b alignment.
 
-  context_ = reinterpret_cast<ppc::PPCContext*>(
-	  AllocateContext());
+  context_ = reinterpret_cast<ppc::PPCContext*>(AllocateContext());
   processor->backend()->InitializeBackendContext(context_);
   assert_true(((uint64_t)context_ & 0x3F) == 0);
   std::memset(context_, 0, sizeof(ppc::PPCContext));
@@ -97,9 +96,11 @@ ThreadState::ThreadState(Processor* processor, uint32_t thread_id,
   // fixme: VSCR must be set here!
   context_->msr = 0x9030;  // dumped from a real 360, 0x8000
 
-  //this register can be used for arbitrary data according to the PPC docs
-  //but the suggested use is to mark which vector registers are in use, for faster save/restore
-  //it seems unlikely anything uses this, especially since we have way more than 32 vrs, but setting it to all ones seems closer to correct than 0
+  // this register can be used for arbitrary data according to the PPC docs
+  // but the suggested use is to mark which vector registers are in use, for
+  // faster save/restore it seems unlikely anything uses this, especially since
+  // we have way more than 32 vrs, but setting it to all ones seems closer to
+  // correct than 0
   context_->vrsave = ~0u;
 }
 

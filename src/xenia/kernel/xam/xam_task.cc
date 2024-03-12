@@ -56,7 +56,7 @@ dword_result_t XamTaskSchedule_entry(lpvoid_t callback,
     auto option = ctx->TranslateVirtual<XAM_TASK_ARGS*>(optional_ptr);
 
     auto v1 = option->value1;
-    auto v2 = option->value2; //typically 0?
+    auto v2 = option->value2;  // typically 0?
 
     XELOGI("Got xam task args: v1 = {:08X}, v2 = {:08X}", v1, v2);
   }
@@ -66,9 +66,9 @@ dword_result_t XamTaskSchedule_entry(lpvoid_t callback,
   // Stack must be aligned to 16kb pages
   stack_size = std::max((uint32_t)0x4000, ((stack_size + 0xFFF) & 0xFFFFF000));
 
-  auto thread =
-      object_ref<XThread>(new XThread(kernel_state(), stack_size, 0, callback,
-                                      message.guest_address(), 0, true, false, kernel_state()->GetSystemProcess()));
+  auto thread = object_ref<XThread>(new XThread(
+      kernel_state(), stack_size, 0, callback, message.guest_address(), 0, true,
+      false, kernel_state()->GetSystemProcess()));
 
   X_STATUS result = thread->Create();
 

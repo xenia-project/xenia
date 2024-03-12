@@ -68,7 +68,6 @@ class RingBuffer {
     ring_size_t offset_delta = write_offs - read_offs;
     ring_size_t wrap_read_count = (cap - read_offs) + write_offs;
 
-
     if (XE_LIKELY(read_offs <= write_offs)) {
       return offset_delta;  // will be 0 if they are equal, semantically
                             // identical to old code (i checked the asm, msvc

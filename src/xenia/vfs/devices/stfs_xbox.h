@@ -12,9 +12,9 @@
 
 #include <time.h>
 
-#include "xenia/xbox.h"
 #include "xenia/base/string_util.h"
 #include "xenia/kernel/util/xex2_info.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace vfs {

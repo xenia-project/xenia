@@ -21,7 +21,6 @@ namespace conversion {
 
 #if XE_ARCH_AMD64
 
-
 XE_NOINLINE
 static void _generic_sequential_6_BE_to_interleaved_6_LE(
     float* XE_RESTRICT output, const float* XE_RESTRICT input,

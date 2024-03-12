@@ -651,7 +651,8 @@ void UserModule::Dump() {
 
         for (uint32_t i = 0; i < opt_alternate_title_id->count(); i++) {
           if (opt_alternate_title_id->values[i] != 0) {
-            title_ids.append(fmt::format(" {:08X},", opt_alternate_title_id->values[i]));
+            title_ids.append(
+                fmt::format(" {:08X},", opt_alternate_title_id->values[i]));
           }
         }
         // Remove last character as it is not necessary

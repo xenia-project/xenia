@@ -187,8 +187,7 @@ class XdbfWrapper {
   XdbfPropertyTableEntry GetProperty(const uint32_t id) const;
   XdbfContextTableEntry GetContext(const uint32_t id) const;
   std::vector<XdbfViewTable> GetStatsView() const;
-  XdbfSharedView GetSharedView(const uint8_t* ptr,
-                               uint32_t& byte_count) const;
+  XdbfSharedView GetSharedView(const uint8_t* ptr, uint32_t& byte_count) const;
 
   void GetPropertyBagMetadata(const uint8_t* ptr, uint32_t& byte_count,
                               std::vector<xe::be<uint32_t>>& contexts,
@@ -196,7 +195,8 @@ class XdbfWrapper {
 
   XdbfPropertyBag GetMatchCollection() const;
 
-  const uint8_t* ReadXLast(uint32_t& compressed_size, uint32_t& decompressed_size) const;
+  const uint8_t* ReadXLast(uint32_t& compressed_size,
+                           uint32_t& decompressed_size) const;
 
  private:
   const uint8_t* data_ = nullptr;

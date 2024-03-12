@@ -672,11 +672,11 @@ uint32_t D3D12TextureCache::GetActiveTextureBindlessSRVIndex(
   return descriptor_index;
 }
 void D3D12TextureCache::PrefetchSamplerParameters(
-	const D3D12Shader::SamplerBinding& binding) const {
+    const D3D12Shader::SamplerBinding& binding) const {
   swcache::PrefetchL1(&register_file()[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
                                        binding.fetch_constant * 6]);
 }
-    D3D12TextureCache::SamplerParameters D3D12TextureCache::GetSamplerParameters(
+D3D12TextureCache::SamplerParameters D3D12TextureCache::GetSamplerParameters(
     const D3D12Shader::SamplerBinding& binding) const {
   const auto& regs = register_file();
   const auto& fetch = regs.Get<xenos::xe_gpu_texture_fetch_t>(
@@ -703,8 +703,8 @@ void D3D12TextureCache::PrefetchSamplerParameters(
                                                  nullptr, nullptr, nullptr,
                                                  &mip_min_level, nullptr);
   parameters.mip_min_level = mip_min_level;
-  //high cache miss count here, prefetch fetch earlier
-  // TODO(Triang3l): Disable filtering for texture formats not supporting it.
+  // high cache miss count here, prefetch fetch earlier
+  //  TODO(Triang3l): Disable filtering for texture formats not supporting it.
   xenos::AnisoFilter aniso_filter =
       binding.aniso_filter == xenos::AnisoFilter::kUseFetchConst
           ? fetch.aniso_filter

@@ -35,9 +35,10 @@
 // and let the normal AudioSystem handling take it, to prevent duplicate
 // implementations. They can be found in xboxkrnl_audio_xma.cc
 
-DEFINE_uint32(
-    apu_max_queued_frames, 64,
-    "Allows changing max buffered audio frames to reduce audio delay. Minimum is 16.", "APU");
+DEFINE_uint32(apu_max_queued_frames, 64,
+              "Allows changing max buffered audio frames to reduce audio "
+              "delay. Minimum is 16.",
+              "APU");
 
 namespace xe {
 namespace apu {
@@ -76,11 +77,14 @@ X_STATUS AudioSystem::Setup(kernel::KernelState* kernel_state) {
   }
 
   worker_running_ = true;
-  worker_thread_ = kernel::object_ref<kernel::XHostThread>(
-      new kernel::XHostThread(kernel_state, 128 * 1024, 0, [this]() {
-        WorkerThreadMain();
-        return 0;
-      }, kernel_state->GetSystemProcess()));
+  worker_thread_ =
+      kernel::object_ref<kernel::XHostThread>(new kernel::XHostThread(
+          kernel_state, 128 * 1024, 0,
+          [this]() {
+            WorkerThreadMain();
+            return 0;
+          },
+          kernel_state->GetSystemProcess()));
   // As we run audio callbacks the debugger must be able to suspend us.
   worker_thread_->set_can_debugger_suspend(true);
   worker_thread_->set_name("Audio Worker");

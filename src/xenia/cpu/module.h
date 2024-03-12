@@ -55,6 +55,7 @@ class Module {
   bool ReadMap(const char* file_name);
 
   virtual void Precompile() {}
+
  protected:
   virtual std::unique_ptr<Function> CreateFunction(uint32_t address) = 0;
 

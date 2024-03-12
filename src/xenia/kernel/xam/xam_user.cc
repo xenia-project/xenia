@@ -738,7 +738,7 @@ dword_result_t XamUserCreateStatsEnumerator_entry(
   }
 
   if (buffer_size_ptr) {
-    *buffer_size_ptr = 0; // sizeof(X_STATS_DETAILS) * stats_ptr->stats_amount;
+    *buffer_size_ptr = 0;  // sizeof(X_STATS_DETAILS) * stats_ptr->stats_amount;
   }
 
   auto e = object_ref<XUserStatsEnumerator>(

@@ -93,7 +93,8 @@ class X64CodeCache : public CodeCache {
   // This is picked to be high enough to cover whatever we can reasonably
   // expect. If we hit issues with this it probably means some corner case
   // in analysis triggering.
-  //chrispy: raised this, some games that were compiled with low optimization levels can exceed this
+  // chrispy: raised this, some games that were compiled with low optimization
+  // levels can exceed this
   static const size_t kMaximumFunctionCount = 1000000;
 
   struct UnwindReservation {

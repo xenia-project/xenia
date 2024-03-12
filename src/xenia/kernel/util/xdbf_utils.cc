@@ -216,7 +216,7 @@ std::vector<XdbfViewTable> XdbfWrapper::GetStatsView() const {
 }
 
 const uint8_t* XdbfWrapper::ReadXLast(uint32_t& compressed_size,
-    uint32_t& decompressed_size) const {
+                                      uint32_t& decompressed_size) const {
   auto xlast_table = GetEntry(XdbfSection::kMetadata, kXdbfIdXsrc);
   if (!xlast_table) {
     return nullptr;
