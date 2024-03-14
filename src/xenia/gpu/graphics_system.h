@@ -109,8 +109,8 @@ class GraphicsSystem {
   uint32_t interrupt_callback_ = 0;
   uint32_t interrupt_callback_data_ = 0;
 
-  std::atomic<bool> vsync_worker_running_;
-  kernel::object_ref<kernel::XHostThread> vsync_worker_thread_;
+  std::atomic<bool> frame_limiter_worker_running_;
+  kernel::object_ref<kernel::XHostThread> frame_limiter_worker_thread_;
 
   RegisterFile* register_file_;
   std::unique_ptr<CommandProcessor> command_processor_;

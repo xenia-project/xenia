@@ -20,7 +20,10 @@ DEFINE_path(
 
 DEFINE_bool(vsync, true, "Enable VSYNC.", "GPU");
 
-DEFINE_uint64(vsync_fps, 60, "VSYNC frames per second", "GPU");
+DEFINE_uint64(framerate_limit, 60,
+              "Maximum frames per second. 0 = Unlimited frames.\n"
+              "Defaults to 60, when set to 0, and VSYNC is enabled.",
+              "GPU");
 
 DEFINE_bool(
     gpu_allow_invalid_fetch_constants, true,
