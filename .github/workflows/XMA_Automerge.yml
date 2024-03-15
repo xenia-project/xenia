@@ -1,0 +1,22 @@
+name: Uplift XMA branch
+
+on:
+  push:
+    branches:
+      - canary_experimental
+
+jobs:
+  update-branch:
+    name: Uplift XMA branch
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: canary_experimental_wip_xma_decoder
+
+    - name: Update XMA branch
+      run: |
+        git pull origin canary_experimental --rebase
+        git push origin canary_experimental_wip_xma_decoder --force
