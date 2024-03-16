@@ -95,6 +95,8 @@ void GetPreferredFacePolygonOffset(const RegisterFile& regs,
         !pa_su_sc_mode_cntl.cull_front) {
       scale = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
       offset = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
+
+      scale = roundToNearestOrderOfMagnitude(scale);
     }
     if (pa_su_sc_mode_cntl.poly_offset_back_enable &&
         !pa_su_sc_mode_cntl.cull_back && !scale && !offset) {

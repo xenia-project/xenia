@@ -597,6 +597,19 @@ inline T sat_sub(T a, T b) {
   }
   return T(result);
 }
+
+template <typename T>
+inline T roundToNearestOrderOfMagnitude(T value) {
+  if (!value) {
+    return value;
+  }
+
+  const double order = std::pow(10, std::floor(std::log10(std::fabs(value))));
+  const double rounded = std::round(value / order) * order;
+
+  return static_cast<T>(rounded);
+}
+
 namespace divisors {
 union IDivExtraInfo {
   uint32_t value_;
