@@ -1044,15 +1044,6 @@ bool PipelineCache::ConfigurePipeline(
           bound_depth_and_color_render_target_formats, runtime_description)) {
     return false;
   }
-
-  // Due to hashing below and value variance in some titles (4D53085B) we must
-  // ignore it during hash calculation. Otherwise it would cause huge stuttering
-  // and memory leakage.
-  const float depth_bias_slope_scaled =
-      runtime_description.description.depth_bias_slope_scaled;
-
-  runtime_description.description.depth_bias_slope_scaled = 0.0f;
-
   PipelineDescription& description = runtime_description.description;
 
   if (current_pipeline_ != nullptr &&
@@ -1080,11 +1071,7 @@ bool PipelineCache::ConfigurePipeline(
   std::memcpy(&new_pipeline->description, &runtime_description,
               sizeof(runtime_description));
   pipelines_.emplace(hash, new_pipeline);
-
   COUNT_profile_set("gpu/pipeline_cache/pipelines", pipelines_.size());
-
-  runtime_description.description.depth_bias_slope_scaled =
-      depth_bias_slope_scaled;
 
   if (!creation_threads_.empty()) {
     // Submit the pipeline for creation to any available thread.
