@@ -14,6 +14,7 @@
 
 #include "config.h"
 #include "third_party/fmt/include/fmt/format.h"
+#include "third_party/tabulate/single_include/tabulate/tabulate.hpp"
 #include "xenia/apu/audio_system.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_stream.h"
@@ -1041,39 +1042,59 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
       XELOGI("Title name: {}", title_name_);
 
       // Show achievments data
-      XELOGI("-------------------- ACHIEVEMENTS --------------------");
+      tabulate::Table table;
+      table.format().multi_byte_characters(true);
+      table.add_row({"ID", "Title", "Description", "Gamerscore"});
+
       const std::vector<kernel::util::XdbfAchievementTableEntry>
           achievement_list = db.GetAchievements();
       for (const kernel::util::XdbfAchievementTableEntry& entry :
            achievement_list) {
-        std::string label = db.GetStringTableEntry(language, entry.label_id);
-        std::string desc =
-            db.GetStringTableEntry(language, entry.description_id);
+        std::string label = string_util::remove_eol(string_util::trim(
+            db.GetStringTableEntry(language, entry.label_id)));
+        std::string desc = string_util::remove_eol(string_util::trim(
+            db.GetStringTableEntry(language, entry.description_id)));
 
-        XELOGI("{} - {} - {} - {}", entry.id, label, desc, entry.gamerscore);
+        table.add_row({fmt::format("{}", entry.id), label, desc,
+                       fmt::format("{}", entry.gamerscore)});
       }
-      XELOGI("----------------- END OF ACHIEVEMENTS ----------------");
+      XELOGI("-------------------- ACHIEVEMENTS --------------------\n{}",
+             table.str());
 
-      XELOGI("-------------------- PROPERTIES --------------------");
       const std::vector<kernel::util::XdbfPropertyTableEntry> properties_list =
           db.GetProperties();
 
+      table = tabulate::Table();
+      table.format().multi_byte_characters(true);
+      table.add_row({"ID", "Name", "Data Size"});
+
       for (const kernel::util::XdbfPropertyTableEntry& entry :
            properties_list) {
-        std::string label = db.GetStringTableEntry(language, entry.string_id);
-        XELOGI("{:08X} - {} - {}", entry.id, label, entry.data_size);
+        std::string label = string_util::remove_eol(string_util::trim(
+            db.GetStringTableEntry(language, entry.string_id)));
+        table.add_row({fmt::format("{:08X}", entry.id), label,
+                       fmt::format("{}", entry.data_size)});
       }
-      XELOGI("----------------- END OF PROPERTIES ----------------");
+      XELOGI("-------------------- PROPERTIES --------------------\n{}",
+             table.str());
 
-      XELOGI("-------------------- CONTEXTS --------------------");
       const std::vector<kernel::util::XdbfContextTableEntry> contexts_list =
           db.GetContexts();
 
+      table = tabulate::Table();
+      table.format().multi_byte_characters(true);
+      table.add_row({"ID", "Name", "Default Value", "Max Value"});
+
       for (const kernel::util::XdbfContextTableEntry& entry : contexts_list) {
-        std::string label = db.GetStringTableEntry(language, entry.string_id);
-        XELOGI("{:08X} - {} - {}", entry.id, label, entry.default_value);
+        std::string label = string_util::remove_eol(string_util::trim(
+            db.GetStringTableEntry(language, entry.string_id)));
+        table.add_row({fmt::format("{:08X}", entry.id), label,
+                       fmt::format("{}", entry.default_value),
+                       fmt::format("{}", entry.max_value)});
       }
-      XELOGI("----------------- END OF CONTEXTS ----------------");
+      XELOGI("-------------------- CONTEXTS --------------------\n{}",
+             table.str());
+
       auto icon_block = db.icon();
       if (icon_block) {
         display_window_->SetIcon(icon_block.buffer, icon_block.size);
