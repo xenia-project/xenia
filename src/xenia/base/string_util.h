@@ -156,6 +156,12 @@ inline std::string trim(const std::string& value) {
   return ltrim(rtrim(value));
 }
 
+inline std::string remove_eol(const std::string& value) {
+  std::string result = value;
+  result.erase(std::remove(result.begin(), result.end(), '\n'), result.cend());
+  return result;
+}
+
 inline std::string to_hex_string(uint32_t value) {
   return fmt::format("{:08X}", value);
 }
