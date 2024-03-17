@@ -16,6 +16,7 @@
 #include <optional>
 
 #include "SDL.h"
+#include "third_party/rapidcsv/src/rapidcsv.h"
 #include "xenia/hid/input_driver.h"
 
 #define HID_SDL_USER_COUNT 4
@@ -34,6 +35,8 @@ class SDLInputDriver final : public InputDriver {
   ~SDLInputDriver() override;
 
   X_STATUS Setup() override;
+
+  void LoadGameControllerDB();
 
   X_RESULT GetCapabilities(uint32_t user_index, uint32_t flags,
                            X_INPUT_CAPABILITIES* out_caps) override;

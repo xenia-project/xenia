@@ -94,3 +94,6 @@
 [submodule "third_party/tabulate"]
 	path = third_party/tabulate
 	url = https://github.com/p-ranav/tabulate.git
+[submodule "third_party/rapidcsv"]
+	path = third_party/rapidcsv
+	url = https://github.com/d99kris/rapidcsv
