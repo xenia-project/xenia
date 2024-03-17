@@ -1071,7 +1071,7 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
 
       for (const kernel::util::XdbfContextTableEntry& entry : contexts_list) {
         std::string label = db.GetStringTableEntry(language, entry.string_id);
-        XELOGI("{:08X} - {} - {}", entry.id, label, entry.unk2);
+        XELOGI("{:08X} - {} - {}", entry.id, label, entry.default_value);
       }
       XELOGI("----------------- END OF CONTEXTS ----------------");
       auto icon_block = db.icon();

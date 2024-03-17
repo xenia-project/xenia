@@ -79,8 +79,8 @@ struct XdbfContextTableEntry {
   xe::be<uint32_t> id;
   xe::be<uint16_t> unk1;
   xe::be<uint16_t> string_id;
-  xe::be<uint32_t> unk2;
-  xe::be<uint32_t> unk3;
+  xe::be<uint32_t> max_value;
+  xe::be<uint32_t> default_value;
 };
 static_assert_size(XdbfContextTableEntry, 16);
 
