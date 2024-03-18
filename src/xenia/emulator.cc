@@ -336,7 +336,7 @@ const std::unique_ptr<vfs::Device> Emulator::CreateVfsDeviceBasedOnPath(
     xe::ShowSimpleMessageBox(
         xe::SimpleMessageBoxType::Error,
         fmt::format(
-            "Unsupported format!"
+            "Unsupported format!\n"
             "Xenia does not support running software in an archived format."));
   }
   return std::make_unique<vfs::DiscImageDevice>(mount_path, path);
@@ -387,15 +387,15 @@ void Emulator::SetPersistentEmulatorFlags(uint64_t new_flags) {
 X_STATUS Emulator::MountPath(const std::filesystem::path& path,
                              const std::string_view mount_path) {
   auto device = CreateVfsDeviceBasedOnPath(path, mount_path);
-  if (!device->Initialize()) {
-    xe::FatalError(
+  if (!device || !device->Initialize()) {
+    XELOGE(
         "Unable to mount the selected file, it is an unsupported format or "
         "corrupted.");
     return X_STATUS_NO_SUCH_FILE;
   }
   if (!file_system_->RegisterDevice(std::move(device))) {
-    xe::FatalError(fmt::format("Unable to register the input file to {}.",
-                               xe::path_to_utf8(mount_path)));
+    XELOGE("Unable to register the input file to {}.",
+           xe::path_to_utf8(mount_path));
     return X_STATUS_NO_SUCH_FILE;
   }
 
@@ -413,24 +413,27 @@ X_STATUS Emulator::MountPath(const std::filesystem::path& path,
 X_STATUS Emulator::LaunchPath(const std::filesystem::path& path) {
   // Launch based on file type.
   // This is a silly guess based on file extension.
+
+  X_STATUS mount_result = X_STATUS_SUCCESS;
+
   if (!path.has_extension()) {
     // Likely an STFS container.
-    MountPath(path, "\\Device\\Cdrom0");
-    return LaunchStfsContainer(path);
+    mount_result = MountPath(path, "\\Device\\Cdrom0");
+    return mount_result ? mount_result : LaunchStfsContainer(path);
   };
   auto extension = xe::utf8::lower_ascii(xe::path_to_utf8(path.extension()));
   if (extension == ".xex" || extension == ".elf" || extension == ".exe") {
     // Treat as a naked xex file.
-    MountPath(path, "\\Device\\Harddisk0\\Partition1");
-    return LaunchXexFile(path);
+    mount_result = MountPath(path, "\\Device\\Harddisk0\\Partition1");
+    return mount_result ? mount_result : LaunchXexFile(path);
   } else if (extension == ".zar") {
     // Assume a disc image.
-    MountPath(path, "\\Device\\Cdrom0");
-    return LaunchDiscArchive(path);
+    mount_result = MountPath(path, "\\Device\\Cdrom0");
+    return mount_result ? mount_result : LaunchDiscArchive(path);
   } else {
     // Assume a disc image.
-    MountPath(path, "\\Device\\Cdrom0");
-    return LaunchDiscImage(path);
+    mount_result = MountPath(path, "\\Device\\Cdrom0");
+    return mount_result ? mount_result : LaunchDiscImage(path);
   }
 }
 
@@ -495,7 +498,7 @@ X_STATUS Emulator::LaunchDefaultModule(const std::filesystem::path& path) {
 X_STATUS Emulator::InstallContentPackage(const std::filesystem::path& path) {
   std::unique_ptr<vfs::Device> device =
       vfs::XContentContainerDevice::CreateContentDevice("", path);
-  if (!device->Initialize()) {
+  if (!device || !device->Initialize()) {
     XELOGE("Failed to initialize device");
     return X_STATUS_INVALID_PARAMETER;
   }

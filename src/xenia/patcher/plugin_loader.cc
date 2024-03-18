@@ -17,8 +17,8 @@
 
 DEFINE_bool(
     allow_plugins, false,
-    "Allows loading of plugins/trainers from plugins\\title_id\\plugin.xex."
-    "Plugin are homebrew xex modules which can be used for making mods "
+    "Allows loading of plugins/trainers from plugins\\title_id\\plugin.xex. "
+    "Plugin are homebrew xex modules which can be used for making mods. "
     "This feature is experimental.",
     "General");
 

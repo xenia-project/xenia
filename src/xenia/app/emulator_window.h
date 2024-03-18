@@ -226,7 +226,6 @@ class EmulatorWindow {
   void GamepadHotKeys();
   void ToggleGPUSetting(gpu_cvar index);
   bool IsUseNexusForGameBarEnabled();
-  std::string BoolToString(bool value);
   void DisplayHotKeysConfig();
 
   void RunPreviouslyPlayedTitle();
