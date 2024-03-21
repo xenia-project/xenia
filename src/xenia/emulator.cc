@@ -15,6 +15,7 @@
 #include "config.h"
 #include "third_party/fmt/include/fmt/format.h"
 #include "third_party/tabulate/single_include/tabulate/tabulate.hpp"
+#include "third_party/zarchive/include/zarchive/zarchivecommon.h"
 #include "xenia/apu/audio_system.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_stream.h"
@@ -314,32 +315,35 @@ X_STATUS Emulator::TerminateTitle() {
   return X_STATUS_SUCCESS;
 }
 
-std::string Emulator::CanonicalizeFileExtension(
-    const std::filesystem::path& path) {
-  return xe::utf8::lower_ascii(xe::path_to_utf8(path.extension()));
-}
-
-const std::unique_ptr<vfs::Device> Emulator::CreateVfsDeviceBasedOnPath(
+const std::unique_ptr<vfs::Device> Emulator::CreateVfsDevice(
     const std::filesystem::path& path, const std::string_view mount_path) {
-  if (!path.has_extension()) {
-    return vfs::XContentContainerDevice::CreateContentDevice(mount_path, path);
+  // Must check if the type has changed e.g. XamSwapDisc
+  switch (GetFileSignature(path)) {
+    case FileSignatureType::XEX1:
+    case FileSignatureType::XEX2:
+    case FileSignatureType::ELF: {
+      auto parent_path = path.parent_path();
+      return std::make_unique<vfs::HostPathDevice>(
+          mount_path, parent_path, !cvars::allow_game_relative_writes);
+    } break;
+    case FileSignatureType::LIVE:
+    case FileSignatureType::CON:
+    case FileSignatureType::PIRS: {
+      return vfs::XContentContainerDevice::CreateContentDevice(mount_path,
+                                                               path);
+    } break;
+    case FileSignatureType::XISO: {
+      return std::make_unique<vfs::DiscImageDevice>(mount_path, path);
+    } break;
+    case FileSignatureType::ZAR: {
+      return std::make_unique<vfs::DiscZarchiveDevice>(mount_path, path);
+    } break;
+    case FileSignatureType::EXE:
+    case FileSignatureType::Unknown:
+    default:
+      return nullptr;
+      break;
   }
-  auto extension = CanonicalizeFileExtension(path);
-  if (extension == ".xex" || extension == ".elf" || extension == ".exe") {
-    auto parent_path = path.parent_path();
-    return std::make_unique<vfs::HostPathDevice>(
-        mount_path, parent_path, !cvars::allow_game_relative_writes);
-  } else if (extension == ".zar") {
-    return std::make_unique<vfs::DiscZarchiveDevice>(mount_path, path);
-  } else if (extension == ".7z" || extension == ".zip" || extension == ".rar" ||
-             extension == ".tar" || extension == ".gz") {
-    xe::ShowSimpleMessageBox(
-        xe::SimpleMessageBoxType::Error,
-        fmt::format(
-            "Unsupported format!\n"
-            "Xenia does not support running software in an archived format."));
-  }
-  return std::make_unique<vfs::DiscImageDevice>(mount_path, path);
 }
 
 uint64_t Emulator::GetPersistentEmulatorFlags() {
@@ -386,7 +390,7 @@ void Emulator::SetPersistentEmulatorFlags(uint64_t new_flags) {
 
 X_STATUS Emulator::MountPath(const std::filesystem::path& path,
                              const std::string_view mount_path) {
-  auto device = CreateVfsDeviceBasedOnPath(path, mount_path);
+  auto device = CreateVfsDevice(path, mount_path);
   if (!device || !device->Initialize()) {
     XELOGE(
         "Unable to mount the selected file, it is an unsupported format or "
@@ -410,30 +414,108 @@ X_STATUS Emulator::MountPath(const std::filesystem::path& path,
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS Emulator::LaunchPath(const std::filesystem::path& path) {
-  // Launch based on file type.
-  // This is a silly guess based on file extension.
+Emulator::FileSignatureType Emulator::GetFileSignature(
+    const std::filesystem::path& path) {
+  FILE* file = xe::filesystem::OpenFile(path, "rb");
 
+  if (!file) {
+    return FileSignatureType::Unknown;
+  }
+
+  const uint64_t file_size = std::filesystem::file_size(path);
+  const uint64_t header_size = 4;
+
+  if (file_size < header_size) {
+    return FileSignatureType::Unknown;
+  }
+
+  char file_magic[header_size];
+  fread_s(file_magic, sizeof(file_magic), 1, header_size, file);
+
+  fourcc_t magic_value =
+      make_fourcc(file_magic[0], file_magic[1], file_magic[2], file_magic[3]);
+
+  fclose(file);
+
+  switch (magic_value) {
+    case xe::cpu::kXEX1Signature:
+      return FileSignatureType::XEX1;
+    case xe::cpu::kXEX2Signature:
+      return FileSignatureType::XEX2;
+    case xe::vfs::kCONSignature:
+      return FileSignatureType::CON;
+    case xe::vfs::kLIVESignature:
+      return FileSignatureType::LIVE;
+    case xe::vfs::kPIRSSignature:
+      return FileSignatureType::PIRS;
+    case xe::vfs::kXSFSignature:
+      return FileSignatureType::XISO;
+    case xe::cpu::kElfSignature:
+      return FileSignatureType::ELF;
+    default:
+      break;
+  }
+
+  magic_value = make_fourcc(file_magic[0], file_magic[1], 0, 0);
+
+  if (xe::kernel::kEXESignature == magic_value) {
+    return FileSignatureType::EXE;
+  }
+
+  file = xe::filesystem::OpenFile(path, "rb");
+  xe::filesystem::Seek(file, header_size, SEEK_END);
+  fread_s(file_magic, sizeof(file_magic), 1, header_size, file);
+  fclose(file);
+
+  magic_value =
+      make_fourcc(file_magic[0], file_magic[1], file_magic[2], file_magic[3]);
+
+  if (xe::vfs::kZarMagic == magic_value) {
+    return FileSignatureType::ZAR;
+  }
+
+  // Check if XISO
+  std::unique_ptr<vfs::Device> device =
+      std::make_unique<vfs::DiscImageDevice>("", path);
+
+  XELOGI("Checking for XISO");
+
+  if (device->Initialize()) {
+    return FileSignatureType::XISO;
+  }
+
+  return FileSignatureType::Unknown;
+}
+
+X_STATUS Emulator::LaunchPath(const std::filesystem::path& path) {
   X_STATUS mount_result = X_STATUS_SUCCESS;
 
-  if (!path.has_extension()) {
-    // Likely an STFS container.
-    mount_result = MountPath(path, "\\Device\\Cdrom0");
-    return mount_result ? mount_result : LaunchStfsContainer(path);
-  };
-  auto extension = xe::utf8::lower_ascii(xe::path_to_utf8(path.extension()));
-  if (extension == ".xex" || extension == ".elf" || extension == ".exe") {
-    // Treat as a naked xex file.
-    mount_result = MountPath(path, "\\Device\\Harddisk0\\Partition1");
-    return mount_result ? mount_result : LaunchXexFile(path);
-  } else if (extension == ".zar") {
-    // Assume a disc image.
-    mount_result = MountPath(path, "\\Device\\Cdrom0");
-    return mount_result ? mount_result : LaunchDiscArchive(path);
-  } else {
-    // Assume a disc image.
-    mount_result = MountPath(path, "\\Device\\Cdrom0");
-    return mount_result ? mount_result : LaunchDiscImage(path);
+  switch (GetFileSignature(path)) {
+    case FileSignatureType::XEX1:
+    case FileSignatureType::XEX2:
+    case FileSignatureType::ELF: {
+      mount_result = MountPath(path, "\\Device\\Harddisk0\\Partition1");
+      return mount_result ? mount_result : LaunchXexFile(path);
+    } break;
+    case FileSignatureType::LIVE:
+    case FileSignatureType::CON:
+    case FileSignatureType::PIRS: {
+      mount_result = MountPath(path, "\\Device\\Cdrom0");
+      return mount_result ? mount_result : LaunchStfsContainer(path);
+    } break;
+    case FileSignatureType::XISO: {
+      mount_result = MountPath(path, "\\Device\\Cdrom0");
+      return mount_result ? mount_result : LaunchDiscImage(path);
+    } break;
+    case FileSignatureType::ZAR: {
+      mount_result = MountPath(path, "\\Device\\Cdrom0");
+      return mount_result ? mount_result : LaunchDiscArchive(path);
+    } break;
+    case FileSignatureType::EXE:
+    case FileSignatureType::Unknown:
+    default:
+      return X_STATUS_NOT_SUPPORTED;
+      break;
   }
 }
 

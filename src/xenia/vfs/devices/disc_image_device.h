@@ -21,6 +21,8 @@ namespace vfs {
 
 class DiscImageEntry;
 
+constexpr fourcc_t kXSFSignature = make_fourcc(0x58, 0x53, 0x46, 0x1A);
+
 class DiscImageDevice : public Device {
  public:
   DiscImageDevice(const std::string_view mount_path,

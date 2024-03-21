@@ -181,11 +181,28 @@ class Emulator {
   // Terminates the currently running title.
   X_STATUS TerminateTitle();
 
-  const std::unique_ptr<vfs::Device> CreateVfsDeviceBasedOnPath(
+  const std::unique_ptr<vfs::Device> CreateVfsDevice(
       const std::filesystem::path& path, const std::string_view mount_path);
 
   X_STATUS MountPath(const std::filesystem::path& path,
                      const std::string_view mount_path);
+
+  enum class FileSignatureType {
+    XEX1,
+    XEX2,
+    ELF,
+    CON,
+    LIVE,
+    PIRS,
+    XISO,
+    ZAR,
+    EXE,
+    Unknown
+  };
+
+  // Determine the executable signature
+  FileSignatureType GetFileSignature(const std::filesystem::path& path);
+
   // Launches a game from the given file path.
   // This will attempt to infer the type of the given file (such as an iso, etc)
   // using heuristics.
@@ -233,8 +250,6 @@ class Emulator {
   enum : uint64_t { EmulatorFlagDisclaimerAcknowledged = 1ULL << 0 };
   static uint64_t GetPersistentEmulatorFlags();
   static void SetPersistentEmulatorFlags(uint64_t new_flags);
-  static std::string CanonicalizeFileExtension(
-      const std::filesystem::path& path);
   static bool ExceptionCallbackThunk(Exception* ex, void* data);
   bool ExceptionCallback(Exception* ex);
 

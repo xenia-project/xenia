@@ -1534,6 +1534,11 @@ void EmulatorWindow::DisplayHotKeysConfig() {
                                       msg);
 }
 
+std::string EmulatorWindow::CanonicalizeFileExtension(
+    const std::filesystem::path& path) {
+  return xe::utf8::lower_ascii(xe::path_to_utf8(path.extension()));
+}
+
 xe::X_STATUS EmulatorWindow::RunTitle(std::filesystem::path path_to_file) {
   bool titleExists = !std::filesystem::exists(path_to_file);
 
@@ -1564,6 +1569,20 @@ xe::X_STATUS EmulatorWindow::RunTitle(std::filesystem::path path_to_file) {
   // Prevent crashing the emulator by not loading a game if a game is already
   // loaded.
   auto abs_path = std::filesystem::absolute(path_to_file);
+
+  auto extension = CanonicalizeFileExtension(abs_path);
+
+  if (extension == ".7z" || extension == ".zip" || extension == ".rar" ||
+      extension == ".tar" || extension == ".gz") {
+    xe::ShowSimpleMessageBox(
+        xe::SimpleMessageBoxType::Error,
+        fmt::format(
+            "Unsupported format!\n"
+            "Xenia does not support running software in an archived format."));
+
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
   auto result = emulator_->LaunchPath(abs_path);
 
   imgui_drawer_.get()->ClearDialogs();

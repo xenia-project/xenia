@@ -22,6 +22,11 @@
 
 namespace xe {
 namespace vfs {
+
+constexpr fourcc_t kLIVESignature = make_fourcc("LIVE");
+constexpr fourcc_t kCONSignature = make_fourcc("CON ");
+constexpr fourcc_t kPIRSSignature = make_fourcc("PIRS");
+
 class XContentContainerDevice : public Device {
  public:
   const static uint32_t kBlockSize = 0x1000;
