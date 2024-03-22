@@ -120,6 +120,7 @@ Emulator::Emulator(const std::filesystem::path& command_line,
       kernel_state_(),
       main_thread_(),
       title_id_(std::nullopt),
+      game_info_database_(),
       paused_(false),
       restoring_(false),
       restore_fence_() {
@@ -1257,10 +1258,12 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
     game_config_load_callback_loop_next_index_ = SIZE_MAX;
 
     const kernel::util::XdbfGameData db = kernel_state_->module_xdbf(module);
-    if (db.is_valid()) {
-      XLanguage language =
-          db.GetExistingLanguage(static_cast<XLanguage>(cvars::user_language));
-      title_name_ = db.title(language);
+
+    game_info_database_ = std::make_unique<kernel::util::GameInfoDatabase>(&db);
+
+    if (game_info_database_->IsValid()) {
+      title_name_ = game_info_database_->GetTitleName(
+          static_cast<XLanguage>(cvars::user_language));
       XELOGI("Title name: {}", title_name_);
 
       // Show achievments data
@@ -1268,48 +1271,44 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
       table.format().multi_byte_characters(true);
       table.add_row({"ID", "Title", "Description", "Gamerscore"});
 
-      const std::vector<kernel::util::XdbfAchievementTableEntry>
-          achievement_list = db.GetAchievements();
-      for (const kernel::util::XdbfAchievementTableEntry& entry :
+      const std::vector<kernel::util::GameInfoDatabase::Achievement>
+          achievement_list = game_info_database_->GetAchievements();
+      for (const kernel::util::GameInfoDatabase::Achievement& entry :
            achievement_list) {
-        std::string label = string_util::remove_eol(string_util::trim(
-            db.GetStringTableEntry(language, entry.label_id)));
-        std::string desc = string_util::remove_eol(string_util::trim(
-            db.GetStringTableEntry(language, entry.description_id)));
-
-        table.add_row({fmt::format("{}", entry.id), label, desc,
-                       fmt::format("{}", entry.gamerscore)});
+        table.add_row({fmt::format("{}", entry.id), entry.label,
+                       entry.description, fmt::format("{}", entry.gamerscore)});
       }
       XELOGI("-------------------- ACHIEVEMENTS --------------------\n{}",
              table.str());
 
-      const std::vector<kernel::util::XdbfPropertyTableEntry> properties_list =
-          db.GetProperties();
+      const std::vector<kernel::util::GameInfoDatabase::Property>
+          properties_list = game_info_database_->GetProperties();
 
       table = tabulate::Table();
       table.format().multi_byte_characters(true);
       table.add_row({"ID", "Name", "Data Size"});
 
-      for (const kernel::util::XdbfPropertyTableEntry& entry :
+      for (const kernel::util::GameInfoDatabase::Property& entry :
            properties_list) {
-        std::string label = string_util::remove_eol(string_util::trim(
-            db.GetStringTableEntry(language, entry.string_id)));
+        std::string label =
+            string_util::remove_eol(string_util::trim(entry.description));
         table.add_row({fmt::format("{:08X}", entry.id), label,
                        fmt::format("{}", entry.data_size)});
       }
       XELOGI("-------------------- PROPERTIES --------------------\n{}",
              table.str());
 
-      const std::vector<kernel::util::XdbfContextTableEntry> contexts_list =
-          db.GetContexts();
+      const std::vector<kernel::util::GameInfoDatabase::Context> contexts_list =
+          game_info_database_->GetContexts();
 
       table = tabulate::Table();
       table.format().multi_byte_characters(true);
       table.add_row({"ID", "Name", "Default Value", "Max Value"});
 
-      for (const kernel::util::XdbfContextTableEntry& entry : contexts_list) {
-        std::string label = string_util::remove_eol(string_util::trim(
-            db.GetStringTableEntry(language, entry.string_id)));
+      for (const kernel::util::GameInfoDatabase::Context& entry :
+           contexts_list) {
+        std::string label =
+            string_util::remove_eol(string_util::trim(entry.description));
         table.add_row({fmt::format("{:08X}", entry.id), label,
                        fmt::format("{}", entry.default_value),
                        fmt::format("{}", entry.max_value)});
@@ -1317,9 +1316,9 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
       XELOGI("-------------------- CONTEXTS --------------------\n{}",
              table.str());
 
-      auto icon_block = db.icon();
-      if (icon_block) {
-        display_window_->SetIcon(icon_block.buffer, icon_block.size);
+      auto icon_block = game_info_database_->GetIcon();
+      if (!icon_block.empty()) {
+        display_window_->SetIcon(icon_block.data(), icon_block.size());
       }
     }
   }

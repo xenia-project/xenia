@@ -146,7 +146,7 @@ class UserSetting {
       X_USER_PROFILE_SETTING_SOURCE::DEFAULT;
 
   X_USER_PROFILE_SETTING_HEADER header_ = {};
-  UserData::Key setting_id_ = {};
+  AttributeKey setting_id_ = {};
   std::unique_ptr<UserData> user_data_ = nullptr;
 };
 

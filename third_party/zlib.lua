@@ -1,0 +1,9 @@
+group("third_party")
+project("zlib")
+  uuid("13d4073d-f1c9-47e3-a057-79b133596fc2")
+  kind("StaticLib")
+  language("C")
+  files({
+    "zlib/*.c",
+    "zlib/*.h",
+  })

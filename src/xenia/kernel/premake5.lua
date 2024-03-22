@@ -9,6 +9,8 @@ project("xenia-kernel")
   links({
     "aes_128",
     "fmt",
+    "zlib",
+    "pugixml",
     "xenia-apu",
     "xenia-base",
     "xenia-cpu",
