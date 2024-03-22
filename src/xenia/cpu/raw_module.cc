@@ -26,9 +26,8 @@ RawModule::~RawModule() {}
 bool RawModule::LoadFile(uint32_t base_address,
                          const std::filesystem::path& path) {
   FILE* file = xe::filesystem::OpenFile(path, "rb");
-  fseek(file, 0, SEEK_END);
-  uint32_t file_length = static_cast<uint32_t>(ftell(file));
-  fseek(file, 0, SEEK_SET);
+  const uint32_t file_length =
+      static_cast<uint32_t>(std::filesystem::file_size(path));
 
   // Allocate memory.
   // Since we have no real heap just load it wherever.

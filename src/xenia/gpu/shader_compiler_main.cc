@@ -100,9 +100,7 @@ int shader_compiler_main(const std::vector<std::string>& args) {
            xe::path_to_utf8(cvars::shader_input));
     return 1;
   }
-  fseek(input_file, 0, SEEK_END);
-  size_t input_file_size = ftell(input_file);
-  fseek(input_file, 0, SEEK_SET);
+  size_t input_file_size = std::filesystem::file_size(cvars::shader_input);
   std::vector<uint32_t> ucode_dwords(input_file_size / 4);
   fread(ucode_dwords.data(), 4, ucode_dwords.size(), input_file);
   fclose(input_file);
