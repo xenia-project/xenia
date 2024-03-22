@@ -423,7 +423,7 @@ Emulator::FileSignatureType Emulator::GetFileSignature(
   }
 
   const uint64_t file_size = std::filesystem::file_size(path);
-  const uint64_t header_size = 4;
+  const int64_t header_size = 4;
 
   if (file_size < header_size) {
     return FileSignatureType::Unknown;
@@ -463,7 +463,7 @@ Emulator::FileSignatureType Emulator::GetFileSignature(
   }
 
   file = xe::filesystem::OpenFile(path, "rb");
-  xe::filesystem::Seek(file, header_size, SEEK_END);
+  xe::filesystem::Seek(file, -header_size, SEEK_END);
   fread_s(file_magic, sizeof(file_magic), 1, header_size, file);
   fclose(file);
 
