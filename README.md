@@ -7,7 +7,7 @@
 <h1 align="center">Xenia Canary - Xbox 360 Emulator</h1>
 
 Xenia is an experimental emulator for the Xbox 360. For more information, see the
-[main Xenia wiki](https://github.com/xenia-project/xenia/wiki).
+[Xenia wiki](https://github.com/xenia-canary/xenia-canary/wiki).
 
 Come chat with us about **emulator-related topics** on [Discord](https://discord.gg/Q9mxZf9).
 For developer chat join `#dev` but stay on topic. Lurking is not only fine, but encouraged!
@@ -20,7 +20,7 @@ Discussing illegal activities will get you banned.
 
 Buildbot | Status | Releases
 -------- | ------ | --------
-Windows | [![CI](https://github.com/xenia-canary/xenia-canary/actions/workflows/CI.yml/badge.svg?branch=canary_experimental)](https://github.com/xenia-canary/xenia-canary/actions/workflows/CI.yml) [![Codacy Badge](https://app.codacy.com/project/badge/Grade/cd506034fd8148309a45034925648499)](https://app.codacy.com/gh/xenia-canary/xenia-canary/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade) | [Latest](https://github.com/xenia-canary/xenia-canary/releases/latest) ◦ [All](https://github.com/xenia-canary/xenia-canary/releases)
+Windows | [![CI](https://github.com/xenia-canary/xenia-canary/actions/workflows/Windows_build.yml/badge.svg?branch=canary_experimental)](https://github.com/xenia-canary/xenia-canary/actions/workflows/Windows_build.yml) [![Codacy Badge](https://app.codacy.com/project/badge/Grade/cd506034fd8148309a45034925648499)](https://app.codacy.com/gh/xenia-canary/xenia-canary/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade) | [Latest](https://github.com/xenia-canary/xenia-canary/releases/latest) ◦ [All](https://github.com/xenia-canary/xenia-canary/releases)
 Linux | Curently unsupported
 Netplay Build | | [Latest](https://github.com/AdrianCassar/xenia-canary/releases/latest)
 
