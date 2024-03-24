@@ -74,16 +74,6 @@ class DataByteStream : public ByteStream {
 
 class UserData {
  public:
-  union Key {
-    uint32_t value;
-    struct {
-      uint32_t id : 14;
-      uint32_t unk : 2;
-      uint32_t size : 12;
-      uint32_t type : 4;
-    };
-  };
-
   UserData() {};
   UserData(X_USER_DATA_TYPE type) { data_.type = type; }
 

@@ -212,6 +212,30 @@ void UserProfile::SaveSetting(UserSetting* setting) {
   }
 }
 
+bool UserProfile::AddProperty(const Property* property) {
+  // Find if property already exits
+  const Property* entry = GetProperty(property->GetPropertyId());
+  if (entry) {
+    entry = property;
+    return true;
+  }
+
+  properties_.push_back(*property);
+  return true;
+}
+
+const Property* UserProfile::GetProperty(const AttributeKey id) const {
+  for (auto& entry : properties_) {
+    if (entry.GetPropertyId().value != id.value) {
+      continue;
+    }
+
+    return &entry;
+  }
+
+  return nullptr;
+}
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe

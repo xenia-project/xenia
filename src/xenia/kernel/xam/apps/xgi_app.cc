@@ -71,11 +71,20 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
 
       const util::XdbfGameData title_xdbf = kernel_state_->title_xdbf();
       if (title_xdbf.is_valid()) {
-        const auto property = title_xdbf.GetProperty(property_id);
+        const auto property_xdbf = title_xdbf.GetProperty(property_id);
         const XLanguage title_language = title_xdbf.GetExistingLanguage(
             static_cast<XLanguage>(XLanguage::kEnglish));
-        const std::string desc =
-            title_xdbf.GetStringTableEntry(title_language, property.string_id);
+        const std::string desc = title_xdbf.GetStringTableEntry(
+            title_language, property_xdbf.string_id);
+
+        Property property =
+            Property(property_id, value_size,
+                     memory_->TranslateVirtual<uint8_t*>(value_ptr));
+
+        auto user = kernel_state_->user_profile(user_index);
+        if (user) {
+          user->AddProperty(&property);
+        }
         XELOGD("XGIUserSetPropertyEx: Setting property: {}", desc);
       }
 

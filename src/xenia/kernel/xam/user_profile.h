@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "xenia/base/byte_stream.h"
+#include "xenia/kernel/util/property.h"
 #include "xenia/kernel/util/xuserdata.h"
 #include "xenia/xbox.h"
 
@@ -162,6 +163,9 @@ class UserProfile {
   void AddSetting(std::unique_ptr<UserSetting> setting);
   UserSetting* GetSetting(uint32_t setting_id);
 
+  bool AddProperty(const Property* property);
+  const Property* GetProperty(const AttributeKey id) const;
+
   std::map<uint32_t, uint32_t> contexts_;
 
  private:
@@ -169,6 +173,8 @@ class UserProfile {
   std::string name_;
   std::vector<std::unique_ptr<UserSetting>> setting_list_;
   std::unordered_map<uint32_t, UserSetting*> settings_;
+
+  std::vector<Property> properties_;
 
   void LoadSetting(UserSetting*);
   void SaveSetting(UserSetting*);
