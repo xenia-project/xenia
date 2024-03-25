@@ -76,7 +76,7 @@ struct XMA_CONTEXT_DATA {
 
   // DWORD 2
   uint32_t input_buffer_read_offset : 26;  // XMAGetInputBufferReadOffset
-  uint32_t unk_dword_2 : 6;                // ErrorStatus/ErrorSet (?)
+  uint32_t error_status : 6;               // ErrorStatus/ErrorSet (?)
 
   // DWORD 3
   uint32_t loop_start : 26;          // XMASetLoopData LoopStartOffset
@@ -119,6 +119,34 @@ struct XMA_CONTEXT_DATA {
                       reinterpret_cast<const uint32_t*>(this),
                       sizeof(XMA_CONTEXT_DATA) / 4);
   }
+
+  bool IsInputBufferValid(uint8_t buffer_index) const {
+    return buffer_index == 0 ? input_buffer_0_valid : input_buffer_1_valid;
+  }
+
+  bool IsCurrentInputBufferValid() const {
+    return IsInputBufferValid(current_buffer);
+  }
+
+  bool IsAnyInputBufferValid() const {
+    return input_buffer_0_valid || input_buffer_1_valid;
+  }
+
+  const uint32_t GetInputBufferAddress(uint8_t buffer_index) const {
+    return buffer_index == 0 ? input_buffer_0_ptr : input_buffer_1_ptr;
+  }
+
+  const uint32_t GetCurrentInputBufferAddress() const {
+    return GetInputBufferAddress(current_buffer);
+  }
+
+  const uint32_t GetInputBufferPacketCount(uint8_t buffer_index) const {
+    return buffer_index == 0 ? input_buffer_0_packet_count
+                             : input_buffer_1_packet_count;
+  }
+  const uint32_t GetCurrentInputBufferPacketCount() const {
+    return GetInputBufferPacketCount(current_buffer);
+  }
 };
 static_assert_size(XMA_CONTEXT_DATA, 64);
 
@@ -150,14 +178,16 @@ class XmaContext {
   explicit XmaContext();
   ~XmaContext();
 
-  int Setup(uint32_t id, Memory* memory, uint32_t guest_ptr);
-  bool Work();
+  virtual int Setup(uint32_t id, Memory* memory, uint32_t guest_ptr) {
+    return 0;
+  };
+  virtual bool Work() { return false; };
 
-  void Enable();
-  bool Block(bool poll);
-  void Clear();
-  void Disable();
-  void Release();
+  virtual void Enable(){};
+  virtual bool Block(bool poll) { return 0; };
+  virtual void Clear(){};
+  virtual void Disable(){};
+  virtual void Release(){};
 
   Memory* memory() const { return memory_; }
 
@@ -169,36 +199,11 @@ class XmaContext {
   void set_is_allocated(bool is_allocated) { is_allocated_ = is_allocated; }
   void set_is_enabled(bool is_enabled) { is_enabled_ = is_enabled; }
 
- private:
-  static void SwapInputBuffer(XMA_CONTEXT_DATA* data);
-  static bool TrySetupNextLoop(XMA_CONTEXT_DATA* data,
-                               bool ignore_input_buffer_offset);
-  static void NextPacket(XMA_CONTEXT_DATA* data);
-  static int GetSampleRate(int id);
-  // Get the offset of the next frame. Does not traverse packets.
-  static size_t GetNextFrame(uint8_t* block, size_t size, size_t bit_offset);
-  // Get the containing packet number of the frame pointed to by the offset.
-  static int GetFramePacketNumber(uint8_t* block, size_t size,
-                                  size_t bit_offset);
-  // Get the packet number and the index of the frame inside that packet
-  static std::tuple<int, int> GetFrameNumber(uint8_t* block, size_t size,
-                                             size_t bit_offset);
-  // Get the number of frames contained in the packet (including truncated) and
-  // if the last frame is split.
-  static std::tuple<int, bool> GetPacketFrameCount(uint8_t* packet);
-
+ protected:
+  static void DumpRaw(AVFrame* frame, int id);
   // Convert sample format and swap bytes
   static void ConvertFrame(const uint8_t** samples, bool is_two_channel,
                            uint8_t* output_buffer);
-
-  bool ValidFrameOffset(uint8_t* block, size_t size_bytes,
-                        size_t frame_offset_bits);
-  void Decode(XMA_CONTEXT_DATA* data);
-  int PrepareDecoder(uint8_t* packet, int sample_rate, bool is_two_channel);
-
-  // This method should be used ONLY when we're at the last packet of the stream
-  // and we want to find offset in next buffer
-  uint32_t GetPacketFirstFrameOffset(const XMA_CONTEXT_DATA* data);
 
   Memory* memory_ = nullptr;
 
@@ -207,36 +212,12 @@ class XmaContext {
   xe_mutex lock_;
   volatile bool is_allocated_ = false;
   volatile bool is_enabled_ = false;
-  // bool is_dirty_ = true;
 
   // ffmpeg structures
   AVPacket* av_packet_ = nullptr;
   AVCodec* av_codec_ = nullptr;
   AVCodecContext* av_context_ = nullptr;
   AVFrame* av_frame_ = nullptr;
-  // uint32_t decoded_consumed_samples_ = 0; // TODO do this dynamically
-  // int decoded_idx_ = -1;
-
-  // bool partial_frame_saved_ = false;
-  // bool partial_frame_size_known_ = false;
-  // size_t partial_frame_total_size_bits_ = 0;
-  // size_t partial_frame_start_offset_bits_ = 0;
-  // size_t partial_frame_offset_bits_ = 0;  // blah internal don't use this
-  // std::vector<uint8_t> partial_frame_buffer_;
-  uint32_t packets_skip_ = 0;
-
-  bool is_stream_done_ = false;
-  // bool split_frame_pending_ = false;
-  uint32_t split_frame_len_ = 0;
-  uint32_t split_frame_len_partial_ = 0;
-  uint8_t split_frame_padding_start_ = 0;
-  // first byte contains bit offset information
-  std::array<uint8_t, 1 + 4096> xma_frame_;
-
-  // uint8_t* current_frame_ = nullptr;
-  // conversion buffer for 2 channel frame
-  std::array<uint8_t, kBytesPerFrameChannel * 2> raw_frame_;
-  // std::vector<uint8_t> current_frame_ = std::vector<uint8_t>(0);
 };
 
 }  // namespace apu
