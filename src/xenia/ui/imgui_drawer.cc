@@ -255,7 +255,7 @@ void ImGuiDrawer::SetupNotificationTextures() {
 static const ImWchar font_glyph_ranges[] = {
     0x0020, 0x00FF,  // Basic Latin + Latin Supplement
     0x0370, 0x03FF,  // Greek
-    0x0400, 0x044F,  // Cyrillic
+    0x0400, 0x04FF,  // Cyrillic
     0x2000, 0x206F,  // General Punctuation
     0,
 };
