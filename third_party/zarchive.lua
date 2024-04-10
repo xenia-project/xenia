@@ -18,4 +18,6 @@ project("zarchive")
     "zarchive/include/zarchive/zarchivewriter.h",
     "zarchive/src/zarchivereader.cpp",
     "zarchive/src/zarchivewriter.cpp",
+    "zarchive/src/sha_256.c",
+    "zarchive/src/sha_256.h",
   })

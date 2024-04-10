@@ -50,6 +50,16 @@ class FilePicker {
   const std::string& title() const { return title_; }
   void set_title(std::string title) { title_ = std::move(title); }
 
+  const std::string& default_extension() const { return default_extension_; }
+  void set_default_extension(std::string default_extension) {
+    default_extension_ = std::move(default_extension);
+  }
+
+  const std::string& file_name() const { return file_name_; }
+  void set_file_name(std::string file_name) {
+    file_name_ = std::move(file_name);
+  }
+
   std::vector<std::pair<std::string, std::string>> extensions() const {
     return extensions_;
   }
@@ -76,6 +86,8 @@ class FilePicker {
   Mode mode_;
   Type type_;
   std::string title_;
+  std::string default_extension_;
+  std::string file_name_;
   std::vector<std::pair<std::string, std::string>> extensions_;
   bool multi_selection_;
 

@@ -226,6 +226,21 @@ class Emulator {
   // Extract content of package to content specific directory.
   X_STATUS InstallContentPackage(const std::filesystem::path& path);
 
+  // Extract content of zar package to desired directory.
+  X_STATUS Emulator::ExtractZarchivePackage(
+      const std::filesystem::path& path,
+      const std::filesystem::path& extract_dir);
+
+  // Pack contents of a folder into a zar package.
+  X_STATUS CreateZarchivePackage(const std::filesystem::path& inputDirectory,
+                                 const std::filesystem::path& outputFile);
+
+  struct PackContext {
+    std::filesystem::path outputFilePath;
+    std::ofstream currentOutputFile;
+    bool hasError{false};
+  };
+
   void Pause();
   void Resume();
   bool is_paused() const { return paused_; }

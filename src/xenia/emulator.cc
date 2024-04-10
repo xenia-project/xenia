@@ -16,6 +16,8 @@
 #include "third_party/fmt/include/fmt/format.h"
 #include "third_party/tabulate/single_include/tabulate/tabulate.hpp"
 #include "third_party/zarchive/include/zarchive/zarchivecommon.h"
+#include "third_party/zarchive/include/zarchive/zarchivewriter.h"
+#include "third_party/zarchive/src/sha_256.h"
 #include "xenia/apu/audio_system.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_stream.h"
@@ -611,6 +613,124 @@ X_STATUS Emulator::InstallContentPackage(const std::filesystem::path& path) {
 
   return vfs::VirtualFileSystem::ExtractContentFiles(device.get(),
                                                      installation_path);
+}
+
+X_STATUS Emulator::ExtractZarchivePackage(
+    const std::filesystem::path& path,
+    const std::filesystem::path& extract_dir) {
+  std::unique_ptr<vfs::Device> device =
+      std::make_unique<vfs::DiscZarchiveDevice>("", path);
+  if (!device->Initialize()) {
+    XELOGE("Failed to initialize device");
+    return X_STATUS_INVALID_PARAMETER;
+  }
+
+  if (std::filesystem::exists(extract_dir)) {
+    // TODO(Gliniak): Popup
+    // Do you want to overwrite already existing data?
+  } else {
+    std::error_code error_code;
+    std::filesystem::create_directories(extract_dir, error_code);
+    if (error_code) {
+      return error_code.value();
+    }
+  }
+
+  return vfs::VirtualFileSystem::ExtractContentFiles(device.get(), extract_dir);
+}
+
+X_STATUS Emulator::CreateZarchivePackage(
+    const std::filesystem::path& inputDirectory,
+    const std::filesystem::path& outputFile) {
+  std::vector<uint8_t> buffer;
+  buffer.resize(64 * 1024);
+
+  std::error_code ec;
+  PackContext packContext;
+  packContext.outputFilePath = outputFile;
+
+  ZArchiveWriter zWriter(
+      [](int32_t partIndex, void* ctx) {
+        PackContext* packContext = reinterpret_cast<PackContext*>(ctx);
+        packContext->currentOutputFile =
+            std::ofstream(packContext->outputFilePath, std::ios::binary);
+
+        if (!packContext->currentOutputFile.is_open()) {
+          XELOGI("Failed to create output file: {}\n",
+                 packContext->outputFilePath.string());
+          packContext->hasError = true;
+        }
+      },
+      [](const void* data, size_t length, void* ctx) {
+        PackContext* packContext = reinterpret_cast<PackContext*>(ctx);
+        packContext->currentOutputFile.write(
+            reinterpret_cast<const char*>(data), length);
+      },
+      &packContext);
+
+  if (packContext.hasError) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  for (auto const& dirEntry :
+       std::filesystem::recursive_directory_iterator(inputDirectory)) {
+    std::filesystem::path pathEntry =
+        std::filesystem::relative(dirEntry.path(), inputDirectory, ec);
+
+    if (ec) {
+      XELOGI("Failed to get relative path {}\n", pathEntry.string());
+      return X_STATUS_UNSUCCESSFUL;
+    }
+
+    if (dirEntry.is_directory()) {
+      if (!zWriter.MakeDir(pathEntry.generic_string().c_str(), false)) {
+        XELOGI("Failed to create directory {}\n", pathEntry.string());
+        return X_STATUS_UNSUCCESSFUL;
+      }
+    } else if (dirEntry.is_regular_file()) {
+      // Don't pack itself to prevent infinite packing.
+      if (dirEntry == outputFile) {
+        continue;
+      }
+
+      XELOGI("Adding file: {}\n", pathEntry.string());
+
+      if (!zWriter.StartNewFile(pathEntry.generic_string().c_str())) {
+        XELOGI("Failed to create archive file {}\n", pathEntry.string());
+        return X_STATUS_UNSUCCESSFUL;
+      }
+
+      std::filesystem::path file_to_pack_path = inputDirectory / pathEntry;
+      FILE* file = xe::filesystem::OpenFile(file_to_pack_path, "rb");
+
+      if (!file) {
+        XELOGI("Failed to open input file {}\n", pathEntry.string());
+        return X_STATUS_UNSUCCESSFUL;
+      }
+
+      const uint64_t file_size = std::filesystem::file_size(file_to_pack_path);
+      uint64_t total_bytes_read = 0;
+
+      while (total_bytes_read < file_size) {
+        uint64_t bytes_read =
+            fread_s(buffer.data(), buffer.size(), 1, buffer.size(), file);
+
+        total_bytes_read += bytes_read;
+
+        zWriter.AppendData(buffer.data(), bytes_read);
+      }
+
+      fclose(file);
+    }
+
+    if (packContext.hasError) {
+      return X_STATUS_UNSUCCESSFUL;
+    }
+  }
+
+  zWriter.Finalize();
+
+  return X_STATUS_SUCCESS;
 }
 
 void Emulator::Pause() {

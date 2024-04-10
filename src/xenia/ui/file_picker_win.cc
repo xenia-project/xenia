@@ -111,18 +111,53 @@ Win32FilePicker::Win32FilePicker() = default;
 Win32FilePicker::~Win32FilePicker() = default;
 
 bool Win32FilePicker::Show(Window* parent_window) {
-  // TODO(benvanik): FileSaveDialog.
-  assert_true(mode() == Mode::kOpen);
+  Microsoft::WRL::ComPtr<IFileDialog> file_dialog;
 
-  Microsoft::WRL::ComPtr<IFileOpenDialog> file_dialog;
-  HRESULT hr =
-      CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER,
-                       IID_PPV_ARGS(&file_dialog));
+  Microsoft::WRL::ComPtr<IFileOpenDialog> open_dialog;
+  Microsoft::WRL::ComPtr<IFileSaveDialog> save_dialog;
+
+  HRESULT hr;
+
+  if (mode() == Mode::kOpen) {
+    hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER,
+                          IID_PPV_ARGS(&file_dialog));
+    if (!SUCCEEDED(hr)) {
+      return false;
+    }
+
+    hr = file_dialog.As(&open_dialog);
+  } else {
+    hr = CoCreateInstance(CLSID_FileSaveDialog, NULL, CLSCTX_INPROC_SERVER,
+                          IID_PPV_ARGS(&file_dialog));
+    if (!SUCCEEDED(hr)) {
+      return false;
+    }
+
+    hr = file_dialog.As(&save_dialog);
+  }
+
+  if (!SUCCEEDED(hr)) {
+    return false;
+  }
+
+  hr = file_dialog->SetDefaultExtension(
+      (LPCWSTR)xe::to_utf16(default_extension()).c_str());
   if (!SUCCEEDED(hr)) {
     return false;
   }
 
   hr = file_dialog->SetTitle((LPCWSTR)xe::to_utf16(title()).c_str());
+  if (!SUCCEEDED(hr)) {
+    return false;
+  }
+
+  hr = file_dialog->SetDefaultExtension(
+      (LPCWSTR)xe::to_utf16(default_extension()).c_str());
+  if (!SUCCEEDED(hr)) {
+    return false;
+  }
+
+  hr = file_dialog->SetFileName((LPCWSTR)xe::to_utf16(file_name()).c_str());
   if (!SUCCEEDED(hr)) {
     return false;
   }
@@ -192,23 +227,44 @@ bool Win32FilePicker::Show(Window* parent_window) {
     return false;
   }
 
-  // Obtain the result once the user clicks the 'Open' button.
-  // The result is an IShellItem object.
-  Microsoft::WRL::ComPtr<IShellItemArray> shell_items;
-  hr = file_dialog->GetResults(&shell_items);
-  if (!SUCCEEDED(hr)) {
-    return false;
-  }
+  if (mode() == Mode::kOpen) {
+    // Obtain the result once the user clicks the 'Open' button.
+    // The result is an IShellItem object.
+    Microsoft::WRL::ComPtr<IShellItemArray> shell_items;
+    hr = open_dialog->GetResults(&shell_items);
+    if (!SUCCEEDED(hr)) {
+      return false;
+    }
 
-  std::vector<std::filesystem::path> selected_files;
+    std::vector<std::filesystem::path> selected_files;
 
-  DWORD items_count = 0;
-  shell_items->GetCount(&items_count);
-  // Iterate over selected files
-  for (DWORD i = 0; i < items_count; i++) {
+    DWORD items_count = 0;
+    shell_items->GetCount(&items_count);
+    // Iterate over selected files
+    for (DWORD i = 0; i < items_count; i++) {
+      Microsoft::WRL::ComPtr<IShellItem> shell_item;
+      shell_items->GetItemAt(i, &shell_item);
+      // We are just going to print out the name of the file for sample sake.
+      PWSTR file_path = nullptr;
+      hr = shell_item->GetDisplayName(SIGDN_FILESYSPATH, &file_path);
+      if (!SUCCEEDED(hr)) {
+        return false;
+      }
+      selected_files.push_back(std::filesystem::path(file_path));
+      CoTaskMemFree(file_path);
+    }
+    set_selected_files(selected_files);
+  } else {
+    // Obtain the result once the user clicks the 'Save' button.
+    // The result is an IShellItem object.
     Microsoft::WRL::ComPtr<IShellItem> shell_item;
-    shell_items->GetItemAt(i, &shell_item);
-    // We are just going to print out the name of the file for sample sake.
+    hr = save_dialog->GetResult(&shell_item);
+    if (!SUCCEEDED(hr)) {
+      return false;
+    }
+
+    std::vector<std::filesystem::path> selected_files;
+
     PWSTR file_path = nullptr;
     hr = shell_item->GetDisplayName(SIGDN_FILESYSPATH, &file_path);
     if (!SUCCEEDED(hr)) {
@@ -216,8 +272,9 @@ bool Win32FilePicker::Show(Window* parent_window) {
     }
     selected_files.push_back(std::filesystem::path(file_path));
     CoTaskMemFree(file_path);
+    set_selected_files(selected_files);
   }
-  set_selected_files(selected_files);
+
   return true;
 }
 
