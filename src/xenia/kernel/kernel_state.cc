@@ -129,6 +129,18 @@ uint32_t KernelState::title_id() const {
   return 0;
 }
 
+bool KernelState::is_title_system_type(uint32_t title_id) {
+  if (!title_id) {
+    return true;
+  }
+
+  if ((title_id & 0xFF000000) == 0x58000000u) {
+    return (title_id & 0xFF0000) != 0x410000;  // if 'X' but not 'XA' (XBLA)
+  }
+
+  return (title_id >> 16) == 0xFFFE;
+}
+
 util::XdbfGameData KernelState::title_xdbf() const {
   return module_xdbf(executable_module_);
 }

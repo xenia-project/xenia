@@ -181,6 +181,7 @@ class KernelState {
   vfs::VirtualFileSystem* file_system() const { return file_system_; }
 
   uint32_t title_id() const;
+  static bool is_title_system_type(uint32_t title_id);
   util::XdbfGameData title_xdbf() const;
   util::XdbfGameData module_xdbf(object_ref<UserModule> exec_module) const;
 
