@@ -53,7 +53,7 @@ project("xenia-hid-demo")
       "X11-xcb",
     })
 
-  filter("platforms:Windows")
+  filter("platforms:Windows-*")
     links({
       "xenia-hid-winkey",
       "xenia-hid-xinput",

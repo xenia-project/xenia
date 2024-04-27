@@ -782,6 +782,8 @@ class BaseBuildCommand(Command):
             '--target', action='append', default=[],
             help='Builds only the given target(s).')
         self.parser.add_argument(
+            '--arch', default='x86_64', help='Builds only the given architecture')
+        self.parser.add_argument(
             '--force', action='store_true',
             help='Forces a full rebuild.')
         self.parser.add_argument(
@@ -823,6 +825,7 @@ class BaseBuildCommand(Command):
                     '/m',
                     '/v:m',
                     '/p:Configuration=' + args['config'],
+                    '/p:Platform=' + "Windows-" + args['arch'],
                     ] + ([targets] if targets is not None else []) + pass_args,
                     shell=False)
         elif sys.platform == 'darwin':
