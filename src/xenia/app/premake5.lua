@@ -78,7 +78,7 @@ project("xenia-app")
       "xenia_main.cc",
     })
 
-  filter("platforms:Windows")
+  filter("platforms:Windows-*")
     files({
       "main_resources.rc",
     })
@@ -104,7 +104,7 @@ project("xenia-app")
       "SDL2",
     })
 
-  filter("platforms:Windows")
+  filter("platforms:Windows-*")
     links({
       "xenia-apu-xaudio2",
       "xenia-gpu-d3d12",
@@ -113,13 +113,13 @@ project("xenia-app")
       "xenia-ui-d3d12",
     })
 
-  filter({"platforms:Windows", SINGLE_LIBRARY_FILTER})
+  filter({"platforms:Windows-*", SINGLE_LIBRARY_FILTER})
     links({
       "xenia-gpu-d3d12-trace-viewer",
       "xenia-ui-window-d3d12-demo",
     })
 
-  filter("platforms:Windows")
+  filter("platforms:Windows-*")
     -- Only create the .user file if it doesn't already exist.
     local user_file = project_root.."/build/xenia-app.vcxproj.user"
     if not os.isfile(user_file) then
