@@ -956,6 +956,7 @@ void DebugWindow::DrawRegistersPane() {
     } break;
     case RegisterGroup::kHostGeneral: {
       ImGui::BeginChild("##host_general");
+#if XE_ARCH_AMD64
       for (int i = 0; i < 18; ++i) {
         auto reg = static_cast<X64Register>(i);
         ImGui::BeginGroup();
@@ -993,6 +994,9 @@ void DebugWindow::DrawRegistersPane() {
             i, thread_info->host_context.xmm_registers[i].f32);
         ImGui::EndGroup();
       }
+#elif XE_ARCH_ARM64
+      // TODO(wunkolo): print ARM64 registers
+#endif
       ImGui::EndChild();
     }
   }
