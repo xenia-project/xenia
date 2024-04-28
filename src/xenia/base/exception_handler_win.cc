@@ -36,12 +36,22 @@ LONG CALLBACK ExceptionHandlerCallback(PEXCEPTION_POINTERS ex_info) {
   }
 
   HostThreadContext thread_context;
+
+#if XE_ARCH_AMD64
   thread_context.rip = ex_info->ContextRecord->Rip;
   thread_context.eflags = ex_info->ContextRecord->EFlags;
   std::memcpy(thread_context.int_registers, &ex_info->ContextRecord->Rax,
               sizeof(thread_context.int_registers));
   std::memcpy(thread_context.xmm_registers, &ex_info->ContextRecord->Xmm0,
               sizeof(thread_context.xmm_registers));
+#elif XE_ARCH_ARM64
+  thread_context.pc = ex_info->ContextRecord->Pc;
+  thread_context.cpsr = ex_info->ContextRecord->Cpsr;
+  std::memcpy(thread_context.x, &ex_info->ContextRecord->X,
+              sizeof(thread_context.x));
+  std::memcpy(thread_context.v, &ex_info->ContextRecord->V,
+              sizeof(thread_context.v));
+#endif
 
   // https://msdn.microsoft.com/en-us/library/ms679331(v=vs.85).aspx
   // https://msdn.microsoft.com/en-us/library/aa363082(v=vs.85).aspx
@@ -78,6 +88,7 @@ LONG CALLBACK ExceptionHandlerCallback(PEXCEPTION_POINTERS ex_info) {
   for (size_t i = 0; i < xe::countof(handlers_) && handlers_[i].first; ++i) {
     if (handlers_[i].first(&ex, handlers_[i].second)) {
       // Exception handled.
+#if XE_ARCH_AMD64
       ex_info->ContextRecord->Rip = thread_context.rip;
       ex_info->ContextRecord->EFlags = thread_context.eflags;
       uint32_t modified_register_index;
@@ -98,6 +109,28 @@ LONG CALLBACK ExceptionHandlerCallback(PEXCEPTION_POINTERS ex_info) {
                     &thread_context.xmm_registers[modified_register_index],
                     sizeof(vec128_t));
       }
+#elif XE_ARCH_ARM64
+      ex_info->ContextRecord->Pc = thread_context.pc;
+      ex_info->ContextRecord->Cpsr = thread_context.cpsr;
+      uint32_t modified_register_index;
+      uint16_t modified_int_registers_remaining = ex.modified_x_registers();
+      while (xe::bit_scan_forward(modified_int_registers_remaining,
+                                  &modified_register_index)) {
+        modified_int_registers_remaining &=
+            ~(UINT16_C(1) << modified_register_index);
+        ex_info->ContextRecord->X[modified_register_index] =
+            thread_context.x[modified_register_index];
+      }
+      uint16_t modified_xmm_registers_remaining = ex.modified_v_registers();
+      while (xe::bit_scan_forward(modified_xmm_registers_remaining,
+                                  &modified_register_index)) {
+        modified_xmm_registers_remaining &=
+            ~(UINT16_C(1) << modified_register_index);
+        std::memcpy(&ex_info->ContextRecord->V + modified_register_index,
+                    &thread_context.v[modified_register_index],
+                    sizeof(vec128_t));
+      }
+#endif
       return EXCEPTION_CONTINUE_EXECUTION;
     }
   }
