@@ -68,6 +68,11 @@ project("xenia-gpu-vulkan-trace-viewer")
       "xenia-cpu-backend-x64",
     })
 
+  filter("architecture:ARM64")
+    links({
+      "xenia-cpu-backend-a64",
+    })
+
   filter("platforms:Linux")
     links({
       "X11",
@@ -129,6 +134,11 @@ project("xenia-gpu-vulkan-trace-dump")
   filter("architecture:x86_64")
     links({
       "xenia-cpu-backend-x64",
+    })
+
+  filter("architecture:ARM64")
+    links({
+      "xenia-cpu-backend-a64",
     })
 
   filter("platforms:Linux")
