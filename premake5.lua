@@ -296,6 +296,8 @@ workspace("xenia")
 
   filter("architecture:x86_64")
     include("src/xenia/cpu/backend/x64")
+  filter("architecture:ARM64")
+    include("src/xenia/cpu/backend/a64")
   filter({})
 
   include("src/xenia/debug/ui")
