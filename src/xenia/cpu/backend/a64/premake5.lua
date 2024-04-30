@@ -10,11 +10,16 @@ project("xenia-cpu-backend-a64")
     kind("None")
   filter({})
   language("C++")
+  cppdialect("C++20")
   links({
     "fmt",
     "xenia-base",
     "xenia-cpu",
   })
   defines({
+  })
+
+  includedirs({
+    project_root.."/third_party/oaknut/include",
   })
   local_platform_files()
