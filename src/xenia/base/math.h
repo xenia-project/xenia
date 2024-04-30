@@ -31,6 +31,8 @@
 
 #if XE_ARCH_AMD64
 #include <xmmintrin.h>
+#elif XE_ARCH_ARM64
+#include <arm64_neon.h>
 #endif
 
 namespace xe {
@@ -382,6 +384,24 @@ int64_t m128_i64(const __m128d& v) {
 template <int N>
 int64_t m128_i64(const __m128& v) {
   return m128_i64<N>(_mm_castps_pd(v));
+}
+#elif XE_ARCH_ARM64
+// Utilities for NEON values.
+template <int N>
+float m128_f32(const float32x4_t& v) {
+  return vgetq_lane_f32(v, N);
+}
+template <int N>
+int32_t m128_i32(const int32x4_t& v) {
+  return vgetq_lane_s32(v, N);
+}
+template <int N>
+double m128_f64(const float64x2_t& v) {
+  return vgetq_lane_f64(v, N);
+}
+template <int N>
+int64_t m128_i64(const int64x2_t& v) {
+  return vgetq_lane_s64(v, N);
 }
 #endif
 
