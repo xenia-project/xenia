@@ -19,6 +19,12 @@ project("xenia-cpu-backend-a64")
   defines({
   })
 
+  disablewarnings({
+    -- Silence errors in oaknut
+    "4146", -- unary minus operator applied to unsigned type, result still unsigned
+    "4267" -- 'initializing': conversion from 'size_t' to 'uint32_t', possible loss of data
+  })
+
   includedirs({
     project_root.."/third_party/oaknut/include",
   })
