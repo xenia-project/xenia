@@ -774,7 +774,32 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
         break;
     }
   }
-  static void EmitD3DCOLOR(A64Emitter& e, const EmitArgType& i) {}
+  static void EmitD3DCOLOR(A64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.value->IsConstantZero());
+    QReg src = i.src1;
+    if (i.src1.is_constant) {
+      src = i.dest;
+      e.LoadConstantV(src, i.src1.constant());
+    }
+    // Saturate to [3,3....] so that only values between 3...[00] and 3...[FF]
+    // are valid - max before min to pack NaN as zero (5454082B is heavily
+    // affected by the order - packs 0xFFFFFFFF in matrix code to get a 0
+    // constant).
+    e.MOVP2R(X0, e.GetVConstPtr(V3333));
+    e.LDR(Q0, X0);
+    e.FMAX(i.dest.reg().S4(), i.dest.reg().S4(), Q0.S4());
+
+    e.MOVP2R(X0, e.GetVConstPtr(VPackD3DCOLORSat));
+    e.LDR(Q0, X0);
+    e.FMIN(i.dest.reg().S4(), src.S4(), Q0.S4());
+    // Extract bytes.
+    // RGBA (XYZW) -> ARGB (WXYZ)
+    // w = ((src1.uw & 0xFF) << 24) | ((src1.ux & 0xFF) << 16) |
+    //     ((src1.uy & 0xFF) << 8) | (src1.uz & 0xFF)
+    e.MOVP2R(X0, e.GetVConstPtr(VPackD3DCOLOR));
+    e.LDR(Q0, X0);
+    e.TBL(i.dest.reg().B16(), List{i.dest.reg().B16()}, Q0.B16());
+  }
   static void EmitFLOAT16_2(A64Emitter& e, const EmitArgType& i) {}
   static void EmitFLOAT16_4(A64Emitter& e, const EmitArgType& i) {}
   static void EmitSHORT_2(A64Emitter& e, const EmitArgType& i) {}
