@@ -575,15 +575,78 @@ EMITTER_OPCODE_TABLE(OPCODE_INSERT, INSERT_I8, INSERT_I16, INSERT_I32);
 // This can be a single broadcast.
 struct EXTRACT_I8
     : Sequence<EXTRACT_I8, I<OPCODE_EXTRACT, I8Op, V128Op, I8Op>> {
-  static void Emit(A64Emitter& e, const EmitArgType& i) {}
+  static void Emit(A64Emitter& e, const EmitArgType& i) {
+    if (i.src2.is_constant) {
+      e.UMOV(i.dest, i.src1.reg().Belem()[VEC128_B(i.src2.constant())]);
+    } else {
+      // Fixup index
+      e.EOR(W0, i.src2, 0b11);
+      e.AND(W0, W0, 0x1F);
+      e.DUP(Q0.B16(), W0);
+      // Byte-table lookup
+      e.TBL(Q0.B16(), List{i.src1.reg().B16()}, Q0.B16());
+      // Get lowest element
+      e.UMOV(i.dest, Q0.Belem()[0]);
+    }
+  }
 };
 struct EXTRACT_I16
     : Sequence<EXTRACT_I16, I<OPCODE_EXTRACT, I16Op, V128Op, I8Op>> {
-  static void Emit(A64Emitter& e, const EmitArgType& i) {}
+  static void Emit(A64Emitter& e, const EmitArgType& i) {
+    if (i.src2.is_constant) {
+      e.UMOV(i.dest, i.src1.reg().Helem()[VEC128_W(i.src2.constant())]);
+    } else {
+      // Fixup index
+      e.EOR(W0, i.src2, 0b01);
+      e.LSL(W0, W0, 1);
+
+      // Replicate index as byte
+      e.MOV(W1, 0x01'01);
+      e.MUL(W0, W0, W1);
+
+      // Byte indices
+      e.ADD(W0, W0, 0x01'00);
+      e.UXTH(W0, W0);
+
+      // Replicate byte indices
+      e.DUP(Q0.H8(), W0);
+      // Byte-table lookup
+      e.TBL(Q0.B16(), List{i.src1.reg().B16()}, Q0.B16());
+      // Get lowest element
+      e.UMOV(i.dest, Q0.Helem()[0]);
+    }
+  }
 };
 struct EXTRACT_I32
     : Sequence<EXTRACT_I32, I<OPCODE_EXTRACT, I32Op, V128Op, I8Op>> {
-  static void Emit(A64Emitter& e, const EmitArgType& i) {}
+  static void Emit(A64Emitter& e, const EmitArgType& i) {
+    static const vec128_t extract_table_32[4] = {
+        vec128b(3, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        vec128b(7, 6, 5, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        vec128b(11, 10, 9, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        vec128b(15, 14, 13, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+    };
+    if (i.src2.is_constant) {
+      e.UMOV(i.dest, i.src1.reg().Selem()[VEC128_D(i.src2.constant())]);
+    } else {
+      QReg src1 = i.src1.reg();
+      if (i.src1.is_constant) {
+        src1 = Q1;
+        e.LoadConstantV(src1, i.src1.constant());
+      }
+
+      e.AND(X0, i.src2.reg().toX(), 0b11);
+      e.LSL(X0, X0, 4);
+
+      e.MOVP2R(X1, extract_table_32);
+      e.LDR(Q0, X1, X0);
+
+      // Byte-table lookup
+      e.TBL(Q0.B16(), List{src1.B16()}, Q0.B16());
+      // Get lowest element
+      e.UMOV(i.dest, Q0.Selem()[0]);
+    }
+  }
 };
 EMITTER_OPCODE_TABLE(OPCODE_EXTRACT, EXTRACT_I8, EXTRACT_I16, EXTRACT_I32);
 
