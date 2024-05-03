@@ -547,21 +547,21 @@ struct INSERT_I8
     : Sequence<INSERT_I8, I<OPCODE_INSERT, V128Op, V128Op, I8Op, I8Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     assert_true(i.src2.is_constant);
-    // e.vpinsrb(i.dest, i.src3.reg().cvt32(), i.src2.constant() ^ 0x3);
+    e.MOV(i.dest.reg().Belem()[i.src2.constant() ^ 0x3], i.src3.reg());
   }
 };
 struct INSERT_I16
     : Sequence<INSERT_I16, I<OPCODE_INSERT, V128Op, V128Op, I8Op, I16Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     assert_true(i.src2.is_constant);
-    // e.vpinsrw(i.dest, i.src3.reg().cvt32(), i.src2.constant() ^ 0x1);
+    e.MOV(i.dest.reg().Helem()[i.src2.constant() ^ 0x1], i.src3.reg());
   }
 };
 struct INSERT_I32
     : Sequence<INSERT_I32, I<OPCODE_INSERT, V128Op, V128Op, I8Op, I32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     assert_true(i.src2.is_constant);
-    // e.vpinsrd(i.dest, i.src3, i.src2.constant());
+    e.MOV(i.dest.reg().Selem()[i.src2.constant()], i.src3.reg());
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_INSERT, INSERT_I8, INSERT_I16, INSERT_I32);
