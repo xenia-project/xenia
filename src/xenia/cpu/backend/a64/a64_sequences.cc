@@ -2626,9 +2626,7 @@ struct BYTE_SWAP_V128
     : Sequence<BYTE_SWAP_V128, I<OPCODE_BYTE_SWAP, V128Op, V128Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     // Reverse upper and lower 64-bit halfs
-    e.REV64(i.dest.reg().B16(), i.src1.reg().B16());
-    // Reverse the 64-bit halfs themselves
-    e.EXT(i.dest.reg().B16(), i.dest.reg().B16(), i.dest.reg().B16(), 8);
+    e.REV32(i.dest.reg().B16(), i.src1.reg().B16());
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_BYTE_SWAP, BYTE_SWAP_I16, BYTE_SWAP_I32,
