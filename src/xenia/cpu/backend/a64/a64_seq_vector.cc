@@ -154,15 +154,12 @@ struct LOAD_VECTOR_SHL_I8
     if (i.src1.is_constant) {
       auto sh = i.src1.constant();
       assert_true(sh < xe::countof(lvsl_table));
-      // e.mov(e.rax, (uintptr_t)&lvsl_table[sh]);
-      // e.vmovaps(i.dest, e.ptr[e.rax]);
+      e.MOVP2R(X0, &lvsl_table[sh]);
+      e.LDR(i.dest, X0);
     } else {
-      // TODO(benvanik): find a cheaper way of doing this.
-      // e.movzx(e.rdx, i.src1);
-      // e.and_(e.dx, 0xF);
-      // e.shl(e.dx, 4);
-      // e.mov(e.rax, (uintptr_t)lvsl_table);
-      // e.vmovaps(i.dest, e.ptr[e.rax + e.rdx]);
+      e.MOVP2R(X0, lvsl_table);
+      e.AND(X1, i.src1.reg().toX(), 0xf);
+      e.LDR(i.dest, X0, X1, IndexExt::LSL, 4);
     }
   }
 };
