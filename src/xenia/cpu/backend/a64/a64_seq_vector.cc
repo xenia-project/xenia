@@ -260,13 +260,13 @@ struct VECTOR_MIN
           if (i.instr->flags & ARITHMETIC_UNSIGNED) {
             switch (part_type) {
               case INT8_TYPE:
-                // e.vpminub(dest, src1, src2);
+                e.UMIN(dest.B16(), src1.B16(), src2.B16());
                 break;
               case INT16_TYPE:
-                // e.vpminuw(dest, src1, src2);
+                e.UMIN(dest.H8(), src1.H8(), src2.H8());
                 break;
               case INT32_TYPE:
-                // e.vpminud(dest, src1, src2);
+                e.UMIN(dest.S4(), src1.S4(), src2.S4());
                 break;
               default:
                 assert_unhandled_case(part_type);
@@ -275,13 +275,13 @@ struct VECTOR_MIN
           } else {
             switch (part_type) {
               case INT8_TYPE:
-                // e.vpminsb(dest, src1, src2);
+                e.SMIN(dest.B16(), src1.B16(), src2.B16());
                 break;
               case INT16_TYPE:
-                // e.vpminsw(dest, src1, src2);
+                e.SMIN(dest.H8(), src1.H8(), src2.H8());
                 break;
               case INT32_TYPE:
-                // e.vpminsd(dest, src1, src2);
+                e.SMIN(dest.S4(), src1.S4(), src2.S4());
                 break;
               default:
                 assert_unhandled_case(part_type);
