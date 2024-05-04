@@ -2440,36 +2440,52 @@ EMITTER_OPCODE_TABLE(OPCODE_SHL, SHL_I8, SHL_I16, SHL_I32, SHL_I64, SHL_V128);
 // ============================================================================
 // OPCODE_SHR
 // ============================================================================
-// TODO(benvanik): optimize common shifts.
-template <typename SEQ, typename REG, typename ARGS>
-void EmitShrXX(A64Emitter& e, const ARGS& i) {
-  SEQ::EmitAssociativeBinaryOp(
-      e, i,
-      [](A64Emitter& e, REG dest_src, REG src) {
-        e.LSR(dest_src, dest_src, src);
-      },
-      [](A64Emitter& e, REG dest_src, int8_t constant) {
-        e.LSR(dest_src, dest_src, constant);
-      });
-}
 struct SHR_I8 : Sequence<SHR_I8, I<OPCODE_SHR, I8Op, I8Op, I8Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    EmitShrXX<SHR_I8, WReg>(e, i);
+    Sequence::EmitAssociativeBinaryOp(
+        e, i,
+        [](A64Emitter& e, WReg dest_src, WReg src) {
+          e.LSR(dest_src, dest_src, src);
+        },
+        [](A64Emitter& e, WReg dest_src, int8_t constant) {
+          e.LSR(dest_src, dest_src, constant);
+        });
   }
 };
-struct SHR_I16 : Sequence<SHR_I16, I<OPCODE_SHR, I16Op, I16Op, I16Op>> {
+struct SHR_I16 : Sequence<SHR_I16, I<OPCODE_SHR, I16Op, I16Op, I8Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    EmitShrXX<SHR_I16, WReg>(e, i);
+    Sequence::EmitAssociativeBinaryOp(
+        e, i,
+        [](A64Emitter& e, WReg dest_src, WReg src) {
+          e.LSR(dest_src, dest_src, src);
+        },
+        [](A64Emitter& e, WReg dest_src, int8_t constant) {
+          e.LSR(dest_src, dest_src, constant);
+        });
   }
 };
-struct SHR_I32 : Sequence<SHR_I32, I<OPCODE_SHR, I32Op, I32Op, I32Op>> {
+struct SHR_I32 : Sequence<SHR_I32, I<OPCODE_SHR, I32Op, I32Op, I8Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    EmitShrXX<SHR_I32, WReg>(e, i);
+    Sequence::EmitAssociativeBinaryOp(
+        e, i,
+        [](A64Emitter& e, WReg dest_src, WReg src) {
+          e.LSR(dest_src, dest_src, src);
+        },
+        [](A64Emitter& e, WReg dest_src, int8_t constant) {
+          e.LSR(dest_src, dest_src, constant);
+        });
   }
 };
-struct SHR_I64 : Sequence<SHR_I64, I<OPCODE_SHR, I64Op, I64Op, I64Op>> {
+struct SHR_I64 : Sequence<SHR_I64, I<OPCODE_SHR, I64Op, I64Op, I8Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    EmitShrXX<SHR_I64, XReg>(e, i);
+    Sequence::EmitAssociativeBinaryOp(
+        e, i,
+        [](A64Emitter& e, XReg dest_src, WReg src) {
+          e.LSR(dest_src, dest_src, src.toX());
+        },
+        [](A64Emitter& e, XReg dest_src, int8_t constant) {
+          e.LSR(dest_src, dest_src, constant);
+        });
   }
 };
 struct SHR_V128 : Sequence<SHR_V128, I<OPCODE_SHR, V128Op, V128Op, I8Op>> {
@@ -2503,36 +2519,55 @@ EMITTER_OPCODE_TABLE(OPCODE_SHR, SHR_I8, SHR_I16, SHR_I32, SHR_I64, SHR_V128);
 // ============================================================================
 // OPCODE_SHA
 // ============================================================================
-// TODO(benvanik): optimize common shifts.
-template <typename SEQ, typename REG, typename ARGS>
-void EmitSarXX(A64Emitter& e, const ARGS& i) {
-  SEQ::EmitAssociativeBinaryOp(
-      e, i,
-      [](A64Emitter& e, REG dest_src, REG src) {
-        e.ASR(dest_src, dest_src, src);
-      },
-      [](A64Emitter& e, REG dest_src, int8_t constant) {
-        e.ASR(dest_src, dest_src, constant);
-      });
-}
 struct SHA_I8 : Sequence<SHA_I8, I<OPCODE_SHA, I8Op, I8Op, I8Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    EmitSarXX<SHA_I8, WReg>(e, i);
+    Sequence::EmitAssociativeBinaryOp(
+        e, i,
+        [](A64Emitter& e, WReg dest_src, WReg src) {
+          e.SXTB(dest_src, dest_src);
+          e.ASR(dest_src, dest_src, src);
+        },
+        [](A64Emitter& e, WReg dest_src, int8_t constant) {
+          e.SXTB(dest_src, dest_src);
+          e.ASR(dest_src, dest_src, constant);
+        });
   }
 };
 struct SHA_I16 : Sequence<SHA_I16, I<OPCODE_SHA, I16Op, I16Op, I8Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    EmitSarXX<SHA_I16, WReg>(e, i);
+    Sequence::EmitAssociativeBinaryOp(
+        e, i,
+        [](A64Emitter& e, WReg dest_src, WReg src) {
+          e.SXTH(dest_src, dest_src);
+          e.ASR(dest_src, dest_src, src);
+        },
+        [](A64Emitter& e, WReg dest_src, int8_t constant) {
+          e.ASR(dest_src, dest_src, constant);
+        });
   }
 };
 struct SHA_I32 : Sequence<SHA_I32, I<OPCODE_SHA, I32Op, I32Op, I8Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    EmitSarXX<SHA_I32, WReg>(e, i);
+    Sequence::EmitAssociativeBinaryOp(
+        e, i,
+        [](A64Emitter& e, WReg dest_src, WReg src) {
+          e.ASR(dest_src, dest_src, src);
+        },
+        [](A64Emitter& e, WReg dest_src, int8_t constant) {
+          e.ASR(dest_src, dest_src, constant);
+        });
   }
 };
-struct SHA_I64 : Sequence<SHA_I64, I<OPCODE_SHA, I64Op, I64Op, I64Op>> {
+struct SHA_I64 : Sequence<SHA_I64, I<OPCODE_SHA, I64Op, I64Op, I8Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    EmitSarXX<SHA_I64, XReg>(e, i);
+    Sequence::EmitAssociativeBinaryOp(
+        e, i,
+        [](A64Emitter& e, XReg dest_src, WReg src) {
+          e.ASR(dest_src, dest_src, src.toX());
+        },
+        [](A64Emitter& e, XReg dest_src, int8_t constant) {
+          e.ASR(dest_src, dest_src, constant);
+        });
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_SHA, SHA_I8, SHA_I16, SHA_I32, SHA_I64);
