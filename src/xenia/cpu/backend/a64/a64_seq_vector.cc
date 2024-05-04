@@ -215,13 +215,13 @@ struct VECTOR_MAX
           if (i.instr->flags & ARITHMETIC_UNSIGNED) {
             switch (part_type) {
               case INT8_TYPE:
-                // e.vpmaxub(dest, src1, src2);
+                e.UMAX(dest.B16(), src1.B16(), src2.B16());
                 break;
               case INT16_TYPE:
-                // e.vpmaxuw(dest, src1, src2);
+                e.UMAX(dest.H8(), src1.H8(), src2.H8());
                 break;
               case INT32_TYPE:
-                // e.vpmaxud(dest, src1, src2);
+                e.UMAX(dest.S4(), src1.S4(), src2.S4());
                 break;
               default:
                 assert_unhandled_case(part_type);
@@ -230,13 +230,13 @@ struct VECTOR_MAX
           } else {
             switch (part_type) {
               case INT8_TYPE:
-                // e.vpmaxsb(dest, src1, src2);
+                e.SMAX(dest.B16(), src1.B16(), src2.B16());
                 break;
               case INT16_TYPE:
-                // e.vpmaxsw(dest, src1, src2);
+                e.SMAX(dest.H8(), src1.H8(), src2.H8());
                 break;
               case INT32_TYPE:
-                // e.vpmaxsd(dest, src1, src2);
+                e.SMAX(dest.S4(), src1.S4(), src2.S4());
                 break;
               default:
                 assert_unhandled_case(part_type);
