@@ -10,6 +10,7 @@
 #ifndef XENIA_CPU_BACKEND_A64_A64_EMITTER_H_
 #define XENIA_CPU_BACKEND_A64_A64_EMITTER_H_
 
+#include <unordered_map>
 #include <vector>
 
 #include "xenia/base/arena.h"
@@ -165,6 +166,11 @@ class A64Emitter : public oaknut::CodeBlock, public oaknut::CodeGenerator {
     r = oaknut::QReg(idx);
   }
 
+  // Gets(and possibly create) an HIR label with the specified name
+  oaknut::Label* lookup_label(const char* label_name) {
+    return &label_lookup_[label_name];
+  }
+
   oaknut::Label& epilog_label() { return *epilog_label_; }
 
   void MarkSourceOffset(const hir::Instr* i);
@@ -228,6 +234,9 @@ class A64Emitter : public oaknut::CodeBlock, public oaknut::CodeGenerator {
   uint32_t feature_flags_ = 0;
 
   oaknut::Label* epilog_label_ = nullptr;
+
+  // Convert from plain-text label-names into oaknut-labels
+  std::unordered_map<std::string, oaknut::Label> label_lookup_;
 
   hir::Instr* current_instr_ = nullptr;
 

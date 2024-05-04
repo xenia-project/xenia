@@ -265,8 +265,7 @@ bool A64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
     // Mark block labels.
     auto label = block->label_head;
     while (label) {
-      // TODO(wunkolo): string-labels?
-      // L(label->name);
+      l(label_lookup_[label->name]);
       label = label->next;
     }
 
