@@ -418,7 +418,7 @@ void A64ThunkEmitter::EmitSaveVolatileRegs() {
   STR(X15, XSP, offsetof(StackLayout::Thunk, r[15]));
   STR(X16, XSP, offsetof(StackLayout::Thunk, r[16]));
   STR(X17, XSP, offsetof(StackLayout::Thunk, r[17]));
-  STR(X17, XSP, offsetof(StackLayout::Thunk, r[18]));
+  STR(X18, XSP, offsetof(StackLayout::Thunk, r[18]));
 
   STR(Q0, XSP, offsetof(StackLayout::Thunk, xmm[0]));
   STR(Q1, XSP, offsetof(StackLayout::Thunk, xmm[1]));
