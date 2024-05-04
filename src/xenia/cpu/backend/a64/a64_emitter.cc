@@ -163,7 +163,9 @@ void* A64Emitter::Emplace(const EmitFunctionInfo& func_info,
 
   // top_ = old_address;
   set_wptr(reinterpret_cast<uint32_t*>(old_address));
+
   // reset();
+  label_lookup_.clear();
 
   return new_execute_address;
 }
@@ -399,7 +401,6 @@ void A64Emitter::Trap(uint16_t trap_type) {
       break;
     default:
       XELOGW("Unknown trap type {}", trap_type);
-      // db(0xCC);
       BRK(0xF000);
       break;
   }
@@ -407,7 +408,6 @@ void A64Emitter::Trap(uint16_t trap_type) {
 
 void A64Emitter::UnimplementedInstr(const hir::Instr* i) {
   // TODO(benvanik): notify debugger.
-  // db(0xCC);
   BRK(0xF000);
   assert_always();
 }
