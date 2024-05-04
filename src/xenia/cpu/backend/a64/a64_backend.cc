@@ -273,10 +273,10 @@ HostToGuestThunk A64ThunkEmitter::EmitHostToGuestThunk() {
 }
 
 GuestToHostThunk A64ThunkEmitter::EmitGuestToHostThunk() {
-  // rcx = target function
-  // rdx = arg0
-  // r8  = arg1
-  // r9  = arg2
+  // X0 = target function
+  // X1 = arg0
+  // X2 = arg1
+  // X3 = arg2
 
   struct _code_offsets {
     size_t prolog;
@@ -420,6 +420,8 @@ void A64ThunkEmitter::EmitSaveVolatileRegs() {
   STR(X17, XSP, offsetof(StackLayout::Thunk, r[17]));
   STR(X18, XSP, offsetof(StackLayout::Thunk, r[18]));
 
+  STR(X30, XSP, offsetof(StackLayout::Thunk, r[19]));
+
   STR(Q0, XSP, offsetof(StackLayout::Thunk, xmm[0]));
   STR(Q1, XSP, offsetof(StackLayout::Thunk, xmm[1]));
   STR(Q2, XSP, offsetof(StackLayout::Thunk, xmm[2]));
@@ -476,6 +478,8 @@ void A64ThunkEmitter::EmitLoadVolatileRegs() {
   LDR(X16, XSP, offsetof(StackLayout::Thunk, r[16]));
   LDR(X17, XSP, offsetof(StackLayout::Thunk, r[17]));
   LDR(X18, XSP, offsetof(StackLayout::Thunk, r[18]));
+
+  LDR(X30, XSP, offsetof(StackLayout::Thunk, r[19]));
 
   LDR(Q0, XSP, offsetof(StackLayout::Thunk, xmm[0]));
   LDR(Q1, XSP, offsetof(StackLayout::Thunk, xmm[1]));

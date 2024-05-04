@@ -628,7 +628,15 @@ void A64Emitter::CallNativeSafe(void* fn) {
   // call(rax);
   MOV(X0, reinterpret_cast<uint64_t>(fn));
   MOV(X16, reinterpret_cast<uint64_t>(thunk));
+
+  // Preserve frame and link register
+  STP(X29, X30, XSP, POST_INDEXED, -16);
+
   BLR(X16);
+
+  // Restore frame and link register
+  LDP(X29, X30, XSP, PRE_INDEXED, 16);
+
   // X0 = host return
 }
 
