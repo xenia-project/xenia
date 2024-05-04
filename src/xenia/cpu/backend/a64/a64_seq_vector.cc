@@ -1175,8 +1175,26 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_4));
     e.MOV(i.dest.reg().B16(), Q0.B16());
   }
-  static void EmitSHORT_2(A64Emitter& e, const EmitArgType& i) {}
-  static void EmitSHORT_4(A64Emitter& e, const EmitArgType& i) {}
+  static void EmitSHORT_2(A64Emitter& e, const EmitArgType& i) {
+    QReg src = i.src1;
+    if (i.src1.is_constant) {
+      src = i.dest;
+      e.LoadConstantV(src, i.src1.constant());
+    }
+    e.SQSHRN(i.dest.reg().toD().H4(), src.S4(), 8);
+    e.EXT(i.dest.reg().B16(), i.dest.reg().B16(), i.dest.reg().B16(), 4);
+    e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
+  }
+  static void EmitSHORT_4(A64Emitter& e, const EmitArgType& i) {
+    QReg src = i.src1;
+    if (i.src1.is_constant) {
+      src = i.dest;
+      e.LoadConstantV(src, i.src1.constant());
+    }
+    e.SQSHRN(i.dest.reg().toD().H4(), src.S4(), 8);
+    e.EXT(i.dest.reg().B16(), i.dest.reg().B16(), i.dest.reg().B16(), 4);
+    e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
+  }
   static void EmitUINT_2101010(A64Emitter& e, const EmitArgType& i) {}
   static void EmitULONG_4202020(A64Emitter& e, const EmitArgType& i) {}
   static void Emit8_IN_16(A64Emitter& e, const EmitArgType& i, uint32_t flags) {
