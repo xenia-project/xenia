@@ -510,7 +510,14 @@ void A64Emitter::CallIndirect(const hir::Instr* instr,
     MOV(W1, reg.toW());
 
     ADRP(X16, ResolveFunction);
+
+    // Preserve frame and link register
+    STP(X29, X30, XSP, POST_INDEXED, -16);
+
     BLR(X16);
+
+    // Restore frame and link register
+    LDP(X29, X30, XSP, PRE_INDEXED, 16);
   }
 
   // Actually jump/call to rax.
@@ -532,7 +539,14 @@ void A64Emitter::CallIndirect(const hir::Instr* instr,
     // mov(rcx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
     // call(rax);
     LDR(X0, XSP, StackLayout::GUEST_CALL_RET_ADDR);
+
+    // Preserve frame and link register
+    STP(X29, X30, XSP, POST_INDEXED, -16);
+
     BLR(X16);
+
+    // Restore frame and link register
+    LDP(X29, X30, XSP, PRE_INDEXED, 16);
   }
 }
 
@@ -568,7 +582,15 @@ void A64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
       MOV(X2, reinterpret_cast<uint64_t>(builtin_function->arg1()));
 
       MOV(X16, reinterpret_cast<uint64_t>(thunk));
+
+      // Preserve frame and link register
+      STP(X29, X30, XSP, POST_INDEXED, -16);
+
       BLR(X16);
+
+      // Restore frame and link register
+      LDP(X29, X30, XSP, PRE_INDEXED, 16);
+
       // x0 = host return
     }
   } else if (function->behavior() == Function::Behavior::kExtern) {
@@ -591,7 +613,15 @@ void A64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
       LDR(X2, GetContextReg(), offsetof(ppc::PPCContext, kernel_state));
 
       MOV(X16, reinterpret_cast<uint64_t>(thunk));
+
+      // Preserve frame and link register
+      STP(X29, X30, XSP, POST_INDEXED, -16);
+
       BLR(X16);
+
+      // Restore frame and link register
+      LDP(X29, X30, XSP, PRE_INDEXED, 16);
+
       // x0 = host return
     }
   }
