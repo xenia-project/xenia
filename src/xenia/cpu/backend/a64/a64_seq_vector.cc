@@ -486,6 +486,22 @@ EMITTER_OPCODE_TABLE(OPCODE_VECTOR_SHR, VECTOR_SHR_V128);
 // ============================================================================
 // OPCODE_VECTOR_SHA
 // ============================================================================
+template <typename T, std::enable_if_t<std::is_integral<T>::value, int> = 0>
+static uint8x16_t EmulateVectorShr(void*, uint8x16_t src1, uint8x16_t src2) {
+  alignas(16) T value[16 / sizeof(T)];
+  alignas(16) T shamt[16 / sizeof(T)];
+
+  // Load SSE registers into a C array.
+  vst1q_u8(reinterpret_cast<T*>(value), src1);
+  vst1q_u8(reinterpret_cast<T*>(shamt), src2);
+
+  for (size_t i = 0; i < (16 / sizeof(T)); ++i) {
+    value[i] = value[i] >> (shamt[i] & ((sizeof(T) * 8) - 1));
+  }
+
+  // Store result and return it.
+  return vld1q_f32(value);
+}
 struct VECTOR_SHA_V128
     : Sequence<VECTOR_SHA_V128, I<OPCODE_VECTOR_SHA, V128Op, V128Op, V128Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
@@ -505,7 +521,29 @@ struct VECTOR_SHA_V128
     }
   }
 
-  static void EmitInt8(A64Emitter& e, const EmitArgType& i) {}
+  static void EmitInt8(A64Emitter& e, const EmitArgType& i) {
+    if (i.src2.is_constant) {
+      const auto& shamt = i.src2.constant();
+      bool all_same = true;
+      for (size_t n = 0; n < 16 - n; ++n) {
+        if (shamt.u8[n] != shamt.u8[n + 1]) {
+          all_same = false;
+          break;
+        }
+      }
+      if (all_same) {
+        // Every count is the same, so we can use SSHR
+        e.SSHR(i.dest.reg().B16(), i.src1.reg().B16(), shamt.u8[0]);
+        return;
+      }
+      e.LDR(e.GetNativeParam(1), XSP, e.StashConstantV(1, i.src2.constant()));
+    } else {
+      e.LDR(e.GetNativeParam(1), XSP, e.StashV(1, i.src2));
+    }
+    e.LDR(e.GetNativeParam(0), XSP, e.StashV(0, i.src1));
+    e.CallNativeSafe(reinterpret_cast<void*>(EmulateVectorShr<int8_t>));
+    e.MOV(i.dest.reg().B16(), Q0.B16());
+  }
 
   static void EmitInt16(A64Emitter& e, const EmitArgType& i) {}
 
