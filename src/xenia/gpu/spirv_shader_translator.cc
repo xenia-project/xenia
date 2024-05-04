@@ -37,55 +37,31 @@ SpirvShaderTranslator::Features::Features(bool all)
       full_draw_index_uint32(all),
       image_view_format_swizzle(all),
       signed_zero_inf_nan_preserve_float32(all),
-      denorm_flush_to_zero_float32(all) {}
+      denorm_flush_to_zero_float32(all),
+      rounding_mode_rte_float32(all) {}
 
 SpirvShaderTranslator::Features::Features(
-    const ui::vulkan::VulkanProvider& provider)
-    : max_storage_buffer_range(
-          provider.device_properties().limits.maxStorageBufferRange),
-      clip_distance(provider.device_features().shaderClipDistance),
-      cull_distance(provider.device_features().shaderCullDistance),
-      demote_to_helper_invocation(
-          provider.device_extensions().ext_shader_demote_to_helper_invocation &&
-          provider.device_shader_demote_to_helper_invocation_features()
-              .shaderDemoteToHelperInvocation),
+    const ui::vulkan::VulkanProvider::DeviceInfo& device_info)
+    : max_storage_buffer_range(device_info.maxStorageBufferRange),
+      clip_distance(device_info.shaderClipDistance),
+      cull_distance(device_info.shaderCullDistance),
+      demote_to_helper_invocation(device_info.shaderDemoteToHelperInvocation),
       fragment_shader_sample_interlock(
-          provider.device_extensions().ext_fragment_shader_interlock &&
-          provider.device_fragment_shader_interlock_features()
-              .fragmentShaderSampleInterlock),
-      full_draw_index_uint32(provider.device_features().fullDrawIndexUint32) {
-  uint32_t device_version = provider.device_properties().apiVersion;
-  const ui::vulkan::VulkanProvider::DeviceExtensions& device_extensions =
-      provider.device_extensions();
-  if (device_version >= VK_MAKE_VERSION(1, 2, 0)) {
+          device_info.fragmentShaderSampleInterlock),
+      full_draw_index_uint32(device_info.fullDrawIndexUint32),
+      image_view_format_swizzle(device_info.imageViewFormatSwizzle),
+      signed_zero_inf_nan_preserve_float32(
+          device_info.shaderSignedZeroInfNanPreserveFloat32),
+      denorm_flush_to_zero_float32(device_info.shaderDenormFlushToZeroFloat32),
+      rounding_mode_rte_float32(device_info.shaderRoundingModeRTEFloat32) {
+  if (device_info.apiVersion >= VK_MAKE_API_VERSION(0, 1, 2, 0)) {
     spirv_version = spv::Spv_1_5;
-  } else if (device_extensions.khr_spirv_1_4) {
+  } else if (device_info.ext_1_2_VK_KHR_spirv_1_4) {
     spirv_version = spv::Spv_1_4;
-  } else if (device_version >= VK_MAKE_VERSION(1, 1, 0)) {
+  } else if (device_info.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
     spirv_version = spv::Spv_1_3;
   } else {
     spirv_version = spv::Spv_1_0;
-  }
-  const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
-      device_portability_subset_features =
-          provider.device_portability_subset_features();
-  if (device_portability_subset_features) {
-    image_view_format_swizzle =
-        bool(device_portability_subset_features->imageViewFormatSwizzle);
-  } else {
-    image_view_format_swizzle = true;
-  }
-  if (spirv_version >= spv::Spv_1_4 ||
-      device_extensions.khr_shader_float_controls) {
-    const VkPhysicalDeviceFloatControlsPropertiesKHR&
-        float_controls_properties = provider.device_float_controls_properties();
-    signed_zero_inf_nan_preserve_float32 =
-        bool(float_controls_properties.shaderSignedZeroInfNanPreserveFloat32);
-    denorm_flush_to_zero_float32 =
-        bool(float_controls_properties.shaderDenormFlushToZeroFloat32);
-  } else {
-    signed_zero_inf_nan_preserve_float32 = false;
-    denorm_flush_to_zero_float32 = false;
   }
 }
 
@@ -168,7 +144,8 @@ void SpirvShaderTranslator::StartTranslation() {
                                                   : spv::CapabilityShader);
   if (features_.spirv_version < spv::Spv_1_4) {
     if (features_.signed_zero_inf_nan_preserve_float32 ||
-        features_.denorm_flush_to_zero_float32) {
+        features_.denorm_flush_to_zero_float32 ||
+        features_.rounding_mode_rte_float32) {
       builder_->addExtension("SPV_KHR_float_controls");
     }
   }
@@ -723,6 +700,11 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
     builder_->addCapability(spv::CapabilitySignedZeroInfNanPreserve);
     builder_->addExecutionMode(function_main_,
                                spv::ExecutionModeSignedZeroInfNanPreserve, 32);
+  }
+  if (features_.rounding_mode_rte_float32) {
+    builder_->addCapability(spv::CapabilityRoundingModeRTE);
+    builder_->addExecutionMode(function_main_,
+                               spv::ExecutionModeRoundingModeRTE, 32);
   }
   spv::Instruction* entry_point =
       builder_->addEntryPoint(execution_model, function_main_, "main");

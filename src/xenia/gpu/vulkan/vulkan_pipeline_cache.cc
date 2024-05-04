@@ -59,7 +59,7 @@ bool VulkanPipelineCache::Initialize() {
       RenderTargetCache::Path::kPixelShaderInterlock;
 
   shader_translator_ = std::make_unique<SpirvShaderTranslator>(
-      SpirvShaderTranslator::Features(provider),
+      SpirvShaderTranslator::Features(provider.device_info()),
       render_target_cache_.msaa_2x_attachments_supported(),
       render_target_cache_.msaa_2x_no_attachments_supported(),
       edram_fragment_shader_interlock);
@@ -471,13 +471,9 @@ void VulkanPipelineCache::WritePipelineRenderTargetDescription(
     render_target_out.dst_alpha_blend_factor =
         kBlendFactorMap[uint32_t(blend_control.alpha_destblend)];
     render_target_out.alpha_blend_op = blend_control.alpha_comb_fcn;
-    const ui::vulkan::VulkanProvider& provider =
-        command_processor_.GetVulkanProvider();
-    const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
-        device_portability_subset_features =
-            provider.device_portability_subset_features();
-    if (device_portability_subset_features &&
-        !device_portability_subset_features->constantAlphaColorBlendFactors) {
+    if (!command_processor_.GetVulkanProvider()
+             .device_info()
+             .constantAlphaColorBlendFactors) {
       if (blend_control.color_srcblend == xenos::BlendFactor::kConstantAlpha) {
         render_target_out.src_color_blend_factor =
             PipelineBlendFactor::kConstantColor;
@@ -516,12 +512,8 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
     PipelineDescription& description_out) const {
   description_out.Reset();
 
-  const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanProvider();
-  const VkPhysicalDeviceFeatures& device_features = provider.device_features();
-  const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
-      device_portability_subset_features =
-          provider.device_portability_subset_features();
+  const ui::vulkan::VulkanProvider::DeviceInfo& device_info =
+      command_processor_.GetVulkanProvider().device_info();
 
   const RegisterFile& regs = register_file_;
   auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
@@ -556,8 +548,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
       break;
     case xenos::PrimitiveType::kTriangleFan:
       // The check should be performed at primitive processing time.
-      assert_true(!device_portability_subset_features ||
-                  device_portability_subset_features->triangleFans);
+      assert_true(device_info.triangleFans);
       primitive_topology = PipelinePrimitiveTopology::kTriangleFan;
       break;
     case xenos::PrimitiveType::kTriangleStrip:
@@ -581,8 +572,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
       primitive_processing_result.host_primitive_reset_enabled;
 
   description_out.depth_clamp_enable =
-      device_features.depthClamp &&
-      regs.Get<reg::PA_CL_CLIP_CNTL>().clip_disable;
+      device_info.depthClamp && regs.Get<reg::PA_CL_CLIP_CNTL>().clip_disable;
 
   // TODO(Triang3l): Tessellation.
   bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
@@ -597,7 +587,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
     bool cull_back = pa_su_sc_mode_cntl.cull_back;
     description_out.cull_front = cull_front;
     description_out.cull_back = cull_back;
-    if (device_features.fillModeNonSolid) {
+    if (device_info.fillModeNonSolid) {
       xenos::PolygonType polygon_type = xenos::PolygonType::kTriangles;
       if (!cull_front) {
         polygon_type =
@@ -614,11 +604,9 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
         case xenos::PolygonType::kPoints:
           // When points are not supported, use lines instead, preserving
           // debug-like purpose.
-          description_out.polygon_mode =
-              (!device_portability_subset_features ||
-               device_portability_subset_features->pointPolygons)
-                  ? PipelinePolygonMode::kPoint
-                  : PipelinePolygonMode::kLine;
+          description_out.polygon_mode = device_info.pointPolygons
+                                             ? PipelinePolygonMode::kPoint
+                                             : PipelinePolygonMode::kLine;
           break;
         case xenos::PolygonType::kLines:
           description_out.polygon_mode = PipelinePolygonMode::kLine;
@@ -683,7 +671,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
     // Color blending and write masks (filled only for the attachments present
     // in the render pass object).
     uint32_t render_pass_color_rts = render_pass_key.depth_and_color_used >> 1;
-    if (device_features.independentBlend) {
+    if (device_info.independentBlend) {
       uint32_t render_pass_color_rts_remaining = render_pass_color_rts;
       uint32_t color_rt_index;
       while (xe::bit_scan_forward(render_pass_color_rts_remaining,
@@ -779,63 +767,35 @@ bool VulkanPipelineCache::ArePipelineRequirementsMet(
     return false;
   }
 
-  const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanProvider();
+  const ui::vulkan::VulkanProvider::DeviceInfo& device_info =
+      command_processor_.GetVulkanProvider().device_info();
 
-  const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
-      device_portability_subset_features =
-          provider.device_portability_subset_features();
-  if (device_portability_subset_features) {
-    if (description.primitive_topology ==
-            PipelinePrimitiveTopology::kTriangleFan &&
-        !device_portability_subset_features->triangleFans) {
-      return false;
-    }
-
-    if (description.polygon_mode == PipelinePolygonMode::kPoint &&
-        !device_portability_subset_features->pointPolygons) {
-      return false;
-    }
-
-    if (!device_portability_subset_features->constantAlphaColorBlendFactors) {
-      uint32_t color_rts_remaining =
-          description.render_pass_key.depth_and_color_used >> 1;
-      uint32_t color_rt_index;
-      while (xe::bit_scan_forward(color_rts_remaining, &color_rt_index)) {
-        color_rts_remaining &= ~(uint32_t(1) << color_rt_index);
-        const PipelineRenderTarget& color_rt =
-            description.render_targets[color_rt_index];
-        if (color_rt.src_color_blend_factor ==
-                PipelineBlendFactor::kConstantAlpha ||
-            color_rt.src_color_blend_factor ==
-                PipelineBlendFactor::kOneMinusConstantAlpha ||
-            color_rt.dst_color_blend_factor ==
-                PipelineBlendFactor::kConstantAlpha ||
-            color_rt.dst_color_blend_factor ==
-                PipelineBlendFactor::kOneMinusConstantAlpha) {
-          return false;
-        }
-      }
-    }
-  }
-
-  const VkPhysicalDeviceFeatures& device_features = provider.device_features();
-
-  if (!device_features.geometryShader &&
+  if (!device_info.geometryShader &&
       description.geometry_shader != PipelineGeometryShader::kNone) {
     return false;
   }
 
-  if (!device_features.depthClamp && description.depth_clamp_enable) {
+  if (!device_info.triangleFans &&
+      description.primitive_topology ==
+          PipelinePrimitiveTopology::kTriangleFan) {
     return false;
   }
 
-  if (!device_features.fillModeNonSolid &&
+  if (!device_info.depthClamp && description.depth_clamp_enable) {
+    return false;
+  }
+
+  if (!device_info.pointPolygons &&
+      description.polygon_mode == PipelinePolygonMode::kPoint) {
+    return false;
+  }
+
+  if (!device_info.fillModeNonSolid &&
       description.polygon_mode != PipelinePolygonMode::kFill) {
     return false;
   }
 
-  if (!device_features.independentBlend) {
+  if (!device_info.independentBlend) {
     uint32_t color_rts_remaining =
         description.render_pass_key.depth_and_color_used >> 1;
     uint32_t first_color_rt_index;
@@ -861,6 +821,27 @@ bool VulkanPipelineCache::ArePipelineRequirementsMet(
             color_rt.color_write_mask != first_color_rt.color_write_mask) {
           return false;
         }
+      }
+    }
+  }
+
+  if (!device_info.constantAlphaColorBlendFactors) {
+    uint32_t color_rts_remaining =
+        description.render_pass_key.depth_and_color_used >> 1;
+    uint32_t color_rt_index;
+    while (xe::bit_scan_forward(color_rts_remaining, &color_rt_index)) {
+      color_rts_remaining &= ~(uint32_t(1) << color_rt_index);
+      const PipelineRenderTarget& color_rt =
+          description.render_targets[color_rt_index];
+      if (color_rt.src_color_blend_factor ==
+              PipelineBlendFactor::kConstantAlpha ||
+          color_rt.src_color_blend_factor ==
+              PipelineBlendFactor::kOneMinusConstantAlpha ||
+          color_rt.dst_color_blend_factor ==
+              PipelineBlendFactor::kConstantAlpha ||
+          color_rt.dst_color_blend_factor ==
+              PipelineBlendFactor::kOneMinusConstantAlpha) {
+        return false;
       }
     }
   }
@@ -1913,7 +1894,8 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
 
   const ui::vulkan::VulkanProvider& provider =
       command_processor_.GetVulkanProvider();
-  const VkPhysicalDeviceFeatures& device_features = provider.device_features();
+  const ui::vulkan::VulkanProvider::DeviceInfo& device_info =
+      provider.device_info();
 
   bool edram_fragment_shader_interlock =
       render_target_cache_.GetPath() ==
@@ -2222,7 +2204,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
         }
         color_blend_attachment.colorWriteMask =
             VkColorComponentFlags(color_rt.color_write_mask);
-        if (!device_features.independentBlend) {
+        if (!device_info.independentBlend) {
           // For non-independent blend, the pAttachments element for the first
           // actually used color will be replicated into all.
           break;
@@ -2231,7 +2213,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
     }
     color_blend_state.attachmentCount = 32 - xe::lzcnt(color_rts_used);
     color_blend_state.pAttachments = color_blend_attachments;
-    if (color_rts_used && !device_features.independentBlend) {
+    if (color_rts_used && !device_info.independentBlend) {
       // "If the independent blending feature is not enabled, all elements of
       //  pAttachments must be identical."
       uint32_t first_color_rt_index;

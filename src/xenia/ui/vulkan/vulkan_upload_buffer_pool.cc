@@ -138,13 +138,13 @@ VulkanUploadBufferPool::CreatePageImplementation() {
   memory_allocate_info.pNext = nullptr;
   memory_allocate_info.allocationSize = allocation_size_;
   memory_allocate_info.memoryTypeIndex = memory_type_;
-  VkMemoryDedicatedAllocateInfoKHR memory_dedicated_allocate_info;
-  if (provider_.device_extensions().khr_dedicated_allocation) {
+  VkMemoryDedicatedAllocateInfo memory_dedicated_allocate_info;
+  if (provider_.device_info().ext_1_1_VK_KHR_dedicated_allocation) {
     memory_allocate_info_last->pNext = &memory_dedicated_allocate_info;
     memory_allocate_info_last = reinterpret_cast<VkMemoryAllocateInfo*>(
         &memory_dedicated_allocate_info);
     memory_dedicated_allocate_info.sType =
-        VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
+        VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
     memory_dedicated_allocate_info.pNext = nullptr;
     memory_dedicated_allocate_info.image = VK_NULL_HANDLE;
     memory_dedicated_allocate_info.buffer = buffer;
