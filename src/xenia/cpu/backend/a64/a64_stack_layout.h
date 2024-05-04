@@ -90,7 +90,7 @@ class StackLayout {
    */
   XEPACKEDSTRUCT(Thunk, {
     uint64_t arg_temp[3];
-    uint64_t r[19];
+    uint64_t r[20];
     vec128_t xmm[32];
   });
   static_assert(sizeof(Thunk) % 16 == 0,
