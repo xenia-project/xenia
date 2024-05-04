@@ -399,7 +399,8 @@ ResolveFunctionThunk A64ThunkEmitter::EmitResolveFunctionThunk() {
 
 void A64ThunkEmitter::EmitSaveVolatileRegs() {
   // Save off volatile registers.
-  STR(X0, XSP, offsetof(StackLayout::Thunk, r[0]));
+  // Preserve arguments passed to and returned from a subroutine
+  // STR(X0, XSP, offsetof(StackLayout::Thunk, r[0]));
   STR(X1, XSP, offsetof(StackLayout::Thunk, r[1]));
   STR(X2, XSP, offsetof(StackLayout::Thunk, r[2]));
   STR(X3, XSP, offsetof(StackLayout::Thunk, r[3]));
@@ -422,7 +423,8 @@ void A64ThunkEmitter::EmitSaveVolatileRegs() {
 
   STR(X30, XSP, offsetof(StackLayout::Thunk, r[19]));
 
-  STR(Q0, XSP, offsetof(StackLayout::Thunk, xmm[0]));
+  // Preserve arguments passed to and returned from a subroutine
+  // STR(Q0, XSP, offsetof(StackLayout::Thunk, xmm[0]));
   STR(Q1, XSP, offsetof(StackLayout::Thunk, xmm[1]));
   STR(Q2, XSP, offsetof(StackLayout::Thunk, xmm[2]));
   STR(Q3, XSP, offsetof(StackLayout::Thunk, xmm[3]));
