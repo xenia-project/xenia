@@ -12,6 +12,7 @@
 #include <cfloat>
 #include <cstddef>
 #include <cstring>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -317,6 +318,8 @@ bool VulkanProvider::Initialize() {
   VkInstanceCreateInfo instance_create_info;
   instance_create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
   instance_create_info.pNext = nullptr;
+  // TODO(Triang3l): Enumerate portability subset devices using
+  // VK_KHR_portability_enumeration when ready.
   instance_create_info.flags = 0;
   instance_create_info.pApplicationInfo = &application_info;
   instance_create_info.enabledLayerCount = uint32_t(layers_enabled.size());
@@ -353,13 +356,13 @@ bool VulkanProvider::Initialize() {
 #define XE_UI_VULKAN_FUNCTION(name)                                       \
   functions_loaded &= (ifn_.name = PFN_##name(lfn_.vkGetInstanceProcAddr( \
                            instance_, #name))) != nullptr;
-#define XE_UI_VULKAN_FUNCTION_DONT_PROMOTE(extension_name, core_name)         \
-  functions_loaded &=                                                         \
-      (ifn_.extension_name = PFN_##extension_name(lfn_.vkGetInstanceProcAddr( \
+#define XE_UI_VULKAN_FUNCTION_DONT_PROMOTE(extension_name, core_name) \
+  functions_loaded &=                                                 \
+      (ifn_.core_name = PFN_##core_name(lfn_.vkGetInstanceProcAddr(   \
            instance_, #extension_name))) != nullptr;
 #define XE_UI_VULKAN_FUNCTION_PROMOTE(extension_name, core_name) \
   functions_loaded &=                                            \
-      (ifn_.extension_name = PFN_##extension_name(               \
+      (ifn_.core_name = PFN_##core_name(                         \
            lfn_.vkGetInstanceProcAddr(instance_, #core_name))) != nullptr;
   // Core - require unconditionally.
   {
@@ -535,614 +538,18 @@ bool VulkanProvider::Initialize() {
     physical_device_index_first = 0;
     physical_device_index_last = physical_devices.size() - 1;
   }
-  physical_device_ = VK_NULL_HANDLE;
-  std::vector<VkQueueFamilyProperties> queue_families_properties;
-  std::vector<VkExtensionProperties> device_extension_properties;
-  std::vector<const char*> device_extensions_enabled;
   for (size_t i = physical_device_index_first; i <= physical_device_index_last;
        ++i) {
-    VkPhysicalDevice physical_device_current = physical_devices[i];
-
-    // Get physical device features. Need this before obtaining the queues as
-    // sparse binding is an optional feature.
-    ifn_.vkGetPhysicalDeviceFeatures(physical_device_current,
-                                     &device_features_);
-
-    // Get the needed queues:
-    // - Graphics and compute.
-    // - Sparse binding if used (preferably the same as the graphics and compute
-    //   one for the lowest latency as Xenia submits sparse binding commands
-    //   right before graphics commands anyway).
-    // - Additional queues for presentation as VulkanProvider may be used with
-    //   different surfaces, and they may have varying support of presentation
-    //   from different queue families.
-    uint32_t queue_family_count = 0;
-    ifn_.vkGetPhysicalDeviceQueueFamilyProperties(physical_device_current,
-                                                  &queue_family_count, nullptr);
-    queue_families_properties.resize(queue_family_count);
-    ifn_.vkGetPhysicalDeviceQueueFamilyProperties(
-        physical_device_current, &queue_family_count,
-        queue_families_properties.data());
-    assert_true(queue_family_count == queue_families_properties.size());
-    // Initialize all queue families to unused.
-    queue_families_.clear();
-    queue_families_.resize(queue_family_count);
-    // First, try to obtain a graphics and compute queue. Preferably find a
-    // queue with sparse binding support as well.
-    // The family indices here are listed from the best to the worst.
-    uint32_t queue_family_graphics_compute_sparse_binding = UINT32_MAX;
-    uint32_t queue_family_graphics_compute_only = UINT32_MAX;
-    for (uint32_t j = 0; j < queue_family_count; ++j) {
-      const VkQueueFamilyProperties& queue_family_properties =
-          queue_families_properties[j];
-      if ((queue_family_properties.queueFlags &
-           (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT)) !=
-          (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT)) {
-        continue;
-      }
-      uint32_t* queue_family_ptr;
-      if (device_features_.sparseBinding &&
-          (queue_family_properties.queueFlags & VK_QUEUE_SPARSE_BINDING_BIT)) {
-        queue_family_ptr = &queue_family_graphics_compute_sparse_binding;
-      } else {
-        queue_family_ptr = &queue_family_graphics_compute_only;
-      }
-      if (*queue_family_ptr == UINT32_MAX) {
-        *queue_family_ptr = j;
-      }
+    physical_device_ = physical_devices[i];
+    TryCreateDevice();
+    if (device_ != VK_NULL_HANDLE) {
+      break;
     }
-    if (queue_family_graphics_compute_sparse_binding != UINT32_MAX) {
-      assert_true(device_features_.sparseBinding);
-      queue_family_graphics_compute_ =
-          queue_family_graphics_compute_sparse_binding;
-    } else if (queue_family_graphics_compute_only != UINT32_MAX) {
-      queue_family_graphics_compute_ = queue_family_graphics_compute_only;
-    } else {
-      // No graphics and compute queue family.
-      continue;
-    }
-    // Mark the graphics and compute queue as requested.
-    queue_families_[queue_family_graphics_compute_].queue_count =
-        std::max(queue_families_[queue_family_graphics_compute_].queue_count,
-                 uint32_t(1));
-    // Request a separate sparse binding queue if needed.
-    queue_family_sparse_binding_ = UINT32_MAX;
-    if (device_features_.sparseBinding) {
-      if (queue_families_properties[queue_family_graphics_compute_].queueFlags &
-          VK_QUEUE_SPARSE_BINDING_BIT) {
-        queue_family_sparse_binding_ = queue_family_graphics_compute_;
-      } else {
-        for (uint32_t j = 0; j < queue_family_count; ++j) {
-          if (!(queue_families_properties[j].queueFlags &
-                VK_QUEUE_SPARSE_BINDING_BIT)) {
-            continue;
-          }
-          queue_family_sparse_binding_ = j;
-          queue_families_[j].queue_count =
-              std::max(queue_families_[j].queue_count, uint32_t(1));
-          break;
-        }
-      }
-      // Don't expose, and disable during logical device creature, the sparse
-      // binding feature if failed to obtain a queue supporting it.
-      if (queue_family_sparse_binding_ == UINT32_MAX) {
-        device_features_.sparseBinding = VK_FALSE;
-      }
-    }
-    bool any_queue_potentially_supports_present = false;
-    if (instance_extensions_.khr_surface) {
-      // Request possible presentation queues.
-      for (uint32_t j = 0; j < queue_family_count; ++j) {
-#if XE_PLATFORM_WIN32
-        if (instance_extensions_.khr_win32_surface &&
-            !ifn_.vkGetPhysicalDeviceWin32PresentationSupportKHR(
-                physical_device_current, j)) {
-          continue;
-        }
-#endif
-        any_queue_potentially_supports_present = true;
-        QueueFamily& queue_family = queue_families_[j];
-        queue_family.queue_count =
-            std::max(queue_families_[j].queue_count, uint32_t(1));
-        queue_family.potentially_supports_present = true;
-      }
-    }
-    if (!any_queue_potentially_supports_present && is_surface_required_) {
-      continue;
-    }
-
-    // Get device properties, will be needed to check if extensions have been
-    // promoted to core.
-    ifn_.vkGetPhysicalDeviceProperties(physical_device_current,
-                                       &device_properties_);
-
-    // Get the extensions, check if swapchain is supported.
-    device_extension_properties.clear();
-    VkResult device_extensions_enumerate_result;
-    for (;;) {
-      uint32_t device_extension_count =
-          uint32_t(device_extension_properties.size());
-      bool device_extensions_were_empty = !device_extension_count;
-      device_extensions_enumerate_result =
-          ifn_.vkEnumerateDeviceExtensionProperties(
-              physical_device_current, nullptr, &device_extension_count,
-              device_extensions_were_empty
-                  ? nullptr
-                  : device_extension_properties.data());
-      // If the original extension count was 0 (first call), SUCCESS is
-      // returned, not INCOMPLETE.
-      if (device_extensions_enumerate_result == VK_SUCCESS ||
-          device_extensions_enumerate_result == VK_INCOMPLETE) {
-        device_extension_properties.resize(device_extension_count);
-        if (device_extensions_enumerate_result == VK_SUCCESS &&
-            (!device_extensions_were_empty || !device_extension_count)) {
-          break;
-        }
-      } else {
-        break;
-      }
-    }
-    if (device_extensions_enumerate_result != VK_SUCCESS) {
-      continue;
-    }
-    std::memset(&device_extensions_, 0, sizeof(device_extensions_));
-    if (device_properties_.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
-      device_extensions_.khr_bind_memory2 = true;
-      device_extensions_.khr_dedicated_allocation = true;
-      device_extensions_.khr_get_memory_requirements2 = true;
-      device_extensions_.khr_sampler_ycbcr_conversion = true;
-      if (device_properties_.apiVersion >= VK_MAKE_API_VERSION(0, 1, 2, 0)) {
-        device_extensions_.khr_image_format_list = true;
-        device_extensions_.khr_shader_float_controls = true;
-        device_extensions_.khr_spirv_1_4 = true;
-        if (device_properties_.apiVersion >= VK_MAKE_API_VERSION(0, 1, 3, 0)) {
-          device_extensions_.ext_shader_demote_to_helper_invocation = true;
-          device_extensions_.khr_maintenance4 = true;
-        }
-      }
-    }
-    device_extensions_enabled.clear();
-    // Checking if already enabled as an optimization to do fewer and fewer
-    // string comparisons, as well as to skip adding extensions promoted to the
-    // core to device_extensions_enabled. Adding literals to
-    // device_extensions_enabled for the most C string lifetime safety.
-    static const std::pair<const char*, size_t> kUsedDeviceExtensions[] = {
-        {"VK_EXT_fragment_shader_interlock",
-         offsetof(DeviceExtensions, ext_fragment_shader_interlock)},
-        {"VK_EXT_memory_budget", offsetof(DeviceExtensions, ext_memory_budget)},
-        {"VK_EXT_shader_demote_to_helper_invocation",
-         offsetof(DeviceExtensions, ext_shader_demote_to_helper_invocation)},
-        {"VK_EXT_shader_stencil_export",
-         offsetof(DeviceExtensions, ext_shader_stencil_export)},
-        {"VK_KHR_bind_memory2", offsetof(DeviceExtensions, khr_bind_memory2)},
-        {"VK_KHR_dedicated_allocation",
-         offsetof(DeviceExtensions, khr_dedicated_allocation)},
-        {"VK_KHR_get_memory_requirements2",
-         offsetof(DeviceExtensions, khr_get_memory_requirements2)},
-        {"VK_KHR_image_format_list",
-         offsetof(DeviceExtensions, khr_image_format_list)},
-        {"VK_KHR_maintenance4", offsetof(DeviceExtensions, khr_maintenance4)},
-        {"VK_KHR_portability_subset",
-         offsetof(DeviceExtensions, khr_portability_subset)},
-        // While vkGetPhysicalDeviceFormatProperties should be used to check the
-        // format support (device support for Y'CbCr formats is not required by
-        // this extension or by Vulkan 1.1), still adding
-        // VK_KHR_sampler_ycbcr_conversion to this list to enable this extension
-        // on the device on Vulkan 1.0.
-        {"VK_KHR_sampler_ycbcr_conversion",
-         offsetof(DeviceExtensions, khr_sampler_ycbcr_conversion)},
-        {"VK_KHR_shader_float_controls",
-         offsetof(DeviceExtensions, khr_shader_float_controls)},
-        {"VK_KHR_spirv_1_4", offsetof(DeviceExtensions, khr_spirv_1_4)},
-        {"VK_KHR_swapchain", offsetof(DeviceExtensions, khr_swapchain)},
-    };
-    for (const VkExtensionProperties& device_extension :
-         device_extension_properties) {
-      for (const std::pair<const char*, size_t>& used_device_extension :
-           kUsedDeviceExtensions) {
-        bool& device_extension_flag = *reinterpret_cast<bool*>(
-            reinterpret_cast<char*>(&device_extensions_) +
-            used_device_extension.second);
-        if (!device_extension_flag &&
-            !std::strcmp(device_extension.extensionName,
-                         used_device_extension.first)) {
-          device_extensions_enabled.push_back(used_device_extension.first);
-          device_extension_flag = true;
-        }
-      }
-    }
-    if (is_surface_required_ && !device_extensions_.khr_swapchain) {
-      continue;
-    }
-
-    // Get portability subset features.
-    // VK_KHR_portability_subset reduces, not increases, the capabilities, skip
-    // the device completely if there's no way to retrieve what is actually
-    // unsupported. Though VK_KHR_portability_subset requires
-    // VK_KHR_get_physical_device_properties2, check just in case of an
-    // untrustworthy driver.
-    if (device_extensions_.khr_portability_subset) {
-      if (!instance_extensions_.khr_get_physical_device_properties2) {
-        continue;
-      }
-      device_portability_subset_features_.sType =
-          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_PROPERTIES_KHR;
-      device_portability_subset_features_.pNext = nullptr;
-      VkPhysicalDeviceProperties2KHR device_properties_2;
-      device_properties_2.sType =
-          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR;
-      device_properties_2.pNext = &device_portability_subset_features_;
-      ifn_.vkGetPhysicalDeviceProperties2KHR(physical_device_,
-                                             &device_properties_2);
-    }
-
-    // Get the memory types.
-    VkPhysicalDeviceMemoryProperties memory_properties;
-    ifn_.vkGetPhysicalDeviceMemoryProperties(physical_device_current,
-                                             &memory_properties);
-    memory_types_device_local_ = 0;
-    memory_types_host_visible_ = 0;
-    memory_types_host_coherent_ = 0;
-    memory_types_host_cached_ = 0;
-    for (uint32_t j = 0; j < memory_properties.memoryTypeCount; ++j) {
-      VkMemoryPropertyFlags memory_property_flags =
-          memory_properties.memoryTypes[j].propertyFlags;
-      uint32_t memory_type_bit = uint32_t(1) << j;
-      if (memory_property_flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
-        memory_types_device_local_ |= memory_type_bit;
-      }
-      if (memory_property_flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
-        memory_types_host_visible_ |= memory_type_bit;
-      }
-      if (memory_property_flags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) {
-        memory_types_host_coherent_ |= memory_type_bit;
-      }
-      if (memory_property_flags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT) {
-        memory_types_host_cached_ |= memory_type_bit;
-      }
-    }
-    if (!memory_types_device_local_ && !memory_types_host_visible_) {
-      // Shouldn't happen according to the specification.
-      continue;
-    }
-
-    physical_device_ = physical_device_current;
-    break;
   }
-  if (physical_device_ == VK_NULL_HANDLE) {
-    XELOGE(
-        "Failed to get a compatible Vulkan physical device with swapchain "
-        "support");
+  if (device_ == VK_NULL_HANDLE) {
+    XELOGE("Failed to select a compatible Vulkan physical device");
+    physical_device_ = VK_NULL_HANDLE;
     return false;
-  }
-
-  // Get additional device properties.
-  std::memset(&device_float_controls_properties_, 0,
-              sizeof(device_float_controls_properties_));
-  device_float_controls_properties_.sType =
-      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FLOAT_CONTROLS_PROPERTIES_KHR;
-  std::memset(&device_fragment_shader_interlock_features_, 0,
-              sizeof(device_fragment_shader_interlock_features_));
-  device_fragment_shader_interlock_features_.sType =
-      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT;
-  std::memset(&device_shader_demote_to_helper_invocation_features_, 0,
-              sizeof(device_shader_demote_to_helper_invocation_features_));
-  device_shader_demote_to_helper_invocation_features_.sType =
-      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DEMOTE_TO_HELPER_INVOCATION_FEATURES_EXT;
-  if (instance_extensions_.khr_get_physical_device_properties2) {
-    VkPhysicalDeviceProperties2KHR device_properties_2;
-    device_properties_2.sType =
-        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR;
-    device_properties_2.pNext = nullptr;
-    VkPhysicalDeviceProperties2KHR* device_properties_2_last =
-        &device_properties_2;
-    if (device_extensions_.khr_shader_float_controls) {
-      device_float_controls_properties_.pNext = nullptr;
-      device_properties_2_last->pNext = &device_float_controls_properties_;
-      device_properties_2_last =
-          reinterpret_cast<VkPhysicalDeviceProperties2KHR*>(
-              &device_float_controls_properties_);
-    }
-    if (device_properties_2_last != &device_properties_2) {
-      ifn_.vkGetPhysicalDeviceProperties2KHR(physical_device_,
-                                             &device_properties_2);
-    }
-    VkPhysicalDeviceFeatures2KHR device_features_2;
-    device_features_2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR;
-    device_features_2.pNext = nullptr;
-    VkPhysicalDeviceFeatures2KHR* device_features_2_last = &device_features_2;
-    if (device_extensions_.ext_fragment_shader_interlock) {
-      device_fragment_shader_interlock_features_.pNext = nullptr;
-      device_features_2_last->pNext =
-          &device_fragment_shader_interlock_features_;
-      device_features_2_last = reinterpret_cast<VkPhysicalDeviceFeatures2KHR*>(
-          &device_fragment_shader_interlock_features_);
-    }
-    if (device_extensions_.ext_shader_demote_to_helper_invocation) {
-      device_shader_demote_to_helper_invocation_features_.pNext = nullptr;
-      device_features_2_last->pNext =
-          &device_shader_demote_to_helper_invocation_features_;
-      device_features_2_last = reinterpret_cast<VkPhysicalDeviceFeatures2KHR*>(
-          &device_shader_demote_to_helper_invocation_features_);
-    }
-    if (device_features_2_last != &device_features_2) {
-      ifn_.vkGetPhysicalDeviceFeatures2KHR(physical_device_,
-                                           &device_features_2);
-    }
-  }
-
-  // Create the device.
-  std::vector<VkDeviceQueueCreateInfo> queue_create_infos;
-  queue_create_infos.reserve(queue_families_.size());
-  uint32_t used_queue_count = 0;
-  uint32_t max_queue_count_per_family = 0;
-  for (size_t i = 0; i < queue_families_.size(); ++i) {
-    QueueFamily& queue_family = queue_families_[i];
-    queue_family.queue_first_index = used_queue_count;
-    if (!queue_family.queue_count) {
-      continue;
-    }
-    VkDeviceQueueCreateInfo& queue_create_info =
-        queue_create_infos.emplace_back();
-    queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queue_create_info.pNext = nullptr;
-    queue_create_info.flags = 0;
-    queue_create_info.queueFamilyIndex = uint32_t(i);
-    queue_create_info.queueCount = queue_family.queue_count;
-    // pQueuePriorities will be set later based on max_queue_count_per_family.
-    max_queue_count_per_family =
-        std::max(max_queue_count_per_family, queue_family.queue_count);
-    used_queue_count += queue_family.queue_count;
-  }
-  std::vector<float> queue_priorities;
-  queue_priorities.resize(max_queue_count_per_family, 1.0f);
-  for (VkDeviceQueueCreateInfo& queue_create_info : queue_create_infos) {
-    queue_create_info.pQueuePriorities = queue_priorities.data();
-  }
-  VkDeviceCreateInfo device_create_info;
-  device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-  device_create_info.pNext = nullptr;
-  VkDeviceCreateInfo* device_create_info_last = &device_create_info;
-  device_create_info.flags = 0;
-  device_create_info.queueCreateInfoCount = uint32_t(queue_create_infos.size());
-  device_create_info.pQueueCreateInfos = queue_create_infos.data();
-  // Device layers are deprecated - using validation layer on the instance.
-  device_create_info.enabledLayerCount = 0;
-  device_create_info.ppEnabledLayerNames = nullptr;
-  device_create_info.enabledExtensionCount =
-      uint32_t(device_extensions_enabled.size());
-  device_create_info.ppEnabledExtensionNames = device_extensions_enabled.data();
-  // TODO(Triang3l): Enable only needed features.
-  device_create_info.pEnabledFeatures = &device_features_;
-  if (device_extensions_.khr_portability_subset) {
-    // TODO(Triang3l): Enable only needed portability subset features.
-    device_portability_subset_features_.pNext = nullptr;
-    device_create_info_last->pNext = &device_portability_subset_features_;
-    device_create_info_last = reinterpret_cast<VkDeviceCreateInfo*>(
-        &device_portability_subset_features_);
-  }
-  if (device_extensions_.ext_fragment_shader_interlock) {
-    // TODO(Triang3l): Enable only needed fragment shader interlock features.
-    device_fragment_shader_interlock_features_.pNext = nullptr;
-    device_create_info_last->pNext =
-        &device_fragment_shader_interlock_features_;
-    device_create_info_last = reinterpret_cast<VkDeviceCreateInfo*>(
-        &device_fragment_shader_interlock_features_);
-  }
-  if (device_extensions_.ext_shader_demote_to_helper_invocation) {
-    device_shader_demote_to_helper_invocation_features_.pNext = nullptr;
-    device_create_info_last->pNext =
-        &device_shader_demote_to_helper_invocation_features_;
-    device_create_info_last = reinterpret_cast<VkDeviceCreateInfo*>(
-        &device_shader_demote_to_helper_invocation_features_);
-  }
-  if (ifn_.vkCreateDevice(physical_device_, &device_create_info, nullptr,
-                          &device_) != VK_SUCCESS) {
-    XELOGE("Failed to create a Vulkan device");
-    return false;
-  }
-
-  // Get device functions.
-  std::memset(&dfn_, 0, sizeof(ifn_));
-  bool device_functions_loaded = true;
-#define XE_UI_VULKAN_FUNCTION(name)                                         \
-  functions_loaded &=                                                       \
-      (dfn_.name = PFN_##name(ifn_.vkGetDeviceProcAddr(device_, #name))) != \
-      nullptr;
-#define XE_UI_VULKAN_FUNCTION_DONT_PROMOTE(extension_name, core_name) \
-  functions_loaded &=                                                 \
-      (dfn_.extension_name = PFN_##extension_name(                    \
-           ifn_.vkGetDeviceProcAddr(device_, #extension_name))) != nullptr;
-#define XE_UI_VULKAN_FUNCTION_PROMOTE(extension_name, core_name) \
-  functions_loaded &=                                            \
-      (dfn_.extension_name = PFN_##extension_name(               \
-           ifn_.vkGetDeviceProcAddr(device_, #core_name))) != nullptr;
-  // Core - require unconditionally.
-  {
-    bool functions_loaded = true;
-#include "xenia/ui/vulkan/functions/device_1_0.inc"
-    if (!functions_loaded) {
-      XELOGE("Failed to get Vulkan device function pointers");
-      return false;
-    }
-  }
-  // Extensions - disable the specific extension if failed to get its functions.
-  if (device_extensions_.khr_bind_memory2) {
-    bool functions_loaded = true;
-    if (device_properties_.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
-#define XE_UI_VULKAN_FUNCTION_PROMOTED XE_UI_VULKAN_FUNCTION_PROMOTE
-#include "xenia/ui/vulkan/functions/device_khr_bind_memory2.inc"
-#undef XE_UI_VULKAN_FUNCTION_PROMOTED
-    } else {
-#define XE_UI_VULKAN_FUNCTION_PROMOTED XE_UI_VULKAN_FUNCTION_DONT_PROMOTE
-#include "xenia/ui/vulkan/functions/device_khr_bind_memory2.inc"
-#undef XE_UI_VULKAN_FUNCTION_PROMOTED
-    }
-    device_extensions_.khr_bind_memory2 = functions_loaded;
-  }
-  if (device_extensions_.khr_get_memory_requirements2) {
-    bool functions_loaded = true;
-    if (device_properties_.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
-#define XE_UI_VULKAN_FUNCTION_PROMOTED XE_UI_VULKAN_FUNCTION_PROMOTE
-#include "xenia/ui/vulkan/functions/device_khr_get_memory_requirements2.inc"
-#undef XE_UI_VULKAN_FUNCTION_PROMOTED
-    } else {
-#define XE_UI_VULKAN_FUNCTION_PROMOTED XE_UI_VULKAN_FUNCTION_DONT_PROMOTE
-#include "xenia/ui/vulkan/functions/device_khr_get_memory_requirements2.inc"
-#undef XE_UI_VULKAN_FUNCTION_PROMOTED
-    }
-    device_extensions_.khr_get_memory_requirements2 = functions_loaded;
-    // VK_KHR_dedicated_allocation can still work without the dedicated
-    // allocation preference getter even though it requires
-    // VK_KHR_get_memory_requirements2 to be supported and enabled.
-  }
-  if (device_extensions_.khr_maintenance4) {
-    bool functions_loaded = true;
-    if (device_properties_.apiVersion >= VK_MAKE_API_VERSION(0, 1, 3, 0)) {
-#define XE_UI_VULKAN_FUNCTION_PROMOTED XE_UI_VULKAN_FUNCTION_PROMOTE
-#include "xenia/ui/vulkan/functions/device_khr_maintenance4.inc"
-#undef XE_UI_VULKAN_FUNCTION_PROMOTED
-    } else {
-#define XE_UI_VULKAN_FUNCTION_PROMOTED XE_UI_VULKAN_FUNCTION_DONT_PROMOTE
-#include "xenia/ui/vulkan/functions/device_khr_maintenance4.inc"
-#undef XE_UI_VULKAN_FUNCTION_PROMOTED
-    }
-    device_extensions_.khr_maintenance4 = functions_loaded;
-  }
-  if (device_extensions_.khr_swapchain) {
-    bool functions_loaded = true;
-#include "xenia/ui/vulkan/functions/device_khr_swapchain.inc"
-    if (!functions_loaded) {
-      // Outside the physical device selection loop, so can't just skip the
-      // device anymore, but this shouldn't really happen anyway.
-      XELOGE(
-          "Failed to get Vulkan swapchain function pointers while swapchain "
-          "support is required");
-      return false;
-    }
-    device_extensions_.khr_swapchain = functions_loaded;
-  }
-#undef XE_UI_VULKAN_FUNCTION_PROMOTE
-#undef XE_UI_VULKAN_FUNCTION_DONT_PROMOTE
-#undef XE_UI_VULKAN_FUNCTION
-  if (!device_functions_loaded) {
-    XELOGE("Failed to get Vulkan device function pointers");
-    return false;
-  }
-
-  // Report device information after verifying that extension function pointers
-  // could be obtained.
-  XELOGVK(
-      "Vulkan device: {} (vendor {:04X}, device {:04X}, driver {:08X}, API "
-      "{}.{}.{})",
-      device_properties_.deviceName, device_properties_.vendorID,
-      device_properties_.deviceID, device_properties_.driverVersion,
-      VK_VERSION_MAJOR(device_properties_.apiVersion),
-      VK_VERSION_MINOR(device_properties_.apiVersion),
-      VK_VERSION_PATCH(device_properties_.apiVersion));
-  XELOGVK("Vulkan device extensions:");
-  XELOGVK("* VK_EXT_fragment_shader_interlock: {}",
-          device_extensions_.ext_fragment_shader_interlock ? "yes" : "no");
-  if (device_extensions_.ext_fragment_shader_interlock) {
-    XELOGVK(
-        "  * Sample interlock: {}",
-        device_fragment_shader_interlock_features_.fragmentShaderSampleInterlock
-            ? "yes"
-            : "no");
-    XELOGVK(
-        "  * Pixel interlock: {}",
-        device_fragment_shader_interlock_features_.fragmentShaderPixelInterlock
-            ? "yes"
-            : "no");
-  }
-  XELOGVK("* VK_EXT_memory_budget: {}",
-          device_extensions_.ext_memory_budget ? "yes" : "no");
-  XELOGVK(
-      "* VK_EXT_shader_demote_to_helper_invocation: {}",
-      device_extensions_.ext_shader_demote_to_helper_invocation ? "yes" : "no");
-  if (device_extensions_.ext_shader_demote_to_helper_invocation) {
-    XELOGVK("  * Demote to helper invocation: {}",
-            device_shader_demote_to_helper_invocation_features_
-                    .shaderDemoteToHelperInvocation
-                ? "yes"
-                : "no");
-  }
-  XELOGVK("* VK_EXT_shader_stencil_export: {}",
-          device_extensions_.ext_shader_stencil_export ? "yes" : "no");
-  XELOGVK("* VK_KHR_bind_memory2: {}",
-          device_extensions_.khr_bind_memory2 ? "yes" : "no");
-  XELOGVK("* VK_KHR_dedicated_allocation: {}",
-          device_extensions_.khr_dedicated_allocation ? "yes" : "no");
-  XELOGVK("* VK_KHR_get_memory_requirements2: {}",
-          device_extensions_.khr_get_memory_requirements2 ? "yes" : "no");
-  XELOGVK("* VK_KHR_image_format_list: {}",
-          device_extensions_.khr_image_format_list ? "yes" : "no");
-  XELOGVK("* VK_KHR_maintenance4: {}",
-          device_extensions_.khr_maintenance4 ? "yes" : "no");
-  XELOGVK("* VK_KHR_portability_subset: {}",
-          device_extensions_.khr_portability_subset ? "yes" : "no");
-  if (device_extensions_.khr_portability_subset) {
-    XELOGVK("  * Constant alpha color blend factors: {}",
-            device_portability_subset_features_.constantAlphaColorBlendFactors
-                ? "yes"
-                : "no");
-    XELOGVK("  * Image view format reinterpretation: {}",
-            device_portability_subset_features_.imageViewFormatReinterpretation
-                ? "yes"
-                : "no");
-    XELOGVK("  * Image view format swizzle: {}",
-            device_portability_subset_features_.imageViewFormatSwizzle ? "yes"
-                                                                       : "no");
-    XELOGVK("  * Point polygons: {}",
-            device_portability_subset_features_.pointPolygons ? "yes" : "no");
-    XELOGVK(
-        "  * Separate stencil front and back masks and reference values: {}",
-        device_portability_subset_features_.separateStencilMaskRef ? "yes"
-                                                                   : "no");
-    XELOGVK("  *  Shader sample rate interpolation functions: {}",
-            device_portability_subset_features_
-                    .shaderSampleRateInterpolationFunctions
-                ? "yes"
-                : "no");
-    XELOGVK("  * Triangle fans: {}",
-            device_portability_subset_features_.triangleFans ? "yes" : "no");
-  }
-  XELOGVK("* VK_KHR_sampler_ycbcr_conversion: {}",
-          device_extensions_.khr_sampler_ycbcr_conversion ? "yes" : "no");
-  XELOGVK("* VK_KHR_shader_float_controls: {}",
-          device_extensions_.khr_shader_float_controls ? "yes" : "no");
-  if (device_extensions_.khr_shader_float_controls) {
-    XELOGVK(
-        "  * Signed zero, inf, nan preserve for float32: {}",
-        device_float_controls_properties_.shaderSignedZeroInfNanPreserveFloat32
-            ? "yes"
-            : "no");
-    XELOGVK("  * Denorm flush to zero for float32: {}",
-            device_float_controls_properties_.shaderDenormFlushToZeroFloat32
-                ? "yes"
-                : "no");
-    XELOGVK("* VK_KHR_spirv_1_4: {}",
-            device_extensions_.khr_spirv_1_4 ? "yes" : "no");
-    XELOGVK("* VK_KHR_swapchain: {}",
-            device_extensions_.khr_swapchain ? "yes" : "no");
-  }
-  // TODO(Triang3l): Report properties, features.
-
-  // Get the queues.
-  queues_.reset();
-  queues_ = std::make_unique<Queue[]>(used_queue_count);
-  uint32_t queue_index = 0;
-  for (size_t i = 0; i < queue_families_.size(); ++i) {
-    const QueueFamily& queue_family = queue_families_[i];
-    if (!queue_family.queue_count) {
-      continue;
-    }
-    assert_true(queue_index == queue_family.queue_first_index);
-    for (uint32_t j = 0; j < queue_family.queue_count; ++j) {
-      VkQueue queue;
-      dfn_.vkGetDeviceQueue(device_, uint32_t(i), j, &queue);
-      queues_[queue_index++].queue = queue;
-    }
   }
 
   // Create host-side samplers.
@@ -1308,6 +715,691 @@ VkBool32 VKAPI_CALL VulkanProvider::DebugMessengerCallback(
   XELOGVK("Vulkan {} {}: {}", type_string, severity_string,
           callback_data->pMessage);
   return VK_FALSE;
+}
+
+void VulkanProvider::TryCreateDevice() {
+  assert_true(physical_device_ != VK_NULL_HANDLE);
+  assert_true(device_ == VK_NULL_HANDLE);
+
+  static_assert(std::is_trivially_copyable_v<DeviceInfo>,
+                "DeviceInfo must be safe to clear using memset");
+  std::memset(&device_info_, 0, sizeof(device_info_));
+
+  VkDeviceCreateInfo device_create_info = {
+      VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
+
+  // Needed device extensions, properties and features.
+
+  VkPhysicalDeviceProperties properties;
+  ifn_.vkGetPhysicalDeviceProperties(physical_device_, &properties);
+
+  XELOGVK("Trying Vulkan device '{}'", properties.deviceName);
+
+  if (!instance_extensions_.khr_get_physical_device_properties2) {
+    // Many extensions promoted to Vulkan 1.1 and newer require the instance
+    // extension VK_KHR_get_physical_device_properties2, which is itself in the
+    // core 1.0, although there's one instance for all physical devices.
+    properties.apiVersion = VK_MAKE_API_VERSION(
+        0, 1, 0, VK_API_VERSION_PATCH(properties.apiVersion));
+  }
+
+  device_info_.apiVersion = properties.apiVersion;
+
+  XELOGVK("Device Vulkan API version: {}.{}.{}",
+          VK_API_VERSION_MAJOR(properties.apiVersion),
+          VK_API_VERSION_MINOR(properties.apiVersion),
+          VK_API_VERSION_PATCH(properties.apiVersion));
+
+  std::vector<VkExtensionProperties> extension_properties;
+  VkResult extensions_enumerate_result;
+  for (;;) {
+    uint32_t extension_count = uint32_t(extension_properties.size());
+    bool extensions_were_empty = !extension_count;
+    extensions_enumerate_result = ifn_.vkEnumerateDeviceExtensionProperties(
+        physical_device_, nullptr, &extension_count,
+        extensions_were_empty ? nullptr : extension_properties.data());
+    // If the original extension count was 0 (first call), SUCCESS is
+    // returned, not INCOMPLETE.
+    if (extensions_enumerate_result == VK_SUCCESS ||
+        extensions_enumerate_result == VK_INCOMPLETE) {
+      extension_properties.resize(extension_count);
+      if (extensions_enumerate_result == VK_SUCCESS &&
+          (!extensions_were_empty || !extension_count)) {
+        break;
+      }
+    } else {
+      break;
+    }
+  }
+  if (extensions_enumerate_result != VK_SUCCESS) {
+    XELOGE("Failed to query Vulkan device '{}' extensions",
+           properties.deviceName);
+    return;
+  }
+
+  XELOGVK("Requested Vulkan device extensions:");
+
+  std::vector<const char*> enabled_extensions;
+
+  if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
+    device_info_.ext_1_1_VK_KHR_dedicated_allocation = true;
+    device_info_.ext_1_1_VK_KHR_get_memory_requirements2 = true;
+    device_info_.ext_1_1_VK_KHR_sampler_ycbcr_conversion = true;
+    device_info_.ext_1_1_VK_KHR_bind_memory2 = true;
+  }
+  if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 2, 0)) {
+    device_info_.ext_1_2_VK_KHR_sampler_mirror_clamp_to_edge = true;
+    device_info_.ext_1_2_VK_KHR_image_format_list = true;
+    device_info_.ext_1_2_VK_KHR_shader_float_controls = true;
+    device_info_.ext_1_2_VK_KHR_spirv_1_4 = true;
+  }
+  if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 3, 0)) {
+    device_info_.ext_1_3_VK_EXT_shader_demote_to_helper_invocation = true;
+    device_info_.ext_1_3_VK_KHR_maintenance4 = true;
+  }
+
+  for (const VkExtensionProperties& extension : extension_properties) {
+    // Checking if already enabled as an optimization to do fewer and fewer
+    // string comparisons.
+#define EXTENSION(name)                               \
+  if (!device_info_.ext_##name &&                     \
+      !std::strcmp(extension.extensionName, #name)) { \
+    enabled_extensions.push_back(#name);              \
+    device_info_.ext_##name = true;                   \
+    XELOGVK("* " #name);                              \
+  }
+#define EXTENSION_PROMOTED(name, minor_version)         \
+  if (!device_info_.ext_1_##minor_version##_##name &&   \
+      !std::strcmp(extension.extensionName, #name)) {   \
+    enabled_extensions.push_back(#name);                \
+    device_info_.ext_1_##minor_version##_##name = true; \
+    XELOGVK("* " #name);                                \
+  }
+    EXTENSION(VK_KHR_swapchain)
+    EXTENSION(VK_EXT_shader_stencil_export)
+    if (instance_extensions_.khr_get_physical_device_properties2) {
+      EXTENSION(VK_KHR_portability_subset)
+      EXTENSION(VK_EXT_memory_budget)
+      EXTENSION(VK_EXT_fragment_shader_interlock)
+      EXTENSION(VK_EXT_non_seamless_cube_map)
+    } else {
+      if (!std::strcmp(extension.extensionName, "VK_KHR_portability_subset")) {
+        XELOGW(
+            "Vulkan device '{}' is a portability subset device, but its "
+            "portability subset features can't be queried as the instance "
+            "doesn't support VK_KHR_get_physical_device_properties2",
+            properties.deviceName);
+        return;
+      }
+    }
+    if (properties.apiVersion < VK_MAKE_API_VERSION(0, 1, 1, 0)) {
+      EXTENSION_PROMOTED(VK_KHR_dedicated_allocation, 1)
+      EXTENSION_PROMOTED(VK_KHR_get_memory_requirements2, 1)
+      EXTENSION_PROMOTED(VK_KHR_bind_memory2, 1)
+      if (instance_extensions_.khr_get_physical_device_properties2) {
+        EXTENSION_PROMOTED(VK_KHR_sampler_ycbcr_conversion, 1)
+      }
+    }
+    if (properties.apiVersion < VK_MAKE_API_VERSION(0, 1, 2, 0)) {
+      EXTENSION_PROMOTED(VK_KHR_sampler_mirror_clamp_to_edge, 2)
+      EXTENSION_PROMOTED(VK_KHR_image_format_list, 2)
+      if (instance_extensions_.khr_get_physical_device_properties2) {
+        EXTENSION_PROMOTED(VK_KHR_shader_float_controls, 2)
+      }
+      if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
+        EXTENSION_PROMOTED(VK_KHR_spirv_1_4, 2)
+      }
+    }
+    if (properties.apiVersion < VK_MAKE_API_VERSION(0, 1, 3, 0)) {
+      if (instance_extensions_.khr_get_physical_device_properties2) {
+        EXTENSION_PROMOTED(VK_EXT_shader_demote_to_helper_invocation, 3)
+      }
+      if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
+        EXTENSION_PROMOTED(VK_KHR_maintenance4, 3)
+      }
+    }
+#undef EXTENSION_PROMOTED
+#undef EXTENSION
+  }
+
+  if (is_surface_required_ && !device_info_.ext_VK_KHR_swapchain) {
+    XELOGVK("Vulkan device '{}' doesn't support presentation",
+            properties.deviceName);
+    return;
+  }
+
+  XELOGVK("Requested properties and features of the Vulkan device:");
+
+  XELOGVK("* driverVersion: 0x{:X}", properties.driverVersion);
+  XELOGVK("* vendorID: 0x{:04X}", properties.vendorID);
+  XELOGVK("* deviceID: 0x{:04X}", properties.deviceID);
+
+#define LIMIT(name)                           \
+  device_info_.name = properties.limits.name; \
+  XELOGVK("* " #name ": {}", properties.limits.name);
+#define LIMIT_SAMPLE_COUNTS(name)             \
+  device_info_.name = properties.limits.name; \
+  XELOGVK("* " #name ": 0b{:b}", static_cast<uint32_t>(properties.limits.name));
+  LIMIT(maxImageDimension2D)
+  LIMIT(maxImageDimension3D)
+  LIMIT(maxImageDimensionCube)
+  LIMIT(maxImageArrayLayers)
+  LIMIT(maxStorageBufferRange)
+  LIMIT(maxSamplerAllocationCount)
+  LIMIT(maxPerStageDescriptorSamplers)
+  LIMIT(maxPerStageDescriptorStorageBuffers)
+  LIMIT(maxPerStageDescriptorSampledImages)
+  LIMIT(maxPerStageResources)
+  LIMIT(maxVertexOutputComponents)
+  LIMIT(maxTessellationEvaluationOutputComponents)
+  LIMIT(maxGeometryInputComponents)
+  LIMIT(maxGeometryOutputComponents)
+  LIMIT(maxGeometryTotalOutputComponents)
+  LIMIT(maxFragmentInputComponents)
+  LIMIT(maxFragmentCombinedOutputResources)
+  LIMIT(maxSamplerAnisotropy)
+  std::memcpy(device_info_.maxViewportDimensions,
+              properties.limits.maxViewportDimensions,
+              sizeof(device_info_.maxViewportDimensions));
+  XELOGVK("* maxViewportDimensions: {} x {}",
+          properties.limits.maxViewportDimensions[0],
+          properties.limits.maxViewportDimensions[1]);
+  std::memcpy(device_info_.viewportBoundsRange,
+              properties.limits.viewportBoundsRange,
+              sizeof(device_info_.viewportBoundsRange));
+  XELOGVK("* viewportBoundsRange: [{}, {}]",
+          properties.limits.viewportBoundsRange[0],
+          properties.limits.viewportBoundsRange[1]);
+  LIMIT(minUniformBufferOffsetAlignment)
+  LIMIT(minStorageBufferOffsetAlignment)
+  LIMIT(maxFramebufferWidth)
+  LIMIT(maxFramebufferHeight)
+  LIMIT_SAMPLE_COUNTS(framebufferColorSampleCounts)
+  LIMIT_SAMPLE_COUNTS(framebufferDepthSampleCounts)
+  LIMIT_SAMPLE_COUNTS(framebufferStencilSampleCounts)
+  LIMIT_SAMPLE_COUNTS(framebufferNoAttachmentsSampleCounts)
+  LIMIT_SAMPLE_COUNTS(sampledImageColorSampleCounts)
+  LIMIT_SAMPLE_COUNTS(sampledImageIntegerSampleCounts)
+  LIMIT_SAMPLE_COUNTS(sampledImageDepthSampleCounts)
+  LIMIT_SAMPLE_COUNTS(sampledImageStencilSampleCounts)
+  LIMIT(standardSampleLocations)
+  LIMIT(optimalBufferCopyOffsetAlignment)
+  LIMIT(optimalBufferCopyRowPitchAlignment)
+  LIMIT(nonCoherentAtomSize)
+#undef LIMIT_SAMPLE_COUNTS
+#undef LIMIT
+
+  VkPhysicalDeviceFeatures supported_features;
+  ifn_.vkGetPhysicalDeviceFeatures(physical_device_, &supported_features);
+  // Enabling only needed features because drivers may take more optimal paths
+  // when certain features are disabled. Also, in VK_EXT_shader_object, which
+  // features are enabled effects the pipeline state must be set before drawing.
+  VkPhysicalDeviceFeatures enabled_features = {};
+
+#define FEATURE(name)                \
+  if (supported_features.name) {     \
+    device_info_.name = true;        \
+    enabled_features.name = VK_TRUE; \
+    XELOGVK("* " #name);             \
+  }
+  FEATURE(fullDrawIndexUint32)
+  FEATURE(independentBlend)
+  FEATURE(geometryShader)
+  FEATURE(tessellationShader)
+  FEATURE(sampleRateShading)
+  FEATURE(depthClamp)
+  FEATURE(fillModeNonSolid)
+  FEATURE(samplerAnisotropy)
+  FEATURE(vertexPipelineStoresAndAtomics)
+  FEATURE(fragmentStoresAndAtomics)
+  FEATURE(shaderClipDistance)
+  FEATURE(shaderCullDistance)
+  FEATURE(sparseBinding)
+  FEATURE(sparseResidencyBuffer)
+#undef FEATURE
+
+  VkPhysicalDeviceProperties2 properties2 = {
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+#define PROPERTIES2_DECLARE(type_suffix, structure_type_suffix) \
+  VkPhysicalDevice##type_suffix supported_##type_suffix = {     \
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_##structure_type_suffix};
+#define PROPERTIES2_ADD(type_suffix)                   \
+  (supported_##type_suffix).pNext = properties2.pNext; \
+  properties2.pNext = &(supported_##type_suffix);
+
+  VkPhysicalDeviceFeatures2 features2 = {
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+#define FEATURES2_DECLARE(type_suffix, structure_type_suffix)     \
+  VkPhysicalDevice##type_suffix supported_##type_suffix = {       \
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_##structure_type_suffix}; \
+  VkPhysicalDevice##type_suffix enabled_##type_suffix = {         \
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_##structure_type_suffix};
+#define FEATURES2_ADD(type_suffix)                                             \
+  (supported_##type_suffix).pNext = features2.pNext;                           \
+  features2.pNext = &(supported_##type_suffix);                                \
+  (enabled_##type_suffix).pNext = const_cast<void*>(device_create_info.pNext); \
+  device_create_info.pNext = &(enabled_##type_suffix);
+  // VUID-VkDeviceCreateInfo-pNext: "If the pNext chain includes a
+  // VkPhysicalDeviceVulkan1XFeatures structure, then it must not include..."
+  // Enabling the features in Vulkan1XFeatures instead.
+#define FEATURES2_ADD_PROMOTED(type_suffix, minor_version)                   \
+  (supported_##type_suffix).pNext = features2.pNext;                         \
+  features2.pNext = &(supported_##type_suffix);                              \
+  if (properties.apiVersion < VK_MAKE_API_VERSION(0, 1, minor_version, 0)) { \
+    (enabled_##type_suffix).pNext =                                          \
+        const_cast<void*>(device_create_info.pNext);                         \
+    device_create_info.pNext = &(enabled_##type_suffix);                     \
+  }
+
+  FEATURES2_DECLARE(Vulkan11Features, VULKAN_1_1_FEATURES)
+  if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
+    FEATURES2_ADD(Vulkan11Features)
+  }
+  FEATURES2_DECLARE(Vulkan12Features, VULKAN_1_2_FEATURES)
+  if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 2, 0)) {
+    FEATURES2_ADD(Vulkan12Features)
+  }
+  FEATURES2_DECLARE(Vulkan13Features, VULKAN_1_3_FEATURES)
+  if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 3, 0)) {
+    FEATURES2_ADD(Vulkan13Features)
+  }
+
+  FEATURES2_DECLARE(PortabilitySubsetFeaturesKHR,
+                    PORTABILITY_SUBSET_FEATURES_KHR)
+  if (device_info_.ext_VK_KHR_portability_subset) {
+    FEATURES2_ADD(PortabilitySubsetFeaturesKHR)
+  }
+  PROPERTIES2_DECLARE(FloatControlsProperties, FLOAT_CONTROLS_PROPERTIES)
+  if (device_info_.ext_1_2_VK_KHR_shader_float_controls) {
+    PROPERTIES2_ADD(FloatControlsProperties)
+  }
+  FEATURES2_DECLARE(FragmentShaderInterlockFeaturesEXT,
+                    FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT)
+  if (device_info_.ext_VK_EXT_fragment_shader_interlock) {
+    FEATURES2_ADD(FragmentShaderInterlockFeaturesEXT)
+  }
+  FEATURES2_DECLARE(ShaderDemoteToHelperInvocationFeatures,
+                    SHADER_DEMOTE_TO_HELPER_INVOCATION_FEATURES)
+  if (device_info_.ext_1_3_VK_EXT_shader_demote_to_helper_invocation) {
+    FEATURES2_ADD_PROMOTED(ShaderDemoteToHelperInvocationFeatures, 3)
+  }
+  FEATURES2_DECLARE(NonSeamlessCubeMapFeaturesEXT,
+                    NON_SEAMLESS_CUBE_MAP_FEATURES_EXT)
+  if (device_info_.ext_VK_EXT_non_seamless_cube_map) {
+    FEATURES2_ADD(NonSeamlessCubeMapFeaturesEXT)
+  }
+
+  if (instance_extensions_.khr_get_physical_device_properties2) {
+    ifn_.vkGetPhysicalDeviceProperties2(physical_device_, &properties2);
+    ifn_.vkGetPhysicalDeviceFeatures2(physical_device_, &features2);
+  }
+
+#undef FEATURES2_ADD_PROMOTED
+#undef FEATURES2_ADD
+#undef FEATURES2_DECLARE
+#undef PROPERTIES2_ADD
+#undef PROPERTIES2_DECLARE
+
+  // VK_KHR_portability_subset removes functionality rather than adding it, so
+  // if the extension is not present, all its features are true by default.
+#define PORTABILITY_SUBSET_FEATURE(name)                   \
+  if (device_info_.ext_VK_KHR_portability_subset) {        \
+    if (supported_PortabilitySubsetFeaturesKHR.name) {     \
+      device_info_.name = true;                            \
+      enabled_PortabilitySubsetFeaturesKHR.name = VK_TRUE; \
+      XELOGVK("* " #name);                                 \
+    }                                                      \
+  } else {                                                 \
+    device_info_.name = true;                              \
+  }
+  PORTABILITY_SUBSET_FEATURE(constantAlphaColorBlendFactors)
+  PORTABILITY_SUBSET_FEATURE(imageViewFormatReinterpretation)
+  PORTABILITY_SUBSET_FEATURE(imageViewFormatSwizzle)
+  PORTABILITY_SUBSET_FEATURE(pointPolygons)
+  PORTABILITY_SUBSET_FEATURE(separateStencilMaskRef)
+  PORTABILITY_SUBSET_FEATURE(shaderSampleRateInterpolationFunctions)
+  PORTABILITY_SUBSET_FEATURE(triangleFans)
+#undef PORTABILITY_SUBSET_FEATURE
+
+#define EXTENSION_PROPERTY(type_suffix, name)       \
+  device_info_.name = supported_##type_suffix.name; \
+  XELOGVK("* " #name ": {}", supported_##type_suffix.name);
+#define EXTENSION_FEATURE(type_suffix, name) \
+  if (supported_##type_suffix.name) {        \
+    device_info_.name = true;                \
+    enabled_##type_suffix.name = VK_TRUE;    \
+    XELOGVK("* " #name);                     \
+  }
+#define EXTENSION_FEATURE_PROMOTED(type_suffix, name, minor_version) \
+  if (supported_##type_suffix.name) {                                \
+    device_info_.name = true;                                        \
+    enabled_##type_suffix.name = VK_TRUE;                            \
+    enabled_Vulkan1##minor_version##Features.name = VK_TRUE;         \
+    XELOGVK("* " #name);                                             \
+  }
+#define EXTENSION_FEATURE_PROMOTED_AS_OPTIONAL(name, minor_version) \
+  if (supported_Vulkan1##minor_version##Features.name) {            \
+    device_info_.name = true;                                       \
+    enabled_Vulkan1##minor_version##Features.name = VK_TRUE;        \
+    XELOGVK("* " #name);                                            \
+  }
+
+  if (device_info_.ext_1_2_VK_KHR_sampler_mirror_clamp_to_edge) {
+    if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 2, 0)) {
+      // Promoted - the feature is optional, and must be enabled if the
+      // extension is also enabled
+      // (VUID-VkDeviceCreateInfo-ppEnabledExtensionNames-02832).
+      EXTENSION_FEATURE_PROMOTED_AS_OPTIONAL(samplerMirrorClampToEdge, 2)
+    } else {
+      // Extension - the feature is implied.
+      device_info_.samplerMirrorClampToEdge = true;
+      XELOGVK("* samplerMirrorClampToEdge");
+    }
+  }
+
+  if (device_info_.ext_1_2_VK_KHR_shader_float_controls) {
+    EXTENSION_PROPERTY(FloatControlsProperties,
+                       shaderSignedZeroInfNanPreserveFloat32)
+    EXTENSION_PROPERTY(FloatControlsProperties, shaderDenormFlushToZeroFloat32)
+    EXTENSION_PROPERTY(FloatControlsProperties, shaderRoundingModeRTEFloat32)
+  }
+
+  if (device_info_.ext_VK_EXT_fragment_shader_interlock) {
+    EXTENSION_FEATURE(FragmentShaderInterlockFeaturesEXT,
+                      fragmentShaderSampleInterlock)
+    // fragmentShaderPixelInterlock is not needed by Xenia if
+    // fragmentShaderSampleInterlock is available as it accesses only per-sample
+    // data.
+    if (!device_info_.fragmentShaderSampleInterlock) {
+      EXTENSION_FEATURE(FragmentShaderInterlockFeaturesEXT,
+                        fragmentShaderPixelInterlock)
+    }
+  }
+
+  if (device_info_.ext_1_3_VK_EXT_shader_demote_to_helper_invocation) {
+    EXTENSION_FEATURE_PROMOTED(ShaderDemoteToHelperInvocationFeatures,
+                               shaderDemoteToHelperInvocation, 3)
+  }
+
+  if (device_info_.ext_VK_EXT_non_seamless_cube_map) {
+    EXTENSION_FEATURE(NonSeamlessCubeMapFeaturesEXT, nonSeamlessCubeMap)
+  }
+
+#undef EXTENSION_FEATURE_PROMOTED_AS_OPTIONAL
+#undef EXTENSION_FEATURE_PROMOTED
+#undef EXTENSION_FEATURE
+#undef EXTENSION_PROPERTY
+
+  // Memory types.
+
+  VkPhysicalDeviceMemoryProperties memory_properties;
+  ifn_.vkGetPhysicalDeviceMemoryProperties(physical_device_,
+                                           &memory_properties);
+  for (uint32_t memory_type_index = 0;
+       memory_type_index < memory_properties.memoryTypeCount;
+       ++memory_type_index) {
+    VkMemoryPropertyFlags memory_property_flags =
+        memory_properties.memoryTypes[memory_type_index].propertyFlags;
+    uint32_t memory_type_bit = uint32_t(1) << memory_type_index;
+    if (memory_property_flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
+      device_info_.memory_types_device_local |= memory_type_bit;
+    }
+    if (memory_property_flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
+      device_info_.memory_types_host_visible |= memory_type_bit;
+    }
+    if (memory_property_flags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) {
+      device_info_.memory_types_host_coherent |= memory_type_bit;
+    }
+    if (memory_property_flags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT) {
+      device_info_.memory_types_host_cached |= memory_type_bit;
+    }
+  }
+
+  // Queue families.
+
+  uint32_t queue_family_count;
+  ifn_.vkGetPhysicalDeviceQueueFamilyProperties(physical_device_,
+                                                &queue_family_count, nullptr);
+  std::vector<VkQueueFamilyProperties> queue_families_properties(
+      queue_family_count);
+  ifn_.vkGetPhysicalDeviceQueueFamilyProperties(
+      physical_device_, &queue_family_count, queue_families_properties.data());
+  queue_families_properties.resize(queue_family_count);
+
+  queue_families_.clear();
+  queue_families_.resize(queue_family_count);
+
+  queue_family_graphics_compute_ = UINT32_MAX;
+  queue_family_sparse_binding_ = UINT32_MAX;
+  if (device_info_.sparseBinding) {
+    // Prefer a queue family that supports both graphics/compute and sparse
+    // binding because in Xenia sparse binding is done serially with graphics
+    // work.
+    for (uint32_t queue_family_index = 0;
+         queue_family_index < queue_family_count; ++queue_family_index) {
+      VkQueueFlags queue_flags =
+          queue_families_properties[queue_family_index].queueFlags;
+      bool is_graphics_compute =
+          (queue_flags & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT)) ==
+          (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT);
+      bool is_sparse_binding = (queue_flags & VK_QUEUE_SPARSE_BINDING_BIT) ==
+                               VK_QUEUE_SPARSE_BINDING_BIT;
+      if (is_graphics_compute && is_sparse_binding) {
+        queue_family_graphics_compute_ = queue_family_index;
+        queue_family_sparse_binding_ = queue_family_index;
+        break;
+      }
+      // If can't do both, prefer the queue family that can do either with the
+      // lowest index.
+      if (is_graphics_compute && queue_family_graphics_compute_ == UINT32_MAX) {
+        queue_family_graphics_compute_ = queue_family_index;
+      }
+      if (is_sparse_binding && queue_family_sparse_binding_ == UINT32_MAX) {
+        queue_family_sparse_binding_ = queue_family_index;
+      }
+    }
+  } else {
+    for (uint32_t queue_family_index = 0;
+         queue_family_index < queue_family_count; ++queue_family_index) {
+      if ((queue_families_properties[queue_family_index].queueFlags &
+           (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT)) ==
+          (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT)) {
+        queue_family_graphics_compute_ = queue_family_index;
+        break;
+      }
+    }
+  }
+
+  if (queue_family_graphics_compute_ == UINT32_MAX) {
+    XELOGVK("Vulkan device '{}' doesn't have a graphics and compute queue",
+            properties.deviceName);
+    return;
+  }
+  queue_families_[queue_family_graphics_compute_].queue_count = std::max(
+      uint32_t(1), queue_families_[queue_family_graphics_compute_].queue_count);
+
+  if (device_info_.sparseBinding &&
+      queue_family_sparse_binding_ == UINT32_MAX) {
+    XELOGVK(
+        "Vulkan device '{}' reports that it supports sparse binding, but "
+        "doesn't have a queue that can perform sparse binding operations, "
+        "disabling sparse binding",
+        properties.deviceName);
+    device_info_.sparseBinding = false;
+    enabled_features.sparseBinding = false;
+  }
+  if (!enabled_features.sparseBinding) {
+    device_info_.sparseResidencyBuffer = false;
+    enabled_features.sparseResidencyBuffer = false;
+  }
+  if (queue_family_sparse_binding_ != UINT32_MAX) {
+    queue_families_[queue_family_sparse_binding_].queue_count = std::max(
+        uint32_t(1), queue_families_[queue_family_sparse_binding_].queue_count);
+  }
+
+  // Request queues of all families potentially supporting presentation as which
+  // ones will actually be used depends on the surface object.
+  bool any_queue_potentially_supports_present = false;
+  if (instance_extensions_.khr_surface) {
+    for (uint32_t queue_family_index = 0;
+         queue_family_index < queue_family_count; ++queue_family_index) {
+#if XE_PLATFORM_WIN32
+      if (instance_extensions_.khr_win32_surface &&
+          !ifn_.vkGetPhysicalDeviceWin32PresentationSupportKHR(
+              physical_device_, queue_family_index)) {
+        continue;
+      }
+#endif
+      QueueFamily& queue_family = queue_families_[queue_family_index];
+      // Requesting an additional queue in each family where possible so
+      // asynchronous presentation can potentially be done within a single queue
+      // family too.
+      queue_family.queue_count =
+          std::min(queue_families_properties[queue_family_index].queueCount,
+                   queue_family.queue_count + uint32_t(1));
+      queue_family.potentially_supports_present = true;
+      any_queue_potentially_supports_present = true;
+    }
+  }
+  if (!any_queue_potentially_supports_present && is_surface_required_) {
+    XELOGVK(
+        "Vulkan device '{}' doesn't have any queues supporting presentation",
+        properties.deviceName);
+    return;
+  }
+
+  std::vector<VkDeviceQueueCreateInfo> queue_create_infos;
+  queue_create_infos.reserve(queue_families_.size());
+  uint32_t used_queue_count = 0;
+  uint32_t max_queue_count_per_family = 0;
+  for (uint32_t queue_family_index = 0; queue_family_index < queue_family_count;
+       ++queue_family_index) {
+    QueueFamily& queue_family = queue_families_[queue_family_index];
+    queue_family.queue_first_index = used_queue_count;
+    if (!queue_family.queue_count) {
+      continue;
+    }
+    VkDeviceQueueCreateInfo& queue_create_info =
+        queue_create_infos.emplace_back();
+    queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queue_create_info.pNext = nullptr;
+    queue_create_info.flags = 0;
+    queue_create_info.queueFamilyIndex = queue_family_index;
+    queue_create_info.queueCount = queue_family.queue_count;
+    // pQueuePriorities will be set later based on max_queue_count_per_family.
+    max_queue_count_per_family =
+        std::max(max_queue_count_per_family, queue_family.queue_count);
+    used_queue_count += queue_family.queue_count;
+  }
+  std::vector<float> queue_priorities(max_queue_count_per_family, 1.0f);
+  for (VkDeviceQueueCreateInfo& queue_create_info : queue_create_infos) {
+    queue_create_info.pQueuePriorities = queue_priorities.data();
+  }
+
+  // Create the device.
+
+  device_create_info.queueCreateInfoCount =
+      static_cast<uint32_t>(queue_create_infos.size());
+  device_create_info.pQueueCreateInfos = queue_create_infos.data();
+  device_create_info.enabledExtensionCount =
+      static_cast<uint32_t>(enabled_extensions.size());
+  device_create_info.ppEnabledExtensionNames = enabled_extensions.data();
+  device_create_info.pEnabledFeatures = &enabled_features;
+  VkResult create_device_result = ifn_.vkCreateDevice(
+      physical_device_, &device_create_info, nullptr, &device_);
+  if (create_device_result != VK_SUCCESS) {
+    XELOGE(
+        "Failed to create a Vulkan device for physical device '{}', result {}",
+        properties.deviceName, static_cast<int32_t>(create_device_result));
+    device_ = VK_NULL_HANDLE;
+    return;
+  }
+
+  // Device function pointers.
+
+  std::memset(&dfn_, 0, sizeof(dfn_));
+
+  bool functions_loaded = true;
+
+#define XE_UI_VULKAN_FUNCTION(name)                                         \
+  functions_loaded &=                                                       \
+      (dfn_.name = PFN_##name(ifn_.vkGetDeviceProcAddr(device_, #name))) != \
+      nullptr;
+
+  // Vulkan 1.0.
+#include "xenia/ui/vulkan/functions/device_1_0.inc"
+
+  // Promoted extensions when the API version they're promoted to is supported.
+#define XE_UI_VULKAN_FUNCTION_PROMOTED(extension_name, core_name) \
+  functions_loaded &=                                             \
+      (dfn_.core_name = PFN_##core_name(                          \
+           ifn_.vkGetDeviceProcAddr(device_, #core_name))) != nullptr;
+  if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0)) {
+#include "xenia/ui/vulkan/functions/device_khr_bind_memory2.inc"
+#include "xenia/ui/vulkan/functions/device_khr_get_memory_requirements2.inc"
+  }
+  if (properties.apiVersion >= VK_MAKE_API_VERSION(0, 1, 3, 0)) {
+#include "xenia/ui/vulkan/functions/device_khr_maintenance4.inc"
+  }
+#undef XE_UI_VULKAN_FUNCTION_PROMOTED
+
+  // Non-promoted extensions, and promoted extensions on API versions lower than
+  // the ones they were promoted to.
+#define XE_UI_VULKAN_FUNCTION_PROMOTED(extension_name, core_name) \
+  functions_loaded &=                                             \
+      (dfn_.core_name = PFN_##core_name(                          \
+           ifn_.vkGetDeviceProcAddr(device_, #extension_name))) != nullptr;
+  if (device_info_.ext_VK_KHR_swapchain) {
+#include "xenia/ui/vulkan/functions/device_khr_swapchain.inc"
+  }
+  if (properties.apiVersion < VK_MAKE_API_VERSION(0, 1, 1, 0)) {
+    if (device_info_.ext_1_1_VK_KHR_get_memory_requirements2) {
+#include "xenia/ui/vulkan/functions/device_khr_get_memory_requirements2.inc"
+    }
+    if (device_info_.ext_1_1_VK_KHR_bind_memory2) {
+#include "xenia/ui/vulkan/functions/device_khr_bind_memory2.inc"
+    }
+  }
+  if (properties.apiVersion < VK_MAKE_API_VERSION(0, 1, 3, 0)) {
+    if (device_info_.ext_1_3_VK_KHR_maintenance4) {
+#include "xenia/ui/vulkan/functions/device_khr_maintenance4.inc"
+    }
+  }
+#undef XE_UI_VULKAN_FUNCTION_PROMOTED
+
+#undef XE_UI_VULKAN_FUNCTION
+
+  if (!functions_loaded) {
+    XELOGE("Failed to get all Vulkan device function pointers for '{}'",
+           properties.deviceName);
+    ifn_.vkDestroyDevice(device_, nullptr);
+    device_ = VK_NULL_HANDLE;
+    return;
+  }
+
+  // Queues.
+
+  queues_.reset();
+  queues_ = std::make_unique<Queue[]>(used_queue_count);
+  uint32_t queue_index = 0;
+  for (uint32_t queue_family_index = 0; queue_family_index < queue_family_count;
+       ++queue_family_index) {
+    const QueueFamily& queue_family = queue_families_[queue_family_index];
+    if (!queue_family.queue_count) {
+      continue;
+    }
+    assert_true(queue_index == queue_family.queue_first_index);
+    for (uint32_t family_queue_index = 0;
+         family_queue_index < queue_family.queue_count; ++family_queue_index) {
+      VkQueue queue;
+      dfn_.vkGetDeviceQueue(device_, queue_family_index, family_queue_index,
+                            &queue);
+      queues_[queue_index++].queue = queue;
+    }
+  }
+
+  XELOGVK("Created a Vulkan device for physical device '{}'",
+          properties.deviceName);
 }
 
 }  // namespace vulkan

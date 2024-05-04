@@ -320,7 +320,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
   static constexpr uint32_t kSpirvMagicToolId = 26;
 
   struct Features {
-    explicit Features(const ui::vulkan::VulkanProvider& provider);
+    explicit Features(
+        const ui::vulkan::VulkanProvider::DeviceInfo& device_info);
     explicit Features(bool all = false);
     unsigned int spirv_version;
     uint32_t max_storage_buffer_range;
@@ -332,6 +333,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
     bool image_view_format_swizzle;
     bool signed_zero_inf_nan_preserve_float32;
     bool denorm_flush_to_zero_float32;
+    bool rounding_mode_rte_float32;
   };
 
   SpirvShaderTranslator(const Features& features,
