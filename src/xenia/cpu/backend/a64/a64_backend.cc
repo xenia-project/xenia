@@ -458,7 +458,9 @@ void A64ThunkEmitter::EmitSaveVolatileRegs() {
 }
 
 void A64ThunkEmitter::EmitLoadVolatileRegs() {
-  LDR(X0, XSP, offsetof(StackLayout::Thunk, r[0]));
+  // Preserve arguments passed to and returned from a subroutine
+  // LDR(X0, XSP, offsetof(StackLayout::Thunk, r[0]));
+
   LDR(X1, XSP, offsetof(StackLayout::Thunk, r[1]));
   LDR(X2, XSP, offsetof(StackLayout::Thunk, r[2]));
   LDR(X3, XSP, offsetof(StackLayout::Thunk, r[3]));
@@ -481,7 +483,8 @@ void A64ThunkEmitter::EmitLoadVolatileRegs() {
 
   LDR(X30, XSP, offsetof(StackLayout::Thunk, r[19]));
 
-  LDR(Q0, XSP, offsetof(StackLayout::Thunk, xmm[0]));
+  // Preserve arguments passed to and returned from a subroutine
+  // LDR(Q0, XSP, offsetof(StackLayout::Thunk, xmm[0]));
   LDR(Q1, XSP, offsetof(StackLayout::Thunk, xmm[1]));
   LDR(Q2, XSP, offsetof(StackLayout::Thunk, xmm[2]));
   LDR(Q3, XSP, offsetof(StackLayout::Thunk, xmm[3]));
