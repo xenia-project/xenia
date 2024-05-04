@@ -337,8 +337,12 @@ GuestToHostThunk A64ThunkEmitter::EmitGuestToHostThunk() {
 uint64_t ResolveFunction(void* raw_context, uint64_t target_address);
 
 ResolveFunctionThunk A64ThunkEmitter::EmitResolveFunctionThunk() {
-  // ebx = target PPC address
-  // rcx = context
+  // Entry:
+  // X0 = target PPC address
+
+  // Resolve Function:
+  // X0 = context
+  // X1 = target PPC address
 
   struct _code_offsets {
     size_t prolog;
@@ -366,8 +370,8 @@ ResolveFunctionThunk A64ThunkEmitter::EmitResolveFunctionThunk() {
   // mov(rdx, rbx);
   // mov(rax, reinterpret_cast<uint64_t>(&ResolveFunction));
   // call(rax)
+  MOV(X1, X0);
   MOV(X0, GetContextReg());  // context
-  MOV(X1, X1);
   MOVP2R(X16, &ResolveFunction);
   BLR(X16);
 
