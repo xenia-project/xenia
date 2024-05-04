@@ -1987,44 +1987,44 @@ EMITTER_OPCODE_TABLE(OPCODE_RECIP, RECIP_F32, RECIP_F64, RECIP_V128);
 // TODO(benvanik): use approx here:
 //     https://jrfonseca.blogspot.com/2008/09/fast-sse2-pow-tables-or-polynomials.html
 struct POW2_F32 : Sequence<POW2_F32, I<OPCODE_POW2, F32Op, F32Op>> {
-  static float32x4_t EmulatePow2(void*, float32x4_t src) {
+  static float32x4_t EmulatePow2(void*, std::byte src[16]) {
     float src_value;
-    vst1q_lane_f32(&src_value, src, 0);
+    vst1q_lane_f32(&src_value, vld1q_u8(src), 0);
     const float result = std::exp2(src_value);
-    return vld1q_lane_f32(&result, src, 0);
+    return vld1q_lane_f32(&result, vld1q_u8(src), 0);
   }
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     assert_always();
-    e.LDR(e.GetNativeParam(0), XSP, e.StashV(0, i.src1.reg().toQ()));
+    e.ADD(e.GetNativeParam(0), XSP, e.StashV(0, i.src1.reg().toQ()));
     e.CallNativeSafe(reinterpret_cast<void*>(EmulatePow2));
     e.FMOV(i.dest, S0);
   }
 };
 struct POW2_F64 : Sequence<POW2_F64, I<OPCODE_POW2, F64Op, F64Op>> {
-  static float64x2_t EmulatePow2(void*, float64x2_t src) {
+  static float64x2_t EmulatePow2(void*, std::byte src[16]) {
     double src_value;
-    vst1q_lane_f64(&src_value, src, 0);
+    vst1q_lane_f64(&src_value, vld1q_u8(src), 0);
     const double result = std::exp2(src_value);
-    return vld1q_lane_f64(&result, src, 0);
+    return vld1q_lane_f64(&result, vld1q_u8(src), 0);
   }
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     assert_always();
-    e.LDR(e.GetNativeParam(0), XSP, e.StashV(0, i.src1.reg().toQ()));
+    e.ADD(e.GetNativeParam(0), XSP, e.StashV(0, i.src1.reg().toQ()));
     e.CallNativeSafe(reinterpret_cast<void*>(EmulatePow2));
     e.FMOV(i.dest, D0);
   }
 };
 struct POW2_V128 : Sequence<POW2_V128, I<OPCODE_POW2, V128Op, V128Op>> {
-  static float32x4_t EmulatePow2(void*, float32x4_t src) {
+  static float32x4_t EmulatePow2(void*, std::byte src[16]) {
     alignas(16) float values[4];
-    vst1q_f32(values, src);
+    vst1q_f32(values, vld1q_u8(src));
     for (size_t i = 0; i < 4; ++i) {
       values[i] = std::exp2(values[i]);
     }
     return vld1q_f32(values);
   }
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    e.LDR(e.GetNativeParam(0), XSP, e.StashV(0, i.src1.reg().toQ()));
+    e.ADD(e.GetNativeParam(0), XSP, e.StashV(0, i.src1.reg().toQ()));
     e.CallNativeSafe(reinterpret_cast<void*>(EmulatePow2));
     e.MOV(i.dest.reg().B16(), Q0.B16());
   }
@@ -2038,45 +2038,45 @@ EMITTER_OPCODE_TABLE(OPCODE_POW2, POW2_F32, POW2_F64, POW2_V128);
 //     https://jrfonseca.blogspot.com/2008/09/fast-sse2-pow-tables-or-polynomials.html
 // TODO(benvanik): this emulated fn destroys all xmm registers! don't do it!
 struct LOG2_F32 : Sequence<LOG2_F32, I<OPCODE_LOG2, F32Op, F32Op>> {
-  static float32x4_t EmulateLog2(void*, float32x4_t src) {
+  static float32x4_t EmulateLog2(void*, std::byte src[16]) {
     float src_value;
-    vst1q_lane_f32(&src_value, src, 0);
+    vst1q_lane_f32(&src_value, vld1q_u8(src), 0);
     float result = std::log2(src_value);
-    return vld1q_lane_f32(&result, src, 0);
+    return vld1q_lane_f32(&result, vld1q_u8(src), 0);
   }
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     assert_always();
     if (i.src1.is_constant) {
-      e.LDR(e.GetNativeParam(0), XSP, e.StashConstantV(0, i.src1.constant()));
+      e.ADD(e.GetNativeParam(0), XSP, e.StashConstantV(0, i.src1.constant()));
     } else {
-      e.LDR(e.GetNativeParam(0), XSP, e.StashV(0, i.src1.reg().toQ()));
+      e.ADD(e.GetNativeParam(0), XSP, e.StashV(0, i.src1.reg().toQ()));
     }
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateLog2));
     e.FMOV(i.dest, S0);
   }
 };
 struct LOG2_F64 : Sequence<LOG2_F64, I<OPCODE_LOG2, F64Op, F64Op>> {
-  static float64x2_t EmulateLog2(void*, float64x2_t src) {
+  static float64x2_t EmulateLog2(void*, std::byte src[16]) {
     double src_value;
-    vst1q_lane_f64(&src_value, src, 0);
+    vst1q_lane_f64(&src_value, vld1q_u8(src), 0);
     double result = std::log2(src_value);
-    return vld1q_lane_f64(&result, src, 0);
+    return vld1q_lane_f64(&result, vld1q_u8(src), 0);
   }
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     assert_always();
     if (i.src1.is_constant) {
-      e.LDR(e.GetNativeParam(0), XSP, e.StashConstantV(0, i.src1.constant()));
+      e.ADD(e.GetNativeParam(0), XSP, e.StashConstantV(0, i.src1.constant()));
     } else {
-      e.LDR(e.GetNativeParam(0), XSP, e.StashV(0, i.src1.reg().toQ()));
+      e.ADD(e.GetNativeParam(0), XSP, e.StashV(0, i.src1.reg().toQ()));
     }
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateLog2));
     e.FMOV(i.dest, D0);
   }
 };
 struct LOG2_V128 : Sequence<LOG2_V128, I<OPCODE_LOG2, V128Op, V128Op>> {
-  static float32x4_t EmulateLog2(void*, float32x4_t src) {
+  static float32x4_t EmulateLog2(void*, std::byte src[16]) {
     alignas(16) float values[4];
-    vst1q_f32(values, src);
+    vst1q_f32(values, vld1q_u8(src));
     for (size_t i = 0; i < 4; ++i) {
       values[i] = std::log2(values[i]);
     }
@@ -2084,9 +2084,9 @@ struct LOG2_V128 : Sequence<LOG2_V128, I<OPCODE_LOG2, V128Op, V128Op>> {
   }
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     if (i.src1.is_constant) {
-      e.LDR(e.GetNativeParam(0), XSP, e.StashConstantV(0, i.src1.constant()));
+      e.ADD(e.GetNativeParam(0), XSP, e.StashConstantV(0, i.src1.constant()));
     } else {
-      e.LDR(e.GetNativeParam(0), XSP, e.StashV(0, i.src1.reg().toQ()));
+      e.ADD(e.GetNativeParam(0), XSP, e.StashV(0, i.src1.reg().toQ()));
     }
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateLog2));
     e.MOV(i.dest.reg().B16(), Q0.B16());
@@ -2417,16 +2417,16 @@ struct SHL_V128 : Sequence<SHL_V128, I<OPCODE_SHL, V128Op, V128Op, I8Op>> {
     } else {
       e.MOV(e.GetNativeParam(1), i.src2.reg().toX());
     }
-    e.LDR(e.GetNativeParam(0), XSP, e.StashV(0, i.src1));
+    e.ADD(e.GetNativeParam(0), XSP, e.StashV(0, i.src1));
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateShlV128));
     e.MOV(i.dest.reg().B16(), Q0.B16());
   }
-  static float32x4_t EmulateShlV128(void*, float32x4_t src1, uint8_t src2) {
+  static float32x4_t EmulateShlV128(void*, std::byte src1[16], uint8_t src2) {
     // Almost all instances are shamt = 1, but non-constant.
     // shamt is [0,7]
     uint8_t shamt = src2 & 0x7;
     alignas(16) vec128_t value;
-    vst1q_f32(reinterpret_cast<float32x4_t*>(&value), src1);
+    vst1q_f32(reinterpret_cast<float32x4_t*>(&value), vld1q_u8(src1));
     for (int i = 0; i < 15; ++i) {
       value.u8[i ^ 0x3] = (value.u8[i ^ 0x3] << shamt) |
                           (value.u8[(i + 1) ^ 0x3] >> (8 - shamt));
@@ -2496,16 +2496,16 @@ struct SHR_V128 : Sequence<SHR_V128, I<OPCODE_SHR, V128Op, V128Op, I8Op>> {
     } else {
       e.MOV(e.GetNativeParam(1), i.src2.reg().toX());
     }
-    e.LDR(e.GetNativeParam(0), XSP, e.StashV(0, i.src1));
+    e.ADD(e.GetNativeParam(0), XSP, e.StashV(0, i.src1));
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateShrV128));
     e.MOV(i.dest.reg().B16(), Q0.B16());
   }
-  static float32x4_t EmulateShrV128(void*, float32x4_t src1, uint8_t src2) {
+  static float32x4_t EmulateShrV128(void*, std::byte src1[16], uint8_t src2) {
     // Almost all instances are shamt = 1, but non-constant.
     // shamt is [0,7]
     uint8_t shamt = src2 & 0x7;
     alignas(16) vec128_t value;
-    vst1q_f32(reinterpret_cast<float32x4_t*>(&value), src1);
+    vst1q_f32(reinterpret_cast<float32x4_t*>(&value), vld1q_u8(src1));
     for (int i = 15; i > 0; --i) {
       value.u8[i ^ 0x3] = (value.u8[i ^ 0x3] >> shamt) |
                           (value.u8[(i - 1) ^ 0x3] << (8 - shamt));
