@@ -1124,8 +1124,57 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     e.LDR(Q0, X0);
     e.TBL(i.dest.reg().B16(), List{i.dest.reg().B16()}, Q0.B16());
   }
-  static void EmitFLOAT16_2(A64Emitter& e, const EmitArgType& i) {}
-  static void EmitFLOAT16_4(A64Emitter& e, const EmitArgType& i) {}
+  static uint8x16_t EmulateFLOAT16_2(void*, std::byte src1[16]) {
+    alignas(16) float a[4];
+    alignas(16) uint16_t b[8];
+    vst1q_u8(a, vld1q_u8(src1));
+    std::memset(b, 0, sizeof(b));
+
+    for (int i = 0; i < 2; i++) {
+      b[7 - i] = half_float::detail::float2half<std::round_toward_zero>(a[i]);
+    }
+
+    return vld1q_u8(b);
+  }
+  static void EmitFLOAT16_2(A64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.value->IsConstantZero());
+    // http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
+    // dest = [(src1.x | src1.y), 0, 0, 0]
+
+    if (i.src1.is_constant) {
+      e.ADD(e.GetNativeParam(0), XSP, e.StashConstantV(0, i.src1.constant()));
+    } else {
+      e.ADD(e.GetNativeParam(0), XSP, e.StashV(0, i.src1));
+    }
+    e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_2));
+    e.MOV(i.dest.reg().B16(), Q0.B16());
+  }
+  static uint8x16_t EmulateFLOAT16_4(void*, std::byte src1[16]) {
+    alignas(16) float a[4];
+    alignas(16) uint16_t b[8];
+    vst1q_u8(a, vld1q_u8(src1));
+    std::memset(b, 0, sizeof(b));
+
+    for (int i = 0; i < 4; i++) {
+      b[7 - (i ^ 2)] =
+          half_float::detail::float2half<std::round_toward_zero>(a[i]);
+    }
+
+    return vld1q_u8(b);
+  }
+  static void EmitFLOAT16_4(A64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.value->IsConstantZero());
+    // http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
+    // dest = [(src1.z | src1.w), (src1.x | src1.y), 0, 0]
+
+    if (i.src1.is_constant) {
+      e.ADD(e.GetNativeParam(0), XSP, e.StashConstantV(0, i.src1.constant()));
+    } else {
+      e.ADD(e.GetNativeParam(0), XSP, e.StashV(0, i.src1));
+    }
+    e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_4));
+    e.MOV(i.dest.reg().B16(), Q0.B16());
+  }
   static void EmitSHORT_2(A64Emitter& e, const EmitArgType& i) {}
   static void EmitSHORT_4(A64Emitter& e, const EmitArgType& i) {}
   static void EmitUINT_2101010(A64Emitter& e, const EmitArgType& i) {}
