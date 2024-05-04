@@ -382,7 +382,7 @@ ResolveFunctionThunk A64ThunkEmitter::EmitResolveFunctionThunk() {
   // add(rsp, stack_size);
   // jmp(rax);
   ADD(XSP, XSP, stack_size);
-  BR(X16);
+  BR(X0);
 
   code_offsets.tail = offset();
 
