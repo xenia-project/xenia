@@ -746,10 +746,52 @@ EMITTER_OPCODE_TABLE(OPCODE_VECTOR_SHA, VECTOR_SHA_V128);
 // ============================================================================
 // OPCODE_VECTOR_ROTATE_LEFT
 // ============================================================================
+template <typename T, std::enable_if_t<std::is_integral<T>::value, int> = 0>
+static uint8x16_t EmulateVectorRotateLeft(void*, std::byte src1[16],
+                                          std::byte src2[16]) {
+  alignas(16) T value[16 / sizeof(T)];
+  alignas(16) T shamt[16 / sizeof(T)];
+
+  // Load NEON registers into a C array.
+  vst1q_u8(reinterpret_cast<T*>(value), vld1q_u8(src1));
+  vst1q_u8(reinterpret_cast<T*>(shamt), vld1q_u8(src2));
+
+  for (size_t i = 0; i < (16 / sizeof(T)); ++i) {
+    value[i] = xe::rotate_left<T>(value[i], shamt[i] & ((sizeof(T) * 8) - 1));
+  }
+
+  // Store result and return it.
+  return vld1q_u8(value);
+}
 struct VECTOR_ROTATE_LEFT_V128
     : Sequence<VECTOR_ROTATE_LEFT_V128,
                I<OPCODE_VECTOR_ROTATE_LEFT, V128Op, V128Op, V128Op>> {
-  static void Emit(A64Emitter& e, const EmitArgType& i) {}
+  static void Emit(A64Emitter& e, const EmitArgType& i) {
+    if (i.src2.is_constant) {
+      e.ADD(e.GetNativeParam(1), XSP, e.StashConstantV(1, i.src2.constant()));
+    } else {
+      e.ADD(e.GetNativeParam(1), XSP, e.StashV(1, i.src2));
+    }
+    e.ADD(e.GetNativeParam(0), XSP, e.StashV(0, i.src1));
+    switch (i.instr->flags) {
+      case INT8_TYPE:
+        e.CallNativeSafe(
+            reinterpret_cast<void*>(EmulateVectorRotateLeft<uint8_t>));
+        break;
+      case INT16_TYPE:
+        e.CallNativeSafe(
+            reinterpret_cast<void*>(EmulateVectorRotateLeft<uint16_t>));
+        break;
+      case INT32_TYPE:
+        e.CallNativeSafe(
+            reinterpret_cast<void*>(EmulateVectorRotateLeft<uint32_t>));
+        break;
+      default:
+        assert_always();
+        break;
+    }
+    e.MOV(i.dest.reg().B16(), Q0.B16());
+  }
 };
 EMITTER_OPCODE_TABLE(OPCODE_VECTOR_ROTATE_LEFT, VECTOR_ROTATE_LEFT_V128);
 
