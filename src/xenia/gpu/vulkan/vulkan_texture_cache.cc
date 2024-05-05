@@ -17,6 +17,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
+#include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/texture_util.h"
 #include "xenia/gpu/vulkan/deferred_command_buffer.h"
@@ -760,9 +761,11 @@ VkSampler VulkanTextureCache::UseSampler(SamplerParameters parameters,
   // GetSamplerParameters.
   VkSamplerCreateInfo sampler_create_info = {};
   sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-  // TODO(Triang3l): VK_SAMPLER_CREATE_NON_SEAMLESS_CUBE_MAP_BIT_EXT if
-  // VK_EXT_non_seamless_cube_map and the nonSeamlessCubeMap feature are
-  // supported.
+  if (provider.device_info().nonSeamlessCubeMap &&
+      cvars::non_seamless_cube_map) {
+    sampler_create_info.flags |=
+        VK_SAMPLER_CREATE_NON_SEAMLESS_CUBE_MAP_BIT_EXT;
+  }
   sampler_create_info.magFilter =
       parameters.mag_linear ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
   sampler_create_info.minFilter =
