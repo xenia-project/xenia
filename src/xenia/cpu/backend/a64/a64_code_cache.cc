@@ -244,8 +244,8 @@ void A64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
     // Copy code.
     std::memcpy(code_write_address, machine_code, func_info.code_size.total);
 
-    // Fill unused slots with 0xCC
-    std::memset(tail_write_address, 0xCC,
+    // Fill unused slots with 0x00
+    std::memset(tail_write_address, 0x00,
                 static_cast<size_t>(end_write_address - tail_write_address));
 
     // Notify subclasses of placed code.
