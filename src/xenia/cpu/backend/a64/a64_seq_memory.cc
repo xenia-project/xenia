@@ -25,7 +25,7 @@ volatile int anchor_memory = 0;
 
 template <typename T>
 XReg ComputeMemoryAddressOffset(A64Emitter& e, const T& guest, const T& offset,
-                                XReg address_register = X4) {
+                                XReg address_register = X3) {
   assert_true(offset.is_constant);
   int32_t offset_const = static_cast<int32_t>(offset.constant());
 
@@ -51,27 +51,26 @@ XReg ComputeMemoryAddressOffset(A64Emitter& e, const T& guest, const T& offset,
       // it via memory mapping.
       e.MOV(W1, 0xE0000000 - offset_const);
       e.CMP(guest.reg().toW(), W1);
-      e.CSET(X0, Cond::HS);
-      e.LSL(X0, X0, 12);
-      e.ADD(X0, X0, guest.reg());
-      e.MOV(W0, W0);
+      e.CSET(W0, Cond::HS);
+      e.LSL(W0, W0, 12);
+      e.ADD(W0, W0, guest.reg().toW());
     } else {
       // Clear the top 32 bits, as they are likely garbage.
       // TODO(benvanik): find a way to avoid doing this.
       e.MOV(W0, guest.reg().toW());
     }
-    e.MOV(address_register, offset_const);
-    e.ADD(address_register, X0, address_register);
-    e.ADD(address_register, address_register, e.GetMembaseReg());
+    e.ADD(address_register, e.GetMembaseReg(), X0);
+
+    e.MOV(X0, offset_const);
+    e.ADD(address_register, address_register, X0);
     return address_register;
-    // return e.GetMembaseReg() + e.rax + offset_const;
   }
 }
 
 // Note: most *should* be aligned, but needs to be checked!
 template <typename T>
 XReg ComputeMemoryAddress(A64Emitter& e, const T& guest,
-                          XReg address_register = X4) {
+                          XReg address_register = X3) {
   if (guest.is_constant) {
     // TODO(benvanik): figure out how to do this without a temp.
     // Since the constant is often 0x8... if we tried to use that as a
