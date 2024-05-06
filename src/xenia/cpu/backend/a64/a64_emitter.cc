@@ -528,7 +528,7 @@ void A64Emitter::CallIndirect(const hir::Instr* instr,
 
     // Pass the callers return address over.
     // mov(rcx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
-    LDR(X0, SP, StackLayout::GUEST_CALL_RET_ADDR);
+    LDR(X0, SP, StackLayout::GUEST_RET_ADDR);
 
     // add(rsp, static_cast<uint32_t>(stack_size()));
     ADD(SP, SP, static_cast<uint32_t>(stack_size()));
