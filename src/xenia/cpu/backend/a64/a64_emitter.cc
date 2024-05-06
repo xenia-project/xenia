@@ -214,8 +214,11 @@ bool A64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   func_info.stack_size = stack_size;
   stack_size_ = stack_size;
 
+  STP(X29, X30, SP, PRE_INDEXED, -32);
+  MOV(X29, SP);
+
   // sub(rsp, (uint32_t)stack_size);
-  SUB(XSP, XSP, stack_size);
+  SUB(SP, SP, (uint32_t)stack_size);
 
   code_offsets.prolog_stack_alloc = offset();
   code_offsets.body = offset();
@@ -223,9 +226,9 @@ bool A64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   // mov(qword[rsp + StackLayout::GUEST_CTX_HOME], GetContextReg());
   // mov(qword[rsp + StackLayout::GUEST_RET_ADDR], rcx);
   // mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], 0);
-  STR(GetContextReg(), XSP, StackLayout::GUEST_CTX_HOME);
-  STR(X0, XSP, StackLayout::GUEST_RET_ADDR);
-  STR(XZR, XSP, StackLayout::GUEST_CALL_RET_ADDR);
+  STR(GetContextReg(), SP, StackLayout::GUEST_CTX_HOME);
+  STR(X0, SP, StackLayout::GUEST_RET_ADDR);
+  STR(XZR, SP, StackLayout::GUEST_CALL_RET_ADDR);
 
   // Safe now to do some tracing.
   if (debug_info_flags_ & DebugInfoFlags::kDebugInfoTraceFunctions) {
@@ -294,13 +297,17 @@ bool A64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   epilog_label_ = nullptr;
   EmitTraceUserCallReturn();
   // mov(GetContextReg(), qword[rsp + StackLayout::GUEST_CTX_HOME]);
-  LDR(GetContextReg(), XSP, StackLayout::GUEST_CTX_HOME);
+  LDR(GetContextReg(), SP, StackLayout::GUEST_CTX_HOME);
 
   code_offsets.epilog = offset();
 
   // add(rsp, (uint32_t)stack_size);
   // ret();
-  ADD(XSP, XSP, stack_size);
+  ADD(SP, SP, (uint32_t)stack_size);
+
+  MOV(SP, X29);
+  LDP(X29, X30, SP, POST_INDEXED, 32);
+
   RET();
 
   code_offsets.tail = offset();
