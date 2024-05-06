@@ -214,14 +214,18 @@ HostToGuestThunk A64ThunkEmitter::EmitHostToGuestThunk() {
 
   code_offsets.prolog = offset();
 
-  // mov(qword[rsp + 8 * 3], r8);
-  // mov(qword[rsp + 8 * 2], rdx);
-  // mov(qword[rsp + 8 * 1], rcx);
-  // sub(rsp, stack_size);
-  STR(X2, XSP, 8 * 3);
-  STR(X1, XSP, 8 * 2);
-  STR(X0, XSP, 8 * 1);
-  SUB(XSP, XSP, stack_size);
+  //  mov(qword[rsp + 8 * 3], r8);
+  //  mov(qword[rsp + 8 * 2], rdx);
+  //  mov(qword[rsp + 8 * 1], rcx);
+  //  sub(rsp, stack_size);
+
+  STP(X29, X30, SP, PRE_INDEXED, -32);
+  MOV(X29, SP);
+
+  STR(X2, SP, 8 * 3);
+  STR(X1, SP, 8 * 2);
+  STR(X0, SP, 8 * 1);
+  SUB(SP, SP, stack_size);
 
   code_offsets.prolog_stack_alloc = offset();
   code_offsets.body = offset();
@@ -249,10 +253,14 @@ HostToGuestThunk A64ThunkEmitter::EmitHostToGuestThunk() {
   // mov(r8, qword[rsp + 8 * 3]);
   // ret();
 
-  ADD(XSP, XSP, stack_size);
-  LDR(X0, XSP, 8 * 1);
-  LDR(X1, XSP, 8 * 2);
-  LDR(X2, XSP, 8 * 3);
+  ADD(SP, SP, stack_size);
+  LDR(X0, SP, 8 * 1);
+  LDR(X1, SP, 8 * 2);
+  LDR(X2, SP, 8 * 3);
+
+  MOV(SP, X29);
+  LDP(X29, X30, SP, POST_INDEXED, 32);
+
   RET();
 
   code_offsets.tail = offset();
@@ -290,15 +298,18 @@ GuestToHostThunk A64ThunkEmitter::EmitGuestToHostThunk() {
 
   code_offsets.prolog = offset();
 
+  STP(X29, X30, SP, PRE_INDEXED, -32);
+  MOV(X29, SP);
   // rsp + 0 = return address
   // sub(rsp, stack_size);
-  SUB(XSP, XSP, stack_size);
+  SUB(SP, SP, stack_size);
 
   code_offsets.prolog_stack_alloc = offset();
   code_offsets.body = offset();
 
   // Save off volatile registers.
   EmitSaveVolatileRegs();
+  MOV(X29, SP);
 
   // mov(rax, rcx);              // function
   // mov(rcx, GetContextReg());  // context
@@ -307,13 +318,17 @@ GuestToHostThunk A64ThunkEmitter::EmitGuestToHostThunk() {
   MOV(X0, GetContextReg());  // context
   BLR(X16);
 
+  MOV(SP, X29);
+
   EmitLoadVolatileRegs();
 
   code_offsets.epilog = offset();
 
   // add(rsp, stack_size);
   // ret();
-  ADD(XSP, XSP, stack_size);
+  ADD(SP, SP, stack_size);
+  MOV(SP, X29);
+  LDP(X29, X30, SP, POST_INDEXED, 32);
   RET();
 
   code_offsets.tail = offset();
@@ -383,7 +398,9 @@ ResolveFunctionThunk A64ThunkEmitter::EmitResolveFunctionThunk() {
 
   // add(rsp, stack_size);
   // jmp(rax);
-  ADD(XSP, XSP, stack_size);
+  ADD(SP, SP, stack_size);
+  MOV(SP, X29);
+  LDP(X29, X30, SP, POST_INDEXED, 32);
   BR(X0);
 
   code_offsets.tail = offset();
