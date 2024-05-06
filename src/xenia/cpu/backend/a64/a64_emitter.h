@@ -137,7 +137,7 @@ class A64Emitter : public oaknut::CodeBlock, public oaknut::CodeGenerator {
             std::vector<SourceMapEntry>* out_source_map);
 
  public:
-  // Reserved:  XSP, X14, X15
+  // Reserved:  XSP, X19, X20
   // Scratch:   X0/X1/X2
   //            V0-2
   // Available: X1, X10-r15

@@ -689,8 +689,8 @@ oaknut::XReg A64Emitter::GetNativeParam(uint32_t param) {
 }
 
 // Important: If you change these, you must update the thunks in a64_backend.cc!
-oaknut::XReg A64Emitter::GetContextReg() { return X14; }
-oaknut::XReg A64Emitter::GetMembaseReg() { return X15; }
+oaknut::XReg A64Emitter::GetContextReg() { return X19; }
+oaknut::XReg A64Emitter::GetMembaseReg() { return X20; }
 
 void A64Emitter::ReloadContext() {
   // mov(GetContextReg(), qword[rsp + StackLayout::GUEST_CTX_HOME]);
