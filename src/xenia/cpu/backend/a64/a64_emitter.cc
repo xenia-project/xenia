@@ -438,7 +438,7 @@ uint64_t ResolveFunction(void* raw_context, uint64_t target_address) {
 void A64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
   assert_not_null(function);
   auto fn = static_cast<A64Function*>(function);
-  // Resolve address to the function to call and store in rax.
+  // Resolve address to the function to call and store in X16.
   if (fn->machine_code()) {
     // TODO(benvanik): is it worth it to do this? It removes the need for
     // a ResolveFunction call, but makes the table less useful.
@@ -451,35 +451,36 @@ void A64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
     // or a thunk to ResolveAddress.
     // mov(ebx, function->address());
     // mov(eax, dword[ebx]);
-    MOV(X16, function->address());
-    LDR(W16, X16);
+    MOV(W1, function->address());
+    LDR(W16, X1);
   } else {
     // Old-style resolve.
     // Not too important because indirection table is almost always available.
     // TODO: Overwrite the call-site with a straight call.
     CallNative(&ResolveFunction, function->address());
+    MOV(X16, X0);
   }
 
-  // Actually jump/call to rax.
+  // Actually jump/call to X16.
   if (instr->flags & hir::CALL_TAIL) {
     // Since we skip the prolog we need to mark the return here.
     EmitTraceUserCallReturn();
 
     // Pass the callers return address over.
     // mov(rcx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
-    LDR(X0, XSP, StackLayout::GUEST_RET_ADDR);
+    LDR(X0, SP, StackLayout::GUEST_RET_ADDR);
 
     // add(rsp, static_cast<uint32_t>(stack_size()));
     // jmp(rax);
-    ADD(XSP, XSP, stack_size());
+    ADD(SP, SP, stack_size());
     BR(X16);
   } else {
     // Return address is from the previous SET_RETURN_ADDRESS.
     // mov(rcx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
-    LDR(X0, XSP, StackLayout::GUEST_CALL_RET_ADDR);
+    LDR(X0, SP, StackLayout::GUEST_CALL_RET_ADDR);
 
     // call(rax);
-    BR(X16);
+    BLR(X16);
   }
 }
 
@@ -489,8 +490,8 @@ void A64Emitter::CallIndirect(const hir::Instr* instr,
   if (instr->flags & hir::CALL_POSSIBLE_RETURN) {
     // cmp(reg.cvt32(), dword[rsp + StackLayout::GUEST_RET_ADDR]);
     // je(epilog_label(), CodeGenerator::T_NEAR);
-    LDR(W0, XSP, StackLayout::GUEST_RET_ADDR);
-    CMP(reg.toW(), W0);
+    LDR(W16, SP, StackLayout::GUEST_RET_ADDR);
+    CMP(reg.toW(), W16);
     B(oaknut::Cond::EQ, epilog_label());
   }
 
@@ -503,7 +504,7 @@ void A64Emitter::CallIndirect(const hir::Instr* instr,
       MOV(W1, reg.toW());
     }
     // mov(eax, dword[ebx]);
-    LDR(X16, X1);
+    LDR(W16, X1);
   } else {
     // Old-style resolve.
     // Not too important because indirection table is almost always available.
@@ -516,27 +517,21 @@ void A64Emitter::CallIndirect(const hir::Instr* instr,
     MOV(W1, reg.toW());
 
     ADRP(X16, ResolveFunction);
-
-    // Preserve frame and link register
-    STP(X29, X30, XSP, POST_INDEXED, -16);
-
     BLR(X16);
-
-    // Restore frame and link register
-    LDP(X29, X30, XSP, PRE_INDEXED, 16);
+    MOV(X16, X0);
   }
 
-  // Actually jump/call to rax.
+  // Actually jump/call to X16.
   if (instr->flags & hir::CALL_TAIL) {
     // Since we skip the prolog we need to mark the return here.
     EmitTraceUserCallReturn();
 
     // Pass the callers return address over.
     // mov(rcx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
-    LDR(X0, XSP, StackLayout::GUEST_CALL_RET_ADDR);
+    LDR(X0, SP, StackLayout::GUEST_CALL_RET_ADDR);
 
     // add(rsp, static_cast<uint32_t>(stack_size()));
-    ADD(XSP, XSP, stack_size());
+    ADD(SP, SP, static_cast<uint32_t>(stack_size()));
 
     // jmp(rax);
     BR(X16);
@@ -544,15 +539,9 @@ void A64Emitter::CallIndirect(const hir::Instr* instr,
     // Return address is from the previous SET_RETURN_ADDRESS.
     // mov(rcx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
     // call(rax);
-    LDR(X0, XSP, StackLayout::GUEST_CALL_RET_ADDR);
-
-    // Preserve frame and link register
-    STP(X29, X30, XSP, POST_INDEXED, -16);
+    LDR(X0, SP, StackLayout::GUEST_CALL_RET_ADDR);
 
     BLR(X16);
-
-    // Restore frame and link register
-    LDP(X29, X30, XSP, PRE_INDEXED, 16);
   }
 }
 
@@ -577,7 +566,6 @@ void A64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
       // x1 = arg0
       // x2 = arg1
       // x3 = arg2
-      auto thunk = backend()->guest_to_host_thunk();
       // mov(rax, reinterpret_cast<uint64_t>(thunk));
       // mov(rcx, reinterpret_cast<uint64_t>(builtin_function->handler()));
       // mov(rdx, reinterpret_cast<uint64_t>(builtin_function->arg0()));
@@ -587,15 +575,10 @@ void A64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
       MOV(X1, reinterpret_cast<uint64_t>(builtin_function->arg0()));
       MOV(X2, reinterpret_cast<uint64_t>(builtin_function->arg1()));
 
+      auto thunk = backend()->guest_to_host_thunk();
       MOV(X16, reinterpret_cast<uint64_t>(thunk));
 
-      // Preserve frame and link register
-      STP(X29, X30, XSP, POST_INDEXED, -16);
-
       BLR(X16);
-
-      // Restore frame and link register
-      LDP(X29, X30, XSP, PRE_INDEXED, 16);
 
       // x0 = host return
     }
@@ -620,13 +603,7 @@ void A64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
 
       MOV(X16, reinterpret_cast<uint64_t>(thunk));
 
-      // Preserve frame and link register
-      STP(X29, X30, XSP, POST_INDEXED, -16);
-
       BLR(X16);
-
-      // Restore frame and link register
-      LDP(X29, X30, XSP, PRE_INDEXED, 16);
 
       // x0 = host return
     }
@@ -659,19 +636,11 @@ void A64Emitter::CallNativeSafe(void* fn) {
   // X2 = arg1
   // X3 = arg2
   auto thunk = backend()->guest_to_host_thunk();
-  // mov(rax, reinterpret_cast<uint64_t>(thunk));
-  // mov(rcx, reinterpret_cast<uint64_t>(fn));
-  // call(rax);
+
   MOV(X0, reinterpret_cast<uint64_t>(fn));
+
   MOV(X16, reinterpret_cast<uint64_t>(thunk));
-
-  // Preserve frame and link register
-  STP(X29, X30, XSP, POST_INDEXED, -16);
-
   BLR(X16);
-
-  // Restore frame and link register
-  LDP(X29, X30, XSP, PRE_INDEXED, 16);
 
   // X0 = host return
 }
@@ -680,7 +649,7 @@ void A64Emitter::SetReturnAddress(uint64_t value) {
   // mov(rax, value);
   // mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], rax);
   MOV(X0, value);
-  STR(X0, XSP, StackLayout::GUEST_CALL_RET_ADDR);
+  STR(X0, SP, StackLayout::GUEST_CALL_RET_ADDR);
 }
 
 oaknut::XReg A64Emitter::GetNativeParam(uint32_t param) {
@@ -701,7 +670,7 @@ oaknut::XReg A64Emitter::GetMembaseReg() { return X20; }
 
 void A64Emitter::ReloadContext() {
   // mov(GetContextReg(), qword[rsp + StackLayout::GUEST_CTX_HOME]);
-  LDR(GetContextReg(), XSP, StackLayout::GUEST_CTX_HOME);
+  LDR(GetContextReg(), SP, StackLayout::GUEST_CTX_HOME);
 }
 
 void A64Emitter::ReloadMembase() {
@@ -914,9 +883,9 @@ void A64Emitter::LoadConstantV(oaknut::QReg dest, const vec128_t& v) {
   else {
     // TODO(benvanik): see what other common values are.
     // TODO(benvanik): build constant table - 99% are reused.
-    MovMem64(XSP, kStashOffset, v.low);
-    MovMem64(XSP, kStashOffset + 8, v.high);
-    LDR(dest, XSP, kStashOffset);
+    MovMem64(SP, kStashOffset, v.low);
+    MovMem64(SP, kStashOffset + 8, v.high);
+    LDR(dest, SP, kStashOffset);
   }
 }
 
@@ -966,7 +935,7 @@ uintptr_t A64Emitter::StashV(int index, const oaknut::QReg& r) {
   // auto addr = ptr[rsp + kStashOffset + (index * 16)];
   // vmovups(addr, r);
   const auto addr = kStashOffset + (index * 16);
-  STR(r, XSP, addr);
+  STR(r, SP, addr);
   return addr;
 }
 
@@ -976,8 +945,8 @@ uintptr_t A64Emitter::StashConstantV(int index, float v) {
     uint32_t i;
   } x = {v};
   const auto addr = kStashOffset + (index * 16);
-  MovMem64(XSP, addr, x.i);
-  MovMem64(XSP, addr + 8, 0);
+  MovMem64(SP, addr, x.i);
+  MovMem64(SP, addr + 8, 0);
   return addr;
 }
 
@@ -987,15 +956,15 @@ uintptr_t A64Emitter::StashConstantV(int index, double v) {
     uint64_t i;
   } x = {v};
   const auto addr = kStashOffset + (index * 16);
-  MovMem64(XSP, addr, x.i);
-  MovMem64(XSP, addr + 8, 0);
+  MovMem64(SP, addr, x.i);
+  MovMem64(SP, addr + 8, 0);
   return addr;
 }
 
 uintptr_t A64Emitter::StashConstantV(int index, const vec128_t& v) {
   const auto addr = kStashOffset + (index * 16);
-  MovMem64(XSP, addr, v.low);
-  MovMem64(XSP, addr + 8, v.high);
+  MovMem64(SP, addr, v.low);
+  MovMem64(SP, addr + 8, v.high);
   return addr;
 }
 
