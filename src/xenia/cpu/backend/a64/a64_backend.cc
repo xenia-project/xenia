@@ -358,7 +358,9 @@ ResolveFunctionThunk A64ThunkEmitter::EmitResolveFunctionThunk() {
 
   // rsp + 0 = return address
   // sub(rsp, stack_size);
-  SUB(XSP, XSP, stack_size);
+  STP(X29, X30, SP, POST_INDEXED, -32);
+  MOV(X29, SP);
+  SUB(SP, SP, stack_size);
 
   code_offsets.prolog_stack_alloc = offset();
   code_offsets.body = offset();
@@ -401,158 +403,95 @@ ResolveFunctionThunk A64ThunkEmitter::EmitResolveFunctionThunk() {
   return (ResolveFunctionThunk)fn;
 }
 
+// Caller saved:
+// x0-x15, x30 | d0-d7 and d16-v31
 void A64ThunkEmitter::EmitSaveVolatileRegs() {
   // Save off volatile registers.
   // Preserve arguments passed to and returned from a subroutine
-  // STR(X0, XSP, offsetof(StackLayout::Thunk, r[0]));
-  STR(X1, XSP, offsetof(StackLayout::Thunk, r[1]));
-  STR(X2, XSP, offsetof(StackLayout::Thunk, r[2]));
-  STR(X3, XSP, offsetof(StackLayout::Thunk, r[3]));
-  STR(X4, XSP, offsetof(StackLayout::Thunk, r[4]));
-  STR(X5, XSP, offsetof(StackLayout::Thunk, r[5]));
-  STR(X6, XSP, offsetof(StackLayout::Thunk, r[6]));
-  STR(X7, XSP, offsetof(StackLayout::Thunk, r[7]));
-  STR(X8, XSP, offsetof(StackLayout::Thunk, r[8]));
-
-  STR(X9, XSP, offsetof(StackLayout::Thunk, r[9]));
-  STR(X10, XSP, offsetof(StackLayout::Thunk, r[10]));
-  STR(X11, XSP, offsetof(StackLayout::Thunk, r[11]));
-  STR(X12, XSP, offsetof(StackLayout::Thunk, r[12]));
-  STR(X13, XSP, offsetof(StackLayout::Thunk, r[13]));
-  STR(X14, XSP, offsetof(StackLayout::Thunk, r[14]));
-  STR(X15, XSP, offsetof(StackLayout::Thunk, r[15]));
-  STR(X16, XSP, offsetof(StackLayout::Thunk, r[16]));
-  STR(X17, XSP, offsetof(StackLayout::Thunk, r[17]));
-  STR(X18, XSP, offsetof(StackLayout::Thunk, r[18]));
-
-  STR(X30, XSP, offsetof(StackLayout::Thunk, r[19]));
+  // STR(X0, SP, offsetof(StackLayout::Thunk, r[0]));
+  STP(X1, X2, SP, offsetof(StackLayout::Thunk, r[0]));
+  STP(X3, X4, SP, offsetof(StackLayout::Thunk, r[2]));
+  STP(X5, X6, SP, offsetof(StackLayout::Thunk, r[4]));
+  STP(X7, X8, SP, offsetof(StackLayout::Thunk, r[6]));
+  STP(X9, X10, SP, offsetof(StackLayout::Thunk, r[8]));
+  STP(X11, X12, SP, offsetof(StackLayout::Thunk, r[10]));
+  STP(X13, X14, SP, offsetof(StackLayout::Thunk, r[12]));
+  STP(X15, X30, SP, offsetof(StackLayout::Thunk, r[14]));
 
   // Preserve arguments passed to and returned from a subroutine
-  // STR(Q0, XSP, offsetof(StackLayout::Thunk, xmm[0]));
-  STR(Q1, XSP, offsetof(StackLayout::Thunk, xmm[1]));
-  STR(Q2, XSP, offsetof(StackLayout::Thunk, xmm[2]));
-  STR(Q3, XSP, offsetof(StackLayout::Thunk, xmm[3]));
-  STR(Q4, XSP, offsetof(StackLayout::Thunk, xmm[4]));
-  STR(Q5, XSP, offsetof(StackLayout::Thunk, xmm[5]));
-  STR(Q6, XSP, offsetof(StackLayout::Thunk, xmm[6]));
-  STR(Q7, XSP, offsetof(StackLayout::Thunk, xmm[7]));
-
-  STR(Q8, XSP, offsetof(StackLayout::Thunk, xmm[8]));
-  STR(Q9, XSP, offsetof(StackLayout::Thunk, xmm[9]));
-  STR(Q10, XSP, offsetof(StackLayout::Thunk, xmm[10]));
-  STR(Q11, XSP, offsetof(StackLayout::Thunk, xmm[11]));
-  STR(Q12, XSP, offsetof(StackLayout::Thunk, xmm[12]));
-  STR(Q13, XSP, offsetof(StackLayout::Thunk, xmm[13]));
-  STR(Q14, XSP, offsetof(StackLayout::Thunk, xmm[14]));
-  STR(Q15, XSP, offsetof(StackLayout::Thunk, xmm[15]));
-  STR(Q16, XSP, offsetof(StackLayout::Thunk, xmm[16]));
-  STR(Q17, XSP, offsetof(StackLayout::Thunk, xmm[17]));
-  STR(Q18, XSP, offsetof(StackLayout::Thunk, xmm[18]));
-  STR(Q19, XSP, offsetof(StackLayout::Thunk, xmm[19]));
-  STR(Q20, XSP, offsetof(StackLayout::Thunk, xmm[20]));
-  STR(Q21, XSP, offsetof(StackLayout::Thunk, xmm[21]));
-  STR(Q22, XSP, offsetof(StackLayout::Thunk, xmm[22]));
-  STR(Q23, XSP, offsetof(StackLayout::Thunk, xmm[23]));
-  STR(Q24, XSP, offsetof(StackLayout::Thunk, xmm[24]));
-  STR(Q25, XSP, offsetof(StackLayout::Thunk, xmm[25]));
-  STR(Q26, XSP, offsetof(StackLayout::Thunk, xmm[26]));
-  STR(Q27, XSP, offsetof(StackLayout::Thunk, xmm[27]));
-  STR(Q28, XSP, offsetof(StackLayout::Thunk, xmm[28]));
-  STR(Q29, XSP, offsetof(StackLayout::Thunk, xmm[29]));
-  STR(Q30, XSP, offsetof(StackLayout::Thunk, xmm[30]));
-  STR(Q31, XSP, offsetof(StackLayout::Thunk, xmm[31]));
+  // STR(Q0, SP, offsetof(StackLayout::Thunk, xmm[0]));
+  STP(Q1, Q2, SP, offsetof(StackLayout::Thunk, xmm[0]));
+  STP(Q3, Q4, SP, offsetof(StackLayout::Thunk, xmm[2]));
+  STP(Q5, Q6, SP, offsetof(StackLayout::Thunk, xmm[4]));
+  STP(Q7, Q16, SP, offsetof(StackLayout::Thunk, xmm[6]));
+  STP(Q7, Q16, SP, offsetof(StackLayout::Thunk, xmm[6]));
+  STP(Q17, Q18, SP, offsetof(StackLayout::Thunk, xmm[8]));
+  STP(Q19, Q20, SP, offsetof(StackLayout::Thunk, xmm[10]));
+  STP(Q21, Q22, SP, offsetof(StackLayout::Thunk, xmm[12]));
+  STP(Q23, Q24, SP, offsetof(StackLayout::Thunk, xmm[14]));
+  STP(Q25, Q26, SP, offsetof(StackLayout::Thunk, xmm[16]));
+  STP(Q27, Q28, SP, offsetof(StackLayout::Thunk, xmm[18]));
+  STP(Q29, Q30, SP, offsetof(StackLayout::Thunk, xmm[20]));
+  STR(Q31, SP, offsetof(StackLayout::Thunk, xmm[21]));
 }
 
 void A64ThunkEmitter::EmitLoadVolatileRegs() {
   // Preserve arguments passed to and returned from a subroutine
-  // LDR(X0, XSP, offsetof(StackLayout::Thunk, r[0]));
-
-  LDR(X1, XSP, offsetof(StackLayout::Thunk, r[1]));
-  LDR(X2, XSP, offsetof(StackLayout::Thunk, r[2]));
-  LDR(X3, XSP, offsetof(StackLayout::Thunk, r[3]));
-  LDR(X4, XSP, offsetof(StackLayout::Thunk, r[4]));
-  LDR(X5, XSP, offsetof(StackLayout::Thunk, r[5]));
-  LDR(X6, XSP, offsetof(StackLayout::Thunk, r[6]));
-  LDR(X7, XSP, offsetof(StackLayout::Thunk, r[7]));
-  LDR(X8, XSP, offsetof(StackLayout::Thunk, r[8]));
-
-  LDR(X9, XSP, offsetof(StackLayout::Thunk, r[9]));
-  LDR(X10, XSP, offsetof(StackLayout::Thunk, r[10]));
-  LDR(X11, XSP, offsetof(StackLayout::Thunk, r[11]));
-  LDR(X12, XSP, offsetof(StackLayout::Thunk, r[12]));
-  LDR(X13, XSP, offsetof(StackLayout::Thunk, r[13]));
-  LDR(X14, XSP, offsetof(StackLayout::Thunk, r[14]));
-  LDR(X15, XSP, offsetof(StackLayout::Thunk, r[15]));
-  LDR(X16, XSP, offsetof(StackLayout::Thunk, r[16]));
-  LDR(X17, XSP, offsetof(StackLayout::Thunk, r[17]));
-  LDR(X18, XSP, offsetof(StackLayout::Thunk, r[18]));
-
-  LDR(X30, XSP, offsetof(StackLayout::Thunk, r[19]));
+  // LDR(X0, SP, offsetof(StackLayout::Thunk, r[0]));
+  LDP(X1, X2, SP, offsetof(StackLayout::Thunk, r[0]));
+  LDP(X3, X4, SP, offsetof(StackLayout::Thunk, r[2]));
+  LDP(X5, X6, SP, offsetof(StackLayout::Thunk, r[4]));
+  LDP(X7, X8, SP, offsetof(StackLayout::Thunk, r[6]));
+  LDP(X9, X10, SP, offsetof(StackLayout::Thunk, r[8]));
+  LDP(X11, X12, SP, offsetof(StackLayout::Thunk, r[10]));
+  LDP(X13, X14, SP, offsetof(StackLayout::Thunk, r[12]));
+  LDP(X15, X30, SP, offsetof(StackLayout::Thunk, r[14]));
 
   // Preserve arguments passed to and returned from a subroutine
-  // LDR(Q0, XSP, offsetof(StackLayout::Thunk, xmm[0]));
-  LDR(Q1, XSP, offsetof(StackLayout::Thunk, xmm[1]));
-  LDR(Q2, XSP, offsetof(StackLayout::Thunk, xmm[2]));
-  LDR(Q3, XSP, offsetof(StackLayout::Thunk, xmm[3]));
-  LDR(Q4, XSP, offsetof(StackLayout::Thunk, xmm[4]));
-  LDR(Q5, XSP, offsetof(StackLayout::Thunk, xmm[5]));
-  LDR(Q6, XSP, offsetof(StackLayout::Thunk, xmm[6]));
-  LDR(Q7, XSP, offsetof(StackLayout::Thunk, xmm[7]));
-
-  LDR(Q8, XSP, offsetof(StackLayout::Thunk, xmm[8]));
-  LDR(Q9, XSP, offsetof(StackLayout::Thunk, xmm[9]));
-  LDR(Q10, XSP, offsetof(StackLayout::Thunk, xmm[10]));
-  LDR(Q11, XSP, offsetof(StackLayout::Thunk, xmm[11]));
-  LDR(Q12, XSP, offsetof(StackLayout::Thunk, xmm[12]));
-  LDR(Q13, XSP, offsetof(StackLayout::Thunk, xmm[13]));
-  LDR(Q14, XSP, offsetof(StackLayout::Thunk, xmm[14]));
-  LDR(Q15, XSP, offsetof(StackLayout::Thunk, xmm[15]));
-  LDR(Q16, XSP, offsetof(StackLayout::Thunk, xmm[16]));
-  LDR(Q17, XSP, offsetof(StackLayout::Thunk, xmm[17]));
-  LDR(Q18, XSP, offsetof(StackLayout::Thunk, xmm[18]));
-  LDR(Q19, XSP, offsetof(StackLayout::Thunk, xmm[19]));
-  LDR(Q20, XSP, offsetof(StackLayout::Thunk, xmm[20]));
-  LDR(Q21, XSP, offsetof(StackLayout::Thunk, xmm[21]));
-  LDR(Q22, XSP, offsetof(StackLayout::Thunk, xmm[22]));
-  LDR(Q23, XSP, offsetof(StackLayout::Thunk, xmm[23]));
-  LDR(Q24, XSP, offsetof(StackLayout::Thunk, xmm[24]));
-  LDR(Q25, XSP, offsetof(StackLayout::Thunk, xmm[25]));
-  LDR(Q26, XSP, offsetof(StackLayout::Thunk, xmm[26]));
-  LDR(Q27, XSP, offsetof(StackLayout::Thunk, xmm[27]));
-  LDR(Q28, XSP, offsetof(StackLayout::Thunk, xmm[28]));
-  LDR(Q29, XSP, offsetof(StackLayout::Thunk, xmm[29]));
-  LDR(Q30, XSP, offsetof(StackLayout::Thunk, xmm[30]));
-  LDR(Q31, XSP, offsetof(StackLayout::Thunk, xmm[31]));
+  // LDR(Q0, SP, offsetof(StackLayout::Thunk, xmm[0]));
+  LDP(Q1, Q2, SP, offsetof(StackLayout::Thunk, xmm[0]));
+  LDP(Q3, Q4, SP, offsetof(StackLayout::Thunk, xmm[2]));
+  LDP(Q5, Q6, SP, offsetof(StackLayout::Thunk, xmm[4]));
+  LDP(Q7, Q16, SP, offsetof(StackLayout::Thunk, xmm[6]));
+  LDP(Q7, Q16, SP, offsetof(StackLayout::Thunk, xmm[6]));
+  LDP(Q17, Q18, SP, offsetof(StackLayout::Thunk, xmm[8]));
+  LDP(Q19, Q20, SP, offsetof(StackLayout::Thunk, xmm[10]));
+  LDP(Q21, Q22, SP, offsetof(StackLayout::Thunk, xmm[12]));
+  LDP(Q23, Q24, SP, offsetof(StackLayout::Thunk, xmm[14]));
+  LDP(Q25, Q26, SP, offsetof(StackLayout::Thunk, xmm[16]));
+  LDP(Q27, Q28, SP, offsetof(StackLayout::Thunk, xmm[18]));
+  LDP(Q29, Q30, SP, offsetof(StackLayout::Thunk, xmm[20]));
+  LDR(Q31, SP, offsetof(StackLayout::Thunk, xmm[21]));
 }
 
+// Callee saved:
+// x19-x30 | d8-d15
 void A64ThunkEmitter::EmitSaveNonvolatileRegs() {
-  STR(X19, XSP, offsetof(StackLayout::Thunk, r[0]));
-  STR(X20, XSP, offsetof(StackLayout::Thunk, r[1]));
-  STR(X21, XSP, offsetof(StackLayout::Thunk, r[2]));
-  STR(X22, XSP, offsetof(StackLayout::Thunk, r[3]));
-  STR(X23, XSP, offsetof(StackLayout::Thunk, r[4]));
-  STR(X24, XSP, offsetof(StackLayout::Thunk, r[5]));
-  STR(X25, XSP, offsetof(StackLayout::Thunk, r[6]));
-  STR(X26, XSP, offsetof(StackLayout::Thunk, r[7]));
-  STR(X27, XSP, offsetof(StackLayout::Thunk, r[8]));
-  STR(X28, XSP, offsetof(StackLayout::Thunk, r[9]));
-  STR(X29, XSP, offsetof(StackLayout::Thunk, r[10]));
-  STR(X30, XSP, offsetof(StackLayout::Thunk, r[11]));
+  STP(X19, X20, SP, offsetof(StackLayout::Thunk, r[0]));
+  STP(X21, X22, SP, offsetof(StackLayout::Thunk, r[2]));
+  STP(X23, X24, SP, offsetof(StackLayout::Thunk, r[4]));
+  STP(X25, X26, SP, offsetof(StackLayout::Thunk, r[6]));
+  STP(X27, X28, SP, offsetof(StackLayout::Thunk, r[8]));
+  STP(X29, X30, SP, offsetof(StackLayout::Thunk, r[10]));
+
+  STP(Q8, Q9, SP, offsetof(StackLayout::Thunk, xmm[0]));
+  STP(Q10, Q11, SP, offsetof(StackLayout::Thunk, xmm[2]));
+  STP(Q12, Q13, SP, offsetof(StackLayout::Thunk, xmm[4]));
+  STP(Q14, Q15, SP, offsetof(StackLayout::Thunk, xmm[6]));
 }
 
 void A64ThunkEmitter::EmitLoadNonvolatileRegs() {
-  LDR(X19, XSP, offsetof(StackLayout::Thunk, r[0]));
-  LDR(X20, XSP, offsetof(StackLayout::Thunk, r[1]));
-  LDR(X21, XSP, offsetof(StackLayout::Thunk, r[2]));
-  LDR(X22, XSP, offsetof(StackLayout::Thunk, r[3]));
-  LDR(X23, XSP, offsetof(StackLayout::Thunk, r[4]));
-  LDR(X24, XSP, offsetof(StackLayout::Thunk, r[5]));
-  LDR(X25, XSP, offsetof(StackLayout::Thunk, r[6]));
-  LDR(X26, XSP, offsetof(StackLayout::Thunk, r[7]));
-  LDR(X27, XSP, offsetof(StackLayout::Thunk, r[8]));
-  LDR(X28, XSP, offsetof(StackLayout::Thunk, r[9]));
-  LDR(X29, XSP, offsetof(StackLayout::Thunk, r[10]));
-  LDR(X30, XSP, offsetof(StackLayout::Thunk, r[11]));
+  LDP(X19, X20, SP, offsetof(StackLayout::Thunk, r[0]));
+  LDP(X21, X22, SP, offsetof(StackLayout::Thunk, r[2]));
+  LDP(X23, X24, SP, offsetof(StackLayout::Thunk, r[4]));
+  LDP(X25, X26, SP, offsetof(StackLayout::Thunk, r[6]));
+  LDP(X27, X28, SP, offsetof(StackLayout::Thunk, r[8]));
+  LDP(X29, X30, SP, offsetof(StackLayout::Thunk, r[10]));
+
+  LDP(Q8, Q9, SP, offsetof(StackLayout::Thunk, xmm[0]));
+  LDP(Q10, Q11, SP, offsetof(StackLayout::Thunk, xmm[2]));
+  LDP(Q12, Q13, SP, offsetof(StackLayout::Thunk, xmm[4]));
+  LDP(Q14, Q15, SP, offsetof(StackLayout::Thunk, xmm[6]));
 }
 
 }  // namespace a64
