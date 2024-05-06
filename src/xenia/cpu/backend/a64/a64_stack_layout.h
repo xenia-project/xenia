@@ -29,91 +29,91 @@ class StackLayout {
    * Thunk stack:
    *      Non-Volatile         Volatile
    *  +------------------+------------------+
-   *  | arg temp, 3 * 8  | arg temp, 3 * 8  | rsp + 0x000
+   *  | arg temp, 3 * 8  | arg temp, 3 * 8  | xsp + 0x000
    *  |                  |                  |
    *  |                  |                  |
    *  +------------------+------------------+
-   *  | rbx              | (unused)         | rsp + 0x018
+   *  | rbx              | (unused)         | xsp + 0x018
    *  +------------------+------------------+
-   *  | rbp              | rcx              | rsp + 0x020
+   *  | rbp              | X1               | xsp + 0x020
    *  +------------------+------------------+
-   *  | rcx (Win32)      | rdx              | rsp + 0x028
+   *  | rcx (Win32)      | X2               | xsp + 0x028
    *  +------------------+------------------+
-   *  | rsi (Win32)      | rsi (Linux)      | rsp + 0x030
+   *  | rsi (Win32)      | X3               | xsp + 0x030
    *  +------------------+------------------+
-   *  | rdi (Win32)      | rdi (Linux)      | rsp + 0x038
+   *  | rdi (Win32)      | X4               | xsp + 0x038
    *  +------------------+------------------+
-   *  | r12              | r8               | rsp + 0x040
+   *  | r12              | X5               | xsp + 0x040
    *  +------------------+------------------+
-   *  | r13              | r9               | rsp + 0x048
+   *  | r13              | X6               | xsp + 0x048
    *  +------------------+------------------+
-   *  | r14              | r10              | rsp + 0x050
+   *  | r14              | X7               | xsp + 0x050
    *  +------------------+------------------+
-   *  | r15              | r11              | rsp + 0x058
+   *  | r15              | X8               | xsp + 0x058
    *  +------------------+------------------+
-   *  | xmm6 (Win32)     | (unused)         | rsp + 0x060
+   *  | xmm6 (Win32)     | X9               | xsp + 0x060
    *  |                  |                  |
    *  +------------------+------------------+
-   *  | xmm7 (Win32)     | xmm1             | rsp + 0x070
+   *  | xmm7 (Win32)     | X10              | xsp + 0x070
    *  |                  |                  |
    *  +------------------+------------------+
-   *  | xmm8 (Win32)     | xmm2             | rsp + 0x080
+   *  | xmm8 (Win32)     | X11              | xsp + 0x080
    *  |                  |                  |
    *  +------------------+------------------+
-   *  | xmm9 (Win32)     | xmm3             | rsp + 0x090
+   *  | xmm9 (Win32)     | X12              | xsp + 0x090
    *  |                  |                  |
    *  +------------------+------------------+
-   *  | xmm10 (Win32)    | xmm4             | rsp + 0x0A0
+   *  | xmm10 (Win32)    | X13              | xsp + 0x0A0
    *  |                  |                  |
    *  +------------------+------------------+
-   *  | xmm11 (Win32)    | xmm5             | rsp + 0x0B0
+   *  | xmm11 (Win32)    | X14              | xsp + 0x0B0
    *  |                  |                  |
    *  +------------------+------------------+
-   *  | xmm12 (Win32)    | (unused)         | rsp + 0x0C0
+   *  | xmm12 (Win32)    | X15              | xsp + 0x0C0
    *  |                  |                  |
    *  +------------------+------------------+
-   *  | xmm13 (Win32)    | (unused)         | rsp + 0x0D0
+   *  | xmm13 (Win32)    | X16              | xsp + 0x0D0
    *  |                  |                  |
    *  +------------------+------------------+
-   *  | xmm14 (Win32)    | (unused)         | rsp + 0x0E0
+   *  | xmm14 (Win32)    | X17              | xsp + 0x0E0
    *  |                  |                  |
    *  +------------------+------------------+
-   *  | xmm15 (Win32)    | (unused)         | rsp + 0x0F0
+   *  | xmm15 (Win32)    | X18              | xsp + 0x0F0
    *  |                  |                  |
    *  +------------------+------------------+
-   *  | (return address) | (return address) | rsp + 0x100
+   *  | (return address) | (return address) | xsp + 0x100
    *  +------------------+------------------+
-   *  | (rcx home)       | (rcx home)       | rsp + 0x108
+   *  | (rcx home)       | (rcx home)       | xsp + 0x108
    *  +------------------+------------------+
-   *  | (rdx home)       | (rdx home)       | rsp + 0x110
+   *  | (rdx home)       | (rdx home)       | xsp + 0x110
    *  +------------------+------------------+
    */
   XEPACKEDSTRUCT(Thunk, {
     uint64_t arg_temp[3];
-    uint64_t r[20];
-    vec128_t xmm[32];
+    uint64_t r[17];
+    vec128_t xmm[22];
   });
   static_assert(sizeof(Thunk) % 16 == 0,
                 "sizeof(Thunk) must be a multiple of 16!");
-  static const size_t THUNK_STACK_SIZE = sizeof(Thunk);
+  static const size_t THUNK_STACK_SIZE = sizeof(Thunk) + 16;
 
   /**
    *
    *
    * Guest stack:
    *  +------------------+
-   *  | arg temp, 3 * 8  | rsp + 0
+   *  | arg temp, 3 * 8  | xsp + 0
    *  |                  |
    *  |                  |
    *  +------------------+
-   *  | scratch, 48b     | rsp + 32
+   *  | scratch, 48b     | xsp + 32
    *  |                  |
    *  +------------------+
-   *  | rcx / context    | rsp + 80
+   *  | X0  / context    | xsp + 80
    *  +------------------+
-   *  | guest ret addr   | rsp + 88
+   *  | guest ret addr   | xsp + 88
    *  +------------------+
-   *  | call ret addr    | rsp + 96
+   *  | call ret addr    | xsp + 96
    *  +------------------+
    *    ... locals ...
    *  +------------------+
@@ -121,7 +121,7 @@ class StackLayout {
    *  +------------------+
    *
    */
-  static const size_t GUEST_STACK_SIZE = 96;
+  static const size_t GUEST_STACK_SIZE = 96 + 16;
   static const size_t GUEST_CTX_HOME = 80;
   static const size_t GUEST_RET_ADDR = 88;
   static const size_t GUEST_CALL_RET_ADDR = 96;
