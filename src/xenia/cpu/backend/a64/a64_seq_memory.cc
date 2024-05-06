@@ -1101,7 +1101,11 @@ EMITTER_OPCODE_TABLE(OPCODE_CACHE_CONTROL, CACHE_CONTROL);
 struct MEMORY_BARRIER
     : Sequence<MEMORY_BARRIER, I<OPCODE_MEMORY_BARRIER, VoidOp>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
+    // mfence on x64 flushes all writes before any later instructions
     // e.mfence();
+
+    // This is equivalent to DMB SY
+    e.DMB(BarrierOp::SY);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_MEMORY_BARRIER, MEMORY_BARRIER);
