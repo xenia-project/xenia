@@ -1116,23 +1116,22 @@ struct MEMSET_I64_I8_I64
     assert_true(i.src2.is_constant);
     assert_true(i.src3.is_constant);
     assert_true(i.src2.constant() == 0);
-    // e.vpxor(e.xmm0, e.xmm0);
     e.EOR(Q0.B16(), Q0.B16(), Q0.B16());
     auto addr_reg = ComputeMemoryAddress(e, i.src1);
     switch (i.src3.constant()) {
       case 32:
-        // e.vmovaps(e.ptr[addr + 0 * 16], e.xmm0);
-        // e.vmovaps(e.ptr[addr + 1 * 16], e.xmm0);
+        e.STR(Q0, addr_reg, 0 * 16);
+        e.STR(Q0, addr_reg, 1 * 16);
         break;
       case 128:
-        // e.vmovaps(e.ptr[addr + 0 * 16], e.xmm0);
-        // e.vmovaps(e.ptr[addr + 1 * 16], e.xmm0);
-        // e.vmovaps(e.ptr[addr + 2 * 16], e.xmm0);
-        // e.vmovaps(e.ptr[addr + 3 * 16], e.xmm0);
-        // e.vmovaps(e.ptr[addr + 4 * 16], e.xmm0);
-        // e.vmovaps(e.ptr[addr + 5 * 16], e.xmm0);
-        // e.vmovaps(e.ptr[addr + 6 * 16], e.xmm0);
-        // e.vmovaps(e.ptr[addr + 7 * 16], e.xmm0);
+        e.STR(Q0, addr_reg, 0 * 16);
+        e.STR(Q0, addr_reg, 1 * 16);
+        e.STR(Q0, addr_reg, 2 * 16);
+        e.STR(Q0, addr_reg, 3 * 16);
+        e.STR(Q0, addr_reg, 4 * 16);
+        e.STR(Q0, addr_reg, 5 * 16);
+        e.STR(Q0, addr_reg, 6 * 16);
+        e.STR(Q0, addr_reg, 7 * 16);
         break;
       default:
         assert_unhandled_case(i.src3.constant());
@@ -1140,10 +1139,10 @@ struct MEMSET_I64_I8_I64
     }
     if (IsTracingData()) {
       addr_reg = ComputeMemoryAddress(e, i.src1);
-      // e.mov(e.GetNativeParam(2), i.src3.constant());
-      // e.mov(e.GetNativeParam(1), i.src2.constant());
-      // e.lea(e.GetNativeParam(0), e.ptr[addr]);
-      // e.CallNative(reinterpret_cast<void*>(TraceMemset));
+      e.MOV(e.GetNativeParam(2), i.src3.constant());
+      e.MOV(e.GetNativeParam(1), i.src2.constant());
+      e.LDR(e.GetNativeParam(0), addr_reg);
+      e.CallNative(reinterpret_cast<void*>(TraceMemset));
     }
   }
 };
