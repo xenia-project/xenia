@@ -642,7 +642,7 @@ struct LOAD_OFFSET_I32
     auto addr_reg = ComputeMemoryAddressOffset(e, i.src1, i.src2);
     if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
       e.LDR(i.dest, addr_reg);
-      e.REV32(i.dest.reg().toX(), i.dest.reg().toX());
+      e.REV(i.dest.reg().toX(), i.dest.reg().toX());
     } else {
       e.LDR(i.dest, addr_reg);
     }
@@ -655,7 +655,7 @@ struct LOAD_OFFSET_I64
     auto addr_reg = ComputeMemoryAddressOffset(e, i.src1, i.src2);
     if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
       e.LDR(i.dest, addr_reg);
-      e.REV64(i.dest, i.dest);
+      e.REV(i.dest, i.dest);
     } else {
       e.LDR(i.dest, addr_reg);
     }
@@ -774,7 +774,7 @@ struct LOAD_I32 : Sequence<LOAD_I32, I<OPCODE_LOAD, I32Op, I64Op>> {
     auto addr_reg = ComputeMemoryAddress(e, i.src1);
     if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
       e.LDR(i.dest, addr_reg);
-      e.REV32(i.dest.reg().toX(), i.dest.reg().toX());
+      e.REV(i.dest, i.dest);
     } else {
       e.LDR(i.dest, addr_reg);
     }
