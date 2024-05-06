@@ -115,57 +115,63 @@ XReg ComputeMemoryAddress(A64Emitter& e, const T& guest,
 // ============================================================================
 // Note that the address we use here is a real, host address!
 // This is weird, and should be fixed.
-template <typename SEQ, typename REG, typename ARGS>
-void EmitAtomicExchangeXX(A64Emitter& e, const ARGS& i) {
+template <typename SEQ, typename REG, typename ARGS, typename FN>
+void EmitAtomicExchangeXX(A64Emitter& e, const ARGS& i, const FN& fn) {
   if (i.dest == i.src1) {
-    // e.mov(e.rax, i.src1);
+    e.MOV(X0, i.src1);
     if (i.dest != i.src2) {
       if (i.src2.is_constant) {
-        // e.mov(i.dest, i.src2.constant());
+        e.MOV(i.dest, i.src2.constant());
       } else {
-        // e.mov(i.dest, i.src2);
+        e.MOV(i.dest, i.src2);
       }
     }
-    // e.lock();
-    // e.xchg(e.dword[e.rax], i.dest);
+    fn(e, i.dest, X0);
   } else {
     if (i.dest != i.src2) {
       if (i.src2.is_constant) {
-        // e.mov(i.dest, i.src2.constant());
+        e.MOV(i.dest, i.src2.constant());
       } else {
-        // e.mov(i.dest, i.src2);
+        e.MOV(i.dest, i.src2);
       }
     }
-    // e.lock();
-    // e.xchg(e.dword[i.src1.reg()], i.dest);
+    fn(e, i.dest, i.src1);
   }
 }
 struct ATOMIC_EXCHANGE_I8
     : Sequence<ATOMIC_EXCHANGE_I8,
                I<OPCODE_ATOMIC_EXCHANGE, I8Op, I64Op, I8Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    EmitAtomicExchangeXX<ATOMIC_EXCHANGE_I8, WReg>(e, i);
+    EmitAtomicExchangeXX<ATOMIC_EXCHANGE_I8, WReg>(
+        e, i,
+        [](A64Emitter& e, WReg dest, XReg src) { e.SWPALB(dest, dest, src); });
   }
 };
 struct ATOMIC_EXCHANGE_I16
     : Sequence<ATOMIC_EXCHANGE_I16,
                I<OPCODE_ATOMIC_EXCHANGE, I16Op, I64Op, I16Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    EmitAtomicExchangeXX<ATOMIC_EXCHANGE_I16, WReg>(e, i);
+    EmitAtomicExchangeXX<ATOMIC_EXCHANGE_I8, WReg>(
+        e, i,
+        [](A64Emitter& e, WReg dest, XReg src) { e.SWPALH(dest, dest, src); });
   }
 };
 struct ATOMIC_EXCHANGE_I32
     : Sequence<ATOMIC_EXCHANGE_I32,
                I<OPCODE_ATOMIC_EXCHANGE, I32Op, I64Op, I32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    EmitAtomicExchangeXX<ATOMIC_EXCHANGE_I32, WReg>(e, i);
+    EmitAtomicExchangeXX<ATOMIC_EXCHANGE_I8, WReg>(
+        e, i,
+        [](A64Emitter& e, WReg dest, XReg src) { e.SWPAL(dest, dest, src); });
   }
 };
 struct ATOMIC_EXCHANGE_I64
     : Sequence<ATOMIC_EXCHANGE_I64,
                I<OPCODE_ATOMIC_EXCHANGE, I64Op, I64Op, I64Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    EmitAtomicExchangeXX<ATOMIC_EXCHANGE_I64, XReg>(e, i);
+    EmitAtomicExchangeXX<ATOMIC_EXCHANGE_I8, XReg>(
+        e, i,
+        [](A64Emitter& e, XReg dest, XReg src) { e.SWPAL(dest, dest, src); });
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_ATOMIC_EXCHANGE, ATOMIC_EXCHANGE_I8,
