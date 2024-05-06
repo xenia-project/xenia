@@ -566,17 +566,16 @@ struct LOAD_MMIO_I32
     : Sequence<LOAD_MMIO_I32, I<OPCODE_LOAD_MMIO, I32Op, OffsetOp, OffsetOp>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     // uint64_t (context, addr)
-    auto mmio_range = reinterpret_cast<MMIORange*>(i.src1.value);
-    auto read_address = uint32_t(i.src2.value);
-    // e.mov(e.GetNativeParam(0), uint64_t(mmio_range->callback_context));
-    // e.mov(e.GetNativeParam(1).cvt32(), read_address);
-    // e.CallNativeSafe(reinterpret_cast<void*>(mmio_range->read));
-    // e.bswap(e.eax);
-    // e.mov(i.dest, e.eax);
+    const auto mmio_range = reinterpret_cast<MMIORange*>(i.src1.value);
+    const auto read_address = uint32_t(i.src2.value);
+    e.MOV(e.GetNativeParam(0), uint64_t(mmio_range->callback_context));
+    e.MOV(e.GetNativeParam(1).toW(), read_address);
+    e.CallNativeSafe(reinterpret_cast<void*>(mmio_range->read));
+    e.REV(i.dest, W0);
     if (IsTracingData()) {
-      // e.mov(e.GetNativeParam(0), i.dest);
-      // e.mov(e.edx, read_address);
-      // e.CallNative(reinterpret_cast<void*>(TraceContextLoadI32));
+      e.MOV(e.GetNativeParam(0).toW(), i.dest);
+      e.MOV(X1, read_address);
+      e.CallNative(reinterpret_cast<void*>(TraceContextLoadI32));
     }
   }
 };
@@ -591,25 +590,24 @@ struct STORE_MMIO_I32
                I<OPCODE_STORE_MMIO, VoidOp, OffsetOp, OffsetOp, I32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     // void (context, addr, value)
-    auto mmio_range = reinterpret_cast<MMIORange*>(i.src1.value);
-    auto write_address = uint32_t(i.src2.value);
-    // e.mov(e.GetNativeParam(0), uint64_t(mmio_range->callback_context));
-    // e.mov(e.GetNativeParam(1).cvt32(), write_address);
+    const auto mmio_range = reinterpret_cast<MMIORange*>(i.src1.value);
+    const auto write_address = uint32_t(i.src2.value);
+    e.MOV(e.GetNativeParam(0), uint64_t(mmio_range->callback_context));
+    e.MOV(e.GetNativeParam(1).toW(), write_address);
     if (i.src3.is_constant) {
-      // e.mov(e.GetNativeParam(2).cvt32(), xe::byte_swap(i.src3.constant()));
+      e.MOV(e.GetNativeParam(2).toW(), xe::byte_swap(i.src3.constant()));
     } else {
-      // e.mov(e.GetNativeParam(2).cvt32(), i.src3);
-      // e.bswap(e.GetNativeParam(2).cvt32());
+      e.REV(e.GetNativeParam(2).toW(), i.src3);
     }
-    // e.CallNativeSafe(reinterpret_cast<void*>(mmio_range->write));
+    e.CallNativeSafe(reinterpret_cast<void*>(mmio_range->write));
     if (IsTracingData()) {
       if (i.src3.is_constant) {
-        // e.mov(e.GetNativeParam(0).cvt32(), i.src3.constant());
+        e.MOV(e.GetNativeParam(0).toW(), i.src3.constant());
       } else {
-        // e.mov(e.GetNativeParam(0).cvt32(), i.src3);
+        e.MOV(e.GetNativeParam(0).toW(), i.src3);
       }
-      // e.mov(e.edx, write_address);
-      // e.CallNative(reinterpret_cast<void*>(TraceContextStoreI32));
+      e.MOV(X1, write_address);
+      e.CallNative(reinterpret_cast<void*>(TraceContextStoreI32));
     }
   }
 };
