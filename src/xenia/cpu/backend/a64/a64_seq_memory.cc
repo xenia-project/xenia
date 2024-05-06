@@ -185,42 +185,52 @@ struct ATOMIC_COMPARE_EXCHANGE_I32
     : Sequence<ATOMIC_COMPARE_EXCHANGE_I32,
                I<OPCODE_ATOMIC_COMPARE_EXCHANGE, I8Op, I64Op, I32Op, I32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    // e.mov(e.eax, i.src2);
+    e.MOV(W0, i.src2);
     if (xe::memory::allocation_granularity() > 0x1000) {
       // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
       // it via memory mapping.
-      // e.cmp(i.src1.reg().cvt32(), 0xE0000000);
-      // e.setae(e.cl);
-      // e.movzx(e.ecx, e.cl);
-      // e.shl(e.ecx, 12);
-      // e.add(e.ecx, i.src1.reg().cvt32());
+      e.CMP(i.src1.reg(), 0xE0, LSL, 24);
+      e.CSET(W1, Cond::HS);
+      e.LSL(W1, W1, 12);
+      e.ADD(W1, W1, i.src1.reg().toW());
     } else {
-      // e.mov(e.ecx, i.src1.reg().cvt32());
+      e.MOV(W1, i.src1.reg().toW());
     }
-    // e.lock();
-    // e.cmpxchg(e.dword[e.GetMembaseReg() + e.rcx], i.src3);
-    // e.sete(i.dest);
+    e.ADD(W1, e.GetMembaseReg().toW(), W1);
+
+    // if([C] == A) [C] = B
+    // else A = [C]
+    e.CASAL(W0, i.src3, X1);
+
+    // Set dest to 1 in the case of a successful exchange
+    e.CMP(W0, i.src2);
+    e.CSET(i.dest, Cond::EQ);
   }
 };
 struct ATOMIC_COMPARE_EXCHANGE_I64
     : Sequence<ATOMIC_COMPARE_EXCHANGE_I64,
                I<OPCODE_ATOMIC_COMPARE_EXCHANGE, I8Op, I64Op, I64Op, I64Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    // e.mov(e.rax, i.src2);
+    e.MOV(X0, i.src2);
     if (xe::memory::allocation_granularity() > 0x1000) {
       // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
       // it via memory mapping.
-      // e.cmp(i.src1.reg().cvt32(), 0xE0000000);
-      // e.setae(e.cl);
-      // e.movzx(e.ecx, e.cl);
-      // e.shl(e.ecx, 12);
-      // e.add(e.ecx, i.src1.reg().cvt32());
+      e.CMP(i.src1.reg(), 0xE0, LSL, 24);
+      e.CSET(W1, Cond::HS);
+      e.LSL(W1, W1, 12);
+      e.ADD(W1, W1, i.src1.reg().toW());
     } else {
-      // e.mov(e.ecx, i.src1.reg().cvt32());
+      e.MOV(W1, i.src1.reg().toW());
     }
-    // e.lock();
-    // e.cmpxchg(e.qword[e.GetMembaseReg() + e.rcx], i.src3);
-    // e.sete(i.dest);
+    e.ADD(W1, e.GetMembaseReg().toW(), W1);
+
+    // if([C] == A) [C] = B
+    // else A = [C]
+    e.CASAL(X0, i.src3, X1);
+
+    // Set dest to 1 in the case of a successful exchange
+    e.CMP(X0, i.src2);
+    e.CSET(i.dest, Cond::EQ);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_ATOMIC_COMPARE_EXCHANGE,
