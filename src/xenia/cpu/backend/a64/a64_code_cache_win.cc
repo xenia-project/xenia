@@ -31,69 +31,39 @@ namespace cpu {
 namespace backend {
 namespace a64 {
 
-// https://msdn.microsoft.com/en-us/library/ssa62fwe.aspx
+// ARM64 unwind-op codes
+// https://docs.microsoft.com/en-us/cpp/build/arm64-exception-handling#unwind-codes
+// https://www.corsix.org/content/windows-arm64-unwind-codes
 typedef enum _UNWIND_OP_CODES {
-  UWOP_PUSH_NONVOL = 0, /* info == register number */
-  UWOP_ALLOC_LARGE,     /* no info, alloc size in next 2 slots */
-  UWOP_ALLOC_SMALL,     /* info == size of allocation / 8 - 1 */
-  UWOP_SET_FPREG,       /* no info, FP = RSP + UNWIND_INFO.FPRegOffset*16 */
-  UWOP_SAVE_NONVOL,     /* info == register number, offset in next slot */
-  UWOP_SAVE_NONVOL_FAR, /* info == register number, offset in next 2 slots */
-  UWOP_SAVE_XMM128,     /* info == XMM reg number, offset in next slot */
-  UWOP_SAVE_XMM128_FAR, /* info == XMM reg number, offset in next 2 slots */
-  UWOP_PUSH_MACHFRAME   /* info == 0: no error-code, 1: error-code */
+  UWOP_NOP = 0xE3,
+  UWOP_ALLOC_S = 0x00,           // sub sp, sp, i*16
+  UWOP_ALLOC_L = 0xE0'00'00'00,  // sub sp, sp, i*16
+  UWOP_SAVE_FPLR = 0x40,         // stp fp, lr, [sp+i*8]
+  UWOP_SAVE_FPLRX = 0x80,        // stp fp, lr, [sp-(i+1)*8]!
+  UWOP_SET_FP = 0xE1,            // mov fp, sp
+  UWOP_END = 0xE4,
 } UNWIND_CODE_OPS;
-class UNWIND_REGISTER {
- public:
-  enum _ {
-    RAX = 0,
-    RCX = 1,
-    RDX = 2,
-    RBX = 3,
-    RSP = 4,
-    RBP = 5,
-    RSI = 6,
-    RDI = 7,
-    R8 = 8,
-    R9 = 9,
-    R10 = 10,
-    R11 = 11,
-    R12 = 12,
-    R13 = 13,
-    R14 = 14,
-    R15 = 15,
-  };
-};
 
-typedef union _UNWIND_CODE {
-  struct {
-    uint8_t CodeOffset;
-    uint8_t UnwindOp : 4;
-    uint8_t OpInfo : 4;
-  };
-  USHORT FrameOffset;
-} UNWIND_CODE, *PUNWIND_CODE;
+using UNWIND_CODE = uint32_t;
 
+static_assert(sizeof(UNWIND_CODE) == sizeof(uint32_t));
+
+// UNWIND_INFO defines the static part (first 32-bit) of the .xdata record
 typedef struct _UNWIND_INFO {
-  uint8_t Version : 3;
-  uint8_t Flags : 5;
-  uint8_t SizeOfProlog;
-  uint8_t CountOfCodes;
-  uint8_t FrameRegister : 4;
-  uint8_t FrameOffset : 4;
-  UNWIND_CODE UnwindCode[1];
-  /*  UNWIND_CODE MoreUnwindCode[((CountOfCodes + 1) & ~1) - 1];
-   *   union {
-   *       OPTIONAL ULONG ExceptionHandler;
-   *       OPTIONAL ULONG FunctionEntry;
-   *   };
-   *   OPTIONAL ULONG ExceptionData[]; */
+  uint32_t FunctionLength : 18;
+  uint32_t Version : 2;
+  uint32_t X : 1;
+  uint32_t E : 1;
+  uint32_t EpilogCount : 5;
+  uint32_t CodeWords : 5;
+  UNWIND_CODE UnwindCodes[2];
 } UNWIND_INFO, *PUNWIND_INFO;
 
+static_assert(offsetof(UNWIND_INFO, UnwindCodes[0]) == 4);
+static_assert(offsetof(UNWIND_INFO, UnwindCodes[1]) == 8);
+
 // Size of unwind info per function.
-// TODO(benvanik): move this to emitter.
-static const uint32_t kUnwindInfoSize =
-    sizeof(UNWIND_INFO) + (sizeof(UNWIND_CODE) * (6 - 1));
+static const uint32_t kUnwindInfoSize = sizeof(UNWIND_INFO);
 
 class Win32A64CodeCache : public A64CodeCache {
  public:
@@ -232,83 +202,95 @@ void Win32A64CodeCache::PlaceCode(uint32_t guest_address, void* machine_code,
     grow_table_(unwind_table_handle_, unwind_table_count_);
   }
 
-  // This isn't needed on a64 (probably), but is convention.
-  // On UWP, FlushInstructionCache available starting from 10.0.16299.0.
   // https://docs.microsoft.com/en-us/uwp/win32-and-com/win32-apis
   FlushInstructionCache(GetCurrentProcess(), code_execute_address,
                         func_info.code_size.total);
+}
+
+constexpr UNWIND_CODE UnwindOpWord(uint8_t code0 = UWOP_NOP,
+                                   uint8_t code1 = UWOP_NOP,
+                                   uint8_t code2 = UWOP_NOP,
+                                   uint8_t code3 = UWOP_NOP) {
+  return static_cast<uint32_t>(code0) | (static_cast<uint32_t>(code1) << 8) |
+         (static_cast<uint32_t>(code2) << 16) |
+         (static_cast<uint32_t>(code3) << 24);
+}
+
+// 8-byte unwind code for "stp fp, lr, [sp, #-16]!
+// https://docs.microsoft.com/en-us/cpp/build/arm64-exception-handling#unwind-codes
+static uint8_t OpSaveFpLrX(int16_t pre_index_offset) {
+  assert_true(pre_index_offset <= -8);
+  assert_true(pre_index_offset >= -512);
+  // 16-byte aligned
+  constexpr int IndexShift = 3;
+  constexpr int IndexMask = (1 << IndexShift) - 1;
+  assert_true((pre_index_offset & IndexMask) == 0);
+  const uint32_t encoded_value = (-pre_index_offset >> IndexShift) - 1;
+  return UWOP_SAVE_FPLRX | encoded_value;
+}
+
+// Ensure a 16-byte aligned stack
+static constexpr size_t StackAlignShift = 4;                          // n / 16
+static constexpr size_t StackAlignMask = (1 << StackAlignShift) - 1;  // n % 16
+
+// 8-byte unwind code for up to +512-byte "sub sp, sp, #stack_space"
+// https://docs.microsoft.com/en-us/cpp/build/arm64-exception-handling#unwind-codes
+static uint8_t OpAllocS(int16_t stack_space) {
+  assert_true(stack_space >= 0);
+  assert_true(stack_space < 512);
+  assert_true((stack_space & StackAlignMask) == 0);
+  return UWOP_ALLOC_S | (stack_space >> StackAlignShift);
+}
+
+// 4-byte unwind code for +256MiB "sub sp, sp, #stack_space"
+// https://docs.microsoft.com/en-us/cpp/build/arm64-exception-handling#unwind-codes
+uint32_t OpAllocL(int32_t stack_space) {
+  assert_true(stack_space >= 0);
+  assert_true(stack_space < (0xFFFFFF * 16));
+  assert_true((stack_space & StackAlignMask) == 0);
+  return xe::byte_swap(UWOP_ALLOC_L |
+                       ((stack_space >> StackAlignShift) & 0xFF'FF'FF));
 }
 
 void Win32A64CodeCache::InitializeUnwindEntry(
     uint8_t* unwind_entry_address, size_t unwind_table_slot,
     void* code_execute_address, const EmitFunctionInfo& func_info) {
   auto unwind_info = reinterpret_cast<UNWIND_INFO*>(unwind_entry_address);
-  UNWIND_CODE* unwind_code = nullptr;
 
-  assert_true(func_info.code_size.prolog < 256);  // needs to fit into a uint8_t
-  auto prolog_size = static_cast<uint8_t>(func_info.code_size.prolog);
-  assert_true(func_info.prolog_stack_alloc_offset <
-              256);  // needs to fit into a uint8_t
-  auto prolog_stack_alloc_offset =
-      static_cast<uint8_t>(func_info.prolog_stack_alloc_offset);
+  *unwind_info = {};
+  // ARM64 instructions are always multiples of 4 bytes
+  // Windows ignores the bottom 2 bits
+  unwind_info->FunctionLength = func_info.code_size.total / 4;
+  unwind_info->CodeWords = 2;
 
-  if (!func_info.stack_size) {
-    // https://docs.microsoft.com/en-us/cpp/build/exception-handling-x64#struct-unwind_info
-    unwind_info->Version = 1;
-    unwind_info->Flags = 0;
-    unwind_info->SizeOfProlog = prolog_size;
-    unwind_info->CountOfCodes = 0;
-    unwind_info->FrameRegister = 0;
-    unwind_info->FrameOffset = 0;
-  } else if (func_info.stack_size <= 128) {
-    // https://docs.microsoft.com/en-us/cpp/build/exception-handling-x64#struct-unwind_info
-    unwind_info->Version = 1;
-    unwind_info->Flags = 0;
-    unwind_info->SizeOfProlog = prolog_size;
-    unwind_info->CountOfCodes = 0;
-    unwind_info->FrameRegister = 0;
-    unwind_info->FrameOffset = 0;
+  // https://learn.microsoft.com/en-us/cpp/build/arm64-exception-handling?view=msvc-170#unwind-codes
+  // The array of unwind codes is a pool of sequences that describe exactly how
+  // to undo the effects of the prolog. They're stored in the same order the
+  // operations need to be undone. The unwind codes can be thought of as a small
+  // instruction set, encoded as a string of bytes. When execution is complete,
+  // the return address to the calling function is in the lr register. And, all
+  // non-volatile registers are restored to their values at the time the
+  // function was called.
 
-    // https://docs.microsoft.com/en-us/cpp/build/exception-handling-x64#struct-unwind_code
-    unwind_code = &unwind_info->UnwindCode[unwind_info->CountOfCodes++];
-    unwind_code->CodeOffset = prolog_stack_alloc_offset;
-    unwind_code->UnwindOp = UWOP_ALLOC_SMALL;
-    unwind_code->OpInfo = (func_info.stack_size / 8) - 1;
-  } else {
-    // TODO(benvanik): take as parameters?
+  // Function frames are generally:
+  // STP(X29, X30, SP, PRE_INDEXED, -32);
+  // MOV(X29, XSP);
+  // SUB(XSP, XSP, stack_size);
+  // ... function body ...
+  // ADD(XSP, XSP, stack_size);
+  // MOV(XSP, X29);
+  // LDP(X29, X30, SP, POST_INDEXED, 32);
 
-    // https://docs.microsoft.com/en-us/cpp/build/exception-handling-x64#struct-unwind_info
-    unwind_info->Version = 1;
-    unwind_info->Flags = 0;
-    unwind_info->SizeOfProlog = prolog_size;
-    unwind_info->CountOfCodes = 0;
-    unwind_info->FrameRegister = 0;
-    unwind_info->FrameOffset = 0;
-
-    // https://docs.microsoft.com/en-us/cpp/build/exception-handling-x64#struct-unwind_code
-    unwind_code = &unwind_info->UnwindCode[unwind_info->CountOfCodes++];
-    unwind_code->CodeOffset = prolog_stack_alloc_offset;
-    unwind_code->UnwindOp = UWOP_ALLOC_LARGE;
-    unwind_code->OpInfo = 0;  // One slot for size
-
-    assert_true((func_info.stack_size / 8) < 65536u);
-    unwind_code = &unwind_info->UnwindCode[unwind_info->CountOfCodes++];
-    unwind_code->FrameOffset = (USHORT)(func_info.stack_size) / 8;
-  }
-
-  if (unwind_info->CountOfCodes % 1) {
-    // Count of unwind codes must always be even.
-    std::memset(&unwind_info->UnwindCode[unwind_info->CountOfCodes + 1], 0,
-                sizeof(UNWIND_CODE));
-  }
+  // These opcodes must undo the epilog and put the return address within lr
+  unwind_info->UnwindCodes[0] = OpAllocL(func_info.stack_size);
+  unwind_info->UnwindCodes[1] =
+      UnwindOpWord(UWOP_SET_FP, OpSaveFpLrX(-32), UWOP_END);
 
   // Add entry.
-  auto& fn_entry = unwind_table_[unwind_table_slot];
+  RUNTIME_FUNCTION& fn_entry = unwind_table_[unwind_table_slot];
   fn_entry.BeginAddress =
       DWORD(reinterpret_cast<uint8_t*>(code_execute_address) -
             generated_code_execute_base_);
-  fn_entry.FunctionLength =
-      DWORD(func_info.code_size.total);
   fn_entry.UnwindData =
       DWORD(unwind_entry_address - generated_code_execute_base_);
 }
