@@ -227,6 +227,7 @@ EMITTER_OPCODE_TABLE(OPCODE_ATOMIC_COMPARE_EXCHANGE,
 struct LOAD_LOCAL_I8
     : Sequence<LOAD_LOCAL_I8, I<OPCODE_LOAD_LOCAL, I8Op, I32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
+    e.LDRB(i.dest, SP, i.src1.constant());
     // e.mov(i.dest, e.byte[e.rsp + i.src1.constant()]);
     // e.TraceLoadI8(DATA_LOCAL, i.src1.constant, i.dest);
   }
@@ -234,42 +235,42 @@ struct LOAD_LOCAL_I8
 struct LOAD_LOCAL_I16
     : Sequence<LOAD_LOCAL_I16, I<OPCODE_LOAD_LOCAL, I16Op, I32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    // e.mov(i.dest, e.word[e.rsp + i.src1.constant()]);
+    e.LDRH(i.dest, SP, i.src1.constant());
     // e.TraceLoadI16(DATA_LOCAL, i.src1.constant, i.dest);
   }
 };
 struct LOAD_LOCAL_I32
     : Sequence<LOAD_LOCAL_I32, I<OPCODE_LOAD_LOCAL, I32Op, I32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    // e.mov(i.dest, e.dword[e.rsp + i.src1.constant()]);
+    e.LDR(i.dest, SP, i.src1.constant());
     // e.TraceLoadI32(DATA_LOCAL, i.src1.constant, i.dest);
   }
 };
 struct LOAD_LOCAL_I64
     : Sequence<LOAD_LOCAL_I64, I<OPCODE_LOAD_LOCAL, I64Op, I32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    // e.mov(i.dest, e.qword[e.rsp + i.src1.constant()]);
+    e.LDR(i.dest, SP, i.src1.constant());
     // e.TraceLoadI64(DATA_LOCAL, i.src1.constant, i.dest);
   }
 };
 struct LOAD_LOCAL_F32
     : Sequence<LOAD_LOCAL_F32, I<OPCODE_LOAD_LOCAL, F32Op, I32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    // e.vmovss(i.dest, e.dword[e.rsp + i.src1.constant()]);
+    e.LDR(i.dest, SP, i.src1.constant());
     // e.TraceLoadF32(DATA_LOCAL, i.src1.constant, i.dest);
   }
 };
 struct LOAD_LOCAL_F64
     : Sequence<LOAD_LOCAL_F64, I<OPCODE_LOAD_LOCAL, F64Op, I32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    // e.vmovsd(i.dest, e.qword[e.rsp + i.src1.constant()]);
+    e.LDR(i.dest, SP, i.src1.constant());
     // e.TraceLoadF64(DATA_LOCAL, i.src1.constant, i.dest);
   }
 };
 struct LOAD_LOCAL_V128
     : Sequence<LOAD_LOCAL_V128, I<OPCODE_LOAD_LOCAL, V128Op, I32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    // e.vmovaps(i.dest, e.ptr[e.rsp + i.src1.constant()]);
+    e.LDR(i.dest, SP, i.src1.constant());
     // e.TraceLoadV128(DATA_LOCAL, i.src1.constant, i.dest);
   }
 };
@@ -285,49 +286,49 @@ struct STORE_LOCAL_I8
     : Sequence<STORE_LOCAL_I8, I<OPCODE_STORE_LOCAL, VoidOp, I32Op, I8Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     // e.TraceStoreI8(DATA_LOCAL, i.src1.constant, i.src2);
-    // e.mov(e.byte[e.rsp + i.src1.constant()], i.src2);
+    e.STRB(i.src2, SP, i.src1.constant());
   }
 };
 struct STORE_LOCAL_I16
     : Sequence<STORE_LOCAL_I16, I<OPCODE_STORE_LOCAL, VoidOp, I32Op, I16Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     // e.TraceStoreI16(DATA_LOCAL, i.src1.constant, i.src2);
-    // e.mov(e.word[e.rsp + i.src1.constant()], i.src2);
+    e.STRH(i.src2, SP, i.src1.constant());
   }
 };
 struct STORE_LOCAL_I32
     : Sequence<STORE_LOCAL_I32, I<OPCODE_STORE_LOCAL, VoidOp, I32Op, I32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     // e.TraceStoreI32(DATA_LOCAL, i.src1.constant, i.src2);
-    // e.mov(e.dword[e.rsp + i.src1.constant()], i.src2);
+    e.STR(i.src2, SP, i.src1.constant());
   }
 };
 struct STORE_LOCAL_I64
     : Sequence<STORE_LOCAL_I64, I<OPCODE_STORE_LOCAL, VoidOp, I32Op, I64Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     // e.TraceStoreI64(DATA_LOCAL, i.src1.constant, i.src2);
-    // e.mov(e.qword[e.rsp + i.src1.constant()], i.src2);
+    e.STR(i.src2, SP, i.src1.constant());
   }
 };
 struct STORE_LOCAL_F32
     : Sequence<STORE_LOCAL_F32, I<OPCODE_STORE_LOCAL, VoidOp, I32Op, F32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     // e.TraceStoreF32(DATA_LOCAL, i.src1.constant, i.src2);
-    // e.vmovss(e.dword[e.rsp + i.src1.constant()], i.src2);
+    e.STR(i.src2, SP, i.src1.constant());
   }
 };
 struct STORE_LOCAL_F64
     : Sequence<STORE_LOCAL_F64, I<OPCODE_STORE_LOCAL, VoidOp, I32Op, F64Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     // e.TraceStoreF64(DATA_LOCAL, i.src1.constant, i.src2);
-    // e.vmovsd(e.qword[e.rsp + i.src1.constant()], i.src2);
+    e.STR(i.src2, SP, i.src1.constant());
   }
 };
 struct STORE_LOCAL_V128
     : Sequence<STORE_LOCAL_V128, I<OPCODE_STORE_LOCAL, VoidOp, I32Op, V128Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     // e.TraceStoreV128(DATA_LOCAL, i.src1.constant, i.src2);
-    // e.vmovaps(e.ptr[e.rsp + i.src1.constant()], i.src2);
+    e.STR(i.src2, SP, i.src1.constant());
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_STORE_LOCAL, STORE_LOCAL_I8, STORE_LOCAL_I16,
