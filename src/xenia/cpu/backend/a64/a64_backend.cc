@@ -228,8 +228,6 @@ HostToGuestThunk A64ThunkEmitter::EmitHostToGuestThunk() {
   //  mov(qword[rsp + 8 * 1], rcx);
   //  sub(rsp, stack_size);
 
-  STP(X29, X30, SP, PRE_INDEXED, -32);
-  MOV(X29, SP);
 
   STR(X2, SP, 8 * 3);
   STR(X1, SP, 8 * 2);
@@ -266,9 +264,6 @@ HostToGuestThunk A64ThunkEmitter::EmitHostToGuestThunk() {
   LDR(X0, SP, 8 * 1);
   LDR(X1, SP, 8 * 2);
   LDR(X2, SP, 8 * 3);
-
-  MOV(SP, X29);
-  LDP(X29, X30, SP, POST_INDEXED, 32);
 
   RET();
 
@@ -307,8 +302,6 @@ GuestToHostThunk A64ThunkEmitter::EmitGuestToHostThunk() {
 
   code_offsets.prolog = offset();
 
-  STP(X29, X30, SP, PRE_INDEXED, -32);
-  MOV(X29, SP);
   // rsp + 0 = return address
   // sub(rsp, stack_size);
   SUB(SP, SP, stack_size);
@@ -318,7 +311,6 @@ GuestToHostThunk A64ThunkEmitter::EmitGuestToHostThunk() {
 
   // Save off volatile registers.
   EmitSaveVolatileRegs();
-  MOV(X29, SP);
 
   // mov(rax, rcx);              // function
   // mov(rcx, GetContextReg());  // context
@@ -327,8 +319,6 @@ GuestToHostThunk A64ThunkEmitter::EmitGuestToHostThunk() {
   MOV(X0, GetContextReg());  // context
   BLR(X16);
 
-  MOV(SP, X29);
-
   EmitLoadVolatileRegs();
 
   code_offsets.epilog = offset();
@@ -336,8 +326,6 @@ GuestToHostThunk A64ThunkEmitter::EmitGuestToHostThunk() {
   // add(rsp, stack_size);
   // ret();
   ADD(SP, SP, stack_size);
-  MOV(SP, X29);
-  LDP(X29, X30, SP, POST_INDEXED, 32);
   RET();
 
   code_offsets.tail = offset();
@@ -382,8 +370,6 @@ ResolveFunctionThunk A64ThunkEmitter::EmitResolveFunctionThunk() {
 
   // rsp + 0 = return address
   // sub(rsp, stack_size);
-  STP(X29, X30, SP, POST_INDEXED, -32);
-  MOV(X29, SP);
   SUB(SP, SP, stack_size);
 
   code_offsets.prolog_stack_alloc = offset();
@@ -408,8 +394,6 @@ ResolveFunctionThunk A64ThunkEmitter::EmitResolveFunctionThunk() {
   // add(rsp, stack_size);
   // jmp(rax);
   ADD(SP, SP, stack_size);
-  MOV(SP, X29);
-  LDP(X29, X30, SP, POST_INDEXED, 32);
   BR(X0);
 
   code_offsets.tail = offset();
@@ -429,8 +413,6 @@ ResolveFunctionThunk A64ThunkEmitter::EmitResolveFunctionThunk() {
   return (ResolveFunctionThunk)fn;
 }
 
-// Caller saved:
-// x0-x15, x30 | d0-d7 and d16-v31
 void A64ThunkEmitter::EmitSaveVolatileRegs() {
   // Save off volatile registers.
   // Preserve arguments passed to and returned from a subroutine
@@ -490,8 +472,6 @@ void A64ThunkEmitter::EmitLoadVolatileRegs() {
   LDR(Q31, SP, offsetof(StackLayout::Thunk, xmm[21]));
 }
 
-// Callee saved:
-// x19-x30 | d8-d15
 void A64ThunkEmitter::EmitSaveNonvolatileRegs() {
   STP(X19, X20, SP, offsetof(StackLayout::Thunk, r[0]));
   STP(X21, X22, SP, offsetof(StackLayout::Thunk, r[2]));
