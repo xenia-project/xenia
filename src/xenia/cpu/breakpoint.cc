@@ -84,29 +84,37 @@ void Breakpoint::ForEachHostAddress(
     // Lookup all functions that contain this guest address and patch them.
     auto functions = processor_->FindFunctionsWithAddress(guest_address);
 
-    if (functions.empty()) {
-      // If function does not exist demand it, as we need someplace to put our
-      // breakpoint. Note that this follows the same resolution rules as the
-      // JIT, so what's returned is the function the JIT would have jumped to.
-      auto fn = processor_->ResolveFunction(guest_address);
-      if (!fn) {
-        // TODO(benvanik): error out better with 'invalid breakpoint'?
-        assert_not_null(fn);
-        return;
-      }
-      functions.push_back(fn);
+    // If function does not exist demand it, as we need someplace to put our
+    // breakpoint. Note that this follows the same resolution rules as the
+    // JIT, so what's returned is the function the JIT would have jumped to.
+    auto fn = processor_->ResolveFunction(guest_address);
+    if (!fn) {
+      // TODO(benvanik): error out better with 'invalid breakpoint'?
+      assert_not_null(fn);
+      return;
     }
+
+    functions.push_back(fn);
     assert_false(functions.empty());
+    uintptr_t host_address = 0;
 
     for (auto function : functions) {
       // TODO(benvanik): other function types.
       assert_true(function->is_guest());
       auto guest_function = reinterpret_cast<GuestFunction*>(function);
-      uintptr_t host_address =
+      host_address =
           guest_function->MapGuestAddressToMachineCode(guest_address);
-      assert_not_zero(host_address);
-      callback(host_address);
+
+      // Functions that jump around another function can be misinterpreted as
+      // containing an address. Try each eligible function and use the one that
+      // works.
+      if (host_address != 0) {
+        callback(host_address);
+        break;
+      }
     }
+
+    assert_not_zero(host_address);
   } else {
     // Direct host address patching.
     callback(host_address());

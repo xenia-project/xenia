@@ -300,11 +300,26 @@ void DebugWindow::DrawToolbar() {
     if (thread_info == state_.thread_info) {
       current_thread_index = i;
     }
-    if (thread_info->state != cpu::ThreadDebugInfo::State::kZombie) {
-      thread_combo.Append(thread_info->thread->thread_name());
-    } else {
-      thread_combo.Append("(zombie)");
+
+    // Threads can be briefly invalid once destroyed and before a cache update.
+    // This ensures we are accessing threads that are still valid.
+    switch (thread_info->state) {
+      case cpu::ThreadDebugInfo::State::kAlive:
+      case cpu::ThreadDebugInfo::State::kExited:
+      case cpu::ThreadDebugInfo::State::kWaiting:
+        if (thread_info->thread_handle == NULL || thread_info->thread == NULL) {
+          thread_combo.Append("(invalid)");
+        } else {
+          thread_combo.Append(thread_info->thread->thread_name());
+        }
+        break;
+      case cpu::ThreadDebugInfo::State::kZombie:
+        thread_combo.Append("(zombie)");
+        break;
+      default:
+        thread_combo.Append("(invalid)");
     }
+
     thread_combo.Append('\0');
     ++i;
   }

@@ -447,6 +447,7 @@ bool Processor::Restore(ByteStream* stream) {
   std::vector<uint32_t> to_delete;
   for (auto& it : thread_debug_infos_) {
     if (it.second->state == ThreadDebugInfo::State::kZombie) {
+      it.second->thread_handle = NULL;
       to_delete.push_back(it.first);
     }
   }
@@ -481,11 +482,11 @@ void Processor::OnThreadCreated(uint32_t thread_handle,
                                 ThreadState* thread_state, Thread* thread) {
   auto global_lock = global_critical_region_.Acquire();
   auto thread_info = std::make_unique<ThreadDebugInfo>();
-  thread_info->thread_handle = thread_handle;
   thread_info->thread_id = thread_state->thread_id();
   thread_info->thread = thread;
   thread_info->state = ThreadDebugInfo::State::kAlive;
   thread_info->suspended = false;
+  thread_info->thread_handle = thread_handle;
   thread_debug_infos_.emplace(thread_info->thread_id, std::move(thread_info));
 }
 
@@ -501,6 +502,7 @@ void Processor::OnThreadDestroyed(uint32_t thread_id) {
   auto global_lock = global_critical_region_.Acquire();
   auto it = thread_debug_infos_.find(thread_id);
   assert_true(it != thread_debug_infos_.end());
+  it->second->thread_handle = NULL;
   thread_debug_infos_.erase(it);
 }
 
@@ -667,14 +669,15 @@ bool Processor::OnThreadBreakpointHit(Exception* ex) {
     debug_listener_->OnExecutionPaused();
   }
 
+  ResumeAllThreads();
   thread_info->thread->thread()->Suspend();
 
   // Apply thread context changes.
   // TODO(benvanik): apply to all threads?
 #if XE_ARCH_AMD64
-  ex->set_resume_pc(thread_info->host_context.rip);
+  ex->set_resume_pc(thread_info->host_context.rip + 2);
 #elif XE_ARCH_ARM64
-  ex->set_resume_pc(thread_info->host_context.pc);
+  ex->set_resume_pc(thread_info->host_context.pc + 2);
 #else
 #error Instruction pointer not specified for the target CPU architecture.
 #endif  // XE_ARCH
@@ -902,6 +905,7 @@ void Processor::Continue() {
   execution_state_ = ExecutionState::kRunning;
   ResumeAllBreakpoints();
   ResumeAllThreads();
+
   if (debug_listener_) {
     debug_listener_->OnExecutionContinued();
   }
