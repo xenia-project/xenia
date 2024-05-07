@@ -72,7 +72,7 @@ const uint8_t A64Emitter::fpr_reg_map_[A64Emitter::FPR_COUNT] = {
 };
 
 A64Emitter::A64Emitter(A64Backend* backend)
-    : CodeBlock(4_KiB),
+    : CodeBlock(kMaxCodeSize),
       CodeGenerator(CodeBlock::ptr()),
       processor_(backend->processor()),
       backend_(backend),
