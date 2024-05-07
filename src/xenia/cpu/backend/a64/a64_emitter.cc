@@ -359,8 +359,7 @@ void A64Emitter::MarkSourceOffset(const Instr* i) {
 
 void A64Emitter::EmitGetCurrentThreadId() {
   // rsi must point to context. We could fetch from the stack if needed.
-  // mov(ax, word[GetContextReg() + offsetof(ppc::PPCContext, thread_id)]);
-  LDRB(W0, GetContextReg(), offsetof(ppc::PPCContext, thread_id));
+  LDRH(W0, GetContextReg(), offsetof(ppc::PPCContext, thread_id));
 }
 
 void A64Emitter::EmitTraceUserCallReturn() {}
