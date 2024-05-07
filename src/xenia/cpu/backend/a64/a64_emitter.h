@@ -137,13 +137,13 @@ class A64Emitter : public oaknut::CodeBlock, public oaknut::CodeGenerator {
             std::vector<SourceMapEntry>* out_source_map);
 
  public:
-  // Reserved:  XSP, X19, X20
-  // Scratch:   X0/X1/X2
+  // Reserved:  XSP, X27, X28
+  // Scratch:   X1-X15, X30 | V0-v7 and V16-V31
   //            V0-2
-  // Available: X1, X10-r15
+  // Available: X19-X26
   //            V4-V15 (save to get V3)
-  static const int GPR_COUNT = 7;
-  static const int XMM_COUNT = 12;
+  static const size_t GPR_COUNT = 8;
+  static const size_t FPR_COUNT = 8;
 
   static void SetupReg(const hir::Value* v, oaknut::WReg& r) {
     const auto idx = gpr_reg_map_[v->reg.index];
@@ -154,15 +154,15 @@ class A64Emitter : public oaknut::CodeBlock, public oaknut::CodeGenerator {
     r = oaknut::XReg(idx);
   }
   static void SetupReg(const hir::Value* v, oaknut::SReg& r) {
-    const auto idx = xmm_reg_map_[v->reg.index];
+    const auto idx = fpr_reg_map_[v->reg.index];
     r = oaknut::SReg(idx);
   }
   static void SetupReg(const hir::Value* v, oaknut::DReg& r) {
-    const auto idx = xmm_reg_map_[v->reg.index];
+    const auto idx = fpr_reg_map_[v->reg.index];
     r = oaknut::DReg(idx);
   }
   static void SetupReg(const hir::Value* v, oaknut::QReg& r) {
-    const auto idx = xmm_reg_map_[v->reg.index];
+    const auto idx = fpr_reg_map_[v->reg.index];
     r = oaknut::QReg(idx);
   }
 
@@ -247,8 +247,8 @@ class A64Emitter : public oaknut::CodeBlock, public oaknut::CodeGenerator {
 
   size_t stack_size_ = 0;
 
-  static const uint32_t gpr_reg_map_[GPR_COUNT];
-  static const uint32_t xmm_reg_map_[XMM_COUNT];
+  static const uint8_t gpr_reg_map_[GPR_COUNT];
+  static const uint8_t fpr_reg_map_[FPR_COUNT];
 };
 
 }  // namespace a64
