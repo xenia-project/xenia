@@ -62,12 +62,13 @@ static const size_t kMaxCodeSize = 1_MiB;
 static const size_t kStashOffset = 32;
 // static const size_t kStashOffsetHigh = 32 + 32;
 
-const uint32_t A64Emitter::gpr_reg_map_[A64Emitter::GPR_COUNT] = {
-    1, 10, 11, 12, 13, 14, 15,
+// Register indices that the HIR is allowed to use for operands
+const uint8_t A64Emitter::gpr_reg_map_[A64Emitter::GPR_COUNT] = {
+    19, 20, 21, 22, 23, 24, 25, 26,
 };
 
-const uint32_t A64Emitter::xmm_reg_map_[A64Emitter::XMM_COUNT] = {
-    4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+const uint8_t A64Emitter::fpr_reg_map_[A64Emitter::FPR_COUNT] = {
+    8, 9, 10, 11, 12, 13, 14, 15,
 };
 
 A64Emitter::A64Emitter(A64Backend* backend)
@@ -665,8 +666,8 @@ oaknut::XReg A64Emitter::GetNativeParam(uint32_t param) {
 }
 
 // Important: If you change these, you must update the thunks in a64_backend.cc!
-oaknut::XReg A64Emitter::GetContextReg() { return X19; }
-oaknut::XReg A64Emitter::GetMembaseReg() { return X20; }
+oaknut::XReg A64Emitter::GetContextReg() { return X27; }
+oaknut::XReg A64Emitter::GetMembaseReg() { return X28; }
 
 void A64Emitter::ReloadContext() {
   // mov(GetContextReg(), qword[rsp + StackLayout::GUEST_CTX_HOME]);

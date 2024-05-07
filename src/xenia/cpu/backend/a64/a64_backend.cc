@@ -49,8 +49,17 @@ class A64ThunkEmitter : public A64Emitter {
   // The following four functions provide save/load functionality for registers.
   // They assume at least StackLayout::THUNK_STACK_SIZE bytes have been
   // allocated on the stack.
+
+  // Caller saved:
+  // Dont assume these registers will survive a subroutine call
+  // x0, v0 is not saved/preserved since this is used to return values from
+  // subroutines x1-x15, x30 | d0-d7 and d16-v31
   void EmitSaveVolatileRegs();
   void EmitLoadVolatileRegs();
+
+  // Callee saved:
+  // Subroutines must preserve these registers if they intend to use them
+  // x19-x30 | d8-d15
   void EmitSaveNonvolatileRegs();
   void EmitLoadNonvolatileRegs();
 };
@@ -78,7 +87,7 @@ bool A64Backend::Initialize(Processor* processor) {
   std::strcpy(fprs.name, "v");
   fprs.types = MachineInfo::RegisterSet::FLOAT_TYPES |
                MachineInfo::RegisterSet::VEC_TYPES;
-  fprs.count = A64Emitter::XMM_COUNT;
+  fprs.count = A64Emitter::FPR_COUNT;
 
   code_cache_ = A64CodeCache::Create();
   Backend::code_cache_ = code_cache_.get();
