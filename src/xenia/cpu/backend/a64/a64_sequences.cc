@@ -894,7 +894,8 @@ struct COMPARE_EQ_I32
     EmitCommutativeCompareOp(
         e, i, [](A64Emitter& e, WReg src1, WReg src2) { e.CMP(src1, src2); },
         [](A64Emitter& e, WReg src1, int32_t constant) {
-          e.CMP(src1, constant);
+          e.MOV(W1, constant);
+          e.CMP(src1, W1);
         });
     e.CSET(i.dest, Cond::EQ);
   }
@@ -905,7 +906,8 @@ struct COMPARE_EQ_I64
     EmitCommutativeCompareOp(
         e, i, [](A64Emitter& e, XReg src1, XReg src2) { e.CMP(src1, src2); },
         [](A64Emitter& e, XReg src1, int32_t constant) {
-          e.CMP(src1, constant);
+          e.MOV(X1, constant);
+          e.CMP(src1, X1);
         });
     e.CSET(i.dest, Cond::EQ);
   }
@@ -1023,7 +1025,8 @@ EMITTER_OPCODE_TABLE(OPCODE_COMPARE_NE, COMPARE_NE_I8, COMPARE_NE_I16,
           },                                                                   \
           [](A64Emitter& e, WReg dest, const reg_type& src1, int32_t constant, \
              bool inverse) {                                                   \
-            e.CMP(src1, constant);                                             \
+            e.MOV(reg_type(1), constant);                                      \
+            e.CMP(src1, reg_type(1));                                          \
             if (!inverse) {                                                    \
               e.CSET(dest, cond);                                              \
             } else {                                                           \
@@ -1113,7 +1116,8 @@ void EmitAddXX(A64Emitter& e, const ARGS& i) {
       },
       [](A64Emitter& e, REG dest_src, int32_t constant) {
         // e.add(dest_src, constant);
-        e.ADD(dest_src, dest_src, constant);
+        e.MOV(REG(1), constant);
+        e.ADD(dest_src, dest_src, REG(1));
       });
 }
 struct ADD_I8 : Sequence<ADD_I8, I<OPCODE_ADD, I8Op, I8Op, I8Op>> {
@@ -2644,17 +2648,15 @@ struct BYTE_SWAP_I16
 struct BYTE_SWAP_I32
     : Sequence<BYTE_SWAP_I32, I<OPCODE_BYTE_SWAP, I32Op, I32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    EmitUnaryOp(e, i, [](A64Emitter& e, WReg dest_src) {
-      e.REV(dest_src, dest_src);
-    });
+    EmitUnaryOp(
+        e, i, [](A64Emitter& e, WReg dest_src) { e.REV(dest_src, dest_src); });
   }
 };
 struct BYTE_SWAP_I64
     : Sequence<BYTE_SWAP_I64, I<OPCODE_BYTE_SWAP, I64Op, I64Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    EmitUnaryOp(e, i, [](A64Emitter& e, XReg dest_src) {
-      e.REV(dest_src, dest_src);
-    });
+    EmitUnaryOp(
+        e, i, [](A64Emitter& e, XReg dest_src) { e.REV(dest_src, dest_src); });
   }
 };
 struct BYTE_SWAP_V128
