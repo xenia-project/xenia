@@ -49,8 +49,8 @@ XReg ComputeMemoryAddressOffset(A64Emitter& e, const T& guest, const T& offset,
     if (xe::memory::allocation_granularity() > 0x1000) {
       // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
       // it via memory mapping.
-      e.MOV(W1, 0xE0000000 - offset_const);
-      e.CMP(guest.reg().toW(), W1);
+      e.MOV(address_register.toW(), 0xE0000000 - offset_const);
+      e.CMP(guest.reg().toW(), address_register.toW());
       e.CSET(W0, Cond::HS);
       e.LSL(W0, W0, 12);
       e.ADD(W0, W0, guest.reg().toW());
@@ -93,8 +93,8 @@ XReg ComputeMemoryAddress(A64Emitter& e, const T& guest,
     if (xe::memory::allocation_granularity() > 0x1000) {
       // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
       // it via memory mapping.
-      e.MOV(W1, 0xE0000000);
-      e.CMP(guest.reg().toW(), W1);
+      e.MOV(address_register.toW(), 0xE0000000);
+      e.CMP(guest.reg().toW(), address_register.toW());
       e.CSET(X0, Cond::HS);
       e.LSL(X0, X0, 12);
       e.ADD(X0, X0, guest);
