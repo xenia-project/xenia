@@ -2645,7 +2645,7 @@ struct BYTE_SWAP_I32
     : Sequence<BYTE_SWAP_I32, I<OPCODE_BYTE_SWAP, I32Op, I32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     EmitUnaryOp(e, i, [](A64Emitter& e, WReg dest_src) {
-      e.REV32(dest_src.toX(), dest_src.toX());
+      e.REV(dest_src, dest_src);
     });
   }
 };
@@ -2653,7 +2653,7 @@ struct BYTE_SWAP_I64
     : Sequence<BYTE_SWAP_I64, I<OPCODE_BYTE_SWAP, I64Op, I64Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     EmitUnaryOp(e, i, [](A64Emitter& e, XReg dest_src) {
-      e.REV64(dest_src, dest_src);
+      e.REV(dest_src, dest_src);
     });
   }
 };
