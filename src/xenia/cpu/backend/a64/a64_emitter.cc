@@ -504,7 +504,6 @@ void A64Emitter::CallIndirect(const hir::Instr* instr,
       MOV(W1, reg.toW());
     }
     // mov(eax, dword[ebx]);
-    LDR(W16, X1);
   } else {
     // Old-style resolve.
     // Not too important because indirection table is almost always available.
@@ -566,11 +565,6 @@ void A64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
       // x1 = arg0
       // x2 = arg1
       // x3 = arg2
-      // mov(rax, reinterpret_cast<uint64_t>(thunk));
-      // mov(rcx, reinterpret_cast<uint64_t>(builtin_function->handler()));
-      // mov(rdx, reinterpret_cast<uint64_t>(builtin_function->arg0()));
-      // mov(r8, reinterpret_cast<uint64_t>(builtin_function->arg1()));
-      // call(rax);
       MOV(X0, reinterpret_cast<uint64_t>(builtin_function->handler()));
       MOV(X1, reinterpret_cast<uint64_t>(builtin_function->arg0()));
       MOV(X2, reinterpret_cast<uint64_t>(builtin_function->arg1()));
@@ -590,17 +584,10 @@ void A64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
       // x1 = arg0
       // x2 = arg1
       // x3 = arg2
-      auto thunk = backend()->guest_to_host_thunk();
-      // mov(rax, reinterpret_cast<uint64_t>(thunk));
-      // mov(rcx,
-      // reinterpret_cast<uint64_t>(extern_function->extern_handler()));
-      // mov(rdx,
-      //     qword[GetContextReg() + offsetof(ppc::PPCContext, kernel_state)]);
-      // call(rax);
-      MOV(X0, reinterpret_cast<uint64_t>(thunk));
-      MOV(X1, reinterpret_cast<uint64_t>(extern_function->extern_handler()));
-      LDR(X2, GetContextReg(), offsetof(ppc::PPCContext, kernel_state));
+      MOV(X0, reinterpret_cast<uint64_t>(extern_function->extern_handler()));
+      LDR(X1, GetContextReg(), offsetof(ppc::PPCContext, kernel_state));
 
+      auto thunk = backend()->guest_to_host_thunk();
       MOV(X16, reinterpret_cast<uint64_t>(thunk));
 
       BLR(X16);
