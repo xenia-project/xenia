@@ -33,7 +33,8 @@ XReg ComputeMemoryAddressOffset(A64Emitter& e, const T& guest, const T& offset,
     uint32_t address = static_cast<uint32_t>(guest.constant());
     address += offset_const;
     if (address < 0x80000000) {
-      e.ADD(address_register.toX(), e.GetMembaseReg(), address);
+      e.MOV(address_register.toX(), address);
+      e.ADD(address_register.toX(), e.GetMembaseReg(), address_register.toX());
       return address_register.toX();
     } else {
       if (address >= 0xE0000000 &&

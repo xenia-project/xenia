@@ -52,8 +52,8 @@ class A64ThunkEmitter : public A64Emitter {
 
   // Caller saved:
   // Dont assume these registers will survive a subroutine call
-  // x0, v0 is not saved/preserved since this is used to return values from
-  // subroutines x1-x15, x30 | d0-d7 and d16-v31
+  // x0, v0 is not saved for use as arg0/return
+  // x1-x15, x30 | v0-v7 and v16-v31
   void EmitSaveVolatileRegs();
   void EmitLoadVolatileRegs();
 
@@ -223,47 +223,23 @@ HostToGuestThunk A64ThunkEmitter::EmitHostToGuestThunk() {
 
   code_offsets.prolog = offset();
 
-  //  mov(qword[rsp + 8 * 3], r8);
-  //  mov(qword[rsp + 8 * 2], rdx);
-  //  mov(qword[rsp + 8 * 1], rcx);
-  //  sub(rsp, stack_size);
-
-
-  STR(X2, SP, 8 * 3);
-  STR(X1, SP, 8 * 2);
-  STR(X0, SP, 8 * 1);
   SUB(SP, SP, stack_size);
 
   code_offsets.prolog_stack_alloc = offset();
   code_offsets.body = offset();
 
-  // Save nonvolatile registers.
   EmitSaveNonvolatileRegs();
 
-  // mov(rax, rcx);
-  // mov(rsi, rdx);  // context
-  // mov(rcx, r8);   // return address
-  // call(rax);
   MOV(X16, X0);
-  MOV(A64Emitter::GetContextReg(), X1);  // context
-  MOV(X0, X2);                           // return address
-
+  MOV(GetContextReg(), X1);  // context
+  MOV(X0, X2);               // return address
   BLR(X16);
 
   EmitLoadNonvolatileRegs();
 
   code_offsets.epilog = offset();
 
-  // add(rsp, stack_size);
-  // mov(rcx, qword[rsp + 8 * 1]);
-  // mov(rdx, qword[rsp + 8 * 2]);
-  // mov(r8, qword[rsp + 8 * 3]);
-  // ret();
-
   ADD(SP, SP, stack_size);
-  LDR(X0, SP, 8 * 1);
-  LDR(X1, SP, 8 * 2);
-  LDR(X2, SP, 8 * 3);
 
   RET();
 
@@ -302,19 +278,13 @@ GuestToHostThunk A64ThunkEmitter::EmitGuestToHostThunk() {
 
   code_offsets.prolog = offset();
 
-  // rsp + 0 = return address
-  // sub(rsp, stack_size);
   SUB(SP, SP, stack_size);
 
   code_offsets.prolog_stack_alloc = offset();
   code_offsets.body = offset();
 
-  // Save off volatile registers.
   EmitSaveVolatileRegs();
 
-  // mov(rax, rcx);              // function
-  // mov(rcx, GetContextReg());  // context
-  // call(rax);
   MOV(X16, X0);              // function
   MOV(X0, GetContextReg());  // context
   BLR(X16);
@@ -323,8 +293,6 @@ GuestToHostThunk A64ThunkEmitter::EmitGuestToHostThunk() {
 
   code_offsets.epilog = offset();
 
-  // add(rsp, stack_size);
-  // ret();
   ADD(SP, SP, stack_size);
   RET();
 
@@ -350,11 +318,8 @@ uint64_t ResolveFunction(void* raw_context, uint64_t target_address);
 
 ResolveFunctionThunk A64ThunkEmitter::EmitResolveFunctionThunk() {
   // Entry:
-  // X0 = target PPC address
-
-  // Resolve Function:
+  // W17 = target PPC address
   // X0 = context
-  // X1 = target PPC address
 
   struct _code_offsets {
     size_t prolog;
@@ -369,22 +334,20 @@ ResolveFunctionThunk A64ThunkEmitter::EmitResolveFunctionThunk() {
   code_offsets.prolog = offset();
 
   // rsp + 0 = return address
-  // sub(rsp, stack_size);
   SUB(SP, SP, stack_size);
 
   code_offsets.prolog_stack_alloc = offset();
   code_offsets.body = offset();
 
-  // Save volatile registers
   EmitSaveVolatileRegs();
 
   // mov(rcx, rsi);  // context
   // mov(rdx, rbx);
   // mov(rax, reinterpret_cast<uint64_t>(&ResolveFunction));
   // call(rax)
-  MOV(X1, X0);
   MOV(X0, GetContextReg());  // context
-  MOVP2R(X16, &ResolveFunction);
+  MOV(W1, W17);
+  MOV(X16, reinterpret_cast<uint64_t>(&ResolveFunction));
   BLR(X16);
 
   EmitLoadVolatileRegs();
@@ -432,7 +395,6 @@ void A64ThunkEmitter::EmitSaveVolatileRegs() {
   STP(Q3, Q4, SP, offsetof(StackLayout::Thunk, xmm[2]));
   STP(Q5, Q6, SP, offsetof(StackLayout::Thunk, xmm[4]));
   STP(Q7, Q16, SP, offsetof(StackLayout::Thunk, xmm[6]));
-  STP(Q7, Q16, SP, offsetof(StackLayout::Thunk, xmm[6]));
   STP(Q17, Q18, SP, offsetof(StackLayout::Thunk, xmm[8]));
   STP(Q19, Q20, SP, offsetof(StackLayout::Thunk, xmm[10]));
   STP(Q21, Q22, SP, offsetof(StackLayout::Thunk, xmm[12]));
@@ -461,7 +423,6 @@ void A64ThunkEmitter::EmitLoadVolatileRegs() {
   LDP(Q3, Q4, SP, offsetof(StackLayout::Thunk, xmm[2]));
   LDP(Q5, Q6, SP, offsetof(StackLayout::Thunk, xmm[4]));
   LDP(Q7, Q16, SP, offsetof(StackLayout::Thunk, xmm[6]));
-  LDP(Q7, Q16, SP, offsetof(StackLayout::Thunk, xmm[6]));
   LDP(Q17, Q18, SP, offsetof(StackLayout::Thunk, xmm[8]));
   LDP(Q19, Q20, SP, offsetof(StackLayout::Thunk, xmm[10]));
   LDP(Q21, Q22, SP, offsetof(StackLayout::Thunk, xmm[12]));
@@ -480,10 +441,12 @@ void A64ThunkEmitter::EmitSaveNonvolatileRegs() {
   STP(X27, X28, SP, offsetof(StackLayout::Thunk, r[8]));
   STP(X29, X30, SP, offsetof(StackLayout::Thunk, r[10]));
 
-  STP(Q8, Q9, SP, offsetof(StackLayout::Thunk, xmm[0]));
-  STP(Q10, Q11, SP, offsetof(StackLayout::Thunk, xmm[2]));
-  STP(Q12, Q13, SP, offsetof(StackLayout::Thunk, xmm[4]));
-  STP(Q14, Q15, SP, offsetof(StackLayout::Thunk, xmm[6]));
+  STR(X17, SP, offsetof(StackLayout::Thunk, r[12]));
+
+  STP(D8, D9, SP, offsetof(StackLayout::Thunk, xmm[0]));
+  STP(D10, D11, SP, offsetof(StackLayout::Thunk, xmm[1]));
+  STP(D12, D13, SP, offsetof(StackLayout::Thunk, xmm[2]));
+  STP(D14, D15, SP, offsetof(StackLayout::Thunk, xmm[3]));
 }
 
 void A64ThunkEmitter::EmitLoadNonvolatileRegs() {
@@ -494,10 +457,12 @@ void A64ThunkEmitter::EmitLoadNonvolatileRegs() {
   LDP(X27, X28, SP, offsetof(StackLayout::Thunk, r[8]));
   LDP(X29, X30, SP, offsetof(StackLayout::Thunk, r[10]));
 
-  LDP(Q8, Q9, SP, offsetof(StackLayout::Thunk, xmm[0]));
-  LDP(Q10, Q11, SP, offsetof(StackLayout::Thunk, xmm[2]));
-  LDP(Q12, Q13, SP, offsetof(StackLayout::Thunk, xmm[4]));
-  LDP(Q14, Q15, SP, offsetof(StackLayout::Thunk, xmm[6]));
+  LDR(X17, SP, offsetof(StackLayout::Thunk, r[12]));
+
+  LDP(D8, D9, SP, offsetof(StackLayout::Thunk, xmm[0]));
+  LDP(D10, D11, SP, offsetof(StackLayout::Thunk, xmm[1]));
+  LDP(D12, D13, SP, offsetof(StackLayout::Thunk, xmm[2]));
+  LDP(D14, D15, SP, offsetof(StackLayout::Thunk, xmm[3]));
 }
 
 }  // namespace a64
