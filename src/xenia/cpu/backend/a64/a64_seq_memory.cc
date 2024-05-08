@@ -717,9 +717,9 @@ struct STORE_OFFSET_I32
     } else {
       if (i.src3.is_constant) {
         e.MOV(W0, i.src3.constant());
-        e.STRH(W0, addr_reg);
+        e.STR(W0, addr_reg);
       } else {
-        e.STRH(i.src3, addr_reg);
+        e.STR(i.src3, addr_reg);
       }
     }
   }
