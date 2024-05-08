@@ -25,7 +25,7 @@ volatile int anchor_memory = 0;
 
 template <typename T>
 XReg ComputeMemoryAddressOffset(A64Emitter& e, const T& guest, const T& offset,
-                                XReg address_register = X3) {
+                                WReg address_register = W3) {
   assert_true(offset.is_constant);
   int32_t offset_const = static_cast<int32_t>(offset.constant());
 
@@ -33,24 +33,24 @@ XReg ComputeMemoryAddressOffset(A64Emitter& e, const T& guest, const T& offset,
     uint32_t address = static_cast<uint32_t>(guest.constant());
     address += offset_const;
     if (address < 0x80000000) {
-      e.ADD(address_register, e.GetMembaseReg(), address);
-      return address_register;
+      e.ADD(address_register.toX(), e.GetMembaseReg(), address);
+      return address_register.toX();
     } else {
       if (address >= 0xE0000000 &&
           xe::memory::allocation_granularity() > 0x1000) {
-        e.MOV(address_register, address + 0x1000);
+        e.MOV(W0, address + 0x1000);
       } else {
-        e.MOV(address_register, address);
+        e.MOV(W0, address);
       }
-      e.ADD(address_register, e.GetMembaseReg(), address_register);
-      return address_register;
+      e.ADD(address_register.toX(), e.GetMembaseReg(), X0);
+      return address_register.toX();
     }
   } else {
     if (xe::memory::allocation_granularity() > 0x1000) {
       // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
       // it via memory mapping.
-      e.MOV(address_register.toW(), 0xE0000000 - offset_const);
-      e.CMP(guest.reg().toW(), address_register.toW());
+      e.MOV(W0, 0xE0000000 - offset_const);
+      e.CMP(guest.reg().toW(), W0);
       e.CSET(W0, Cond::HS);
       e.LSL(W0, W0, 12);
       e.ADD(W0, W0, guest.reg().toW());
@@ -59,53 +59,52 @@ XReg ComputeMemoryAddressOffset(A64Emitter& e, const T& guest, const T& offset,
       // TODO(benvanik): find a way to avoid doing this.
       e.MOV(W0, guest.reg().toW());
     }
-    e.ADD(address_register, e.GetMembaseReg(), X0);
+    e.ADD(address_register.toX(), e.GetMembaseReg(), X0);
 
     e.MOV(X0, offset_const);
-    e.ADD(address_register, address_register, X0);
-    return address_register;
+    e.ADD(address_register.toX(), address_register.toX(), X0);
+    return address_register.toX();
   }
 }
 
 // Note: most *should* be aligned, but needs to be checked!
 template <typename T>
 XReg ComputeMemoryAddress(A64Emitter& e, const T& guest,
-                          XReg address_register = X3) {
+                          WReg address_register = W3) {
   if (guest.is_constant) {
     // TODO(benvanik): figure out how to do this without a temp.
     // Since the constant is often 0x8... if we tried to use that as a
     // displacement it would be sign extended and mess things up.
     uint32_t address = static_cast<uint32_t>(guest.constant());
     if (address < 0x80000000) {
-      e.ADD(address_register, e.GetMembaseReg(), address);
-      return address_register;
+      e.ADD(address_register.toX(), e.GetMembaseReg(), address);
+      return address_register.toX();
     } else {
       if (address >= 0xE0000000 &&
           xe::memory::allocation_granularity() > 0x1000) {
-        e.MOV(address_register, address + 0x1000);
+        e.MOV(W0, address + 0x1000u);
       } else {
-        e.MOV(address_register, address);
+        e.MOV(W0, address);
       }
-      e.ADD(address_register, e.GetMembaseReg(), address_register);
-      return address_register;
+      e.ADD(address_register.toX(), e.GetMembaseReg(), X0);
+      return address_register.toX();
     }
   } else {
     if (xe::memory::allocation_granularity() > 0x1000) {
       // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
       // it via memory mapping.
-      e.MOV(address_register.toW(), 0xE0000000);
-      e.CMP(guest.reg().toW(), address_register.toW());
-      e.CSET(X0, Cond::HS);
-      e.LSL(X0, X0, 12);
-      e.ADD(X0, X0, guest);
-      e.MOV(W0, W0);
+      e.MOV(W0, 0xE0000000);
+      e.CMP(guest.reg().toW(), W0);
+      e.CSET(W0, Cond::HS);
+      e.LSL(W0, W0, 12);
+      e.ADD(W0, W0, guest.reg().toW());
     } else {
       // Clear the top 32 bits, as they are likely garbage.
       // TODO(benvanik): find a way to avoid doing this.
       e.MOV(W0, guest.reg().toW());
     }
-    e.ADD(address_register, e.GetMembaseReg(), X0);
-    return address_register;
+    e.ADD(address_register.toX(), e.GetMembaseReg(), X0);
+    return address_register.toX();
     // return e.GetMembaseReg() + e.rax;
   }
 }
@@ -402,8 +401,7 @@ struct LOAD_CONTEXT_I64
 struct LOAD_CONTEXT_F32
     : Sequence<LOAD_CONTEXT_F32, I<OPCODE_LOAD_CONTEXT, F32Op, OffsetOp>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    e.ADD(X0, e.GetContextReg(), i.src1.value);
-    e.LD1(List{i.dest.reg().toQ().Selem()[0]}, X0);
+    e.LDR(i.dest, e.GetContextReg(), i.src1.value);
     if (IsTracingData()) {
       // e.lea(e.GetNativeParam(1), e.dword[addr]);
       // e.mov(e.GetNativeParam(0), i.src1.value);
@@ -414,8 +412,7 @@ struct LOAD_CONTEXT_F32
 struct LOAD_CONTEXT_F64
     : Sequence<LOAD_CONTEXT_F64, I<OPCODE_LOAD_CONTEXT, F64Op, OffsetOp>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    e.ADD(X0, e.GetContextReg(), i.src1.value);
-    e.LD1(List{i.dest.reg().toQ().Delem()[0]}, X0);
+    e.LDR(i.dest, e.GetContextReg(), i.src1.value);
     // e.vmovsd(i.dest, e.qword[addr]);
     if (IsTracingData()) {
       // e.lea(e.GetNativeParam(1), e.qword[addr]);
@@ -519,8 +516,7 @@ struct STORE_CONTEXT_F32
       e.MOV(W0, i.src2.value->constant.i32);
       e.STR(W0, e.GetContextReg(), i.src1.value);
     } else {
-      e.ADD(X0, e.GetContextReg(), i.src1.value);
-      e.ST1(List{i.src2.reg().toQ().Selem()[0]}, X0);
+      e.STR(i.src2, e.GetContextReg(), i.src1.value);
     }
     if (IsTracingData()) {
       // e.lea(e.GetNativeParam(1), e.dword[addr]);
@@ -534,17 +530,10 @@ struct STORE_CONTEXT_F64
                I<OPCODE_STORE_CONTEXT, VoidOp, OffsetOp, F64Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     if (i.src2.is_constant) {
-      // e.MovMem64(addr, i.src2.value->constant.i64);
-    } else {
-      // e.vmovsd(e.qword[addr], i.src2);
-    }
-
-    if (i.src2.is_constant) {
       e.MOV(X0, i.src2.value->constant.i64);
       e.STR(X0, e.GetContextReg(), i.src1.value);
     } else {
-      e.ADD(X0, e.GetContextReg(), i.src1.value);
-      e.ST1(List{i.src2.reg().toQ().Delem()[0]}, X0);
+      e.STR(i.src2, e.GetContextReg(), i.src1.value);
     }
     if (IsTracingData()) {
       // e.lea(e.GetNativeParam(1), e.qword[addr]);
@@ -659,7 +648,7 @@ struct LOAD_OFFSET_I32
     auto addr_reg = ComputeMemoryAddressOffset(e, i.src1, i.src2);
     if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
       e.LDR(i.dest, addr_reg);
-      e.REV(i.dest.reg().toX(), i.dest.reg().toX());
+      e.REV(i.dest, i.dest);
     } else {
       e.LDR(i.dest, addr_reg);
     }
@@ -821,8 +810,7 @@ struct LOAD_I64 : Sequence<LOAD_I64, I<OPCODE_LOAD, I64Op, I64Op>> {
 struct LOAD_F32 : Sequence<LOAD_F32, I<OPCODE_LOAD, F32Op, I64Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     auto addr_reg = ComputeMemoryAddress(e, i.src1);
-    // e.vmovss(i.dest, e.dword[addr]);
-    e.LD1(List{i.dest.reg().toQ().Selem()[0]}, addr_reg);
+    e.LDR(i.dest, addr_reg);
     if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
       assert_always("not implemented yet");
     }
@@ -836,8 +824,7 @@ struct LOAD_F32 : Sequence<LOAD_F32, I<OPCODE_LOAD, F32Op, I64Op>> {
 struct LOAD_F64 : Sequence<LOAD_F64, I<OPCODE_LOAD, F64Op, I64Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     auto addr_reg = ComputeMemoryAddress(e, i.src1);
-    // e.vmovsd(i.dest, e.qword[addr]);
-    e.LD1(List{i.dest.reg().toQ().Delem()[0]}, addr_reg);
+    e.LDR(i.dest, addr_reg);
     if (i.instr->flags & LoadStoreFlags::LOAD_STORE_BYTE_SWAP) {
       assert_always("not implemented yet");
     }
@@ -965,7 +952,7 @@ struct STORE_F32 : Sequence<STORE_F32, I<OPCODE_STORE, VoidOp, I64Op, F32Op>> {
         e.MOV(W0, i.src2.value->constant.i32);
         e.STR(W0, addr_reg);
       } else {
-        e.ST1(List{i.src2.reg().toQ().Selem()[0]}, addr_reg);
+        e.STR(i.src2, addr_reg);
       }
     }
     if (IsTracingData()) {
@@ -987,7 +974,7 @@ struct STORE_F64 : Sequence<STORE_F64, I<OPCODE_STORE, VoidOp, I64Op, F64Op>> {
         e.MOV(X0, i.src2.value->constant.i64);
         e.STR(X0, addr_reg);
       } else {
-        e.ST1(List{i.src2.reg().toQ().Delem()[0]}, addr_reg);
+        e.STR(i.src2, addr_reg);
       }
     }
     if (IsTracingData()) {
