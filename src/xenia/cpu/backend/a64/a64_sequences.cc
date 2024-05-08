@@ -96,12 +96,12 @@ EMITTER_OPCODE_TABLE(OPCODE_SOURCE_OFFSET, SOURCE_OFFSET);
 // ============================================================================
 struct ASSIGN_I8 : Sequence<ASSIGN_I8, I<OPCODE_ASSIGN, I8Op, I8Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    e.MOV(i.dest, i.src1);
+    e.UXTB(i.dest, i.src1);
   }
 };
 struct ASSIGN_I16 : Sequence<ASSIGN_I16, I<OPCODE_ASSIGN, I16Op, I16Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    e.MOV(i.dest, i.src1);
+    e.UXTH(i.dest, i.src1);
   }
 };
 struct ASSIGN_I32 : Sequence<ASSIGN_I32, I<OPCODE_ASSIGN, I32Op, I32Op>> {
@@ -152,7 +152,7 @@ struct CAST_F32_I32 : Sequence<CAST_F32_I32, I<OPCODE_CAST, F32Op, I32Op>> {
 };
 struct CAST_F64_I64 : Sequence<CAST_F64_I64, I<OPCODE_CAST, F64Op, I64Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    e.MOV(i.dest.reg().Delem()[0], i.src1);
+    e.FMOV(i.dest, i.src1);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_CAST, CAST_I32_F32, CAST_I64_F64, CAST_F32_I32,
@@ -237,7 +237,7 @@ struct SIGN_EXTEND_I64_I16
 struct SIGN_EXTEND_I64_I32
     : Sequence<SIGN_EXTEND_I64_I32, I<OPCODE_SIGN_EXTEND, I64Op, I32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    e.SXTH(i.dest, i.src1);
+    e.SXTW(i.dest, i.src1.reg());
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_SIGN_EXTEND, SIGN_EXTEND_I16_I8, SIGN_EXTEND_I32_I8,
