@@ -83,20 +83,6 @@ A64Emitter::A64Emitter(A64Backend* backend)
     feature_flags_ |= (cpu_.has(ext) ? emit : 0);   \
   }
 
-  // TEST_EMIT_FEATURE(kA64EmitAVX2, oaknut::util::Cpu::tAVX2);
-  // TEST_EMIT_FEATURE(kA64EmitFMA, oaknut::util::Cpu::tFMA);
-  // TEST_EMIT_FEATURE(kA64EmitLZCNT, oaknut::util::Cpu::tLZCNT);
-  // TEST_EMIT_FEATURE(kA64EmitBMI1, oaknut::util::Cpu::tBMI1);
-  // TEST_EMIT_FEATURE(kA64EmitBMI2, oaknut::util::Cpu::tBMI2);
-  // TEST_EMIT_FEATURE(kA64EmitF16C, oaknut::util::Cpu::tF16C);
-  // TEST_EMIT_FEATURE(kA64EmitMovbe, oaknut::util::Cpu::tMOVBE);
-  // TEST_EMIT_FEATURE(kA64EmitGFNI, oaknut::util::Cpu::tGFNI);
-  // TEST_EMIT_FEATURE(kA64EmitAVX512F, oaknut::util::Cpu::tAVX512F);
-  // TEST_EMIT_FEATURE(kA64EmitAVX512VL, oaknut::util::Cpu::tAVX512VL);
-  // TEST_EMIT_FEATURE(kA64EmitAVX512BW, oaknut::util::Cpu::tAVX512BW);
-  // TEST_EMIT_FEATURE(kA64EmitAVX512DQ, oaknut::util::Cpu::tAVX512DQ);
-  // TEST_EMIT_FEATURE(kA64EmitAVX512VBMI, oaknut::util::Cpu::tAVX512_VBMI);
-
 #undef TEST_EMIT_FEATURE
 }
 
@@ -218,15 +204,11 @@ bool A64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   STP(X29, X30, SP, PRE_INDEXED, -32);
   MOV(X29, SP);
 
-  // sub(rsp, (uint32_t)stack_size);
   SUB(SP, SP, (uint32_t)stack_size);
 
   code_offsets.prolog_stack_alloc = offset();
   code_offsets.body = offset();
 
-  // mov(qword[rsp + StackLayout::GUEST_CTX_HOME], GetContextReg());
-  // mov(qword[rsp + StackLayout::GUEST_RET_ADDR], rcx);
-  // mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], 0);
   STR(GetContextReg(), SP, StackLayout::GUEST_CTX_HOME);
   STR(X0, SP, StackLayout::GUEST_RET_ADDR);
   STR(XZR, SP, StackLayout::GUEST_CALL_RET_ADDR);
@@ -260,8 +242,6 @@ bool A64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   }
 
   // Load membase.
-  // mov(GetMembaseReg(),
-  //     qword[GetContextReg() + offsetof(ppc::PPCContext, virtual_membase)]);
   LDR(GetMembaseReg(), GetContextReg(),
       offsetof(ppc::PPCContext, virtual_membase));
 
@@ -297,13 +277,10 @@ bool A64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   l(epilog_label);
   epilog_label_ = nullptr;
   EmitTraceUserCallReturn();
-  // mov(GetContextReg(), qword[rsp + StackLayout::GUEST_CTX_HOME]);
   LDR(GetContextReg(), SP, StackLayout::GUEST_CTX_HOME);
 
   code_offsets.epilog = offset();
 
-  // add(rsp, (uint32_t)stack_size);
-  // ret();
   ADD(SP, SP, (uint32_t)stack_size);
 
   MOV(SP, X29);
@@ -342,7 +319,6 @@ void A64Emitter::MarkSourceOffset(const Instr* i) {
   if (cvars::emit_source_annotations) {
     NOP();
     NOP();
-    // mov(eax, entry->guest_address);
     MOV(X0, entry->guest_address);
     NOP();
     NOP();
@@ -451,8 +427,8 @@ void A64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
     // or a thunk to ResolveAddress.
     // mov(ebx, function->address());
     // mov(eax, dword[ebx]);
-    MOV(W1, function->address());
-    LDR(W16, X1);
+    MOV(W17, function->address());
+    LDR(W16, X17);
   } else {
     // Old-style resolve.
     // Not too important because indirection table is almost always available.
@@ -472,7 +448,11 @@ void A64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
 
     // add(rsp, static_cast<uint32_t>(stack_size()));
     // jmp(rax);
-    ADD(SP, SP, stack_size());
+    ADD(SP, SP, static_cast<uint32_t>(stack_size()));
+
+    MOV(SP, X29);
+    LDP(X29, X30, SP, POST_INDEXED, 32);
+
     BR(X16);
   } else {
     // Return address is from the previous SET_RETURN_ADDRESS.
@@ -499,10 +479,11 @@ void A64Emitter::CallIndirect(const hir::Instr* instr,
   // The target dword will either contain the address of the generated code
   // or a thunk to ResolveAddress.
   if (code_cache_->has_indirection_table()) {
-    if (reg.toW().index() != W1.index()) {
+    if (reg.toW().index() != W17.index()) {
       // mov(ebx, reg.cvt32());
-      MOV(W1, reg.toW());
+      MOV(W17, reg.toW());
     }
+    LDR(W16, X17);
     // mov(eax, dword[ebx]);
   } else {
     // Old-style resolve.
@@ -515,7 +496,7 @@ void A64Emitter::CallIndirect(const hir::Instr* instr,
     MOV(X0, GetContextReg());
     MOV(W1, reg.toW());
 
-    ADRP(X16, ResolveFunction);
+    MOV(X16, reinterpret_cast<uint64_t>(ResolveFunction));
     BLR(X16);
     MOV(X16, X0);
   }
@@ -526,18 +507,16 @@ void A64Emitter::CallIndirect(const hir::Instr* instr,
     EmitTraceUserCallReturn();
 
     // Pass the callers return address over.
-    // mov(rcx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
     LDR(X0, SP, StackLayout::GUEST_RET_ADDR);
 
-    // add(rsp, static_cast<uint32_t>(stack_size()));
     ADD(SP, SP, static_cast<uint32_t>(stack_size()));
 
-    // jmp(rax);
+    MOV(SP, X29);
+    LDP(X29, X30, SP, POST_INDEXED, 32);
+
     BR(X16);
   } else {
     // Return address is from the previous SET_RETURN_ADDRESS.
-    // mov(rcx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
-    // call(rax);
     LDR(X0, SP, StackLayout::GUEST_CALL_RET_ADDR);
 
     BLR(X16);
@@ -571,7 +550,6 @@ void A64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
 
       auto thunk = backend()->guest_to_host_thunk();
       MOV(X16, reinterpret_cast<uint64_t>(thunk));
-
       BLR(X16);
 
       // x0 = host return
@@ -589,7 +567,6 @@ void A64Emitter::CallExtern(const hir::Instr* instr, const Function* function) {
 
       auto thunk = backend()->guest_to_host_thunk();
       MOV(X16, reinterpret_cast<uint64_t>(thunk));
-
       BLR(X16);
 
       // x0 = host return
@@ -612,7 +589,6 @@ void A64Emitter::CallNative(uint64_t (*fn)(void* raw_context, uint64_t arg0)) {
 
 void A64Emitter::CallNative(uint64_t (*fn)(void* raw_context, uint64_t arg0),
                             uint64_t arg0) {
-  // mov(GetNativeParam(0), arg0);
   MOV(GetNativeParam(0), arg0);
   CallNativeSafe(reinterpret_cast<void*>(fn));
 }
@@ -698,7 +674,7 @@ void A64Emitter::MovMem64(const oaknut::XRegSp& addr, intptr_t offset,
   }
 }
 
-static const vec128_t xmm_consts[] = {
+static const vec128_t v_consts[] = {
     /* VZero                */ vec128f(0.0f),
     /* VOne                 */ vec128f(1.0f),
     /* VOnePD               */ vec128d(1.0),
@@ -813,7 +789,7 @@ static const vec128_t xmm_consts[] = {
 
 // First location to try and place constants.
 static const uintptr_t kConstDataLocation = 0x20000000;
-static const uintptr_t kConstDataSize = sizeof(xmm_consts);
+static const uintptr_t kConstDataSize = sizeof(v_consts);
 
 // Increment the location by this amount for every allocation failure.
 static const uintptr_t kConstDataIncrement = 0x00001000;
@@ -837,7 +813,7 @@ uintptr_t A64Emitter::PlaceConstData() {
 
   // The pointer must not be greater than 31 bits.
   assert_zero(reinterpret_cast<uintptr_t>(mem) & ~0x7FFFFFFF);
-  std::memcpy(mem, xmm_consts, sizeof(xmm_consts));
+  std::memcpy(mem, v_consts, sizeof(v_consts));
   memory::Protect(mem, kConstDataSize, memory::PageAccess::kReadOnly, nullptr);
 
   return reinterpret_cast<uintptr_t>(mem);

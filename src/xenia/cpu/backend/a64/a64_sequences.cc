@@ -1199,7 +1199,15 @@ void EmitAddCarryXX(A64Emitter& e, const ARGS& i) {
     e.BFI(X1, X0, 61, 1);
     e.MSR(SystemReg::NZCV, X1);
   }
-  e.ADC(i.dest, i.src1, i.src2);
+  SEQ::EmitCommutativeBinaryOp(
+      e, i,
+      [](A64Emitter& e, const REG& dest_src, const REG& src) {
+        e.ADC(dest_src, dest_src, src);
+      },
+      [](A64Emitter& e, const REG& dest_src, int32_t constant) {
+        e.MOV(REG(1), constant);
+        e.ADC(dest_src, dest_src, REG(1));
+      });
 }
 struct ADD_CARRY_I8
     : Sequence<ADD_CARRY_I8, I<OPCODE_ADD_CARRY, I8Op, I8Op, I8Op, I8Op>> {
@@ -1240,7 +1248,8 @@ void EmitSubXX(A64Emitter& e, const ARGS& i) {
         e.SUB(dest_src, dest_src, src);
       },
       [](A64Emitter& e, REG dest_src, int32_t constant) {
-        e.SUB(dest_src, dest_src, constant);
+        e.MOV(REG(1), constant);
+        e.SUB(dest_src, dest_src, REG(1));
       });
 }
 struct SUB_I8 : Sequence<SUB_I8, I<OPCODE_SUB, I8Op, I8Op, I8Op>> {
@@ -2157,7 +2166,8 @@ void EmitAndXX(A64Emitter& e, const ARGS& i) {
         e.AND(dest_src, dest_src, src);
       },
       [](A64Emitter& e, REG dest_src, int32_t constant) {
-        e.AND(dest_src, dest_src, constant);
+        e.MOV(REG(1), constant);
+        e.AND(dest_src, dest_src, REG(1));
       });
 }
 struct AND_I8 : Sequence<AND_I8, I<OPCODE_AND, I8Op, I8Op, I8Op>> {
@@ -2264,7 +2274,8 @@ void EmitOrXX(A64Emitter& e, const ARGS& i) {
         e.ORR(dest_src, dest_src, src);
       },
       [](A64Emitter& e, REG dest_src, int32_t constant) {
-        e.ORR(dest_src, dest_src, constant);
+        e.MOV(REG(1), constant);
+        e.ORR(dest_src, dest_src, REG(1));
       });
 }
 struct OR_I8 : Sequence<OR_I8, I<OPCODE_OR, I8Op, I8Op, I8Op>> {
@@ -2309,7 +2320,8 @@ void EmitXorXX(A64Emitter& e, const ARGS& i) {
         e.EOR(dest_src, dest_src, src);
       },
       [](A64Emitter& e, REG dest_src, int32_t constant) {
-        e.EOR(dest_src, dest_src, constant);
+        e.MOV(REG(1), constant);
+        e.EOR(dest_src, dest_src, REG(1));
       });
 }
 struct XOR_I8 : Sequence<XOR_I8, I<OPCODE_XOR, I8Op, I8Op, I8Op>> {
