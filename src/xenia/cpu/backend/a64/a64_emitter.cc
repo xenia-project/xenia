@@ -661,8 +661,8 @@ void A64Emitter::ReloadContext() {
 }
 
 void A64Emitter::ReloadMembase() {
-  // mov(GetMembaseReg(), qword[GetContextReg() + 8]);  // membase
-  LDR(GetMembaseReg(), GetContextReg(), 8);  // membase
+  LDR(GetMembaseReg(), GetContextReg(),
+      offsetof(ppc::PPCContext, virtual_membase));
 }
 
 bool A64Emitter::ConstantFitsIn32Reg(uint64_t v) {
