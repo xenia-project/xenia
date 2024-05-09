@@ -60,10 +60,10 @@ XReg ComputeMemoryAddressOffset(A64Emitter& e, const T& guest, const T& offset,
       // TODO(benvanik): find a way to avoid doing this.
       e.MOV(W0, guest.reg().toW());
     }
-    e.ADD(address_register.toX(), e.GetMembaseReg(), X0);
+    e.MOV(X1, offset_const);
+    e.ADD(X0, X0, X1);
 
-    e.MOV(X0, offset_const);
-    e.ADD(address_register.toX(), address_register.toX(), X0);
+    e.ADD(address_register.toX(), e.GetMembaseReg(), X0);
     return address_register.toX();
   }
 }
@@ -189,14 +189,15 @@ struct ATOMIC_COMPARE_EXCHANGE_I32
     if (xe::memory::allocation_granularity() > 0x1000) {
       // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
       // it via memory mapping.
-      e.CMP(i.src1.reg(), 0xE0, LSL, 24);
+      e.MOV(W3, 0xE0000000);
+      e.CMP(i.src1.reg(), X3);
       e.CSET(W1, Cond::HS);
       e.LSL(W1, W1, 12);
       e.ADD(W1, W1, i.src1.reg().toW());
     } else {
       e.MOV(W1, i.src1.reg().toW());
     }
-    e.ADD(W1, e.GetMembaseReg().toW(), W1);
+    e.ADD(X1, e.GetMembaseReg(), X1);
 
     // if([C] == A) [C] = B
     // else A = [C]
@@ -215,14 +216,15 @@ struct ATOMIC_COMPARE_EXCHANGE_I64
     if (xe::memory::allocation_granularity() > 0x1000) {
       // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
       // it via memory mapping.
-      e.CMP(i.src1.reg(), 0xE0, LSL, 24);
+      e.MOV(W3, 0xE0000000);
+      e.CMP(i.src1.reg(), X3);
       e.CSET(W1, Cond::HS);
       e.LSL(W1, W1, 12);
       e.ADD(W1, W1, i.src1.reg().toW());
     } else {
       e.MOV(W1, i.src1.reg().toW());
     }
-    e.ADD(W1, e.GetMembaseReg().toW(), W1);
+    e.ADD(X1, e.GetMembaseReg(), X1);
 
     // if([C] == A) [C] = B
     // else A = [C]
