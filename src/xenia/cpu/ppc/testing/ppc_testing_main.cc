@@ -23,6 +23,8 @@
 
 #if XE_ARCH_AMD64
 #include "xenia/cpu/backend/x64/x64_backend.h"
+#elif XE_ARCH_ARM64
+#include "xenia/cpu/backend/a64/a64_backend.h"
 #endif  // XE_ARCH
 
 #if XE_COMPILER_MSVC
@@ -203,11 +205,17 @@ class TestRunner {
       if (cvars::cpu == "x64") {
         backend.reset(new xe::cpu::backend::x64::X64Backend());
       }
+#elif XE_ARCH_ARM64
+      if (cvars::cpu == "a64") {
+        backend.reset(new xe::cpu::backend::a64::A64Backend());
+      }
 #endif  // XE_ARCH
       if (cvars::cpu == "any") {
         if (!backend) {
 #if XE_ARCH_AMD64
           backend.reset(new xe::cpu::backend::x64::X64Backend());
+#elif XE_ARCH_ARM64
+          backend.reset(new xe::cpu::backend::a64::A64Backend());
 #endif  // XE_ARCH
         }
       }
