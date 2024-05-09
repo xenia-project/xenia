@@ -11,6 +11,9 @@
 
 #include <cstddef>
 
+#include "third_party/capstone/include/capstone/arm64.h"
+#include "third_party/capstone/include/capstone/capstone.h"
+
 #include "xenia/base/exception_handler.h"
 #include "xenia/base/logging.h"
 #include "xenia/cpu/backend/a64/a64_assembler.h"
@@ -64,9 +67,21 @@ class A64ThunkEmitter : public A64Emitter {
   void EmitLoadNonvolatileRegs();
 };
 
-A64Backend::A64Backend() : Backend() {}
+A64Backend::A64Backend() : Backend(), code_cache_(nullptr) {
+  if (cs_open(CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN, &capstone_handle_) !=
+      CS_ERR_OK) {
+    assert_always("Failed to initialize capstone");
+  }
+  cs_option(capstone_handle_, CS_OPT_SYNTAX, CS_OPT_SYNTAX_INTEL);
+  cs_option(capstone_handle_, CS_OPT_DETAIL, CS_OPT_ON);
+  cs_option(capstone_handle_, CS_OPT_SKIPDATA, CS_OPT_OFF);
+}
 
 A64Backend::~A64Backend() {
+  if (capstone_handle_) {
+    cs_close(&capstone_handle_);
+  }
+
   A64Emitter::FreeConstData(emitter_data_);
   ExceptionHandler::Uninstall(&ExceptionCallbackThunk, this);
 }
@@ -132,10 +147,99 @@ std::unique_ptr<GuestFunction> A64Backend::CreateGuestFunction(
     Module* module, uint32_t address) {
   return std::make_unique<A64Function>(module, address);
 }
+
+uint64_t ReadCapstoneReg(HostThreadContext* context, arm64_reg reg) {
+  switch (reg) {
+    case ARM64_REG_X0:
+      return context->x[0];
+    case ARM64_REG_X1:
+      return context->x[1];
+    case ARM64_REG_X2:
+      return context->x[2];
+    case ARM64_REG_X3:
+      return context->x[3];
+    case ARM64_REG_X4:
+      return context->x[4];
+    case ARM64_REG_X5:
+      return context->x[5];
+    case ARM64_REG_X6:
+      return context->x[6];
+    case ARM64_REG_X7:
+      return context->x[7];
+    case ARM64_REG_X8:
+      return context->x[8];
+    case ARM64_REG_X9:
+      return context->x[9];
+    case ARM64_REG_X10:
+      return context->x[10];
+    case ARM64_REG_X11:
+      return context->x[11];
+    case ARM64_REG_X12:
+      return context->x[12];
+    case ARM64_REG_X13:
+      return context->x[13];
+    case ARM64_REG_X14:
+      return context->x[14];
+    case ARM64_REG_X15:
+      return context->x[15];
+    case ARM64_REG_X16:
+      return context->x[16];
+    case ARM64_REG_X17:
+      return context->x[17];
+    case ARM64_REG_X18:
+      return context->x[18];
+    case ARM64_REG_X19:
+      return context->x[19];
+    case ARM64_REG_X20:
+      return context->x[20];
+    case ARM64_REG_X21:
+      return context->x[21];
+    case ARM64_REG_X22:
+      return context->x[22];
+    case ARM64_REG_X23:
+      return context->x[23];
+    case ARM64_REG_X24:
+      return context->x[24];
+    case ARM64_REG_X25:
+      return context->x[25];
+    case ARM64_REG_X26:
+      return context->x[26];
+    case ARM64_REG_X27:
+      return context->x[27];
+    case ARM64_REG_X28:
+      return context->x[28];
+    case ARM64_REG_X29:
+      return context->x[29];
+    case ARM64_REG_X30:
+      return context->x[30];
+    default:
+      assert_unhandled_case(reg);
+      return 0;
+  }
+}
+
 uint64_t A64Backend::CalculateNextHostInstruction(ThreadDebugInfo* thread_info,
                                                   uint64_t current_pc) {
-  // TODO(wunkolo): Capstone hookup
-  return current_pc += 4;
+  auto machine_code_ptr = reinterpret_cast<const uint8_t*>(current_pc);
+  size_t remaining_machine_code_size = 64;
+  uint64_t host_address = current_pc;
+  cs_insn insn = {0};
+  cs_detail all_detail = {0};
+  insn.detail = &all_detail;
+  cs_disasm_iter(capstone_handle_, &machine_code_ptr,
+                 &remaining_machine_code_size, &host_address, &insn);
+  auto& detail = all_detail.x86;
+  switch (insn.id) {
+    case ARM64_INS_B:
+    case ARM64_INS_BL:
+    case ARM64_INS_BLR:
+    case ARM64_INS_BR:
+    case ARM64_INS_RET:
+      // todo(wunkolo): determine next instruction
+    default:
+      // Not a branching instruction - just move over it.
+      return current_pc + insn.size;
+  }
 }
 
 void A64Backend::InstallBreakpoint(Breakpoint* breakpoint) {
