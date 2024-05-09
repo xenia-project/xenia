@@ -70,7 +70,7 @@ class A64Backend : public Backend {
   static bool ExceptionCallbackThunk(Exception* ex, void* data);
   bool ExceptionCallback(Exception* ex);
 
-  // uintptr_t capstone_handle_ = 0;
+  uintptr_t capstone_handle_ = 0;
 
   std::unique_ptr<A64CodeCache> code_cache_;
   uintptr_t emitter_data_ = 0;

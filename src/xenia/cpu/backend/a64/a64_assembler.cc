@@ -11,8 +11,8 @@
 
 #include <climits>
 
+#include "third_party/capstone/include/capstone/arm64.h"
 #include "third_party/capstone/include/capstone/capstone.h"
-#include "third_party/capstone/include/capstone/x86.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/reset_scope.h"
 #include "xenia/base/string.h"
@@ -33,11 +33,22 @@ namespace a64 {
 using xe::cpu::hir::HIRBuilder;
 
 A64Assembler::A64Assembler(A64Backend* backend)
-    : Assembler(backend), a64_backend_(backend) {}
+    : Assembler(backend), a64_backend_(backend), capstone_handle_(0) {
+  if (cs_open(CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN, &capstone_handle_) !=
+      CS_ERR_OK) {
+    assert_always("Failed to initialize capstone");
+  }
+  cs_option(capstone_handle_, CS_OPT_SYNTAX, CS_OPT_SYNTAX_INTEL);
+  cs_option(capstone_handle_, CS_OPT_DETAIL, CS_OPT_OFF);
+}
 
 A64Assembler::~A64Assembler() {
   // Emitter must be freed before the allocator.
   emitter_.reset();
+
+  if (capstone_handle_) {
+    cs_close(&capstone_handle_);
+  }
 }
 
 bool A64Assembler::Initialize() {
@@ -106,7 +117,9 @@ void A64Assembler::DumpMachineCode(
   size_t remaining_code_size = code_size;
   uint64_t address = uint64_t(machine_code);
   cs_insn insn = {0};
-  while (remaining_code_size) {
+  while (remaining_code_size &&
+         cs_disasm_iter(capstone_handle_, &code_ptr, &remaining_code_size,
+                        &address, &insn)) {
     // Look up source offset.
     auto code_offset =
         uint32_t(code_ptr - reinterpret_cast<uint8_t*>(machine_code));

@@ -46,6 +46,7 @@ class A64Assembler : public Assembler {
  private:
   A64Backend* a64_backend_;
   std::unique_ptr<A64Emitter> emitter_;
+  uintptr_t capstone_handle_;
 
   StringBuffer string_buffer_;
 };
