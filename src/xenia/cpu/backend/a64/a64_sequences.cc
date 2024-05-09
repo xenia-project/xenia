@@ -1187,13 +1187,14 @@ void EmitAddCarryXX(A64Emitter& e, const ARGS& i) {
   // TODO(benvanik): faster setting? we could probably do some fun math tricks
   // here to get the carry flag set.
   if (i.src3.is_constant) {
+    e.MOV(W0, WZR);
     if (i.src3.constant()) {
       // Set carry
       // This is implicitly "SUBS 0 - 0"
-      e.CMP(WZR.toW(), 0);
+      e.CMP(W0, 0);
     } else {
       // Clear carry
-      e.CMN(WZR.toW(), 0);
+      e.CMN(W0, 0);
     }
   } else {
     // If src3 is non-zero, set the carry flag
