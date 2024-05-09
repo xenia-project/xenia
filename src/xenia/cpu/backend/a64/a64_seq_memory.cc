@@ -78,7 +78,8 @@ XReg ComputeMemoryAddress(A64Emitter& e, const T& guest,
     // displacement it would be sign extended and mess things up.
     uint32_t address = static_cast<uint32_t>(guest.constant());
     if (address < 0x80000000) {
-      e.ADD(address_register.toX(), e.GetMembaseReg(), address);
+      e.MOV(W0, address);
+      e.ADD(address_register.toX(), e.GetMembaseReg(), X0);
       return address_register.toX();
     } else {
       if (address >= 0xE0000000 &&
