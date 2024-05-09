@@ -872,7 +872,8 @@ struct COMPARE_EQ_I8
     EmitCommutativeCompareOp(
         e, i, [](A64Emitter& e, WReg src1, WReg src2) { e.CMP(src1, src2); },
         [](A64Emitter& e, WReg src1, int32_t constant) {
-          e.CMP(src1, constant);
+          e.MOV(W1, constant);
+          e.CMP(src1, W1);
         });
     e.CSET(i.dest, Cond::EQ);
   }
@@ -883,7 +884,8 @@ struct COMPARE_EQ_I16
     EmitCommutativeCompareOp(
         e, i, [](A64Emitter& e, WReg src1, WReg src2) { e.CMP(src1, src2); },
         [](A64Emitter& e, WReg src1, int32_t constant) {
-          e.CMP(src1, constant);
+          e.MOV(W1, constant);
+          e.CMP(src1, W1);
         });
     e.CSET(i.dest, Cond::EQ);
   }
@@ -947,7 +949,8 @@ struct COMPARE_NE_I8
     EmitCommutativeCompareOp(
         e, i, [](A64Emitter& e, WReg src1, WReg src2) { e.CMP(src1, src2); },
         [](A64Emitter& e, WReg src1, int32_t constant) {
-          e.CMP(src1, constant);
+          e.MOV(W1, constant);
+          e.CMP(src1, W1);
         });
     e.CSET(i.dest, Cond::NE);
   }
@@ -958,7 +961,8 @@ struct COMPARE_NE_I16
     EmitCommutativeCompareOp(
         e, i, [](A64Emitter& e, WReg src1, WReg src2) { e.CMP(src1, src2); },
         [](A64Emitter& e, WReg src1, int32_t constant) {
-          e.CMP(src1, constant);
+          e.MOV(W1, constant);
+          e.CMP(src1, W1);
         });
     e.CSET(i.dest, Cond::NE);
   }
@@ -969,7 +973,8 @@ struct COMPARE_NE_I32
     EmitCommutativeCompareOp(
         e, i, [](A64Emitter& e, WReg src1, WReg src2) { e.CMP(src1, src2); },
         [](A64Emitter& e, WReg src1, int32_t constant) {
-          e.CMP(src1, constant);
+          e.MOV(W1, constant);
+          e.CMP(src1, W1);
         });
     e.CSET(i.dest, Cond::NE);
   }
@@ -980,7 +985,8 @@ struct COMPARE_NE_I64
     EmitCommutativeCompareOp(
         e, i, [](A64Emitter& e, XReg src1, XReg src2) { e.CMP(src1, src2); },
         [](A64Emitter& e, XReg src1, int32_t constant) {
-          e.CMP(src1, constant);
+          e.MOV(X1, constant);
+          e.CMP(src1, X1);
         });
     e.CSET(i.dest, Cond::NE);
   }
@@ -2610,7 +2616,7 @@ void EmitRotateLeftXX(A64Emitter& e, const ARGS& i) {
   if (i.src2.is_constant) {
     e.MOV(REG(1), i.src2.constant());
   } else {
-    e.MOV(W0, i.src2.reg().toW());
+    e.MOV(W1, i.src2.reg().toW());
   }
 
   e.LSLV(i.dest, REG(0), REG(1));
@@ -2633,13 +2639,39 @@ struct ROTATE_LEFT_I16
 struct ROTATE_LEFT_I32
     : Sequence<ROTATE_LEFT_I32, I<OPCODE_ROTATE_LEFT, I32Op, I32Op, I8Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    EmitRotateLeftXX<ROTATE_LEFT_I32, WReg>(e, i);
+    if (i.src1.is_constant) {
+      e.MOV(W0, i.src1.constant());
+    } else {
+      e.MOV(W0, i.src1.reg());
+    }
+
+    if (i.src2.is_constant) {
+      e.MOV(W1, i.src2.constant());
+    } else {
+      e.SXTB(W1, i.src2.reg());
+    }
+    e.NEG(W1, W1);
+
+    e.ROR(i.dest, W0, W1);
   }
 };
 struct ROTATE_LEFT_I64
     : Sequence<ROTATE_LEFT_I64, I<OPCODE_ROTATE_LEFT, I64Op, I64Op, I8Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    EmitRotateLeftXX<ROTATE_LEFT_I64, XReg>(e, i);
+    if (i.src1.is_constant) {
+      e.MOV(X0, i.src1.constant());
+    } else {
+      e.MOV(X0, i.src1.reg());
+    }
+
+    if (i.src2.is_constant) {
+      e.MOV(X1, i.src2.constant());
+    } else {
+      e.SXTB(X1, i.src2.reg().toW());
+    }
+    e.NEG(X1, X1);
+
+    e.ROR(i.dest, X0, X1);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_ROTATE_LEFT, ROTATE_LEFT_I8, ROTATE_LEFT_I16,
