@@ -348,21 +348,32 @@ struct CONVERT_I64_F64
     : Sequence<CONVERT_I64_F64, I<OPCODE_CONVERT, I64Op, F64Op>> {
   static void Emit(X64Emitter& e, const EmitArgType& i) {
     e.ChangeMxcsrMode(MXCSRMode::Fpu);
-    e.xor_(e.eax, e.eax);
     Xmm src1 = GetInputRegOrConstant(e, i.src1, e.xmm0);
+    // Copy src1.
+    e.movq(e.rcx, src1);
 
-    e.vcomisd(src1, e.GetXmmConstPtr(XmmConst::XMMZero));
+    // TODO(benvanik): saturation check? cvtt* (trunc?)
     if (i.instr->flags == ROUND_TO_ZERO) {
       e.vcvttsd2si(i.dest, src1);
     } else {
       e.vcvtsd2si(i.dest, src1);
     }
-    // cf set if less than
-    e.setnc(e.cl);
-    e.cmp(i.dest, -1LL);
-    // if dest == 0x80000000 and not inp < 0 then dest = 0x7FFFFFFF
-    e.seto(e.al);
-    e.and_(e.al, e.cl);
+
+    // 0x8000000000000000
+    e.mov(e.rax, 0x1);
+    e.shl(e.rax, 63);
+
+    // Saturate positive overflow
+    // TODO(DrChat): Find a shorter equivalent sequence.
+    // if (result ind. && src1 >= 0)
+    //   result = 0x7FFFFFFFFFFFFFFF;
+    e.cmp(e.rax, i.dest);
+    e.sete(e.al);
+    e.movzx(e.rax, e.al);
+    e.shr(e.rcx, 63);
+    e.xor_(e.rcx, 0x01);
+    e.and_(e.rax, e.rcx);
+
     e.sub(i.dest, e.rax);
   }
 };
