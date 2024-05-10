@@ -1021,6 +1021,47 @@ struct PERMUTE_I32
     : Sequence<PERMUTE_I32, I<OPCODE_PERMUTE, V128Op, I32Op, V128Op, V128Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     assert_true(i.instr->flags == INT32_TYPE);
+    // Permute words between src2 and src3.
+    if (i.src1.is_constant) {
+      // Each byte is a word-index
+      const uint32_t control = i.src1.constant();
+      const QReg indices = Q0;
+
+      // Word to byte index
+      e.MOV(W0, control * 4);
+      e.MOV(indices.Selem()[0], W0);
+
+      // Widen int8 to int16
+      e.ZIP1(indices.B16(), indices.B16(), indices.B16());
+      // Widen int16 to int32
+      e.ZIP1(indices.B16(), indices.B16(), indices.B16());
+
+      // Convert to byte-indices
+      e.MOV(W0, 0x03'02'01'00);
+      e.DUP(Q1.S4(), W0);
+      e.ADD(indices.S4(), indices.S4(), Q1.S4());
+
+      // Table-registers must be sequential indices
+      const QReg table0 = Q2;
+      if (i.src2.is_constant) {
+        e.LoadConstantV(table0, i.src2.constant());
+      } else {
+        e.MOV(table0.B16(), i.src2.reg().B16());
+      }
+
+      const QReg table1 = Q3;
+      if (i.src3.is_constant) {
+        e.LoadConstantV(table1, i.src3.constant());
+      } else {
+        e.MOV(table1.B16(), i.src3.reg().B16());
+      }
+
+      e.TBL(i.dest.reg().B16(), List{table0.B16(), table1.B16()},
+            indices.B16());
+    } else {
+      // Permute by non-constant.
+      assert_always();
+    }
   }
 };
 struct PERMUTE_V128
