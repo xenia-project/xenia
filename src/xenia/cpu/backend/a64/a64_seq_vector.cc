@@ -1019,12 +1019,54 @@ EMITTER_OPCODE_TABLE(OPCODE_SPLAT, SPLAT_I8, SPLAT_I16, SPLAT_I32, SPLAT_F32);
 // ============================================================================
 struct PERMUTE_I32
     : Sequence<PERMUTE_I32, I<OPCODE_PERMUTE, V128Op, I32Op, V128Op, V128Op>> {
-  static void Emit(A64Emitter& e, const EmitArgType& i) {}
+  static void Emit(A64Emitter& e, const EmitArgType& i) {
+    assert_true(i.instr->flags == INT32_TYPE);
+  }
 };
 struct PERMUTE_V128
     : Sequence<PERMUTE_V128,
                I<OPCODE_PERMUTE, V128Op, V128Op, V128Op, V128Op>> {
-  static void EmitByInt8(A64Emitter& e, const EmitArgType& i) {}
+  static void EmitByInt8(A64Emitter& e, const EmitArgType& i) {
+    // Permute bytes between src2 and src3.
+    // src1 is an array of indices corresponding to positions within src2 and
+    // src3.
+    if (i.src3.value->IsConstantZero()) {
+      if (i.src2.value->IsConstantZero()) {
+        // src2 & src3 are zero, so result will always be zero.
+        e.EOR(i.dest.reg().B16(), i.dest.reg().B16(), i.dest.reg().B16());
+        return;
+      }
+    }
+
+    const QReg indices = Q0;
+    if (i.src1.is_constant) {
+      e.LoadConstantV(indices, i.src1.constant());
+    } else {
+      e.MOV(indices.B16(), i.src1.reg().B16());
+    }
+
+    // Indices must be endian-swapped
+    e.MOVP2R(X0, e.GetVConstPtr(VSwapWordMask));
+    e.LDR(Q1, X0);
+    e.EOR(Q0.B16(), Q0.B16(), Q1.B16());
+
+    // Table-registers must be sequential indices
+    const QReg table0 = Q2;
+    if (i.src2.is_constant) {
+      e.LoadConstantV(table0, i.src2.constant());
+    } else {
+      e.MOV(table0.B16(), i.src2.reg().B16());
+    }
+
+    const QReg table1 = Q3;
+    if (i.src3.is_constant) {
+      e.LoadConstantV(table1, i.src3.constant());
+    } else {
+      e.MOV(table1.B16(), i.src3.reg().B16());
+    }
+
+    e.TBL(i.dest.reg().B16(), List{table0.B16(), table1.B16()}, indices.B16());
+  }
 
   static void EmitByInt16(A64Emitter& e, const EmitArgType& i) {}
 
