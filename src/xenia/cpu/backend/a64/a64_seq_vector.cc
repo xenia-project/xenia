@@ -1139,7 +1139,40 @@ EMITTER_OPCODE_TABLE(OPCODE_PERMUTE, PERMUTE_I32, PERMUTE_V128);
 // ============================================================================
 struct SWIZZLE
     : Sequence<SWIZZLE, I<OPCODE_SWIZZLE, V128Op, V128Op, OffsetOp>> {
-  static void Emit(A64Emitter& e, const EmitArgType& i){};
+  static void Emit(A64Emitter& e, const EmitArgType& i) {
+    auto element_type = i.instr->flags;
+    if (element_type == INT8_TYPE) {
+      assert_always();
+    } else if (element_type == INT16_TYPE) {
+      assert_always();
+    } else if (element_type == INT32_TYPE || element_type == FLOAT32_TYPE) {
+      // Four 2-bit word-indices packed into one 8-bit value
+      const uint8_t swizzle_mask = static_cast<uint8_t>(i.src2.value);
+
+      // Convert to byte-indices
+      const vec128_t indice_vec =
+          vec128i(((swizzle_mask >> 0) & 0b11) * 0x04'04'04'04 + 0x03'02'01'00,
+                  ((swizzle_mask >> 2) & 0b11) * 0x04'04'04'04 + 0x03'02'01'00,
+                  ((swizzle_mask >> 4) & 0b11) * 0x04'04'04'04 + 0x03'02'01'00,
+                  ((swizzle_mask >> 6) & 0b11) * 0x04'04'04'04 + 0x03'02'01'00);
+
+      const QReg indices = Q0;
+      e.LoadConstantV(indices, indice_vec);
+
+      QReg table0 = Q0;
+      if (i.src1.is_constant) {
+        e.LoadConstantV(table0, i.src1.constant());
+      } else {
+        table0 = i.src1;
+      }
+
+      e.TBL(i.dest.reg().B16(), List{table0.B16()}, indices.B16());
+    } else if (element_type == INT64_TYPE || element_type == FLOAT64_TYPE) {
+      assert_always();
+    } else {
+      assert_always();
+    }
+  };
 };
 EMITTER_OPCODE_TABLE(OPCODE_SWIZZLE, SWIZZLE);
 
