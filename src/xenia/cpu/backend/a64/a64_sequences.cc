@@ -1203,7 +1203,7 @@ void EmitAddCarryXX(A64Emitter& e, const ARGS& i) {
 
     e.MRS(X1, SystemReg::NZCV);
     // Assign carry bit
-    e.BFI(X1, X0, 61, 1);
+    e.BFI(X1, X0, 29, 1);
     e.MSR(SystemReg::NZCV, X1);
   }
   SEQ::EmitCommutativeBinaryOp(
