@@ -469,7 +469,59 @@ EMITTER_OPCODE_TABLE(OPCODE_VECTOR_ADD, VECTOR_ADD);
 // ============================================================================
 struct VECTOR_SUB
     : Sequence<VECTOR_SUB, I<OPCODE_VECTOR_SUB, V128Op, V128Op, V128Op>> {
-  static void Emit(A64Emitter& e, const EmitArgType& i) {}
+  static void Emit(A64Emitter& e, const EmitArgType& i) {
+    EmitCommutativeBinaryVOp(
+        e, i, [&i](A64Emitter& e, const QReg& dest, QReg src1, QReg src2) {
+          const TypeName part_type =
+              static_cast<TypeName>(i.instr->flags & 0xFF);
+          const uint32_t arithmetic_flags = i.instr->flags >> 8;
+          bool is_unsigned = !!(arithmetic_flags & ARITHMETIC_UNSIGNED);
+          bool saturate = !!(arithmetic_flags & ARITHMETIC_SATURATE);
+          switch (part_type) {
+            case INT8_TYPE:
+              if (saturate) {
+                if (is_unsigned) {
+                  e.UQSUB(dest.B16(), src1.B16(), src2.B16());
+                } else {
+                  e.SQSUB(dest.B16(), src1.B16(), src2.B16());
+                }
+              } else {
+                e.SUB(dest.B16(), src1.B16(), src2.B16());
+              }
+              break;
+            case INT16_TYPE:
+              if (saturate) {
+                if (is_unsigned) {
+                  e.UQSUB(dest.H8(), src1.H8(), src2.H8());
+                } else {
+                  e.SQSUB(dest.H8(), src1.H8(), src2.H8());
+                }
+              } else {
+                e.SUB(dest.H8(), src1.H8(), src2.H8());
+              }
+              break;
+            case INT32_TYPE:
+              if (saturate) {
+                if (is_unsigned) {
+                  e.UQSUB(dest.S4(), src1.S4(), src2.S4());
+                } else {
+                  e.SQSUB(dest.S4(), src1.S4(), src2.S4());
+                }
+              } else {
+                e.SUB(dest.S4(), src1.S4(), src2.S4());
+              }
+              break;
+            case FLOAT32_TYPE:
+              assert_false(is_unsigned);
+              assert_false(saturate);
+              e.FSUB(dest.S4(), src1.S4(), src2.S4());
+              break;
+            default:
+              assert_unhandled_case(part_type);
+              break;
+          }
+        });
+  }
 };
 EMITTER_OPCODE_TABLE(OPCODE_VECTOR_SUB, VECTOR_SUB);
 
