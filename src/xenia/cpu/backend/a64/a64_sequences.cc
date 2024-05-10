@@ -667,13 +667,13 @@ struct SELECT_F32
       e.LoadConstantV(src2.toQ(), i.src2.constant());
     }
 
-    SReg src3 = i.src3.is_constant ? S2 : i.src3;
+    SReg src3 = i.src3.is_constant ? S3 : i.src3;
     if (i.src3.is_constant) {
       e.LoadConstantV(src3.toQ(), i.src3.constant());
     }
 
     e.CMP(i.src1.reg().toX(), 0);
-    e.FCSEL(i.dest, src2, i.src3, Cond::NE);
+    e.FCSEL(i.dest, src2, src3, Cond::NE);
   }
 };
 struct SELECT_F64
@@ -686,13 +686,13 @@ struct SELECT_F64
       e.LoadConstantV(src2.toQ(), i.src2.constant());
     }
 
-    DReg src3 = i.src3.is_constant ? D2 : i.src3;
+    DReg src3 = i.src3.is_constant ? D3 : i.src3;
     if (i.src3.is_constant) {
       e.LoadConstantV(src3.toQ(), i.src3.constant());
     }
 
     e.CMP(i.src1.reg().toX(), 0);
-    e.FCSEL(i.dest, src2, i.src3, Cond::NE);
+    e.FCSEL(i.dest, src2, src3, Cond::NE);
   }
 };
 struct SELECT_V128_I8
@@ -705,7 +705,7 @@ struct SELECT_V128_I8
       e.LoadConstantV(src2, i.src2.constant());
     }
 
-    QReg src3 = i.src3.is_constant ? Q2 : i.src3;
+    QReg src3 = i.src3.is_constant ? Q3 : i.src3;
     if (i.src3.is_constant) {
       e.LoadConstantV(src3, i.src3.constant());
     }
