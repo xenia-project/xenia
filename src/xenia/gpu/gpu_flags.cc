@@ -33,6 +33,13 @@ DEFINE_bool(
     "the real reason why they're invalid is found.",
     "GPU");
 
+DEFINE_bool(
+    non_seamless_cube_map, true,
+    "Disable filtering between cube map faces near edges where possible "
+    "(Vulkan with VK_EXT_non_seamless_cube_map) to reproduce the Direct3D 9 "
+    "behavior.",
+    "GPU");
+
 // Extremely bright screen borders in 4D5307E6.
 // Reading between texels with half-pixel offset in 58410954.
 DEFINE_bool(

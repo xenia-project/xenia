@@ -57,6 +57,160 @@ namespace vulkan {
 
 class VulkanProvider : public GraphicsProvider {
  public:
+  struct DeviceInfo {
+    // "ext_1_X"-prefixed extension fields are set to true not only if the
+    // extension itself is actually exposed, but also if it was promoted to the
+    // device's API version. Therefore, merely the field being set to true
+    // doesn't imply that all the required features in the extension are
+    // supported - actual properties and features must be checked rather than
+    // the extension itself where they matter.
+
+    // Vulkan 1.0.
+
+    uint32_t memory_types_device_local;
+    uint32_t memory_types_host_visible;
+    uint32_t memory_types_host_coherent;
+    uint32_t memory_types_host_cached;
+
+    uint32_t apiVersion;
+    uint32_t maxImageDimension2D;
+    uint32_t maxImageDimension3D;
+    uint32_t maxImageDimensionCube;
+    uint32_t maxImageArrayLayers;
+    uint32_t maxStorageBufferRange;
+    uint32_t maxSamplerAllocationCount;
+    uint32_t maxPerStageDescriptorSamplers;
+    uint32_t maxPerStageDescriptorStorageBuffers;
+    uint32_t maxPerStageDescriptorSampledImages;
+    uint32_t maxPerStageResources;
+    uint32_t maxVertexOutputComponents;
+    uint32_t maxTessellationEvaluationOutputComponents;
+    uint32_t maxGeometryInputComponents;
+    uint32_t maxGeometryOutputComponents;
+    uint32_t maxGeometryTotalOutputComponents;
+    uint32_t maxFragmentInputComponents;
+    uint32_t maxFragmentCombinedOutputResources;
+    float maxSamplerAnisotropy;
+    uint32_t maxViewportDimensions[2];
+    float viewportBoundsRange[2];
+    VkDeviceSize minUniformBufferOffsetAlignment;
+    VkDeviceSize minStorageBufferOffsetAlignment;
+    uint32_t maxFramebufferWidth;
+    uint32_t maxFramebufferHeight;
+    VkSampleCountFlags framebufferColorSampleCounts;
+    VkSampleCountFlags framebufferDepthSampleCounts;
+    VkSampleCountFlags framebufferStencilSampleCounts;
+    VkSampleCountFlags framebufferNoAttachmentsSampleCounts;
+    VkSampleCountFlags sampledImageColorSampleCounts;
+    VkSampleCountFlags sampledImageIntegerSampleCounts;
+    VkSampleCountFlags sampledImageDepthSampleCounts;
+    VkSampleCountFlags sampledImageStencilSampleCounts;
+    VkSampleCountFlags standardSampleLocations;
+    VkDeviceSize optimalBufferCopyOffsetAlignment;
+    VkDeviceSize optimalBufferCopyRowPitchAlignment;
+    VkDeviceSize nonCoherentAtomSize;
+
+    bool fullDrawIndexUint32;
+    bool independentBlend;
+    bool geometryShader;
+    bool tessellationShader;
+    bool sampleRateShading;
+    bool depthClamp;
+    bool fillModeNonSolid;
+    bool samplerAnisotropy;
+    bool vertexPipelineStoresAndAtomics;
+    bool fragmentStoresAndAtomics;
+    bool shaderClipDistance;
+    bool shaderCullDistance;
+    bool sparseBinding;
+    bool sparseResidencyBuffer;
+
+    // VK_KHR_swapchain (#2).
+
+    bool ext_VK_KHR_swapchain;
+
+    // VK_KHR_sampler_mirror_clamp_to_edge (#15, Vulkan 1.2).
+
+    bool ext_1_2_VK_KHR_sampler_mirror_clamp_to_edge;
+
+    bool samplerMirrorClampToEdge;
+
+    // VK_KHR_dedicated_allocation (#128, Vulkan 1.1).
+
+    bool ext_1_1_VK_KHR_dedicated_allocation;
+
+    // VK_EXT_shader_stencil_export (#141).
+
+    bool ext_VK_EXT_shader_stencil_export;
+
+    // VK_KHR_get_memory_requirements2 (#147, Vulkan 1.1).
+
+    bool ext_1_1_VK_KHR_get_memory_requirements2;
+
+    // VK_KHR_image_format_list (#148, Vulkan 1.2).
+
+    bool ext_1_2_VK_KHR_image_format_list;
+
+    // VK_KHR_sampler_ycbcr_conversion (#157, Vulkan 1.1).
+
+    bool ext_1_1_VK_KHR_sampler_ycbcr_conversion;
+
+    // VK_KHR_bind_memory2 (#158, Vulkan 1.1).
+
+    bool ext_1_1_VK_KHR_bind_memory2;
+
+    // VK_KHR_portability_subset (#164).
+
+    bool ext_VK_KHR_portability_subset;
+
+    bool constantAlphaColorBlendFactors;
+    bool imageViewFormatReinterpretation;
+    bool imageViewFormatSwizzle;
+    bool pointPolygons;
+    bool separateStencilMaskRef;
+    bool shaderSampleRateInterpolationFunctions;
+    bool triangleFans;
+
+    // VK_KHR_shader_float_controls (#198, Vulkan 1.2).
+
+    bool ext_1_2_VK_KHR_shader_float_controls;
+
+    bool shaderSignedZeroInfNanPreserveFloat32;
+    bool shaderDenormFlushToZeroFloat32;
+    bool shaderRoundingModeRTEFloat32;
+
+    // VK_KHR_spirv_1_4 (#237, Vulkan 1.2).
+
+    bool ext_1_2_VK_KHR_spirv_1_4;
+
+    // VK_EXT_memory_budget (#238).
+
+    bool ext_VK_EXT_memory_budget;
+
+    // VK_EXT_fragment_shader_interlock (#252).
+
+    bool ext_VK_EXT_fragment_shader_interlock;
+
+    bool fragmentShaderSampleInterlock;
+    bool fragmentShaderPixelInterlock;
+
+    // VK_EXT_shader_demote_to_helper_invocation (#277, Vulkan 1.3).
+
+    bool ext_1_3_VK_EXT_shader_demote_to_helper_invocation;
+
+    bool shaderDemoteToHelperInvocation;
+
+    // VK_KHR_maintenance4 (#414, Vulkan 1.3).
+
+    bool ext_1_3_VK_KHR_maintenance4;
+
+    // VK_EXT_non_seamless_cube_map (#423).
+
+    bool ext_VK_EXT_non_seamless_cube_map;
+
+    bool nonSeamlessCubeMap;
+  };
+
   ~VulkanProvider();
 
   static std::unique_ptr<VulkanProvider> Create(bool is_surface_required);
@@ -106,7 +260,7 @@ class VulkanProvider : public GraphicsProvider {
   struct InstanceFunctions {
 #define XE_UI_VULKAN_FUNCTION(name) PFN_##name name;
 #define XE_UI_VULKAN_FUNCTION_PROMOTED(extension_name, core_name) \
-  PFN_##extension_name extension_name;
+  PFN_##core_name core_name;
 #include "xenia/ui/vulkan/functions/instance_1_0.inc"
 #include "xenia/ui/vulkan/functions/instance_ext_debug_utils.inc"
 #include "xenia/ui/vulkan/functions/instance_khr_get_physical_device_properties2.inc"
@@ -124,61 +278,9 @@ class VulkanProvider : public GraphicsProvider {
   const InstanceFunctions& ifn() const { return ifn_; }
 
   VkPhysicalDevice physical_device() const { return physical_device_; }
-  const VkPhysicalDeviceProperties& device_properties() const {
-    return device_properties_;
-  }
-  const VkPhysicalDeviceFeatures& device_features() const {
-    return device_features_;
-  }
-  struct DeviceExtensions {
-    bool ext_fragment_shader_interlock;
-    bool ext_memory_budget;
-    // Core since 1.3.0.
-    bool ext_shader_demote_to_helper_invocation;
-    bool ext_shader_stencil_export;
-    // Core since 1.1.0.
-    bool khr_bind_memory2;
-    // Core since 1.1.0.
-    bool khr_dedicated_allocation;
-    // Core since 1.1.0.
-    bool khr_get_memory_requirements2;
-    // Core since 1.2.0.
-    bool khr_image_format_list;
-    // Core since 1.3.0.
-    bool khr_maintenance4;
-    // Requires the VK_KHR_get_physical_device_properties2 instance extension.
-    bool khr_portability_subset;
-    // Core since 1.1.0.
-    bool khr_sampler_ycbcr_conversion;
-    // Core since 1.2.0.
-    bool khr_shader_float_controls;
-    // Core since 1.2.0.
-    bool khr_spirv_1_4;
-    bool khr_swapchain;
-  };
-  const DeviceExtensions& device_extensions() const {
-    return device_extensions_;
-  }
-  // Returns nullptr if the device is fully compliant with Vulkan 1.0.
-  const VkPhysicalDevicePortabilitySubsetFeaturesKHR*
-  device_portability_subset_features() const {
-    if (!device_extensions_.khr_portability_subset) {
-      return nullptr;
-    }
-    return &device_portability_subset_features_;
-  }
-  uint32_t memory_types_device_local() const {
-    return memory_types_device_local_;
-  }
-  uint32_t memory_types_host_visible() const {
-    return memory_types_host_visible_;
-  }
-  uint32_t memory_types_host_coherent() const {
-    return memory_types_host_coherent_;
-  }
-  uint32_t memory_types_host_cached() const {
-    return memory_types_host_cached_;
-  }
+
+  const DeviceInfo& device_info() const { return device_info_; }
+
   struct QueueFamily {
     uint32_t queue_first_index = 0;
     uint32_t queue_count = 0;
@@ -195,18 +297,6 @@ class VulkanProvider : public GraphicsProvider {
   // same as queue_family_graphics_compute_.
   uint32_t queue_family_sparse_binding() const {
     return queue_family_sparse_binding_;
-  }
-  const VkPhysicalDeviceFloatControlsPropertiesKHR&
-  device_float_controls_properties() const {
-    return device_float_controls_properties_;
-  }
-  const VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT&
-  device_fragment_shader_interlock_features() const {
-    return device_fragment_shader_interlock_features_;
-  }
-  const VkPhysicalDeviceShaderDemoteToHelperInvocationFeaturesEXT&
-  device_shader_demote_to_helper_invocation_features() const {
-    return device_shader_demote_to_helper_invocation_features_;
   }
 
   struct Queue {
@@ -235,7 +325,7 @@ class VulkanProvider : public GraphicsProvider {
   struct DeviceFunctions {
 #define XE_UI_VULKAN_FUNCTION(name) PFN_##name name;
 #define XE_UI_VULKAN_FUNCTION_PROMOTED(extension_name, core_name) \
-  PFN_##extension_name extension_name;
+  PFN_##core_name core_name;
 #include "xenia/ui/vulkan/functions/device_1_0.inc"
 #include "xenia/ui/vulkan/functions/device_khr_bind_memory2.inc"
 #include "xenia/ui/vulkan/functions/device_khr_get_memory_requirements2.inc"
@@ -259,10 +349,6 @@ class VulkanProvider : public GraphicsProvider {
     name_info.objectHandle = uint64_t(handle);
     name_info.pObjectName = name;
     ifn_.vkSetDebugUtilsObjectNameEXT(device_, &name_info);
-  }
-
-  bool IsSparseBindingSupported() const {
-    return queue_family_sparse_binding_ != UINT32_MAX;
   }
 
   // Samplers that may be useful for host needs. Only these samplers should be
@@ -298,6 +384,12 @@ class VulkanProvider : public GraphicsProvider {
       const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
       void* user_data);
 
+  // For the current `physical_device_`, sets up the members obtained from the
+  // physical device info, and tries to create a device and get the needed
+  // queues.
+  // The call is successful if `device_` is not VK_NULL_HANDLE as a result.
+  void TryCreateDevice();
+
   bool is_surface_required_;
 
   RenderdocApi renderdoc_api_;
@@ -313,30 +405,21 @@ class VulkanProvider : public GraphicsProvider {
   InstanceExtensions instance_extensions_;
   VkInstance instance_ = VK_NULL_HANDLE;
   InstanceFunctions ifn_;
+
   VkDebugUtilsMessengerEXT debug_messenger_ = VK_NULL_HANDLE;
   bool debug_names_used_ = false;
 
   VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;
-  VkPhysicalDeviceProperties device_properties_;
-  VkPhysicalDeviceFeatures device_features_;
-  DeviceExtensions device_extensions_;
-  VkPhysicalDevicePortabilitySubsetFeaturesKHR
-      device_portability_subset_features_;
-  uint32_t memory_types_device_local_;
-  uint32_t memory_types_host_visible_;
-  uint32_t memory_types_host_coherent_;
-  uint32_t memory_types_host_cached_;
+
+  DeviceInfo device_info_ = {};
+
   std::vector<QueueFamily> queue_families_;
   uint32_t queue_family_graphics_compute_;
   uint32_t queue_family_sparse_binding_;
-  VkPhysicalDeviceFloatControlsPropertiesKHR device_float_controls_properties_;
-  VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT
-      device_fragment_shader_interlock_features_;
-  VkPhysicalDeviceShaderDemoteToHelperInvocationFeaturesEXT
-      device_shader_demote_to_helper_invocation_features_;
 
   VkDevice device_ = VK_NULL_HANDLE;
   DeviceFunctions dfn_ = {};
+
   // Queues contain a mutex, can't use std::vector.
   std::unique_ptr<Queue[]> queues_;
 

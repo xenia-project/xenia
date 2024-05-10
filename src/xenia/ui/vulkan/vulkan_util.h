@@ -50,7 +50,7 @@ enum class MemoryPurpose {
 inline VkDeviceSize GetMappableMemorySize(const VulkanProvider& provider,
                                           VkDeviceSize size) {
   VkDeviceSize non_coherent_atom_size =
-      provider.device_properties().limits.nonCoherentAtomSize;
+      provider.device_info().nonCoherentAtomSize;
   // On some Android implementations, nonCoherentAtomSize is 0, not 1.
   if (non_coherent_atom_size > 1) {
     size = xe::round_up(size, non_coherent_atom_size, false);
@@ -61,8 +61,8 @@ inline VkDeviceSize GetMappableMemorySize(const VulkanProvider& provider,
 inline uint32_t ChooseHostMemoryType(const VulkanProvider& provider,
                                      uint32_t supported_types,
                                      bool is_readback) {
-  supported_types &= provider.memory_types_host_visible();
-  uint32_t host_cached = provider.memory_types_host_cached();
+  supported_types &= provider.device_info().memory_types_host_visible;
+  uint32_t host_cached = provider.device_info().memory_types_host_cached;
   uint32_t memory_type;
   // For upload, uncached is preferred so writes do not pollute the CPU cache.
   // For readback, cached is preferred so multiple CPU reads are fast.
@@ -107,12 +107,12 @@ void FlushMappedMemoryRange(const VulkanProvider& provider,
                             VkDeviceSize size = VK_WHOLE_SIZE);
 
 inline VkExtent2D GetMax2DFramebufferExtent(const VulkanProvider& provider) {
-  const VkPhysicalDeviceLimits& limits = provider.device_properties().limits;
+  const VulkanProvider::DeviceInfo& device_info = provider.device_info();
   VkExtent2D max_extent;
-  max_extent.width =
-      std::min(limits.maxFramebufferWidth, limits.maxImageDimension2D);
-  max_extent.height =
-      std::min(limits.maxFramebufferHeight, limits.maxImageDimension2D);
+  max_extent.width = std::min(device_info.maxFramebufferWidth,
+                              device_info.maxImageDimension2D);
+  max_extent.height = std::min(device_info.maxFramebufferHeight,
+                               device_info.maxImageDimension2D);
   return max_extent;
 }
 

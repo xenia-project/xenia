@@ -208,7 +208,7 @@ VulkanPresenter::~VulkanPresenter() {
 }
 
 Surface::TypeFlags VulkanPresenter::GetSupportedSurfaceTypes() const {
-  if (!provider_.device_extensions().khr_swapchain) {
+  if (!provider_.device_info().ext_VK_KHR_swapchain) {
     return 0;
   }
   return GetSurfaceTypesSupportedByInstance(provider_.instance_extensions());

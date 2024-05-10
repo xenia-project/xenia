@@ -27,8 +27,8 @@ void FlushMappedMemoryRange(const VulkanProvider& provider,
   assert_false(size != VK_WHOLE_SIZE && memory_size == VK_WHOLE_SIZE);
   assert_true(memory_size == VK_WHOLE_SIZE || offset <= memory_size);
   assert_true(memory_size == VK_WHOLE_SIZE || size <= memory_size - offset);
-  if (!size ||
-      (provider.memory_types_host_coherent() & (uint32_t(1) << memory_type))) {
+  if (!size || (provider.device_info().memory_types_host_coherent &
+                (uint32_t(1) << memory_type))) {
     return;
   }
   VkMappedMemoryRange range;
@@ -38,7 +38,7 @@ void FlushMappedMemoryRange(const VulkanProvider& provider,
   range.offset = offset;
   range.size = size;
   VkDeviceSize non_coherent_atom_size =
-      provider.device_properties().limits.nonCoherentAtomSize;
+      provider.device_info().nonCoherentAtomSize;
   // On some Android implementations, nonCoherentAtomSize is 0, not 1.
   if (non_coherent_atom_size > 1) {
     range.offset = offset / non_coherent_atom_size * non_coherent_atom_size;
@@ -89,13 +89,13 @@ bool CreateDedicatedAllocationBuffer(
   memory_allocate_info.pNext = nullptr;
   memory_allocate_info.allocationSize = memory_requirements.size;
   memory_allocate_info.memoryTypeIndex = memory_type;
-  VkMemoryDedicatedAllocateInfoKHR memory_dedicated_allocate_info;
-  if (provider.device_extensions().khr_dedicated_allocation) {
+  VkMemoryDedicatedAllocateInfo memory_dedicated_allocate_info;
+  if (provider.device_info().ext_1_1_VK_KHR_dedicated_allocation) {
     memory_allocate_info_last->pNext = &memory_dedicated_allocate_info;
     memory_allocate_info_last = reinterpret_cast<VkMemoryAllocateInfo*>(
         &memory_dedicated_allocate_info);
     memory_dedicated_allocate_info.sType =
-        VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
+        VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
     memory_dedicated_allocate_info.pNext = nullptr;
     memory_dedicated_allocate_info.image = VK_NULL_HANDLE;
     memory_dedicated_allocate_info.buffer = buffer;
@@ -154,13 +154,13 @@ bool CreateDedicatedAllocationImage(const VulkanProvider& provider,
   memory_allocate_info.pNext = nullptr;
   memory_allocate_info.allocationSize = memory_requirements.size;
   memory_allocate_info.memoryTypeIndex = memory_type;
-  VkMemoryDedicatedAllocateInfoKHR memory_dedicated_allocate_info;
-  if (provider.device_extensions().khr_dedicated_allocation) {
+  VkMemoryDedicatedAllocateInfo memory_dedicated_allocate_info;
+  if (provider.device_info().ext_1_1_VK_KHR_dedicated_allocation) {
     memory_allocate_info_last->pNext = &memory_dedicated_allocate_info;
     memory_allocate_info_last = reinterpret_cast<VkMemoryAllocateInfo*>(
         &memory_dedicated_allocate_info);
     memory_dedicated_allocate_info.sType =
-        VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
+        VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
     memory_dedicated_allocate_info.pNext = nullptr;
     memory_dedicated_allocate_info.image = image;
     memory_dedicated_allocate_info.buffer = VK_NULL_HANDLE;

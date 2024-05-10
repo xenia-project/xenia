@@ -1112,8 +1112,9 @@ union alignas(uint32_t) LoopConstant {
     // The resulting aL is `iterator * step + start`, 10-bit, and has the real
     // range of [-256, 256], according to the IPR2015-00325 sequencer
     // specification.
-    uint32_t start : 8;  // +8
-    int32_t step : 8;    // +16
+    uint32_t start : 8;    // +8
+    int32_t step : 8;      // +16
+    uint32_t _pad_24 : 8;  // +24
   };
 };
 static_assert_size(LoopConstant, sizeof(uint32_t));
@@ -1253,7 +1254,7 @@ union alignas(uint32_t) xe_gpu_texture_fetch_t {
     union {  // dword_2
       struct {
         uint32_t width : 24;
-        uint32_t : 8;
+        uint32_t _pad_88 : 8;
       } size_1d;
       struct {
         uint32_t width : 13;

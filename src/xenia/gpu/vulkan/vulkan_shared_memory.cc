@@ -51,7 +51,8 @@ bool VulkanSharedMemory::Initialize() {
       command_processor_.GetVulkanProvider();
   const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
   VkDevice device = provider.device();
-  const VkPhysicalDeviceFeatures& device_features = provider.device_features();
+  const ui::vulkan::VulkanProvider::DeviceInfo& device_info =
+      provider.device_info();
 
   const VkBufferCreateFlags sparse_flags =
       VK_BUFFER_CREATE_SPARSE_BINDING_BIT |
@@ -69,16 +70,14 @@ bool VulkanSharedMemory::Initialize() {
   buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   buffer_create_info.queueFamilyIndexCount = 0;
   buffer_create_info.pQueueFamilyIndices = nullptr;
-  if (cvars::vulkan_sparse_shared_memory &&
-      provider.IsSparseBindingSupported() &&
-      device_features.sparseResidencyBuffer) {
+  if (cvars::vulkan_sparse_shared_memory && device_info.sparseResidencyBuffer) {
     if (dfn.vkCreateBuffer(device, &buffer_create_info, nullptr, &buffer_) ==
         VK_SUCCESS) {
       VkMemoryRequirements buffer_memory_requirements;
       dfn.vkGetBufferMemoryRequirements(device, buffer_,
                                         &buffer_memory_requirements);
       if (xe::bit_scan_forward(buffer_memory_requirements.memoryTypeBits &
-                                   provider.memory_types_device_local(),
+                                   device_info.memory_types_device_local,
                                &buffer_memory_type_)) {
         uint32_t allocation_size_log2;
         xe::bit_scan_forward(
@@ -131,7 +130,7 @@ bool VulkanSharedMemory::Initialize() {
     dfn.vkGetBufferMemoryRequirements(device, buffer_,
                                       &buffer_memory_requirements);
     if (!xe::bit_scan_forward(buffer_memory_requirements.memoryTypeBits &
-                                  provider.memory_types_device_local(),
+                                  device_info.memory_types_device_local,
                               &buffer_memory_type_)) {
       XELOGE(
           "Shared memory: Failed to get a device-local Vulkan memory type for "
@@ -147,15 +146,15 @@ bool VulkanSharedMemory::Initialize() {
     buffer_memory_allocate_info.allocationSize =
         buffer_memory_requirements.size;
     buffer_memory_allocate_info.memoryTypeIndex = buffer_memory_type_;
-    VkMemoryDedicatedAllocateInfoKHR buffer_memory_dedicated_allocate_info;
-    if (provider.device_extensions().khr_dedicated_allocation) {
+    VkMemoryDedicatedAllocateInfo buffer_memory_dedicated_allocate_info;
+    if (provider.device_info().ext_1_1_VK_KHR_dedicated_allocation) {
       buffer_memory_allocate_info_last->pNext =
           &buffer_memory_dedicated_allocate_info;
       buffer_memory_allocate_info_last =
           reinterpret_cast<VkMemoryAllocateInfo*>(
               &buffer_memory_dedicated_allocate_info);
       buffer_memory_dedicated_allocate_info.sType =
-          VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
+          VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
       buffer_memory_dedicated_allocate_info.pNext = nullptr;
       buffer_memory_dedicated_allocate_info.image = VK_NULL_HANDLE;
       buffer_memory_dedicated_allocate_info.buffer = buffer_;
@@ -366,7 +365,7 @@ bool VulkanSharedMemory::AllocateSparseHostGpuMemoryRange(
       VK_PIPELINE_STAGE_VERTEX_INPUT_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
       VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
-  if (provider.device_features().tessellationShader) {
+  if (provider.device_info().tessellationShader) {
     bind_wait_stage_mask |=
         VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT;
   }
