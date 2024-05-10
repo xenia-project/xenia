@@ -1495,17 +1495,17 @@ struct MUL_HI_I32
       if (i.src1.is_constant) {
         assert_true(!i.src2.is_constant);
         e.MOV(W0, i.src1.constant());
-        e.UMULL(X0, W0, i.src2);
+        e.SMULL(X0, W0, i.src2);
         e.UBFX(X0, X0, 32, 32);
         e.MOV(i.dest, X0.toW());
       } else if (i.src2.is_constant) {
         assert_true(!i.src1.is_constant);
         e.MOV(W0, i.src2.constant());
-        e.UMULL(X0, W0, i.src2);
+        e.SMULL(X0, W0, i.src2);
         e.UBFX(X0, X0, 32, 32);
         e.MOV(i.dest, X0.toW());
       } else {
-        e.UMULL(X0, W0, i.src2);
+        e.SMULL(X0, W0, i.src2);
         e.UBFX(X0, X0, 32, 32);
         e.MOV(i.dest, X0.toW());
       }
@@ -1531,13 +1531,13 @@ struct MUL_HI_I64
       if (i.src1.is_constant) {
         assert_true(!i.src2.is_constant);
         e.MOV(X0, i.src1.constant());
-        e.UMULH(i.dest, X0, i.src2);
+        e.SMULH(i.dest, X0, i.src2);
       } else if (i.src2.is_constant) {
         assert_true(!i.src1.is_constant);
         e.MOV(X0, i.src2.constant());
-        e.UMULH(i.dest, i.src1, X0);
+        e.SMULH(i.dest, i.src1, X0);
       } else {
-        e.UMULH(i.dest, i.src1, i.src2);
+        e.SMULH(i.dest, i.src1, i.src2);
       }
     }
   }
