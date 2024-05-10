@@ -437,7 +437,7 @@ ResolveFunctionThunk A64ThunkEmitter::EmitResolveFunctionThunk() {
 
   code_offsets.prolog = offset();
 
-  // rsp + 0 = return address
+  STP(ZR, X0, SP, PRE_INDEXED, -16);
   SUB(SP, SP, stack_size);
 
   code_offsets.prolog_stack_alloc = offset();
@@ -453,6 +453,7 @@ ResolveFunctionThunk A64ThunkEmitter::EmitResolveFunctionThunk() {
   MOV(W1, W17);
   MOV(X16, reinterpret_cast<uint64_t>(&ResolveFunction));
   BLR(X16);
+  MOV(X16, X0);
 
   EmitLoadVolatileRegs();
 
@@ -461,7 +462,8 @@ ResolveFunctionThunk A64ThunkEmitter::EmitResolveFunctionThunk() {
   // add(rsp, stack_size);
   // jmp(rax);
   ADD(SP, SP, stack_size);
-  BR(X0);
+  LDP(ZR, X0, SP, POST_INDEXED, 16);
+  BR(X16);
 
   code_offsets.tail = offset();
 
