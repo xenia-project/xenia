@@ -1487,7 +1487,7 @@ struct MUL_HI_I32
         e.UBFX(X0, X0, 32, 32);
         e.MOV(i.dest, X0.toW());
       } else {
-        e.UMULL(X0, W0, i.src2);
+        e.UMULL(X0, i.src1, i.src2);
         e.UBFX(X0, X0, 32, 32);
         e.MOV(i.dest, X0.toW());
       }
@@ -1496,17 +1496,17 @@ struct MUL_HI_I32
         assert_true(!i.src2.is_constant);
         e.MOV(W0, i.src1.constant());
         e.SMULL(X0, W0, i.src2);
-        e.UBFX(X0, X0, 32, 32);
+        e.SBFX(X0, X0, 32, 32);
         e.MOV(i.dest, X0.toW());
       } else if (i.src2.is_constant) {
         assert_true(!i.src1.is_constant);
         e.MOV(W0, i.src2.constant());
         e.SMULL(X0, W0, i.src2);
-        e.UBFX(X0, X0, 32, 32);
+        e.SBFX(X0, X0, 32, 32);
         e.MOV(i.dest, X0.toW());
       } else {
-        e.SMULL(X0, W0, i.src2);
-        e.UBFX(X0, X0, 32, 32);
+        e.SMULL(X0, i.src1, i.src2);
+        e.SBFX(X0, X0, 32, 32);
         e.MOV(i.dest, X0.toW());
       }
     }
