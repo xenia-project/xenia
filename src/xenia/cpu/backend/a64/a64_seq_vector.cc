@@ -936,11 +936,47 @@ EMITTER_OPCODE_TABLE(OPCODE_VECTOR_ROTATE_LEFT, VECTOR_ROTATE_LEFT_V128);
 // ============================================================================
 // OPCODE_VECTOR_AVERAGE
 // ============================================================================
-
 struct VECTOR_AVERAGE
     : Sequence<VECTOR_AVERAGE,
                I<OPCODE_VECTOR_AVERAGE, V128Op, V128Op, V128Op>> {
-  static void Emit(A64Emitter& e, const EmitArgType& i) {}
+  static void Emit(A64Emitter& e, const EmitArgType& i) {
+    EmitCommutativeBinaryVOp(
+        e, i,
+        [&i](A64Emitter& e, const QReg& dest, const QReg& src1,
+             const QReg& src2) {
+          const TypeName part_type =
+              static_cast<TypeName>(i.instr->flags & 0xFF);
+          const uint32_t arithmetic_flags = i.instr->flags >> 8;
+          bool is_unsigned = !!(arithmetic_flags & ARITHMETIC_UNSIGNED);
+          switch (part_type) {
+            case INT8_TYPE:
+              if (is_unsigned) {
+                e.URHADD(dest.B16(), src1.B16(), src2.B16());
+              } else {
+                e.SRHADD(dest.B16(), src1.B16(), src2.B16());
+                assert_always();
+              }
+              break;
+            case INT16_TYPE:
+              if (is_unsigned) {
+                e.URHADD(dest.H8(), src1.H8(), src2.H8());
+              } else {
+                e.SRHADD(dest.H8(), src1.H8(), src2.H8());
+              }
+              break;
+            case INT32_TYPE:
+              if (is_unsigned) {
+                e.URHADD(dest.S4(), src1.S4(), src2.S4());
+              } else {
+                e.SRHADD(dest.S4(), src1.S4(), src2.S4());
+              }
+              break;
+            default:
+              assert_unhandled_case(part_type);
+              break;
+          }
+        });
+  }
 };
 EMITTER_OPCODE_TABLE(OPCODE_VECTOR_AVERAGE, VECTOR_AVERAGE);
 
