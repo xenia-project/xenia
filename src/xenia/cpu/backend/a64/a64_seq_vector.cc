@@ -300,20 +300,20 @@ struct VECTOR_COMPARE_EQ_V128
     : Sequence<VECTOR_COMPARE_EQ_V128,
                I<OPCODE_VECTOR_COMPARE_EQ, V128Op, V128Op, V128Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    EmitCommutativeBinaryVOp(
+    EmitAssociativeBinaryVOp(
         e, i, [&i](A64Emitter& e, QReg dest, QReg src1, QReg src2) {
           switch (i.instr->flags) {
             case INT8_TYPE:
-              // e.vpcmpeqb(dest, src1, src2);
+              e.CMEQ(dest.B16(), src1.B16(), src2.B16());
               break;
             case INT16_TYPE:
-              // e.vpcmpeqw(dest, src1, src2);
+              e.CMEQ(dest.H8(), src1.H8(), src2.H8());
               break;
             case INT32_TYPE:
-              // e.vpcmpeqd(dest, src1, src2);
+              e.CMEQ(dest.S4(), src1.S4(), src2.S4());
               break;
             case FLOAT32_TYPE:
-              // e.vcmpeqps(dest, src1, src2);
+              e.FCMEQ(dest.S4(), src1.S4(), src2.S4());
               break;
           }
         });
@@ -332,16 +332,16 @@ struct VECTOR_COMPARE_SGT_V128
         e, i, [&i](A64Emitter& e, QReg dest, QReg src1, QReg src2) {
           switch (i.instr->flags) {
             case INT8_TYPE:
-              // e.vpcmpgtb(dest, src1, src2);
+              e.CMGT(dest.B16(), src1.B16(), src2.B16());
               break;
             case INT16_TYPE:
-              // e.vpcmpgtw(dest, src1, src2);
+              e.CMGT(dest.H8(), src1.H8(), src2.H8());
               break;
             case INT32_TYPE:
-              // e.vpcmpgtd(dest, src1, src2);
+              e.CMGT(dest.S4(), src1.S4(), src2.S4());
               break;
             case FLOAT32_TYPE:
-              // e.vcmpgtps(dest, src1, src2);
+              e.FCMGT(dest.S4(), src1.S4(), src2.S4());
               break;
           }
         });
@@ -360,22 +360,16 @@ struct VECTOR_COMPARE_SGE_V128
         e, i, [&i](A64Emitter& e, QReg dest, QReg src1, QReg src2) {
           switch (i.instr->flags) {
             case INT8_TYPE:
-              // e.vpcmpeqb(Q0, src1, src2);
-              // e.vpcmpgtb(dest, src1, src2);
-              // e.vpor(dest, Q0);
+              e.CMGE(dest.B16(), src1.B16(), src2.B16());
               break;
             case INT16_TYPE:
-              // e.vpcmpeqw(Q0, src1, src2);
-              // e.vpcmpgtw(dest, src1, src2);
-              // e.vpor(dest, Q0);
+              e.CMGE(dest.H8(), src1.H8(), src2.H8());
               break;
             case INT32_TYPE:
-              // e.vpcmpeqd(Q0, src1, src2);
-              // e.vpcmpgtd(dest, src1, src2);
-              // e.vpor(dest, Q0);
+              e.CMGE(dest.S4(), src1.S4(), src2.S4());
               break;
             case FLOAT32_TYPE:
-              // e.vcmpgeps(dest, src1, src2);
+              e.FCMGE(dest.S4(), src1.S4(), src2.S4());
               break;
           }
         });
@@ -389,7 +383,27 @@ EMITTER_OPCODE_TABLE(OPCODE_VECTOR_COMPARE_SGE, VECTOR_COMPARE_SGE_V128);
 struct VECTOR_COMPARE_UGT_V128
     : Sequence<VECTOR_COMPARE_UGT_V128,
                I<OPCODE_VECTOR_COMPARE_UGT, V128Op, V128Op, V128Op>> {
-  static void Emit(A64Emitter& e, const EmitArgType& i) {}
+  static void Emit(A64Emitter& e, const EmitArgType& i) {
+    EmitAssociativeBinaryVOp(
+        e, i, [&i](A64Emitter& e, QReg dest, QReg src1, QReg src2) {
+          switch (i.instr->flags) {
+            case INT8_TYPE:
+              e.CMHI(dest.B16(), src1.B16(), src2.B16());
+              break;
+            case INT16_TYPE:
+              e.CMHI(dest.H8(), src1.H8(), src2.H8());
+              break;
+            case INT32_TYPE:
+              e.CMHI(dest.S4(), src1.S4(), src2.S4());
+              break;
+            case FLOAT32_TYPE:
+              e.FABS(Q0.S4(), src1.S4());
+              e.FABS(Q1.S4(), src2.S4());
+              e.FCMGT(dest.S4(), Q0.S4(), Q1.S4());
+              break;
+          }
+        });
+  }
 };
 EMITTER_OPCODE_TABLE(OPCODE_VECTOR_COMPARE_UGT, VECTOR_COMPARE_UGT_V128);
 
@@ -399,7 +413,27 @@ EMITTER_OPCODE_TABLE(OPCODE_VECTOR_COMPARE_UGT, VECTOR_COMPARE_UGT_V128);
 struct VECTOR_COMPARE_UGE_V128
     : Sequence<VECTOR_COMPARE_UGE_V128,
                I<OPCODE_VECTOR_COMPARE_UGE, V128Op, V128Op, V128Op>> {
-  static void Emit(A64Emitter& e, const EmitArgType& i) {}
+  static void Emit(A64Emitter& e, const EmitArgType& i) {
+    EmitAssociativeBinaryVOp(
+        e, i, [&i](A64Emitter& e, QReg dest, QReg src1, QReg src2) {
+          switch (i.instr->flags) {
+            case INT8_TYPE:
+              e.CMHS(dest.B16(), src1.B16(), src2.B16());
+              break;
+            case INT16_TYPE:
+              e.CMHS(dest.H8(), src1.H8(), src2.H8());
+              break;
+            case INT32_TYPE:
+              e.CMHS(dest.S4(), src1.S4(), src2.S4());
+              break;
+            case FLOAT32_TYPE:
+              e.FABS(Q0.S4(), src1.S4());
+              e.FABS(Q1.S4(), src2.S4());
+              e.FCMGE(dest.S4(), Q0.S4(), Q1.S4());
+              break;
+          }
+        });
+  }
 };
 EMITTER_OPCODE_TABLE(OPCODE_VECTOR_COMPARE_UGE, VECTOR_COMPARE_UGE_V128);
 
@@ -1142,7 +1176,6 @@ struct PERMUTE_V128
     e.MOV(W0, 0b11);
     e.DUP(Q1.B16(), W0);
     e.EOR(indices.B16(), indices.B16(), Q1.B16());
-
 
     // Modulo 32 the indices
     e.MOV(W0, 0b0001'1111);
