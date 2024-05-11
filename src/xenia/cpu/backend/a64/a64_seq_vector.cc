@@ -1139,26 +1139,33 @@ struct PERMUTE_V128
     }
 
     // Indices must be endian-swapped
-    e.MOVP2R(X0, e.GetVConstPtr(VSwapWordMask));
-    e.LDR(Q1, X0);
-    e.EOR(Q0.B16(), Q0.B16(), Q1.B16());
+    e.MOV(W0, 0b11);
+    e.DUP(Q1.B16(), W0);
+    e.EOR(indices.B16(), indices.B16(), Q1.B16());
+
+
+    // Modulo 32 the indices
+    e.MOV(W0, 0b0001'1111);
+    e.DUP(Q1.B16(), W0);
+    e.AND(indices.B16(), indices.B16(), Q1.B16());
 
     // Table-registers must be sequential indices
-    const QReg table0 = Q2;
+    const QReg table_lo = Q2;
     if (i.src2.is_constant) {
-      e.LoadConstantV(table0, i.src2.constant());
+      e.LoadConstantV(table_lo, i.src2.constant());
     } else {
-      e.MOV(table0.B16(), i.src2.reg().B16());
+      e.MOV(table_lo.B16(), i.src2.reg().B16());
     }
 
-    const QReg table1 = Q3;
+    const QReg table_hi = Q3;
     if (i.src3.is_constant) {
-      e.LoadConstantV(table1, i.src3.constant());
+      e.LoadConstantV(table_hi, i.src3.constant());
     } else {
-      e.MOV(table1.B16(), i.src3.reg().B16());
+      e.MOV(table_hi.B16(), i.src3.reg().B16());
     }
 
-    e.TBL(i.dest.reg().B16(), List{table0.B16(), table1.B16()}, indices.B16());
+    e.TBL(i.dest.reg().B16(), List{table_lo.B16(), table_hi.B16()},
+          indices.B16());
   }
 
   static void EmitByInt16(A64Emitter& e, const EmitArgType& i) {}
