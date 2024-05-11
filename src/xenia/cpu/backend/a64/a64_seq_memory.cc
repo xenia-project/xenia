@@ -186,7 +186,6 @@ struct ATOMIC_COMPARE_EXCHANGE_I32
     : Sequence<ATOMIC_COMPARE_EXCHANGE_I32,
                I<OPCODE_ATOMIC_COMPARE_EXCHANGE, I8Op, I64Op, I32Op, I32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    e.MOV(W0, i.src2);
     if (xe::memory::allocation_granularity() > 0x1000) {
       // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
       // it via memory mapping.
@@ -200,12 +199,15 @@ struct ATOMIC_COMPARE_EXCHANGE_I32
     }
     e.ADD(X1, e.GetMembaseReg(), X1);
 
+    const WReg expected = i.src2;
+    const WReg desired = i.src3;
+    const WReg status = W0;
+    e.MOV(status, expected);
+
     // if([C] == A) [C] = B
     // else A = [C]
-    e.CASAL(W0, i.src3, X1);
-
-    // Set dest to 1 in the case of a successful exchange
-    e.CMP(W0, i.src2);
+    e.CASAL(status, desired, X1);
+    e.CMP(status, expected);
     e.CSET(i.dest, Cond::EQ);
   }
 };
@@ -213,7 +215,6 @@ struct ATOMIC_COMPARE_EXCHANGE_I64
     : Sequence<ATOMIC_COMPARE_EXCHANGE_I64,
                I<OPCODE_ATOMIC_COMPARE_EXCHANGE, I8Op, I64Op, I64Op, I64Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    e.MOV(X0, i.src2);
     if (xe::memory::allocation_granularity() > 0x1000) {
       // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
       // it via memory mapping.
@@ -227,12 +228,15 @@ struct ATOMIC_COMPARE_EXCHANGE_I64
     }
     e.ADD(X1, e.GetMembaseReg(), X1);
 
+    const XReg expected = i.src2;
+    const XReg desired = i.src3;
+    const XReg status = X0;
+    e.MOV(status, expected);
+
     // if([C] == A) [C] = B
     // else A = [C]
-    e.CASAL(X0, i.src3, X1);
-
-    // Set dest to 1 in the case of a successful exchange
-    e.CMP(X0, i.src2);
+    e.CASAL(status, desired, X1);
+    e.CMP(status, expected);
     e.CSET(i.dest, Cond::EQ);
   }
 };
