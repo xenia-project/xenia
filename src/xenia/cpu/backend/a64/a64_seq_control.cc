@@ -528,7 +528,7 @@ struct BRANCH_FALSE_F32
     oaknut::Label* label = e.lookup_label(i.src2.value->name);
     assert_not_null(label);
     e.FCMP(i.src1, 0);
-    e.B(Cond::NE, *label);
+    e.B(Cond::EQ, *label);
   }
 };
 struct BRANCH_FALSE_F64
@@ -538,7 +538,7 @@ struct BRANCH_FALSE_F64
     oaknut::Label* label = e.lookup_label(i.src2.value->name);
     assert_not_null(label);
     e.FCMP(i.src1, 0);
-    e.B(Cond::NE, *label);
+    e.B(Cond::EQ, *label);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_BRANCH_FALSE, BRANCH_FALSE_I8, BRANCH_FALSE_I16,
