@@ -720,9 +720,11 @@ struct SELECT_V128_V128
     : Sequence<SELECT_V128_V128,
                I<OPCODE_SELECT, V128Op, V128Op, V128Op, V128Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    const QReg src1 = i.src1.is_constant ? Q0 : i.src1;
+    const QReg src1 = Q0;
     if (i.src1.is_constant) {
       e.LoadConstantV(src1, i.src1.constant());
+    } else {
+      e.MOV(src1.B16(), i.src1.reg().B16());
     }
 
     const QReg src2 = i.src2.is_constant ? Q1 : i.src2;
@@ -736,7 +738,7 @@ struct SELECT_V128_V128
     }
 
     // src1 ? src2 : src3;
-    e.BSL(src1.B16(), src2.B16(), src3.B16());
+    e.BSL(src1.B16(), src3.B16(), src2.B16());
     e.MOV(i.dest.reg().B16(), src1.B16());
   }
 };
