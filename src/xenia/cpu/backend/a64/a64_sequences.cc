@@ -2262,7 +2262,7 @@ struct AND_NOT_V128
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     EmitCommutativeBinaryVOp(
         e, i, [](A64Emitter& e, QReg dest, QReg src1, QReg src2) {
-          e.BIC(dest.B16(), src2.B16(), src1.B16());
+          e.BIC(dest.B16(), src1.B16(), src2.B16());
         });
   }
 };
