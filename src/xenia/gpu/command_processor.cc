@@ -18,6 +18,7 @@
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/ring_buffer.h"
 #include "xenia/gpu/gpu_flags.h"
@@ -334,7 +335,8 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
     return;
   }
 
-  regs.values[index].u32 = value;
+  // Volatile for the WAIT_REG_MEM loop.
+  const_cast<volatile uint32_t&>(regs.values[index]) = value;
   if (!regs.GetRegisterInfo(index)) {
     XELOGW("GPU: Write to unknown register ({:04X} = {:08X})", index, value);
   }
@@ -342,19 +344,20 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
   // Scratch register writeback.
   if (index >= XE_GPU_REG_SCRATCH_REG0 && index <= XE_GPU_REG_SCRATCH_REG7) {
     uint32_t scratch_reg = index - XE_GPU_REG_SCRATCH_REG0;
-    if ((1 << scratch_reg) & regs.values[XE_GPU_REG_SCRATCH_UMSK].u32) {
+    if ((1 << scratch_reg) & regs.values[XE_GPU_REG_SCRATCH_UMSK]) {
       // Enabled - write to address.
-      uint32_t scratch_addr = regs.values[XE_GPU_REG_SCRATCH_ADDR].u32;
+      uint32_t scratch_addr = regs.values[XE_GPU_REG_SCRATCH_ADDR];
       uint32_t mem_addr = scratch_addr + (scratch_reg * 4);
       xe::store_and_swap<uint32_t>(memory_->TranslatePhysical(mem_addr), value);
     }
   } else {
     switch (index) {
       // If this is a COHER register, set the dirty flag.
-      // This will block the command processor the next time it WAIT_MEM_REGs
+      // This will block the command processor the next time it WAIT_REG_MEMs
       // and allow us to synchronize the memory.
       case XE_GPU_REG_COHER_STATUS_HOST: {
-        regs.values[index].u32 |= UINT32_C(0x80000000);
+        const_cast<volatile uint32_t&>(regs.values[index]) |=
+            UINT32_C(0x80000000);
       } break;
 
       case XE_GPU_REG_DC_LUT_RW_INDEX: {
@@ -365,12 +368,12 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
 
       case XE_GPU_REG_DC_LUT_SEQ_COLOR: {
         // Should be in the 256-entry table writing mode.
-        assert_zero(regs[XE_GPU_REG_DC_LUT_RW_MODE].u32 & 0b1);
+        assert_zero(regs[XE_GPU_REG_DC_LUT_RW_MODE] & 0b1);
         auto& gamma_ramp_rw_index = regs.Get<reg::DC_LUT_RW_INDEX>();
         // DC_LUT_SEQ_COLOR is in the red, green, blue order, but the write
         // enable mask is blue, green, red.
         bool write_gamma_ramp_component =
-            (regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK].u32 &
+            (regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK] &
              (UINT32_C(1) << (2 - gamma_ramp_rw_component_))) != 0;
         if (write_gamma_ramp_component) {
           reg::DC_LUT_30_COLOR& gamma_ramp_entry =
@@ -401,14 +404,14 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
 
       case XE_GPU_REG_DC_LUT_PWL_DATA: {
         // Should be in the PWL writing mode.
-        assert_not_zero(regs[XE_GPU_REG_DC_LUT_RW_MODE].u32 & 0b1);
+        assert_not_zero(regs[XE_GPU_REG_DC_LUT_RW_MODE] & 0b1);
         auto& gamma_ramp_rw_index = regs.Get<reg::DC_LUT_RW_INDEX>();
         // Bit 7 of the index is ignored for PWL.
         uint32_t gamma_ramp_rw_index_pwl = gamma_ramp_rw_index.rw_index & 0x7F;
         // DC_LUT_PWL_DATA is likely in the red, green, blue order because
         // DC_LUT_SEQ_COLOR is, but the write enable mask is blue, green, red.
         bool write_gamma_ramp_component =
-            (regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK].u32 &
+            (regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK] &
              (UINT32_C(1) << (2 - gamma_ramp_rw_component_))) != 0;
         if (write_gamma_ramp_component) {
           reg::DC_LUT_PWL_DATA& gamma_ramp_entry =
@@ -436,10 +439,10 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
 
       case XE_GPU_REG_DC_LUT_30_COLOR: {
         // Should be in the 256-entry table writing mode.
-        assert_zero(regs[XE_GPU_REG_DC_LUT_RW_MODE].u32 & 0b1);
+        assert_zero(regs[XE_GPU_REG_DC_LUT_RW_MODE] & 0b1);
         auto& gamma_ramp_rw_index = regs.Get<reg::DC_LUT_RW_INDEX>();
         uint32_t gamma_ramp_write_enable_mask =
-            regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK].u32 & 0b111;
+            regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK] & 0b111;
         if (gamma_ramp_write_enable_mask) {
           reg::DC_LUT_30_COLOR& gamma_ramp_entry =
               gamma_ramp_256_entry_table_[gamma_ramp_rw_index.rw_index];
@@ -479,10 +482,12 @@ void CommandProcessor::MakeCoherent() {
   // https://web.archive.org/web/20160711162346/https://amd-dev.wpengine.netdna-cdn.com/wordpress/media/2013/10/R6xx_R7xx_3D.pdf
   // https://cgit.freedesktop.org/xorg/driver/xf86-video-radeonhd/tree/src/r6xx_accel.c?id=3f8b6eccd9dba116cc4801e7f80ce21a879c67d2#n454
 
-  RegisterFile* regs = register_file_;
-  auto& status_host = regs->Get<reg::COHER_STATUS_HOST>();
-  auto base_host = regs->values[XE_GPU_REG_COHER_BASE_HOST].u32;
-  auto size_host = regs->values[XE_GPU_REG_COHER_SIZE_HOST].u32;
+  // Volatile because this may be called from the WAIT_REG_MEM loop.
+  volatile uint32_t* regs_volatile = register_file_->values;
+  auto status_host = xe::memory::Reinterpret<reg::COHER_STATUS_HOST>(
+      uint32_t(regs_volatile[XE_GPU_REG_COHER_STATUS_HOST]));
+  uint32_t base_host = regs_volatile[XE_GPU_REG_COHER_BASE_HOST];
+  uint32_t size_host = regs_volatile[XE_GPU_REG_COHER_SIZE_HOST];
 
   if (!status_host.status) {
     return;
@@ -502,7 +507,7 @@ void CommandProcessor::MakeCoherent() {
          base_host + size_host, size_host, action);
 
   // Mark coherent.
-  status_host.status = 0;
+  regs_volatile[XE_GPU_REG_COHER_STATUS_HOST] = 0;
 }
 
 void CommandProcessor::PrepareForWait() { trace_writer_.Flush(); }
@@ -940,28 +945,33 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(RingBuffer* reader,
   SCOPE_profile_cpu_f("gpu");
 
   // wait until a register or memory location is a specific value
+
   uint32_t wait_info = reader->ReadAndSwap<uint32_t>();
   uint32_t poll_reg_addr = reader->ReadAndSwap<uint32_t>();
   uint32_t ref = reader->ReadAndSwap<uint32_t>();
   uint32_t mask = reader->ReadAndSwap<uint32_t>();
   uint32_t wait = reader->ReadAndSwap<uint32_t>();
+
+  bool is_memory = (wait_info & 0x10) != 0;
+
+  assert_true(is_memory || poll_reg_addr < RegisterFile::kRegisterCount);
+  const volatile uint32_t& value_ref =
+      is_memory ? *reinterpret_cast<uint32_t*>(memory_->TranslatePhysical(
+                      poll_reg_addr & ~uint32_t(0x3)))
+                : register_file_->values[poll_reg_addr];
+
   bool matched = false;
   do {
-    uint32_t value;
-    if (wait_info & 0x10) {
-      // Memory.
-      auto endianness = static_cast<xenos::Endian>(poll_reg_addr & 0x3);
-      poll_reg_addr &= ~0x3;
-      value = xe::load<uint32_t>(memory_->TranslatePhysical(poll_reg_addr));
-      value = GpuSwap(value, endianness);
-      trace_writer_.WriteMemoryRead(CpuToGpu(poll_reg_addr), 4);
+    uint32_t value = value_ref;
+    if (is_memory) {
+      trace_writer_.WriteMemoryRead(CpuToGpu(poll_reg_addr & ~uint32_t(0x3)),
+                                    sizeof(uint32_t));
+      value = xenos::GpuSwap(value,
+                             static_cast<xenos::Endian>(poll_reg_addr & 0x3));
     } else {
-      // Register.
-      assert_true(poll_reg_addr < RegisterFile::kRegisterCount);
-      value = register_file_->values[poll_reg_addr].u32;
       if (poll_reg_addr == XE_GPU_REG_COHER_STATUS_HOST) {
         MakeCoherent();
-        value = register_file_->values[poll_reg_addr].u32;
+        value = value_ref;
       }
     }
     switch (wait_info & 0x7) {
@@ -1024,17 +1034,17 @@ bool CommandProcessor::ExecutePacketType3_REG_RMW(RingBuffer* reader,
   uint32_t rmw_info = reader->ReadAndSwap<uint32_t>();
   uint32_t and_mask = reader->ReadAndSwap<uint32_t>();
   uint32_t or_mask = reader->ReadAndSwap<uint32_t>();
-  uint32_t value = register_file_->values[rmw_info & 0x1FFF].u32;
+  uint32_t value = register_file_->values[rmw_info & 0x1FFF];
   if ((rmw_info >> 31) & 0x1) {
     // & reg
-    value &= register_file_->values[and_mask & 0x1FFF].u32;
+    value &= register_file_->values[and_mask & 0x1FFF];
   } else {
     // & imm
     value &= and_mask;
   }
   if ((rmw_info >> 30) & 0x1) {
     // | reg
-    value |= register_file_->values[or_mask & 0x1FFF].u32;
+    value |= register_file_->values[or_mask & 0x1FFF];
   } else {
     // | imm
     value |= or_mask;
@@ -1055,7 +1065,7 @@ bool CommandProcessor::ExecutePacketType3_REG_TO_MEM(RingBuffer* reader,
   uint32_t reg_val;
 
   assert_true(reg_addr < RegisterFile::kRegisterCount);
-  reg_val = register_file_->values[reg_addr].u32;
+  reg_val = register_file_->values[reg_addr];
 
   auto endianness = static_cast<xenos::Endian>(mem_addr & 0x3);
   mem_addr &= ~0x3;
@@ -1105,7 +1115,7 @@ bool CommandProcessor::ExecutePacketType3_COND_WRITE(RingBuffer* reader,
   } else {
     // Register.
     assert_true(poll_reg_addr < RegisterFile::kRegisterCount);
-    value = register_file_->values[poll_reg_addr].u32;
+    value = register_file_->values[poll_reg_addr];
   }
   bool matched = false;
   switch (wait_info & 0x7) {
@@ -1240,7 +1250,7 @@ bool CommandProcessor::ExecutePacketType3_EVENT_WRITE_ZPD(RingBuffer* reader,
   if (fake_sample_count >= 0) {
     auto* pSampleCounts =
         memory_->TranslatePhysical<xe_gpu_depth_sample_counts*>(
-            register_file_->values[XE_GPU_REG_RB_SAMPLE_COUNT_ADDR].u32);
+            register_file_->values[XE_GPU_REG_RB_SAMPLE_COUNT_ADDR]);
     // 0xFFFFFEED is written to this two locations by D3D only on D3DISSUE_END
     // and used to detect a finished query.
     bool is_end_via_z_pass = pSampleCounts->ZPass_A == kQueryFinished &&
@@ -1599,10 +1609,10 @@ bool CommandProcessor::ExecutePacketType3_VIZ_QUERY(RingBuffer* reader,
     // The scan converter writes the internal result back to the register here.
     // We just fake it and say it was visible in case it is read back.
     if (id < 32) {
-      register_file_->values[XE_GPU_REG_PA_SC_VIZ_QUERY_STATUS_0].u32 |=
-          uint32_t(1) << id;
+      register_file_->values[XE_GPU_REG_PA_SC_VIZ_QUERY_STATUS_0] |= uint32_t(1)
+                                                                     << id;
     } else {
-      register_file_->values[XE_GPU_REG_PA_SC_VIZ_QUERY_STATUS_1].u32 |=
+      register_file_->values[XE_GPU_REG_PA_SC_VIZ_QUERY_STATUS_1] |=
           uint32_t(1) << (id - 32);
     }
   }
@@ -1614,9 +1624,8 @@ void CommandProcessor::InitializeTrace() {
   // Write the initial register values, to be loaded directly into the
   // RegisterFile since all registers, including those that may have side
   // effects on setting, will be saved.
-  trace_writer_.WriteRegisters(
-      0, reinterpret_cast<const uint32_t*>(register_file_->values),
-      RegisterFile::kRegisterCount, false);
+  trace_writer_.WriteRegisters(0, register_file_->values,
+                               RegisterFile::kRegisterCount, false);
 
   trace_writer_.WriteGammaRamp(gamma_ramp_256_entry_table(),
                                gamma_ramp_pwl_rgb(), gamma_ramp_rw_component_);
