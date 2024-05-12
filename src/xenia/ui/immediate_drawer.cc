@@ -12,6 +12,7 @@
 #include <algorithm>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/math.h"
 #include "xenia/ui/graphics_util.h"
 #include "xenia/ui/presenter.h"
 
@@ -67,24 +68,19 @@ bool ImmediateDrawer::ScissorToRenderTarget(const ImmediateDraw& immediate_draw,
   }
   float render_target_width_float = float(render_target_width);
   float render_target_height_float = float(render_target_height);
-  // Scale to render target coordinates, drop NaNs (by doing
-  // std::max(0.0f, variable) in this argument order), and clamp to the render
+  // Scale to render target coordinates, drop NaNs, and clamp to the render
   // target size, below which the values are representable as 16p8 fixed-point.
   float scale_x = render_target_width / coordinate_space_width();
   float scale_y = render_target_height / coordinate_space_height();
-  float x0_float =
-      std::min(render_target_width_float,
-               std::max(0.0f, immediate_draw.scissor_left * scale_x));
-  float y0_float =
-      std::min(render_target_height_float,
-               std::max(0.0f, immediate_draw.scissor_top * scale_y));
+  float x0_float = xe::clamp_float(immediate_draw.scissor_left * scale_x, 0.0f,
+                                   render_target_width_float);
+  float y0_float = xe::clamp_float(immediate_draw.scissor_top * scale_y, 0.0f,
+                                   render_target_height_float);
   // Also make sure the size is non-negative.
-  float x1_float =
-      std::min(render_target_width_float,
-               std::max(x0_float, immediate_draw.scissor_right * scale_x));
-  float y1_float =
-      std::min(render_target_height_float,
-               std::max(y0_float, immediate_draw.scissor_bottom * scale_y));
+  float x1_float = xe::clamp_float(immediate_draw.scissor_right * scale_x,
+                                   x0_float, render_target_width_float);
+  float y1_float = xe::clamp_float(immediate_draw.scissor_bottom * scale_y,
+                                   y0_float, render_target_height_float);
   // Top-left - include .5 (0.128 treated as 0 covered, 0.129 as 0 not covered).
   int32_t x0 = (FloatToD3D11Fixed16p8(x0_float) + 127) >> 8;
   int32_t y0 = (FloatToD3D11Fixed16p8(y0_float) + 127) >> 8;

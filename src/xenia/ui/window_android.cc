@@ -153,16 +153,16 @@ bool AndroidWindow::OnActivitySurfaceMotionEvent(jobject event) {
       // with out-of-bounds coordinates), when moving the mouse outside the
       // View, or when starting moving the mouse when the pointer was previously
       // outside the View in some cases.
-      int32_t mouse_x = int32_t(
-          std::min(float(GetActualPhysicalWidth()),
-                   std::max(0.0f, jni_env->CallFloatMethod(
-                                      event, jni_ids.motion_event_get_x, 0))) +
-          0.5f);
-      int32_t mouse_y = int32_t(
-          std::min(float(GetActualPhysicalHeight()),
-                   std::max(0.0f, jni_env->CallFloatMethod(
-                                      event, jni_ids.motion_event_get_y, 0))) +
-          0.5f);
+      int32_t mouse_x =
+          int32_t(xe::clamp_float(jni_env->CallFloatMethod(
+                                      event, jni_ids.motion_event_get_x, 0),
+                                  0.0f, float(GetActualPhysicalWidth())) +
+                  0.5f);
+      int32_t mouse_y =
+          int32_t(xe::clamp_float(jni_env->CallFloatMethod(
+                                      event, jni_ids.motion_event_get_y, 0),
+                                  0.0f, float(GetActualPhysicalHeight())) +
+                  0.5f);
       static const MouseEvent::Button kMouseEventButtons[] = {
           MouseEvent::Button::kLeft,   MouseEvent::Button::kRight,
           MouseEvent::Button::kMiddle, MouseEvent::Button::kX1,

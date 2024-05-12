@@ -182,7 +182,7 @@ void DebugWindow::DrawFrame(ImGuiIO& io) {
                          ImVec2(kSplitterWidth, top_panes_height));
   if (ImGui::IsItemActive()) {
     function_pane_width += io.MouseDelta.x;
-    function_pane_width = xe::clamp(function_pane_width, 30.0f, FLT_MAX);
+    function_pane_width = xe::clamp_float(function_pane_width, 30.0f, FLT_MAX);
   }
   ImGui::SameLine();
   ImGui::BeginChild("##source_pane",
@@ -194,7 +194,7 @@ void DebugWindow::DrawFrame(ImGuiIO& io) {
                          ImVec2(kSplitterWidth, top_panes_height));
   if (ImGui::IsItemActive()) {
     source_pane_width += io.MouseDelta.x;
-    source_pane_width = xe::clamp(source_pane_width, 30.0f, FLT_MAX);
+    source_pane_width = xe::clamp_float(source_pane_width, 30.0f, FLT_MAX);
   }
   ImGui::SameLine();
   ImGui::BeginChild("##registers_pane",
@@ -206,7 +206,8 @@ void DebugWindow::DrawFrame(ImGuiIO& io) {
                          ImVec2(kSplitterWidth, top_panes_height));
   if (ImGui::IsItemActive()) {
     registers_pane_width += io.MouseDelta.x;
-    registers_pane_width = xe::clamp(registers_pane_width, 30.0f, FLT_MAX);
+    registers_pane_width =
+        xe::clamp_float(registers_pane_width, 30.0f, FLT_MAX);
   }
   ImGui::SameLine();
   ImGui::BeginChild("##right_pane", ImVec2(0, top_panes_height), true);
@@ -234,7 +235,7 @@ void DebugWindow::DrawFrame(ImGuiIO& io) {
   ImGui::InvisibleButton("##hsplitter0", ImVec2(-1, kSplitterWidth));
   if (ImGui::IsItemActive()) {
     bottom_panes_height -= io.MouseDelta.y;
-    bottom_panes_height = xe::clamp(bottom_panes_height, 30.0f, FLT_MAX);
+    bottom_panes_height = xe::clamp_float(bottom_panes_height, 30.0f, FLT_MAX);
   }
   ImGui::BeginChild("##log_pane", ImVec2(log_pane_width, bottom_panes_height),
                     true);
@@ -245,7 +246,8 @@ void DebugWindow::DrawFrame(ImGuiIO& io) {
                          ImVec2(kSplitterWidth, bottom_panes_height));
   if (ImGui::IsItemActive()) {
     breakpoints_pane_width -= io.MouseDelta.x;
-    breakpoints_pane_width = xe::clamp(breakpoints_pane_width, 30.0f, FLT_MAX);
+    breakpoints_pane_width =
+        xe::clamp_float(breakpoints_pane_width, 30.0f, FLT_MAX);
   }
   ImGui::SameLine();
   ImGui::BeginChild("##breakpoints_pane", ImVec2(0, 0), true);
