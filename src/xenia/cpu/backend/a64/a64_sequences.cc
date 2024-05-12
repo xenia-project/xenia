@@ -490,17 +490,26 @@ EMITTER_OPCODE_TABLE(OPCODE_CONTEXT_BARRIER, CONTEXT_BARRIER);
 // ============================================================================
 struct MAX_F32 : Sequence<MAX_F32, I<OPCODE_MAX, F32Op, F32Op, F32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    e.FMAX(i.dest, i.src1, i.src2);
+    EmitCommutativeBinaryVOp<SReg>(
+        e, i, [](A64Emitter& e, SReg dest, SReg src1, SReg src2) {
+          e.FMAX(dest, src1, src2);
+        });
   }
 };
 struct MAX_F64 : Sequence<MAX_F64, I<OPCODE_MAX, F64Op, F64Op, F64Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    e.FMAX(i.dest, i.src1, i.src2);
+    EmitCommutativeBinaryVOp<DReg>(
+        e, i, [](A64Emitter& e, DReg dest, DReg src1, DReg src2) {
+          e.FMAX(dest, src1, src2);
+        });
   }
 };
 struct MAX_V128 : Sequence<MAX_V128, I<OPCODE_MAX, V128Op, V128Op, V128Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    e.FMAX(i.dest.reg().S4(), i.src1.reg().S4(), i.src2.reg().S4());
+    EmitCommutativeBinaryVOp<QReg>(
+        e, i, [](A64Emitter& e, QReg dest, QReg src1, QReg src2) {
+          e.FMAX(dest.S4(), src1.S4(), src2.S4());
+        });
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_MAX, MAX_F32, MAX_F64, MAX_V128);
