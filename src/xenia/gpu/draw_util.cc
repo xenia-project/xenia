@@ -659,7 +659,14 @@ void AddMemExportRanges(const RegisterFile& regs, const Shader& shader,
   for (uint32_t constant_index : shader.memexport_stream_constants()) {
     xenos::xe_gpu_memexport_stream_t stream =
         regs.GetMemExportStream(float_constants_base + constant_index);
-    if (!stream.index_count) {
+    // Safety checks for stream constants potentially not set up if the export
+    // isn't done on the control flow path taken by the shader (not checking the
+    // Y component because the index is more likely to be constructed
+    // arbitrarily).
+    // The hardware validates the upper bits of eA according to the
+    // IPR2015-00325 sequencer specification.
+    if (stream.const_0x1 != 0x1 || stream.const_0x4b0 != 0x4B0 ||
+        stream.const_0x96 != 0x96 || !stream.index_count) {
       continue;
     }
     const FormatInfo& format_info =
