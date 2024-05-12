@@ -346,16 +346,18 @@ void ShaderInterpreter::ExecuteAluInstruction(ucode::AluInstruction instr) {
       } break;
       case ucode::AluVectorOpcode::kMax: {
         for (uint32_t i = 0; i < 4; ++i) {
-          vector_result[i] = vector_operands[0][i] >= vector_operands[1][i]
-                                 ? vector_operands[0][i]
-                                 : vector_operands[1][i];
+          vector_result[i] =
+              std::isgreaterequal(vector_operands[0][i], vector_operands[1][i])
+                  ? vector_operands[0][i]
+                  : vector_operands[1][i];
         }
       } break;
       case ucode::AluVectorOpcode::kMin: {
         for (uint32_t i = 0; i < 4; ++i) {
-          vector_result[i] = vector_operands[0][i] < vector_operands[1][i]
-                                 ? vector_operands[0][i]
-                                 : vector_operands[1][i];
+          vector_result[i] =
+              std::isless(vector_operands[0][i], vector_operands[1][i])
+                  ? vector_operands[0][i]
+                  : vector_operands[1][i];
         }
       } break;
       case ucode::AluVectorOpcode::kSeq: {
@@ -366,14 +368,14 @@ void ShaderInterpreter::ExecuteAluInstruction(ucode::AluInstruction instr) {
       } break;
       case ucode::AluVectorOpcode::kSgt: {
         for (uint32_t i = 0; i < 4; ++i) {
-          vector_result[i] =
-              float(vector_operands[0][i] > vector_operands[1][i]);
+          vector_result[i] = float(
+              std::isgreater(vector_operands[0][i], vector_operands[1][i]));
         }
       } break;
       case ucode::AluVectorOpcode::kSge: {
         for (uint32_t i = 0; i < 4; ++i) {
-          vector_result[i] =
-              float(vector_operands[0][i] >= vector_operands[1][i]);
+          vector_result[i] = float(std::isgreaterequal(vector_operands[0][i],
+                                                       vector_operands[1][i]));
         }
       } break;
       case ucode::AluVectorOpcode::kSne: {
@@ -419,14 +421,14 @@ void ShaderInterpreter::ExecuteAluInstruction(ucode::AluInstruction instr) {
       } break;
       case ucode::AluVectorOpcode::kCndGe: {
         for (uint32_t i = 0; i < 4; ++i) {
-          vector_result[i] = vector_operands[0][i] >= 0.0f
+          vector_result[i] = std::isgreaterequal(vector_operands[0][i], 0.0f)
                                  ? vector_operands[1][i]
                                  : vector_operands[2][i];
         }
       } break;
       case ucode::AluVectorOpcode::kCndGt: {
         for (uint32_t i = 0; i < 4; ++i) {
-          vector_result[i] = vector_operands[0][i] > 0.0f
+          vector_result[i] = std::isgreater(vector_operands[0][i], 0.0f)
                                  ? vector_operands[1][i]
                                  : vector_operands[2][i];
         }
@@ -478,32 +480,38 @@ void ShaderInterpreter::ExecuteAluInstruction(ucode::AluInstruction instr) {
         float x_abs = std::abs(x), y_abs = std::abs(y), z_abs = std::abs(z);
         // Result is T coordinate, S coordinate, 2 * major axis, face ID.
         if (z_abs >= x_abs && z_abs >= y_abs) {
+          bool z_negative = std::isless(z, 0.0f);
           vector_result[0] = -y;
-          vector_result[1] = z < 0.0f ? -x : x;
+          vector_result[1] = z_negative ? -x : x;
           vector_result[2] = z;
-          vector_result[3] = z < 0.0f ? 5.0f : 4.0f;
+          vector_result[3] = z_negative ? 5.0f : 4.0f;
         } else if (y_abs >= x_abs) {
-          vector_result[0] = y < 0.0f ? -z : z;
+          bool y_negative = std::isless(y, 0.0f);
+          vector_result[0] = y_negative ? -z : z;
           vector_result[1] = x;
           vector_result[2] = y;
-          vector_result[3] = y < 0.0f ? 3.0f : 2.0f;
+          vector_result[3] = y_negative ? 3.0f : 2.0f;
         } else {
+          bool x_negative = std::isless(x, 0.0f);
           vector_result[0] = -y;
-          vector_result[1] = x < 0.0f ? z : -z;
+          vector_result[1] = x_negative ? z : -z;
           vector_result[2] = x;
-          vector_result[3] = x < 0.0f ? 1.0f : 0.0f;
+          vector_result[3] = x_negative ? 1.0f : 0.0f;
         }
         vector_result[2] *= 2.0f;
       } break;
       case ucode::AluVectorOpcode::kMax4: {
-        if (vector_operands[0][0] >= vector_operands[0][1] &&
-            vector_operands[0][0] >= vector_operands[0][2] &&
-            vector_operands[0][0] >= vector_operands[0][3]) {
+        if (std::isgreaterequal(vector_operands[0][0], vector_operands[0][1]) &&
+            std::isgreaterequal(vector_operands[0][0], vector_operands[0][2]) &&
+            std::isgreaterequal(vector_operands[0][0], vector_operands[0][3])) {
           vector_result[0] = vector_operands[0][0];
-        } else if (vector_operands[0][1] >= vector_operands[0][2] &&
-                   vector_operands[0][1] >= vector_operands[0][3]) {
+        } else if (std::isgreaterequal(vector_operands[0][1],
+                                       vector_operands[0][2]) &&
+                   std::isgreaterequal(vector_operands[0][1],
+                                       vector_operands[0][3])) {
           vector_result[0] = vector_operands[0][1];
-        } else if (vector_operands[0][2] >= vector_operands[0][3]) {
+        } else if (std::isgreaterequal(vector_operands[0][2],
+                                       vector_operands[0][3])) {
           vector_result[0] = vector_operands[0][2];
         } else {
           vector_result[0] = vector_operands[0][3];
@@ -529,21 +537,21 @@ void ShaderInterpreter::ExecuteAluInstruction(ucode::AluInstruction instr) {
         replicate_vector_result_x = true;
       } break;
       case ucode::AluVectorOpcode::kSetpGtPush: {
-        state_.predicate =
-            vector_operands[0][3] == 0.0f && vector_operands[1][3] > 0.0f;
-        vector_result[0] =
-            (vector_operands[0][0] == 0.0f && vector_operands[1][0] > 0.0f)
-                ? 0.0f
-                : vector_operands[0][0] + 1.0f;
+        state_.predicate = vector_operands[0][3] == 0.0f &&
+                           std::isgreater(vector_operands[1][3], 0.0f);
+        vector_result[0] = (vector_operands[0][0] == 0.0f &&
+                            std::isgreater(vector_operands[1][0], 0.0f))
+                               ? 0.0f
+                               : vector_operands[0][0] + 1.0f;
         replicate_vector_result_x = true;
       } break;
       case ucode::AluVectorOpcode::kSetpGePush: {
-        state_.predicate =
-            vector_operands[0][3] == 0.0f && vector_operands[1][3] >= 0.0f;
-        vector_result[0] =
-            (vector_operands[0][0] == 0.0f && vector_operands[1][0] >= 0.0f)
-                ? 0.0f
-                : vector_operands[0][0] + 1.0f;
+        state_.predicate = vector_operands[0][3] == 0.0f &&
+                           std::isgreaterequal(vector_operands[1][3], 0.0f);
+        vector_result[0] = (vector_operands[0][0] == 0.0f &&
+                            std::isgreaterequal(vector_operands[1][0], 0.0f))
+                               ? 0.0f
+                               : vector_operands[0][0] + 1.0f;
         replicate_vector_result_x = true;
       } break;
       // Not implementing pixel kill currently, the interpreter is currently
@@ -557,19 +565,19 @@ void ShaderInterpreter::ExecuteAluInstruction(ucode::AluInstruction instr) {
         replicate_vector_result_x = true;
       } break;
       case ucode::AluVectorOpcode::kKillGt: {
-        vector_result[0] =
-            float(vector_operands[0][0] > vector_operands[1][0] ||
-                  vector_operands[0][1] > vector_operands[1][1] ||
-                  vector_operands[0][2] > vector_operands[1][2] ||
-                  vector_operands[0][3] > vector_operands[1][3]);
+        vector_result[0] = float(
+            std::isgreater(vector_operands[0][0], vector_operands[1][0]) ||
+            std::isgreater(vector_operands[0][1], vector_operands[1][1]) ||
+            std::isgreater(vector_operands[0][2], vector_operands[1][2]) ||
+            std::isgreater(vector_operands[0][3], vector_operands[1][3]));
         replicate_vector_result_x = true;
       } break;
       case ucode::AluVectorOpcode::kKillGe: {
-        vector_result[0] =
-            float(vector_operands[0][0] >= vector_operands[1][0] ||
-                  vector_operands[0][1] >= vector_operands[1][1] ||
-                  vector_operands[0][2] >= vector_operands[1][2] ||
-                  vector_operands[0][3] >= vector_operands[1][3]);
+        vector_result[0] = float(
+            std::isgreaterequal(vector_operands[0][0], vector_operands[1][0]) ||
+            std::isgreaterequal(vector_operands[0][1], vector_operands[1][1]) ||
+            std::isgreaterequal(vector_operands[0][2], vector_operands[1][2]) ||
+            std::isgreaterequal(vector_operands[0][3], vector_operands[1][3]));
         replicate_vector_result_x = true;
       } break;
       case ucode::AluVectorOpcode::kKillNe: {
@@ -590,14 +598,13 @@ void ShaderInterpreter::ExecuteAluInstruction(ucode::AluInstruction instr) {
         vector_result[3] = vector_operands[1][3];
       } break;
       case ucode::AluVectorOpcode::kMaxA: {
-        // std::max is `a < b ? b : a`, thus in case of NaN, the first argument
-        // (-256.0f) is always the result.
         state_.address_register = int32_t(std::floor(
-            std::min(255.0f, std::max(-256.0f, vector_operands[0][3])) + 0.5f));
+            xe::clamp_float(vector_operands[0][3], -256.0f, 255.0f) + 0.5f));
         for (uint32_t i = 0; i < 4; ++i) {
-          vector_result[i] = vector_operands[0][i] >= vector_operands[1][i]
-                                 ? vector_operands[0][i]
-                                 : vector_operands[1][i];
+          vector_result[i] =
+              std::isgreaterequal(vector_operands[0][i], vector_operands[1][i])
+                  ? vector_operands[0][i]
+                  : vector_operands[1][i];
         }
       } break;
       default: {
@@ -702,7 +709,8 @@ void ShaderInterpreter::ExecuteAluInstruction(ucode::AluInstruction instr) {
     case ucode::AluScalarOpcode::kMulsPrev2: {
       if (state_.previous_scalar == -FLT_MAX ||
           !std::isfinite(state_.previous_scalar) ||
-          !std::isfinite(scalar_operands[1]) || scalar_operands[1] <= 0.0f) {
+          !std::isfinite(scalar_operands[1]) ||
+          std::islessequal(scalar_operands[1], 0.0f)) {
         state_.previous_scalar = -FLT_MAX;
       } else {
         // Direct3D 9 behavior (0 or denormal * anything = +0).
@@ -713,23 +721,26 @@ void ShaderInterpreter::ExecuteAluInstruction(ucode::AluInstruction instr) {
       }
     } break;
     case ucode::AluScalarOpcode::kMaxs: {
-      state_.previous_scalar = scalar_operands[0] >= scalar_operands[1]
-                                   ? scalar_operands[0]
-                                   : scalar_operands[1];
+      state_.previous_scalar =
+          std::isgreaterequal(scalar_operands[0], scalar_operands[1])
+              ? scalar_operands[0]
+              : scalar_operands[1];
     } break;
     case ucode::AluScalarOpcode::kMins: {
-      state_.previous_scalar = scalar_operands[0] >= scalar_operands[1]
-                                   ? scalar_operands[0]
-                                   : scalar_operands[1];
+      state_.previous_scalar =
+          std::isless(scalar_operands[0], scalar_operands[1])
+              ? scalar_operands[0]
+              : scalar_operands[1];
     } break;
     case ucode::AluScalarOpcode::kSeqs: {
       state_.previous_scalar = float(scalar_operands[0] == 0.0f);
     } break;
     case ucode::AluScalarOpcode::kSgts: {
-      state_.previous_scalar = float(scalar_operands[0] > 0.0f);
+      state_.previous_scalar = float(std::isgreater(scalar_operands[0], 0.0f));
     } break;
     case ucode::AluScalarOpcode::kSges: {
-      state_.previous_scalar = float(scalar_operands[0] >= 0.0f);
+      state_.previous_scalar =
+          float(std::isgreaterequal(scalar_operands[0], 0.0f));
     } break;
     case ucode::AluScalarOpcode::kSnes: {
       state_.previous_scalar = float(scalar_operands[0] != 0.0f);
@@ -795,22 +806,20 @@ void ShaderInterpreter::ExecuteAluInstruction(ucode::AluInstruction instr) {
       state_.previous_scalar = 1.0f / std::sqrt(scalar_operands[0]);
     } break;
     case ucode::AluScalarOpcode::kMaxAs: {
-      // std::max is `a < b ? b : a`, thus in case of NaN, the first argument
-      // (-256.0f) is always the result.
       state_.address_register = int32_t(std::floor(
-          std::min(255.0f, std::max(-256.0f, scalar_operands[0])) + 0.5f));
-      state_.previous_scalar = scalar_operands[0] >= scalar_operands[1]
-                                   ? scalar_operands[0]
-                                   : scalar_operands[1];
+          xe::clamp_float(scalar_operands[0], -256.0f, 255.0f) + 0.5f));
+      state_.previous_scalar =
+          std::isgreaterequal(scalar_operands[0], scalar_operands[1])
+              ? scalar_operands[0]
+              : scalar_operands[1];
     } break;
     case ucode::AluScalarOpcode::kMaxAsf: {
-      // std::max is `a < b ? b : a`, thus in case of NaN, the first argument
-      // (-256.0f) is always the result.
       state_.address_register = int32_t(
-          std::floor(std::min(255.0f, std::max(-256.0f, scalar_operands[0]))));
-      state_.previous_scalar = scalar_operands[0] >= scalar_operands[1]
-                                   ? scalar_operands[0]
-                                   : scalar_operands[1];
+          std::floor(xe::clamp_float(scalar_operands[0], -256.0f, 255.0f)));
+      state_.previous_scalar =
+          std::isgreaterequal(scalar_operands[0], scalar_operands[1])
+              ? scalar_operands[0]
+              : scalar_operands[1];
     } break;
     case ucode::AluScalarOpcode::kSubs:
     case ucode::AluScalarOpcode::kSubsc0:
@@ -829,11 +838,11 @@ void ShaderInterpreter::ExecuteAluInstruction(ucode::AluInstruction instr) {
       state_.previous_scalar = float(!state_.predicate);
     } break;
     case ucode::AluScalarOpcode::kSetpGt: {
-      state_.predicate = scalar_operands[0] > 0.0f;
+      state_.predicate = std::isgreater(scalar_operands[0], 0.0f);
       state_.previous_scalar = float(!state_.predicate);
     } break;
     case ucode::AluScalarOpcode::kSetpGe: {
-      state_.predicate = scalar_operands[0] >= 0.0f;
+      state_.predicate = std::isgreaterequal(scalar_operands[0], 0.0f);
       state_.previous_scalar = float(!state_.predicate);
     } break;
     case ucode::AluScalarOpcode::kSetpInv: {
@@ -845,7 +854,7 @@ void ShaderInterpreter::ExecuteAluInstruction(ucode::AluInstruction instr) {
     } break;
     case ucode::AluScalarOpcode::kSetpPop: {
       float new_counter = scalar_operands[0] - 1.0f;
-      state_.predicate = new_counter <= 0.0f;
+      state_.predicate = std::islessequal(new_counter, 0.0f);
       state_.previous_scalar = state_.predicate ? 0.0f : new_counter;
     } break;
     case ucode::AluScalarOpcode::kSetpClr: {
@@ -862,10 +871,11 @@ void ShaderInterpreter::ExecuteAluInstruction(ucode::AluInstruction instr) {
       state_.previous_scalar = float(scalar_operands[0] == 0.0f);
     } break;
     case ucode::AluScalarOpcode::kKillsGt: {
-      state_.previous_scalar = float(scalar_operands[0] > 0.0f);
+      state_.previous_scalar = float(std::isgreater(scalar_operands[0], 0.0f));
     } break;
     case ucode::AluScalarOpcode::kKillsGe: {
-      state_.previous_scalar = float(scalar_operands[0] >= 0.0f);
+      state_.previous_scalar =
+          float(std::isgreaterequal(scalar_operands[0], 0.0f));
     } break;
     case ucode::AluScalarOpcode::kKillsNe: {
       state_.previous_scalar = float(scalar_operands[0] != 0.0f);
@@ -891,11 +901,11 @@ void ShaderInterpreter::ExecuteAluInstruction(ucode::AluInstruction instr) {
 
   if (instr.vector_clamp()) {
     for (uint32_t i = 0; i < 4; ++i) {
-      vector_result[i] = xe::saturate_unsigned(vector_result[i]);
+      vector_result[i] = xe::saturate(vector_result[i]);
     }
   }
   float scalar_result = instr.scalar_clamp()
-                            ? xe::saturate_unsigned(state_.previous_scalar)
+                            ? xe::saturate(state_.previous_scalar)
                             : state_.previous_scalar;
 
   uint32_t scalar_result_write_mask = instr.GetScalarOpResultWriteMask();

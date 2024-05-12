@@ -27,7 +27,7 @@ namespace xenos {
 float PWLGammaToLinear(float gamma) {
   // Not found in game executables, so just using the logic similar to that in
   // the Source Engine.
-  gamma = xe::saturate_unsigned(gamma);
+  gamma = xe::saturate(gamma);
   float scale, offset;
   // While the compiled code for linear to gamma conversion uses `vcmpgtfp
   // constant, value` comparison (constant > value, or value < constant), it's
@@ -68,7 +68,7 @@ float PWLGammaToLinear(float gamma) {
 }
 
 float LinearToPWLGamma(float linear) {
-  linear = xe::saturate_unsigned(linear);
+  linear = xe::saturate(linear);
   float scale, offset;
   // While the compiled code uses `vcmpgtfp constant, value` comparison
   // (constant > value, or value < constant), it's preferable to use `value >=

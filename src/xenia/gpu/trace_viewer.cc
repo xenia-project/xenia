@@ -1066,7 +1066,7 @@ void ProgressBar(float frac, float width, float height = 0,
   if (height == 0) {
     height = ImGui::GetTextLineHeightWithSpacing();
   }
-  frac = xe::saturate_unsigned(frac);
+  frac = xe::saturate(frac);
 
   const auto fontAtlas = ImGui::GetIO().Fonts;
 

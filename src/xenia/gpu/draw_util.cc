@@ -399,16 +399,11 @@ void GetHostViewportInfo(const RegisterFile& regs,
       float offset_axis = offset_base_xy[i] + offset_add_xy[i];
       float scale_axis = scale_xy[i];
       float scale_axis_abs = std::abs(scale_xy[i]);
-      float axis_0 = offset_axis - scale_axis_abs;
-      float axis_1 = offset_axis + scale_axis_abs;
       float axis_max_unscaled_float = float(xy_max_unscaled[i]);
-      // max(0.0f, xy) drops NaN and < 0 - max picks the first argument in the
-      // !(a < b) case (always for NaN), min as float (axis_max_unscaled_float
-      // is well below 2^24) to safely drop very large values.
-      uint32_t axis_0_int =
-          uint32_t(std::min(axis_max_unscaled_float, std::max(0.0f, axis_0)));
-      uint32_t axis_1_int =
-          uint32_t(std::min(axis_max_unscaled_float, std::max(0.0f, axis_1)));
+      uint32_t axis_0_int = uint32_t(xe::clamp_float(
+          offset_axis - scale_axis_abs, 0.0f, axis_max_unscaled_float));
+      uint32_t axis_1_int = uint32_t(xe::clamp_float(
+          offset_axis + scale_axis_abs, 0.0f, axis_max_unscaled_float));
       uint32_t axis_extent_int = axis_1_int - axis_0_int;
       viewport_info_out.xy_offset[i] = axis_0_int * axis_resolution_scale;
       viewport_info_out.xy_extent[i] = axis_extent_int * axis_resolution_scale;
@@ -511,8 +506,8 @@ void GetHostViewportInfo(const RegisterFile& regs,
       // extension. But cases when this really matters are yet to be found -
       // trying to fix this will result in more correct depth values, but
       // incorrect clipping.
-      z_min = xe::saturate_unsigned(host_clip_offset_z);
-      z_max = xe::saturate_unsigned(host_clip_offset_z + host_clip_scale_z);
+      z_min = xe::saturate(host_clip_offset_z);
+      z_max = xe::saturate(host_clip_offset_z + host_clip_scale_z);
       // Direct3D 12 doesn't allow reverse depth range - on some drivers it
       // works, on some drivers it doesn't, actually, but it was never
       // explicitly allowed by the specification.
@@ -877,10 +872,10 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
   GetScissor(regs, scissor, false);
   int32_t scissor_right = int32_t(scissor.offset[0] + scissor.extent[0]);
   int32_t scissor_bottom = int32_t(scissor.offset[1] + scissor.extent[1]);
-  x0 = xe::clamp(x0, int32_t(scissor.offset[0]), scissor_right);
-  y0 = xe::clamp(y0, int32_t(scissor.offset[1]), scissor_bottom);
-  x1 = xe::clamp(x1, int32_t(scissor.offset[0]), scissor_right);
-  y1 = xe::clamp(y1, int32_t(scissor.offset[1]), scissor_bottom);
+  x0 = std::clamp(x0, int32_t(scissor.offset[0]), scissor_right);
+  y0 = std::clamp(y0, int32_t(scissor.offset[1]), scissor_bottom);
+  x1 = std::clamp(x1, int32_t(scissor.offset[0]), scissor_right);
+  y1 = std::clamp(y1, int32_t(scissor.offset[1]), scissor_bottom);
 
   assert_true(x0 <= x1 && y0 <= y1);
 
