@@ -68,7 +68,9 @@ struct VECTOR_CONVERT_I2F
       // Merge the two ways depending on whether the number is >= 0x80000000
       // (has high bit set).
       // e.vblendvps(i.dest, Q1, Q0, i.src1);
+      e.FCVTNU(i.dest.reg().S4(), i.src1.reg().S4());
     } else {
+      e.FCVTNS(i.dest.reg().S4(), i.src1.reg().S4());
       // e.vcvtdq2ps(i.dest, i.src1);
     }
   }
@@ -106,6 +108,7 @@ struct VECTOR_CONVERT_F2I
 
       // saturate values > UINT_MAX
       // e.vpor(i.dest, i.dest, Q0);
+      e.UCVTF(i.dest.reg().S4(), i.src1.reg().S4());
     } else {
       // xmm2 = NaN mask
       // e.vcmpunordps(e.xmm2, i.src1, i.src1);
@@ -122,6 +125,7 @@ struct VECTOR_CONVERT_F2I
 
       // mask NaNs
       // e.vpandn(i.dest, e.xmm2, i.dest);
+      e.SCVTF(i.dest.reg().S4(), i.src1.reg().S4());
     }
   }
 };
