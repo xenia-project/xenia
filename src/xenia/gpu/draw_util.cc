@@ -11,7 +11,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstring>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"
@@ -100,20 +99,20 @@ void GetPreferredFacePolygonOffset(const RegisterFile& regs,
     // ones that are rendered (except for shadow volumes).
     if (pa_su_sc_mode_cntl.poly_offset_front_enable &&
         !pa_su_sc_mode_cntl.cull_front) {
-      scale = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
-      offset = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
+      scale = regs.Get<float>(XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE);
+      offset = regs.Get<float>(XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET);
     }
     if (pa_su_sc_mode_cntl.poly_offset_back_enable &&
         !pa_su_sc_mode_cntl.cull_back && !scale && !offset) {
-      scale = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
-      offset = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET].f32;
+      scale = regs.Get<float>(XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE);
+      offset = regs.Get<float>(XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET);
     }
   } else {
     // Non-triangle primitives use the front offset, but it's toggled via
     // poly_offset_para_enable.
     if (pa_su_sc_mode_cntl.poly_offset_para_enable) {
-      scale = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
-      offset = regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
+      scale = regs.Get<float>(XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE);
+      offset = regs.Get<float>(XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET);
     }
   }
   scale_out = scale;
@@ -148,7 +147,7 @@ bool IsPixelShaderNeededWithRasterization(const Shader& shader,
   }
 
   // Check if a color target is actually written.
-  uint32_t rb_color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32;
+  uint32_t rb_color_mask = regs[XE_GPU_REG_RB_COLOR_MASK];
   uint32_t rts_remaining = shader.writes_color_targets();
   uint32_t rt_index;
   while (xe::bit_scan_forward(rts_remaining, &rt_index)) {
@@ -311,24 +310,26 @@ void GetHostViewportInfo(const RegisterFile& regs,
 
   // Obtain the original viewport values in a normalized way.
   float scale_xy[] = {
-      pa_cl_vte_cntl.vport_x_scale_ena ? regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32
-                                       : 1.0f,
-      pa_cl_vte_cntl.vport_y_scale_ena ? regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32
-                                       : 1.0f,
+      pa_cl_vte_cntl.vport_x_scale_ena
+          ? regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_XSCALE)
+          : 1.0f,
+      pa_cl_vte_cntl.vport_y_scale_ena
+          ? regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_YSCALE)
+          : 1.0f,
   };
   float scale_z = pa_cl_vte_cntl.vport_z_scale_ena
-                      ? regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32
+                      ? regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_ZSCALE)
                       : 1.0f;
   float offset_base_xy[] = {
       pa_cl_vte_cntl.vport_x_offset_ena
-          ? regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32
+          ? regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_XOFFSET)
           : 0.0f,
       pa_cl_vte_cntl.vport_y_offset_ena
-          ? regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32
+          ? regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_YOFFSET)
           : 0.0f,
   };
   float offset_z = pa_cl_vte_cntl.vport_z_offset_ena
-                       ? regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32
+                       ? regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_ZOFFSET)
                        : 0.0f;
   // Calculate all the integer.0 or integer.5 offsetting exactly at full
   // precision, separately so it can be used in other integer calculations
@@ -615,7 +616,7 @@ uint32_t GetNormalizedColorMask(const RegisterFile& regs,
     return 0;
   }
   uint32_t normalized_color_mask = 0;
-  uint32_t rb_color_mask = regs[XE_GPU_REG_RB_COLOR_MASK].u32;
+  uint32_t rb_color_mask = regs[XE_GPU_REG_RB_COLOR_MASK];
   for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
     // Exclude the render targets not statically written to by the pixel shader.
     // If the shader doesn't write to a render target, it shouldn't be written
@@ -661,9 +662,8 @@ void AddMemExportRanges(const RegisterFile& regs, const Shader& shader,
                                       ? regs.Get<reg::SQ_VS_CONST>().base
                                       : regs.Get<reg::SQ_PS_CONST>().base;
   for (uint32_t constant_index : shader.memexport_stream_constants()) {
-    const auto& stream = regs.Get<xenos::xe_gpu_memexport_stream_t>(
-        XE_GPU_REG_SHADER_CONSTANT_000_X +
-        (float_constants_base + constant_index) * 4);
+    xenos::xe_gpu_memexport_stream_t stream =
+        regs.GetMemExportStream(float_constants_base + constant_index);
     if (!stream.index_count) {
       continue;
     }
@@ -705,7 +705,7 @@ void AddMemExportRanges(const RegisterFile& regs, const Shader& shader,
     }
     // Add a new range if haven't expanded an existing one.
     if (!range_reused) {
-      ranges_out.emplace_back(stream.base_address, stream_size_bytes);
+      ranges_out.emplace_back(uint32_t(stream.base_address), stream_size_bytes);
     }
   }
 }
@@ -824,8 +824,7 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
   // Get the extent of pixels covered by the resolve rectangle, according to the
   // top-left rasterization rule.
   // D3D9 HACK: Vertices to use are always in vf0, and are written by the CPU.
-  auto fetch = regs.Get<xenos::xe_gpu_vertex_fetch_t>(
-      XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0);
+  xenos::xe_gpu_vertex_fetch_t fetch = regs.GetVertexFetch(0);
   if (fetch.type != xenos::FetchConstantType::kVertex || fetch.size != 3 * 2) {
     XELOGE("Unsupported resolve vertex buffer format");
     assert_always();
@@ -994,7 +993,7 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
   }
 
   // Calculate the destination memory extent.
-  uint32_t rb_copy_dest_base = regs[XE_GPU_REG_RB_COPY_DEST_BASE].u32;
+  uint32_t rb_copy_dest_base = regs[XE_GPU_REG_RB_COPY_DEST_BASE];
   uint32_t copy_dest_base_adjusted = rb_copy_dest_base;
   uint32_t copy_dest_extent_start, copy_dest_extent_end;
   auto rb_copy_dest_pitch = regs.Get<reg::RB_COPY_DEST_PITCH>();
@@ -1164,9 +1163,9 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
     info_out.copy_dest_info.copy_dest_swap = false;
   }
 
-  info_out.rb_depth_clear = regs[XE_GPU_REG_RB_DEPTH_CLEAR].u32;
-  info_out.rb_color_clear = regs[XE_GPU_REG_RB_COLOR_CLEAR].u32;
-  info_out.rb_color_clear_lo = regs[XE_GPU_REG_RB_COLOR_CLEAR_LO].u32;
+  info_out.rb_depth_clear = regs[XE_GPU_REG_RB_DEPTH_CLEAR];
+  info_out.rb_color_clear = regs[XE_GPU_REG_RB_COLOR_CLEAR];
+  info_out.rb_color_clear_lo = regs[XE_GPU_REG_RB_COLOR_CLEAR_LO];
 
   XELOGD(
       "Resolve: {},{} <= x,y < {},{}, {} -> {} at 0x{:08X} (potentially "

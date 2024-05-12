@@ -612,8 +612,8 @@ VkImageView VulkanTextureCache::GetActiveBindingOrNullImageView(
 VulkanTextureCache::SamplerParameters VulkanTextureCache::GetSamplerParameters(
     const VulkanShader::SamplerBinding& binding) const {
   const auto& regs = register_file();
-  const auto& fetch = regs.Get<xenos::xe_gpu_texture_fetch_t>(
-      XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + binding.fetch_constant * 6);
+  xenos::xe_gpu_texture_fetch_t fetch =
+      regs.GetTextureFetch(binding.fetch_constant);
 
   SamplerParameters parameters;
 
@@ -875,8 +875,7 @@ VkImageView VulkanTextureCache::RequestSwapTexture(
     uint32_t& width_scaled_out, uint32_t& height_scaled_out,
     xenos::TextureFormat& format_out) {
   const auto& regs = register_file();
-  const auto& fetch = regs.Get<xenos::xe_gpu_texture_fetch_t>(
-      XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0);
+  xenos::xe_gpu_texture_fetch_t fetch = regs.GetTextureFetch(0);
   TextureKey key;
   BindingInfoFromFetchConstant(fetch, key, nullptr);
   if (!key.is_valid || key.base_page == 0 ||

@@ -28,10 +28,7 @@ void ShaderInterpreter::Execute() {
   state_.Reset();
 
   const uint32_t* bool_constants =
-      &register_file_[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031].u32;
-  const xenos::LoopConstant* loop_constants =
-      reinterpret_cast<const xenos::LoopConstant*>(
-          &register_file_[XE_GPU_REG_SHADER_CONSTANT_LOOP_00].u32);
+      &register_file_[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031];
 
   bool exec_ended = false;
   uint32_t cf_index_next = 1;
@@ -140,8 +137,8 @@ void ShaderInterpreter::Execute() {
           cf_index_next = cf_loop_start.address();
           continue;
         }
-        xenos::LoopConstant loop_constant =
-            loop_constants[cf_loop_start.loop_id()];
+        auto loop_constant = register_file_.Get<xenos::LoopConstant>(
+            XE_GPU_REG_SHADER_CONSTANT_LOOP_00 + cf_loop_start.loop_id());
         state_.loop_constants[state_.loop_stack_depth] = loop_constant;
         uint32_t& loop_iterator_ref =
             state_.loop_iterators[state_.loop_stack_depth];
@@ -170,8 +167,11 @@ void ShaderInterpreter::Execute() {
                 &cf_instr);
         xenos::LoopConstant loop_constant =
             state_.loop_constants[state_.loop_stack_depth - 1];
-        assert_true(loop_constant.value ==
-                    loop_constants[cf_loop_end.loop_id()].value);
+        assert_zero(
+            std::memcmp(&loop_constant,
+                        &register_file_[XE_GPU_REG_SHADER_CONSTANT_LOOP_00 +
+                                        cf_loop_end.loop_id()],
+                        sizeof(loop_constant)));
         uint32_t loop_iterator =
             ++state_.loop_iterators[state_.loop_stack_depth - 1];
         if (loop_iterator < loop_constant.count &&
@@ -257,28 +257,31 @@ void ShaderInterpreter::Execute() {
   }
 }
 
-const float* ShaderInterpreter::GetFloatConstant(
+const std::array<float, 4> ShaderInterpreter::GetFloatConstant(
     uint32_t address, bool is_relative, bool relative_address_is_a0) const {
-  static const float zero[4] = {};
   int32_t index = int32_t(address);
   if (is_relative) {
     index += relative_address_is_a0 ? state_.address_register
                                     : state_.GetLoopAddress();
   }
   if (index < 0) {
-    return zero;
+    return std::array<float, 4>();
   }
   auto base_and_size_minus_1 = register_file_.Get<reg::SQ_VS_CONST>(
       shader_type_ == xenos::ShaderType::kVertex ? XE_GPU_REG_SQ_VS_CONST
                                                  : XE_GPU_REG_SQ_PS_CONST);
   if (uint32_t(index) > base_and_size_minus_1.size) {
-    return zero;
+    return std::array<float, 4>();
   }
   index += base_and_size_minus_1.base;
   if (index >= 512) {
-    return zero;
+    return std::array<float, 4>();
   }
-  return &register_file_[XE_GPU_REG_SHADER_CONSTANT_000_X + 4 * index].f32;
+  std::array<float, 4> value;
+  std::memcpy(value.data(),
+              &register_file_[XE_GPU_REG_SHADER_CONSTANT_000_X + 4 * index],
+              sizeof(float) * 4);
+  return value;
 }
 
 void ShaderInterpreter::ExecuteAluInstruction(ucode::AluInstruction instr) {
@@ -297,6 +300,7 @@ void ShaderInterpreter::ExecuteAluInstruction(ucode::AluInstruction instr) {
       const float* vector_src_ptr;
       uint32_t vector_src_register = instr.src_reg(1 + i);
       bool vector_src_absolute = false;
+      std::array<float, 4> vector_src_float_constant;
       if (instr.src_is_temp(1 + i)) {
         vector_src_ptr = GetTempRegister(
             ucode::AluInstruction::src_temp_reg(vector_src_register),
@@ -304,9 +308,10 @@ void ShaderInterpreter::ExecuteAluInstruction(ucode::AluInstruction instr) {
         vector_src_absolute = ucode::AluInstruction::is_src_temp_value_absolute(
             vector_src_register);
       } else {
-        vector_src_ptr = GetFloatConstant(
+        vector_src_float_constant = GetFloatConstant(
             vector_src_register, instr.src_const_is_addressed(1 + i),
             instr.is_const_address_register_relative());
+        vector_src_ptr = vector_src_float_constant.data();
       }
       uint32_t vector_src_absolute_mask =
           ~(uint32_t(vector_src_absolute) << 31);
@@ -618,6 +623,7 @@ void ShaderInterpreter::ExecuteAluInstruction(ucode::AluInstruction instr) {
       // r#/c#.w or r#/c#.wx.
       const float* scalar_src_ptr;
       uint32_t scalar_src_register = instr.src_reg(3);
+      std::array<float, 4> scalar_src_float_constant;
       if (instr.src_is_temp(3)) {
         scalar_src_ptr = GetTempRegister(
             ucode::AluInstruction::src_temp_reg(scalar_src_register),
@@ -625,9 +631,10 @@ void ShaderInterpreter::ExecuteAluInstruction(ucode::AluInstruction instr) {
         scalar_src_absolute = ucode::AluInstruction::is_src_temp_value_absolute(
             scalar_src_register);
       } else {
-        scalar_src_ptr = GetFloatConstant(
+        scalar_src_float_constant = GetFloatConstant(
             scalar_src_register, instr.src_const_is_addressed(3),
             instr.is_const_address_register_relative());
+        scalar_src_ptr = scalar_src_float_constant.data();
       }
       uint32_t scalar_src_swizzle = instr.src_swizzle(3);
       scalar_operand_component_count =
@@ -984,10 +991,8 @@ void ShaderInterpreter::ExecuteVertexFetchInstruction(
     state_.vfetch_full_last = instr;
   }
 
-  xenos::xe_gpu_vertex_fetch_t fetch_constant =
-      *reinterpret_cast<const xenos::xe_gpu_vertex_fetch_t*>(
-          &register_file_[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
-                          state_.vfetch_full_last.fetch_constant_index()]);
+  xenos::xe_gpu_vertex_fetch_t fetch_constant = register_file_.GetVertexFetch(
+      state_.vfetch_full_last.fetch_constant_index());
 
   if (!instr.is_mini_fetch()) {
     // Get the part of the address that depends on vfetch_full data.
