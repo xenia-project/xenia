@@ -2740,16 +2740,18 @@ EMITTER_OPCODE_TABLE(OPCODE_BYTE_SWAP, BYTE_SWAP_I16, BYTE_SWAP_I32,
 // ============================================================================
 struct CNTLZ_I8 : Sequence<CNTLZ_I8, I<OPCODE_CNTLZ, I8Op, I8Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    // No 8bit lzcnt, so do 16 and sub 8.
+    // No 8bit lzcnt, so do 32 and sub 24.
     e.UXTB(i.dest, i.src1);
     e.CLZ(i.dest, i.dest);
-    e.SUB(i.dest.reg(), i.dest.reg(), 8);
+    e.SUB(i.dest.reg(), i.dest.reg(), 24);
   }
 };
 struct CNTLZ_I16 : Sequence<CNTLZ_I16, I<OPCODE_CNTLZ, I8Op, I16Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
+    // No 16bit lzcnt, so do 32 and sub 16.
     e.UXTH(i.dest, i.src1);
     e.CLZ(i.dest, i.dest);
+    e.SUB(i.dest.reg(), i.dest.reg(), 16);
   }
 };
 struct CNTLZ_I32 : Sequence<CNTLZ_I32, I<OPCODE_CNTLZ, I8Op, I32Op>> {
