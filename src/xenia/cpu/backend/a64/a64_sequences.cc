@@ -1717,77 +1717,86 @@ EMITTER_OPCODE_TABLE(OPCODE_DIV, DIV_I8, DIV_I16, DIV_I32, DIV_I64, DIV_F32,
 struct MUL_ADD_F32
     : Sequence<MUL_ADD_F32, I<OPCODE_MUL_ADD, F32Op, F32Op, F32Op, F32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    SReg src3(1);
+    SReg src3 = S3;
     if (i.src3.is_constant) {
-      src3 = S1;
       e.LoadConstantV(src3.toQ(), i.src3.constant());
     } else {
-      // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
       src3 = i.src3.reg();
-      if (i.dest.reg().index() == i.src3.reg().index()) {
-        e.FMOV(S1, i.src3);
-        src3 = S1;
-      }
     }
 
-    // Multiply operation is commutative.
-    EmitCommutativeBinaryVOp<SReg>(
-        e, i, [&i](A64Emitter& e, SReg dest, SReg src1, SReg src2) {
-          e.FMUL(dest, src1, src2);  // $0 = $1 * $2
-        });
+    SReg src2 = S2;
+    if (i.src2.is_constant) {
+      e.LoadConstantV(src2.toQ(), i.src2.constant());
+    } else {
+      src2 = i.src2.reg();
+    }
 
-    e.FADD(i.dest, i.dest, src3);  // $0 = $1 + $2
+    SReg src1 = S1;
+    if (i.src1.is_constant) {
+      e.LoadConstantV(src1.toQ(), i.src1.constant());
+    } else {
+      src1 = i.src1.reg();
+    }
+
+    e.FMADD(i.dest, src1, src2, src3);
   }
 };
 struct MUL_ADD_F64
     : Sequence<MUL_ADD_F64, I<OPCODE_MUL_ADD, F64Op, F64Op, F64Op, F64Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    DReg src3(1);
+    DReg src3 = D3;
     if (i.src3.is_constant) {
-      src3 = D1;
       e.LoadConstantV(src3.toQ(), i.src3.constant());
     } else {
-      // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
       src3 = i.src3.reg();
-      if (i.dest.reg().index() == i.src3.reg().index()) {
-        e.FMOV(D1, i.src3);
-        src3 = D1;
-      }
     }
 
-    // Multiply operation is commutative.
-    EmitCommutativeBinaryVOp<DReg>(
-        e, i, [&i](A64Emitter& e, DReg dest, DReg src1, DReg src2) {
-          e.FMUL(dest, src1, src2);  // $0 = $1 * $2
-        });
+    DReg src2 = D2;
+    if (i.src2.is_constant) {
+      e.LoadConstantV(src2.toQ(), i.src2.constant());
+    } else {
+      src2 = i.src2.reg();
+    }
 
-    e.FADD(i.dest, i.dest, src3);  // $0 = $1 + $2
+    DReg src1 = D1;
+    if (i.src1.is_constant) {
+      e.LoadConstantV(src1.toQ(), i.src1.constant());
+    } else {
+      src1 = i.src1.reg();
+    }
+
+    e.FMADD(i.dest, src1, src2, src3);
   }
 };
 struct MUL_ADD_V128
     : Sequence<MUL_ADD_V128,
                I<OPCODE_MUL_ADD, V128Op, V128Op, V128Op, V128Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    QReg src3(1);
+    const QReg dest = i.dest.reg();
     if (i.src3.is_constant) {
-      src3 = Q1;
-      e.LoadConstantV(src3, i.src3.constant());
+      e.LoadConstantV(dest.toQ(), i.src3.constant());
     } else {
-      // If i.dest == i.src3, back up i.src3 so we don't overwrite it.
-      src3 = i.src3;
-      if (i.dest == i.src3) {
-        e.MOV(Q1.B16(), i.src3.reg().B16());
-        src3 = Q1;
+      // If i.dest != i.src3, move the addition-term into dest for FMLA
+      if (i.dest != i.src3) {
+        e.MOV(dest.B16(), i.src3.reg().B16());
       }
     }
 
-    // Multiply operation is commutative.
-    EmitCommutativeBinaryVOp(
-        e, i, [&i](A64Emitter& e, QReg dest, QReg src1, QReg src2) {
-          e.FMUL(dest.S4(), src1.S4(), src2.S4());  // $0 = $1 * $2
-        });
+    QReg src2 = Q2;
+    if (i.src2.is_constant) {
+      e.LoadConstantV(src2.toQ(), i.src2.constant());
+    } else {
+      src2 = i.src2.reg();
+    }
 
-    e.FADD(i.dest.reg().S4(), i.dest.reg().S4(), src3.S4());
+    QReg src1 = Q1;
+    if (i.src1.is_constant) {
+      e.LoadConstantV(src1.toQ(), i.src1.constant());
+    } else {
+      src1 = i.src1.reg();
+    }
+
+    e.FMLA(dest.S4(), src1.S4(), src2.S4());
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_MUL_ADD, MUL_ADD_F32, MUL_ADD_F64, MUL_ADD_V128);
