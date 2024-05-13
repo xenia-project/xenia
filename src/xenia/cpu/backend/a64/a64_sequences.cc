@@ -2789,7 +2789,7 @@ struct SET_ROUNDING_MODE_I32
 
     // Replace FPCR bits with new value
     e.MRS(X1, SystemReg::FPCR);
-    e.BFI(X1, X0, 54, 3);
+    e.BFI(X1, X0, 23, 3);
     e.MSR(SystemReg::FPCR, X1);
   }
 };
