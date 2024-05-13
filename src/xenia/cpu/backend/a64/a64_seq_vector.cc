@@ -1166,7 +1166,62 @@ struct PERMUTE_V128
           indices.B16());
   }
 
-  static void EmitByInt16(A64Emitter& e, const EmitArgType& i) {}
+  static void EmitByInt16(A64Emitter& e, const EmitArgType& i) {
+    // Permute bytes between src2 and src3.
+    // src1 is an array of indices corresponding to positions within src2 and
+    // src3.
+    if (i.src3.value->IsConstantZero()) {
+      if (i.src2.value->IsConstantZero()) {
+        // src2 & src3 are zero, so result will always be zero.
+        e.EOR(i.dest.reg().B16(), i.dest.reg().B16(), i.dest.reg().B16());
+        return;
+      }
+    }
+
+    const QReg indices = Q0;
+    if (i.src1.is_constant) {
+      e.LoadConstantV(indices, i.src1.constant());
+    } else {
+      e.MOV(indices.B16(), i.src1.reg().B16());
+    }
+
+    // Indices must be endian-swapped
+    e.MOV(W0, 0b1);
+    e.DUP(Q1.H8(), W0);
+    e.EOR(indices.B16(), indices.B16(), Q1.B16());
+
+    // Modulo-16 the indices
+    e.MOV(W0, 0b0000'1111);
+    e.DUP(Q1.H8(), W0);
+    e.AND(indices.B16(), indices.B16(), Q1.B16());
+
+    // Convert int16 indices into int8
+    e.MOV(W0, 0x02'02);
+    e.DUP(Q1.H8(), W0);
+    e.MUL(indices.H8(), indices.H8(), Q1.H8());
+
+    e.MOV(W0, 0x01'00);
+    e.DUP(Q1.H8(), W0);
+    e.ADD(indices.H8(), indices.H8(), Q1.H8());
+
+    // Table-registers must be sequential indices
+    const QReg table_lo = Q2;
+    if (i.src2.is_constant) {
+      e.LoadConstantV(table_lo, i.src2.constant());
+    } else {
+      e.MOV(table_lo.B16(), i.src2.reg().B16());
+    }
+
+    const QReg table_hi = Q3;
+    if (i.src3.is_constant) {
+      e.LoadConstantV(table_hi, i.src3.constant());
+    } else {
+      e.MOV(table_hi.B16(), i.src3.reg().B16());
+    }
+
+    e.TBL(i.dest.reg().B16(), List{table_lo.B16(), table_hi.B16()},
+          indices.B16());
+  }
 
   static void EmitByInt32(A64Emitter& e, const EmitArgType& i) {
     assert_always();
