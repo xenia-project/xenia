@@ -215,30 +215,33 @@ bool A64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
 
   // Safe now to do some tracing.
   if (debug_info_flags_ & DebugInfoFlags::kDebugInfoTraceFunctions) {
-    //// We require 32-bit addresses.
-    // assert_true(uint64_t(trace_data_->header()) < UINT_MAX);
-    // auto trace_header = trace_data_->header();
+    // We require 32-bit addresses.
+    assert_true(uint64_t(trace_data_->header()) < UINT_MAX);
+    auto trace_header = trace_data_->header();
 
-    //// Call count.
-    // lock();
-    // inc(qword[low_address(&trace_header->function_call_count)]);
+    // Call count.
+    MOV(W0, 1);
+    MOVP2R(X5, low_address(&trace_header->function_call_count));
+    LDADDAL(X0, X0, X5);
 
-    //// Get call history slot.
-    // static_assert(FunctionTraceData::kFunctionCallerHistoryCount == 4,
-    //               "bitmask depends on count");
-    // mov(rax, qword[low_address(&trace_header->function_call_count)]);
-    // and_(rax, 0b00000011);
+    // Get call history slot.
+    static_assert(FunctionTraceData::kFunctionCallerHistoryCount == 4,
+                  "bitmask depends on count");
+    LDR(X0, X5);
+    AND(W0, W0, 0b00000011);
 
-    //// Record call history value into slot (guest addr in RDX).
-    // mov(dword[Xbyak::RegExp(uint32_t(uint64_t(
-    //               low_address(&trace_header->function_caller_history)))) +
-    //           rax * 4],
-    //     edx);
+    // Record call history value into slot (guest addr in W1).
+    MOV(X5, uint32_t(
+                uint64_t(low_address(&trace_header->function_caller_history))));
+    STR(W1, X5, X0, oaknut::IndexExt::LSL, 2);
 
-    //// Calling thread. Load ax with thread ID.
-    // EmitGetCurrentThreadId();
-    // lock();
-    // bts(qword[low_address(&trace_header->function_thread_use)], rax);
+    // Calling thread. Load X0 with thread ID.
+    EmitGetCurrentThreadId();
+    MOV(W5, 1);
+    LSL(W0, W5, W0);
+
+    MOVP2R(X5, low_address(&trace_header->function_thread_use));
+    LDSET(W0, WZR, X5);
   }
 
   // Load membase.
@@ -325,11 +328,12 @@ void A64Emitter::MarkSourceOffset(const Instr* i) {
   }
 
   if (debug_info_flags_ & DebugInfoFlags::kDebugInfoTraceFunctionCoverage) {
-    uint32_t instruction_index =
+    const uint32_t instruction_index =
         (entry->guest_address - trace_data_->start_address()) / 4;
-    // lock();
-    // inc(qword[low_address(trace_data_->instruction_execute_counts() +
-    //                       instruction_index * 8)]);
+    MOV(X0, 1);
+    MOVP2R(X1, low_address(trace_data_->instruction_execute_counts() +
+                           instruction_index * 8));
+    LDADDAL(X0, ZR, X1);
   }
 }
 
