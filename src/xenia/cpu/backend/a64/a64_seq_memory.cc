@@ -190,7 +190,7 @@ struct ATOMIC_COMPARE_EXCHANGE_I32
       // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
       // it via memory mapping.
       e.MOV(W3, 0xE0000000);
-      e.CMP(i.src1.reg(), X3);
+      e.CMP(i.src1.reg().toW(), W3);
       e.CSET(W1, Cond::HS);
       e.LSL(W1, W1, 12);
       e.ADD(W1, W1, i.src1.reg().toW());
