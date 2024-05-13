@@ -367,9 +367,9 @@ struct LOAD_CONTEXT_I8
     e.LDRB(i.dest, e.GetContextReg(), i.src1.value);
     // e.mov(i.dest, e.byte[addr]);
     if (IsTracingData()) {
-      // e.mov(e.GetNativeParam(0), i.src1.value);
-      // e.mov(e.GetNativeParam(1), e.byte[addr]);
-      // e.CallNative(reinterpret_cast<void*>(TraceContextLoadI8));
+      e.MOV(e.GetNativeParam(0), i.src1.value);
+      e.LDRB(e.GetNativeParam(1).toW(), e.GetContextReg(), i.src1.value);
+      e.CallNative(reinterpret_cast<void*>(TraceContextLoadI8));
     }
   }
 };
@@ -378,9 +378,9 @@ struct LOAD_CONTEXT_I16
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     e.LDRH(i.dest, e.GetContextReg(), i.src1.value);
     if (IsTracingData()) {
-      // e.mov(e.GetNativeParam(1), e.word[addr]);
-      // e.mov(e.GetNativeParam(0), i.src1.value);
-      // e.CallNative(reinterpret_cast<void*>(TraceContextLoadI16));
+      e.LDRH(e.GetNativeParam(1).toW(), e.GetContextReg(), i.src1.value);
+      e.MOV(e.GetNativeParam(0), i.src1.value);
+      e.CallNative(reinterpret_cast<void*>(TraceContextLoadI16));
     }
   }
 };
@@ -389,9 +389,9 @@ struct LOAD_CONTEXT_I32
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     e.LDR(i.dest, e.GetContextReg(), i.src1.value);
     if (IsTracingData()) {
-      // e.mov(e.GetNativeParam(1), e.dword[addr]);
-      // e.mov(e.GetNativeParam(0), i.src1.value);
-      // e.CallNative(reinterpret_cast<void*>(TraceContextLoadI32));
+      e.LDR(e.GetNativeParam(1).toW(), e.GetContextReg(), i.src1.value);
+      e.MOV(e.GetNativeParam(0), i.src1.value);
+      e.CallNative(reinterpret_cast<void*>(TraceContextLoadI32));
     }
   }
 };
@@ -400,9 +400,9 @@ struct LOAD_CONTEXT_I64
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     e.LDR(i.dest, e.GetContextReg(), i.src1.value);
     if (IsTracingData()) {
-      // e.mov(e.GetNativeParam(1), e.qword[addr]);
-      // e.mov(e.GetNativeParam(0), i.src1.value);
-      // e.CallNative(reinterpret_cast<void*>(TraceContextLoadI64));
+      e.LDR(e.GetNativeParam(1), e.GetContextReg(), i.src1.value);
+      e.MOV(e.GetNativeParam(0), i.src1.value);
+      e.CallNative(reinterpret_cast<void*>(TraceContextLoadI64));
     }
   }
 };
@@ -411,9 +411,9 @@ struct LOAD_CONTEXT_F32
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     e.LDR(i.dest, e.GetContextReg(), i.src1.value);
     if (IsTracingData()) {
-      // e.lea(e.GetNativeParam(1), e.dword[addr]);
-      // e.mov(e.GetNativeParam(0), i.src1.value);
-      // e.CallNative(reinterpret_cast<void*>(TraceContextLoadF32));
+      e.ADD(e.GetNativeParam(1), e.GetContextReg(), i.src1.value);
+      e.MOV(e.GetNativeParam(0), i.src1.value);
+      e.CallNative(reinterpret_cast<void*>(TraceContextLoadF32));
     }
   }
 };
@@ -421,11 +421,10 @@ struct LOAD_CONTEXT_F64
     : Sequence<LOAD_CONTEXT_F64, I<OPCODE_LOAD_CONTEXT, F64Op, OffsetOp>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     e.LDR(i.dest, e.GetContextReg(), i.src1.value);
-    // e.vmovsd(i.dest, e.qword[addr]);
     if (IsTracingData()) {
-      // e.lea(e.GetNativeParam(1), e.qword[addr]);
-      // e.mov(e.GetNativeParam(0), i.src1.value);
-      // e.CallNative(reinterpret_cast<void*>(TraceContextLoadF64));
+      e.ADD(e.GetNativeParam(1), e.GetContextReg(), i.src1.value);
+      e.MOV(e.GetNativeParam(0), i.src1.value);
+      e.CallNative(reinterpret_cast<void*>(TraceContextLoadF64));
     }
   }
 };
@@ -434,9 +433,9 @@ struct LOAD_CONTEXT_V128
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     e.LDR(i.dest, e.GetContextReg(), i.src1.value);
     if (IsTracingData()) {
-      // e.lea(e.GetNativeParam(1), e.ptr[addr]);
-      // e.mov(e.GetNativeParam(0), i.src1.value);
-      // e.CallNative(reinterpret_cast<void*>(TraceContextLoadV128));
+      e.ADD(e.GetNativeParam(1), e.GetContextReg(), i.src1.value);
+      e.MOV(e.GetNativeParam(0), i.src1.value);
+      e.CallNative(reinterpret_cast<void*>(TraceContextLoadV128));
     }
   }
 };
@@ -459,9 +458,9 @@ struct STORE_CONTEXT_I8
       e.STRB(i.src2.reg(), e.GetContextReg(), i.src1.value);
     }
     if (IsTracingData()) {
-      // e.mov(e.GetNativeParam(1), e.byte[addr]);
-      // e.mov(e.GetNativeParam(0), i.src1.value);
-      // e.CallNative(reinterpret_cast<void*>(TraceContextStoreI8));
+      e.LDRB(e.GetNativeParam(1).toW(), e.GetContextReg(), i.src1.value);
+      e.MOV(e.GetNativeParam(0), i.src1.value);
+      e.CallNative(reinterpret_cast<void*>(TraceContextStoreI8));
     }
   }
 };
@@ -476,9 +475,9 @@ struct STORE_CONTEXT_I16
       e.STRH(i.src2.reg(), e.GetContextReg(), i.src1.value);
     }
     if (IsTracingData()) {
-      // e.mov(e.GetNativeParam(1), e.word[addr]);
-      // e.mov(e.GetNativeParam(0), i.src1.value);
-      // e.CallNative(reinterpret_cast<void*>(TraceContextStoreI16));
+      e.LDRH(e.GetNativeParam(1).toW(), e.GetContextReg(), i.src1.value);
+      e.MOV(e.GetNativeParam(0), i.src1.value);
+      e.CallNative(reinterpret_cast<void*>(TraceContextStoreI16));
     }
   }
 };
@@ -493,9 +492,9 @@ struct STORE_CONTEXT_I32
       e.STR(i.src2.reg(), e.GetContextReg(), i.src1.value);
     }
     if (IsTracingData()) {
-      // e.mov(e.GetNativeParam(1), e.dword[addr]);
-      // e.mov(e.GetNativeParam(0), i.src1.value);
-      // e.CallNative(reinterpret_cast<void*>(TraceContextStoreI32));
+      e.LDR(e.GetNativeParam(1).toW(), e.GetContextReg(), i.src1.value);
+      e.MOV(e.GetNativeParam(0), i.src1.value);
+      e.CallNative(reinterpret_cast<void*>(TraceContextStoreI32));
     }
   }
 };
@@ -510,9 +509,9 @@ struct STORE_CONTEXT_I64
       e.STR(i.src2.reg(), e.GetContextReg(), i.src1.value);
     }
     if (IsTracingData()) {
-      // e.mov(e.GetNativeParam(1), e.qword[addr]);
-      // e.mov(e.GetNativeParam(0), i.src1.value);
-      // e.CallNative(reinterpret_cast<void*>(TraceContextStoreI64));
+      e.LDR(e.GetNativeParam(1), e.GetContextReg(), i.src1.value);
+      e.MOV(e.GetNativeParam(0), i.src1.value);
+      e.CallNative(reinterpret_cast<void*>(TraceContextStoreI64));
     }
   }
 };
@@ -527,9 +526,9 @@ struct STORE_CONTEXT_F32
       e.STR(i.src2, e.GetContextReg(), i.src1.value);
     }
     if (IsTracingData()) {
-      // e.lea(e.GetNativeParam(1), e.dword[addr]);
-      // e.mov(e.GetNativeParam(0), i.src1.value);
-      // e.CallNative(reinterpret_cast<void*>(TraceContextStoreF32));
+      e.ADD(e.GetNativeParam(1), e.GetContextReg(), i.src1.value);
+      e.MOV(e.GetNativeParam(0), i.src1.value);
+      e.CallNative(reinterpret_cast<void*>(TraceContextStoreF32));
     }
   }
 };
@@ -544,9 +543,9 @@ struct STORE_CONTEXT_F64
       e.STR(i.src2, e.GetContextReg(), i.src1.value);
     }
     if (IsTracingData()) {
-      // e.lea(e.GetNativeParam(1), e.qword[addr]);
-      // e.mov(e.GetNativeParam(0), i.src1.value);
-      // e.CallNative(reinterpret_cast<void*>(TraceContextStoreF64));
+      e.ADD(e.GetNativeParam(1), e.GetContextReg(), i.src1.value);
+      e.MOV(e.GetNativeParam(0), i.src1.value);
+      e.CallNative(reinterpret_cast<void*>(TraceContextStoreF64));
     }
   }
 };
@@ -561,9 +560,9 @@ struct STORE_CONTEXT_V128
       e.STR(i.src2, e.GetContextReg(), i.src1.value);
     }
     if (IsTracingData()) {
-      // e.lea(e.GetNativeParam(1), e.ptr[addr]);
-      // e.mov(e.GetNativeParam(0), i.src1.value);
-      // e.CallNative(reinterpret_cast<void*>(TraceContextStoreV128));
+      e.ADD(e.GetNativeParam(1), e.GetContextReg(), i.src1.value);
+      e.MOV(e.GetNativeParam(0), i.src1.value);
+      e.CallNative(reinterpret_cast<void*>(TraceContextStoreV128));
     }
   }
 };
@@ -761,9 +760,9 @@ struct LOAD_I8 : Sequence<LOAD_I8, I<OPCODE_LOAD, I8Op, I64Op>> {
     auto addr_reg = ComputeMemoryAddress(e, i.src1);
     e.LDRB(i.dest, addr_reg);
     if (IsTracingData()) {
-      // e.mov(e.GetNativeParam(1).cvt8(), i.dest);
-      // e.lea(e.GetNativeParam(0), e.ptr[addr]);
-      // e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadI8));
+      e.MOV(e.GetNativeParam(1).toW(), i.dest);
+      e.MOV(e.GetNativeParam(0), addr_reg);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadI8));
     }
   }
 };
@@ -777,9 +776,9 @@ struct LOAD_I16 : Sequence<LOAD_I16, I<OPCODE_LOAD, I16Op, I64Op>> {
       e.LDRH(i.dest, addr_reg);
     }
     if (IsTracingData()) {
-      // e.mov(e.GetNativeParam(1).cvt16(), i.dest);
-      // e.lea(e.GetNativeParam(0), e.ptr[addr]);
-      // e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadI16));
+      e.MOV(e.GetNativeParam(1).toW(), i.dest);
+      e.MOV(e.GetNativeParam(0), addr_reg);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadI16));
     }
   }
 };
@@ -793,9 +792,9 @@ struct LOAD_I32 : Sequence<LOAD_I32, I<OPCODE_LOAD, I32Op, I64Op>> {
       e.LDR(i.dest, addr_reg);
     }
     if (IsTracingData()) {
-      // e.mov(e.GetNativeParam(1).cvt32(), i.dest);
-      // e.lea(e.GetNativeParam(0), e.ptr[addr]);
-      // e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadI32));
+      e.MOV(e.GetNativeParam(1).toW(), i.dest);
+      e.MOV(e.GetNativeParam(0), addr_reg);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadI32));
     }
   }
 };
@@ -809,9 +808,9 @@ struct LOAD_I64 : Sequence<LOAD_I64, I<OPCODE_LOAD, I64Op, I64Op>> {
       e.LDR(i.dest, addr_reg);
     }
     if (IsTracingData()) {
-      // e.mov(e.GetNativeParam(1), i.dest);
-      // e.lea(e.GetNativeParam(0), e.ptr[addr]);
-      // e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadI64));
+      e.MOV(e.GetNativeParam(1), i.dest);
+      e.MOV(e.GetNativeParam(0), addr_reg);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadI64));
     }
   }
 };
@@ -823,9 +822,9 @@ struct LOAD_F32 : Sequence<LOAD_F32, I<OPCODE_LOAD, F32Op, I64Op>> {
       assert_always("not implemented yet");
     }
     if (IsTracingData()) {
-      // e.lea(e.GetNativeParam(1), e.dword[addr]);
-      // e.lea(e.GetNativeParam(0), e.ptr[addr]);
-      // e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadF32));
+      e.MOV(e.GetNativeParam(1), addr_reg);
+      e.MOV(e.GetNativeParam(0), addr_reg);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadF32));
     }
   }
 };
@@ -837,9 +836,9 @@ struct LOAD_F64 : Sequence<LOAD_F64, I<OPCODE_LOAD, F64Op, I64Op>> {
       assert_always("not implemented yet");
     }
     if (IsTracingData()) {
-      // e.lea(e.GetNativeParam(1), e.qword[addr]);
-      // e.lea(e.GetNativeParam(0), e.ptr[addr]);
-      // e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadF64));
+      e.MOV(e.GetNativeParam(1), addr_reg);
+      e.MOV(e.GetNativeParam(0), addr_reg);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadF64));
     }
   }
 };
@@ -854,9 +853,9 @@ struct LOAD_V128 : Sequence<LOAD_V128, I<OPCODE_LOAD, V128Op, I64Op>> {
       e.EXT(i.dest.reg().B16(), i.dest.reg().B16(), i.dest.reg().B16(), 8);
     }
     if (IsTracingData()) {
-      // e.lea(e.GetNativeParam(1), e.ptr[addr]);
-      // e.lea(e.GetNativeParam(0), e.ptr[addr]);
-      // e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadV128));
+      e.MOV(e.GetNativeParam(1), addr_reg);
+      e.MOV(e.GetNativeParam(0), addr_reg);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryLoadV128));
     }
   }
 };
@@ -878,9 +877,9 @@ struct STORE_I8 : Sequence<STORE_I8, I<OPCODE_STORE, VoidOp, I64Op, I8Op>> {
     }
     if (IsTracingData()) {
       addr_reg = ComputeMemoryAddress(e, i.src1);
-      // e.mov(e.GetNativeParam(1).cvt8(), e.byte[addr]);
-      // e.lea(e.GetNativeParam(0), e.ptr[addr]);
-      // e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreI8));
+      e.LDRB(e.GetNativeParam(1).toW(), addr_reg);
+      e.MOV(e.GetNativeParam(0), addr_reg);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreI8));
     }
   }
 };
@@ -900,9 +899,9 @@ struct STORE_I16 : Sequence<STORE_I16, I<OPCODE_STORE, VoidOp, I64Op, I16Op>> {
     }
     if (IsTracingData()) {
       addr_reg = ComputeMemoryAddress(e, i.src1);
-      // e.mov(e.GetNativeParam(1).cvt16(), e.word[addr]);
-      // e.lea(e.GetNativeParam(0), e.ptr[addr]);
-      // e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreI16));
+      e.LDRH(e.GetNativeParam(1).toW(), addr_reg);
+      e.MOV(e.GetNativeParam(0), addr_reg);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreI16));
     }
   }
 };
@@ -922,9 +921,9 @@ struct STORE_I32 : Sequence<STORE_I32, I<OPCODE_STORE, VoidOp, I64Op, I32Op>> {
     }
     if (IsTracingData()) {
       addr_reg = ComputeMemoryAddress(e, i.src1);
-      // e.mov(e.GetNativeParam(1).cvt32(), e.dword[addr]);
-      // e.lea(e.GetNativeParam(0), e.ptr[addr]);
-      // e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreI32));
+      e.LDR(e.GetNativeParam(1).toW(), addr_reg);
+      e.MOV(e.GetNativeParam(0), addr_reg);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreI32));
     }
   }
 };
@@ -943,9 +942,9 @@ struct STORE_I64 : Sequence<STORE_I64, I<OPCODE_STORE, VoidOp, I64Op, I64Op>> {
     }
     if (IsTracingData()) {
       addr_reg = ComputeMemoryAddress(e, i.src1);
-      // e.mov(e.GetNativeParam(1), e.qword[addr]);
-      // e.lea(e.GetNativeParam(0), e.ptr[addr]);
-      // e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreI64));
+      e.LDR(e.GetNativeParam(1), addr_reg);
+      e.MOV(e.GetNativeParam(0), addr_reg);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreI64));
     }
   }
 };
@@ -965,9 +964,9 @@ struct STORE_F32 : Sequence<STORE_F32, I<OPCODE_STORE, VoidOp, I64Op, F32Op>> {
     }
     if (IsTracingData()) {
       addr_reg = ComputeMemoryAddress(e, i.src1);
-      // e.lea(e.GetNativeParam(1), e.ptr[addr]);
-      // e.lea(e.GetNativeParam(0), e.ptr[addr]);
-      // e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreF32));
+      e.MOV(e.GetNativeParam(1), addr_reg);
+      e.MOV(e.GetNativeParam(0), addr_reg);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreF32));
     }
   }
 };
@@ -987,9 +986,9 @@ struct STORE_F64 : Sequence<STORE_F64, I<OPCODE_STORE, VoidOp, I64Op, F64Op>> {
     }
     if (IsTracingData()) {
       addr_reg = ComputeMemoryAddress(e, i.src1);
-      // e.lea(e.GetNativeParam(1), e.ptr[addr]);
-      // e.lea(e.GetNativeParam(0), e.ptr[addr]);
-      // e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreF64));
+      e.MOV(e.GetNativeParam(1), addr_reg);
+      e.MOV(e.GetNativeParam(0), addr_reg);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreF64));
     }
   }
 };
@@ -1014,9 +1013,9 @@ struct STORE_V128
     }
     if (IsTracingData()) {
       addr_reg = ComputeMemoryAddress(e, i.src1);
-      // e.lea(e.GetNativeParam(1), e.ptr[addr]);
-      // e.lea(e.GetNativeParam(0), e.ptr[addr]);
-      // e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreV128));
+      e.MOV(e.GetNativeParam(1), addr_reg);
+      e.MOV(e.GetNativeParam(0), addr_reg);
+      e.CallNative(reinterpret_cast<void*>(TraceMemoryStoreV128));
     }
   }
 };
