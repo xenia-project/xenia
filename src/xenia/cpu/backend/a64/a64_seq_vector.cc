@@ -31,47 +31,9 @@ struct VECTOR_CONVERT_I2F
     : Sequence<VECTOR_CONVERT_I2F,
                I<OPCODE_VECTOR_CONVERT_I2F, V128Op, V128Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    // flags = ARITHMETIC_UNSIGNED
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
-      // Round manually to (1.stored mantissa bits * 2^31) or to 2^32 to the
-      // nearest even (the only rounding mode used on AltiVec) if the number is
-      // 0x80000000 or greater, instead of converting src & 0x7FFFFFFF and then
-      // adding 2147483648.0f, which results in double rounding that can give a
-      // result larger than needed - see OPCODE_VECTOR_CONVERT_I2F notes.
-
-      // [0x80000000, 0xFFFFFFFF] case:
-
-      // Round to the nearest even, from (0x80000000 | 31 stored mantissa bits)
-      // to ((-1 << 23) | 23 stored mantissa bits), or to 0 if the result should
-      // be 4294967296.0f.
-      // xmm0 = src + 0b01111111 + ((src >> 8) & 1)
-      // (xmm1 also used to launch reg + mem early and to require it late)
-      // e.vpaddd(Q1, i.src1, e.GetXmmConstPtr(XMMInt127));
-      // e.vpslld(Q0, i.src1, 31 - 8);
-      // e.vpsrld(Q0, Q0, 31);
-      // e.vpaddd(Q0, Q0, Q1);
-      // xmm0 = (0xFF800000 | 23 explicit mantissa bits), or 0 if overflowed
-      // e.vpsrad(Q0, Q0, 8);
-      // Calculate the result for the [0x80000000, 0xFFFFFFFF] case - take the
-      // rounded mantissa, and add -1 or 0 to the exponent of 32, depending on
-      // whether the number should be (1.stored mantissa bits * 2^31) or 2^32.
-      // xmm0 = [0x80000000, 0xFFFFFFFF] case result
-      // e.vpaddd(Q0, Q0, e.GetXmmConstPtr(XMM2To32));
-
-      // [0x00000000, 0x7FFFFFFF] case
-      // (during vblendvps reg -> vpaddd reg -> vpaddd mem dependency):
-
-      // Convert from signed integer to float.
-      // xmm1 = [0x00000000, 0x7FFFFFFF] case result
-      // e.vcvtdq2ps(Q1, i.src1);
-
-      // Merge the two ways depending on whether the number is >= 0x80000000
-      // (has high bit set).
-      // e.vblendvps(i.dest, Q1, Q0, i.src1);
       e.UCVTF(i.dest.reg().S4(), i.src1.reg().S4());
-
     } else {
-      // e.vcvtdq2ps(i.dest, i.src1);
       e.SCVTF(i.dest.reg().S4(), i.src1.reg().S4());
     }
   }
@@ -86,48 +48,9 @@ struct VECTOR_CONVERT_F2I
                I<OPCODE_VECTOR_CONVERT_F2I, V128Op, V128Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     if (i.instr->flags & ARITHMETIC_UNSIGNED) {
-      // clamp to min 0
-      // e.vmaxps(Q0, i.src1, e.GetXmmConstPtr(XMMZero));
-
-      // xmm1 = mask of values >= (unsigned)INT_MIN
-      // e.vcmpgeps(Q1, Q0, e.GetXmmConstPtr(XMMPosIntMinPS));
-
-      // scale any values >= (unsigned)INT_MIN back to [0, ...]
-      // e.vsubps(e.xmm2, Q0, e.GetXmmConstPtr(XMMPosIntMinPS));
-      // e.vblendvps(Q0, Q0, e.xmm2, Q1);
-
-      // xmm0 = [0, INT_MAX]
-      // this may still contain values > INT_MAX (if src has vals > UINT_MAX)
-      // e.vcvttps2dq(i.dest, Q0);
-
-      // xmm0 = mask of values that need saturation
-      // e.vpcmpeqd(Q0, i.dest, e.GetXmmConstPtr(XMMIntMin));
-
-      // scale values back above [INT_MIN, UINT_MAX]
-      // e.vpand(Q1, Q1, e.GetXmmConstPtr(XMMIntMin));
-      // e.vpaddd(i.dest, i.dest, Q1);
-
-      // saturate values > UINT_MAX
-      // e.vpor(i.dest, i.dest, Q0);
-      e.FCVTNU(i.dest.reg().S4(), i.src1.reg().S4());
-
+      e.FCVTZU(i.dest.reg().S4(), i.src1.reg().S4());
     } else {
-      // xmm2 = NaN mask
-      // e.vcmpunordps(e.xmm2, i.src1, i.src1);
-
-      // convert packed floats to packed dwords
-      // e.vcvttps2dq(Q0, i.src1);
-
-      // (high bit) xmm1 = dest is indeterminate and i.src1 >= 0
-      // e.vpcmpeqd(Q1, Q0, e.GetXmmConstPtr(XMMIntMin));
-      // e.vpandn(Q1, i.src1, Q1);
-
-      // saturate positive values
-      // e.vblendvps(i.dest, Q0, e.GetXmmConstPtr(XMMIntMax), Q1);
-
-      // mask NaNs
-      // e.vpandn(i.dest, e.xmm2, i.dest);
-      e.FCVTNS(i.dest.reg().S4(), i.src1.reg().S4());
+      e.FCVTZS(i.dest.reg().S4(), i.src1.reg().S4());
     }
   }
 };
