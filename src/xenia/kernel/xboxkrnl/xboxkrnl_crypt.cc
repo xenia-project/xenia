@@ -29,6 +29,7 @@
 #include "third_party/crypto/sha256.h"
 
 extern "C" {
+#include "third_party/FFmpeg/libavutil/sha512.h"
 #include "third_party/aes_128/aes.h"
 }
 
@@ -224,6 +225,79 @@ void XeCryptSha256Final_entry(pointer_t<XECRYPT_SHA256_STATE> sha_state,
   std::copy(std::begin(hash), std::end(hash), sha_state->buffer);
 }
 DECLARE_XBOXKRNL_EXPORT1(XeCryptSha256Final, kNone, kImplemented);
+
+// TODO: Size of this struct hasn't been confirmed yet.
+typedef struct {
+  xe::be<uint64_t> count;     // 0x0
+  xe::be<uint64_t> state[8];  // 0x8
+  uint8_t buffer[128];        // 0x48
+} XECRYPT_SHA512_STATE;
+
+void XeCryptSha512Init_entry(pointer_t<XECRYPT_SHA512_STATE> sha_state) {
+  sha_state.Zero();
+
+  sha_state->state[0] = 0x6a09e667f3bcc908;
+  sha_state->state[1] = 0xbb67ae8584caa73b;
+  sha_state->state[2] = 0x3c6ef372fe94f82b;
+  sha_state->state[3] = 0xa54ff53a5f1d36f1;
+  sha_state->state[4] = 0x510e527fade682d1;
+  sha_state->state[5] = 0x9b05688c2b3e6c1f;
+  sha_state->state[6] = 0x1f83d9abfb41bd6b;
+  sha_state->state[7] = 0x5be0cd19137e2179;
+}
+DECLARE_XBOXKRNL_EXPORT1(XeCryptSha512Init, kNone, kImplemented);
+
+struct SHA512_STATE {
+  uint8_t digest_len;
+  uint64_t count;
+  uint8_t buffer[128];
+  uint64_t state[8];
+};
+
+void XeCryptSha512Update_entry(pointer_t<XECRYPT_SHA512_STATE> sha_state,
+                               lpvoid_t input, dword_t input_size) {
+  AVSHA512* sha = av_sha512_alloc();
+  av_sha512_init(sha, 512);
+
+  // Trick to make similar implementation as SHA256
+  SHA512_STATE* sha2 = reinterpret_cast<SHA512_STATE*>(sha);
+  std::copy(std::begin(sha_state->state), std::end(sha_state->state),
+            sha2->state);
+  std::copy(std::begin(sha_state->buffer), std::end(sha_state->buffer),
+            sha2->buffer);
+  sha2->count = sha_state->count;
+
+  // Add new entry from input
+  av_sha512_update(sha, input, input_size);
+
+  // Copy back data to guest sha_state
+  std::copy_n(sha2->state, xe::countof(sha_state->state), sha_state->state);
+  std::copy_n(sha2->buffer, xe::countof(sha_state->buffer), sha_state->buffer);
+  sha_state->count = sha2->count;
+}
+DECLARE_XBOXKRNL_EXPORT1(XeCryptSha512Update, kNone, kImplemented);
+
+void XeCryptSha512Final_entry(pointer_t<XECRYPT_SHA256_STATE> sha_state,
+                              pointer_t<uint8_t> out, dword_t out_size) {
+  AVSHA512* sha = av_sha512_alloc();
+  av_sha512_init(sha, 512);
+
+  // Trick to make similar implementation as SHA256
+  SHA512_STATE* sha2 = reinterpret_cast<SHA512_STATE*>(sha);
+  std::copy(std::begin(sha_state->state), std::end(sha_state->state),
+            sha2->state);
+  std::copy(std::begin(sha_state->buffer), std::end(sha_state->buffer),
+            sha2->buffer);
+  sha2->count = sha_state->count;
+
+  uint8_t hash[64];
+  av_sha512_final(sha, hash);
+
+  std::copy_n(hash, std::min<size_t>(xe::countof(hash), out_size),
+              static_cast<uint8_t*>(out));
+  std::copy(std::begin(hash), std::end(hash), sha_state->buffer);
+}
+DECLARE_XBOXKRNL_EXPORT1(XeCryptSha512Final, kNone, kImplemented);
 
 // Byteswaps each 8 bytes
 void XeCryptBnQw_SwapDwQwLeBe_entry(pointer_t<uint64_t> qw_inp,
