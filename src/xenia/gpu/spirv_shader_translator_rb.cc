@@ -457,22 +457,14 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
         // Kill the pixel once the guest control flow and derivatives are not
         // needed anymore.
         assert_true(var_main_kill_pixel_ != spv::NoResult);
-        // Load the condition before the OpSelectionMerge, which must be the
-        // penultimate instruction.
-        spv::Id kill_pixel =
-            builder_->createLoad(var_main_kill_pixel_, spv::NoPrecision);
-        spv::Block& block_kill = builder_->makeNewBlock();
-        spv::Block& block_kill_merge = builder_->makeNewBlock();
-        builder_->createSelectionMerge(&block_kill_merge,
-                                       spv::SelectionControlDontFlattenMask);
-        builder_->createConditionalBranch(kill_pixel, &block_kill,
-                                          &block_kill_merge);
-        builder_->setBuildPoint(&block_kill);
+        SpirvBuilder::IfBuilder kill_pixel_if(
+            builder_->createLoad(var_main_kill_pixel_, spv::NoPrecision),
+            spv::SelectionControlMaskNone, *builder_);
         // TODO(Triang3l): Use OpTerminateInvocation when SPIR-V 1.6 is
         // targeted.
         builder_->createNoResultOp(spv::OpKill);
         // OpKill terminates the block.
-        builder_->setBuildPoint(&block_kill_merge);
+        kill_pixel_if.makeEndIf(false);
       }
     }
   }
@@ -533,17 +525,11 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
         builder_->makeUintConstant(3));
     // Check if the comparison function is not "always" - that should pass even
     // for NaN likely, unlike "less, equal or greater".
-    spv::Id alpha_test_function_is_non_always = builder_->createBinOp(
-        spv::OpINotEqual, type_bool_, alpha_test_function,
-        builder_->makeUintConstant(uint32_t(xenos::CompareFunction::kAlways)));
-    spv::Block& block_alpha_test = builder_->makeNewBlock();
-    spv::Block& block_alpha_test_merge = builder_->makeNewBlock();
-    builder_->createSelectionMerge(&block_alpha_test_merge,
-                                   spv::SelectionControlDontFlattenMask);
-    builder_->createConditionalBranch(alpha_test_function_is_non_always,
-                                      &block_alpha_test,
-                                      &block_alpha_test_merge);
-    builder_->setBuildPoint(&block_alpha_test);
+    SpirvBuilder::IfBuilder if_alpha_test_function_is_non_always(
+        builder_->createBinOp(spv::OpINotEqual, type_bool_, alpha_test_function,
+                              builder_->makeUintConstant(
+                                  uint32_t(xenos::CompareFunction::kAlways))),
+        spv::SelectionControlDontFlattenMask, *builder_);
     {
       id_vector_temp_.clear();
       id_vector_temp_.push_back(builder_->makeIntConstant(3));
@@ -564,28 +550,20 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
       // The comparison function is not "always" - perform the alpha test.
       // Handle "not equal" specially (specifically as "not equal" so it's true
       // for NaN, not "less or greater" which is false for NaN).
-      spv::Id alpha_test_function_is_not_equal = builder_->createBinOp(
-          spv::OpIEqual, type_bool_, alpha_test_function,
-          builder_->makeUintConstant(
-              uint32_t(xenos::CompareFunction::kNotEqual)));
-      spv::Block& block_alpha_test_not_equal = builder_->makeNewBlock();
-      spv::Block& block_alpha_test_non_not_equal = builder_->makeNewBlock();
-      spv::Block& block_alpha_test_not_equal_merge = builder_->makeNewBlock();
-      builder_->createSelectionMerge(&block_alpha_test_not_equal_merge,
-                                     spv::SelectionControlDontFlattenMask);
-      builder_->createConditionalBranch(alpha_test_function_is_not_equal,
-                                        &block_alpha_test_not_equal,
-                                        &block_alpha_test_non_not_equal);
-      spv::Id alpha_test_result_not_equal, alpha_test_result_non_not_equal;
-      builder_->setBuildPoint(&block_alpha_test_not_equal);
+      SpirvBuilder::IfBuilder if_alpha_test_function_is_not_equal(
+          builder_->createBinOp(spv::OpIEqual, type_bool_, alpha_test_function,
+                                builder_->makeUintConstant(uint32_t(
+                                    xenos::CompareFunction::kNotEqual))),
+          spv::SelectionControlDontFlattenMask, *builder_, 1, 2);
+      spv::Id alpha_test_result_not_equal;
       {
         // "Not equal" function.
         alpha_test_result_not_equal =
             builder_->createBinOp(spv::OpFUnordNotEqual, type_bool_,
                                   alpha_test_alpha, alpha_test_reference);
-        builder_->createBranch(&block_alpha_test_not_equal_merge);
       }
-      builder_->setBuildPoint(&block_alpha_test_non_not_equal);
+      if_alpha_test_function_is_not_equal.makeBeginElse();
+      spv::Id alpha_test_result_non_not_equal;
       {
         // Function other than "not equal".
         static const spv::Op kAlphaTestOps[] = {
@@ -609,16 +587,11 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
             alpha_test_result_non_not_equal = alpha_test_comparison_result;
           }
         }
-        builder_->createBranch(&block_alpha_test_not_equal_merge);
       }
-      builder_->setBuildPoint(&block_alpha_test_not_equal_merge);
-      id_vector_temp_.clear();
-      id_vector_temp_.push_back(alpha_test_result_not_equal);
-      id_vector_temp_.push_back(block_alpha_test_not_equal.getId());
-      id_vector_temp_.push_back(alpha_test_result_non_not_equal);
-      id_vector_temp_.push_back(block_alpha_test_non_not_equal.getId());
+      if_alpha_test_function_is_not_equal.makeEndIf();
       spv::Id alpha_test_result =
-          builder_->createOp(spv::OpPhi, type_bool_, id_vector_temp_);
+          if_alpha_test_function_is_not_equal.createMergePhi(
+              alpha_test_result_not_equal, alpha_test_result_non_not_equal);
       // Discard the pixel if the alpha test has failed.
       if (edram_fragment_shader_interlock_ &&
           !features_.demote_to_helper_invocation) {
@@ -627,16 +600,11 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
             spv::OpSelect, type_uint_, alpha_test_result,
             fsi_sample_mask_in_rt_0_alpha_tests, const_uint_0_);
       } else {
-        // Creating a merge block even though it will contain just one OpBranch
-        // since SPIR-V requires structured control flow in shaders.
-        spv::Block& block_alpha_test_kill = builder_->makeNewBlock();
-        spv::Block& block_alpha_test_kill_merge = builder_->makeNewBlock();
-        builder_->createSelectionMerge(&block_alpha_test_kill_merge,
-                                       spv::SelectionControlDontFlattenMask);
-        builder_->createConditionalBranch(alpha_test_result,
-                                          &block_alpha_test_kill_merge,
-                                          &block_alpha_test_kill);
-        builder_->setBuildPoint(&block_alpha_test_kill);
+        SpirvBuilder::IfBuilder alpha_test_kill_if(
+            builder_->createUnaryOp(spv::OpLogicalNot, type_bool_,
+                                    alpha_test_result),
+            spv::SelectionControlDontFlattenMask, *builder_);
+        bool branch_to_alpha_test_kill_merge = true;
         if (edram_fragment_shader_interlock_) {
           assert_true(features_.demote_to_helper_invocation);
           fsi_pixel_potentially_killed = true;
@@ -645,18 +613,17 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
           builder_->addExtension("SPV_EXT_demote_to_helper_invocation");
           builder_->addCapability(spv::CapabilityDemoteToHelperInvocationEXT);
           builder_->createNoResultOp(spv::OpDemoteToHelperInvocationEXT);
-          builder_->createBranch(&block_alpha_test_kill_merge);
         } else {
           // TODO(Triang3l): Use OpTerminateInvocation when SPIR-V 1.6 is
           // targeted.
           builder_->createNoResultOp(spv::OpKill);
           // OpKill terminates the block.
+          branch_to_alpha_test_kill_merge = false;
         }
-        builder_->setBuildPoint(&block_alpha_test_kill_merge);
-        builder_->createBranch(&block_alpha_test_merge);
+        alpha_test_kill_if.makeEndIf(branch_to_alpha_test_kill_merge);
       }
     }
-    builder_->setBuildPoint(&block_alpha_test_merge);
+    if_alpha_test_function_is_non_always.makeEndIf();
 
     // TODO(Triang3l): Alpha to coverage.
 
@@ -725,18 +692,9 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
                 spv::OpBitwiseAnd, type_uint_, main_fsi_sample_mask_,
                 builder_->makeUintConstant(uint32_t(1) << (4 + i))),
             const_uint_0_);
-        spv::Block& block_sample_late_depth_stencil_write =
-            builder_->makeNewBlock();
-        spv::Block& block_sample_late_depth_stencil_write_merge =
-            builder_->makeNewBlock();
-        builder_->createSelectionMerge(
-            &block_sample_late_depth_stencil_write_merge,
-            spv::SelectionControlDontFlattenMask);
-        builder_->createConditionalBranch(
+        SpirvBuilder::IfBuilder if_sample_late_depth_stencil_write_needed(
             sample_late_depth_stencil_write_needed,
-            &block_sample_late_depth_stencil_write,
-            &block_sample_late_depth_stencil_write_merge);
-        builder_->setBuildPoint(&block_sample_late_depth_stencil_write);
+            spv::SelectionControlDontFlattenMask, *builder_);
         spv::Id depth_stencil_sample_address =
             FSI_AddSampleOffset(main_fsi_address_depth_, i);
         id_vector_temp_.clear();
@@ -749,8 +707,7 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
                                             ? spv::StorageClassStorageBuffer
                                             : spv::StorageClassUniform,
                                         buffer_edram_, id_vector_temp_));
-        builder_->createBranch(&block_sample_late_depth_stencil_write_merge);
-        builder_->setBuildPoint(&block_sample_late_depth_stencil_write_merge);
+        if_sample_late_depth_stencil_write_needed.makeEndIf();
       }
       if (color_targets_written) {
         // Only take the remaining coverage bits, not the late depth / stencil
@@ -852,28 +809,10 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
                 spv::OpBitwiseAnd, type_uint_, fsi_color_targets_written,
                 builder_->makeUintConstant(uint32_t(1) << color_target_index)),
             const_uint_0_);
-        spv::Block& fsi_color_written_if_head = *builder_->getBuildPoint();
-        spv::Block& fsi_color_written_if = builder_->makeNewBlock();
-        spv::Block& fsi_color_written_if_merge = builder_->makeNewBlock();
-        builder_->createSelectionMerge(&fsi_color_written_if_merge,
-                                       spv::SelectionControlDontFlattenMask);
-        {
-          std::unique_ptr<spv::Instruction> rt_written_branch_conditional_op =
-              std::make_unique<spv::Instruction>(spv::OpBranchConditional);
-          rt_written_branch_conditional_op->addIdOperand(fsi_color_written);
-          rt_written_branch_conditional_op->addIdOperand(
-              fsi_color_written_if.getId());
-          rt_written_branch_conditional_op->addIdOperand(
-              fsi_color_written_if_merge.getId());
-          // More likely to write to the render target than not.
-          rt_written_branch_conditional_op->addImmediateOperand(2);
-          rt_written_branch_conditional_op->addImmediateOperand(1);
-          builder_->getBuildPoint()->addInstruction(
-              std::move(rt_written_branch_conditional_op));
-        }
-        fsi_color_written_if.addPredecessor(&fsi_color_written_if_head);
-        fsi_color_written_if_merge.addPredecessor(&fsi_color_written_if_head);
-        builder_->setBuildPoint(&fsi_color_written_if);
+        // More likely to write to the render target than not.
+        SpirvBuilder::IfBuilder if_fsi_color_written(
+            fsi_color_written, spv::SelectionControlDontFlattenMask, *builder_,
+            2, 1);
 
         // For accessing uint2 arrays of per-render-target data which are passed
         // as uint4 arrays due to std140 array element alignment.
@@ -914,14 +853,9 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
                                   const_uint32_max),
             builder_->createBinOp(spv::OpINotEqual, type_bool_, rt_keep_mask[1],
                                   const_uint32_max));
-        spv::Block& rt_write_mask_not_empty_if = builder_->makeNewBlock();
-        spv::Block& rt_write_mask_not_empty_if_merge = builder_->makeNewBlock();
-        builder_->createSelectionMerge(&rt_write_mask_not_empty_if_merge,
-                                       spv::SelectionControlDontFlattenMask);
-        builder_->createConditionalBranch(rt_write_mask_not_empty,
-                                          &rt_write_mask_not_empty_if,
-                                          &rt_write_mask_not_empty_if_merge);
-        builder_->setBuildPoint(&rt_write_mask_not_empty_if);
+        SpirvBuilder::IfBuilder if_rt_write_mask_not_empty(
+            rt_write_mask_not_empty, spv::SelectionControlDontFlattenMask,
+            *builder_);
 
         spv::Id const_int_rt_index =
             builder_->makeIntConstant(color_target_index);
@@ -982,17 +916,10 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
         spv::Id rt_blend_enabled = builder_->createBinOp(
             spv::OpINotEqual, type_bool_, rt_blend_factors_equations,
             builder_->makeUintConstant(0x00010001));
-        spv::Block& rt_blend_enabled_if = builder_->makeNewBlock();
-        spv::Block& rt_blend_enabled_else = builder_->makeNewBlock();
-        spv::Block& rt_blend_enabled_merge = builder_->makeNewBlock();
-        builder_->createSelectionMerge(&rt_blend_enabled_merge,
-                                       spv::SelectionControlDontFlattenMask);
-        builder_->createConditionalBranch(
-            rt_blend_enabled, &rt_blend_enabled_if, &rt_blend_enabled_else);
-
-        // Blending path.
+        SpirvBuilder::IfBuilder if_rt_blend_enabled(
+            rt_blend_enabled, spv::SelectionControlDontFlattenMask, *builder_);
         {
-          builder_->setBuildPoint(&rt_blend_enabled_if);
+          // Blending path.
 
           // Get various parameters used in blending.
           spv::Id rt_color_is_fixed_point = builder_->createBinOp(
@@ -1097,15 +1024,9 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
 
           // Blend and mask each sample.
           for (uint32_t i = 0; i < 4; ++i) {
-            spv::Block& block_sample_covered = builder_->makeNewBlock();
-            spv::Block& block_sample_covered_merge = builder_->makeNewBlock();
-            builder_->createSelectionMerge(
-                &block_sample_covered_merge,
-                spv::SelectionControlDontFlattenMask);
-            builder_->createConditionalBranch(fsi_samples_covered[i],
-                                              &block_sample_covered,
-                                              &block_sample_covered_merge);
-            builder_->setBuildPoint(&block_sample_covered);
+            SpirvBuilder::IfBuilder if_sample_covered(
+                fsi_samples_covered[i], spv::SelectionControlDontFlattenMask,
+                *builder_);
 
             spv::Id rt_sample_address =
                 FSI_AddSampleOffset(rt_sample_0_address, i, rt_is_64bpp);
@@ -1131,26 +1052,13 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
             dest_packed[0] =
                 builder_->createLoad(rt_access_chain_0, spv::NoPrecision);
             {
-              spv::Block& block_load_64bpp_head = *builder_->getBuildPoint();
-              spv::Block& block_load_64bpp = builder_->makeNewBlock();
-              spv::Block& block_load_64bpp_merge = builder_->makeNewBlock();
-              builder_->createSelectionMerge(
-                  &block_load_64bpp_merge,
-                  spv::SelectionControlDontFlattenMask);
-              builder_->createConditionalBranch(rt_is_64bpp, &block_load_64bpp,
-                                                &block_load_64bpp_merge);
-              builder_->setBuildPoint(&block_load_64bpp);
+              SpirvBuilder::IfBuilder if_64bpp(
+                  rt_is_64bpp, spv::SelectionControlDontFlattenMask, *builder_);
               spv::Id dest_packed_64bpp_high =
                   builder_->createLoad(rt_access_chain_1, spv::NoPrecision);
-              builder_->createBranch(&block_load_64bpp_merge);
-              builder_->setBuildPoint(&block_load_64bpp_merge);
-              id_vector_temp_.clear();
-              id_vector_temp_.push_back(dest_packed_64bpp_high);
-              id_vector_temp_.push_back(block_load_64bpp.getId());
-              id_vector_temp_.push_back(const_uint_0_);
-              id_vector_temp_.push_back(block_load_64bpp_head.getId());
-              dest_packed[1] =
-                  builder_->createOp(spv::OpPhi, type_uint_, id_vector_temp_);
+              if_64bpp.makeEndIf();
+              dest_packed[1] = if_64bpp.createMergePhi(dest_packed_64bpp_high,
+                                                       const_uint_0_);
             }
             std::array<spv::Id, 4> dest_unpacked =
                 FSI_UnpackColor(dest_packed, rt_format_with_flags);
@@ -1203,35 +1111,27 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
                                           result_packed[0],
                                           rt_replace_mask[0])),
                 rt_access_chain_0);
-            spv::Block& block_store_64bpp = builder_->makeNewBlock();
-            spv::Block& block_store_64bpp_merge = builder_->makeNewBlock();
-            builder_->createSelectionMerge(
-                &block_store_64bpp_merge, spv::SelectionControlDontFlattenMask);
-            builder_->createConditionalBranch(rt_is_64bpp, &block_store_64bpp,
-                                              &block_store_64bpp_merge);
-            builder_->setBuildPoint(&block_store_64bpp);
-            builder_->createStore(
-                builder_->createBinOp(
-                    spv::OpBitwiseOr, type_uint_,
-                    builder_->createBinOp(spv::OpBitwiseAnd, type_uint_,
-                                          dest_packed[1], rt_keep_mask[1]),
-                    builder_->createBinOp(spv::OpBitwiseAnd, type_uint_,
-                                          result_packed[1],
-                                          rt_replace_mask[1])),
-                rt_access_chain_0);
-            builder_->createBranch(&block_store_64bpp_merge);
-            builder_->setBuildPoint(&block_store_64bpp_merge);
+            SpirvBuilder::IfBuilder if_64bpp(
+                rt_is_64bpp, spv::SelectionControlDontFlattenMask, *builder_);
+            {
+              builder_->createStore(
+                  builder_->createBinOp(
+                      spv::OpBitwiseOr, type_uint_,
+                      builder_->createBinOp(spv::OpBitwiseAnd, type_uint_,
+                                            dest_packed[1], rt_keep_mask[1]),
+                      builder_->createBinOp(spv::OpBitwiseAnd, type_uint_,
+                                            result_packed[1],
+                                            rt_replace_mask[1])),
+                  rt_access_chain_1);
+            }
+            if_64bpp.makeEndIf();
 
-            builder_->createBranch(&block_sample_covered_merge);
-            builder_->setBuildPoint(&block_sample_covered_merge);
+            if_sample_covered.makeEndIf();
           }
-
-          builder_->createBranch(&rt_blend_enabled_merge);
         }
-
-        // Non-blending paths.
+        if_rt_blend_enabled.makeBeginElse();
         {
-          builder_->setBuildPoint(&rt_blend_enabled_else);
+          // Non-blending paths.
 
           // Pack the new color for all samples.
           std::array<spv::Id, 2> color_packed =
@@ -1244,19 +1144,12 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
                                     rt_keep_mask[0], const_uint_0_),
               builder_->createBinOp(spv::OpINotEqual, type_bool_,
                                     rt_keep_mask[1], const_uint_0_));
-          spv::Block& rt_keep_mask_not_empty_if = builder_->makeNewBlock();
-          spv::Block& rt_keep_mask_not_empty_if_else = builder_->makeNewBlock();
-          spv::Block& rt_keep_mask_not_empty_if_merge =
-              builder_->makeNewBlock();
-          builder_->createSelectionMerge(&rt_keep_mask_not_empty_if_merge,
-                                         spv::SelectionControlDontFlattenMask);
-          builder_->createConditionalBranch(rt_keep_mask_not_empty,
-                                            &rt_keep_mask_not_empty_if,
-                                            &rt_keep_mask_not_empty_if_else);
 
-          // Loading and masking path.
+          SpirvBuilder::IfBuilder if_rt_keep_mask_not_empty(
+              rt_keep_mask_not_empty, spv::SelectionControlDontFlattenMask,
+              *builder_);
           {
-            builder_->setBuildPoint(&rt_keep_mask_not_empty_if);
+            // Loading and masking path.
             std::array<spv::Id, 2> color_packed_masked;
             for (uint32_t i = 0; i < 2; ++i) {
               color_packed_masked[i] = builder_->createBinOp(
@@ -1265,15 +1158,9 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
                                           rt_keep_mask[i]));
             }
             for (uint32_t i = 0; i < 4; ++i) {
-              spv::Block& block_sample_covered = builder_->makeNewBlock();
-              spv::Block& block_sample_covered_merge = builder_->makeNewBlock();
-              builder_->createSelectionMerge(
-                  &block_sample_covered_merge,
-                  spv::SelectionControlDontFlattenMask);
-              builder_->createConditionalBranch(fsi_samples_covered[i],
-                                                &block_sample_covered,
-                                                &block_sample_covered_merge);
-              builder_->setBuildPoint(&block_sample_covered);
+              SpirvBuilder::IfBuilder if_sample_covered(
+                  fsi_samples_covered[i], spv::SelectionControlDontFlattenMask,
+                  *builder_);
               spv::Id rt_sample_address =
                   FSI_AddSampleOffset(rt_sample_0_address, i, rt_is_64bpp);
               id_vector_temp_.clear();
@@ -1295,52 +1182,38 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
                           rt_keep_mask[0]),
                       color_packed_masked[0]),
                   rt_access_chain_0);
-              spv::Block& block_store_64bpp = builder_->makeNewBlock();
-              spv::Block& block_store_64bpp_merge = builder_->makeNewBlock();
-              builder_->createSelectionMerge(
-                  &block_store_64bpp_merge,
-                  spv::SelectionControlDontFlattenMask);
-              builder_->createConditionalBranch(rt_is_64bpp, &block_store_64bpp,
-                                                &block_store_64bpp_merge);
-              builder_->setBuildPoint(&block_store_64bpp);
-              id_vector_temp_.back() = builder_->createBinOp(
-                  spv::OpIAdd, type_int_, rt_sample_address, fsi_const_int_1);
-              spv::Id rt_access_chain_1 = builder_->createAccessChain(
-                  features_.spirv_version >= spv::Spv_1_3
-                      ? spv::StorageClassStorageBuffer
-                      : spv::StorageClassUniform,
-                  buffer_edram_, id_vector_temp_);
-              builder_->createStore(
-                  builder_->createBinOp(
-                      spv::OpBitwiseOr, type_uint_,
-                      builder_->createBinOp(
-                          spv::OpBitwiseAnd, type_uint_,
-                          builder_->createLoad(rt_access_chain_1,
-                                               spv::NoPrecision),
-                          rt_keep_mask[1]),
-                      color_packed_masked[1]),
-                  rt_access_chain_1);
-              builder_->createBranch(&block_store_64bpp_merge);
-              builder_->setBuildPoint(&block_store_64bpp_merge);
-              builder_->createBranch(&block_sample_covered_merge);
-              builder_->setBuildPoint(&block_sample_covered_merge);
+              SpirvBuilder::IfBuilder if_64bpp(
+                  rt_is_64bpp, spv::SelectionControlDontFlattenMask, *builder_);
+              {
+                id_vector_temp_.back() = builder_->createBinOp(
+                    spv::OpIAdd, type_int_, rt_sample_address, fsi_const_int_1);
+                spv::Id rt_access_chain_1 = builder_->createAccessChain(
+                    features_.spirv_version >= spv::Spv_1_3
+                        ? spv::StorageClassStorageBuffer
+                        : spv::StorageClassUniform,
+                    buffer_edram_, id_vector_temp_);
+                builder_->createStore(
+                    builder_->createBinOp(
+                        spv::OpBitwiseOr, type_uint_,
+                        builder_->createBinOp(
+                            spv::OpBitwiseAnd, type_uint_,
+                            builder_->createLoad(rt_access_chain_1,
+                                                 spv::NoPrecision),
+                            rt_keep_mask[1]),
+                        color_packed_masked[1]),
+                    rt_access_chain_1);
+              }
+              if_64bpp.makeEndIf();
+              if_sample_covered.makeEndIf();
             }
-            builder_->createBranch(&rt_keep_mask_not_empty_if_merge);
           }
-
-          // Fully overwriting path.
+          if_rt_keep_mask_not_empty.makeBeginElse();
           {
-            builder_->setBuildPoint(&rt_keep_mask_not_empty_if_else);
+            // Fully overwriting path.
             for (uint32_t i = 0; i < 4; ++i) {
-              spv::Block& block_sample_covered = builder_->makeNewBlock();
-              spv::Block& block_sample_covered_merge = builder_->makeNewBlock();
-              builder_->createSelectionMerge(
-                  &block_sample_covered_merge,
-                  spv::SelectionControlDontFlattenMask);
-              builder_->createConditionalBranch(fsi_samples_covered[i],
-                                                &block_sample_covered,
-                                                &block_sample_covered_merge);
-              builder_->setBuildPoint(&block_sample_covered);
+              SpirvBuilder::IfBuilder if_sample_covered(
+                  fsi_samples_covered[i], spv::SelectionControlDontFlattenMask,
+                  *builder_);
               spv::Id rt_sample_address =
                   FSI_AddSampleOffset(rt_sample_0_address, i, rt_is_64bpp);
               id_vector_temp_.clear();
@@ -1353,40 +1226,29 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
                                             ? spv::StorageClassStorageBuffer
                                             : spv::StorageClassUniform,
                                         buffer_edram_, id_vector_temp_));
-              spv::Block& block_store_64bpp = builder_->makeNewBlock();
-              spv::Block& block_store_64bpp_merge = builder_->makeNewBlock();
-              builder_->createSelectionMerge(
-                  &block_store_64bpp_merge,
-                  spv::SelectionControlDontFlattenMask);
-              builder_->createConditionalBranch(rt_is_64bpp, &block_store_64bpp,
-                                                &block_store_64bpp_merge);
-              builder_->setBuildPoint(&block_store_64bpp);
-              id_vector_temp_.back() = builder_->createBinOp(
-                  spv::OpIAdd, type_int_, id_vector_temp_.back(),
-                  fsi_const_int_1);
-              builder_->createStore(color_packed[1],
-                                    builder_->createAccessChain(
-                                        features_.spirv_version >= spv::Spv_1_3
-                                            ? spv::StorageClassStorageBuffer
-                                            : spv::StorageClassUniform,
-                                        buffer_edram_, id_vector_temp_));
-              builder_->createBranch(&block_store_64bpp_merge);
-              builder_->setBuildPoint(&block_store_64bpp_merge);
-              builder_->createBranch(&block_sample_covered_merge);
-              builder_->setBuildPoint(&block_sample_covered_merge);
+              SpirvBuilder::IfBuilder if_64bpp(
+                  rt_is_64bpp, spv::SelectionControlDontFlattenMask, *builder_);
+              {
+                id_vector_temp_.back() = builder_->createBinOp(
+                    spv::OpIAdd, type_int_, id_vector_temp_.back(),
+                    fsi_const_int_1);
+                builder_->createStore(
+                    color_packed[1], builder_->createAccessChain(
+                                         features_.spirv_version >= spv::Spv_1_3
+                                             ? spv::StorageClassStorageBuffer
+                                             : spv::StorageClassUniform,
+                                         buffer_edram_, id_vector_temp_));
+              }
+              if_64bpp.makeEndIf();
+              if_sample_covered.makeEndIf();
             }
-            builder_->createBranch(&rt_keep_mask_not_empty_if_merge);
           }
-
-          builder_->setBuildPoint(&rt_keep_mask_not_empty_if_merge);
-          builder_->createBranch(&rt_blend_enabled_merge);
+          if_rt_keep_mask_not_empty.makeEndIf();
         }
+        if_rt_blend_enabled.makeEndIf();
 
-        builder_->setBuildPoint(&rt_blend_enabled_merge);
-        builder_->createBranch(&rt_write_mask_not_empty_if_merge);
-        builder_->setBuildPoint(&rt_write_mask_not_empty_if_merge);
-        builder_->createBranch(&fsi_color_written_if_merge);
-        builder_->setBuildPoint(&fsi_color_written_if_merge);
+        if_rt_write_mask_not_empty.makeEndIf();
+        if_fsi_color_written.makeEndIf();
       } else {
         // Convert to gamma space - this is incorrect, since it must be done
         // after blending on the Xbox 360, but this is just one of many blending
@@ -1405,24 +1267,11 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
                 builder_->makeUintConstant(kSysFlag_ConvertColor0ToGamma
                                            << color_target_index)),
             const_uint_0_);
-        spv::Block& block_gamma_head = *builder_->getBuildPoint();
-        spv::Block& block_gamma = builder_->makeNewBlock();
-        spv::Block& block_gamma_merge = builder_->makeNewBlock();
-        builder_->createSelectionMerge(&block_gamma_merge,
-                                       spv::SelectionControlDontFlattenMask);
-        builder_->createConditionalBranch(is_gamma, &block_gamma,
-                                          &block_gamma_merge);
-        builder_->setBuildPoint(&block_gamma);
+        SpirvBuilder::IfBuilder if_gamma(
+            is_gamma, spv::SelectionControlDontFlattenMask, *builder_);
         spv::Id color_rgb_gamma = LinearToPWLGamma(color_rgb, false);
-        builder_->createBranch(&block_gamma_merge);
-        builder_->setBuildPoint(&block_gamma_merge);
-        id_vector_temp_.clear();
-        id_vector_temp_.push_back(color_rgb_gamma);
-        id_vector_temp_.push_back(block_gamma.getId());
-        id_vector_temp_.push_back(color_rgb);
-        id_vector_temp_.push_back(block_gamma_head.getId());
-        color_rgb =
-            builder_->createOp(spv::OpPhi, type_float3_, id_vector_temp_);
+        if_gamma.makeEndIf();
+        color_rgb = if_gamma.createMergePhi(color_rgb_gamma, color_rgb);
         {
           std::unique_ptr<spv::Instruction> color_rgba_shuffle_op =
               std::make_unique<spv::Instruction>(
@@ -1752,15 +1601,8 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
           spv::OpBitwiseAnd, type_uint_, main_system_constant_flags_,
           builder_->makeUintConstant(kSysFlag_FSIDepthStencil)),
       const_uint_0_);
-  spv::Block& block_depth_stencil_enabled_head = *builder_->getBuildPoint();
-  spv::Block& block_depth_stencil_enabled = builder_->makeNewBlock();
-  spv::Block& block_depth_stencil_enabled_merge = builder_->makeNewBlock();
-  builder_->createSelectionMerge(&block_depth_stencil_enabled_merge,
-                                 spv::SelectionControlDontFlattenMask);
-  builder_->createConditionalBranch(depth_stencil_enabled,
-                                    &block_depth_stencil_enabled,
-                                    &block_depth_stencil_enabled_merge);
-  builder_->setBuildPoint(&block_depth_stencil_enabled);
+  SpirvBuilder::IfBuilder if_depth_stencil_enabled(
+      depth_stencil_enabled, spv::SelectionControlDontFlattenMask, *builder_);
 
   // Load the depth in the center of the pixel and calculate the derivatives of
   // the depth outside non-uniform control flow.
@@ -1976,14 +1818,8 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
         builder_->createBinOp(spv::OpBitwiseAnd, type_uint_, new_sample_mask,
                               builder_->makeUintConstant(uint32_t(1) << i)),
         const_uint_0_);
-    spv::Block& block_sample_covered_head = *builder_->getBuildPoint();
-    spv::Block& block_sample_covered = builder_->makeNewBlock();
-    spv::Block& block_sample_covered_merge = builder_->makeNewBlock();
-    builder_->createSelectionMerge(&block_sample_covered_merge,
-                                   spv::SelectionControlDontFlattenMask);
-    builder_->createConditionalBranch(sample_covered, &block_sample_covered,
-                                      &block_sample_covered_merge);
-    builder_->setBuildPoint(&block_sample_covered);
+    SpirvBuilder::IfBuilder if_sample_covered(
+        sample_covered, spv::SelectionControlDontFlattenMask, *builder_);
 
     // Load the original depth and stencil for the sample.
     spv::Id sample_address = FSI_AddSampleOffset(main_fsi_address_depth_, i);
@@ -2074,21 +1910,11 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
         const_float_0_, const_float_1_);
 
     // Convert the new depth to 24-bit.
-    spv::Block& block_depth_format_float = builder_->makeNewBlock();
-    spv::Block& block_depth_format_unorm = builder_->makeNewBlock();
-    spv::Block& block_depth_format_merge = builder_->makeNewBlock();
-    builder_->createSelectionMerge(&block_depth_format_merge,
-                                   spv::SelectionControlDontFlattenMask);
-    builder_->createConditionalBranch(
-        depth_is_float24, &block_depth_format_float, &block_depth_format_unorm);
-    // Float24 case.
-    builder_->setBuildPoint(&block_depth_format_float);
+    SpirvBuilder::IfBuilder depth_format_if(
+        depth_is_float24, spv::SelectionControlDontFlattenMask, *builder_);
     spv::Id sample_depth_float24 = SpirvShaderTranslator::PreClampedDepthTo20e4(
         *builder_, sample_depth32, true, false, ext_inst_glsl_std_450_);
-    builder_->createBranch(&block_depth_format_merge);
-    spv::Block& block_depth_format_float_end = *builder_->getBuildPoint();
-    // Unorm24 case.
-    builder_->setBuildPoint(&block_depth_format_unorm);
+    depth_format_if.makeBeginElse();
     // Round to the nearest even integer. This seems to be the correct
     // conversion, adding +0.5 and rounding towards zero results in red instead
     // of black in the 4D5307E6 clear shader.
@@ -2099,17 +1925,10 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
             builder_->createNoContractionBinOp(
                 spv::OpFMul, type_float_, sample_depth32,
                 builder_->makeFloatConstant(float(0xFFFFFF)))));
-    builder_->createBranch(&block_depth_format_merge);
-    spv::Block& block_depth_format_unorm_end = *builder_->getBuildPoint();
+    depth_format_if.makeEndIf();
     // Merge between the two formats.
-    builder_->setBuildPoint(&block_depth_format_merge);
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(sample_depth_float24);
-    id_vector_temp_.push_back(block_depth_format_float_end.getId());
-    id_vector_temp_.push_back(sample_depth_unorm24);
-    id_vector_temp_.push_back(block_depth_format_unorm_end.getId());
-    spv::Id sample_depth24 =
-        builder_->createOp(spv::OpPhi, type_uint_, id_vector_temp_);
+    spv::Id sample_depth24 = depth_format_if.createMergePhi(
+        sample_depth_float24, sample_depth_unorm24);
 
     // Perform the depth test.
     spv::Id old_depth = builder_->createBinOp(
@@ -2131,206 +1950,188 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
             builder_->createBinOp(spv::OpUGreaterThan, type_bool_,
                                   sample_depth24, old_depth)));
 
-    // Begin the stencil test.
-    spv::Block& block_stencil_enabled_head = *builder_->getBuildPoint();
-    spv::Block& block_stencil_enabled = builder_->makeNewBlock();
-    spv::Block& block_stencil_enabled_merge = builder_->makeNewBlock();
-    builder_->createSelectionMerge(&block_stencil_enabled_merge,
-                                   spv::SelectionControlDontFlattenMask);
-    builder_->createConditionalBranch(stencil_enabled, &block_stencil_enabled,
-                                      &block_stencil_enabled_merge);
-    builder_->setBuildPoint(&block_stencil_enabled);
-
-    // Perform the stencil test.
-    // The read mask has zeros in the upper bits, applying it to the combined
-    // stencil and depth will remove the depth part.
-    spv::Id old_stencil_read_masked = builder_->createBinOp(
-        spv::OpBitwiseAnd, type_uint_, old_depth_stencil, stencil_read_mask);
-    spv::Id stencil_passed_if_enabled = builder_->createBinOp(
-        spv::OpLogicalAnd, type_bool_, stencil_pass_if_less,
-        builder_->createBinOp(spv::OpULessThan, type_bool_,
-                              stencil_reference_read_masked,
-                              old_stencil_read_masked));
-    stencil_passed_if_enabled = builder_->createBinOp(
-        spv::OpLogicalOr, type_bool_, stencil_passed_if_enabled,
-        builder_->createBinOp(
-            spv::OpLogicalAnd, type_bool_, stencil_pass_if_equal,
-            builder_->createBinOp(spv::OpIEqual, type_bool_,
-                                  stencil_reference_read_masked,
-                                  old_stencil_read_masked)));
-    stencil_passed_if_enabled = builder_->createBinOp(
-        spv::OpLogicalOr, type_bool_, stencil_passed_if_enabled,
-        builder_->createBinOp(
-            spv::OpLogicalAnd, type_bool_, stencil_pass_if_greater,
-            builder_->createBinOp(spv::OpUGreaterThan, type_bool_,
-                                  stencil_reference_read_masked,
-                                  old_stencil_read_masked)));
-    spv::Id stencil_op = builder_->createTriOp(
-        spv::OpBitFieldUExtract, type_uint_, stencil_func_ops,
-        builder_->createTriOp(
-            spv::OpSelect, type_uint_, stencil_passed_if_enabled,
-            builder_->createTriOp(spv::OpSelect, type_uint_, depth_passed,
-                                  builder_->makeUintConstant(6),
-                                  builder_->makeUintConstant(9)),
-            builder_->makeUintConstant(3)),
-        builder_->makeUintConstant(3));
-    spv::Block& block_stencil_op_head = *builder_->getBuildPoint();
-    spv::Block& block_stencil_op_keep = builder_->makeNewBlock();
-    spv::Block& block_stencil_op_zero = builder_->makeNewBlock();
-    spv::Block& block_stencil_op_replace = builder_->makeNewBlock();
-    spv::Block& block_stencil_op_increment_clamp = builder_->makeNewBlock();
-    spv::Block& block_stencil_op_decrement_clamp = builder_->makeNewBlock();
-    spv::Block& block_stencil_op_invert = builder_->makeNewBlock();
-    spv::Block& block_stencil_op_increment_wrap = builder_->makeNewBlock();
-    spv::Block& block_stencil_op_decrement_wrap = builder_->makeNewBlock();
-    spv::Block& block_stencil_op_merge = builder_->makeNewBlock();
-    builder_->createSelectionMerge(&block_stencil_op_merge,
-                                   spv::SelectionControlDontFlattenMask);
+    // Perform the stencil test if enabled.
+    SpirvBuilder::IfBuilder stencil_if(
+        stencil_enabled, spv::SelectionControlDontFlattenMask, *builder_);
+    spv::Id stencil_passed_if_enabled;
+    spv::Id new_stencil_and_old_depth_if_stencil_enabled;
     {
-      std::unique_ptr<spv::Instruction> stencil_op_switch_op =
-          std::make_unique<spv::Instruction>(spv::OpSwitch);
-      stencil_op_switch_op->addIdOperand(stencil_op);
-      // Make keep the default.
-      stencil_op_switch_op->addIdOperand(block_stencil_op_keep.getId());
-      stencil_op_switch_op->addImmediateOperand(
-          int32_t(xenos::StencilOp::kZero));
-      stencil_op_switch_op->addIdOperand(block_stencil_op_zero.getId());
-      stencil_op_switch_op->addImmediateOperand(
-          int32_t(xenos::StencilOp::kReplace));
-      stencil_op_switch_op->addIdOperand(block_stencil_op_replace.getId());
-      stencil_op_switch_op->addImmediateOperand(
-          int32_t(xenos::StencilOp::kIncrementClamp));
-      stencil_op_switch_op->addIdOperand(
-          block_stencil_op_increment_clamp.getId());
-      stencil_op_switch_op->addImmediateOperand(
-          int32_t(xenos::StencilOp::kDecrementClamp));
-      stencil_op_switch_op->addIdOperand(
-          block_stencil_op_decrement_clamp.getId());
-      stencil_op_switch_op->addImmediateOperand(
-          int32_t(xenos::StencilOp::kInvert));
-      stencil_op_switch_op->addIdOperand(block_stencil_op_invert.getId());
-      stencil_op_switch_op->addImmediateOperand(
-          int32_t(xenos::StencilOp::kIncrementWrap));
-      stencil_op_switch_op->addIdOperand(
-          block_stencil_op_increment_wrap.getId());
-      stencil_op_switch_op->addImmediateOperand(
-          int32_t(xenos::StencilOp::kDecrementWrap));
-      stencil_op_switch_op->addIdOperand(
-          block_stencil_op_decrement_wrap.getId());
-      builder_->getBuildPoint()->addInstruction(
-          std::move(stencil_op_switch_op));
+      // The read mask has zeros in the upper bits, applying it to the combined
+      // stencil and depth will remove the depth part.
+      spv::Id old_stencil_read_masked = builder_->createBinOp(
+          spv::OpBitwiseAnd, type_uint_, old_depth_stencil, stencil_read_mask);
+      stencil_passed_if_enabled = builder_->createBinOp(
+          spv::OpLogicalAnd, type_bool_, stencil_pass_if_less,
+          builder_->createBinOp(spv::OpULessThan, type_bool_,
+                                stencil_reference_read_masked,
+                                old_stencil_read_masked));
+      stencil_passed_if_enabled = builder_->createBinOp(
+          spv::OpLogicalOr, type_bool_, stencil_passed_if_enabled,
+          builder_->createBinOp(
+              spv::OpLogicalAnd, type_bool_, stencil_pass_if_equal,
+              builder_->createBinOp(spv::OpIEqual, type_bool_,
+                                    stencil_reference_read_masked,
+                                    old_stencil_read_masked)));
+      stencil_passed_if_enabled = builder_->createBinOp(
+          spv::OpLogicalOr, type_bool_, stencil_passed_if_enabled,
+          builder_->createBinOp(
+              spv::OpLogicalAnd, type_bool_, stencil_pass_if_greater,
+              builder_->createBinOp(spv::OpUGreaterThan, type_bool_,
+                                    stencil_reference_read_masked,
+                                    old_stencil_read_masked)));
+      spv::Id stencil_op = builder_->createTriOp(
+          spv::OpBitFieldUExtract, type_uint_, stencil_func_ops,
+          builder_->createTriOp(
+              spv::OpSelect, type_uint_, stencil_passed_if_enabled,
+              builder_->createTriOp(spv::OpSelect, type_uint_, depth_passed,
+                                    builder_->makeUintConstant(6),
+                                    builder_->makeUintConstant(9)),
+              builder_->makeUintConstant(3)),
+          builder_->makeUintConstant(3));
+      spv::Block& block_stencil_op_head = *builder_->getBuildPoint();
+      spv::Block& block_stencil_op_keep = builder_->makeNewBlock();
+      spv::Block& block_stencil_op_zero = builder_->makeNewBlock();
+      spv::Block& block_stencil_op_replace = builder_->makeNewBlock();
+      spv::Block& block_stencil_op_increment_clamp = builder_->makeNewBlock();
+      spv::Block& block_stencil_op_decrement_clamp = builder_->makeNewBlock();
+      spv::Block& block_stencil_op_invert = builder_->makeNewBlock();
+      spv::Block& block_stencil_op_increment_wrap = builder_->makeNewBlock();
+      spv::Block& block_stencil_op_decrement_wrap = builder_->makeNewBlock();
+      spv::Block& block_stencil_op_merge = builder_->makeNewBlock();
+      builder_->createSelectionMerge(&block_stencil_op_merge,
+                                     spv::SelectionControlDontFlattenMask);
+      {
+        std::unique_ptr<spv::Instruction> stencil_op_switch_op =
+            std::make_unique<spv::Instruction>(spv::OpSwitch);
+        stencil_op_switch_op->addIdOperand(stencil_op);
+        // Make keep the default.
+        stencil_op_switch_op->addIdOperand(block_stencil_op_keep.getId());
+        stencil_op_switch_op->addImmediateOperand(
+            int32_t(xenos::StencilOp::kZero));
+        stencil_op_switch_op->addIdOperand(block_stencil_op_zero.getId());
+        stencil_op_switch_op->addImmediateOperand(
+            int32_t(xenos::StencilOp::kReplace));
+        stencil_op_switch_op->addIdOperand(block_stencil_op_replace.getId());
+        stencil_op_switch_op->addImmediateOperand(
+            int32_t(xenos::StencilOp::kIncrementClamp));
+        stencil_op_switch_op->addIdOperand(
+            block_stencil_op_increment_clamp.getId());
+        stencil_op_switch_op->addImmediateOperand(
+            int32_t(xenos::StencilOp::kDecrementClamp));
+        stencil_op_switch_op->addIdOperand(
+            block_stencil_op_decrement_clamp.getId());
+        stencil_op_switch_op->addImmediateOperand(
+            int32_t(xenos::StencilOp::kInvert));
+        stencil_op_switch_op->addIdOperand(block_stencil_op_invert.getId());
+        stencil_op_switch_op->addImmediateOperand(
+            int32_t(xenos::StencilOp::kIncrementWrap));
+        stencil_op_switch_op->addIdOperand(
+            block_stencil_op_increment_wrap.getId());
+        stencil_op_switch_op->addImmediateOperand(
+            int32_t(xenos::StencilOp::kDecrementWrap));
+        stencil_op_switch_op->addIdOperand(
+            block_stencil_op_decrement_wrap.getId());
+        builder_->getBuildPoint()->addInstruction(
+            std::move(stencil_op_switch_op));
+      }
+      block_stencil_op_keep.addPredecessor(&block_stencil_op_head);
+      block_stencil_op_zero.addPredecessor(&block_stencil_op_head);
+      block_stencil_op_replace.addPredecessor(&block_stencil_op_head);
+      block_stencil_op_increment_clamp.addPredecessor(&block_stencil_op_head);
+      block_stencil_op_decrement_clamp.addPredecessor(&block_stencil_op_head);
+      block_stencil_op_invert.addPredecessor(&block_stencil_op_head);
+      block_stencil_op_increment_wrap.addPredecessor(&block_stencil_op_head);
+      block_stencil_op_decrement_wrap.addPredecessor(&block_stencil_op_head);
+      // Keep - will use the old stencil in the phi.
+      builder_->setBuildPoint(&block_stencil_op_keep);
+      builder_->createBranch(&block_stencil_op_merge);
+      // Zero - will use the zero constant in the phi.
+      builder_->setBuildPoint(&block_stencil_op_zero);
+      builder_->createBranch(&block_stencil_op_merge);
+      // Replace - will use the stencil reference in the phi.
+      builder_->setBuildPoint(&block_stencil_op_replace);
+      builder_->createBranch(&block_stencil_op_merge);
+      // Increment and clamp.
+      builder_->setBuildPoint(&block_stencil_op_increment_clamp);
+      spv::Id new_stencil_in_low_bits_increment_clamp = builder_->createBinOp(
+          spv::OpIAdd, type_uint_,
+          builder_->createBinBuiltinCall(
+              type_uint_, ext_inst_glsl_std_450_, GLSLstd450UMin,
+              builder_->makeUintConstant(UINT8_MAX - 1),
+              builder_->createBinOp(spv::OpBitwiseAnd, type_uint_,
+                                    old_depth_stencil,
+                                    builder_->makeUintConstant(UINT8_MAX))),
+          const_uint_1);
+      builder_->createBranch(&block_stencil_op_merge);
+      // Decrement and clamp.
+      builder_->setBuildPoint(&block_stencil_op_decrement_clamp);
+      spv::Id new_stencil_in_low_bits_decrement_clamp = builder_->createBinOp(
+          spv::OpISub, type_uint_,
+          builder_->createBinBuiltinCall(
+              type_uint_, ext_inst_glsl_std_450_, GLSLstd450UMax, const_uint_1,
+              builder_->createBinOp(spv::OpBitwiseAnd, type_uint_,
+                                    old_depth_stencil,
+                                    builder_->makeUintConstant(UINT8_MAX))),
+          const_uint_1);
+      builder_->createBranch(&block_stencil_op_merge);
+      // Invert.
+      builder_->setBuildPoint(&block_stencil_op_invert);
+      spv::Id new_stencil_in_low_bits_invert =
+          builder_->createUnaryOp(spv::OpNot, type_uint_, old_depth_stencil);
+      builder_->createBranch(&block_stencil_op_merge);
+      // Increment and wrap.
+      // The upper bits containing the old depth have no effect on the behavior.
+      builder_->setBuildPoint(&block_stencil_op_increment_wrap);
+      spv::Id new_stencil_in_low_bits_increment_wrap = builder_->createBinOp(
+          spv::OpIAdd, type_uint_, old_depth_stencil, const_uint_1);
+      builder_->createBranch(&block_stencil_op_merge);
+      // Decrement and wrap.
+      // The upper bits containing the old depth have no effect on the behavior.
+      builder_->setBuildPoint(&block_stencil_op_decrement_wrap);
+      spv::Id new_stencil_in_low_bits_decrement_wrap = builder_->createBinOp(
+          spv::OpISub, type_uint_, old_depth_stencil, const_uint_1);
+      builder_->createBranch(&block_stencil_op_merge);
+      // Select the new stencil (with undefined data in bits starting from 8)
+      // based on the stencil operation.
+      builder_->setBuildPoint(&block_stencil_op_merge);
+      id_vector_temp_.clear();
+      id_vector_temp_.reserve(2 * 8);
+      id_vector_temp_.push_back(old_depth_stencil);
+      id_vector_temp_.push_back(block_stencil_op_keep.getId());
+      id_vector_temp_.push_back(const_uint_0_);
+      id_vector_temp_.push_back(block_stencil_op_zero.getId());
+      id_vector_temp_.push_back(stencil_reference);
+      id_vector_temp_.push_back(block_stencil_op_replace.getId());
+      id_vector_temp_.push_back(new_stencil_in_low_bits_increment_clamp);
+      id_vector_temp_.push_back(block_stencil_op_increment_clamp.getId());
+      id_vector_temp_.push_back(new_stencil_in_low_bits_decrement_clamp);
+      id_vector_temp_.push_back(block_stencil_op_decrement_clamp.getId());
+      id_vector_temp_.push_back(new_stencil_in_low_bits_invert);
+      id_vector_temp_.push_back(block_stencil_op_invert.getId());
+      id_vector_temp_.push_back(new_stencil_in_low_bits_increment_wrap);
+      id_vector_temp_.push_back(block_stencil_op_increment_wrap.getId());
+      id_vector_temp_.push_back(new_stencil_in_low_bits_decrement_wrap);
+      id_vector_temp_.push_back(block_stencil_op_decrement_wrap.getId());
+      spv::Id new_stencil_in_low_bits_if_enabled =
+          builder_->createOp(spv::OpPhi, type_uint_, id_vector_temp_);
+      // Merge the old depth / stencil (old depth kept from the old depth /
+      // stencil so the separate old depth register is not needed anymore after
+      // the depth test) and the new stencil based on the write mask.
+      new_stencil_and_old_depth_if_stencil_enabled = builder_->createBinOp(
+          spv::OpBitwiseOr, type_uint_,
+          builder_->createBinOp(spv::OpBitwiseAnd, type_uint_,
+                                old_depth_stencil, stencil_write_keep_mask),
+          builder_->createBinOp(spv::OpBitwiseAnd, type_uint_,
+                                new_stencil_in_low_bits_if_enabled,
+                                stencil_write_mask));
     }
-    block_stencil_op_keep.addPredecessor(&block_stencil_op_head);
-    block_stencil_op_zero.addPredecessor(&block_stencil_op_head);
-    block_stencil_op_replace.addPredecessor(&block_stencil_op_head);
-    block_stencil_op_increment_clamp.addPredecessor(&block_stencil_op_head);
-    block_stencil_op_decrement_clamp.addPredecessor(&block_stencil_op_head);
-    block_stencil_op_invert.addPredecessor(&block_stencil_op_head);
-    block_stencil_op_increment_wrap.addPredecessor(&block_stencil_op_head);
-    block_stencil_op_decrement_wrap.addPredecessor(&block_stencil_op_head);
-    // Keep - will use the old stencil in the phi.
-    builder_->setBuildPoint(&block_stencil_op_keep);
-    builder_->createBranch(&block_stencil_op_merge);
-    // Zero - will use the zero constant in the phi.
-    builder_->setBuildPoint(&block_stencil_op_zero);
-    builder_->createBranch(&block_stencil_op_merge);
-    // Replace - will use the stencil reference in the phi.
-    builder_->setBuildPoint(&block_stencil_op_replace);
-    builder_->createBranch(&block_stencil_op_merge);
-    // Increment and clamp.
-    builder_->setBuildPoint(&block_stencil_op_increment_clamp);
-    spv::Id new_stencil_in_low_bits_increment_clamp = builder_->createBinOp(
-        spv::OpIAdd, type_uint_,
-        builder_->createBinBuiltinCall(
-            type_uint_, ext_inst_glsl_std_450_, GLSLstd450UMin,
-            builder_->makeUintConstant(UINT8_MAX - 1),
-            builder_->createBinOp(spv::OpBitwiseAnd, type_uint_,
-                                  old_depth_stencil,
-                                  builder_->makeUintConstant(UINT8_MAX))),
-        const_uint_1);
-    builder_->createBranch(&block_stencil_op_merge);
-    // Decrement and clamp.
-    builder_->setBuildPoint(&block_stencil_op_decrement_clamp);
-    spv::Id new_stencil_in_low_bits_decrement_clamp = builder_->createBinOp(
-        spv::OpISub, type_uint_,
-        builder_->createBinBuiltinCall(
-            type_uint_, ext_inst_glsl_std_450_, GLSLstd450UMax, const_uint_1,
-            builder_->createBinOp(spv::OpBitwiseAnd, type_uint_,
-                                  old_depth_stencil,
-                                  builder_->makeUintConstant(UINT8_MAX))),
-        const_uint_1);
-    builder_->createBranch(&block_stencil_op_merge);
-    // Invert.
-    builder_->setBuildPoint(&block_stencil_op_invert);
-    spv::Id new_stencil_in_low_bits_invert =
-        builder_->createUnaryOp(spv::OpNot, type_uint_, old_depth_stencil);
-    builder_->createBranch(&block_stencil_op_merge);
-    // Increment and wrap.
-    // The upper bits containing the old depth have no effect on the behavior.
-    builder_->setBuildPoint(&block_stencil_op_increment_wrap);
-    spv::Id new_stencil_in_low_bits_increment_wrap = builder_->createBinOp(
-        spv::OpIAdd, type_uint_, old_depth_stencil, const_uint_1);
-    builder_->createBranch(&block_stencil_op_merge);
-    // Decrement and wrap.
-    // The upper bits containing the old depth have no effect on the behavior.
-    builder_->setBuildPoint(&block_stencil_op_decrement_wrap);
-    spv::Id new_stencil_in_low_bits_decrement_wrap = builder_->createBinOp(
-        spv::OpISub, type_uint_, old_depth_stencil, const_uint_1);
-    builder_->createBranch(&block_stencil_op_merge);
-    // Select the new stencil (with undefined data in bits starting from 8)
-    // based on the stencil operation.
-    builder_->setBuildPoint(&block_stencil_op_merge);
-    id_vector_temp_.clear();
-    id_vector_temp_.reserve(2 * 8);
-    id_vector_temp_.push_back(old_depth_stencil);
-    id_vector_temp_.push_back(block_stencil_op_keep.getId());
-    id_vector_temp_.push_back(const_uint_0_);
-    id_vector_temp_.push_back(block_stencil_op_zero.getId());
-    id_vector_temp_.push_back(stencil_reference);
-    id_vector_temp_.push_back(block_stencil_op_replace.getId());
-    id_vector_temp_.push_back(new_stencil_in_low_bits_increment_clamp);
-    id_vector_temp_.push_back(block_stencil_op_increment_clamp.getId());
-    id_vector_temp_.push_back(new_stencil_in_low_bits_decrement_clamp);
-    id_vector_temp_.push_back(block_stencil_op_decrement_clamp.getId());
-    id_vector_temp_.push_back(new_stencil_in_low_bits_invert);
-    id_vector_temp_.push_back(block_stencil_op_invert.getId());
-    id_vector_temp_.push_back(new_stencil_in_low_bits_increment_wrap);
-    id_vector_temp_.push_back(block_stencil_op_increment_wrap.getId());
-    id_vector_temp_.push_back(new_stencil_in_low_bits_decrement_wrap);
-    id_vector_temp_.push_back(block_stencil_op_decrement_wrap.getId());
-    spv::Id new_stencil_in_low_bits_if_enabled =
-        builder_->createOp(spv::OpPhi, type_uint_, id_vector_temp_);
-    // Merge the old depth / stencil (old depth kept from the old depth /
-    // stencil so the separate old depth register is not needed anymore after
-    // the depth test) and the new stencil based on the write mask.
-    spv::Id new_stencil_and_old_depth_if_stencil_enabled =
-        builder_->createBinOp(
-            spv::OpBitwiseOr, type_uint_,
-            builder_->createBinOp(spv::OpBitwiseAnd, type_uint_,
-                                  old_depth_stencil, stencil_write_keep_mask),
-            builder_->createBinOp(spv::OpBitwiseAnd, type_uint_,
-                                  new_stencil_in_low_bits_if_enabled,
-                                  stencil_write_mask));
-
+    stencil_if.makeEndIf();
     // Choose the result based on whether the stencil test was done.
     // All phi operations must be the first in the block.
-    builder_->createBranch(&block_stencil_enabled_merge);
-    spv::Block& block_stencil_enabled_end = *builder_->getBuildPoint();
-    builder_->setBuildPoint(&block_stencil_enabled_merge);
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(stencil_passed_if_enabled);
-    id_vector_temp_.push_back(block_stencil_enabled_end.getId());
-    id_vector_temp_.push_back(builder_->makeBoolConstant(true));
-    id_vector_temp_.push_back(block_stencil_enabled_head.getId());
-    spv::Id stencil_passed =
-        builder_->createOp(spv::OpPhi, type_bool_, id_vector_temp_);
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(new_stencil_and_old_depth_if_stencil_enabled);
-    id_vector_temp_.push_back(block_stencil_enabled_end.getId());
-    id_vector_temp_.push_back(old_depth_stencil);
-    id_vector_temp_.push_back(block_stencil_enabled_head.getId());
-    spv::Id new_stencil_and_old_depth =
-        builder_->createOp(spv::OpPhi, type_uint_, id_vector_temp_);
+    spv::Id stencil_passed = stencil_if.createMergePhi(
+        stencil_passed_if_enabled, builder_->makeBoolConstant(true));
+    spv::Id new_stencil_and_old_depth = stencil_if.createMergePhi(
+        new_stencil_and_old_depth_if_stencil_enabled, old_depth_stencil);
 
     // Check whether the tests have passed, and exclude the bit from the
     // coverage if not.
@@ -2384,37 +2185,19 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
       new_depth_stencil_write_condition = new_depth_stencil_different;
     }
     if (new_depth_stencil_write_condition != spv::NoResult) {
-      spv::Block& block_depth_stencil_write = builder_->makeNewBlock();
-      spv::Block& block_depth_stencil_write_merge = builder_->makeNewBlock();
-      builder_->createSelectionMerge(&block_depth_stencil_write_merge,
-                                     spv::SelectionControlDontFlattenMask);
-      builder_->createConditionalBranch(new_depth_stencil_write_condition,
-                                        &block_depth_stencil_write,
-                                        &block_depth_stencil_write_merge);
-      builder_->setBuildPoint(&block_depth_stencil_write);
+      SpirvBuilder::IfBuilder new_depth_stencil_write_if(
+          new_depth_stencil_write_condition,
+          spv::SelectionControlDontFlattenMask, *builder_);
       builder_->createStore(new_depth_stencil, sample_access_chain);
-      builder_->createBranch(&block_depth_stencil_write_merge);
-      builder_->setBuildPoint(&block_depth_stencil_write_merge);
+      new_depth_stencil_write_if.makeEndIf();
     }
 
-    builder_->createBranch(&block_sample_covered_merge);
-    spv::Block& block_sample_covered_end = *builder_->getBuildPoint();
-    builder_->setBuildPoint(&block_sample_covered_merge);
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(new_sample_mask_after_sample);
-    id_vector_temp_.push_back(block_sample_covered_end.getId());
-    id_vector_temp_.push_back(new_sample_mask);
-    id_vector_temp_.push_back(block_sample_covered_head.getId());
-    new_sample_mask =
-        builder_->createOp(spv::OpPhi, type_uint_, id_vector_temp_);
+    if_sample_covered.makeEndIf();
+    new_sample_mask = if_sample_covered.createMergePhi(
+        new_sample_mask_after_sample, new_sample_mask);
     if (is_early) {
-      id_vector_temp_.clear();
-      id_vector_temp_.push_back(new_depth_stencil);
-      id_vector_temp_.push_back(block_sample_covered_end.getId());
-      id_vector_temp_.push_back(const_uint_0_);
-      id_vector_temp_.push_back(block_sample_covered_head.getId());
       late_write_depth_stencil[i] =
-          builder_->createOp(spv::OpPhi, type_uint_, id_vector_temp_);
+          if_sample_covered.createMergePhi(new_depth_stencil, const_uint_0_);
     }
   }
 
@@ -2442,25 +2225,14 @@ void SpirvShaderTranslator::FSI_DepthStencilTest(
       }
     }
   }
-  builder_->createBranch(&block_depth_stencil_enabled_merge);
-  spv::Block& block_depth_stencil_enabled_end = *builder_->getBuildPoint();
-  builder_->setBuildPoint(&block_depth_stencil_enabled_merge);
-  id_vector_temp_.clear();
-  id_vector_temp_.push_back(new_sample_mask);
-  id_vector_temp_.push_back(block_depth_stencil_enabled_end.getId());
-  id_vector_temp_.push_back(main_fsi_sample_mask_);
-  id_vector_temp_.push_back(block_depth_stencil_enabled_head.getId());
-  main_fsi_sample_mask_ =
-      builder_->createOp(spv::OpPhi, type_uint_, id_vector_temp_);
+  if_depth_stencil_enabled.makeEndIf();
+  main_fsi_sample_mask_ = if_depth_stencil_enabled.createMergePhi(
+      new_sample_mask, main_fsi_sample_mask_);
   if (is_early) {
     for (uint32_t i = 0; i < 4; ++i) {
-      id_vector_temp_.clear();
-      id_vector_temp_.push_back(late_write_depth_stencil[i]);
-      id_vector_temp_.push_back(block_depth_stencil_enabled_end.getId());
-      id_vector_temp_.push_back(const_uint_0_);
-      id_vector_temp_.push_back(block_depth_stencil_enabled_head.getId());
       main_fsi_late_write_depth_stencil_[i] =
-          builder_->createOp(spv::OpPhi, type_uint_, id_vector_temp_);
+          if_depth_stencil_enabled.createMergePhi(late_write_depth_stencil[i],
+                                                  const_uint_0_);
     }
   }
 }
@@ -3160,32 +2932,25 @@ spv::Id SpirvShaderTranslator::FSI_FlushNaNClampAndInBlending(
   assert_true(builder_->getTypeId(min_value) == color_or_alpha_type);
   assert_true(builder_->getTypeId(max_value) == color_or_alpha_type);
 
-  spv::Block& block_is_fixed_point_head = *builder_->getBuildPoint();
-  spv::Block& block_is_fixed_point_if = builder_->makeNewBlock();
-  spv::Block& block_is_fixed_point_merge = builder_->makeNewBlock();
-  builder_->createSelectionMerge(&block_is_fixed_point_merge,
-                                 spv::SelectionControlDontFlattenMask);
-  builder_->createConditionalBranch(is_fixed_point, &block_is_fixed_point_if,
-                                    &block_is_fixed_point_merge);
-  builder_->setBuildPoint(&block_is_fixed_point_if);
-  // Flush NaN to 0 even for signed (NMax would flush it to the minimum value).
-  spv::Id color_or_alpha_clamped = builder_->createTriBuiltinCall(
-      color_or_alpha_type, ext_inst_glsl_std_450_, GLSLstd450FClamp,
-      builder_->createTriOp(
-          spv::OpSelect, color_or_alpha_type,
-          builder_->createUnaryOp(spv::OpIsNan,
-                                  type_bool_vectors_[component_count - 1],
-                                  color_or_alpha),
-          const_float_vectors_0_[component_count - 1], color_or_alpha),
-      min_value, max_value);
-  builder_->createBranch(&block_is_fixed_point_merge);
-  builder_->setBuildPoint(&block_is_fixed_point_merge);
-  id_vector_temp_.clear();
-  id_vector_temp_.push_back(color_or_alpha_clamped);
-  id_vector_temp_.push_back(block_is_fixed_point_if.getId());
-  id_vector_temp_.push_back(color_or_alpha);
-  id_vector_temp_.push_back(block_is_fixed_point_head.getId());
-  return builder_->createOp(spv::OpPhi, color_or_alpha_type, id_vector_temp_);
+  SpirvBuilder::IfBuilder if_fixed_point(
+      is_fixed_point, spv::SelectionControlDontFlattenMask, *builder_);
+  spv::Id color_or_alpha_clamped;
+  {
+    // Flush NaN to 0 even for signed (NMax would flush it to the minimum
+    // value).
+    color_or_alpha_clamped = builder_->createTriBuiltinCall(
+        color_or_alpha_type, ext_inst_glsl_std_450_, GLSLstd450FClamp,
+        builder_->createTriOp(
+            spv::OpSelect, color_or_alpha_type,
+            builder_->createUnaryOp(spv::OpIsNan,
+                                    type_bool_vectors_[component_count - 1],
+                                    color_or_alpha),
+            const_float_vectors_0_[component_count - 1], color_or_alpha),
+        min_value, max_value);
+  }
+  if_fixed_point.makeEndIf();
+
+  return if_fixed_point.createMergePhi(color_or_alpha_clamped, color_or_alpha);
 }
 
 spv::Id SpirvShaderTranslator::FSI_ApplyColorBlendFactor(
@@ -3197,20 +2962,13 @@ spv::Id SpirvShaderTranslator::FSI_ApplyColorBlendFactor(
   // infinity and NaN are not potentially involved in the multiplication.
   // Calculate the condition before the selection merge, which must be the
   // penultimate instruction in the block.
-  spv::Id factor_not_zero = builder_->createBinOp(
-      spv::OpINotEqual, type_bool_, factor,
-      builder_->makeUintConstant(uint32_t(xenos::BlendFactor::kZero)));
-  spv::Block& block_not_zero_head = *builder_->getBuildPoint();
-  spv::Block& block_not_zero_if = builder_->makeNewBlock();
-  spv::Block& block_not_zero_merge = builder_->makeNewBlock();
-  builder_->createSelectionMerge(&block_not_zero_merge,
-                                 spv::SelectionControlDontFlattenMask);
-  builder_->createConditionalBranch(factor_not_zero, &block_not_zero_if,
-                                    &block_not_zero_merge);
+  SpirvBuilder::IfBuilder factor_not_zero_if(
+      builder_->createBinOp(
+          spv::OpINotEqual, type_bool_, factor,
+          builder_->makeUintConstant(uint32_t(xenos::BlendFactor::kZero))),
+      spv::SelectionControlDontFlattenMask, *builder_);
 
   // Non-zero factor case.
-
-  builder_->setBuildPoint(&block_not_zero_if);
 
   spv::Block& block_factor_head = *builder_->getBuildPoint();
   spv::Block& block_factor_one = builder_->makeNewBlock();
@@ -3386,18 +3144,11 @@ spv::Id SpirvShaderTranslator::FSI_ApplyColorBlendFactor(
       builder_->createOp(spv::OpPhi, type_float3_, id_vector_temp_);
   spv::Id result = FSI_FlushNaNClampAndInBlending(
       result_unclamped, is_fixed_point, clamp_min_value, clamp_max_value);
-  builder_->createBranch(&block_not_zero_merge);
-  // Get the latest block for a non-zero factor after all the control flow.
-  spv::Block& block_not_zero_if_end = *builder_->getBuildPoint();
+
+  factor_not_zero_if.makeEndIf();
 
   // Make the result zero if the factor is zero.
-  builder_->setBuildPoint(&block_not_zero_merge);
-  id_vector_temp_.clear();
-  id_vector_temp_.push_back(result);
-  id_vector_temp_.push_back(block_not_zero_if_end.getId());
-  id_vector_temp_.push_back(const_float3_0_);
-  id_vector_temp_.push_back(block_not_zero_head.getId());
-  return builder_->createOp(spv::OpPhi, type_float3_, id_vector_temp_);
+  return factor_not_zero_if.createMergePhi(result, const_float3_0_);
 }
 
 spv::Id SpirvShaderTranslator::FSI_ApplyAlphaBlendFactor(
@@ -3408,20 +3159,13 @@ spv::Id SpirvShaderTranslator::FSI_ApplyAlphaBlendFactor(
   // infinity and NaN are not potentially involved in the multiplication.
   // Calculate the condition before the selection merge, which must be the
   // penultimate instruction in the block.
-  spv::Id factor_not_zero = builder_->createBinOp(
-      spv::OpINotEqual, type_bool_, factor,
-      builder_->makeUintConstant(uint32_t(xenos::BlendFactor::kZero)));
-  spv::Block& block_not_zero_head = *builder_->getBuildPoint();
-  spv::Block& block_not_zero_if = builder_->makeNewBlock();
-  spv::Block& block_not_zero_merge = builder_->makeNewBlock();
-  builder_->createSelectionMerge(&block_not_zero_merge,
-                                 spv::SelectionControlDontFlattenMask);
-  builder_->createConditionalBranch(factor_not_zero, &block_not_zero_if,
-                                    &block_not_zero_merge);
+  SpirvBuilder::IfBuilder factor_not_zero_if(
+      builder_->createBinOp(
+          spv::OpINotEqual, type_bool_, factor,
+          builder_->makeUintConstant(uint32_t(xenos::BlendFactor::kZero))),
+      spv::SelectionControlDontFlattenMask, *builder_);
 
   // Non-zero factor case.
-
-  builder_->setBuildPoint(&block_not_zero_if);
 
   spv::Block& block_factor_head = *builder_->getBuildPoint();
   spv::Block& block_factor_one = builder_->makeNewBlock();
@@ -3557,18 +3301,11 @@ spv::Id SpirvShaderTranslator::FSI_ApplyAlphaBlendFactor(
       builder_->createOp(spv::OpPhi, type_float_, id_vector_temp_);
   spv::Id result = FSI_FlushNaNClampAndInBlending(
       result_unclamped, is_fixed_point, clamp_min_value, clamp_max_value);
-  builder_->createBranch(&block_not_zero_merge);
-  // Get the latest block for a non-zero factor after all the control flow.
-  spv::Block& block_not_zero_if_end = *builder_->getBuildPoint();
+
+  factor_not_zero_if.makeEndIf();
 
   // Make the result zero if the factor is zero.
-  builder_->setBuildPoint(&block_not_zero_merge);
-  id_vector_temp_.clear();
-  id_vector_temp_.push_back(result);
-  id_vector_temp_.push_back(block_not_zero_if_end.getId());
-  id_vector_temp_.push_back(const_float_0_);
-  id_vector_temp_.push_back(block_not_zero_head.getId());
-  return builder_->createOp(spv::OpPhi, type_float_, id_vector_temp_);
+  return factor_not_zero_if.createMergePhi(result, const_float_0_);
 }
 
 spv::Id SpirvShaderTranslator::FSI_BlendColorOrAlphaWithUnclampedResult(

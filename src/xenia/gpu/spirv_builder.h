@@ -10,7 +10,10 @@
 #ifndef XENIA_GPU_SPIRV_BUILDER_H_
 #define XENIA_GPU_SPIRV_BUILDER_H_
 
+#include <optional>
+
 #include "third_party/glslang/SPIRV/SpvBuilder.h"
+#include "xenia/base/assert.h"
 
 namespace xe {
 namespace gpu {
@@ -42,6 +45,60 @@ class SpirvBuilder : public spv::Builder {
   spv::Id createTriBuiltinCall(spv::Id result_type, spv::Id builtins,
                                int entry_point, spv::Id operand1,
                                spv::Id operand2, spv::Id operand3);
+
+  // Helper to use for building nested control flow with if-then-else with
+  // additions over SpvBuilder::If.
+  class IfBuilder {
+   public:
+    IfBuilder(spv::Id condition, unsigned int control, SpirvBuilder& builder,
+              unsigned int thenWeight = 0, unsigned int elseWeight = 0);
+
+    ~IfBuilder() {
+#ifndef NDEBUG
+      assert_true(currentBranch == Branch::kMerge);
+#endif
+    }
+
+    void makeBeginElse(bool branchToMerge = true);
+    void makeEndIf(bool branchToMerge = true);
+
+    // If there's no then/else block that branches to the merge block, the phi
+    // parent is the header block - this simplifies then-only usage.
+    spv::Id getThenPhiParent() const { return thenPhiParent; }
+    spv::Id getElsePhiParent() const { return elsePhiParent; }
+
+    spv::Id createMergePhi(spv::Id then_variable, spv::Id else_variable) const;
+
+   private:
+    enum class Branch {
+      kThen,
+      kElse,
+      kMerge,
+    };
+
+    IfBuilder(const IfBuilder& ifBuilder) = delete;
+    IfBuilder& operator=(const IfBuilder& ifBuilder) = delete;
+
+    SpirvBuilder& builder;
+    spv::Id condition;
+    unsigned int control;
+    unsigned int thenWeight;
+    unsigned int elseWeight;
+
+    spv::Function& function;
+
+    spv::Block* headerBlock;
+    spv::Block* thenBlock;
+    spv::Block* elseBlock;
+    spv::Block* mergeBlock;
+
+    spv::Id thenPhiParent;
+    spv::Id elsePhiParent;
+
+#ifndef NDEBUG
+    Branch currentBranch = Branch::kThen;
+#endif
+  };
 };
 
 }  // namespace gpu

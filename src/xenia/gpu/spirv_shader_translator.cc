@@ -1272,89 +1272,70 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
                 builder_->makeUintConstant(static_cast<unsigned int>(
                     kSysFlag_ComputeOrPrimitiveVertexIndexLoad))),
             const_uint_0_);
-        spv::Block& block_load_vertex_index_pre = *builder_->getBuildPoint();
-        spv::Block& block_load_vertex_index_start = builder_->makeNewBlock();
-        spv::Block& block_load_vertex_index_merge = builder_->makeNewBlock();
-        builder_->createSelectionMerge(&block_load_vertex_index_merge,
-                                       spv::SelectionControlDontFlattenMask);
-        builder_->createConditionalBranch(load_vertex_index,
-                                          &block_load_vertex_index_start,
-                                          &block_load_vertex_index_merge);
-        builder_->setBuildPoint(&block_load_vertex_index_start);
-        // Check if the index is 32-bit.
-        spv::Id vertex_index_is_32bit = builder_->createBinOp(
-            spv::OpINotEqual, type_bool_,
-            builder_->createBinOp(
-                spv::OpBitwiseAnd, type_uint_, main_system_constant_flags_,
-                builder_->makeUintConstant(static_cast<unsigned int>(
-                    kSysFlag_ComputeOrPrimitiveVertexIndexLoad32Bit))),
-            const_uint_0_);
-        // Calculate the vertex index address in the shared memory.
-        id_vector_temp_.clear();
-        id_vector_temp_.push_back(
-            builder_->makeIntConstant(kSystemConstantVertexIndexLoadAddress));
-        spv::Id vertex_index_address = builder_->createBinOp(
-            spv::OpIAdd, type_uint_,
-            builder_->createLoad(
-                builder_->createAccessChain(spv::StorageClassUniform,
-                                            uniform_system_constants_,
-                                            id_vector_temp_),
-                spv::NoPrecision),
-            builder_->createBinOp(
-                spv::OpShiftLeftLogical, type_uint_, vertex_index,
-                builder_->createTriOp(spv::OpSelect, type_uint_,
-                                      vertex_index_is_32bit, const_uint_2,
-                                      builder_->makeUintConstant(1))));
-        // Load the 32 bits containing the whole vertex index or two 16-bit
-        // vertex indices.
-        // TODO(Triang3l): Bounds checking.
-        spv::Id loaded_vertex_index =
-            LoadUint32FromSharedMemory(builder_->createUnaryOp(
-                spv::OpBitcast, type_int_,
-                builder_->createBinOp(spv::OpShiftRightLogical, type_uint_,
-                                      vertex_index_address, const_uint_2)));
-        // Extract the 16-bit index from the loaded 32 bits if needed.
-        loaded_vertex_index = builder_->createTriOp(
-            spv::OpSelect, type_uint_, vertex_index_is_32bit,
-            loaded_vertex_index,
-            builder_->createTriOp(
-                spv::OpBitFieldUExtract, type_uint_, loaded_vertex_index,
-                builder_->createBinOp(
-                    spv::OpShiftLeftLogical, type_uint_,
-                    builder_->createBinOp(spv::OpBitwiseAnd, type_uint_,
-                                          vertex_index_address, const_uint_2),
-                    builder_->makeUintConstant(4 - 1)),
-                builder_->makeUintConstant(16)));
-        // Endian-swap the loaded index.
-        id_vector_temp_.clear();
-        id_vector_temp_.push_back(
-            builder_->makeIntConstant(kSystemConstantVertexIndexEndian));
-        loaded_vertex_index = EndianSwap32Uint(
-            loaded_vertex_index,
-            builder_->createLoad(
-                builder_->createAccessChain(spv::StorageClassUniform,
-                                            uniform_system_constants_,
-                                            id_vector_temp_),
-                spv::NoPrecision));
-        // Get the actual build point for phi.
-        spv::Block& block_load_vertex_index_end = *builder_->getBuildPoint();
-        builder_->createBranch(&block_load_vertex_index_merge);
-        // Select between the loaded index and the original index from Vulkan.
-        builder_->setBuildPoint(&block_load_vertex_index_merge);
+        SpirvBuilder::IfBuilder load_vertex_index_if(
+            load_vertex_index, spv::SelectionControlDontFlattenMask, *builder_);
+        spv::Id loaded_vertex_index;
         {
-          std::unique_ptr<spv::Instruction> loaded_vertex_index_phi_op =
-              std::make_unique<spv::Instruction>(builder_->getUniqueId(),
-                                                 type_uint_, spv::OpPhi);
-          loaded_vertex_index_phi_op->addIdOperand(loaded_vertex_index);
-          loaded_vertex_index_phi_op->addIdOperand(
-              block_load_vertex_index_end.getId());
-          loaded_vertex_index_phi_op->addIdOperand(vertex_index);
-          loaded_vertex_index_phi_op->addIdOperand(
-              block_load_vertex_index_pre.getId());
-          vertex_index = loaded_vertex_index_phi_op->getResultId();
-          builder_->getBuildPoint()->addInstruction(
-              std::move(loaded_vertex_index_phi_op));
+          // Check if the index is 32-bit.
+          spv::Id vertex_index_is_32bit = builder_->createBinOp(
+              spv::OpINotEqual, type_bool_,
+              builder_->createBinOp(
+                  spv::OpBitwiseAnd, type_uint_, main_system_constant_flags_,
+                  builder_->makeUintConstant(static_cast<unsigned int>(
+                      kSysFlag_ComputeOrPrimitiveVertexIndexLoad32Bit))),
+              const_uint_0_);
+          // Calculate the vertex index address in the shared memory.
+          id_vector_temp_.clear();
+          id_vector_temp_.push_back(
+              builder_->makeIntConstant(kSystemConstantVertexIndexLoadAddress));
+          spv::Id vertex_index_address = builder_->createBinOp(
+              spv::OpIAdd, type_uint_,
+              builder_->createLoad(
+                  builder_->createAccessChain(spv::StorageClassUniform,
+                                              uniform_system_constants_,
+                                              id_vector_temp_),
+                  spv::NoPrecision),
+              builder_->createBinOp(
+                  spv::OpShiftLeftLogical, type_uint_, vertex_index,
+                  builder_->createTriOp(spv::OpSelect, type_uint_,
+                                        vertex_index_is_32bit, const_uint_2,
+                                        builder_->makeUintConstant(1))));
+          // Load the 32 bits containing the whole vertex index or two 16-bit
+          // vertex indices.
+          // TODO(Triang3l): Bounds checking.
+          loaded_vertex_index =
+              LoadUint32FromSharedMemory(builder_->createUnaryOp(
+                  spv::OpBitcast, type_int_,
+                  builder_->createBinOp(spv::OpShiftRightLogical, type_uint_,
+                                        vertex_index_address, const_uint_2)));
+          // Extract the 16-bit index from the loaded 32 bits if needed.
+          loaded_vertex_index = builder_->createTriOp(
+              spv::OpSelect, type_uint_, vertex_index_is_32bit,
+              loaded_vertex_index,
+              builder_->createTriOp(
+                  spv::OpBitFieldUExtract, type_uint_, loaded_vertex_index,
+                  builder_->createBinOp(
+                      spv::OpShiftLeftLogical, type_uint_,
+                      builder_->createBinOp(spv::OpBitwiseAnd, type_uint_,
+                                            vertex_index_address, const_uint_2),
+                      builder_->makeUintConstant(4 - 1)),
+                  builder_->makeUintConstant(16)));
+          // Endian-swap the loaded index.
+          id_vector_temp_.clear();
+          id_vector_temp_.push_back(
+              builder_->makeIntConstant(kSystemConstantVertexIndexEndian));
+          loaded_vertex_index = EndianSwap32Uint(
+              loaded_vertex_index,
+              builder_->createLoad(
+                  builder_->createAccessChain(spv::StorageClassUniform,
+                                              uniform_system_constants_,
+                                              id_vector_temp_),
+                  spv::NoPrecision));
         }
+        load_vertex_index_if.makeEndIf();
+        // Select between the loaded index and the original index from Vulkan.
+        vertex_index = load_vertex_index_if.createMergePhi(loaded_vertex_index,
+                                                           vertex_index);
       } else {
         // TODO(Triang3l): Close line loop primitive.
         // Load the unswapped index as uint for swapping, or for indirect
@@ -1368,53 +1349,35 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
                   builder_->makeUintConstant(
                       static_cast<unsigned int>(kSysFlag_VertexIndexLoad))),
               const_uint_0_);
-          spv::Block& block_load_vertex_index_pre = *builder_->getBuildPoint();
-          spv::Block& block_load_vertex_index_start = builder_->makeNewBlock();
-          spv::Block& block_load_vertex_index_merge = builder_->makeNewBlock();
-          builder_->createSelectionMerge(&block_load_vertex_index_merge,
-                                         spv::SelectionControlDontFlattenMask);
-          builder_->createConditionalBranch(load_vertex_index,
-                                            &block_load_vertex_index_start,
-                                            &block_load_vertex_index_merge);
-          builder_->setBuildPoint(&block_load_vertex_index_start);
-          // Load the 32-bit index.
-          // TODO(Triang3l): Bounds checking.
-          id_vector_temp_.clear();
-          id_vector_temp_.push_back(
-              builder_->makeIntConstant(kSystemConstantVertexIndexLoadAddress));
-          spv::Id loaded_vertex_index =
-              LoadUint32FromSharedMemory(builder_->createUnaryOp(
-                  spv::OpBitcast, type_int_,
-                  builder_->createBinOp(
-                      spv::OpIAdd, type_uint_,
-                      builder_->createBinOp(
-                          spv::OpShiftRightLogical, type_uint_,
-                          builder_->createLoad(
-                              builder_->createAccessChain(
-                                  spv::StorageClassUniform,
-                                  uniform_system_constants_, id_vector_temp_),
-                              spv::NoPrecision),
-                          builder_->makeUintConstant(2)),
-                      vertex_index)));
-          // Get the actual build point for phi.
-          spv::Block& block_load_vertex_index_end = *builder_->getBuildPoint();
-          builder_->createBranch(&block_load_vertex_index_merge);
-          // Select between the loaded index and the original index from Vulkan.
-          builder_->setBuildPoint(&block_load_vertex_index_merge);
+          SpirvBuilder::IfBuilder load_vertex_index_if(
+              load_vertex_index, spv::SelectionControlDontFlattenMask,
+              *builder_);
+          spv::Id loaded_vertex_index;
           {
-            std::unique_ptr<spv::Instruction> loaded_vertex_index_phi_op =
-                std::make_unique<spv::Instruction>(builder_->getUniqueId(),
-                                                   type_uint_, spv::OpPhi);
-            loaded_vertex_index_phi_op->addIdOperand(loaded_vertex_index);
-            loaded_vertex_index_phi_op->addIdOperand(
-                block_load_vertex_index_end.getId());
-            loaded_vertex_index_phi_op->addIdOperand(vertex_index);
-            loaded_vertex_index_phi_op->addIdOperand(
-                block_load_vertex_index_pre.getId());
-            vertex_index = loaded_vertex_index_phi_op->getResultId();
-            builder_->getBuildPoint()->addInstruction(
-                std::move(loaded_vertex_index_phi_op));
+            // Load the 32-bit index.
+            // TODO(Triang3l): Bounds checking.
+            id_vector_temp_.clear();
+            id_vector_temp_.push_back(builder_->makeIntConstant(
+                kSystemConstantVertexIndexLoadAddress));
+            loaded_vertex_index =
+                LoadUint32FromSharedMemory(builder_->createUnaryOp(
+                    spv::OpBitcast, type_int_,
+                    builder_->createBinOp(
+                        spv::OpIAdd, type_uint_,
+                        builder_->createBinOp(
+                            spv::OpShiftRightLogical, type_uint_,
+                            builder_->createLoad(
+                                builder_->createAccessChain(
+                                    spv::StorageClassUniform,
+                                    uniform_system_constants_, id_vector_temp_),
+                                spv::NoPrecision),
+                            builder_->makeUintConstant(2)),
+                        vertex_index)));
           }
+          load_vertex_index_if.makeEndIf();
+          // Select between the loaded index and the original index from Vulkan.
+          vertex_index = load_vertex_index_if.createMergePhi(
+              loaded_vertex_index, vertex_index);
         }
         // Endian-swap the index.
         id_vector_temp_.clear();
@@ -2808,40 +2771,25 @@ spv::Id SpirvShaderTranslator::EndianSwap32Uint(spv::Id value, spv::Id endian) {
           static_cast<unsigned int>(xenos::Endian::k8in32)));
   spv::Id is_8in16_or_8in32 =
       builder_->createBinOp(spv::OpLogicalOr, type_bool_, is_8in16, is_8in32);
-  spv::Block& block_pre_8in16 = *builder_->getBuildPoint();
-  assert_false(block_pre_8in16.isTerminated());
-  spv::Block& block_8in16 = builder_->makeNewBlock();
-  spv::Block& block_8in16_merge = builder_->makeNewBlock();
-  builder_->createSelectionMerge(&block_8in16_merge,
-                                 spv::SelectionControlMaskNone);
-  builder_->createConditionalBranch(is_8in16_or_8in32, &block_8in16,
-                                    &block_8in16_merge);
-  builder_->setBuildPoint(&block_8in16);
-  spv::Id swapped_8in16 = builder_->createBinOp(
-      spv::OpBitwiseOr, type,
-      builder_->createBinOp(
-          spv::OpBitwiseAnd, type,
-          builder_->createBinOp(spv::OpShiftRightLogical, type, value,
-                                const_uint_8_typed),
-          const_uint_00ff00ff_typed),
-      builder_->createBinOp(
-          spv::OpShiftLeftLogical, type,
-          builder_->createBinOp(spv::OpBitwiseAnd, type, value,
-                                const_uint_00ff00ff_typed),
-          const_uint_8_typed));
-  builder_->createBranch(&block_8in16_merge);
-  builder_->setBuildPoint(&block_8in16_merge);
+  SpirvBuilder::IfBuilder if_8in16(is_8in16_or_8in32,
+                                   spv::SelectionControlMaskNone, *builder_);
+  spv::Id swapped_8in16;
   {
-    std::unique_ptr<spv::Instruction> phi_op =
-        std::make_unique<spv::Instruction>(builder_->getUniqueId(), type,
-                                           spv::OpPhi);
-    phi_op->addIdOperand(swapped_8in16);
-    phi_op->addIdOperand(block_8in16.getId());
-    phi_op->addIdOperand(value);
-    phi_op->addIdOperand(block_pre_8in16.getId());
-    value = phi_op->getResultId();
-    builder_->getBuildPoint()->addInstruction(std::move(phi_op));
+    swapped_8in16 = builder_->createBinOp(
+        spv::OpBitwiseOr, type,
+        builder_->createBinOp(
+            spv::OpBitwiseAnd, type,
+            builder_->createBinOp(spv::OpShiftRightLogical, type, value,
+                                  const_uint_8_typed),
+            const_uint_00ff00ff_typed),
+        builder_->createBinOp(
+            spv::OpShiftLeftLogical, type,
+            builder_->createBinOp(spv::OpBitwiseAnd, type, value,
+                                  const_uint_00ff00ff_typed),
+            const_uint_8_typed));
   }
+  if_8in16.makeEndIf();
+  value = if_8in16.createMergePhi(swapped_8in16, value);
 
   // 16-in-32 or another half of 8-in-32 (doing 16-in-32 swap).
   spv::Id is_16in32 = builder_->createBinOp(
@@ -2850,32 +2798,18 @@ spv::Id SpirvShaderTranslator::EndianSwap32Uint(spv::Id value, spv::Id endian) {
           static_cast<unsigned int>(xenos::Endian::k16in32)));
   spv::Id is_8in32_or_16in32 =
       builder_->createBinOp(spv::OpLogicalOr, type_bool_, is_8in32, is_16in32);
-  spv::Block& block_pre_16in32 = *builder_->getBuildPoint();
-  spv::Block& block_16in32 = builder_->makeNewBlock();
-  spv::Block& block_16in32_merge = builder_->makeNewBlock();
-  builder_->createSelectionMerge(&block_16in32_merge,
-                                 spv::SelectionControlMaskNone);
-  builder_->createConditionalBranch(is_8in32_or_16in32, &block_16in32,
-                                    &block_16in32_merge);
-  builder_->setBuildPoint(&block_16in32);
-  spv::Id swapped_16in32 = builder_->createQuadOp(
-      spv::OpBitFieldInsert, type,
-      builder_->createBinOp(spv::OpShiftRightLogical, type, value,
-                            const_uint_16_typed),
-      value, builder_->makeIntConstant(16), builder_->makeIntConstant(16));
-  builder_->createBranch(&block_16in32_merge);
-  builder_->setBuildPoint(&block_16in32_merge);
+  SpirvBuilder::IfBuilder if_16in32(is_8in32_or_16in32,
+                                    spv::SelectionControlMaskNone, *builder_);
+  spv::Id swapped_16in32;
   {
-    std::unique_ptr<spv::Instruction> phi_op =
-        std::make_unique<spv::Instruction>(builder_->getUniqueId(), type,
-                                           spv::OpPhi);
-    phi_op->addIdOperand(swapped_16in32);
-    phi_op->addIdOperand(block_16in32.getId());
-    phi_op->addIdOperand(value);
-    phi_op->addIdOperand(block_pre_16in32.getId());
-    value = phi_op->getResultId();
-    builder_->getBuildPoint()->addInstruction(std::move(phi_op));
+    swapped_16in32 = builder_->createQuadOp(
+        spv::OpBitFieldInsert, type,
+        builder_->createBinOp(spv::OpShiftRightLogical, type, value,
+                              const_uint_16_typed),
+        value, builder_->makeIntConstant(16), builder_->makeIntConstant(16));
   }
+  if_16in32.makeEndIf();
+  value = if_16in32.createMergePhi(swapped_16in32, value);
 
   return value;
 }
