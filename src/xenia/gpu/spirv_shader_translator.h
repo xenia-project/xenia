@@ -605,7 +605,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   void SampleTexture(spv::Builder::TextureParameters& texture_parameters,
                      spv::ImageOperandsMask image_operands_mask,
                      spv::Id image_unsigned, spv::Id image_signed,
-                     spv::Id sampler, spv::Id is_all_signed,
+                     spv::Id sampler, spv::Id is_any_unsigned,
                      spv::Id is_any_signed, spv::Id& result_unsigned_out,
                      spv::Id& result_signed_out,
                      spv::Id lerp_factor = spv::NoResult,

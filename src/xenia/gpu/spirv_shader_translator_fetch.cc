@@ -1145,31 +1145,18 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
             z_coordinate_ref = builder_->createNoContractionBinOp(
                 spv::OpFAdd, type_float_, z_coordinate_ref, z_offset);
           }
-          spv::Block& block_dimension_head = *builder_->getBuildPoint();
-          spv::Block& block_dimension_merge = builder_->makeNewBlock();
-          spv::Block& block_dimension_3d = builder_->makeNewBlock();
-          builder_->createSelectionMerge(&block_dimension_merge,
-                                         spv::SelectionControlDontFlattenMask);
           assert_true(data_is_3d != spv::NoResult);
-          builder_->createConditionalBranch(data_is_3d, &block_dimension_3d,
-                                            &block_dimension_merge);
-          builder_->setBuildPoint(&block_dimension_3d);
-          assert_true(z_size != spv::NoResult);
-          spv::Id z_3d = builder_->createNoContractionBinOp(
-              spv::OpFDiv, type_float_, z_coordinate_ref, z_size);
-          builder_->createBranch(&block_dimension_merge);
-          builder_->setBuildPoint(&block_dimension_merge);
+          SpirvBuilder::IfBuilder if_data_is_3d(
+              data_is_3d, spv::SelectionControlDontFlattenMask, *builder_);
+          spv::Id z_3d;
           {
-            std::unique_ptr<spv::Instruction> z_phi_op =
-                std::make_unique<spv::Instruction>(builder_->getUniqueId(),
-                                                   type_float_, spv::OpPhi);
-            z_phi_op->addIdOperand(z_3d);
-            z_phi_op->addIdOperand(block_dimension_3d.getId());
-            z_phi_op->addIdOperand(z_coordinate_ref);
-            z_phi_op->addIdOperand(block_dimension_head.getId());
-            z_coordinate_ref = z_phi_op->getResultId();
-            builder_->getBuildPoint()->addInstruction(std::move(z_phi_op));
+            assert_true(z_size != spv::NoResult);
+            z_3d = builder_->createNoContractionBinOp(spv::OpFDiv, type_float_,
+                                                      z_coordinate_ref, z_size);
           }
+          if_data_is_3d.makeEndIf();
+          z_coordinate_ref =
+              if_data_is_3d.createMergePhi(z_3d, z_coordinate_ref);
         } else {
           // Denormalize the Z coordinate for a stacked texture, and apply the
           // offset.
@@ -1394,63 +1381,39 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
         // OpSampledImage must be in the same block as where its result is used.
         if (instr.dimension == xenos::FetchOpDimension::k3DOrStacked) {
           // Check if the texture is 3D or stacked.
-          spv::Block& block_dimension_head = *builder_->getBuildPoint();
-          spv::Block& block_dimension_3d_start = builder_->makeNewBlock();
-          spv::Block& block_dimension_stacked_start = builder_->makeNewBlock();
-          spv::Block& block_dimension_merge = builder_->makeNewBlock();
-          builder_->createSelectionMerge(&block_dimension_merge,
-                                         spv::SelectionControlDontFlattenMask);
           assert_true(data_is_3d != spv::NoResult);
-          builder_->createConditionalBranch(data_is_3d,
-                                            &block_dimension_3d_start,
-                                            &block_dimension_stacked_start);
-
-          // 3D.
-          builder_->setBuildPoint(&block_dimension_3d_start);
-          id_vector_temp_.clear();
-          for (uint32_t i = 0; i < 3; ++i) {
-            id_vector_temp_.push_back(coordinates[i]);
-          }
-          texture_parameters.coords =
-              builder_->createCompositeConstruct(type_float3_, id_vector_temp_);
-          spv::Id lod_3d = QueryTextureLod(texture_parameters,
-                                           image_3d_unsigned, image_3d_signed,
-                                           sampler, swizzled_signs_all_signed);
-          // Get the actual build point for phi.
-          spv::Block& block_dimension_3d_end = *builder_->getBuildPoint();
-          builder_->createBranch(&block_dimension_merge);
-
-          // 2D stacked.
-          builder_->setBuildPoint(&block_dimension_stacked_start);
-          id_vector_temp_.clear();
-          for (uint32_t i = 0; i < 2; ++i) {
-            id_vector_temp_.push_back(coordinates[i]);
-          }
-          texture_parameters.coords =
-              builder_->createCompositeConstruct(type_float2_, id_vector_temp_);
-          spv::Id lod_stacked = QueryTextureLod(
-              texture_parameters, image_2d_array_or_cube_unsigned,
-              image_2d_array_or_cube_signed, sampler,
-              swizzled_signs_all_signed);
-          // Get the actual build point for phi.
-          spv::Block& block_dimension_stacked_end = *builder_->getBuildPoint();
-          builder_->createBranch(&block_dimension_merge);
-
-          // Choose between the 3D and the stacked result based on the actual
-          // data dimensionality.
-          builder_->setBuildPoint(&block_dimension_merge);
+          SpirvBuilder::IfBuilder if_data_is_3d(
+              data_is_3d, spv::SelectionControlDontFlattenMask, *builder_);
+          spv::Id lod_3d;
           {
-            std::unique_ptr<spv::Instruction> dimension_phi_op =
-                std::make_unique<spv::Instruction>(builder_->getUniqueId(),
-                                                   type_float_, spv::OpPhi);
-            dimension_phi_op->addIdOperand(lod_3d);
-            dimension_phi_op->addIdOperand(block_dimension_3d_end.getId());
-            dimension_phi_op->addIdOperand(lod_stacked);
-            dimension_phi_op->addIdOperand(block_dimension_stacked_end.getId());
-            result[0] = dimension_phi_op->getResultId();
-            builder_->getBuildPoint()->addInstruction(
-                std::move(dimension_phi_op));
+            // 3D.
+            id_vector_temp_.clear();
+            for (uint32_t i = 0; i < 3; ++i) {
+              id_vector_temp_.push_back(coordinates[i]);
+            }
+            texture_parameters.coords = builder_->createCompositeConstruct(
+                type_float3_, id_vector_temp_);
+            lod_3d = QueryTextureLod(texture_parameters, image_3d_unsigned,
+                                     image_3d_signed, sampler,
+                                     swizzled_signs_all_signed);
           }
+          if_data_is_3d.makeBeginElse();
+          spv::Id lod_stacked;
+          {
+            // 2D stacked.
+            id_vector_temp_.clear();
+            for (uint32_t i = 0; i < 2; ++i) {
+              id_vector_temp_.push_back(coordinates[i]);
+            }
+            texture_parameters.coords = builder_->createCompositeConstruct(
+                type_float2_, id_vector_temp_);
+            lod_stacked = QueryTextureLod(texture_parameters,
+                                          image_2d_array_or_cube_unsigned,
+                                          image_2d_array_or_cube_signed,
+                                          sampler, swizzled_signs_all_signed);
+          }
+          if_data_is_3d.makeEndIf();
+          result[0] = if_data_is_3d.createMergePhi(lod_3d, lod_stacked);
         } else {
           uint32_t lod_query_coordinate_component_count =
               instr.dimension == xenos::FetchOpDimension::kCube ? 3 : 2;
@@ -1512,6 +1475,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
             }
           }
         }
+        spv::Id is_any_unsigned = builder_->createUnaryOp(
+            spv::OpLogicalNot, type_bool_, is_all_signed);
 
         // Load the fetch constant word 4, needed unconditionally for LOD
         // biasing, for result exponent biasing, and conditionally for stacked
@@ -1765,273 +1730,247 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
           // component, 2 gradient components, two fetches if the Z axis is
           // linear-filtered).
 
-          spv::Block& block_dimension_head = *builder_->getBuildPoint();
-          spv::Block& block_dimension_3d_start = builder_->makeNewBlock();
-          spv::Block& block_dimension_stacked_start = builder_->makeNewBlock();
-          spv::Block& block_dimension_merge = builder_->makeNewBlock();
-          builder_->createSelectionMerge(&block_dimension_merge,
-                                         spv::SelectionControlDontFlattenMask);
           assert_true(data_is_3d != spv::NoResult);
-          builder_->createConditionalBranch(data_is_3d,
-                                            &block_dimension_3d_start,
-                                            &block_dimension_stacked_start);
-
-          // 3D.
-          builder_->setBuildPoint(&block_dimension_3d_start);
-          if (use_computed_lod) {
-            texture_parameters.gradX = gradients_h;
-            texture_parameters.gradY = gradients_v;
-          }
-          id_vector_temp_.clear();
-          for (uint32_t i = 0; i < 3; ++i) {
-            id_vector_temp_.push_back(coordinates[i]);
-          }
-          texture_parameters.coords =
-              builder_->createCompositeConstruct(type_float3_, id_vector_temp_);
+          SpirvBuilder::IfBuilder if_data_is_3d(
+              data_is_3d, spv::SelectionControlDontFlattenMask, *builder_);
           spv::Id sample_result_unsigned_3d, sample_result_signed_3d;
-          SampleTexture(texture_parameters, image_operands_mask,
-                        image_3d_unsigned, image_3d_signed, sampler,
-                        is_all_signed, is_any_signed, sample_result_unsigned_3d,
-                        sample_result_signed_3d);
-          // Get the actual build point after the SampleTexture call for phi.
-          spv::Block& block_dimension_3d_end = *builder_->getBuildPoint();
-          builder_->createBranch(&block_dimension_merge);
-
-          // 2D stacked.
-          builder_->setBuildPoint(&block_dimension_stacked_start);
-          if (use_computed_lod) {
-            // Extract 2D gradients for stacked textures which are 2D arrays.
-            uint_vector_temp_.clear();
-            uint_vector_temp_.push_back(0);
-            uint_vector_temp_.push_back(1);
-            texture_parameters.gradX = builder_->createRvalueSwizzle(
-                spv::NoPrecision, type_float2_, gradients_h, uint_vector_temp_);
-            texture_parameters.gradY = builder_->createRvalueSwizzle(
-                spv::NoPrecision, type_float2_, gradients_v, uint_vector_temp_);
-          }
-          // Check if linear filtering is needed.
-          bool vol_mag_filter_is_fetch_const =
-              instr.attributes.vol_mag_filter ==
-              xenos::TextureFilter::kUseFetchConst;
-          bool vol_min_filter_is_fetch_const =
-              instr.attributes.vol_min_filter ==
-              xenos::TextureFilter::kUseFetchConst;
-          bool vol_mag_filter_is_linear =
-              instr.attributes.vol_mag_filter == xenos::TextureFilter::kLinear;
-          bool vol_min_filter_is_linear =
-              instr.attributes.vol_min_filter == xenos::TextureFilter::kLinear;
-          spv::Id vol_filter_is_linear = spv::NoResult;
-          if (use_computed_lod &&
-              (vol_mag_filter_is_fetch_const || vol_min_filter_is_fetch_const ||
-               vol_mag_filter_is_linear != vol_min_filter_is_linear)) {
-            // Check if minifying along layers (derivative > 1 along any axis).
-            spv::Id layer_max_gradient = builder_->createBinBuiltinCall(
-                type_float_, ext_inst_glsl_std_450_, GLSLstd450NMax,
-                builder_->createCompositeExtract(gradients_h, type_float_, 2),
-                builder_->createCompositeExtract(gradients_v, type_float_, 2));
-            if (!instr.attributes.unnormalized_coordinates) {
-              // Denormalize the gradient if provided as normalized.
-              assert_true(size[2] != spv::NoResult);
-              layer_max_gradient = builder_->createNoContractionBinOp(
-                  spv::OpFMul, type_float_, layer_max_gradient, size[2]);
+          {
+            // 3D.
+            if (use_computed_lod) {
+              texture_parameters.gradX = gradients_h;
+              texture_parameters.gradY = gradients_v;
             }
-            // For NaN, considering that magnification is being done.
-            spv::Id is_minifying_z = builder_->createBinOp(
-                spv::OpFOrdLessThan, type_bool_, layer_max_gradient,
-                builder_->makeFloatConstant(1.0f));
-            // Choose what filter is actually used, the minification or the
-            // magnification one.
-            spv::Id vol_mag_filter_is_linear_loaded =
-                vol_mag_filter_is_fetch_const
-                    ? builder_->createBinOp(
-                          spv::OpINotEqual, type_bool_,
-                          builder_->createBinOp(
-                              spv::OpBitwiseAnd, type_uint_,
-                              fetch_constant_word_4,
-                              builder_->makeUintConstant(UINT32_C(1) << 0)),
-                          const_uint_0_)
-                    : builder_->makeBoolConstant(vol_mag_filter_is_linear);
-            spv::Id vol_min_filter_is_linear_loaded =
-                vol_min_filter_is_fetch_const
-                    ? builder_->createBinOp(
-                          spv::OpINotEqual, type_bool_,
-                          builder_->createBinOp(
-                              spv::OpBitwiseAnd, type_uint_,
-                              fetch_constant_word_4,
-                              builder_->makeUintConstant(UINT32_C(1) << 1)),
-                          const_uint_0_)
-                    : builder_->makeBoolConstant(vol_min_filter_is_linear);
-            vol_filter_is_linear =
-                builder_->createTriOp(spv::OpSelect, type_bool_, is_minifying_z,
-                                      vol_min_filter_is_linear_loaded,
-                                      vol_mag_filter_is_linear_loaded);
-          } else {
-            // No gradients, or using the same filter overrides for magnifying
-            // and minifying. Assume always magnifying if no gradients (LOD 0,
-            // always <= 0). LOD is within 2D layers, not between them (unlike
-            // in 3D textures, which have mips with depth reduced), so it
-            // shouldn't have effect on filtering between layers.
-            if (vol_mag_filter_is_fetch_const) {
-              vol_filter_is_linear = builder_->createBinOp(
-                  spv::OpINotEqual, type_bool_,
-                  builder_->createBinOp(
-                      spv::OpBitwiseAnd, type_uint_, fetch_constant_word_4,
-                      builder_->makeUintConstant(UINT32_C(1) << 0)),
-                  const_uint_0_);
+            id_vector_temp_.clear();
+            for (uint32_t i = 0; i < 3; ++i) {
+              id_vector_temp_.push_back(coordinates[i]);
             }
+            texture_parameters.coords = builder_->createCompositeConstruct(
+                type_float3_, id_vector_temp_);
+            SampleTexture(texture_parameters, image_operands_mask,
+                          image_3d_unsigned, image_3d_signed, sampler,
+                          is_any_unsigned, is_any_signed,
+                          sample_result_unsigned_3d, sample_result_signed_3d);
           }
-          spv::Id layer_coordinate = coordinates[2];
-          // Linear filtering may be needed either based on a dynamic condition
-          // (the filtering mode is taken from the fetch constant, or it's
-          // different for magnification and minification), or on a static one
-          // (with gradients - specified in the instruction for both
-          // magnification and minification as linear, without gradients -
-          // specified for magnification as linear).
-          // If the filter is linear, subtract 0.5 from the Z coordinate of the
-          // first layer in filtering because 0.5 is in the middle of it.
-          if (vol_filter_is_linear != spv::NoResult) {
-            layer_coordinate = builder_->createTriOp(
-                spv::OpSelect, type_float_, vol_filter_is_linear,
-                builder_->createNoContractionBinOp(
-                    spv::OpFSub, type_float_, layer_coordinate,
-                    builder_->makeFloatConstant(0.5f)),
-                layer_coordinate);
-          } else if (vol_mag_filter_is_linear) {
-            layer_coordinate = builder_->createNoContractionBinOp(
-                spv::OpFSub, type_float_, layer_coordinate,
-                builder_->makeFloatConstant(0.5f));
-          }
-          // Sample the first layer, needed regardless of whether filtering is
-          // needed.
-          // Floor the array layer (Vulkan does rounding to nearest or + 0.5 and
-          // floor even for the layer index, but on the Xenos, addressing is
-          // similar to that of 3D textures). This is needed for both point and
-          // linear filtering (with linear, 0.5 was subtracted previously).
-          spv::Id layer_0_coordinate = builder_->createUnaryBuiltinCall(
-              type_float_, ext_inst_glsl_std_450_, GLSLstd450Floor,
-              layer_coordinate);
-          id_vector_temp_.clear();
-          id_vector_temp_.push_back(coordinates[0]);
-          id_vector_temp_.push_back(coordinates[1]);
-          id_vector_temp_.push_back(layer_0_coordinate);
-          texture_parameters.coords =
-              builder_->createCompositeConstruct(type_float3_, id_vector_temp_);
+          if_data_is_3d.makeBeginElse();
           spv::Id sample_result_unsigned_stacked, sample_result_signed_stacked;
-          SampleTexture(texture_parameters, image_operands_mask,
-                        image_2d_array_or_cube_unsigned,
-                        image_2d_array_or_cube_signed, sampler, is_all_signed,
-                        is_any_signed, sample_result_unsigned_stacked,
-                        sample_result_signed_stacked);
-          // Sample the second layer if linear filtering is potentially needed
-          // (conditionally or unconditionally, depending on whether the filter
-          // needs to be chosen at runtime), and filter.
-          if (vol_filter_is_linear != spv::NoResult ||
-              vol_mag_filter_is_linear) {
-            spv::Block& block_z_head = *builder_->getBuildPoint();
-            spv::Block& block_z_linear = (vol_filter_is_linear != spv::NoResult)
-                                             ? builder_->makeNewBlock()
-                                             : block_z_head;
-            spv::Block& block_z_merge = (vol_filter_is_linear != spv::NoResult)
-                                            ? builder_->makeNewBlock()
-                                            : block_z_head;
-            if (vol_filter_is_linear != spv::NoResult) {
-              builder_->createSelectionMerge(
-                  &block_z_merge, spv::SelectionControlDontFlattenMask);
-              builder_->createConditionalBranch(
-                  vol_filter_is_linear, &block_z_linear, &block_z_merge);
-              builder_->setBuildPoint(&block_z_linear);
+          {
+            // 2D stacked.
+            if (use_computed_lod) {
+              // Extract 2D gradients for stacked textures which are 2D arrays.
+              uint_vector_temp_.clear();
+              uint_vector_temp_.push_back(0);
+              uint_vector_temp_.push_back(1);
+              texture_parameters.gradX =
+                  builder_->createRvalueSwizzle(spv::NoPrecision, type_float2_,
+                                                gradients_h, uint_vector_temp_);
+              texture_parameters.gradY =
+                  builder_->createRvalueSwizzle(spv::NoPrecision, type_float2_,
+                                                gradients_v, uint_vector_temp_);
             }
-            spv::Id layer_1_coordinate = builder_->createBinOp(
-                spv::OpFAdd, type_float_, layer_0_coordinate,
-                builder_->makeFloatConstant(1.0f));
+            // Check if linear filtering is needed.
+            bool vol_mag_filter_is_fetch_const =
+                instr.attributes.vol_mag_filter ==
+                xenos::TextureFilter::kUseFetchConst;
+            bool vol_min_filter_is_fetch_const =
+                instr.attributes.vol_min_filter ==
+                xenos::TextureFilter::kUseFetchConst;
+            bool vol_mag_filter_is_linear = instr.attributes.vol_mag_filter ==
+                                            xenos::TextureFilter::kLinear;
+            bool vol_min_filter_is_linear = instr.attributes.vol_min_filter ==
+                                            xenos::TextureFilter::kLinear;
+            spv::Id vol_filter_is_linear = spv::NoResult;
+            if (use_computed_lod &&
+                (vol_mag_filter_is_fetch_const ||
+                 vol_min_filter_is_fetch_const ||
+                 vol_mag_filter_is_linear != vol_min_filter_is_linear)) {
+              // Check if minifying along layers (derivative > 1 along any
+              // axis).
+              spv::Id layer_max_gradient = builder_->createBinBuiltinCall(
+                  type_float_, ext_inst_glsl_std_450_, GLSLstd450NMax,
+                  builder_->createCompositeExtract(gradients_h, type_float_, 2),
+                  builder_->createCompositeExtract(gradients_v, type_float_,
+                                                   2));
+              if (!instr.attributes.unnormalized_coordinates) {
+                // Denormalize the gradient if provided as normalized.
+                assert_true(size[2] != spv::NoResult);
+                layer_max_gradient = builder_->createNoContractionBinOp(
+                    spv::OpFMul, type_float_, layer_max_gradient, size[2]);
+              }
+              // For NaN, considering that magnification is being done.
+              spv::Id is_minifying_z = builder_->createBinOp(
+                  spv::OpFOrdLessThan, type_bool_, layer_max_gradient,
+                  builder_->makeFloatConstant(1.0f));
+              // Choose what filter is actually used, the minification or the
+              // magnification one.
+              spv::Id vol_mag_filter_is_linear_loaded =
+                  vol_mag_filter_is_fetch_const
+                      ? builder_->createBinOp(
+                            spv::OpINotEqual, type_bool_,
+                            builder_->createBinOp(
+                                spv::OpBitwiseAnd, type_uint_,
+                                fetch_constant_word_4,
+                                builder_->makeUintConstant(UINT32_C(1) << 0)),
+                            const_uint_0_)
+                      : builder_->makeBoolConstant(vol_mag_filter_is_linear);
+              spv::Id vol_min_filter_is_linear_loaded =
+                  vol_min_filter_is_fetch_const
+                      ? builder_->createBinOp(
+                            spv::OpINotEqual, type_bool_,
+                            builder_->createBinOp(
+                                spv::OpBitwiseAnd, type_uint_,
+                                fetch_constant_word_4,
+                                builder_->makeUintConstant(UINT32_C(1) << 1)),
+                            const_uint_0_)
+                      : builder_->makeBoolConstant(vol_min_filter_is_linear);
+              vol_filter_is_linear = builder_->createTriOp(
+                  spv::OpSelect, type_bool_, is_minifying_z,
+                  vol_min_filter_is_linear_loaded,
+                  vol_mag_filter_is_linear_loaded);
+            } else {
+              // No gradients, or using the same filter overrides for magnifying
+              // and minifying. Assume always magnifying if no gradients (LOD 0,
+              // always <= 0). LOD is within 2D layers, not between them (unlike
+              // in 3D textures, which have mips with depth reduced), so it
+              // shouldn't have effect on filtering between layers.
+              if (vol_mag_filter_is_fetch_const) {
+                vol_filter_is_linear = builder_->createBinOp(
+                    spv::OpINotEqual, type_bool_,
+                    builder_->createBinOp(
+                        spv::OpBitwiseAnd, type_uint_, fetch_constant_word_4,
+                        builder_->makeUintConstant(UINT32_C(1) << 0)),
+                    const_uint_0_);
+              }
+            }
+            spv::Id layer_coordinate = coordinates[2];
+            // Linear filtering may be needed either based on a dynamic
+            // condition (the filtering mode is taken from the fetch constant,
+            // or it's different for magnification and minification), or on a
+            // static one (with gradients - specified in the instruction for
+            // both magnification and minification as linear, without
+            // gradients - specified for magnification as linear).
+            // If the filter is linear, subtract 0.5 from the Z coordinate of
+            // the first layer in filtering because 0.5 is in the middle of it.
+            if (vol_filter_is_linear != spv::NoResult) {
+              layer_coordinate = builder_->createTriOp(
+                  spv::OpSelect, type_float_, vol_filter_is_linear,
+                  builder_->createNoContractionBinOp(
+                      spv::OpFSub, type_float_, layer_coordinate,
+                      builder_->makeFloatConstant(0.5f)),
+                  layer_coordinate);
+            } else if (vol_mag_filter_is_linear) {
+              layer_coordinate = builder_->createNoContractionBinOp(
+                  spv::OpFSub, type_float_, layer_coordinate,
+                  builder_->makeFloatConstant(0.5f));
+            }
+            // Sample the first layer, needed regardless of whether filtering is
+            // needed.
+            // Floor the array layer (Vulkan does rounding to nearest or + 0.5
+            // and floor even for the layer index, but on the Xenos, addressing
+            // is similar to that of 3D textures). This is needed for both point
+            // and linear filtering (with linear, 0.5 was subtracted
+            // previously).
+            spv::Id layer_0_coordinate = builder_->createUnaryBuiltinCall(
+                type_float_, ext_inst_glsl_std_450_, GLSLstd450Floor,
+                layer_coordinate);
             id_vector_temp_.clear();
             id_vector_temp_.push_back(coordinates[0]);
             id_vector_temp_.push_back(coordinates[1]);
-            id_vector_temp_.push_back(layer_1_coordinate);
+            id_vector_temp_.push_back(layer_0_coordinate);
             texture_parameters.coords = builder_->createCompositeConstruct(
                 type_float3_, id_vector_temp_);
-            spv::Id layer_lerp_factor = builder_->createUnaryBuiltinCall(
-                type_float_, ext_inst_glsl_std_450_, GLSLstd450Fract,
-                layer_coordinate);
-            spv::Id sample_result_unsigned_stacked_filtered;
-            spv::Id sample_result_signed_stacked_filtered;
             SampleTexture(
                 texture_parameters, image_operands_mask,
                 image_2d_array_or_cube_unsigned, image_2d_array_or_cube_signed,
-                sampler, is_all_signed, is_any_signed,
-                sample_result_unsigned_stacked_filtered,
-                sample_result_signed_stacked_filtered, layer_lerp_factor,
+                sampler, is_any_unsigned, is_any_signed,
                 sample_result_unsigned_stacked, sample_result_signed_stacked);
-            if (vol_filter_is_linear != spv::NoResult) {
-              // Get the actual build point after the SampleTexture call for
-              // phi.
-              spv::Block& block_z_linear_end = *builder_->getBuildPoint();
-              builder_->createBranch(&block_z_merge);
-              builder_->setBuildPoint(&block_z_merge);
-              {
-                std::unique_ptr<spv::Instruction> filter_phi_op =
-                    std::make_unique<spv::Instruction>(
-                        builder_->getUniqueId(), type_float4_, spv::OpPhi);
-                filter_phi_op->addIdOperand(
-                    sample_result_unsigned_stacked_filtered);
-                filter_phi_op->addIdOperand(block_z_linear_end.getId());
-                filter_phi_op->addIdOperand(sample_result_unsigned_stacked);
-                filter_phi_op->addIdOperand(block_z_head.getId());
-                sample_result_unsigned_stacked = filter_phi_op->getResultId();
-                builder_->getBuildPoint()->addInstruction(
-                    std::move(filter_phi_op));
+            // Sample the second layer if linear filtering is potentially needed
+            // (conditionally or unconditionally, depending on whether the
+            // filter needs to be chosen at runtime), and filter.
+            if (vol_filter_is_linear != spv::NoResult ||
+                vol_mag_filter_is_linear) {
+              spv::Block& block_z_head = *builder_->getBuildPoint();
+              spv::Block& block_z_linear =
+                  (vol_filter_is_linear != spv::NoResult)
+                      ? builder_->makeNewBlock()
+                      : block_z_head;
+              spv::Block& block_z_merge =
+                  (vol_filter_is_linear != spv::NoResult)
+                      ? builder_->makeNewBlock()
+                      : block_z_head;
+              if (vol_filter_is_linear != spv::NoResult) {
+                builder_->createSelectionMerge(
+                    &block_z_merge, spv::SelectionControlDontFlattenMask);
+                builder_->createConditionalBranch(
+                    vol_filter_is_linear, &block_z_linear, &block_z_merge);
+                builder_->setBuildPoint(&block_z_linear);
               }
-              {
-                std::unique_ptr<spv::Instruction> filter_phi_op =
-                    std::make_unique<spv::Instruction>(
-                        builder_->getUniqueId(), type_float4_, spv::OpPhi);
-                filter_phi_op->addIdOperand(
-                    sample_result_signed_stacked_filtered);
-                filter_phi_op->addIdOperand(block_z_linear_end.getId());
-                filter_phi_op->addIdOperand(sample_result_signed_stacked);
-                filter_phi_op->addIdOperand(block_z_head.getId());
-                sample_result_signed_stacked = filter_phi_op->getResultId();
-                builder_->getBuildPoint()->addInstruction(
-                    std::move(filter_phi_op));
+              spv::Id layer_1_coordinate = builder_->createBinOp(
+                  spv::OpFAdd, type_float_, layer_0_coordinate,
+                  builder_->makeFloatConstant(1.0f));
+              id_vector_temp_.clear();
+              id_vector_temp_.push_back(coordinates[0]);
+              id_vector_temp_.push_back(coordinates[1]);
+              id_vector_temp_.push_back(layer_1_coordinate);
+              texture_parameters.coords = builder_->createCompositeConstruct(
+                  type_float3_, id_vector_temp_);
+              spv::Id layer_lerp_factor = builder_->createUnaryBuiltinCall(
+                  type_float_, ext_inst_glsl_std_450_, GLSLstd450Fract,
+                  layer_coordinate);
+              spv::Id sample_result_unsigned_stacked_filtered;
+              spv::Id sample_result_signed_stacked_filtered;
+              SampleTexture(
+                  texture_parameters, image_operands_mask,
+                  image_2d_array_or_cube_unsigned,
+                  image_2d_array_or_cube_signed, sampler, is_any_unsigned,
+                  is_any_signed, sample_result_unsigned_stacked_filtered,
+                  sample_result_signed_stacked_filtered, layer_lerp_factor,
+                  sample_result_unsigned_stacked, sample_result_signed_stacked);
+              if (vol_filter_is_linear != spv::NoResult) {
+                // Get the actual build point after the SampleTexture call for
+                // phi.
+                spv::Block& block_z_linear_end = *builder_->getBuildPoint();
+                builder_->createBranch(&block_z_merge);
+                builder_->setBuildPoint(&block_z_merge);
+                {
+                  std::unique_ptr<spv::Instruction> filter_phi_op =
+                      std::make_unique<spv::Instruction>(
+                          builder_->getUniqueId(), type_float4_, spv::OpPhi);
+                  filter_phi_op->addIdOperand(
+                      sample_result_unsigned_stacked_filtered);
+                  filter_phi_op->addIdOperand(block_z_linear_end.getId());
+                  filter_phi_op->addIdOperand(sample_result_unsigned_stacked);
+                  filter_phi_op->addIdOperand(block_z_head.getId());
+                  sample_result_unsigned_stacked = filter_phi_op->getResultId();
+                  builder_->getBuildPoint()->addInstruction(
+                      std::move(filter_phi_op));
+                }
+                {
+                  std::unique_ptr<spv::Instruction> filter_phi_op =
+                      std::make_unique<spv::Instruction>(
+                          builder_->getUniqueId(), type_float4_, spv::OpPhi);
+                  filter_phi_op->addIdOperand(
+                      sample_result_signed_stacked_filtered);
+                  filter_phi_op->addIdOperand(block_z_linear_end.getId());
+                  filter_phi_op->addIdOperand(sample_result_signed_stacked);
+                  filter_phi_op->addIdOperand(block_z_head.getId());
+                  sample_result_signed_stacked = filter_phi_op->getResultId();
+                  builder_->getBuildPoint()->addInstruction(
+                      std::move(filter_phi_op));
+                }
+              } else {
+                sample_result_unsigned_stacked =
+                    sample_result_unsigned_stacked_filtered;
+                sample_result_signed_stacked =
+                    sample_result_signed_stacked_filtered;
               }
-            } else {
-              sample_result_unsigned_stacked =
-                  sample_result_unsigned_stacked_filtered;
-              sample_result_signed_stacked =
-                  sample_result_signed_stacked_filtered;
             }
           }
-          // Get the actual build point for phi.
-          spv::Block& block_dimension_stacked_end = *builder_->getBuildPoint();
-          builder_->createBranch(&block_dimension_merge);
+          if_data_is_3d.makeEndIf();
 
-          // Choose between the 3D and the stacked result based on the actual
-          // data dimensionality.
-          builder_->setBuildPoint(&block_dimension_merge);
-          {
-            std::unique_ptr<spv::Instruction> dimension_phi_op =
-                std::make_unique<spv::Instruction>(builder_->getUniqueId(),
-                                                   type_float4_, spv::OpPhi);
-            dimension_phi_op->addIdOperand(sample_result_unsigned_3d);
-            dimension_phi_op->addIdOperand(block_dimension_3d_end.getId());
-            dimension_phi_op->addIdOperand(sample_result_unsigned_stacked);
-            dimension_phi_op->addIdOperand(block_dimension_stacked_end.getId());
-            sample_result_unsigned = dimension_phi_op->getResultId();
-            builder_->getBuildPoint()->addInstruction(
-                std::move(dimension_phi_op));
-          }
-          {
-            std::unique_ptr<spv::Instruction> dimension_phi_op =
-                std::make_unique<spv::Instruction>(builder_->getUniqueId(),
-                                                   type_float4_, spv::OpPhi);
-            dimension_phi_op->addIdOperand(sample_result_signed_3d);
-            dimension_phi_op->addIdOperand(block_dimension_3d_end.getId());
-            dimension_phi_op->addIdOperand(sample_result_signed_stacked);
-            dimension_phi_op->addIdOperand(block_dimension_stacked_end.getId());
-            sample_result_signed = dimension_phi_op->getResultId();
-            builder_->getBuildPoint()->addInstruction(
-                std::move(dimension_phi_op));
-          }
+          sample_result_unsigned = if_data_is_3d.createMergePhi(
+              sample_result_unsigned_3d, sample_result_unsigned_stacked);
+          sample_result_signed = if_data_is_3d.createMergePhi(
+              sample_result_signed_3d, sample_result_signed_stacked);
         } else {
           if (use_computed_lod) {
             texture_parameters.gradX = gradients_h;
@@ -2045,7 +1984,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
               builder_->createCompositeConstruct(type_float3_, id_vector_temp_);
           SampleTexture(texture_parameters, image_operands_mask,
                         image_2d_array_or_cube_unsigned,
-                        image_2d_array_or_cube_signed, sampler, is_all_signed,
+                        image_2d_array_or_cube_signed, sampler, is_any_unsigned,
                         is_any_signed, sample_result_unsigned,
                         sample_result_signed);
         }
@@ -2095,26 +2034,20 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
                     spv::OpBitwiseAnd, type_uint_, swizzle_word,
                     builder_->makeUintConstant(swizzle_bit_0_value << 2)),
                 const_uint_0_);
-            spv::Block& block_swizzle_head = *builder_->getBuildPoint();
-            spv::Block& block_swizzle_constant = builder_->makeNewBlock();
-            spv::Block& block_swizzle_component = builder_->makeNewBlock();
-            spv::Block& block_swizzle_merge = builder_->makeNewBlock();
-            builder_->createSelectionMerge(
-                &block_swizzle_merge, spv::SelectionControlDontFlattenMask);
-            builder_->createConditionalBranch(swizzle_bit_2,
-                                              &block_swizzle_constant,
-                                              &block_swizzle_component);
-            // Constant values.
-            builder_->setBuildPoint(&block_swizzle_constant);
-            // Bit 0 - 0 or 1.
-            spv::Id swizzle_result_constant =
-                builder_->createTriOp(spv::OpSelect, type_float_, swizzle_bit_0,
-                                      const_float_1, const_float_0_);
-            builder_->createBranch(&block_swizzle_merge);
-            // Fetched components.
+            SpirvBuilder::IfBuilder if_swizzle_constant(
+                swizzle_bit_2, spv::SelectionControlDontFlattenMask, *builder_);
+            spv::Id swizzle_result_constant;
+            {
+              // Constant values.
+              // Bit 0 - 0 or 1.
+              swizzle_result_constant = builder_->createTriOp(
+                  spv::OpSelect, type_float_, swizzle_bit_0, const_float_1,
+                  const_float_0_);
+            }
+            if_swizzle_constant.makeBeginElse();
             spv::Id swizzle_result_component;
             {
-              builder_->setBuildPoint(&block_swizzle_component);
+              // Fetched components.
               // Select whether the result is signed or unsigned (or biased or
               // gamma-corrected) based on the post-swizzle signedness.
               spv::Id swizzle_sample_result = builder_->createTriOp(
@@ -2146,22 +2079,11 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
               swizzle_result_component = builder_->createTriOp(
                   spv::OpSelect, type_float_, swizzle_bit_1, swizzle_z_or_w,
                   swizzle_x_or_y);
-              builder_->createBranch(&block_swizzle_merge);
             }
+            if_swizzle_constant.makeEndIf();
             // Select between the constants and the fetched components.
-            builder_->setBuildPoint(&block_swizzle_merge);
-            {
-              std::unique_ptr<spv::Instruction> swizzle_phi_op =
-                  std::make_unique<spv::Instruction>(builder_->getUniqueId(),
-                                                     type_float_, spv::OpPhi);
-              swizzle_phi_op->addIdOperand(swizzle_result_constant);
-              swizzle_phi_op->addIdOperand(block_swizzle_constant.getId());
-              swizzle_phi_op->addIdOperand(swizzle_result_component);
-              swizzle_phi_op->addIdOperand(block_swizzle_component.getId());
-              result[result_component_index] = swizzle_phi_op->getResultId();
-              builder_->getBuildPoint()->addInstruction(
-                  std::move(swizzle_phi_op));
-            }
+            result[result_component_index] = if_swizzle_constant.createMergePhi(
+                swizzle_result_constant, swizzle_result_component);
           }
         }
 
@@ -2441,58 +2363,43 @@ size_t SpirvShaderTranslator::FindOrAddSamplerBinding(
 void SpirvShaderTranslator::SampleTexture(
     spv::Builder::TextureParameters& texture_parameters,
     spv::ImageOperandsMask image_operands_mask, spv::Id image_unsigned,
-    spv::Id image_signed, spv::Id sampler, spv::Id is_all_signed,
+    spv::Id image_signed, spv::Id sampler, spv::Id is_any_unsigned,
     spv::Id is_any_signed, spv::Id& result_unsigned_out,
     spv::Id& result_signed_out, spv::Id lerp_factor,
     spv::Id lerp_first_unsigned, spv::Id lerp_first_signed) {
   for (uint32_t i = 0; i < 2; ++i) {
-    spv::Block& block_sign_head = *builder_->getBuildPoint();
-    spv::Block& block_sign = builder_->makeNewBlock();
-    spv::Block& block_sign_merge = builder_->makeNewBlock();
-    builder_->createSelectionMerge(&block_sign_merge,
-                                   spv::SelectionControlDontFlattenMask);
-    // Unsigned (i == 0) - if there are any non-signed components.
-    // Signed (i == 1) - if there are any signed components.
-    builder_->createConditionalBranch(i ? is_any_signed : is_all_signed,
-                                      i ? &block_sign : &block_sign_merge,
-                                      i ? &block_sign_merge : &block_sign);
-    builder_->setBuildPoint(&block_sign);
-    spv::Id image = i ? image_signed : image_unsigned;
-    // OpSampledImage must be in the same block as where its result is used.
-    texture_parameters.sampler = builder_->createBinOp(
-        spv::OpSampledImage,
-        builder_->makeSampledImageType(builder_->getTypeId(image)), image,
-        sampler);
-    spv::Id result = builder_->createTextureCall(
-        spv::NoPrecision, type_float4_, false, false, false, false, false,
-        texture_parameters, image_operands_mask);
-    if (lerp_factor != spv::NoResult) {
-      spv::Id lerp_first = i ? lerp_first_signed : lerp_first_unsigned;
-      if (lerp_first != spv::NoResult) {
-        spv::Id lerp_difference = builder_->createNoContractionBinOp(
-            spv::OpVectorTimesScalar, type_float4_,
-            builder_->createNoContractionBinOp(spv::OpFSub, type_float4_,
-                                               result, lerp_first),
-            lerp_factor);
-        result = builder_->createNoContractionBinOp(spv::OpFAdd, type_float4_,
-                                                    result, lerp_difference);
+    SpirvBuilder::IfBuilder sign_if(i ? is_any_signed : is_any_unsigned,
+                                    spv::SelectionControlDontFlattenMask,
+                                    *builder_);
+    spv::Id sign_result;
+    {
+      spv::Id image = i ? image_signed : image_unsigned;
+      // OpSampledImage must be in the same block as where its result is used.
+      texture_parameters.sampler = builder_->createBinOp(
+          spv::OpSampledImage,
+          builder_->makeSampledImageType(builder_->getTypeId(image)), image,
+          sampler);
+      sign_result = builder_->createTextureCall(
+          spv::NoPrecision, type_float4_, false, false, false, false, false,
+          texture_parameters, image_operands_mask);
+      if (lerp_factor != spv::NoResult) {
+        spv::Id lerp_first = i ? lerp_first_signed : lerp_first_unsigned;
+        if (lerp_first != spv::NoResult) {
+          spv::Id lerp_difference = builder_->createNoContractionBinOp(
+              spv::OpVectorTimesScalar, type_float4_,
+              builder_->createNoContractionBinOp(spv::OpFSub, type_float4_,
+                                                 sign_result, lerp_first),
+              lerp_factor);
+          sign_result = builder_->createNoContractionBinOp(
+              spv::OpFAdd, type_float4_, sign_result, lerp_difference);
+        }
       }
     }
-    builder_->createBranch(&block_sign_merge);
-    builder_->setBuildPoint(&block_sign_merge);
-    {
-      std::unique_ptr<spv::Instruction> phi_op =
-          std::make_unique<spv::Instruction>(builder_->getUniqueId(),
-                                             type_float4_, spv::OpPhi);
-      phi_op->addIdOperand(result);
-      phi_op->addIdOperand(block_sign.getId());
-      phi_op->addIdOperand(const_float4_0_);
-      phi_op->addIdOperand(block_sign_head.getId());
-      // This may overwrite the first lerp endpoint for the sign (such usage of
-      // this function is allowed).
-      (i ? result_signed_out : result_unsigned_out) = phi_op->getResultId();
-      builder_->getBuildPoint()->addInstruction(std::move(phi_op));
-    }
+    sign_if.makeEndIf();
+    // This may overwrite the first lerp endpoint for the sign (such usage of
+    // this function is allowed).
+    (i ? result_signed_out : result_unsigned_out) =
+        sign_if.createMergePhi(sign_result, const_float4_0_);
   }
 }
 
@@ -2500,48 +2407,33 @@ spv::Id SpirvShaderTranslator::QueryTextureLod(
     spv::Builder::TextureParameters& texture_parameters, spv::Id image_unsigned,
     spv::Id image_signed, spv::Id sampler, spv::Id is_all_signed) {
   // OpSampledImage must be in the same block as where its result is used.
-  spv::Block& block_sign_head = *builder_->getBuildPoint();
-  spv::Block& block_sign_signed = builder_->makeNewBlock();
-  spv::Block& block_sign_unsigned = builder_->makeNewBlock();
-  spv::Block& block_sign_merge = builder_->makeNewBlock();
-  builder_->createSelectionMerge(&block_sign_merge,
-                                 spv::SelectionControlDontFlattenMask);
-  builder_->createConditionalBranch(is_all_signed, &block_sign_signed,
-                                    &block_sign_unsigned);
-  builder_->setBuildPoint(&block_sign_signed);
-  texture_parameters.sampler = builder_->createBinOp(
-      spv::OpSampledImage,
-      builder_->makeSampledImageType(builder_->getTypeId(image_signed)),
-      image_signed, sampler);
-  spv::Id lod_signed = builder_->createCompositeExtract(
-      builder_->createTextureQueryCall(spv::OpImageQueryLod, texture_parameters,
-                                       false),
-      type_float_, 1);
-  builder_->createBranch(&block_sign_merge);
-  builder_->setBuildPoint(&block_sign_unsigned);
-  texture_parameters.sampler = builder_->createBinOp(
-      spv::OpSampledImage,
-      builder_->makeSampledImageType(builder_->getTypeId(image_unsigned)),
-      image_unsigned, sampler);
-  spv::Id lod_unsigned = builder_->createCompositeExtract(
-      builder_->createTextureQueryCall(spv::OpImageQueryLod, texture_parameters,
-                                       false),
-      type_float_, 1);
-  builder_->createBranch(&block_sign_merge);
-  builder_->setBuildPoint(&block_sign_merge);
-  spv::Id result;
+  SpirvBuilder::IfBuilder if_signed(
+      is_all_signed, spv::SelectionControlDontFlattenMask, *builder_);
+  spv::Id lod_signed;
   {
-    std::unique_ptr<spv::Instruction> sign_phi_op =
-        std::make_unique<spv::Instruction>(builder_->getUniqueId(), type_float_,
-                                           spv::OpPhi);
-    sign_phi_op->addIdOperand(lod_signed);
-    sign_phi_op->addIdOperand(block_sign_signed.getId());
-    sign_phi_op->addIdOperand(lod_unsigned);
-    sign_phi_op->addIdOperand(block_sign_unsigned.getId());
-    result = sign_phi_op->getResultId();
-    builder_->getBuildPoint()->addInstruction(std::move(sign_phi_op));
+    texture_parameters.sampler = builder_->createBinOp(
+        spv::OpSampledImage,
+        builder_->makeSampledImageType(builder_->getTypeId(image_signed)),
+        image_signed, sampler);
+    lod_signed = builder_->createCompositeExtract(
+        builder_->createTextureQueryCall(spv::OpImageQueryLod,
+                                         texture_parameters, false),
+        type_float_, 1);
   }
-  return result;
+  if_signed.makeBeginElse();
+  spv::Id lod_unsigned;
+  {
+    texture_parameters.sampler = builder_->createBinOp(
+        spv::OpSampledImage,
+        builder_->makeSampledImageType(builder_->getTypeId(image_unsigned)),
+        image_unsigned, sampler);
+    lod_unsigned = builder_->createCompositeExtract(
+        builder_->createTextureQueryCall(spv::OpImageQueryLod,
+                                         texture_parameters, false),
+        type_float_, 1);
+  }
+  if_signed.makeEndIf();
+  return if_signed.createMergePhi(lod_signed, lod_unsigned);
 }
 
 }  // namespace gpu
