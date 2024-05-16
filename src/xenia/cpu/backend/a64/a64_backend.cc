@@ -228,26 +228,41 @@ uint64_t A64Backend::CalculateNextHostInstruction(ThreadDebugInfo* thread_info,
   insn.detail = &all_detail;
   cs_disasm_iter(capstone_handle_, &machine_code_ptr,
                  &remaining_machine_code_size, &host_address, &insn);
-  auto& detail = all_detail.x86;
+  const auto& detail = all_detail.arm64;
   switch (insn.id) {
     case ARM64_INS_B:
-    case ARM64_INS_BL:
+    case ARM64_INS_BL: {
+      assert_true(detail.operands[0].type == ARM64_OP_IMM);
+      uint64_t target_pc = static_cast<uint64_t>(detail.operands[0].imm);
+      return current_pc + target_pc;
+    } break;
     case ARM64_INS_BLR:
-    case ARM64_INS_BR:
-    case ARM64_INS_RET:
-      // todo(wunkolo): determine next instruction
-    default:
+    case ARM64_INS_BR: {
+      assert_true(detail.operands[0].type == ARM64_OP_REG);
+      uint64_t target_pc =
+          ReadCapstoneReg(&thread_info->host_context, detail.operands[0].reg);
+      return target_pc;
+    } break;
+    case ARM64_INS_RET: {
+      assert_zero(detail.op_count);
+      // Jump to link register
+      return thread_info->host_context.x[30];
+    } break;
+    case ARM64_INS_CBNZ:
+    case ARM64_INS_CBZ:
+    default: {
       // Not a branching instruction - just move over it.
       return current_pc + insn.size;
+    } break;
   }
 }
 
 void A64Backend::InstallBreakpoint(Breakpoint* breakpoint) {
   breakpoint->ForEachHostAddress([breakpoint](uint64_t host_address) {
     auto ptr = reinterpret_cast<void*>(host_address);
-    auto original_bytes = xe::load_and_swap<uint16_t>(ptr);
-    assert_true(original_bytes != 0x0F0B);
-    xe::store_and_swap<uint16_t>(ptr, 0x0F0B);
+    auto original_bytes = xe::load_and_swap<uint32_t>(ptr);
+    assert_true(original_bytes != 0x0000'dead);
+    xe::store_and_swap<uint32_t>(ptr, 0x0000'dead);
     breakpoint->backend_data().emplace_back(host_address, original_bytes);
   });
 }
@@ -265,18 +280,18 @@ void A64Backend::InstallBreakpoint(Breakpoint* breakpoint, Function* fn) {
 
   // Assume we haven't already installed a breakpoint in this spot.
   auto ptr = reinterpret_cast<void*>(host_address);
-  auto original_bytes = xe::load_and_swap<uint16_t>(ptr);
-  assert_true(original_bytes != 0x0F0B);
-  xe::store_and_swap<uint16_t>(ptr, 0x0F0B);
+  auto original_bytes = xe::load_and_swap<uint32_t>(ptr);
+  assert_true(original_bytes != 0x0000'dead);
+  xe::store_and_swap<uint32_t>(ptr, 0x0000'dead);
   breakpoint->backend_data().emplace_back(host_address, original_bytes);
 }
 
 void A64Backend::UninstallBreakpoint(Breakpoint* breakpoint) {
   for (auto& pair : breakpoint->backend_data()) {
     auto ptr = reinterpret_cast<uint8_t*>(pair.first);
-    auto instruction_bytes = xe::load_and_swap<uint16_t>(ptr);
-    assert_true(instruction_bytes == 0x0F0B);
-    xe::store_and_swap<uint16_t>(ptr, static_cast<uint16_t>(pair.second));
+    auto instruction_bytes = xe::load_and_swap<uint32_t>(ptr);
+    assert_true(instruction_bytes == 0x0000'dead);
+    xe::store_and_swap<uint32_t>(ptr, static_cast<uint32_t>(pair.second));
   }
   breakpoint->backend_data().clear();
 }
@@ -296,9 +311,9 @@ bool A64Backend::ExceptionCallback(Exception* ex) {
 
   // Verify an expected illegal instruction.
   auto instruction_bytes =
-      xe::load_and_swap<uint16_t>(reinterpret_cast<void*>(ex->pc()));
-  if (instruction_bytes != 0x0F0B) {
-    // Not our ud2 - not us.
+      xe::load_and_swap<uint32_t>(reinterpret_cast<void*>(ex->pc()));
+  if (instruction_bytes != 0x0000'dead) {
+    // Not our `udf #0xdead` - not us.
     return false;
   }
 
