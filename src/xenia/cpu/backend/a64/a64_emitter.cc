@@ -201,7 +201,7 @@ bool A64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   func_info.stack_size = stack_size;
   stack_size_ = stack_size;
 
-  STP(X29, X30, SP, PRE_INDEXED, -32);
+  STP(X29, X30, SP, PRE_INDEXED, -16);
   MOV(X29, SP);
 
   SUB(SP, SP, (uint32_t)stack_size);
@@ -287,7 +287,7 @@ bool A64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   ADD(SP, SP, (uint32_t)stack_size);
 
   MOV(SP, X29);
-  LDP(X29, X30, SP, POST_INDEXED, 32);
+  LDP(X29, X30, SP, POST_INDEXED, 16);
 
   RET();
 
@@ -447,15 +447,12 @@ void A64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
     EmitTraceUserCallReturn();
 
     // Pass the callers return address over.
-    // mov(rcx, qword[rsp + StackLayout::GUEST_RET_ADDR]);
     LDR(X0, SP, StackLayout::GUEST_RET_ADDR);
 
-    // add(rsp, static_cast<uint32_t>(stack_size()));
-    // jmp(rax);
     ADD(SP, SP, static_cast<uint32_t>(stack_size()));
 
     MOV(SP, X29);
-    LDP(X29, X30, SP, POST_INDEXED, 32);
+    LDP(X29, X30, SP, POST_INDEXED, 16);
 
     BR(X16);
   } else {
@@ -484,19 +481,12 @@ void A64Emitter::CallIndirect(const hir::Instr* instr,
   // or a thunk to ResolveAddress.
   if (code_cache_->has_indirection_table()) {
     if (reg.toW().index() != W17.index()) {
-      // mov(ebx, reg.cvt32());
       MOV(W17, reg.toW());
     }
     LDR(W16, X17);
-    // mov(eax, dword[ebx]);
   } else {
     // Old-style resolve.
     // Not too important because indirection table is almost always available.
-    // mov(rcx, GetContextReg());
-    // mov(edx, reg.cvt32());
-    //
-    // mov(rax, reinterpret_cast<uint64_t>(ResolveFunction));
-    // call(rax);
     MOV(X0, GetContextReg());
     MOV(W1, reg.toW());
 
@@ -516,7 +506,7 @@ void A64Emitter::CallIndirect(const hir::Instr* instr,
     ADD(SP, SP, static_cast<uint32_t>(stack_size()));
 
     MOV(SP, X29);
-    LDP(X29, X30, SP, POST_INDEXED, 32);
+    LDP(X29, X30, SP, POST_INDEXED, 16);
 
     BR(X16);
   } else {

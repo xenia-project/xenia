@@ -437,7 +437,9 @@ ResolveFunctionThunk A64ThunkEmitter::EmitResolveFunctionThunk() {
 
   code_offsets.prolog = offset();
 
+  // Preserve context register
   STP(ZR, X0, SP, PRE_INDEXED, -16);
+
   SUB(SP, SP, stack_size);
 
   code_offsets.prolog_stack_alloc = offset();
@@ -462,6 +464,8 @@ ResolveFunctionThunk A64ThunkEmitter::EmitResolveFunctionThunk() {
   // add(rsp, stack_size);
   // jmp(rax);
   ADD(SP, SP, stack_size);
+
+  // Reload context register
   LDP(ZR, X0, SP, POST_INDEXED, 16);
   BR(X16);
 
