@@ -273,18 +273,18 @@ void Win32A64CodeCache::InitializeUnwindEntry(
   // function was called.
 
   // Function frames are generally:
-  // STP(X29, X30, SP, PRE_INDEXED, -32);
+  // STP(X29, X30, SP, PRE_INDEXED, -16);
   // MOV(X29, XSP);
   // SUB(XSP, XSP, stack_size);
   // ... function body ...
   // ADD(XSP, XSP, stack_size);
   // MOV(XSP, X29);
-  // LDP(X29, X30, SP, POST_INDEXED, 32);
+  // LDP(X29, X30, SP, POST_INDEXED, 16);
 
   // These opcodes must undo the epilog and put the return address within lr
   unwind_info->UnwindCodes[0] = OpAllocL(func_info.stack_size);
   unwind_info->UnwindCodes[1] =
-      UnwindOpWord(UWOP_SET_FP, OpSaveFpLrX(-32), UWOP_END);
+      UnwindOpWord(UWOP_SET_FP, OpSaveFpLrX(-16), UWOP_END);
 
   // Add entry.
   RUNTIME_FUNCTION& fn_entry = unwind_table_[unwind_table_slot];
