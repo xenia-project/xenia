@@ -212,9 +212,117 @@ uint64_t ReadCapstoneReg(HostThreadContext* context, arm64_reg reg) {
       return context->x[29];
     case ARM64_REG_X30:
       return context->x[30];
+    case ARM64_REG_W0:
+      return uint32_t(context->x[0]);
+    case ARM64_REG_W1:
+      return uint32_t(context->x[1]);
+    case ARM64_REG_W2:
+      return uint32_t(context->x[2]);
+    case ARM64_REG_W3:
+      return uint32_t(context->x[3]);
+    case ARM64_REG_W4:
+      return uint32_t(context->x[4]);
+    case ARM64_REG_W5:
+      return uint32_t(context->x[5]);
+    case ARM64_REG_W6:
+      return uint32_t(context->x[6]);
+    case ARM64_REG_W7:
+      return uint32_t(context->x[7]);
+    case ARM64_REG_W8:
+      return uint32_t(context->x[8]);
+    case ARM64_REG_W9:
+      return uint32_t(context->x[9]);
+    case ARM64_REG_W10:
+      return uint32_t(context->x[10]);
+    case ARM64_REG_W11:
+      return uint32_t(context->x[11]);
+    case ARM64_REG_W12:
+      return uint32_t(context->x[12]);
+    case ARM64_REG_W13:
+      return uint32_t(context->x[13]);
+    case ARM64_REG_W14:
+      return uint32_t(context->x[14]);
+    case ARM64_REG_W15:
+      return uint32_t(context->x[15]);
+    case ARM64_REG_W16:
+      return uint32_t(context->x[16]);
+    case ARM64_REG_W17:
+      return uint32_t(context->x[17]);
+    case ARM64_REG_W18:
+      return uint32_t(context->x[18]);
+    case ARM64_REG_W19:
+      return uint32_t(context->x[19]);
+    case ARM64_REG_W20:
+      return uint32_t(context->x[20]);
+    case ARM64_REG_W21:
+      return uint32_t(context->x[21]);
+    case ARM64_REG_W22:
+      return uint32_t(context->x[22]);
+    case ARM64_REG_W23:
+      return uint32_t(context->x[23]);
+    case ARM64_REG_W24:
+      return uint32_t(context->x[24]);
+    case ARM64_REG_W25:
+      return uint32_t(context->x[25]);
+    case ARM64_REG_W26:
+      return uint32_t(context->x[26]);
+    case ARM64_REG_W27:
+      return uint32_t(context->x[27]);
+    case ARM64_REG_W28:
+      return uint32_t(context->x[28]);
+    case ARM64_REG_W29:
+      return uint32_t(context->x[29]);
+    case ARM64_REG_W30:
+      return uint32_t(context->x[30]);
     default:
       assert_unhandled_case(reg);
       return 0;
+  }
+}
+
+bool TestCapstonePstate(arm64_cc cond, uint32_t pstate) {
+  // https://devblogs.microsoft.com/oldnewthing/20220815-00/?p=106975
+  // Upper 4 bits of pstate are NZCV
+  const bool N = !!(pstate & 0x80000000);
+  const bool Z = !!(pstate & 0x40000000);
+  const bool C = !!(pstate & 0x20000000);
+  const bool V = !!(pstate & 0x10000000);
+  switch (cond) {
+    case ARM64_CC_EQ:
+      return (Z == true);
+    case ARM64_CC_NE:
+      return (Z == false);
+    case ARM64_CC_HS:
+      return (C == true);
+    case ARM64_CC_LO:
+      return (C == false);
+    case ARM64_CC_MI:
+      return (N == true);
+    case ARM64_CC_PL:
+      return (N == false);
+    case ARM64_CC_VS:
+      return (V == true);
+    case ARM64_CC_VC:
+      return (V == false);
+    case ARM64_CC_HI:
+      return ((C == true) && (Z == false));
+    case ARM64_CC_LS:
+      return ((C == false) || (Z == true));
+    case ARM64_CC_GE:
+      return (N == V);
+    case ARM64_CC_LT:
+      return (N != V);
+    case ARM64_CC_GT:
+      return ((Z == false) && (N == V));
+    case ARM64_CC_LE:
+      return ((Z == true) || (N != V));
+    case ARM64_CC_AL:
+      return true;
+    case ARM64_CC_NV:
+      return false;
+    default:
+      assert_unhandled_case(cond);
+      return false;
   }
 }
 
@@ -233,23 +341,52 @@ uint64_t A64Backend::CalculateNextHostInstruction(ThreadDebugInfo* thread_info,
     case ARM64_INS_B:
     case ARM64_INS_BL: {
       assert_true(detail.operands[0].type == ARM64_OP_IMM);
-      uint64_t target_pc = static_cast<uint64_t>(detail.operands[0].imm);
-      return current_pc + target_pc;
+      const int64_t pc_offset = static_cast<int64_t>(detail.operands[0].imm);
+      const bool test_passed =
+          TestCapstonePstate(detail.cc, thread_info->host_context.cpsr);
+      if (test_passed) {
+        return current_pc + pc_offset;
+      } else {
+        return current_pc + insn.size;
+      }
     } break;
-    case ARM64_INS_BLR:
-    case ARM64_INS_BR: {
+    case ARM64_INS_BR:
+    case ARM64_INS_BLR: {
       assert_true(detail.operands[0].type == ARM64_OP_REG);
-      uint64_t target_pc =
+      const uint64_t target_pc =
           ReadCapstoneReg(&thread_info->host_context, detail.operands[0].reg);
       return target_pc;
     } break;
     case ARM64_INS_RET: {
-      assert_zero(detail.op_count);
-      // Jump to link register
-      return thread_info->host_context.x[30];
+      assert_true(detail.operands[0].type == ARM64_OP_REG);
+      const uint64_t target_pc =
+          ReadCapstoneReg(&thread_info->host_context, detail.operands[0].reg);
+      return target_pc;
     } break;
-    case ARM64_INS_CBNZ:
-    case ARM64_INS_CBZ:
+    case ARM64_INS_CBNZ: {
+      assert_true(detail.operands[0].type == ARM64_OP_REG);
+      assert_true(detail.operands[1].type == ARM64_OP_IMM);
+      const int64_t pc_offset = static_cast<int64_t>(detail.operands[1].imm);
+      const bool test_passed = (0 != ReadCapstoneReg(&thread_info->host_context,
+                                                     detail.operands[0].reg));
+      if (test_passed) {
+        return current_pc + pc_offset;
+      } else {
+        return current_pc + insn.size;
+      }
+    } break;
+    case ARM64_INS_CBZ: {
+      assert_true(detail.operands[0].type == ARM64_OP_REG);
+      assert_true(detail.operands[1].type == ARM64_OP_IMM);
+      const int64_t pc_offset = static_cast<int64_t>(detail.operands[1].imm);
+      const bool test_passed = (0 == ReadCapstoneReg(&thread_info->host_context,
+                                                     detail.operands[0].reg));
+      if (test_passed) {
+        return current_pc + pc_offset;
+      } else {
+        return current_pc + insn.size;
+      }
+    } break;
     default: {
       // Not a branching instruction - just move over it.
       return current_pc + insn.size;
