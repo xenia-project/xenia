@@ -369,7 +369,7 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
       case XE_GPU_REG_DC_LUT_SEQ_COLOR: {
         // Should be in the 256-entry table writing mode.
         assert_zero(regs[XE_GPU_REG_DC_LUT_RW_MODE] & 0b1);
-        auto& gamma_ramp_rw_index = regs.Get<reg::DC_LUT_RW_INDEX>();
+        auto gamma_ramp_rw_index = regs.Get<reg::DC_LUT_RW_INDEX>();
         // DC_LUT_SEQ_COLOR is in the red, green, blue order, but the write
         // enable mask is blue, green, red.
         bool write_gamma_ramp_component =
@@ -395,7 +395,11 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
         }
         if (++gamma_ramp_rw_component_ >= 3) {
           gamma_ramp_rw_component_ = 0;
-          ++gamma_ramp_rw_index.rw_index;
+          reg::DC_LUT_RW_INDEX new_gamma_ramp_rw_index = gamma_ramp_rw_index;
+          ++new_gamma_ramp_rw_index.rw_index;
+          WriteRegister(
+              XE_GPU_REG_DC_LUT_RW_INDEX,
+              xe::memory::Reinterpret<uint32_t>(new_gamma_ramp_rw_index));
         }
         if (write_gamma_ramp_component) {
           OnGammaRamp256EntryTableValueWritten();
@@ -405,7 +409,7 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
       case XE_GPU_REG_DC_LUT_PWL_DATA: {
         // Should be in the PWL writing mode.
         assert_not_zero(regs[XE_GPU_REG_DC_LUT_RW_MODE] & 0b1);
-        auto& gamma_ramp_rw_index = regs.Get<reg::DC_LUT_RW_INDEX>();
+        auto gamma_ramp_rw_index = regs.Get<reg::DC_LUT_RW_INDEX>();
         // Bit 7 of the index is ignored for PWL.
         uint32_t gamma_ramp_rw_index_pwl = gamma_ramp_rw_index.rw_index & 0x7F;
         // DC_LUT_PWL_DATA is likely in the red, green, blue order because
@@ -424,13 +428,17 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
         }
         if (++gamma_ramp_rw_component_ >= 3) {
           gamma_ramp_rw_component_ = 0;
+          reg::DC_LUT_RW_INDEX new_gamma_ramp_rw_index = gamma_ramp_rw_index;
           // TODO(Triang3l): Should this increase beyond 7 bits for PWL?
           // Direct3D 9 explicitly sets rw_index to 0x80 after writing the last
           // PWL entry. However, the DC_LUT_RW_INDEX documentation says that for
           // PWL, the bit 7 is ignored.
-          gamma_ramp_rw_index.rw_index =
+          new_gamma_ramp_rw_index.rw_index =
               (gamma_ramp_rw_index.rw_index & ~UINT32_C(0x7F)) |
               ((gamma_ramp_rw_index_pwl + 1) & 0x7F);
+          WriteRegister(
+              XE_GPU_REG_DC_LUT_RW_INDEX,
+              xe::memory::Reinterpret<uint32_t>(new_gamma_ramp_rw_index));
         }
         if (write_gamma_ramp_component) {
           OnGammaRampPWLValueWritten();
@@ -440,7 +448,7 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
       case XE_GPU_REG_DC_LUT_30_COLOR: {
         // Should be in the 256-entry table writing mode.
         assert_zero(regs[XE_GPU_REG_DC_LUT_RW_MODE] & 0b1);
-        auto& gamma_ramp_rw_index = regs.Get<reg::DC_LUT_RW_INDEX>();
+        auto gamma_ramp_rw_index = regs.Get<reg::DC_LUT_RW_INDEX>();
         uint32_t gamma_ramp_write_enable_mask =
             regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK] & 0b111;
         if (gamma_ramp_write_enable_mask) {
@@ -457,11 +465,16 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
             gamma_ramp_entry.color_10_red = gamma_ramp_value.color_10_red;
           }
         }
-        ++gamma_ramp_rw_index.rw_index;
         // TODO(Triang3l): Should this reset the component write index? If this
         // increase is assumed to behave like a full DC_LUT_RW_INDEX write, it
-        // probably should.
+        // probably should. Currently this also calls WriteRegister for
+        // DC_LUT_RW_INDEX, which resets gamma_ramp_rw_component_ as well.
         gamma_ramp_rw_component_ = 0;
+        reg::DC_LUT_RW_INDEX new_gamma_ramp_rw_index = gamma_ramp_rw_index;
+        ++new_gamma_ramp_rw_index.rw_index;
+        WriteRegister(
+            XE_GPU_REG_DC_LUT_RW_INDEX,
+            xe::memory::Reinterpret<uint32_t>(new_gamma_ramp_rw_index));
         if (gamma_ramp_write_enable_mask) {
           OnGammaRamp256EntryTableValueWritten();
         }
