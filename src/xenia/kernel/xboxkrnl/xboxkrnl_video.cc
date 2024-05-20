@@ -40,7 +40,7 @@ DEFINE_int32(internal_display_resolution, 8,
              "   14=1680x1050\n"
              "   15=1920x540\n"
              "   16=1920x1080\n",
-             "Display");
+             "Video");
 
 DEFINE_int32(
     video_standard, 1,
