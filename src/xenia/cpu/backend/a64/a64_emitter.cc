@@ -827,17 +827,15 @@ std::byte* A64Emitter::GetVConstPtr(VConst id) {
 
 // Implies possible StashV(0, ...)!
 void A64Emitter::LoadConstantV(oaknut::QReg dest, const vec128_t& v) {
-  // https://www.agner.org/optimize/optimizing_assembly.pdf
-  // 13.4 Generating constants
   if (!v.low && !v.high) {
     // 0000...
-    EOR(dest.B16(), dest.B16(), dest.B16());
-  }
-  // else if (v.low == ~uint64_t(0) && v.high == ~uint64_t(0)) {
-  //   // 1111...
-  //   vpcmpeqb(dest, dest);
-  // }
-  else {
+    // MOVI is implemented as a register-rename while EOR(x, x, x) is not
+    // https://dougallj.github.io/applecpu/firestorm.html
+    MOVI(dest.B16(), 0);
+  } else if (v.low == ~uint64_t(0) && v.high == ~uint64_t(0)) {
+    // 1111...
+    MOVI(dest.B16(), 0xFF);
+  } else {
     // TODO(benvanik): see what other common values are.
     // TODO(benvanik): build constant table - 99% are reused.
     MovMem64(SP, kStashOffset, v.low);
@@ -853,13 +851,11 @@ void A64Emitter::LoadConstantV(oaknut::QReg dest, float v) {
   } x = {v};
   if (!x.i) {
     // +0.0f (but not -0.0f because it may be used to flip the sign via xor).
-    EOR(dest.B16(), dest.B16(), dest.B16());
-  }
-  // else if (x.i == ~uint32_t(0)) {
-  //   // 1111...
-  //   vpcmpeqb(dest, dest);
-  // }
-  else {
+    MOVI(dest.B16(), 0);
+  } else if (x.i == ~uint32_t(0)) {
+    // 1111...
+    MOVI(dest.B16(), 0xFF);
+  } else {
     // TODO(benvanik): see what other common values are.
     // TODO(benvanik): build constant table - 99% are reused.
     MOV(W0, x.i);
@@ -874,13 +870,11 @@ void A64Emitter::LoadConstantV(oaknut::QReg dest, double v) {
   } x = {v};
   if (!x.i) {
     // +0.0 (but not -0.0 because it may be used to flip the sign via xor).
-    EOR(dest.B16(), dest.B16(), dest.B16());
-  }
-  // else if (x.i == ~uint64_t(0)) {
-  //   // 1111...
-  //   vpcmpeqb(dest, dest);
-  // }
-  else {
+    MOVI(dest.toD(), oaknut::RepImm(0));
+  } else if (x.i == ~uint64_t(0)) {
+    // 1111...
+    MOVI(dest.toD(), oaknut::RepImm(0xFF));
+  } else {
     // TODO(benvanik): see what other common values are.
     // TODO(benvanik): build constant table - 99% are reused.
     MOV(X0, x.i);
