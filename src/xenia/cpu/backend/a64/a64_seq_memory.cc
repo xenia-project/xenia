@@ -1126,22 +1126,17 @@ struct MEMSET_I64_I8_I64
     assert_true(i.src2.is_constant);
     assert_true(i.src3.is_constant);
     assert_true(i.src2.constant() == 0);
-    e.EOR(Q0.B16(), Q0.B16(), Q0.B16());
+    e.MOVI(Q0.B16(), 0);
     auto addr_reg = ComputeMemoryAddress(e, i.src1);
     switch (i.src3.constant()) {
       case 32:
-        e.STR(Q0, addr_reg, 0 * 16);
-        e.STR(Q0, addr_reg, 1 * 16);
+        e.STP(Q0, Q0, addr_reg, 0 * 16);
         break;
       case 128:
-        e.STR(Q0, addr_reg, 0 * 16);
-        e.STR(Q0, addr_reg, 1 * 16);
-        e.STR(Q0, addr_reg, 2 * 16);
-        e.STR(Q0, addr_reg, 3 * 16);
-        e.STR(Q0, addr_reg, 4 * 16);
-        e.STR(Q0, addr_reg, 5 * 16);
-        e.STR(Q0, addr_reg, 6 * 16);
-        e.STR(Q0, addr_reg, 7 * 16);
+        e.STP(Q0, Q0, addr_reg, 0 * 16);
+        e.STP(Q0, Q0, addr_reg, 2 * 16);
+        e.STP(Q0, Q0, addr_reg, 4 * 16);
+        e.STP(Q0, Q0, addr_reg, 6 * 16);
         break;
       default:
         assert_unhandled_case(i.src3.constant());
