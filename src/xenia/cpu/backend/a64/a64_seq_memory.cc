@@ -27,7 +27,7 @@ template <typename T>
 XReg ComputeMemoryAddressOffset(A64Emitter& e, const T& guest, const T& offset,
                                 WReg address_register = W3) {
   assert_true(offset.is_constant);
-  int32_t offset_const = static_cast<int32_t>(offset.constant());
+  const int32_t offset_const = static_cast<int32_t>(offset.constant());
 
   if (guest.is_constant) {
     uint32_t address = static_cast<uint32_t>(guest.constant());
@@ -53,8 +53,7 @@ XReg ComputeMemoryAddressOffset(A64Emitter& e, const T& guest, const T& offset,
       e.MOV(W0, 0xE0000000 - offset_const);
       e.CMP(guest.reg().toW(), W0);
       e.CSET(W0, Cond::HS);
-      e.LSL(W0, W0, 12);
-      e.ADD(W0, W0, guest.reg().toW());
+      e.ADD(W0, guest.reg().toW(), W0, LSL, 12);
     } else {
       // Clear the top 32 bits, as they are likely garbage.
       // TODO(benvanik): find a way to avoid doing this.
@@ -76,7 +75,7 @@ XReg ComputeMemoryAddress(A64Emitter& e, const T& guest,
     // TODO(benvanik): figure out how to do this without a temp.
     // Since the constant is often 0x8... if we tried to use that as a
     // displacement it would be sign extended and mess things up.
-    uint32_t address = static_cast<uint32_t>(guest.constant());
+    const uint32_t address = static_cast<uint32_t>(guest.constant());
     if (address < 0x80000000) {
       e.MOV(W0, address);
       e.ADD(address_register.toX(), e.GetMembaseReg(), X0);
@@ -98,8 +97,7 @@ XReg ComputeMemoryAddress(A64Emitter& e, const T& guest,
       e.MOV(W0, 0xE0000000);
       e.CMP(guest.reg().toW(), W0);
       e.CSET(W0, Cond::HS);
-      e.LSL(W0, W0, 12);
-      e.ADD(W0, W0, guest.reg().toW());
+      e.ADD(W0, guest.reg().toW(), W0, LSL, 12);
     } else {
       // Clear the top 32 bits, as they are likely garbage.
       // TODO(benvanik): find a way to avoid doing this.
@@ -107,7 +105,6 @@ XReg ComputeMemoryAddress(A64Emitter& e, const T& guest,
     }
     e.ADD(address_register.toX(), e.GetMembaseReg(), X0);
     return address_register.toX();
-    // return e.GetMembaseReg() + e.rax;
   }
 }
 
@@ -192,8 +189,7 @@ struct ATOMIC_COMPARE_EXCHANGE_I32
       e.MOV(W3, 0xE0000000);
       e.CMP(i.src1.reg().toW(), W3);
       e.CSET(W1, Cond::HS);
-      e.LSL(W1, W1, 12);
-      e.ADD(W1, W1, i.src1.reg().toW());
+      e.ADD(W1, i.src1.reg().toW(), W1, LSL, 12);
     } else {
       e.MOV(W1, i.src1.reg().toW());
     }
@@ -221,8 +217,7 @@ struct ATOMIC_COMPARE_EXCHANGE_I64
       e.MOV(W3, 0xE0000000);
       e.CMP(i.src1.reg(), X3);
       e.CSET(W1, Cond::HS);
-      e.LSL(W1, W1, 12);
-      e.ADD(W1, W1, i.src1.reg().toW());
+      e.ADD(W1, i.src1.reg().toW(), W1, LSL, 12);
     } else {
       e.MOV(W1, i.src1.reg().toW());
     }
