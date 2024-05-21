@@ -448,23 +448,17 @@ struct LOAD_CLOCK : Sequence<LOAD_CLOCK, I<OPCODE_LOAD_CLOCK, I64Op>> {
     // overhead.
     if (cvars::clock_no_scaling && cvars::clock_source_raw) {
       auto ratio = Clock::guest_tick_ratio();
-      // The 360 CPU is an in-order CPU, AMD64 usually isn't. Without
-      // mfence/lfence magic the rdtsc instruction can be executed sooner or
-      // later in the cache window. Since it's resolution however is much higher
-      // than the 360's mftb instruction this can safely be ignored.
+      // The 360 CPU is an in-order CPU, ARM64 usually isn't. Since it's
+      // resolution however is much higher than the 360's mftb instruction this
+      // can safely be ignored.
 
-      // Read time stamp in edx (high part) and eax (low part).
-      // e.rdtsc();
-      // Make it a 64 bit number in rax.
-      // e.shl(e.rdx, 32);
-      // e.or_(e.rax, e.rdx);
+      // Read clock cycle count
+      e.MRS(i.dest, SystemReg::CNTVCT_EL0);
       // Apply tick frequency scaling.
-      // e.MOV(e.rcx, ratio.first);
-      // e.mul(e.rcx);
-      // We actually now have a 128 bit number in rdx:rax.
-      // e.MOV(e.rcx, ratio.second);
-      // e.div(e.rcx);
-      // e.MOV(i.dest, e.rax);
+      e.MOV(X0, ratio.first);
+      e.MUL(i.dest, i.dest, X0);
+      e.MOV(X0, ratio.second);
+      e.UDIV(i.dest, i.dest, X0);
     } else {
       e.CallNative(LoadClock);
       e.MOV(i.dest, X0);
