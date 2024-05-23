@@ -1697,17 +1697,371 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
         break;
     }
   }
-  static void EmitD3DCOLOR(A64Emitter& e, const EmitArgType& i) {}
-  static void EmitFLOAT16_2(A64Emitter& e, const EmitArgType& i) {}
-  static void EmitFLOAT16_4(A64Emitter& e, const EmitArgType& i) {}
-  static void EmitSHORT_2(A64Emitter& e, const EmitArgType& i) {}
-  static void EmitSHORT_4(A64Emitter& e, const EmitArgType& i) {}
-  static void EmitUINT_2101010(A64Emitter& e, const EmitArgType& i) {}
-  static void EmitULONG_4202020(A64Emitter& e, const EmitArgType& i) {}
+  static void EmitD3DCOLOR(A64Emitter& e, const EmitArgType& i) {
+    // ARGB (WXYZ) -> RGBA (XYZW)
+    QReg src(0);
+    if (i.src1.is_constant) {
+      if (i.src1.value->IsConstantZero()) {
+        e.MOVP2R(X0, e.GetVConstPtr(VOne));
+        e.LDR(i.dest.reg(), X0);
+        return;
+      }
+      src = i.dest;
+      e.LoadConstantV(src, i.src1.constant());
+    } else {
+      src = i.src1;
+    }
+    // src = ZZYYXXWW
+    // Unpack to 000000ZZ,000000YY,000000XX,000000WW
+    e.MOVP2R(X0, e.GetVConstPtr(VUnpackD3DCOLOR));
+    e.LDR(Q1, X0);
+    e.TBL(i.dest.reg().B16(), oaknut::List{src.B16()}, Q1.B16());
+    // Add 1.0f to each.
+    e.MOVP2R(X0, e.GetVConstPtr(VOne));
+    e.LDR(Q1, X0);
+    e.EOR(i.dest.reg().B16(), i.dest.reg().B16(), Q1.B16());
+    // To convert to 0 to 1, games multiply by 0x47008081 and add 0xC7008081.
+  }
+  static uint8x16_t EmulateFLOAT16_2(void*, std::byte src1[16]) {
+    alignas(16) uint16_t a[4];
+    alignas(16) float b[8];
+    vst1q_u8(a, vld1q_u8(src1));
+    std::memset(b, 0, sizeof(b));
+
+    for (int i = 0; i < 2; i++) {
+      b[i] = half_float::detail::half2float(a[VEC128_W(6 + i)]);
+    }
+
+    // Constants, or something
+    b[2] = 0.f;
+    b[3] = 1.f;
+
+    return vld1q_u8(b);
+  }
+  static void EmitFLOAT16_2(A64Emitter& e, const EmitArgType& i) {
+    // 1 bit sign, 5 bit exponent, 10 bit mantissa
+    // D3D10 half float format
+    // TODO(wunkolo): FP16 + FCVTL
+    if (i.src1.is_constant) {
+      e.ADD(e.GetNativeParam(0), SP, e.StashConstantV(0, i.src1.constant()));
+    } else {
+      e.ADD(e.GetNativeParam(0), SP, e.StashV(0, i.src1));
+    }
+    e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_2));
+    e.MOV(i.dest.reg().B16(), Q0.B16());
+  }
+  static uint8x16_t EmulateFLOAT16_4(void*, std::byte src1[16]) {
+    alignas(16) uint16_t a[4];
+    alignas(16) float b[8];
+    vst1q_u8(a, vld1q_u8(src1));
+
+    for (int i = 0; i < 4; i++) {
+      b[i] = half_float::detail::half2float(a[VEC128_W(4 + i)]);
+    }
+
+    return vld1q_u8(b);
+  }
+  static void EmitFLOAT16_4(A64Emitter& e, const EmitArgType& i) {
+    // src = [(dest.x | dest.y), (dest.z | dest.w), 0, 0]
+    // TODO(wunkolo): FP16 + FCVTN
+
+    if (i.src1.is_constant) {
+      e.ADD(e.GetNativeParam(0), SP, e.StashConstantV(0, i.src1.constant()));
+    } else {
+      e.ADD(e.GetNativeParam(0), SP, e.StashV(0, i.src1));
+    }
+    e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_4));
+    e.MOV(i.dest.reg().B16(), Q0.B16());
+  }
+  static void EmitSHORT_2(A64Emitter& e, const EmitArgType& i) {
+    // (VD.x) = 3.0 + (VB.x>>16)*2^-22
+    // (VD.y) = 3.0 + (VB.x)*2^-22
+    // (VD.z) = 0.0
+    // (VD.w) = 1.0 (games splat W after unpacking to get vectors of 1.0f)
+    // src is (xx,xx,xx,VALUE)
+    QReg src(0);
+    if (i.src1.is_constant) {
+      if (i.src1.value->IsConstantZero()) {
+        src = i.dest;
+        e.MOVP2R(X0, e.GetVConstPtr(V3301));
+        e.LDR(i.dest, X0);
+        return;
+      }
+      // TODO(benvanik): check other common constants/perform shuffle/or here.
+      src = i.src1;
+      e.LoadConstantV(src, i.src1.constant());
+    } else {
+      src = i.src1;
+    }
+    // Shuffle bytes.
+    e.MOVP2R(X0, e.GetVConstPtr(VUnpackSHORT_2));
+    e.LDR(Q1, X0);
+    e.TBL(i.dest.reg().B16(), oaknut::List{src.B16()}, Q1.B16());
+
+    // If negative, make smaller than 3 - sign extend before adding.
+    e.SHL(i.dest.reg().S4(), i.dest.reg().S4(), 16);
+    e.SSHR(i.dest.reg().S4(), i.dest.reg().S4(), 16);
+
+    // Add 3,3,0,1.
+    e.MOVP2R(X0, e.GetVConstPtr(V3301));
+    e.LDR(Q1, X0);
+    e.ADD(i.dest.reg().S4(), i.dest.reg().S4(), Q1.S4());
+
+    // Return quiet NaNs in case of negative overflow.
+    e.MOVP2R(X0, e.GetVConstPtr(VUnpackSHORT_Overflow));
+    e.LDR(Q1, X0);
+    e.CMEQ(Q0.S4(), i.dest.reg().S4(), Q1.S4());
+
+    e.MOVP2R(X0, e.GetVConstPtr(VQNaN));
+    e.LDR(Q1, X0);
+    e.BSL(Q0.B16(), Q1.B16(), i.dest.reg().B16());
+    e.MOV(i.dest.reg().B16(), Q0.B16());
+  }
+  static void EmitSHORT_4(A64Emitter& e, const EmitArgType& i) {
+    // (VD.x) = 3.0 + (VB.x>>16)*2^-22
+    // (VD.y) = 3.0 + (VB.x)*2^-22
+    // (VD.z) = 3.0 + (VB.y>>16)*2^-22
+    // (VD.w) = 3.0 + (VB.y)*2^-22
+    // src is (xx,xx,VALUE,VALUE)
+    QReg src(0);
+    if (i.src1.is_constant) {
+      if (i.src1.value->IsConstantZero()) {
+        e.MOVP2R(X0, e.GetVConstPtr(V3333));
+        e.LDR(i.dest, X0);
+        return;
+      }
+      // TODO(benvanik): check other common constants/perform shuffle/or here.
+      src = i.dest;
+      e.LoadConstantV(src, i.src1.constant());
+    } else {
+      src = i.src1;
+    }
+    // Shuffle bytes.
+    e.MOVP2R(X0, e.GetVConstPtr(VUnpackSHORT_4));
+    e.LDR(Q1, X0);
+    e.TBL(i.dest.reg().B16(), oaknut::List{src.B16()}, Q1.B16());
+
+    // If negative, make smaller than 3 - sign extend before adding.
+    e.SHL(i.dest.reg().S4(), i.dest.reg().S4(), 16);
+    e.SSHR(i.dest.reg().S4(), i.dest.reg().S4(), 16);
+
+    // Add 3,3,3,3.
+    e.MOVP2R(X0, e.GetVConstPtr(V3333));
+    e.LDR(Q1, X0);
+    e.ADD(i.dest.reg().S4(), i.dest.reg().S4(), Q1.S4());
+
+    // Return quiet NaNs in case of negative overflow.
+    e.MOVP2R(X0, e.GetVConstPtr(VUnpackSHORT_Overflow));
+    e.LDR(Q1, X0);
+    e.CMEQ(Q0.S4(), i.dest.reg().S4(), Q1.S4());
+
+    e.MOVP2R(X0, e.GetVConstPtr(VQNaN));
+    e.LDR(Q1, X0);
+    e.BSL(Q0.B16(), Q1.B16(), i.dest.reg().B16());
+    e.MOV(i.dest.reg().B16(), Q0.B16());
+  }
+  static void EmitUINT_2101010(A64Emitter& e, const EmitArgType& i) {
+    QReg src(0);
+    if (i.src1.is_constant) {
+      if (i.src1.value->IsConstantZero()) {
+        e.MOVP2R(X0, e.GetVConstPtr(V3331));
+        e.LDR(i.dest, X0);
+        return;
+      }
+      src = i.dest;
+      e.LoadConstantV(src, i.src1.constant());
+    } else {
+      src = i.src1;
+    }
+
+    // Splat W.
+    e.DUP(i.dest.reg().S4(), src.Selem()[3]);
+    // Keep only the needed components.
+    // Red in 0-9 now, green in 10-19, blue in 20-29, alpha in 30-31.
+    e.MOVP2R(X0, e.GetVConstPtr(VPackUINT_2101010_MaskPacked));
+    e.LDR(Q1, X0);
+    e.AND(i.dest.reg().B16(), i.dest.reg().B16(), Q1.B16());
+
+    // Shift the components down.
+    e.MOVP2R(X0, e.GetVConstPtr(VPackUINT_2101010_Shift));
+    e.LDR(Q1, X0);
+    e.NEG(Q1.S4(), Q1.S4());
+    e.USHL(i.dest.reg().S4(), i.dest.reg().S4(), Q1.S4());
+    // If XYZ are negative, make smaller than 3 - sign extend XYZ before adding.
+    // W is unsigned.
+    e.SHL(i.dest.reg().S4(), i.dest.reg().S4(), 22);
+    e.SSHR(i.dest.reg().S4(), i.dest.reg().S4(), 22);
+    // Add 3,3,3,1.
+    e.MOVP2R(X0, e.GetVConstPtr(V3331));
+    e.LDR(Q1, X0);
+    e.ADD(i.dest.reg().S4(), i.dest.reg().S4(), Q1.S4());
+    // Return quiet NaNs in case of negative overflow.
+    e.MOVP2R(X0, e.GetVConstPtr(VUnpackUINT_2101010_Overflow));
+    e.LDR(Q1, X0);
+    e.CMEQ(Q0.S4(), i.dest.reg().S4(), Q1.S4());
+
+    e.MOVP2R(X0, e.GetVConstPtr(VQNaN));
+    e.LDR(Q1, X0);
+    e.BSL(Q0.B16(), Q1.B16(), i.dest.reg().B16());
+    e.MOV(i.dest.reg().B16(), Q0.B16());
+    // To convert XYZ to -1 to 1, games multiply by 0x46004020 & sub 0x46C06030.
+    // For W to 0 to 1, they multiply by and subtract 0x4A2AAAAB.}
+  }
+  static void EmitULONG_4202020(A64Emitter& e, const EmitArgType& i) {
+    QReg src(0);
+    if (i.src1.is_constant) {
+      if (i.src1.value->IsConstantZero()) {
+        e.MOVP2R(X0, e.GetVConstPtr(V3331));
+        e.LDR(i.dest, X0);
+        return;
+      }
+      src = i.dest;
+      e.LoadConstantV(src, i.src1.constant());
+    } else {
+      src = i.src1;
+    }
+    // Extract pairs of nibbles to XZYW. XZ will have excess 4 upper bits, YW
+    // will have excess 4 lower bits.
+    e.MOVP2R(X0, e.GetVConstPtr(VUnpackULONG_4202020_Permute));
+    e.LDR(Q1, X0);
+    e.TBL(i.dest.reg().B16(), oaknut::List{src.B16()}, Q1.B16());
+
+    // Drop the excess nibble of YW.
+    e.USHR(Q0.S4(), i.dest.reg().S4(), 4);
+    // Merge XZ and YW now both starting at offset 0.
+    e.LoadConstantV(Q1, vec128i(3 * 0x04'04'04'04 + 0x03'02'01'00,
+                                2 * 0x04'04'04'04 + 0x03'02'01'00,
+                                1 * 0x04'04'04'04 + 0x03'02'01'00,
+                                0 * 0x04'04'04'04 + 0x03'02'01'00));
+    e.TBL(i.dest.reg().B16(), oaknut::List{i.dest.reg().B16(), Q0.B16()},
+          Q1.B16());
+
+    // Reorder as XYZW.
+    e.LoadConstantV(Q1, vec128i(3 * 0x04'04'04'04 + 0x03'02'01'00,
+                                1 * 0x04'04'04'04 + 0x03'02'01'00,
+                                2 * 0x04'04'04'04 + 0x03'02'01'00,
+                                0 * 0x04'04'04'04 + 0x03'02'01'00));
+    e.TBL(i.dest.reg().B16(), oaknut::List{i.dest.reg().B16(), Q0.B16()},
+          Q1.B16());
+    // Drop the excess upper nibble in XZ and sign-extend XYZ.
+    e.SHL(i.dest.reg().S4(), i.dest.reg().S4(), 12);
+    e.SSHR(i.dest.reg().S4(), i.dest.reg().S4(), 12);
+    // Add 3,3,3,1.
+    e.MOVP2R(X0, e.GetVConstPtr(V3331));
+    e.LDR(Q1, X0);
+    e.ADD(i.dest.reg().S4(), i.dest.reg().S4(), Q1.S4());
+    // Return quiet NaNs in case of negative overflow.
+    e.MOVP2R(X0, e.GetVConstPtr(VUnpackULONG_4202020_Overflow));
+    e.LDR(Q1, X0);
+    e.CMEQ(Q0.S4(), i.dest.reg().S4(), Q1.S4());
+
+    e.MOVP2R(X0, e.GetVConstPtr(VQNaN));
+    e.LDR(Q1, X0);
+    e.BSL(Q0.B16(), Q1.B16(), i.dest.reg().B16());
+    e.MOV(i.dest.reg().B16(), Q0.B16());
+  }
   static void Emit8_IN_16(A64Emitter& e, const EmitArgType& i, uint32_t flags) {
+    assert_false(IsPackOutSaturate(flags));
+    QReg src(0);
+    if (i.src1.is_constant) {
+      src = i.dest;
+      e.LoadConstantV(src, i.src1.constant());
+    } else {
+      src = i.src1;
+    }
+    if (IsPackToLo(flags)) {
+      // Unpack to LO.
+      if (IsPackInUnsigned(flags)) {
+        if (IsPackOutUnsigned(flags)) {
+          // unsigned -> unsigned
+          assert_always();
+        } else {
+          // unsigned -> signed
+          assert_always();
+        }
+      } else {
+        if (IsPackOutUnsigned(flags)) {
+          // signed -> unsigned
+          assert_always();
+        } else {
+          // signed -> signed
+          e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
+          e.SXTL2(i.dest.reg().H8(), i.dest.reg().B16());
+        }
+      }
+    } else {
+      // Unpack to HI.
+      if (IsPackInUnsigned(flags)) {
+        if (IsPackOutUnsigned(flags)) {
+          // unsigned -> unsigned
+          assert_always();
+        } else {
+          // unsigned -> signed
+          assert_always();
+        }
+      } else {
+        if (IsPackOutUnsigned(flags)) {
+          // signed -> unsigned
+          assert_always();
+        } else {
+          // signed -> signed
+          e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
+          e.SXTL(i.dest.reg().H8(), i.dest.reg().toD().B8());
+        }
+      }
+    }
   }
   static void Emit16_IN_32(A64Emitter& e, const EmitArgType& i,
-                           uint32_t flags) {}
+                           uint32_t flags) {
+    assert_false(IsPackOutSaturate(flags));
+    QReg src(0);
+    if (i.src1.is_constant) {
+      src = i.dest;
+      e.LoadConstantV(src, i.src1.constant());
+    } else {
+      src = i.src1;
+    }
+    if (IsPackToLo(flags)) {
+      // Unpack to LO.
+      if (IsPackInUnsigned(flags)) {
+        if (IsPackOutUnsigned(flags)) {
+          // unsigned -> unsigned
+          assert_always();
+        } else {
+          // unsigned -> signed
+          assert_always();
+        }
+      } else {
+        if (IsPackOutUnsigned(flags)) {
+          // signed -> unsigned
+          assert_always();
+        } else {
+          // signed -> signed
+          e.SXTL2(i.dest.reg().S4(), src.H8());
+        }
+      }
+    } else {
+      // Unpack to HI.
+      if (IsPackInUnsigned(flags)) {
+        if (IsPackOutUnsigned(flags)) {
+          // unsigned -> unsigned
+          assert_always();
+        } else {
+          // unsigned -> signed
+          assert_always();
+        }
+      } else {
+        if (IsPackOutUnsigned(flags)) {
+          // signed -> unsigned
+          assert_always();
+        } else {
+          // signed -> signed
+          e.SXTL(i.dest.reg().S4(), src.toD().H4());
+        }
+      }
+    }
+    e.REV64(i.dest.reg().S4(), i.dest.reg().S4());
+  }
 };
 EMITTER_OPCODE_TABLE(OPCODE_UNPACK, UNPACK);
 
