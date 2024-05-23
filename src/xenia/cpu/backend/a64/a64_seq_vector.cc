@@ -1423,13 +1423,237 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     e.EXT(i.dest.reg().B16(), i.dest.reg().B16(), i.dest.reg().B16(), 4);
     e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
   }
-  static void EmitUINT_2101010(A64Emitter& e, const EmitArgType& i) {}
-  static void EmitULONG_4202020(A64Emitter& e, const EmitArgType& i) {}
+  static void EmitUINT_2101010(A64Emitter& e, const EmitArgType& i) {
+    // https://www.opengl.org/registry/specs/ARB/vertex_type_2_10_10_10_rev.txt
+    // XYZ are 10 bits, signed and saturated.
+    // W is 2 bits, unsigned and saturated.
+    const QReg src = i.dest;
+    if (i.src1.is_constant) {
+      e.LoadConstantV(src, i.src1.constant());
+    }
+
+    // Saturate.
+    e.MOVP2R(X0, e.GetVConstPtr(VPackUINT_2101010_MinUnpacked));
+    e.LDR(Q1, X0);
+    e.FMAX(i.dest.reg().S4(), src.S4(), Q1.S4());
+
+    e.MOVP2R(X0, e.GetVConstPtr(VPackUINT_2101010_MaxUnpacked));
+    e.LDR(Q1, X0);
+    e.FMIN(i.dest.reg().S4(), i.dest.reg().S4(), Q1.S4());
+
+    // Remove the unneeded bits of the floats.
+    e.MOVP2R(X0, e.GetVConstPtr(VPackUINT_2101010_MaskUnpacked));
+    e.LDR(Q1, X0);
+    e.AND(i.dest.reg().B16(), i.dest.reg().B16(), Q1.B16());
+
+    // Shift the components up.
+    e.MOVP2R(X0, e.GetVConstPtr(VPackUINT_2101010_Shift));
+    e.LDR(Q1, X0);
+    e.USHL(i.dest.reg().S4(), i.dest.reg().S4(), Q1.S4());
+
+    // Combine the components.
+    e.LoadConstantV(Q1, vec128i(0x03'02'01'00 + 0x04'04'04'04 * 2,
+                                0x03'02'01'00 + 0x04'04'04'04 * 3,
+                                0x03'02'01'00 + 0x04'04'04'04 * 0,
+                                0x03'02'01'00 + 0x04'04'04'04 * 1));
+    e.TBL(Q0.B16(), oaknut::List{i.dest.reg().B16()}, Q1.B16());
+    e.EOR(i.dest.reg().B16(), i.dest.reg().B16(), Q0.B16());
+
+    e.LoadConstantV(Q1, vec128i(0x03'02'01'00 + 0x04'04'04'04 * 1,
+                                0x03'02'01'00 + 0x04'04'04'04 * 0,
+                                0x03'02'01'00 + 0x04'04'04'04 * 3,
+                                0x03'02'01'00 + 0x04'04'04'04 * 2));
+    e.TBL(Q0.B16(), oaknut::List{i.dest.reg().B16()}, Q1.B16());
+    e.EOR(i.dest.reg().B16(), i.dest.reg().B16(), Q0.B16());
+  }
+  static void EmitULONG_4202020(A64Emitter& e, const EmitArgType& i) {
+    // XYZ are 20 bits, signed and saturated.
+    // W is 4 bits, unsigned and saturated.
+    QReg src = i.src1;
+    if (i.src1.is_constant) {
+      src = i.dest;
+      e.LoadConstantV(src, i.src1.constant());
+    }
+    // Saturate.
+    e.MOVP2R(X0, e.GetVConstPtr(VPackULONG_4202020_MinUnpacked));
+    e.LDR(Q1, X0);
+    e.FMAX(i.dest.reg().S4(), src.S4(), Q1.S4());
+
+    e.MOVP2R(X0, e.GetVConstPtr(VPackULONG_4202020_MaxUnpacked));
+    e.LDR(Q1, X0);
+    e.FMIN(i.dest.reg().S4(), i.dest.reg().S4(), Q1.S4());
+
+    // Remove the unneeded bits of the floats (so excess nibbles will also be
+    // cleared).
+    e.MOVP2R(X0, e.GetVConstPtr(VPackULONG_4202020_MaskUnpacked));
+    e.LDR(Q1, X0);
+    e.AND(i.dest.reg().B16(), i.dest.reg().B16(), Q1.B16());
+
+    // Store Y and W shifted left by 4 so vpshufb can be used with them.
+    e.SHL(Q0.S4(), i.dest.reg().S4(), 4);
+
+    // Place XZ where they're supposed to be.
+    e.MOVP2R(X0, e.GetVConstPtr(VPackULONG_4202020_PermuteXZ));
+    e.LDR(Q1, X0);
+    e.TBL(i.dest.reg().B16(), oaknut::List{i.dest.reg().B16()}, Q1.B16());
+    // Place YW.
+    e.MOVP2R(X0, e.GetVConstPtr(VPackULONG_4202020_PermuteYW));
+    e.LDR(Q1, X0);
+    e.TBL(Q0.B16(), oaknut::List{Q0.B16()}, Q1.B16());
+    // Merge XZ and YW.
+    e.EOR(i.dest.reg().B16(), i.dest.reg().B16(), Q0.B16());
+  }
   static void Emit8_IN_16(A64Emitter& e, const EmitArgType& i, uint32_t flags) {
+    if (IsPackInUnsigned(flags)) {
+      if (IsPackOutUnsigned(flags)) {
+        if (IsPackOutSaturate(flags)) {
+          // unsigned -> unsigned + saturate
+          const QReg src1 = i.src1.is_constant ? Q0 : i.src1;
+          if (i.src1.is_constant) {
+            e.LoadConstantV(src1, i.src1.constant());
+          }
+
+          const QReg src2 = i.src2.is_constant ? Q1 : i.src2;
+          if (i.src2.is_constant) {
+            e.LoadConstantV(src2, i.src2.constant());
+          }
+          e.UQXTN(i.dest.reg().toD().B8(), src1.H8());
+          e.UQXTN2(i.dest.reg().B16(), src2.H8());
+
+          e.MOVP2R(X0, e.GetVConstPtr(VByteOrderMask));
+          e.LDR(Q0, X0);
+          e.TBL(i.dest.reg().B16(), oaknut::List{i.dest.reg().B16()}, Q0.B16());
+        } else {
+          // unsigned -> unsigned
+          e.XTN(i.dest.reg().toD().B8(), i.src1.reg().H8());
+          e.XTN2(i.dest.reg().B16(), i.src2.reg().H8());
+
+          e.MOVP2R(X0, e.GetVConstPtr(VByteOrderMask));
+          e.LDR(Q0, X0);
+          e.TBL(i.dest.reg().B16(), oaknut::List{i.dest.reg().B16()}, Q0.B16());
+        }
+      } else {
+        if (IsPackOutSaturate(flags)) {
+          // unsigned -> signed + saturate
+          assert_always();
+        } else {
+          // unsigned -> signed
+          assert_always();
+        }
+      }
+    } else {
+      if (IsPackOutUnsigned(flags)) {
+        if (IsPackOutSaturate(flags)) {
+          // signed -> unsigned + saturate
+          const QReg src1 = i.src1.is_constant ? Q0 : i.src1;
+          if (i.src1.is_constant) {
+            e.LoadConstantV(src1, i.src1.constant());
+          }
+
+          const QReg src2 = i.src2.is_constant ? Q1 : i.src2;
+          if (i.src2.is_constant) {
+            e.LoadConstantV(src2, i.src2.constant());
+          }
+
+          e.UQXTN(i.dest.reg().toD().B8(), i.src1.reg().H8());
+          e.UQXTN2(i.dest.reg().B16(), src2.H8());
+
+          e.MOVP2R(X0, e.GetVConstPtr(VByteOrderMask));
+          e.LDR(Q0, X0);
+          e.TBL(i.dest.reg().B16(), oaknut::List{i.dest.reg().B16()}, Q0.B16());
+        } else {
+          // signed -> unsigned
+          assert_always();
+        }
+      } else {
+        if (IsPackOutSaturate(flags)) {
+          // signed -> signed + saturate
+          e.SQXTN(i.dest.reg().toD().B8(), i.src1.reg().H8());
+          e.SQXTN2(i.dest.reg().B16(), i.src2.reg().H8());
+
+          e.MOVP2R(X0, e.GetVConstPtr(VByteOrderMask));
+          e.LDR(Q0, X0);
+          e.TBL(i.dest.reg().B16(), oaknut::List{i.dest.reg().B16()}, Q0.B16());
+        } else {
+          // signed -> signed
+          assert_always();
+        }
+      }
+    }
   }
   // Pack 2 32-bit vectors into a 16-bit vector.
   static void Emit16_IN_32(A64Emitter& e, const EmitArgType& i,
-                           uint32_t flags) {}
+                           uint32_t flags) {
+    // TODO(benvanik): handle src2 (or src1) being constant zero
+    if (IsPackInUnsigned(flags)) {
+      if (IsPackOutUnsigned(flags)) {
+        if (IsPackOutSaturate(flags)) {
+          // unsigned -> unsigned + saturate
+          const QReg src1 = i.src1.is_constant ? Q0 : i.src1;
+          if (i.src1.is_constant) {
+            e.LoadConstantV(src1, i.src1.constant());
+          }
+
+          const QReg src2 = i.src2.is_constant ? Q1 : i.src2;
+          if (i.src2.is_constant) {
+            e.LoadConstantV(src2, i.src2.constant());
+          }
+
+          e.UQXTN(i.dest.reg().toD().H4(), src1.S4());
+          e.UQXTN2(i.dest.reg().H8(), src2.S4());
+
+          e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
+        } else {
+          // unsigned -> unsigned
+          e.XTN(i.dest.reg().toD().H4(), i.src1.reg().S4());
+          e.XTN2(i.dest.reg().H8(), i.src2.reg().S4());
+
+          e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
+        }
+      } else {
+        if (IsPackOutSaturate(flags)) {
+          // unsigned -> signed + saturate
+          assert_always();
+        } else {
+          // unsigned -> signed
+          assert_always();
+        }
+      }
+    } else {
+      if (IsPackOutUnsigned(flags)) {
+        if (IsPackOutSaturate(flags)) {
+          // signed -> unsigned + saturate
+          e.UQXTN(i.dest.reg().toD().H4(), i.src1.reg().S4());
+          e.UQXTN2(i.dest.reg().H8(), i.src2.reg().S4());
+
+          e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
+        } else {
+          // signed -> unsigned
+          assert_always();
+        }
+      } else {
+        if (IsPackOutSaturate(flags)) {
+          // signed -> signed + saturate
+          const QReg src1 = i.src1.is_constant ? Q0 : i.src1;
+          if (i.src1.is_constant) {
+            e.LoadConstantV(src1, i.src1.constant());
+          }
+
+          const QReg src2 = i.src2.is_constant ? Q1 : i.src2;
+          if (i.src2.is_constant) {
+            e.LoadConstantV(src2, i.src2.constant());
+          }
+          e.SQXTN(i.dest.reg().toD().H4(), src1.S4());
+          e.SQXTN2(i.dest.reg().H8(), src2.S4());
+
+          e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
+        } else {
+          // signed -> signed
+          assert_always();
+        }
+      }
+    }
+  }
 };
 EMITTER_OPCODE_TABLE(OPCODE_PACK, PACK);
 
