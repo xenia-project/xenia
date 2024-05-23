@@ -27,6 +27,10 @@ VirtualFileSystem::VirtualFileSystem() {}
 VirtualFileSystem::~VirtualFileSystem() {
   // Delete all devices.
   // This will explode if anyone is still using data from them.
+  Clear();
+}
+
+void VirtualFileSystem::Clear() {
   devices_.clear();
   symlinks_.clear();
 }

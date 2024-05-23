@@ -28,6 +28,8 @@ class VirtualFileSystem {
   VirtualFileSystem();
   ~VirtualFileSystem();
 
+  void Clear();
+
   bool RegisterDevice(std::unique_ptr<Device> device);
   bool UnregisterDevice(const std::string_view path);
 
