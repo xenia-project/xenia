@@ -1368,11 +1368,12 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     assert_true(i.src2.value->IsConstantZero());
     // http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
     // dest = [(src1.x | src1.y), 0, 0, 0]
+    // TODO(wunkolo): FP16 + FCVTN
 
     if (i.src1.is_constant) {
-      e.ADD(e.GetNativeParam(0), XSP, e.StashConstantV(0, i.src1.constant()));
+      e.ADD(e.GetNativeParam(0), SP, e.StashConstantV(0, i.src1.constant()));
     } else {
-      e.ADD(e.GetNativeParam(0), XSP, e.StashV(0, i.src1));
+      e.ADD(e.GetNativeParam(0), SP, e.StashV(0, i.src1));
     }
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_2));
     e.MOV(i.dest.reg().B16(), Q0.B16());
@@ -1394,11 +1395,12 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     assert_true(i.src2.value->IsConstantZero());
     // http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
     // dest = [(src1.z | src1.w), (src1.x | src1.y), 0, 0]
+    // TODO(wunkolo): FP16 + FCVTN
 
     if (i.src1.is_constant) {
-      e.ADD(e.GetNativeParam(0), XSP, e.StashConstantV(0, i.src1.constant()));
+      e.ADD(e.GetNativeParam(0), SP, e.StashConstantV(0, i.src1.constant()));
     } else {
-      e.ADD(e.GetNativeParam(0), XSP, e.StashV(0, i.src1));
+      e.ADD(e.GetNativeParam(0), SP, e.StashV(0, i.src1));
     }
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_4));
     e.MOV(i.dest.reg().B16(), Q0.B16());
@@ -1517,20 +1519,18 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
           if (i.src2.is_constant) {
             e.LoadConstantV(src2, i.src2.constant());
           }
-          e.UQXTN(i.dest.reg().toD().B8(), src1.H8());
-          e.UQXTN2(i.dest.reg().B16(), src2.H8());
+          e.UQXTN(i.dest.reg().toD().B8(), src2.H8());
+          e.UQXTN2(i.dest.reg().B16(), src1.H8());
 
-          e.MOVP2R(X0, e.GetVConstPtr(VByteOrderMask));
-          e.LDR(Q0, X0);
-          e.TBL(i.dest.reg().B16(), oaknut::List{i.dest.reg().B16()}, Q0.B16());
+          e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
+          e.EXT(i.dest.reg().B16(), i.dest.reg().B16(), i.dest.reg().B16(), 8);
         } else {
           // unsigned -> unsigned
-          e.XTN(i.dest.reg().toD().B8(), i.src1.reg().H8());
-          e.XTN2(i.dest.reg().B16(), i.src2.reg().H8());
+          e.XTN(i.dest.reg().toD().B8(), i.src2.reg().H8());
+          e.XTN2(i.dest.reg().B16(), i.src1.reg().H8());
 
-          e.MOVP2R(X0, e.GetVConstPtr(VByteOrderMask));
-          e.LDR(Q0, X0);
-          e.TBL(i.dest.reg().B16(), oaknut::List{i.dest.reg().B16()}, Q0.B16());
+          e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
+          e.EXT(i.dest.reg().B16(), i.dest.reg().B16(), i.dest.reg().B16(), 8);
         }
       } else {
         if (IsPackOutSaturate(flags)) {
@@ -1555,12 +1555,11 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
             e.LoadConstantV(src2, i.src2.constant());
           }
 
-          e.UQXTN(i.dest.reg().toD().B8(), i.src1.reg().H8());
-          e.UQXTN2(i.dest.reg().B16(), src2.H8());
+          e.SQXTUN(i.dest.reg().toD().B8(), src2.H8());
+          e.SQXTUN2(i.dest.reg().B16(), src1.H8());
 
-          e.MOVP2R(X0, e.GetVConstPtr(VByteOrderMask));
-          e.LDR(Q0, X0);
-          e.TBL(i.dest.reg().B16(), oaknut::List{i.dest.reg().B16()}, Q0.B16());
+          e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
+          e.EXT(i.dest.reg().B16(), i.dest.reg().B16(), i.dest.reg().B16(), 8);
         } else {
           // signed -> unsigned
           assert_always();
@@ -1568,12 +1567,11 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       } else {
         if (IsPackOutSaturate(flags)) {
           // signed -> signed + saturate
-          e.SQXTN(i.dest.reg().toD().B8(), i.src1.reg().H8());
-          e.SQXTN2(i.dest.reg().B16(), i.src2.reg().H8());
+          e.SQXTN(i.dest.reg().toD().B8(), i.src2.reg().H8());
+          e.SQXTN2(i.dest.reg().B16(), i.src1.reg().H8());
 
-          e.MOVP2R(X0, e.GetVConstPtr(VByteOrderMask));
-          e.LDR(Q0, X0);
-          e.TBL(i.dest.reg().B16(), oaknut::List{i.dest.reg().B16()}, Q0.B16());
+          e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
+          e.EXT(i.dest.reg().B16(), i.dest.reg().B16(), i.dest.reg().B16(), 8);
         } else {
           // signed -> signed
           assert_always();
@@ -1599,16 +1597,18 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
             e.LoadConstantV(src2, i.src2.constant());
           }
 
-          e.UQXTN(i.dest.reg().toD().H4(), src1.S4());
-          e.UQXTN2(i.dest.reg().H8(), src2.S4());
+          e.UQXTN(i.dest.reg().toD().H4(), src2.S4());
+          e.UQXTN2(i.dest.reg().H8(), src1.S4());
 
           e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
+          e.EXT(i.dest.reg().B16(), i.dest.reg().B16(), i.dest.reg().B16(), 8);
         } else {
           // unsigned -> unsigned
-          e.XTN(i.dest.reg().toD().H4(), i.src1.reg().S4());
-          e.XTN2(i.dest.reg().H8(), i.src2.reg().S4());
+          e.XTN(i.dest.reg().toD().H4(), i.src2.reg().S4());
+          e.XTN2(i.dest.reg().H8(), i.src1.reg().S4());
 
           e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
+          e.EXT(i.dest.reg().B16(), i.dest.reg().B16(), i.dest.reg().B16(), 8);
         }
       } else {
         if (IsPackOutSaturate(flags)) {
@@ -1623,10 +1623,11 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       if (IsPackOutUnsigned(flags)) {
         if (IsPackOutSaturate(flags)) {
           // signed -> unsigned + saturate
-          e.UQXTN(i.dest.reg().toD().H4(), i.src1.reg().S4());
-          e.UQXTN2(i.dest.reg().H8(), i.src2.reg().S4());
+          e.SQXTUN(i.dest.reg().toD().H4(), i.src2.reg().S4());
+          e.SQXTUN2(i.dest.reg().H8(), i.src1.reg().S4());
 
           e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
+          e.EXT(i.dest.reg().B16(), i.dest.reg().B16(), i.dest.reg().B16(), 8);
         } else {
           // signed -> unsigned
           assert_always();
@@ -1643,10 +1644,11 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
           if (i.src2.is_constant) {
             e.LoadConstantV(src2, i.src2.constant());
           }
-          e.SQXTN(i.dest.reg().toD().H4(), src1.S4());
-          e.SQXTN2(i.dest.reg().H8(), src2.S4());
+          e.SQXTN(i.dest.reg().toD().H4(), src2.S4());
+          e.SQXTN2(i.dest.reg().H8(), src1.S4());
 
           e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
+          e.EXT(i.dest.reg().B16(), i.dest.reg().B16(), i.dest.reg().B16(), 8);
         } else {
           // signed -> signed
           assert_always();
