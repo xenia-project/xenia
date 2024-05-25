@@ -2165,6 +2165,11 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     return IssueCopy();
   }
 
+  const ui::vulkan::VulkanProvider::DeviceInfo& device_info =
+      GetVulkanProvider().device_info();
+
+  memexport_ranges_.clear();
+
   // Vertex shader analysis.
   auto vertex_shader = static_cast<VulkanShader*>(active_vertex_shader());
   if (!vertex_shader) {
@@ -2172,7 +2177,14 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     return false;
   }
   pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
-  bool memexport_used_vertex = vertex_shader->memexport_eM_written() != 0;
+  // TODO(Triang3l): If the shader uses memory export, but
+  // vertexPipelineStoresAndAtomics is not supported, convert the vertex shader
+  // to a compute shader and dispatch it after the draw if the draw doesn't use
+  // tessellation.
+  if (vertex_shader->memexport_eM_written() != 0 &&
+      device_info.vertexPipelineStoresAndAtomics) {
+    draw_util::AddMemExportRanges(regs, *vertex_shader, memexport_ranges_);
+  }
 
   // Pixel shader analysis.
   bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
@@ -2195,12 +2207,15 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   } else {
     // Disabling pixel shader for this case is also required by the pipeline
     // cache.
-    if (!memexport_used_vertex) {
+    if (memexport_ranges_.empty()) {
       // This draw has no effect.
       return true;
     }
   }
-  // TODO(Triang3l): Memory export.
+  if (pixel_shader && pixel_shader->memexport_eM_written() != 0 &&
+      device_info.fragmentStoresAndAtomics) {
+    draw_util::AddMemExportRanges(regs, *pixel_shader, memexport_ranges_);
+  }
 
   uint32_t ps_param_gen_pos = UINT32_MAX;
   uint32_t interpolator_mask =
@@ -2416,9 +2431,6 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     current_guest_graphics_pipeline_layout_ = pipeline_layout;
   }
 
-  const ui::vulkan::VulkanProvider::DeviceInfo& device_info =
-      GetVulkanProvider().device_info();
-
   bool host_render_targets_used = render_target_cache_->GetPath() ==
                                   RenderTargetCache::Path::kHostRenderTargets;
 
@@ -2520,9 +2532,39 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                                                   << (vfetch_index & 63);
   }
 
+  // Synchronize the memory pages backing memory scatter export streams, and
+  // calculate the range that includes the streams for the buffer barrier.
+  uint32_t memexport_extent_start = UINT32_MAX, memexport_extent_end = 0;
+  for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+    uint32_t memexport_range_base_bytes = memexport_range.base_address_dwords
+                                          << 2;
+    if (!shared_memory_->RequestRange(memexport_range_base_bytes,
+                                      memexport_range.size_bytes)) {
+      XELOGE(
+          "Failed to request memexport stream at 0x{:08X} (size {}) in the "
+          "shared memory",
+          memexport_range_base_bytes, memexport_range.size_bytes);
+      return false;
+    }
+    memexport_extent_start =
+        std::min(memexport_extent_start, memexport_range_base_bytes);
+    memexport_extent_end =
+        std::max(memexport_extent_end,
+                 memexport_range_base_bytes + memexport_range.size_bytes);
+  }
+
   // Insert the shared memory barrier if needed.
-  // TODO(Triang3l): Memory export.
-  shared_memory_->Use(VulkanSharedMemory::Usage::kRead);
+  // TODO(Triang3l): Find some PM4 command that can be used for indication of
+  // when memexports should be awaited instead of inserting the barrier in Use
+  // every time if memory export was done in the previous draw?
+  if (memexport_extent_start < memexport_extent_end) {
+    shared_memory_->Use(
+        VulkanSharedMemory::Usage::kGuestDrawReadWrite,
+        std::make_pair(memexport_extent_start,
+                       memexport_extent_end - memexport_extent_start));
+  } else {
+    shared_memory_->Use(VulkanSharedMemory::Usage::kRead);
+  }
 
   // After all commands that may dispatch, copy or insert barriers, submit the
   // barriers (may end the render pass), and (re)enter the render pass before
@@ -2565,6 +2607,12 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             : VK_INDEX_TYPE_UINT32);
     deferred_command_buffer_.CmdVkDrawIndexed(
         primitive_processing_result.host_draw_vertex_count, 1, 0, 0, 0);
+  }
+
+  // Invalidate textures in memexported memory and watch for changes.
+  for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+    shared_memory_->RangeWrittenByGpu(memexport_range.base_address_dwords << 2,
+                                      memexport_range.size_bytes, false);
   }
 
   return true;

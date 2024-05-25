@@ -30,30 +30,35 @@ namespace gpu {
 SpirvShaderTranslator::Features::Features(bool all)
     : spirv_version(all ? spv::Spv_1_5 : spv::Spv_1_0),
       max_storage_buffer_range(all ? UINT32_MAX : (128 * 1024 * 1024)),
+      full_draw_index_uint32(all),
+      vertex_pipeline_stores_and_atomics(all),
+      fragment_stores_and_atomics(all),
       clip_distance(all),
       cull_distance(all),
-      demote_to_helper_invocation(all),
-      fragment_shader_sample_interlock(all),
-      full_draw_index_uint32(all),
       image_view_format_swizzle(all),
       signed_zero_inf_nan_preserve_float32(all),
       denorm_flush_to_zero_float32(all),
-      rounding_mode_rte_float32(all) {}
+      rounding_mode_rte_float32(all),
+      fragment_shader_sample_interlock(all),
+      demote_to_helper_invocation(all) {}
 
 SpirvShaderTranslator::Features::Features(
     const ui::vulkan::VulkanProvider::DeviceInfo& device_info)
     : max_storage_buffer_range(device_info.maxStorageBufferRange),
+      full_draw_index_uint32(device_info.fullDrawIndexUint32),
+      vertex_pipeline_stores_and_atomics(
+          device_info.vertexPipelineStoresAndAtomics),
+      fragment_stores_and_atomics(device_info.fragmentStoresAndAtomics),
       clip_distance(device_info.shaderClipDistance),
       cull_distance(device_info.shaderCullDistance),
-      demote_to_helper_invocation(device_info.shaderDemoteToHelperInvocation),
-      fragment_shader_sample_interlock(
-          device_info.fragmentShaderSampleInterlock),
-      full_draw_index_uint32(device_info.fullDrawIndexUint32),
       image_view_format_swizzle(device_info.imageViewFormatSwizzle),
       signed_zero_inf_nan_preserve_float32(
           device_info.shaderSignedZeroInfNanPreserveFloat32),
       denorm_flush_to_zero_float32(device_info.shaderDenormFlushToZeroFloat32),
-      rounding_mode_rte_float32(device_info.shaderRoundingModeRTEFloat32) {
+      rounding_mode_rte_float32(device_info.shaderRoundingModeRTEFloat32),
+      fragment_shader_sample_interlock(
+          device_info.fragmentShaderSampleInterlock),
+      demote_to_helper_invocation(device_info.shaderDemoteToHelperInvocation) {
   if (device_info.apiVersion >= VK_MAKE_API_VERSION(0, 1, 2, 0)) {
     spirv_version = spv::Spv_1_5;
   } else if (device_info.ext_1_2_VK_KHR_spirv_1_4) {
@@ -117,6 +122,14 @@ void SpirvShaderTranslator::Reset() {
 
   main_interface_.clear();
   var_main_registers_ = spv::NoResult;
+  var_main_memexport_address_ = spv::NoResult;
+  for (size_t memexport_eM_index = 0;
+       memexport_eM_index < xe::countof(var_main_memexport_data_);
+       ++memexport_eM_index) {
+    var_main_memexport_data_[memexport_eM_index] = spv::NoResult;
+  }
+  var_main_memexport_data_written_ = spv::NoResult;
+  main_memexport_allowed_ = spv::NoResult;
   var_main_point_size_edge_flag_kill_vertex_ = spv::NoResult;
   var_main_kill_pixel_ = spv::NoResult;
   var_main_fsi_color_written_ = spv::NoResult;
@@ -310,6 +323,8 @@ void SpirvShaderTranslator::StartTranslation() {
     main_interface_.push_back(uniform_system_constants_);
   }
 
+  bool memexport_used = IsMemoryExportUsed();
+
   if (!is_depth_only_fragment_shader_) {
     // Common uniform buffer - float constants.
     uint32_t float_constant_count =
@@ -420,9 +435,10 @@ void SpirvShaderTranslator::StartTranslation() {
     builder_->addMemberName(type_shared_memory, 0, "shared_memory");
     builder_->addMemberDecoration(type_shared_memory, 0,
                                   spv::DecorationRestrict);
-    // TODO(Triang3l): Make writable when memexport is implemented.
-    builder_->addMemberDecoration(type_shared_memory, 0,
-                                  spv::DecorationNonWritable);
+    if (!memexport_used) {
+      builder_->addMemberDecoration(type_shared_memory, 0,
+                                    spv::DecorationNonWritable);
+    }
     builder_->addMemberDecoration(type_shared_memory, 0, spv::DecorationOffset,
                                   0);
     builder_->addDecoration(type_shared_memory,
@@ -508,6 +524,24 @@ void SpirvShaderTranslator::StartTranslation() {
       var_main_registers_ =
           builder_->createVariable(spv::NoPrecision, spv::StorageClassFunction,
                                    type_register_array, "xe_var_registers");
+    }
+    if (memexport_used) {
+      var_main_memexport_address_ = builder_->createVariable(
+          spv::NoPrecision, spv::StorageClassFunction, type_float4_,
+          "xe_var_memexport_address", const_float4_0_);
+      uint8_t memexport_eM_remaining = current_shader().memexport_eM_written();
+      uint32_t memexport_eM_index;
+      while (
+          xe::bit_scan_forward(memexport_eM_remaining, &memexport_eM_index)) {
+        memexport_eM_remaining &= ~(uint8_t(1) << memexport_eM_index);
+        var_main_memexport_data_[memexport_eM_index] = builder_->createVariable(
+            spv::NoPrecision, spv::StorageClassFunction, type_float4_,
+            fmt::format("xe_var_memexport_data_{}", memexport_eM_index).c_str(),
+            const_float4_0_);
+      }
+      var_main_memexport_data_written_ = builder_->createVariable(
+          spv::NoPrecision, spv::StorageClassFunction, type_uint_,
+          "xe_var_memexport_data_written", const_uint_0_);
     }
   }
 
@@ -646,6 +680,10 @@ std::vector<uint8_t> SpirvShaderTranslator::CompleteTranslation() {
     function_main_->addBlock(main_loop_merge_);
     builder_->setBuildPoint(main_loop_merge_);
   }
+
+  // Write data for the last memexport.
+  ExportToMemory(
+      current_shader().memexport_eM_potentially_written_before_end());
 
   if (is_vertex_shader()) {
     CompleteVertexOrTessEvalShaderInMain();
@@ -1077,6 +1115,34 @@ void SpirvShaderTranslator::ProcessJumpInstruction(
   builder_->createBranch(main_loop_continue_);
 }
 
+void SpirvShaderTranslator::ProcessAllocInstruction(
+    const ParsedAllocInstruction& instr, uint8_t export_eM) {
+  bool start_memexport = instr.type == ucode::AllocType::kMemory &&
+                         current_shader().memexport_eM_written();
+  if (export_eM || start_memexport) {
+    CloseExecConditionals();
+  }
+
+  if (export_eM) {
+    ExportToMemory(export_eM);
+    // Reset which eM# elements have been written.
+    builder_->createStore(const_uint_0_, var_main_memexport_data_written_);
+    // Break dependencies from the previous memexport.
+    uint8_t export_eM_remaining = export_eM;
+    uint32_t eM_index;
+    while (xe::bit_scan_forward(export_eM_remaining, &eM_index)) {
+      export_eM_remaining &= ~(uint8_t(1) << eM_index);
+      builder_->createStore(const_float4_0_,
+                            var_main_memexport_data_[eM_index]);
+    }
+  }
+
+  if (start_memexport) {
+    // Initialize eA to an invalid address.
+    builder_->createStore(const_float4_0_, var_main_memexport_address_);
+  }
+}
+
 spv::Id SpirvShaderTranslator::SpirvSmearScalarResultOrConstant(
     spv::Id scalar, spv::Id vector_type) {
   bool is_constant = builder_->isConstant(scalar);
@@ -1205,6 +1271,8 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderBeforeMain() {
 }
 
 void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
+  Modification shader_modification = GetSpirvShaderModification();
+
   // The edge flag isn't used for any purpose by the translator.
   if (current_shader().writes_point_size_edge_flag_kill_vertex() & 0b101) {
     id_vector_temp_.clear();
@@ -1244,10 +1312,39 @@ void SpirvShaderTranslator::StartVertexOrTessEvalShaderInMain() {
     }
   }
 
-  Modification shader_modification = GetSpirvShaderModification();
-
   // TODO(Triang3l): For HostVertexShaderType::kRectangeListAsTriangleStrip,
   // start the vertex loop, and load the index there.
+
+  // Check if memory export should be allowed for this host vertex of the guest
+  // primitive to make sure export is done only once for each guest vertex.
+  if (IsMemoryExportUsed()) {
+    spv::Id memexport_allowed_for_host_vertex_of_guest_primitive =
+        spv::NoResult;
+    if (shader_modification.vertex.host_vertex_shader_type ==
+        Shader::HostVertexShaderType::kPointListAsTriangleStrip) {
+      // Only for one host vertex for the point.
+      memexport_allowed_for_host_vertex_of_guest_primitive =
+          builder_->createBinOp(
+              spv::OpIEqual, type_bool_,
+              builder_->createBinOp(
+                  spv::OpBitwiseAnd, type_uint_,
+                  builder_->createUnaryOp(
+                      spv::OpBitcast, type_uint_,
+                      builder_->createLoad(input_vertex_index_,
+                                           spv::NoPrecision)),
+                  builder_->makeUintConstant(3)),
+              const_uint_0_);
+    }
+
+    if (memexport_allowed_for_host_vertex_of_guest_primitive != spv::NoResult) {
+      main_memexport_allowed_ =
+          main_memexport_allowed_ != spv::NoResult
+              ? builder_->createBinOp(
+                    spv::OpLogicalAnd, type_bool_, main_memexport_allowed_,
+                    memexport_allowed_for_host_vertex_of_guest_primitive)
+              : memexport_allowed_for_host_vertex_of_guest_primitive;
+    }
+  }
 
   // Load the vertex index or the tessellation parameters.
   if (register_count()) {
@@ -1827,6 +1924,13 @@ void SpirvShaderTranslator::StartFragmentShaderBeforeMain() {
 }
 
 void SpirvShaderTranslator::StartFragmentShaderInMain() {
+  // TODO(Triang3l): Allow memory export with resolution scaling only for the
+  // center host pixel, with sample shading (for depth format conversion) only
+  // for the bottom-right sample (unlike in Direct3D, the sample mask input
+  // doesn't include covered samples of the primitive that correspond to other
+  // invocations, so use the sample that's the most friendly to the half-pixel
+  // offset).
+
   // Set up pixel killing from within the translated shader without affecting
   // the control flow (unlike with OpKill), similarly to how pixel killing works
   // on the Xenos, and also keeping a single critical section exit and return
@@ -2460,6 +2564,26 @@ void SpirvShaderTranslator::StoreResult(const InstructionResult& result,
             var_main_fsi_color_written_);
       }
     } break;
+    case InstructionStorageTarget::kExportAddress: {
+      // spv::NoResult if memory export usage is unsupported or invalid.
+      target_pointer = var_main_memexport_address_;
+    } break;
+    case InstructionStorageTarget::kExportData: {
+      // spv::NoResult if memory export usage is unsupported or invalid.
+      target_pointer = var_main_memexport_data_[result.storage_index];
+      if (target_pointer != spv::NoResult) {
+        // Mark that the eM# has been written to and needs to be exported.
+        assert_true(var_main_memexport_data_written_ != spv::NoResult);
+        builder_->createStore(
+            builder_->createBinOp(
+                spv::OpBitwiseOr, type_uint_,
+                builder_->createLoad(var_main_memexport_data_written_,
+                                     spv::NoPrecision),
+                builder_->makeUintConstant(uint32_t(1)
+                                           << result.storage_index)),
+            var_main_memexport_data_written_);
+      }
+    } break;
     default:
       // TODO(Triang3l): All storage targets.
       break;
@@ -2814,16 +2938,59 @@ spv::Id SpirvShaderTranslator::EndianSwap32Uint(spv::Id value, spv::Id endian) {
   return value;
 }
 
+spv::Id SpirvShaderTranslator::EndianSwap128Uint4(spv::Id value,
+                                                  spv::Id endian) {
+  // Change 8-in-64 and 8-in-128 to 8-in-32, and then swap within 32 bits.
+
+  spv::Id is_8in64 = builder_->createBinOp(
+      spv::OpIEqual, type_bool_, endian,
+      builder_->makeUintConstant(
+          static_cast<unsigned int>(xenos::Endian128::k8in64)));
+  uint_vector_temp_.clear();
+  uint_vector_temp_.push_back(1);
+  uint_vector_temp_.push_back(0);
+  uint_vector_temp_.push_back(3);
+  uint_vector_temp_.push_back(2);
+  value = builder_->createTriOp(
+      spv::OpSelect, type_uint4_, is_8in64,
+      builder_->createRvalueSwizzle(spv::NoPrecision, type_uint4_, value,
+                                    uint_vector_temp_),
+      value);
+
+  spv::Id is_8in128 = builder_->createBinOp(
+      spv::OpIEqual, type_bool_, endian,
+      builder_->makeUintConstant(
+          static_cast<unsigned int>(xenos::Endian128::k8in128)));
+  uint_vector_temp_.clear();
+  uint_vector_temp_.push_back(3);
+  uint_vector_temp_.push_back(2);
+  uint_vector_temp_.push_back(1);
+  uint_vector_temp_.push_back(0);
+  value = builder_->createTriOp(
+      spv::OpSelect, type_uint4_, is_8in128,
+      builder_->createRvalueSwizzle(spv::NoPrecision, type_uint4_, value,
+                                    uint_vector_temp_),
+      value);
+
+  endian = builder_->createTriOp(
+      spv::OpSelect, type_uint_,
+      builder_->createBinOp(spv::OpLogicalOr, type_bool_, is_8in64, is_8in128),
+      builder_->makeUintConstant(
+          static_cast<unsigned int>(xenos::Endian128::k8in32)),
+      endian);
+
+  return EndianSwap32Uint(value, endian);
+}
+
 spv::Id SpirvShaderTranslator::LoadUint32FromSharedMemory(
     spv::Id address_dwords_int) {
-  spv::Block& head_block = *builder_->getBuildPoint();
-  assert_false(head_block.isTerminated());
-
   spv::StorageClass storage_class = features_.spirv_version >= spv::Spv_1_3
                                         ? spv::StorageClassStorageBuffer
                                         : spv::StorageClassUniform;
-  uint32_t buffer_count_log2 = GetSharedMemoryStorageBufferCountLog2();
-  if (!buffer_count_log2) {
+
+  uint32_t binding_count_log2 = GetSharedMemoryStorageBufferCountLog2();
+
+  if (!binding_count_log2) {
     // Single binding - load directly.
     id_vector_temp_.clear();
     // The only SSBO struct member.
@@ -2837,8 +3004,10 @@ spv::Id SpirvShaderTranslator::LoadUint32FromSharedMemory(
 
   // The memory is split into multiple bindings - check which binding to load
   // from. 29 is log2(512 MB), but addressing in dwords (4 B). Not indexing the
-  // array with the variable itself because it needs VK_EXT_descriptor_indexing.
-  uint32_t binding_address_bits = (29 - 2) - buffer_count_log2;
+  // array with the variable itself because it needs non-uniform storage buffer
+  // indexing.
+
+  uint32_t binding_address_bits = (29 - 2) - binding_count_log2;
   spv::Id binding_index = builder_->createBinOp(
       spv::OpShiftRightLogical, type_uint_,
       builder_->createUnaryOp(spv::OpBitcast, type_uint_, address_dwords_int),
@@ -2847,49 +3016,117 @@ spv::Id SpirvShaderTranslator::LoadUint32FromSharedMemory(
       spv::OpBitwiseAnd, type_int_, address_dwords_int,
       builder_->makeIntConstant(
           int((uint32_t(1) << binding_address_bits) - 1)));
-  uint32_t buffer_count = 1 << buffer_count_log2;
-  spv::Block* switch_case_blocks[512 / 128];
-  for (uint32_t i = 0; i < buffer_count; ++i) {
-    switch_case_blocks[i] = &builder_->makeNewBlock();
-  }
-  spv::Block& switch_merge_block = builder_->makeNewBlock();
-  spv::Id value_phi_result = builder_->getUniqueId();
-  std::unique_ptr<spv::Instruction> value_phi_op =
-      std::make_unique<spv::Instruction>(value_phi_result, type_uint_,
-                                         spv::OpPhi);
-  builder_->createSelectionMerge(&switch_merge_block,
-                                 spv::SelectionControlDontFlattenMask);
-  {
-    std::unique_ptr<spv::Instruction> switch_op =
-        std::make_unique<spv::Instruction>(spv::OpSwitch);
-    switch_op->addIdOperand(binding_index);
-    // Highest binding index is the default case.
-    switch_op->addIdOperand(switch_case_blocks[buffer_count - 1]->getId());
-    switch_case_blocks[buffer_count - 1]->addPredecessor(&head_block);
-    for (uint32_t i = 0; i < buffer_count - 1; ++i) {
-      switch_op->addImmediateOperand(int(i));
-      switch_op->addIdOperand(switch_case_blocks[i]->getId());
-      switch_case_blocks[i]->addPredecessor(&head_block);
-    }
-    builder_->getBuildPoint()->addInstruction(std::move(switch_op));
-  }
-  for (uint32_t i = 0; i < buffer_count; ++i) {
-    builder_->setBuildPoint(switch_case_blocks[i]);
-    id_vector_temp_.clear();
-    id_vector_temp_.push_back(builder_->makeIntConstant(int(i)));
-    // The only SSBO struct member.
-    id_vector_temp_.push_back(const_int_0_);
-    id_vector_temp_.push_back(binding_address);
+
+  auto value_phi_op = std::make_unique<spv::Instruction>(
+      builder_->getUniqueId(), type_uint_, spv::OpPhi);
+  // Zero if out of bounds.
+  value_phi_op->addIdOperand(const_uint_0_);
+  value_phi_op->addIdOperand(builder_->getBuildPoint()->getId());
+
+  SpirvBuilder::SwitchBuilder binding_switch(
+      binding_index, spv::SelectionControlDontFlattenMask, *builder_);
+  uint32_t binding_count = uint32_t(1) << binding_count_log2;
+
+  id_vector_temp_.clear();
+  id_vector_temp_.push_back(spv::NoResult);
+  // The only SSBO struct member.
+  id_vector_temp_.push_back(const_int_0_);
+  id_vector_temp_.push_back(binding_address);
+
+  for (uint32_t i = 0; i < binding_count; ++i) {
+    binding_switch.makeBeginCase(i);
+    id_vector_temp_[0] = builder_->makeIntConstant(int(i));
     value_phi_op->addIdOperand(builder_->createLoad(
         builder_->createAccessChain(storage_class, buffers_shared_memory_,
                                     id_vector_temp_),
         spv::NoPrecision));
-    value_phi_op->addIdOperand(switch_case_blocks[i]->getId());
-    builder_->createBranch(&switch_merge_block);
+    value_phi_op->addIdOperand(builder_->getBuildPoint()->getId());
   }
-  builder_->setBuildPoint(&switch_merge_block);
+
+  binding_switch.makeEndSwitch();
+
+  spv::Id value_phi_result = value_phi_op->getResultId();
   builder_->getBuildPoint()->addInstruction(std::move(value_phi_op));
   return value_phi_result;
+}
+
+void SpirvShaderTranslator::StoreUint32ToSharedMemory(
+    spv::Id value, spv::Id address_dwords_int, spv::Id replace_mask) {
+  spv::StorageClass storage_class = features_.spirv_version >= spv::Spv_1_3
+                                        ? spv::StorageClassStorageBuffer
+                                        : spv::StorageClassUniform;
+
+  spv::Id keep_mask = spv::NoResult;
+  if (replace_mask != spv::NoResult) {
+    keep_mask = builder_->createUnaryOp(spv::OpNot, type_uint_, replace_mask);
+    value = builder_->createBinOp(spv::OpBitwiseAnd, type_uint_, value,
+                                  replace_mask);
+  }
+
+  auto store = [&](spv::Id pointer) {
+    if (replace_mask != spv::NoResult) {
+      // Don't touch the other bits in the buffer, just modify the needed bits
+      // in the most up to date uint32 at the address.
+      spv::Id const_scope_device = builder_->makeUintConstant(
+          static_cast<unsigned int>(spv::ScopeDevice));
+      spv::Id const_semantics_relaxed = const_uint_0_;
+      builder_->createQuadOp(spv::OpAtomicAnd, type_uint_, pointer,
+                             const_scope_device, const_semantics_relaxed,
+                             keep_mask);
+      builder_->createQuadOp(spv::OpAtomicOr, type_uint_, pointer,
+                             const_scope_device, const_semantics_relaxed,
+                             value);
+    } else {
+      builder_->createStore(value, pointer);
+    }
+  };
+
+  uint32_t binding_count_log2 = GetSharedMemoryStorageBufferCountLog2();
+
+  if (!binding_count_log2) {
+    // Single binding - store directly.
+    id_vector_temp_.clear();
+    // The only SSBO struct member.
+    id_vector_temp_.push_back(const_int_0_);
+    id_vector_temp_.push_back(address_dwords_int);
+    store(builder_->createAccessChain(storage_class, buffers_shared_memory_,
+                                      id_vector_temp_));
+    return;
+  }
+
+  // The memory is split into multiple bindings - check which binding to store
+  // to. 29 is log2(512 MB), but addressing in dwords (4 B). Not indexing the
+  // array with the variable itself because it needs non-uniform storage buffer
+  // indexing.
+
+  uint32_t binding_address_bits = (29 - 2) - binding_count_log2;
+  spv::Id binding_index = builder_->createBinOp(
+      spv::OpShiftRightLogical, type_uint_,
+      builder_->createUnaryOp(spv::OpBitcast, type_uint_, address_dwords_int),
+      builder_->makeUintConstant(binding_address_bits));
+  spv::Id binding_address = builder_->createBinOp(
+      spv::OpBitwiseAnd, type_int_, address_dwords_int,
+      builder_->makeIntConstant(
+          int((uint32_t(1) << binding_address_bits) - 1)));
+
+  SpirvBuilder::SwitchBuilder binding_switch(
+      binding_index, spv::SelectionControlDontFlattenMask, *builder_);
+  uint32_t binding_count = uint32_t(1) << binding_count_log2;
+
+  id_vector_temp_.clear();
+  id_vector_temp_.push_back(spv::NoResult);
+  // The only SSBO struct member.
+  id_vector_temp_.push_back(const_int_0_);
+  id_vector_temp_.push_back(binding_address);
+
+  for (uint32_t i = 0; i < binding_count; ++i) {
+    binding_switch.makeBeginCase(i);
+    id_vector_temp_[0] = builder_->makeIntConstant(int(i));
+    store(builder_->createAccessChain(storage_class, buffers_shared_memory_,
+                                      id_vector_temp_));
+  }
+
+  binding_switch.makeEndSwitch();
 }
 
 spv::Id SpirvShaderTranslator::PWLGammaToLinear(spv::Id gamma,

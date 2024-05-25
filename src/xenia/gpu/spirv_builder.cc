@@ -203,5 +203,95 @@ spv::Id SpirvBuilder::IfBuilder::createMergePhi(spv::Id then_variable,
                               getElsePhiParent());
 }
 
+SpirvBuilder::SwitchBuilder::SwitchBuilder(spv::Id selector,
+                                           unsigned int selection_control,
+                                           SpirvBuilder& builder)
+    : builder_(builder),
+      selector_(selector),
+      selection_control_(selection_control),
+      function_(builder.getBuildPoint()->getParent()),
+      header_block_(builder.getBuildPoint()),
+      default_phi_parent_(builder.getBuildPoint()->getId()) {
+  merge_block_ = new spv::Block(builder_.getUniqueId(), function_);
+}
+
+void SpirvBuilder::SwitchBuilder::makeBeginDefault() {
+  assert_null(default_block_);
+
+  endSegment();
+
+  default_block_ = new spv::Block(builder_.getUniqueId(), function_);
+  function_.addBlock(default_block_);
+  default_block_->addPredecessor(header_block_);
+  builder_.setBuildPoint(default_block_);
+
+  current_branch_ = Branch::kDefault;
+}
+
+void SpirvBuilder::SwitchBuilder::makeBeginCase(unsigned int literal) {
+  endSegment();
+
+  auto case_block = new spv::Block(builder_.getUniqueId(), function_);
+  function_.addBlock(case_block);
+  cases_.emplace_back(literal, case_block->getId());
+  case_block->addPredecessor(header_block_);
+  builder_.setBuildPoint(case_block);
+
+  current_branch_ = Branch::kCase;
+}
+
+void SpirvBuilder::SwitchBuilder::addCurrentCaseLiteral(unsigned int literal) {
+  assert_true(current_branch_ == Branch::kCase);
+
+  cases_.emplace_back(literal, cases_.back().second);
+}
+
+void SpirvBuilder::SwitchBuilder::makeEndSwitch() {
+  endSegment();
+
+  builder_.setBuildPoint(header_block_);
+
+  builder_.createSelectionMerge(merge_block_, selection_control_);
+
+  std::unique_ptr<spv::Instruction> switch_instruction =
+      std::make_unique<spv::Instruction>(spv::OpSwitch);
+  switch_instruction->addIdOperand(selector_);
+  if (default_block_) {
+    switch_instruction->addIdOperand(default_block_->getId());
+  } else {
+    switch_instruction->addIdOperand(merge_block_->getId());
+    merge_block_->addPredecessor(header_block_);
+  }
+  for (const std::pair<unsigned int, spv::Id>& case_pair : cases_) {
+    switch_instruction->addImmediateOperand(case_pair.first);
+    switch_instruction->addIdOperand(case_pair.second);
+  }
+  builder_.getBuildPoint()->addInstruction(std::move(switch_instruction));
+
+  function_.addBlock(merge_block_);
+  builder_.setBuildPoint(merge_block_);
+
+  current_branch_ = Branch::kMerge;
+}
+
+void SpirvBuilder::SwitchBuilder::endSegment() {
+  assert_true(current_branch_ == Branch::kSelection ||
+              current_branch_ == Branch::kDefault ||
+              current_branch_ == Branch::kCase);
+
+  if (current_branch_ == Branch::kSelection) {
+    return;
+  }
+
+  if (!builder_.getBuildPoint()->isTerminated()) {
+    builder_.createBranch(merge_block_);
+    if (current_branch_ == Branch::kDefault) {
+      default_phi_parent_ = builder_.getBuildPoint()->getId();
+    }
+  }
+
+  current_branch_ = Branch::kSelection;
+}
+
 }  // namespace gpu
 }  // namespace xe

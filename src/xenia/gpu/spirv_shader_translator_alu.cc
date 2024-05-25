@@ -39,10 +39,14 @@ spv::Id SpirvShaderTranslator::ZeroIfAnyOperandIsZero(spv::Id value,
       const_float_vectors_0_[num_components - 1], value);
 }
 
-void SpirvShaderTranslator::KillPixel(spv::Id condition) {
+void SpirvShaderTranslator::KillPixel(
+    spv::Id condition, uint8_t memexport_eM_potentially_written_before) {
   SpirvBuilder::IfBuilder kill_if(condition, spv::SelectionControlMaskNone,
                                   *builder_);
   {
+    // Perform outstanding memory exports before the invocation becomes inactive
+    // and storage writes are disabled.
+    ExportToMemory(memexport_eM_potentially_written_before);
     if (var_main_kill_pixel_ != spv::NoResult) {
       builder_->createStore(builder_->makeBoolConstant(true),
                             var_main_kill_pixel_);
@@ -77,12 +81,12 @@ void SpirvShaderTranslator::ProcessAluInstruction(
   // Whether the instruction has changed the predicate, and it needs to be
   // checked again later.
   bool predicate_written_vector = false;
-  spv::Id vector_result =
-      ProcessVectorAluOperation(instr, predicate_written_vector);
+  spv::Id vector_result = ProcessVectorAluOperation(
+      instr, memexport_eM_potentially_written_before, predicate_written_vector);
 
   bool predicate_written_scalar = false;
-  spv::Id scalar_result =
-      ProcessScalarAluOperation(instr, predicate_written_scalar);
+  spv::Id scalar_result = ProcessScalarAluOperation(
+      instr, memexport_eM_potentially_written_before, predicate_written_scalar);
   if (scalar_result != spv::NoResult) {
     EnsureBuildPointAvailable();
     builder_->createStore(scalar_result, var_main_previous_scalar_);
@@ -106,7 +110,8 @@ void SpirvShaderTranslator::ProcessAluInstruction(
 }
 
 spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
-    const ParsedAluInstruction& instr, bool& predicate_written) {
+    const ParsedAluInstruction& instr,
+    uint8_t memexport_eM_potentially_written_before, bool& predicate_written) {
   predicate_written = false;
 
   uint32_t used_result_components =
@@ -769,14 +774,16 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
     case ucode::AluVectorOpcode::kKillGt:
     case ucode::AluVectorOpcode::kKillGe:
     case ucode::AluVectorOpcode::kKillNe: {
-      KillPixel(builder_->createUnaryOp(
-          spv::OpAny, type_bool_,
-          builder_->createBinOp(
-              spv::Op(kOps[size_t(instr.vector_opcode)]), type_bool4_,
-              GetOperandComponents(operand_storage[0], instr.vector_operands[0],
-                                   0b1111),
-              GetOperandComponents(operand_storage[1], instr.vector_operands[1],
-                                   0b1111))));
+      KillPixel(
+          builder_->createUnaryOp(
+              spv::OpAny, type_bool_,
+              builder_->createBinOp(
+                  spv::Op(kOps[size_t(instr.vector_opcode)]), type_bool4_,
+                  GetOperandComponents(operand_storage[0],
+                                       instr.vector_operands[0], 0b1111),
+                  GetOperandComponents(operand_storage[1],
+                                       instr.vector_operands[1], 0b1111))),
+          memexport_eM_potentially_written_before);
       return const_float_0_;
     }
 
@@ -862,7 +869,8 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
 }
 
 spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
-    const ParsedAluInstruction& instr, bool& predicate_written) {
+    const ParsedAluInstruction& instr,
+    uint8_t memexport_eM_potentially_written_before, bool& predicate_written) {
   predicate_written = false;
 
   spv::Id operand_storage[2] = {};
@@ -1257,12 +1265,13 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
     case ucode::AluScalarOpcode::kKillsNe:
     case ucode::AluScalarOpcode::kKillsOne: {
       KillPixel(builder_->createBinOp(
-          spv::Op(kOps[size_t(instr.scalar_opcode)]), type_bool_,
-          GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
-                               0b0001),
-          instr.scalar_opcode == ucode::AluScalarOpcode::kKillsOne
-              ? const_float_1_
-              : const_float_0_));
+                    spv::Op(kOps[size_t(instr.scalar_opcode)]), type_bool_,
+                    GetOperandComponents(operand_storage[0],
+                                         instr.scalar_operands[0], 0b0001),
+                    instr.scalar_opcode == ucode::AluScalarOpcode::kKillsOne
+                        ? const_float_1_
+                        : const_float_0_),
+                memexport_eM_potentially_written_before);
       return const_float_0_;
     }
 
