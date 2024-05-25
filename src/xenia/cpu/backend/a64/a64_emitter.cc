@@ -837,11 +837,14 @@ void A64Emitter::FreeConstData(uintptr_t data) {
                        memory::DeallocationType::kRelease);
 }
 
-std::byte* A64Emitter::GetVConstPtr(VConst id) {
+std::byte* A64Emitter::GetVConstPtr() const {
+  return reinterpret_cast<std::byte*>(backend_->emitter_data());
+}
+
+std::byte* A64Emitter::GetVConstPtr(VConst id) const {
   // Load through fixed constant table setup by PlaceConstData.
   // It's important that the pointer is not signed, as it will be sign-extended.
-  return reinterpret_cast<std::byte*>(backend_->emitter_data() +
-                                      sizeof(vec128_t) * id);
+  return GetVConstPtr() + GetVConstOffset(id);
 }
 
 // Implies possible StashV(0, ...)!

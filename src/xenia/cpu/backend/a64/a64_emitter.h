@@ -119,8 +119,8 @@ enum VConst {
 };
 
 enum A64EmitterFeatureFlags {
-    kA64EmitLSE = 1 << 0,
-    kA64EmitF16C = 1 << 1,
+  kA64EmitLSE = 1 << 0,
+  kA64EmitF16C = 1 << 1,
 };
 
 class A64Emitter : public oaknut::CodeBlock, public oaknut::CodeGenerator {
@@ -204,7 +204,11 @@ class A64Emitter : public oaknut::CodeBlock, public oaknut::CodeGenerator {
   bool ConstantFitsIn32Reg(uint64_t v);
   void MovMem64(const oaknut::XRegSp& addr, intptr_t offset, uint64_t v);
 
-  std::byte* GetVConstPtr(VConst id);
+  std::byte* GetVConstPtr() const;
+  std::byte* GetVConstPtr(VConst id) const;
+  constexpr uintptr_t GetVConstOffset(VConst id) const {
+    return sizeof(vec128_t) * id;
+  }
   void LoadConstantV(oaknut::QReg dest, float v);
   void LoadConstantV(oaknut::QReg dest, double v);
   void LoadConstantV(oaknut::QReg dest, const vec128_t& v);
