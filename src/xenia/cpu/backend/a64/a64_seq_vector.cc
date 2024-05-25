@@ -1368,7 +1368,18 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     assert_true(i.src2.value->IsConstantZero());
     // http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
     // dest = [(src1.x | src1.y), 0, 0, 0]
-    // TODO(wunkolo): FP16 + FCVTN
+
+    if (e.IsFeatureEnabled(kA64EmitF16C)) {
+      const QReg src1 = i.src1.is_constant ? Q0 : i.src1;
+      if (i.src1.is_constant) {
+        e.LoadConstantV(src1, i.src1.constant());
+      }
+      e.FCVTN(i.dest.reg().toD().H4(), src1.S4());
+      e.MOVI(Q0.B16(), 0);
+      e.EXT(i.dest.reg().B16(), Q0.B16(), i.dest.reg().B16(), 4);
+      e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
+      return;
+    }
 
     if (i.src1.is_constant) {
       e.ADD(e.GetNativeParam(0), SP, e.StashConstantV(0, i.src1.constant()));
@@ -1395,7 +1406,17 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     assert_true(i.src2.value->IsConstantZero());
     // http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
     // dest = [(src1.z | src1.w), (src1.x | src1.y), 0, 0]
-    // TODO(wunkolo): FP16 + FCVTN
+
+    if (e.IsFeatureEnabled(kA64EmitF16C)) {
+      const QReg src1 = i.src1.is_constant ? Q0 : i.src1;
+      if (i.src1.is_constant) {
+        e.LoadConstantV(src1, i.src1.constant());
+      }
+      e.FCVTN(i.dest.reg().toD().H4(), src1.S4());
+      e.EXT(i.dest.reg().B16(), i.dest.reg().B16(), i.dest.reg().B16(), 8);
+      e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
+      return;
+    }
 
     if (i.src1.is_constant) {
       e.ADD(e.GetNativeParam(0), SP, e.StashConstantV(0, i.src1.constant()));
@@ -1741,7 +1762,26 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
   static void EmitFLOAT16_2(A64Emitter& e, const EmitArgType& i) {
     // 1 bit sign, 5 bit exponent, 10 bit mantissa
     // D3D10 half float format
-    // TODO(wunkolo): FP16 + FCVTL
+
+    if (e.IsFeatureEnabled(kA64EmitF16C)) {
+      const QReg src1 = i.src1.is_constant ? Q0 : i.src1;
+      if (i.src1.is_constant) {
+        e.LoadConstantV(src1, i.src1.constant());
+      }
+
+      // Move the upper 4 bytes to the lower 4 bytes, zero the rest
+      e.EOR(Q0.B16(), Q0.B16(), Q0.B16());
+      e.EXT(i.dest.reg().B16(), i.dest.reg().B16(), Q0.B16(), 12);
+
+      e.FCVTL(i.dest.reg().S4(), i.dest.reg().toD().H4());
+      e.REV64(i.dest.reg().S4(), i.dest.reg().S4());
+
+      // Write 1.0 to element 3
+      e.FMOV(S0, oaknut::FImm8(0, 7, 0));
+      e.MOV(i.dest.reg().Selem()[3], Q0.Selem()[0]);
+      return;
+    }
+
     if (i.src1.is_constant) {
       e.ADD(e.GetNativeParam(0), SP, e.StashConstantV(0, i.src1.constant()));
     } else {
@@ -1763,7 +1803,16 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
   }
   static void EmitFLOAT16_4(A64Emitter& e, const EmitArgType& i) {
     // src = [(dest.x | dest.y), (dest.z | dest.w), 0, 0]
-    // TODO(wunkolo): FP16 + FCVTN
+    if (e.IsFeatureEnabled(kA64EmitF16C)) {
+      const QReg src1 = i.src1.is_constant ? Q0 : i.src1;
+      if (i.src1.is_constant) {
+        e.LoadConstantV(src1, i.src1.constant());
+      }
+      e.EXT(i.dest.reg().B16(), i.dest.reg().B16(), i.src1.reg().B16(), 8);
+      e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
+      e.FCVTL(i.dest.reg().S4(), i.dest.reg().toD().H4());
+      return;
+    }
 
     if (i.src1.is_constant) {
       e.ADD(e.GetNativeParam(0), SP, e.StashConstantV(0, i.src1.constant()));
