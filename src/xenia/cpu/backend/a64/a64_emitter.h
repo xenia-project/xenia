@@ -118,7 +118,10 @@ enum VConst {
   V2To32,
 };
 
-enum A64EmitterFeatureFlags {};
+enum A64EmitterFeatureFlags {
+    kA64EmitLSE = 1 << 0,
+    kA64EmitF16C = 1 << 1,
+};
 
 class A64Emitter : public oaknut::CodeBlock, public oaknut::CodeGenerator {
  public:
