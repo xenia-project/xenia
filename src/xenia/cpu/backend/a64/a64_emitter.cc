@@ -857,6 +857,10 @@ void A64Emitter::LoadConstantV(oaknut::QReg dest, const vec128_t& v) {
   } else if (v.low == ~uint64_t(0) && v.high == ~uint64_t(0)) {
     // 1111...
     MOVI(dest.B16(), 0xFF);
+  } else if (std::adjacent_find(std::cbegin(v.u8), std::cend(v.u8),
+                                std::not_equal_to<>()) == std::cend(v.u8)) {
+    // 0xXX, 0xXX, 0xXX...
+    MOVI(dest.B16(), v.u8[0]);
   } else {
     // TODO(benvanik): see what other common values are.
     // TODO(benvanik): build constant table - 99% are reused.
