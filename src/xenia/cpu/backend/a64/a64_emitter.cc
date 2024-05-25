@@ -38,6 +38,7 @@
 
 #include "oaknut/feature_detection/cpu_feature.hpp"
 #include "oaknut/feature_detection/feature_detection.hpp"
+#include "oaknut/feature_detection/feature_detection_idregs.hpp"
 
 DEFINE_bool(debugprint_trap_log, false,
             "Log debugprint traps to the active debugger", "CPU");
@@ -77,11 +78,29 @@ A64Emitter::A64Emitter(A64Backend* backend)
       processor_(backend->processor()),
       backend_(backend),
       code_cache_(backend->code_cache()) {
-  const oaknut::CpuFeatures cpu_ = oaknut::detect_features();
+  oaknut::CpuFeatures cpu_ = oaknut::detect_features();
+
+  // Combine with id register detection
+#if OAKNUT_SUPPORTS_READING_ID_REGISTERS > 0
+#if OAKNUT_SUPPORTS_READING_ID_REGISTERS == 1
+  const std::optional<oaknut::id::IdRegisters> id_registers =
+      oaknut::read_id_registers();
+#elif OAKNUT_SUPPORTS_READING_ID_REGISTERS == 2
+  const std::optional<oaknut::id::IdRegisters> id_registers =
+      oaknut::read_id_registers(0);
+#endif
+  if (id_registers.has_value()) {
+    cpu_ = cpu_ | oaknut::detect_features_via_id_registers(*id_registers);
+  }
+#endif
+
 #define TEST_EMIT_FEATURE(emit, ext)                \
   if ((cvars::a64_extension_mask & emit) == emit) { \
     feature_flags_ |= (cpu_.has(ext) ? emit : 0);   \
   }
+
+  TEST_EMIT_FEATURE(kA64EmitLSE, oaknut::CpuFeature::LSE);
+  TEST_EMIT_FEATURE(kA64EmitF16C, oaknut::CpuFeature::FP16Conv);
 
 #undef TEST_EMIT_FEATURE
 }
