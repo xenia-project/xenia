@@ -1427,24 +1427,46 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     e.MOV(i.dest.reg().B16(), Q0.B16());
   }
   static void EmitSHORT_2(A64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.value->IsConstantZero());
     QReg src = i.src1;
     if (i.src1.is_constant) {
       src = i.dest;
       e.LoadConstantV(src, i.src1.constant());
     }
-    e.SQSHRN(i.dest.reg().toD().H4(), src.S4(), 8);
-    e.EXT(i.dest.reg().B16(), i.dest.reg().B16(), i.dest.reg().B16(), 4);
-    e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
+    // Saturate
+    e.MOVP2R(X0, e.GetVConstPtr(VPackSHORT_Min));
+    e.LDR(Q1, X0);
+    e.FMAX(i.dest.reg().S4(), src.S4(), Q1.S4());
+
+    e.MOVP2R(X0, e.GetVConstPtr(VPackSHORT_Max));
+    e.LDR(Q1, X0);
+    e.FMIN(i.dest.reg().S4(), i.dest.reg().S4(), Q1.S4());
+
+    // Pack
+    e.MOVP2R(X0, e.GetVConstPtr(VPackSHORT_2));
+    e.LDR(Q1, X0);
+    e.TBL(i.dest.reg().B16(), oaknut::List{i.dest.reg().B16()}, Q1.B16());
   }
   static void EmitSHORT_4(A64Emitter& e, const EmitArgType& i) {
+    assert_true(i.src2.value->IsConstantZero());
     QReg src = i.src1;
     if (i.src1.is_constant) {
       src = i.dest;
       e.LoadConstantV(src, i.src1.constant());
     }
-    e.SQSHRN(i.dest.reg().toD().H4(), src.S4(), 8);
-    e.EXT(i.dest.reg().B16(), i.dest.reg().B16(), i.dest.reg().B16(), 4);
-    e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
+    // Saturate
+    e.MOVP2R(X0, e.GetVConstPtr(VPackSHORT_Min));
+    e.LDR(Q1, X0);
+    e.FMAXNM(i.dest.reg().S4(), src.S4(), Q1.S4());
+
+    e.MOVP2R(X0, e.GetVConstPtr(VPackSHORT_Max));
+    e.LDR(Q1, X0);
+    e.FMINNM(i.dest.reg().S4(), i.dest.reg().S4(), Q1.S4());
+
+    // Pack
+    e.MOVP2R(X0, e.GetVConstPtr(VPackSHORT_4));
+    e.LDR(Q1, X0);
+    e.TBL(i.dest.reg().B16(), oaknut::List{i.dest.reg().B16()}, Q1.B16());
   }
   static void EmitUINT_2101010(A64Emitter& e, const EmitArgType& i) {
     // https://www.opengl.org/registry/specs/ARB/vertex_type_2_10_10_10_rev.txt
