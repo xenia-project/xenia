@@ -1268,7 +1268,7 @@ struct SWIZZLE
                   ((swizzle_mask >> 4) & 0b11) * 0x04'04'04'04 + 0x03'02'01'00,
                   ((swizzle_mask >> 6) & 0b11) * 0x04'04'04'04 + 0x03'02'01'00);
 
-      const QReg indices = Q0;
+      const QReg indices = Q1;
       e.LoadConstantV(indices, indice_vec);
 
       QReg table0 = Q0;
