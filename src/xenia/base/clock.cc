@@ -21,8 +21,9 @@ DEFINE_bool(clock_no_scaling, false,
             "Guest system time is directly pulled from host.",
             "CPU");
 DEFINE_bool(clock_source_raw, false,
-            "Use the RDTSC instruction as the time source. "
-            "Host CPU must support invariant TSC.",
+            "On x64, Use the RDTSC instruction as the time source. Requires "
+            "invariant TSC. "
+            "On a64, Use the CNTVCT_EL0 register as the time source",
             "CPU");
 
 namespace xe {
