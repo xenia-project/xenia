@@ -689,7 +689,6 @@ void A64Emitter::MovMem64(const oaknut::XRegSp& addr, intptr_t offset,
 
 static const vec128_t v_consts[] = {
     /* VZero                */ vec128f(0.0f),
-    /* VOne                 */ vec128f(1.0f),
     /* VOnePD               */ vec128d(1.0),
     /* VNegativeOne         */ vec128f(-1.0f, -1.0f, -1.0f, -1.0f),
     /* VFFFF                */
