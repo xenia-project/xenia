@@ -273,7 +273,7 @@ class Win32StackWalker : public StackWalker {
         if (function) {
           frame.guest_symbol.function = function;
           // Figure out where in guest code we are by looking up the
-          // displacement in x64 from the JIT'ed code start to the PC.
+          // displacement in bytes from the JIT'ed code start to the PC.
           if (function->is_guest()) {
             auto guest_function = static_cast<GuestFunction*>(function);
             // Adjust the host PC by -1 so that we will go back into whatever
