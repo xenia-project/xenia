@@ -47,7 +47,6 @@ enum RegisterFlags {
 
 enum VConst {
   VZero = 0,
-  VOne,
   VOnePD,
   VNegativeOne,
   VFFFF,
@@ -201,12 +200,12 @@ class A64Emitter : public oaknut::CodeBlock, public oaknut::CodeGenerator {
   void ReloadMembase();
 
   // Moves a 64bit immediate into memory.
-  bool ConstantFitsIn32Reg(uint64_t v);
+  static bool ConstantFitsIn32Reg(uint64_t v);
   void MovMem64(const oaknut::XRegSp& addr, intptr_t offset, uint64_t v);
 
   std::byte* GetVConstPtr() const;
   std::byte* GetVConstPtr(VConst id) const;
-  constexpr uintptr_t GetVConstOffset(VConst id) const {
+  static constexpr uintptr_t GetVConstOffset(VConst id){
     return sizeof(vec128_t) * id;
   }
   void LoadConstantV(oaknut::QReg dest, float v);

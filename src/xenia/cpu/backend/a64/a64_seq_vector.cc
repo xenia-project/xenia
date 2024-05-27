@@ -1746,7 +1746,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
 
     if (i.src1.is_constant) {
       if (i.src1.value->IsConstantZero()) {
-        e.LDR(i.dest.reg(), VConstData, e.GetVConstOffset(VOne));
+        e.FMOV(i.dest.reg().S4(), FImm8(0, 7, 0));
         return;
       }
       src = i.dest;
@@ -1759,7 +1759,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     e.LDR(Q1, VConstData, e.GetVConstOffset(VUnpackD3DCOLOR));
     e.TBL(i.dest.reg().B16(), oaknut::List{src.B16()}, Q1.B16());
     // Add 1.0f to each.
-    e.LDR(Q1, VConstData, e.GetVConstOffset(VOne));
+    e.FMOV(Q1.S4(), FImm8(0, 7, 0));
     e.EOR(i.dest.reg().B16(), i.dest.reg().B16(), Q1.B16());
     // To convert to 0 to 1, games multiply by 0x47008081 and add 0xC7008081.
   }
