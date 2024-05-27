@@ -1107,8 +1107,9 @@ EMITTER_ASSOCIATIVE_COMPARE_FLT_XX(UGE, Cond::HS);  // setae
 struct DID_SATURATE
     : Sequence<DID_SATURATE, I<OPCODE_DID_SATURATE, I8Op, V128Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    // TODO(benvanik): implement saturation check (VECTOR_ADD, etc).
-    e.EOR(i.dest, i.dest, i.dest);
+    // Bit 27 in the FPSR is the QC bit
+    e.MRS(X0, SystemReg::FPSR);
+    e.UBFX(i.dest, W0, 27, 1);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_DID_SATURATE, DID_SATURATE);
