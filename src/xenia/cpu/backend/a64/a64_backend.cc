@@ -29,7 +29,9 @@
 DEFINE_int32(a64_extension_mask, -1,
              "Allow the detection and utilization of specific instruction set "
              "features.\n"
-             "    0 = arm64v8\n"
+             "    0 = armv8.0\n"
+             "    1 = LSE\n"
+             "    2 = F16C\n"
              "   -1 = Detect and utilize all possible processor features\n",
              "a64");
 

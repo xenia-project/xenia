@@ -162,7 +162,7 @@ class Processor {
   // This will cancel any active step operations and resume all threads.
   void Continue();
 
-  // Steps the given thread a single x64 host instruction.
+  // Steps the given thread a single host instruction.
   // If the step is over a branch the branch will be followed.
   void StepHostInstruction(uint32_t thread_id);
 
