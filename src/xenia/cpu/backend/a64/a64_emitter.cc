@@ -645,7 +645,6 @@ oaknut::XReg A64Emitter::GetContextReg() { return X27; }
 oaknut::XReg A64Emitter::GetMembaseReg() { return X28; }
 
 void A64Emitter::ReloadContext() {
-  // mov(GetContextReg(), qword[rsp + StackLayout::GUEST_CTX_HOME]);
   LDR(GetContextReg(), SP, StackLayout::GUEST_CTX_HOME);
 }
 
@@ -667,20 +666,13 @@ bool A64Emitter::ConstantFitsIn32Reg(uint64_t v) {
 
 void A64Emitter::MovMem64(const oaknut::XRegSp& addr, intptr_t offset,
                           uint64_t v) {
-  // if ((v & ~0x7FFFFFFF) == 0) {
-  //   // Fits under 31 bits, so just load using normal mov.
-  //   mov(qword[addr], v);
-  // } else if ((v & ~0x7FFFFFFF) == ~0x7FFFFFFF) {
-  //   // Negative number that fits in 32bits.
-  //   mov(qword[addr], v);
-  // } else if (!(v >> 32)) {
-  //   // All high bits are zero. It'd be nice if we had a way to load a 32bit
-  //   // immediate without sign extending!
-  //   // TODO(benvanik): this is super common, find a better way.
-  //   mov(dword[addr], static_cast<uint32_t>(v));
-  //   mov(dword[addr + 4], 0);
-  // } else
-  {
+  if (v == 0) {
+    STR(XZR, addr, offset);
+  } else if (!(v >> 32)) {
+    // All high bits are zero, 32-bit MOV
+    MOV(W0, static_cast<uint32_t>(v));
+    STR(X0, addr, offset);
+  } else {
     // 64bit number that needs double movs.
     MOV(X0, v);
     STR(X0, addr, offset);
