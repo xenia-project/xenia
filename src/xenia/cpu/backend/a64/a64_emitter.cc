@@ -848,11 +848,61 @@ void A64Emitter::LoadConstantV(oaknut::QReg dest, const vec128_t& v) {
   } else if (v.low == ~uint64_t(0) && v.high == ~uint64_t(0)) {
     // 1111...
     MOVI(dest.B16(), 0xFF);
-  } else if (std::adjacent_find(std::cbegin(v.u8), std::cend(v.u8),
-                                std::not_equal_to<>()) == std::cend(v.u8)) {
-    // 0xXX, 0xXX, 0xXX...
-    MOVI(dest.B16(), v.u8[0]);
   } else {
+    // Try to figure out some common splat-patterns to utilize MOVI rather than
+    // stashing to memory.
+    const bool all_same_u8 =
+        std::adjacent_find(std::cbegin(v.u8), std::cend(v.u8),
+                           std::not_equal_to<>()) == std::cend(v.u8);
+
+    if (all_same_u8) {
+      // 0xXX, 0xXX, 0xXX...
+      MOVI(dest.B16(), v.u8[0]);
+      return;
+    }
+
+    const bool all_same_u16 =
+        std::adjacent_find(std::cbegin(v.u16), std::cend(v.u16),
+                           std::not_equal_to<>()) == std::cend(v.u16);
+
+    if (all_same_u16) {
+      if ((v.u16[0] & 0xFF00) == 0) {
+        // 0x00XX, 0x00XX, 0x00XX...
+        MOVI(dest.H8(), uint8_t(v.u16[0]));
+        return;
+      } else if ((v.u16[0] & 0x00FF) == 0) {
+        // 0xXX00, 0xXX00, 0xXX00...
+        MOVI(dest.H8(), uint8_t(v.u16[0] >> 8), oaknut::util::LSL, 8);
+        return;
+      }
+    }
+
+    const bool all_same_u32 =
+        std::adjacent_find(std::cbegin(v.u32), std::cend(v.u32),
+                           std::not_equal_to<>()) == std::cend(v.u32);
+
+    if (all_same_u32) {
+      if ((v.u32[0] & 0x00FFFFFF) == 0) {
+        // This is used a lot for certain float-splats and should be checked
+        // first before the others
+        // 0xXX000000, 0xXX000000, 0xXX000000...
+        MOVI(dest.S4(), uint8_t(v.u32[0] >> 24), oaknut::util::LSL, 24);
+        return;
+      } else if ((v.u32[0] & 0xFFFFFF00) == 0) {
+        // 0x000000XX, 0x000000XX, 0x000000XX...
+        MOVI(dest.S4(), uint8_t(v.u32[0]));
+        return;
+      } else if ((v.u32[0] & 0xFFFF00FF) == 0) {
+        // 0x0000XX00, 0x0000XX00, 0x0000XX00...
+        MOVI(dest.S4(), uint8_t(v.u32[0] >> 8), oaknut::util::LSL, 8);
+        return;
+      } else if ((v.u32[0] & 0xFF00FFFF) == 0) {
+        // 0x00XX0000, 0x00XX0000, 0x00XX0000...
+        MOVI(dest.S4(), uint8_t(v.u32[0] >> 16), oaknut::util::LSL, 16);
+        return;
+      }
+    }
+
     // TODO(benvanik): see what other common values are.
     // TODO(benvanik): build constant table - 99% are reused.
     MovMem64(SP, kStashOffset, v.low);
