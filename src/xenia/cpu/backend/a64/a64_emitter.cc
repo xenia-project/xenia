@@ -838,6 +838,74 @@ std::byte* A64Emitter::GetVConstPtr(VConst id) const {
   return GetVConstPtr() + GetVConstOffset(id);
 }
 
+// Attempts to convert an fp32 bit-value into an fp8-immediate value for FMOV
+// returns false if the value cannot be represented
+// C2.2.3 Modified immediate constants in A64 floating-point instructions
+// abcdefgh
+//    V
+// aBbbbbbc defgh000 00000000 00000000
+// B = NOT(b)
+static bool f32_to_fimm8(uint32_t u32, oaknut::FImm8& fp8) {
+  const uint32_t sign = (u32 >> 31) & 1;
+  int32_t exp = ((u32 >> 23) & 0xff) - 127;
+  int64_t mantissa = u32 & 0x7fffff;
+
+  // Too many mantissa bits
+  if (mantissa & 0x7ffff) {
+    return false;
+  }
+  // Too many exp bits
+  if (exp < -3 || exp > 4) {
+    return false;
+  }
+
+  // mantissa = (16 + e:f:g:h) / 16.
+  mantissa >>= 19;
+  if ((mantissa & 0b1111) != mantissa) {
+    return false;
+  }
+
+  // exp = (NOT(b):c:d) - 3
+  exp = ((exp + 3) & 0b111) ^ 0b100;
+
+  fp8 = oaknut::FImm8(sign, exp, uint8_t(mantissa));
+  return true;
+}
+
+// Attempts to convert an fp64 bit-value into an fp8-immediate value for FMOV
+// returns false if the value cannot be represented
+// C2.2.3 Modified immediate constants in A64 floating-point instructions
+// abcdefgh
+//    V
+// aBbbbbbb bbcdefgh 00000000 00000000 00000000 00000000 00000000 00000000
+// B = NOT(b)
+static bool f64_to_fimm8(uint64_t u64, oaknut::FImm8& fp8) {
+  const uint32_t sign = (u64 >> 63) & 1;
+  int32_t exp = ((u64 >> 52) & 0x7ff) - 1023;
+  int64_t mantissa = u64 & 0xfffffffffffffULL;
+
+  // Too many mantissa bits
+  if (mantissa & 0xffffffffffffULL) {
+    return false;
+  }
+  // Too many exp bits
+  if (exp < -3 || exp > 4) {
+    return false;
+  }
+
+  // mantissa = (16 + e:f:g:h) / 16.
+  mantissa >>= 48;
+  if ((mantissa & 0b1111) != mantissa) {
+    return false;
+  }
+
+  // exp = (NOT(b):c:d) - 3
+  exp = ((exp + 3) & 0b111) ^ 0b100;
+
+  fp8 = oaknut::FImm8(sign, exp, uint8_t(mantissa));
+  return true;
+}
+
 // Implies possible StashV(0, ...)!
 void A64Emitter::LoadConstantV(oaknut::QReg dest, const vec128_t& v) {
   if (!v.low && !v.high) {
@@ -901,6 +969,13 @@ void A64Emitter::LoadConstantV(oaknut::QReg dest, const vec128_t& v) {
         MOVI(dest.S4(), uint8_t(v.u32[0] >> 16), oaknut::util::LSL, 16);
         return;
       }
+
+      // Try to utilize FMOV if possible
+      oaknut::FImm8 fp8(0);
+      if (f32_to_fimm8(v.u32[0], fp8)) {
+        FMOV(dest.S4(), fp8);
+        return;
+      }
     }
 
     // TODO(benvanik): see what other common values are.
@@ -925,8 +1000,16 @@ void A64Emitter::LoadConstantV(oaknut::QReg dest, float v) {
   } else {
     // TODO(benvanik): see what other common values are.
     // TODO(benvanik): build constant table - 99% are reused.
+
+    // Try to utilize FMOV if possible
+    oaknut::FImm8 fp8(0);
+    if (f32_to_fimm8(x.i, fp8)) {
+      FMOV(dest.toS(), fp8);
+      return;
+    }
+
     MOV(W0, x.i);
-    MOV(dest.Selem()[0], W0);
+    FMOV(dest.toS(), W0);
   }
 }
 
@@ -944,8 +1027,16 @@ void A64Emitter::LoadConstantV(oaknut::QReg dest, double v) {
   } else {
     // TODO(benvanik): see what other common values are.
     // TODO(benvanik): build constant table - 99% are reused.
+
+    // Try to utilize FMOV if possible
+    oaknut::FImm8 fp8(0);
+    if (f64_to_fimm8(x.i, fp8)) {
+      FMOV(dest.toD(), fp8);
+      return;
+    }
+
     MOV(X0, x.i);
-    MOV(dest.Delem()[0], X0);
+    FMOV(dest.toD(), X0);
   }
 }
 
