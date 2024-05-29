@@ -195,15 +195,37 @@ struct ATOMIC_COMPARE_EXCHANGE_I32
     }
     e.ADD(X1, e.GetMembaseReg(), X1);
 
+    const XReg address = X1;
     const WReg expected = i.src2;
     const WReg desired = i.src3;
     const WReg status = W0;
-    e.MOV(status, expected);
 
-    // if([C] == A) [C] = B
-    // else A = [C]
-    e.CASAL(status, desired, X1);
-    e.CMP(status, expected);
+    if (e.IsFeatureEnabled(kA64EmitLSE)) {
+      e.MOV(status, expected);
+
+      // if([C] == A) [C] = B
+      // else A = [C]
+      e.CASAL(status, desired, address);
+      e.CMP(status, expected);
+      e.CSET(i.dest, Cond::EQ);
+      return;
+    }
+
+    oaknut::Label success, fail, retry;
+
+    e.l(retry);
+    e.LDAXR(W4, address);
+    e.CMP(W4, expected);
+    e.B(Cond::NE, fail);
+
+    e.STLXR(status.toW(), desired, address);
+    e.CBNZ(status, retry);
+    e.B(success);
+
+    e.l(fail);
+    e.CLREX();
+
+    e.l(success);
     e.CSET(i.dest, Cond::EQ);
   }
 };
@@ -223,15 +245,37 @@ struct ATOMIC_COMPARE_EXCHANGE_I64
     }
     e.ADD(X1, e.GetMembaseReg(), X1);
 
+    const XReg address = X1;
     const XReg expected = i.src2;
     const XReg desired = i.src3;
     const XReg status = X0;
-    e.MOV(status, expected);
 
-    // if([C] == A) [C] = B
-    // else A = [C]
-    e.CASAL(status, desired, X1);
-    e.CMP(status, expected);
+    if (e.IsFeatureEnabled(kA64EmitLSE)) {
+      e.MOV(status, expected);
+
+      // if([C] == A) [C] = B
+      // else A = [C]
+      e.CASAL(status, desired, address);
+      e.CMP(status, expected);
+      e.CSET(i.dest, Cond::EQ);
+      return;
+    }
+
+    oaknut::Label success, fail, retry;
+
+    e.l(retry);
+    e.LDAXR(X4, address);
+    e.CMP(X4, expected);
+    e.B(Cond::NE, fail);
+
+    e.STLXR(status.toW(), desired, address);
+    e.CBNZ(status, retry);
+    e.B(success);
+
+    e.l(fail);
+    e.CLREX();
+
+    e.l(success);
     e.CSET(i.dest, Cond::EQ);
   }
 };
