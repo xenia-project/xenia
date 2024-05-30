@@ -111,7 +111,7 @@ DECLARE_XAM_EXPORT1(XamUserGetSigninInfo, kUserProfiles, kImplemented);
 dword_result_t XamUserGetName_entry(dword_t user_index, lpstring_t buffer,
                                     dword_t buffer_len) {
   if (user_index >= 4) {
-    return X_E_INVALIDARG;
+    return X_ERROR_INVALID_PARAMETER;
   }
 
   if (kernel_state()->IsUserSignedIn(user_index)) {
@@ -120,9 +120,10 @@ dword_result_t XamUserGetName_entry(dword_t user_index, lpstring_t buffer,
     xe::string_util::copy_truncating(
         buffer, user_name, std::min(buffer_len.value(), uint32_t(16)));
   } else {
-    return X_E_NO_SUCH_USER;
+    *buffer = 0;
+    return X_ERROR_NO_SUCH_USER;
   }
-  return X_E_SUCCESS;
+  return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamUserGetName, kUserProfiles, kImplemented);
 
