@@ -15,61 +15,92 @@ drivers.
   * Ensure Python is in PATH.
 * Windows 11 SDK version 10.0.22000.0 (for Visual Studio 2019, this or any newer version)
 
-```
+- Download the Xenia source code:
+```sh
 git clone https://github.com/xenia-project/xenia.git
+```
+
+```sh
 cd xenia
+```
+
+```sh
 xb setup
+```
 
-# Build on command line (add --config=release for release):
+- Build on command line (add --config=release for release):
+```sh
 xb build
+```
 
-
-# Pull latest changes, rebase, update submodules, and run premake:
+- Pull latest changes, rebase, update submodules, and run premake:
+```sh
 xb pull
+```
 
-# Run premake and open Visual Studio (run the 'xenia-app' project):
+- Run premake and open Visual Studio (run the 'xenia-app' project):
+```sh
 xb devenv
+```
 
-# Run premake to update the sln/vcproj's:
+- Run premake to update the sln/vcproj's:
+```sh
 xb premake
+```
 
-# Format code to the style guide:
+- Format code to the style guide:
+```sh
 xb format
 ```
-<!--
-# Remove intermediate files and build outputs (doesn't work on Linux):
+
+- Remove intermediate files and build outputs (doesn't work on Linux):
+```sh
 xb clean
+```
 
-# Check for lint errors with clang-format:
+- Check for lint errors with clang-format:
+```sh
 xb lint
+```
 
-# Run the style checker on all code:
+- Run the style checker on all code:
+```sh
 xb style
+```
 
-# Remove all build/ output and do a hard git reset:
+- Remove all build/ output and do a hard git reset:
+```sh
 xb nuke
+```
 
-# Runs the clang-tidy checker on all code:
+- Runs the clang-tidy checker on all code:
+```sh
 xb tidy
-
+```
 
 ## Testing:
 
-# Generate tests:
+- Generate tests:
+```sh
 xb gentests
+```
 
-# Run tests:
+- Run tests:
+```sh
 xb test
+```
 
-# Run GPU tests:
+- Run GPU tests:
+```sh
 xb gputest
-
+```
 
 ## Other:
 
-# Generate SPIR-V binaries and header files:
+- Generate SPIR-V binaries and header files:
+```sh
 xb genspirv
--->
+```
 
 #### Debugging
 
@@ -99,11 +130,84 @@ interchangeable right now.
 Clang-9 or newer should be available from system repositories on all up to date distributions.
 You will also need some development libraries. To get them on an Ubuntu system:
 
-```bash
-sudo apt-get install libgtk-3-dev libpthread-stubs0-dev liblz4-dev libx11-dev libx11-xcb-dev libvulkan-dev libsdl2-dev libiberty-dev libunwind-dev libc++-dev libc++abi-dev
+```sh
+sudo apt-get install libgtk-3-dev libpthread-stubs0-dev liblz4-dev libx11-dev libx11-xcb-dev libvulkan-dev libsdl2-dev libiberty-dev libc++-dev libc++abi-dev
 ```
 
 In addition, you will need up to date Vulkan libraries and drivers for your hardware, which most distributions have in their standard repositories nowadays.
+
+- Download the Xenia source code:
+```sh
+git clone https://github.com/xenia-project/xenia.git
+```
+
+```sh
+cd xenia
+```
+
+```sh
+xb setup
+```
+
+- Build on command line (add --config=release for release):
+```sh
+xb build
+```
+
+- Pull latest changes, rebase, update submodules, and run premake:
+```sh
+xb pull
+```
+
+- Format code to the style guide:
+```sh
+xb format
+```
+
+- Check for lint errors with clang-format:
+```sh
+xb lint
+```
+
+- Run the style checker on all code:
+```sh
+xb style
+```
+
+- Remove all build/ output and do a hard git reset:
+```sh
+xb nuke
+```
+
+- Runs the clang-tidy checker on all code:
+```sh
+xb tidy
+```
+
+## Testing:
+
+- Generate tests:
+```sh
+xb gentests
+```
+
+- Run tests:
+```sh
+xb test
+```
+
+- Run GPU tests:
+```sh
+xb gputest
+```
+
+## Other:
+
+- Generate SPIR-V binaries and header files:
+
+```sh
+xb genspirv
+```
 
 ## Running
 
