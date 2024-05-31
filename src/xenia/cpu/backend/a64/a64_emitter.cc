@@ -137,21 +137,11 @@ bool A64Emitter::Emit(GuestFunction* function, HIRBuilder* builder,
 
 void* A64Emitter::Emplace(const EmitFunctionInfo& func_info,
                           GuestFunction* function) {
-  // To avoid changing xbyak, we do a switcharoo here.
-  // top_ points to the Xbyak buffer, and since we are in AutoGrow mode
-  // it has pending relocations. We copy the top_ to our buffer, swap the
-  // pointer, relocate, then return the original scratch pointer for use.
-  // top_ is used by Xbyak's ready() as both write base pointer and the absolute
-  // address base, which would not work on platforms not supporting writable
-  // executable memory, but Xenia doesn't use absolute label addresses in the
-  // generated code.
-
-  // uint8_t* old_address = top_;
+  // Copy the current oaknut instruction-buffer into the code-cache
   uint32_t* old_address = CodeBlock::ptr();
   void* new_execute_address;
   void* new_write_address;
 
-  // assert_true(func_info.code_size.total == size_);
   assert_true(func_info.code_size.total == offset());
 
   if (function) {
@@ -162,15 +152,9 @@ void* A64Emitter::Emplace(const EmitFunctionInfo& func_info,
     code_cache_->PlaceHostCode(0, CodeBlock::ptr(), func_info,
                                new_execute_address, new_write_address);
   }
-  // top_ = reinterpret_cast<uint8_t*>(new_write_address);
-  // set_wptr(reinterpret_cast<uint32_t*>(new_write_address));
 
-  // ready();
-
-  // top_ = old_address;
+  // Reset the oaknut instruction-buffer
   set_wptr(reinterpret_cast<uint32_t*>(old_address));
-
-  // reset();
   label_lookup_.clear();
 
   return new_execute_address;
@@ -357,7 +341,7 @@ void A64Emitter::MarkSourceOffset(const Instr* i) {
 }
 
 void A64Emitter::EmitGetCurrentThreadId() {
-  // rsi must point to context. We could fetch from the stack if needed.
+  // X27 must point to context. We could fetch from the stack if needed.
   LDRH(W0, GetContextReg(), offsetof(ppc::PPCContext, thread_id));
 }
 
@@ -442,14 +426,11 @@ void A64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
     // TODO(benvanik): is it worth it to do this? It removes the need for
     // a ResolveFunction call, but makes the table less useful.
     assert_zero(uint64_t(fn->machine_code()) & 0xFFFFFFFF00000000);
-    // mov(eax, uint32_t(uint64_t(fn->machine_code())));
     MOV(X16, uint32_t(uint64_t(fn->machine_code())));
   } else if (code_cache_->has_indirection_table()) {
     // Load the pointer to the indirection table maintained in A64CodeCache.
     // The target dword will either contain the address of the generated code
     // or a thunk to ResolveAddress.
-    // mov(ebx, function->address());
-    // mov(eax, dword[ebx]);
     MOV(W17, function->address());
     LDR(W16, X17);
   } else {
@@ -476,10 +457,8 @@ void A64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
     BR(X16);
   } else {
     // Return address is from the previous SET_RETURN_ADDRESS.
-    // mov(rcx, qword[rsp + StackLayout::GUEST_CALL_RET_ADDR]);
     LDR(X0, SP, StackLayout::GUEST_CALL_RET_ADDR);
 
-    // call(rax);
     BLR(X16);
   }
 }
@@ -488,8 +467,6 @@ void A64Emitter::CallIndirect(const hir::Instr* instr,
                               const oaknut::XReg& reg) {
   // Check if return.
   if (instr->flags & hir::CALL_POSSIBLE_RETURN) {
-    // cmp(reg.cvt32(), dword[rsp + StackLayout::GUEST_RET_ADDR]);
-    // je(epilog_label(), CodeGenerator::T_NEAR);
     LDR(W16, SP, StackLayout::GUEST_RET_ADDR);
     CMP(reg.toW(), W16);
     B(oaknut::Cond::EQ, epilog_label());
@@ -622,8 +599,6 @@ void A64Emitter::CallNativeSafe(void* fn) {
 }
 
 void A64Emitter::SetReturnAddress(uint64_t value) {
-  // mov(rax, value);
-  // mov(qword[rsp + StackLayout::GUEST_CALL_RET_ADDR], rax);
   MOV(X0, value);
   STR(X0, SP, StackLayout::GUEST_CALL_RET_ADDR);
 }
