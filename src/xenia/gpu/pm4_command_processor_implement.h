@@ -706,23 +706,27 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_WAIT_REG_MEM(
   uint32_t ref = reader_.ReadAndSwap<uint32_t>();
   uint32_t mask = reader_.ReadAndSwap<uint32_t>();
   uint32_t wait = reader_.ReadAndSwap<uint32_t>();
+
+  bool is_memory = (wait_info & 0x10) != 0;
+  assert_true(is_memory || poll_reg_addr < RegisterFile::kRegisterCount);
+  const volatile uint32_t& value_ref =
+      is_memory ? *reinterpret_cast<uint32_t*>(memory_->TranslatePhysical(
+                      poll_reg_addr & ~uint32_t(0x3)))
+                : register_file_->values[poll_reg_addr];
+
   bool matched = false;
+
   do {
-    uint32_t value;
-    if (wait_info & 0x10) {
-      // Memory.
-      auto endianness = static_cast<xenos::Endian>(poll_reg_addr & 0x3);
-      poll_reg_addr &= ~0x3;
-      value = xe::load<uint32_t>(memory_->TranslatePhysical(poll_reg_addr));
-      value = GpuSwap(value, endianness);
-      trace_writer_.WriteMemoryRead(CpuToGpu(poll_reg_addr), 4);
+    uint32_t value = value_ref;
+    if (is_memory) {
+      trace_writer_.WriteMemoryRead(CpuToGpu(poll_reg_addr & ~uint32_t(0x3)),
+                                    sizeof(uint32_t));
+      value = xenos::GpuSwap(value,
+                             static_cast<xenos::Endian>(poll_reg_addr & 0x3));
     } else {
-      // Register.
-      assert_true(poll_reg_addr < RegisterFile::kRegisterCount);
-      value = register_file_->values[poll_reg_addr].u32;
       if (poll_reg_addr == XE_GPU_REG_COHER_STATUS_HOST) {
         MakeCoherent();
-        value = register_file_->values[poll_reg_addr].u32;
+        value = value_ref;
       }
     }
     matched = MatchValueAndRef(value & mask, ref, wait_info);
@@ -758,17 +762,17 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_REG_RMW(uint32_t packet,
   uint32_t rmw_info = reader_.ReadAndSwap<uint32_t>();
   uint32_t and_mask = reader_.ReadAndSwap<uint32_t>();
   uint32_t or_mask = reader_.ReadAndSwap<uint32_t>();
-  uint32_t value = register_file_->values[rmw_info & 0x1FFF].u32;
+  uint32_t value = register_file_->values[rmw_info & 0x1FFF];
   if ((rmw_info >> 31) & 0x1) {
     // & reg
-    value &= register_file_->values[and_mask & 0x1FFF].u32;
+    value &= register_file_->values[and_mask & 0x1FFF];
   } else {
     // & imm
     value &= and_mask;
   }
   if ((rmw_info >> 30) & 0x1) {
     // | reg
-    value |= register_file_->values[or_mask & 0x1FFF].u32;
+    value |= register_file_->values[or_mask & 0x1FFF];
   } else {
     // | imm
     value |= or_mask;
@@ -788,7 +792,7 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_REG_TO_MEM(
   uint32_t reg_val;
 
   assert_true(reg_addr < RegisterFile::kRegisterCount);
-  reg_val = register_file_->values[reg_addr].u32;
+  reg_val = register_file_->values[reg_addr];
 
   auto endianness = static_cast<xenos::Endian>(mem_addr & 0x3);
   mem_addr &= ~0x3;
@@ -836,7 +840,7 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_COND_WRITE(
   } else {
     // Register.
     assert_true(poll_reg_addr < RegisterFile::kRegisterCount);
-    value = register_file_->values[poll_reg_addr].u32;
+    value = register_file_->values[poll_reg_addr];
   }
   bool matched = MatchValueAndRef(value & mask, ref, wait_info);
 
@@ -858,7 +862,7 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_COND_WRITE(
 }
 XE_FORCEINLINE
 void COMMAND_PROCESSOR::WriteEventInitiator(uint32_t value) XE_RESTRICT {
-  register_file_->values[XE_GPU_REG_VGT_EVENT_INITIATOR].u32 = value;
+  register_file_->values[XE_GPU_REG_VGT_EVENT_INITIATOR] = value;
 }
 bool COMMAND_PROCESSOR::ExecutePacketType3_EVENT_WRITE(
     uint32_t packet, uint32_t count) XE_RESTRICT {
@@ -898,10 +902,8 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_EVENT_WRITE_SHD(
   data_value = GpuSwap(data_value, endianness);
   uint8_t* write_destination = memory_->TranslatePhysical(address);
   if (address > 0x1FFFFFFF) {
-    uint32_t writeback_base =
-        register_file_->values[XE_GPU_REG_WRITEBACK_BASE].u32;
-    uint32_t writeback_size =
-        register_file_->values[XE_GPU_REG_WRITEBACK_SIZE].u32;
+    uint32_t writeback_base = register_file_->values[XE_GPU_REG_WRITEBACK_BASE];
+    uint32_t writeback_size = register_file_->values[XE_GPU_REG_WRITEBACK_SIZE];
     uint32_t writeback_offset = address - writeback_base;
     // check whether the guest has written writeback base. if they haven't, skip
     // the offset check
@@ -967,7 +969,7 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_EVENT_WRITE_ZPD(
   if (fake_sample_count >= 0) {
     auto* pSampleCounts =
         memory_->TranslatePhysical<xe_gpu_depth_sample_counts*>(
-            register_file_->values[XE_GPU_REG_RB_SAMPLE_COUNT_ADDR].u32);
+            register_file_->values[XE_GPU_REG_RB_SAMPLE_COUNT_ADDR]);
     // 0xFFFFFEED is written to this two locations by D3D only on D3DISSUE_END
     // and used to detect a finished query.
     bool is_end_via_z_pass = pSampleCounts->ZPass_A == kQueryFinished &&
@@ -1003,7 +1005,7 @@ bool COMMAND_PROCESSOR::ExecutePacketType3Draw(
   vgt_draw_initiator.value = reader_.ReadAndSwap<uint32_t>();
   --count_remaining;
 
-  register_file_->values[XE_GPU_REG_VGT_DRAW_INITIATOR].u32 =
+  register_file_->values[XE_GPU_REG_VGT_DRAW_INITIATOR] =
       vgt_draw_initiator.value;
   bool draw_succeeded = true;
   // TODO(Triang3l): Remove IndexBufferInfo and replace handling of all this
@@ -1025,7 +1027,7 @@ bool COMMAND_PROCESSOR::ExecutePacketType3Draw(
       }
       uint32_t vgt_dma_base = reader_.ReadAndSwap<uint32_t>();
       --count_remaining;
-      register_file_->values[XE_GPU_REG_VGT_DMA_BASE].u32 = vgt_dma_base;
+      register_file_->values[XE_GPU_REG_VGT_DMA_BASE] = vgt_dma_base;
       reg::VGT_DMA_SIZE vgt_dma_size;
       assert_not_zero(count_remaining);
       if (!count_remaining) {
@@ -1034,7 +1036,7 @@ bool COMMAND_PROCESSOR::ExecutePacketType3Draw(
       }
       vgt_dma_size.value = reader_.ReadAndSwap<uint32_t>();
       --count_remaining;
-      register_file_->values[XE_GPU_REG_VGT_DMA_SIZE].u32 = vgt_dma_size.value;
+      register_file_->values[XE_GPU_REG_VGT_DMA_SIZE] = vgt_dma_size.value;
 
       uint32_t index_size_bytes =
           vgt_draw_initiator.index_size == xenos::IndexFormat::kInt16
@@ -1341,10 +1343,10 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_VIZ_QUERY(
     // The scan converter writes the internal result back to the register here.
     // We just fake it and say it was visible in case it is read back.
     if (id < 32) {
-      register_file_->values[XE_GPU_REG_PA_SC_VIZ_QUERY_STATUS_0].u32 |=
-          uint32_t(1) << id;
+      register_file_->values[XE_GPU_REG_PA_SC_VIZ_QUERY_STATUS_0] |= uint32_t(1)
+                                                                     << id;
     } else {
-      register_file_->values[XE_GPU_REG_PA_SC_VIZ_QUERY_STATUS_1].u32 |=
+      register_file_->values[XE_GPU_REG_PA_SC_VIZ_QUERY_STATUS_1] |=
           uint32_t(1) << (id - 32);
     }
   }

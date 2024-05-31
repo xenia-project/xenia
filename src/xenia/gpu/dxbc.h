@@ -17,6 +17,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
+#include "xenia/base/memory.h"
 
 namespace xe {
 namespace gpu {
@@ -1103,10 +1104,10 @@ struct Src : OperandAddress {
   }
   static Src LI(int32_t x) { return LI(x, x, x, x); }
   static Src LF(float x, float y, float z, float w) {
-    return LU(*reinterpret_cast<const uint32_t*>(&x),
-              *reinterpret_cast<const uint32_t*>(&y),
-              *reinterpret_cast<const uint32_t*>(&z),
-              *reinterpret_cast<const uint32_t*>(&w));
+    return LU(xe::memory::Reinterpret<uint32_t>(x),
+              xe::memory::Reinterpret<uint32_t>(y),
+              xe::memory::Reinterpret<uint32_t>(z),
+              xe::memory::Reinterpret<uint32_t>(w));
   }
   static Src LF(float x) { return LF(x, x, x, x); }
   static Src LP(const uint32_t* xyzw) {
@@ -1223,12 +1224,10 @@ struct Src : OperandAddress {
                                                  bool negate) {
     if (is_integer) {
       if (absolute) {
-        *reinterpret_cast<int32_t*>(&value) =
-            std::abs(*reinterpret_cast<const int32_t*>(&value));
+        value = uint32_t(std::abs(int32_t(value)));
       }
       if (negate) {
-        *reinterpret_cast<int32_t*>(&value) =
-            -*reinterpret_cast<const int32_t*>(&value);
+        value = uint32_t(-int32_t(value));
       }
     } else {
       if (absolute) {

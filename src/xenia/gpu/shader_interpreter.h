@@ -11,6 +11,7 @@
 #define XENIA_GPU_SHADER_INTERPRETER_H_
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 
@@ -117,8 +118,8 @@ class ShaderInterpreter {
   float* GetTempRegister(uint32_t address, bool is_relative) {
     return temp_registers_[GetTempRegisterIndex(address, is_relative)];
   }
-  const float* GetFloatConstant(uint32_t address, bool is_relative,
-                                bool relative_address_is_a0) const;
+  const std::array<float, 4> GetFloatConstant(
+      uint32_t address, bool is_relative, bool relative_address_is_a0) const;
 
   void ExecuteAluInstruction(ucode::AluInstruction instr);
   void StoreFetchResult(uint32_t dest, bool is_dest_relative, uint32_t swizzle,

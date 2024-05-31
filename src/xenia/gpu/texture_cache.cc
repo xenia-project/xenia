@@ -330,8 +330,7 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
     uint32_t index_bit = UINT32_C(1) << index;
     textures_remaining = xe::clear_lowest_bit(textures_remaining);
     TextureBinding& binding = texture_bindings_[index];
-    const auto& fetch = regs.Get<xenos::xe_gpu_texture_fetch_t>(
-        XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + index * 6);
+    xenos::xe_gpu_texture_fetch_t fetch = regs.GetTextureFetch(index);
     TextureKey old_key = binding.key;
     uint8_t old_swizzled_signs = binding.swizzled_signs;
     BindingInfoFromFetchConstant(fetch, binding.key, &binding.swizzled_signs);

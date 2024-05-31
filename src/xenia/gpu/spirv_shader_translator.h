@@ -323,17 +323,28 @@ class SpirvShaderTranslator : public ShaderTranslator {
     explicit Features(
         const ui::vulkan::VulkanProvider::DeviceInfo& device_info);
     explicit Features(bool all = false);
+
     unsigned int spirv_version;
+
     uint32_t max_storage_buffer_range;
+
+    bool full_draw_index_uint32;
+
+    bool vertex_pipeline_stores_and_atomics;
+    bool fragment_stores_and_atomics;
+
     bool clip_distance;
     bool cull_distance;
-    bool demote_to_helper_invocation;
-    bool fragment_shader_sample_interlock;
-    bool full_draw_index_uint32;
+
     bool image_view_format_swizzle;
+
     bool signed_zero_inf_nan_preserve_float32;
     bool denorm_flush_to_zero_float32;
     bool rounding_mode_rte_float32;
+
+    bool fragment_shader_sample_interlock;
+
+    bool demote_to_helper_invocation;
   };
 
   SpirvShaderTranslator(const Features& features,
@@ -424,6 +435,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
   void ProcessLoopEndInstruction(
       const ParsedLoopEndInstruction& instr) override;
   void ProcessJumpInstruction(const ParsedJumpInstruction& instr) override;
+  void ProcessAllocInstruction(const ParsedAllocInstruction& instr,
+                               uint8_t export_eM) override;
 
   void ProcessVertexFetchInstruction(
       const ParsedVertexFetchInstruction& instr) override;
@@ -469,6 +482,11 @@ class SpirvShaderTranslator : public ShaderTranslator {
     return is_vertex_shader() &&
            Shader::IsHostVertexShaderTypeDomain(
                GetSpirvShaderModification().vertex.host_vertex_shader_type);
+  }
+  bool IsSpirvComputeShader() const {
+    return is_vertex_shader() &&
+           GetSpirvShaderModification().vertex.host_vertex_shader_type ==
+               Shader::HostVertexShaderType::kMemExportCompute;
   }
 
   bool IsExecutionModeEarlyFragmentTests() const {
@@ -567,24 +585,48 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id ZeroIfAnyOperandIsZero(spv::Id value, spv::Id operand_0_abs,
                                  spv::Id operand_1_abs);
   // Conditionally discard the current fragment. Changes the build point.
-  void KillPixel(spv::Id condition);
+  void KillPixel(spv::Id condition,
+                 uint8_t memexport_eM_potentially_written_before);
   // Return type is a xe::bit_count(result.GetUsedResultComponents())-component
   // float vector or a single float, depending on whether it's a reduction
   // instruction (check getTypeId of the result), or returns spv::NoResult if
   // nothing to store.
-  spv::Id ProcessVectorAluOperation(const ParsedAluInstruction& instr,
-                                    bool& predicate_written);
+  spv::Id ProcessVectorAluOperation(
+      const ParsedAluInstruction& instr,
+      uint8_t memexport_eM_potentially_written_before, bool& predicate_written);
   // Returns a float value to write to the previous scalar register and to the
   // destination. If the return value is ps itself (in the retain_prev case),
   // returns spv::NoResult (handled as a special case, so if it's retain_prev,
   // but don't need to write to anywhere, no OpLoad(ps) will be done).
-  spv::Id ProcessScalarAluOperation(const ParsedAluInstruction& instr,
-                                    bool& predicate_written);
+  spv::Id ProcessScalarAluOperation(
+      const ParsedAluInstruction& instr,
+      uint8_t memexport_eM_potentially_written_before, bool& predicate_written);
 
   // Perform endian swap of a uint scalar or vector.
   spv::Id EndianSwap32Uint(spv::Id value, spv::Id endian);
+  // Perform endian swap of a uint4 vector.
+  spv::Id EndianSwap128Uint4(spv::Id value, spv::Id endian);
 
   spv::Id LoadUint32FromSharedMemory(spv::Id address_dwords_int);
+  // If `replace_mask` is provided, the bits specified in the mask will be
+  // replaced with those from the value via OpAtomicAnd/Or.
+  // Bits of `value` not in `replace_mask` will be ignored.
+  void StoreUint32ToSharedMemory(spv::Id value, spv::Id address_dwords_int,
+                                 spv::Id replace_mask = spv::NoResult);
+
+  bool IsMemoryExportSupported() const {
+    if (is_pixel_shader()) {
+      return features_.fragment_stores_and_atomics;
+    }
+    return features_.vertex_pipeline_stores_and_atomics ||
+           IsSpirvComputeShader();
+  }
+
+  bool IsMemoryExportUsed() const {
+    return current_shader().memexport_eM_written() && IsMemoryExportSupported();
+  }
+
+  void ExportToMemory(uint8_t export_eM);
 
   // The source may be a floating-point scalar or a vector.
   spv::Id PWLGammaToLinear(spv::Id gamma, bool gamma_pre_saturated);
@@ -605,7 +647,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
   void SampleTexture(spv::Builder::TextureParameters& texture_parameters,
                      spv::ImageOperandsMask image_operands_mask,
                      spv::Id image_unsigned, spv::Id image_signed,
-                     spv::Id sampler, spv::Id is_all_signed,
+                     spv::Id sampler, spv::Id is_any_unsigned,
                      spv::Id is_any_signed, spv::Id& result_unsigned_out,
                      spv::Id& result_signed_out,
                      spv::Id lerp_factor = spv::NoResult,
@@ -872,6 +914,21 @@ class SpirvShaderTranslator : public ShaderTranslator {
   spv::Id var_main_tfetch_gradients_v_;
   // float4[register_count()].
   spv::Id var_main_registers_;
+  // Memory export variables are created only when needed.
+  // float4.
+  spv::Id var_main_memexport_address_;
+  // Each is float4.
+  spv::Id var_main_memexport_data_[ucode::kMaxMemExportElementCount];
+  // Bit field of which eM# elements have been written so far by the invocation
+  // since the last memory write - uint.
+  spv::Id var_main_memexport_data_written_;
+  // If memory export is disabled in certain invocations or (if emulating some
+  // primitive types without a geometry shader) at specific guest vertex loop
+  // iterations because the translated shader is executed multiple times for the
+  // same guest vertex or pixel, this contains whether memory export is allowed
+  // in the current execution of the translated code.
+  // bool.
+  spv::Id main_memexport_allowed_;
   // VS only - float3 (special exports).
   spv::Id var_main_point_size_edge_flag_kill_vertex_;
   // PS, only when needed - bool.

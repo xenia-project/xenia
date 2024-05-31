@@ -15,6 +15,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"
+#include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/registers.h"
 #include "xenia/gpu/ucode.h"
@@ -67,7 +68,7 @@ void DrawExtentEstimator::PositionYExportSink::Export(
       point_size_ = value[0];
     }
     if (value_mask & 0b0100) {
-      vertex_kill_ = *reinterpret_cast<const uint32_t*>(&value[2]);
+      vertex_kill_ = xe::memory::Reinterpret<uint32_t>(value[2]);
     }
   }
 }
@@ -110,7 +111,7 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
   xenos::Endian index_endian = vgt_dma_size.swap_mode;
   if (vgt_draw_initiator.source_select == xenos::SourceSelect::kDMA) {
     xenos::IndexFormat index_format = vgt_draw_initiator.index_size;
-    uint32_t index_buffer_base = regs[XE_GPU_REG_VGT_DMA_BASE].u32;
+    uint32_t index_buffer_base = regs[XE_GPU_REG_VGT_DMA_BASE];
     uint32_t index_buffer_read_count =
         std::min(uint32_t(vgt_draw_initiator.num_indices),
                  uint32_t(vgt_dma_size.num_words));
@@ -145,21 +146,22 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
 
   auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
   float viewport_y_scale = pa_cl_vte_cntl.vport_y_scale_ena
-                               ? regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32
+                               ? regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_YSCALE)
                                : 1.0f;
-  float viewport_y_offset = pa_cl_vte_cntl.vport_y_offset_ena
-                                ? regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32
-                                : 0.0f;
+  float viewport_y_offset =
+      pa_cl_vte_cntl.vport_y_offset_ena
+          ? regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_YOFFSET)
+          : 0.0f;
 
   int32_t point_vertex_min_diameter_float = 0;
   int32_t point_vertex_max_diameter_float = 0;
   float point_constant_radius_y = 0.0f;
   if (vgt_draw_initiator.prim_type == xenos::PrimitiveType::kPointList) {
     auto pa_su_point_minmax = regs.Get<reg::PA_SU_POINT_MINMAX>();
-    *reinterpret_cast<float*>(&point_vertex_min_diameter_float) =
-        float(pa_su_point_minmax.min_size) * (2.0f / 16.0f);
-    *reinterpret_cast<float*>(&point_vertex_max_diameter_float) =
-        float(pa_su_point_minmax.max_size) * (2.0f / 16.0f);
+    point_vertex_min_diameter_float = xe::memory::Reinterpret<int32_t>(
+        float(pa_su_point_minmax.min_size) * (2.0f / 16.0f));
+    point_vertex_max_diameter_float = xe::memory::Reinterpret<int32_t>(
+        float(pa_su_point_minmax.max_size) * (2.0f / 16.0f));
     point_constant_radius_y =
         float(regs.Get<reg::PA_SU_POINT_SIZE>().height) * (1.0f / 16.0f);
   }
@@ -224,12 +226,13 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
         // Vertex-specified diameter. Clamped effectively as a signed integer in
         // the hardware, -NaN, -Infinity ... -0 to the minimum, +Infinity, +NaN
         // to the maximum.
-        point_radius_y = position_y_export_sink.point_size().value();
-        *reinterpret_cast<int32_t*>(&point_radius_y) = std::min(
-            point_vertex_max_diameter_float,
-            std::max(point_vertex_min_diameter_float,
-                     *reinterpret_cast<const int32_t*>(&point_radius_y)));
-        point_radius_y *= 0.5f;
+        point_radius_y =
+            0.5f *
+            xe::memory::Reinterpret<float>(std::min(
+                point_vertex_max_diameter_float,
+                std::max(point_vertex_min_diameter_float,
+                         xe::memory::Reinterpret<int32_t>(
+                             position_y_export_sink.point_size().value()))));
       } else {
         // Constant radius.
         point_radius_y = point_constant_radius_y;
@@ -329,7 +332,7 @@ uint32_t DrawExtentEstimator::EstimateMaxY(bool try_to_estimate_vertex_max_y,
 
     float window_y_offset_f = float(window_y_offset);
 
-    float yoffset = regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32;
+    float yoffset = regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_YOFFSET);
 
     // First calculate all the integer.0 or integer.5 offsetting exactly at full
     // precision.
@@ -347,11 +350,10 @@ uint32_t DrawExtentEstimator::EstimateMaxY(bool try_to_estimate_vertex_max_y,
       sm3 = yoffset;
     }
     sm4 = pa_cl_vte_cntl.vport_y_scale_ena
-              ? std::abs(regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32)
+              ? std::abs(regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_YSCALE))
               : 1.0f;
 
     viewport_bottom = sm1 + sm2 + sm3 + sm4;
-
     // Using floor, or, rather, truncation (because maxing with zero anyway)
     // similar to how viewport scissoring behaves on real AMD, Intel and Nvidia
     // GPUs on Direct3D 12 (but not WARP), also like in

@@ -39,31 +39,23 @@ spv::Id SpirvShaderTranslator::ZeroIfAnyOperandIsZero(spv::Id value,
       const_float_vectors_0_[num_components - 1], value);
 }
 
-void SpirvShaderTranslator::KillPixel(spv::Id condition) {
-  // Same calls as in spv::Builder::If.
-  spv::Function& function = builder_->getBuildPoint()->getParent();
-  spv::Block* kill_block = new spv::Block(builder_->getUniqueId(), function);
-  spv::Block* merge_block = new spv::Block(builder_->getUniqueId(), function);
-  spv::Block& header_block = *builder_->getBuildPoint();
-
-  function.addBlock(kill_block);
-  builder_->setBuildPoint(kill_block);
-  // Kill without influencing the control flow in the translated shader.
-  if (var_main_kill_pixel_ != spv::NoResult) {
-    builder_->createStore(builder_->makeBoolConstant(true),
-                          var_main_kill_pixel_);
+void SpirvShaderTranslator::KillPixel(
+    spv::Id condition, uint8_t memexport_eM_potentially_written_before) {
+  SpirvBuilder::IfBuilder kill_if(condition, spv::SelectionControlMaskNone,
+                                  *builder_);
+  {
+    // Perform outstanding memory exports before the invocation becomes inactive
+    // and storage writes are disabled.
+    ExportToMemory(memexport_eM_potentially_written_before);
+    if (var_main_kill_pixel_ != spv::NoResult) {
+      builder_->createStore(builder_->makeBoolConstant(true),
+                            var_main_kill_pixel_);
+    }
+    if (features_.demote_to_helper_invocation) {
+      builder_->createNoResultOp(spv::OpDemoteToHelperInvocationEXT);
+    }
   }
-  if (features_.demote_to_helper_invocation) {
-    builder_->createNoResultOp(spv::OpDemoteToHelperInvocationEXT);
-  }
-  builder_->createBranch(merge_block);
-
-  builder_->setBuildPoint(&header_block);
-  builder_->createSelectionMerge(merge_block, spv::SelectionControlMaskNone);
-  builder_->createConditionalBranch(condition, kill_block, merge_block);
-
-  function.addBlock(merge_block);
-  builder_->setBuildPoint(merge_block);
+  kill_if.makeEndIf();
 }
 
 void SpirvShaderTranslator::ProcessAluInstruction(
@@ -89,12 +81,12 @@ void SpirvShaderTranslator::ProcessAluInstruction(
   // Whether the instruction has changed the predicate, and it needs to be
   // checked again later.
   bool predicate_written_vector = false;
-  spv::Id vector_result =
-      ProcessVectorAluOperation(instr, predicate_written_vector);
+  spv::Id vector_result = ProcessVectorAluOperation(
+      instr, memexport_eM_potentially_written_before, predicate_written_vector);
 
   bool predicate_written_scalar = false;
-  spv::Id scalar_result =
-      ProcessScalarAluOperation(instr, predicate_written_scalar);
+  spv::Id scalar_result = ProcessScalarAluOperation(
+      instr, memexport_eM_potentially_written_before, predicate_written_scalar);
   if (scalar_result != spv::NoResult) {
     EnsureBuildPointAvailable();
     builder_->createStore(scalar_result, var_main_previous_scalar_);
@@ -118,7 +110,8 @@ void SpirvShaderTranslator::ProcessAluInstruction(
 }
 
 spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
-    const ParsedAluInstruction& instr, bool& predicate_written) {
+    const ParsedAluInstruction& instr,
+    uint8_t memexport_eM_potentially_written_before, bool& predicate_written) {
   predicate_written = false;
 
   uint32_t used_result_components =
@@ -564,7 +557,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
       spv::Id ma_z_result[4] = {}, ma_yx_result[4] = {};
 
       // Check if the major axis is Z (abs(z) >= abs(x) && abs(z) >= abs(y)).
-      spv::Builder::If ma_z_if(
+      SpirvBuilder::IfBuilder ma_z_if(
           builder_->createBinOp(
               spv::OpLogicalAnd, type_bool_,
               builder_->createBinOp(spv::OpFOrdGreaterThanEqual, type_bool_,
@@ -596,14 +589,13 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
           }
         }
       }
-      spv::Block& ma_z_end_block = *builder_->getBuildPoint();
       ma_z_if.makeBeginElse();
       {
         spv::Id ma_y_result[4] = {}, ma_x_result[4] = {};
 
         // The major axis is not Z - create an inner conditional to check if the
         // major axis is Y (abs(y) >= abs(x)).
-        spv::Builder::If ma_y_if(
+        SpirvBuilder::IfBuilder ma_y_if(
             builder_->createBinOp(spv::OpFOrdGreaterThanEqual, type_bool_,
                                   operand_abs[1], operand_abs[0]),
             spv::SelectionControlMaskNone, *builder_);
@@ -629,7 +621,6 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
             }
           }
         }
-        spv::Block& ma_y_end_block = *builder_->getBuildPoint();
         ma_y_if.makeBeginElse();
         {
           // The major axis is X.
@@ -654,7 +645,6 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
             }
           }
         }
-        spv::Block& ma_x_end_block = *builder_->getBuildPoint();
         ma_y_if.makeEndIf();
 
         // The major axis is Y or X - choose the options of the result from Y
@@ -663,18 +653,10 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
           if (!(used_result_components & (1 << i))) {
             continue;
           }
-          std::unique_ptr<spv::Instruction> phi_op =
-              std::make_unique<spv::Instruction>(builder_->getUniqueId(),
-                                                 type_float_, spv::OpPhi);
-          phi_op->addIdOperand(ma_y_result[i]);
-          phi_op->addIdOperand(ma_y_end_block.getId());
-          phi_op->addIdOperand(ma_x_result[i]);
-          phi_op->addIdOperand(ma_x_end_block.getId());
-          ma_yx_result[i] = phi_op->getResultId();
-          builder_->getBuildPoint()->addInstruction(std::move(phi_op));
+          ma_yx_result[i] =
+              ma_y_if.createMergePhi(ma_y_result[i], ma_x_result[i]);
         }
       }
-      spv::Block& ma_yx_end_block = *builder_->getBuildPoint();
       ma_z_if.makeEndIf();
 
       // Choose the result options from Z and YX cases.
@@ -683,15 +665,8 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
         if (!(used_result_components & (1 << i))) {
           continue;
         }
-        std::unique_ptr<spv::Instruction> phi_op =
-            std::make_unique<spv::Instruction>(builder_->getUniqueId(),
-                                               type_float_, spv::OpPhi);
-        phi_op->addIdOperand(ma_z_result[i]);
-        phi_op->addIdOperand(ma_z_end_block.getId());
-        phi_op->addIdOperand(ma_yx_result[i]);
-        phi_op->addIdOperand(ma_yx_end_block.getId());
-        id_vector_temp_.push_back(phi_op->getResultId());
-        builder_->getBuildPoint()->addInstruction(std::move(phi_op));
+        id_vector_temp_.push_back(
+            ma_z_if.createMergePhi(ma_z_result[i], ma_yx_result[i]));
       }
       assert_true(id_vector_temp_.size() == used_result_component_count);
       if (used_result_components & 0b0100) {
@@ -799,14 +774,16 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
     case ucode::AluVectorOpcode::kKillGt:
     case ucode::AluVectorOpcode::kKillGe:
     case ucode::AluVectorOpcode::kKillNe: {
-      KillPixel(builder_->createUnaryOp(
-          spv::OpAny, type_bool_,
-          builder_->createBinOp(
-              spv::Op(kOps[size_t(instr.vector_opcode)]), type_bool4_,
-              GetOperandComponents(operand_storage[0], instr.vector_operands[0],
-                                   0b1111),
-              GetOperandComponents(operand_storage[1], instr.vector_operands[1],
-                                   0b1111))));
+      KillPixel(
+          builder_->createUnaryOp(
+              spv::OpAny, type_bool_,
+              builder_->createBinOp(
+                  spv::Op(kOps[size_t(instr.vector_opcode)]), type_bool4_,
+                  GetOperandComponents(operand_storage[0],
+                                       instr.vector_operands[0], 0b1111),
+                  GetOperandComponents(operand_storage[1],
+                                       instr.vector_operands[1], 0b1111))),
+          memexport_eM_potentially_written_before);
       return const_float_0_;
     }
 
@@ -892,7 +869,8 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
 }
 
 spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
-    const ParsedAluInstruction& instr, bool& predicate_written) {
+    const ParsedAluInstruction& instr,
+    uint8_t memexport_eM_potentially_written_before, bool& predicate_written) {
   predicate_written = false;
 
   spv::Id operand_storage[2] = {};
@@ -1044,10 +1022,9 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
           spv::OpLogicalAnd, type_bool_, condition,
           builder_->createBinOp(spv::OpFOrdGreaterThan, type_bool_, b,
                                 const_float_0_));
-      spv::Block& pre_multiply_if_block = *builder_->getBuildPoint();
+      SpirvBuilder::IfBuilder multiply_if(
+          condition, spv::SelectionControlMaskNone, *builder_);
       spv::Id product;
-      spv::Builder::If multiply_if(condition, spv::SelectionControlMaskNone,
-                                   *builder_);
       {
         // Multiplication case.
         spv::Id a = instr.scalar_operands[0].GetComponent(0) !=
@@ -1061,21 +1038,9 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
         product = ZeroIfAnyOperandIsZero(
             product, GetAbsoluteOperand(a, instr.scalar_operands[0]), ps_abs);
       }
-      spv::Block& multiply_end_block = *builder_->getBuildPoint();
       multiply_if.makeEndIf();
       // Merge - choose between the product and -FLT_MAX.
-      {
-        std::unique_ptr<spv::Instruction> phi_op =
-            std::make_unique<spv::Instruction>(builder_->getUniqueId(),
-                                               type_float_, spv::OpPhi);
-        phi_op->addIdOperand(product);
-        phi_op->addIdOperand(multiply_end_block.getId());
-        phi_op->addIdOperand(const_float_max_neg);
-        phi_op->addIdOperand(pre_multiply_if_block.getId());
-        spv::Id phi_result = phi_op->getResultId();
-        builder_->getBuildPoint()->addInstruction(std::move(phi_op));
-        return phi_result;
-      }
+      return multiply_if.createMergePhi(product, const_float_max_neg);
     }
 
     case ucode::AluScalarOpcode::kMaxs:
@@ -1300,12 +1265,13 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
     case ucode::AluScalarOpcode::kKillsNe:
     case ucode::AluScalarOpcode::kKillsOne: {
       KillPixel(builder_->createBinOp(
-          spv::Op(kOps[size_t(instr.scalar_opcode)]), type_bool_,
-          GetOperandComponents(operand_storage[0], instr.scalar_operands[0],
-                               0b0001),
-          instr.scalar_opcode == ucode::AluScalarOpcode::kKillsOne
-              ? const_float_1_
-              : const_float_0_));
+                    spv::Op(kOps[size_t(instr.scalar_opcode)]), type_bool_,
+                    GetOperandComponents(operand_storage[0],
+                                         instr.scalar_operands[0], 0b0001),
+                    instr.scalar_opcode == ucode::AluScalarOpcode::kKillsOne
+                        ? const_float_1_
+                        : const_float_0_),
+                memexport_eM_potentially_written_before);
       return const_float_0_;
     }
 

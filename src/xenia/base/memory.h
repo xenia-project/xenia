@@ -16,11 +16,36 @@
 #include <functional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 #include "xenia/base/byte_order.h"
 
 namespace xe {
 namespace memory {
+
+// For variable declarations (not return values or `this` pointer).
+// Not propagated.
+#define XE_RESTRICT_VAR __restrict
+
+// Aliasing-safe bit reinterpretation.
+// For more complex cases such as non-trivially-copyable types, write copying
+// code respecting the requirements for them externally instead of using these
+// functions.
+
+template <typename Dst, typename Src>
+void Reinterpret(Dst& XE_RESTRICT_VAR dst, const Src& XE_RESTRICT_VAR src) {
+  static_assert(sizeof(Dst) == sizeof(Src));
+  static_assert(std::is_trivially_copyable_v<Dst>);
+  static_assert(std::is_trivially_copyable_v<Src>);
+  std::memcpy(&dst, &src, sizeof(Dst));
+}
+
+template <typename Dst, typename Src>
+Dst Reinterpret(const Src& XE_RESTRICT_VAR src) {
+  Dst dst;
+  Reinterpret(dst, src);
+  return dst;
+}
 
 #if XE_PLATFORM_ANDROID
 void AndroidInitialize();

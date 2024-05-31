@@ -679,8 +679,8 @@ void D3D12TextureCache::PrefetchSamplerParameters(
 D3D12TextureCache::SamplerParameters D3D12TextureCache::GetSamplerParameters(
     const D3D12Shader::SamplerBinding& binding) const {
   const auto& regs = register_file();
-  const auto& fetch = regs.Get<xenos::xe_gpu_texture_fetch_t>(
-      XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + binding.fetch_constant * 6);
+  xenos::xe_gpu_texture_fetch_t fetch =
+      regs.GetTextureFetch(binding.fetch_constant);
 
   SamplerParameters parameters;
 
@@ -1160,8 +1160,7 @@ ID3D12Resource* D3D12TextureCache::RequestSwapTexture(
     D3D12_SHADER_RESOURCE_VIEW_DESC& srv_desc_out,
     xenos::TextureFormat& format_out) {
   const auto& regs = register_file();
-  const auto& fetch = regs.Get<xenos::xe_gpu_texture_fetch_t>(
-      XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0);
+  xenos::xe_gpu_texture_fetch_t fetch = regs.GetTextureFetch(0);
   TextureKey key;
   BindingInfoFromFetchConstant(fetch, key, nullptr);
   if (!key.is_valid || key.base_page == 0 ||

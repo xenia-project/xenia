@@ -123,7 +123,7 @@ class TraceViewer : public xe::ui::WindowedApp {
 
   void DrawVertexFetcher(Shader* shader,
                          const Shader::VertexBinding& vertex_binding,
-                         const xenos::xe_gpu_vertex_fetch_t* fetch);
+                         const xenos::xe_gpu_vertex_fetch_t& fetch);
 
   TraceViewerWindowListener window_listener_;
 

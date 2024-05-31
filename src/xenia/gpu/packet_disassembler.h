@@ -67,7 +67,7 @@ struct PacketAction {
   union {
     struct {
       uint32_t index;
-      RegisterFile::RegisterValue value;
+      uint32_t value;
     } register_write;
     struct {
       uint64_t value;
@@ -194,7 +194,7 @@ struct PacketAction {
     PacketAction action;
     action.type = Type::kRegisterWrite;
     action.register_write.index = index;
-    action.register_write.value.u32 = value;
+    action.register_write.value = value;
     return action;
   }
 

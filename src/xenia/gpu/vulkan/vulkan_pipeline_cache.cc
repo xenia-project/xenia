@@ -718,7 +718,7 @@ bool VulkanPipelineCache::GetCurrentStateDescription(
                       [common_blend_rt_index]),
               (((normalized_color_mask &
                  ~(uint32_t(0b1111) << (4 * common_blend_rt_index)))
-                    ? regs[XE_GPU_REG_RB_COLOR_MASK].u32
+                    ? regs[XE_GPU_REG_RB_COLOR_MASK]
                     : normalized_color_mask) >>
                (4 * common_blend_rt_index)) &
                   0b1111,

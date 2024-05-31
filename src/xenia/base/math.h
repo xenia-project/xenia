@@ -72,20 +72,22 @@ constexpr T round_up(T value, V multiple, bool force_non_zero = true) {
   return (value + multiple - 1) / multiple * multiple;
 }
 
-// Using the same conventions as in shading languages, returning 0 for NaN.
-// std::max is `a < b ? b : a`, thus in case of NaN, the first argument is
-// always returned. Also -0 is not < +0, so +0 is also chosen for it.
+// For NaN, returns min_value (or, if it's NaN too, max_value).
+// If either of the boundaries is zero, and if the value is at that boundary or
+// exceeds it, the result will have the sign of that boundary. If both
+// boundaries are zero, which sign is selected among the argument signs is not
+// explicitly defined.
 template <typename T>
-constexpr T saturate_unsigned(T value) {
-  return std::min(static_cast<T>(1.0f), std::max(static_cast<T>(0.0f), value));
+T clamp_float(T value, T min_value, T max_value) {
+  float clamped_to_min = std::isgreater(value, min_value) ? value : min_value;
+  return std::isless(clamped_to_min, max_value) ? clamped_to_min : max_value;
 }
 
-// This diverges from the GPU NaN rules for signed normalized formats (NaN
-// should be converted to 0, not to -1), but this expectation is not needed most
-// of time, and cannot be met for free (unlike for 0...1 clamping).
+// Using the same conventions as in shading languages, returning 0 for NaN.
+// 0 is always returned as positive.
 template <typename T>
-constexpr T saturate_signed(T value) {
-  return std::min(static_cast<T>(1.0f), std::max(static_cast<T>(-1.0f), value));
+T saturate(T value) {
+  return clamp_float(value, static_cast<T>(0.0f), static_cast<T>(1.0f));
 }
 
 // Gets the next power of two value that is greater than or equal to the given
@@ -364,12 +366,6 @@ inline uint64_t rotate_right(uint64_t v, uint8_t sh) {
   return _rotr64(v, sh);
 }
 #endif  // XE_PLATFORM_WIN32
-
-template <typename T>
-T clamp(T value, T min_value, T max_value) {
-  const T t = value < min_value ? min_value : value;
-  return t > max_value ? max_value : t;
-}
 
 #if XE_ARCH_AMD64
 // Utilities for SSE values.

@@ -2177,6 +2177,11 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     return IssueCopy();
   }
 
+  const ui::vulkan::VulkanProvider::DeviceInfo& device_info =
+      GetVulkanProvider().device_info();
+
+  memexport_ranges_.clear();
+
   // Vertex shader analysis.
   auto vertex_shader = static_cast<VulkanShader*>(active_vertex_shader());
   if (!vertex_shader) {
@@ -2184,7 +2189,14 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     return false;
   }
   pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
-  bool memexport_used_vertex = vertex_shader->memexport_eM_written() != 0;
+  // TODO(Triang3l): If the shader uses memory export, but
+  // vertexPipelineStoresAndAtomics is not supported, convert the vertex shader
+  // to a compute shader and dispatch it after the draw if the draw doesn't use
+  // tessellation.
+  if (vertex_shader->memexport_eM_written() != 0 &&
+      device_info.vertexPipelineStoresAndAtomics) {
+    draw_util::AddMemExportRanges(regs, *vertex_shader, memexport_ranges_);
+  }
 
   // Pixel shader analysis.
   bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
@@ -2207,12 +2219,15 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   } else {
     // Disabling pixel shader for this case is also required by the pipeline
     // cache.
-    if (!memexport_used_vertex) {
+    if (memexport_ranges_.empty()) {
       // This draw has no effect.
       return true;
     }
   }
-  // TODO(Triang3l): Memory export.
+  if (pixel_shader && pixel_shader->memexport_eM_written() != 0 &&
+      device_info.fragmentStoresAndAtomics) {
+    draw_util::AddMemExportRanges(regs, *pixel_shader, memexport_ranges_);
+  }
 
   uint32_t ps_param_gen_pos = UINT32_MAX;
   uint32_t interpolator_mask =
@@ -2428,9 +2443,6 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     current_guest_graphics_pipeline_layout_ = pipeline_layout;
   }
 
-  const ui::vulkan::VulkanProvider::DeviceInfo& device_info =
-      GetVulkanProvider().device_info();
-
   bool host_render_targets_used = render_target_cache_->GetPath() ==
                                   RenderTargetCache::Path::kHostRenderTargets;
 
@@ -2503,8 +2515,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
         (uint64_t(1) << (vfetch_index & 63))) {
       continue;
     }
-    const auto& vfetch_constant = regs.Get<xenos::xe_gpu_vertex_fetch_t>(
-        XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + vfetch_index * 2);
+    xenos::xe_gpu_vertex_fetch_t vfetch_constant =
+        regs.GetVertexFetch(vfetch_index);
     switch (vfetch_constant.type) {
       case xenos::FetchConstantType::kVertex:
         break;
@@ -2537,9 +2549,39 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                                                   << (vfetch_index & 63);
   }
 
+  // Synchronize the memory pages backing memory scatter export streams, and
+  // calculate the range that includes the streams for the buffer barrier.
+  uint32_t memexport_extent_start = UINT32_MAX, memexport_extent_end = 0;
+  for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+    uint32_t memexport_range_base_bytes = memexport_range.base_address_dwords
+                                          << 2;
+    if (!shared_memory_->RequestRange(memexport_range_base_bytes,
+                                      memexport_range.size_bytes)) {
+      XELOGE(
+          "Failed to request memexport stream at 0x{:08X} (size {}) in the "
+          "shared memory",
+          memexport_range_base_bytes, memexport_range.size_bytes);
+      return false;
+    }
+    memexport_extent_start =
+        std::min(memexport_extent_start, memexport_range_base_bytes);
+    memexport_extent_end =
+        std::max(memexport_extent_end,
+                 memexport_range_base_bytes + memexport_range.size_bytes);
+  }
+
   // Insert the shared memory barrier if needed.
-  // TODO(Triang3l): Memory export.
-  shared_memory_->Use(VulkanSharedMemory::Usage::kRead);
+  // TODO(Triang3l): Find some PM4 command that can be used for indication of
+  // when memexports should be awaited instead of inserting the barrier in Use
+  // every time if memory export was done in the previous draw?
+  if (memexport_extent_start < memexport_extent_end) {
+    shared_memory_->Use(
+        VulkanSharedMemory::Usage::kGuestDrawReadWrite,
+        std::make_pair(memexport_extent_start,
+                       memexport_extent_end - memexport_extent_start));
+  } else {
+    shared_memory_->Use(VulkanSharedMemory::Usage::kRead);
+  }
 
   // After all commands that may dispatch, copy or insert barriers, submit the
   // barriers (may end the render pass), and (re)enter the render pass before
@@ -2582,6 +2624,12 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             : VK_INDEX_TYPE_UINT32);
     deferred_command_buffer_.CmdVkDrawIndexed(
         primitive_processing_result.host_draw_vertex_count, 1, 0, 0, 0);
+  }
+
+  // Invalidate textures in memexported memory and watch for changes.
+  for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+    shared_memory_->RangeWrittenByGpu(memexport_range.base_address_dwords << 2,
+                                      memexport_range.size_bytes, false);
   }
 
   return true;
@@ -3306,10 +3354,10 @@ void VulkanCommandProcessor::UpdateDynamicState(
 
     // Blend constants.
     float blend_constants[] = {
-        regs[XE_GPU_REG_RB_BLEND_RED].f32,
-        regs[XE_GPU_REG_RB_BLEND_GREEN].f32,
-        regs[XE_GPU_REG_RB_BLEND_BLUE].f32,
-        regs[XE_GPU_REG_RB_BLEND_ALPHA].f32,
+        regs.Get<float>(XE_GPU_REG_RB_BLEND_RED),
+        regs.Get<float>(XE_GPU_REG_RB_BLEND_GREEN),
+        regs.Get<float>(XE_GPU_REG_RB_BLEND_BLUE),
+        regs.Get<float>(XE_GPU_REG_RB_BLEND_ALPHA),
     };
     dynamic_blend_constants_update_needed_ |=
         std::memcmp(dynamic_blend_constants_, blend_constants,
@@ -3455,7 +3503,7 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
   const RegisterFile& regs = *register_file_;
   auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
   auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
-  float rb_alpha_ref = regs[XE_GPU_REG_RB_ALPHA_REF].f32;
+  auto rb_alpha_ref = regs.Get<float>(XE_GPU_REG_RB_ALPHA_REF);
   auto rb_colorcontrol = regs.Get<reg::RB_COLORCONTROL>();
   auto rb_depth_info = regs.Get<reg::RB_DEPTH_INFO>();
   auto rb_stencilrefmask = regs.Get<reg::RB_STENCILREFMASK>();
@@ -3463,7 +3511,7 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
       regs.Get<reg::RB_STENCILREFMASK>(XE_GPU_REG_RB_STENCILREFMASK_BF);
   auto rb_surface_info = regs.Get<reg::RB_SURFACE_INFO>();
   auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
-  int32_t vgt_indx_offset = int32_t(regs[XE_GPU_REG_VGT_INDX_OFFSET].u32);
+  auto vgt_indx_offset = regs.Get<int32_t>(XE_GPU_REG_VGT_INDX_OFFSET);
 
   bool edram_fragment_shader_interlock =
       render_target_cache_->GetPath() ==
@@ -3776,7 +3824,7 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
         dirty |= system_constants_.edram_rt_format_flags[i] != format_flags;
         system_constants_.edram_rt_format_flags[i] = format_flags;
         uint32_t blend_factors_ops =
-            regs[reg::RB_BLENDCONTROL::rt_register_indices[i]].u32 & 0x1FFF1FFF;
+            regs[reg::RB_BLENDCONTROL::rt_register_indices[i]] & 0x1FFF1FFF;
         dirty |= system_constants_.edram_rt_blend_factors_ops[i] !=
                  blend_factors_ops;
         system_constants_.edram_rt_blend_factors_ops[i] = blend_factors_ops;
@@ -3805,22 +3853,22 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
     if (primitive_polygonal) {
       if (pa_su_sc_mode_cntl.poly_offset_front_enable) {
         poly_offset_front_scale =
-            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
+            regs.Get<float>(XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE);
         poly_offset_front_offset =
-            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
+            regs.Get<float>(XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET);
       }
       if (pa_su_sc_mode_cntl.poly_offset_back_enable) {
         poly_offset_back_scale =
-            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
+            regs.Get<float>(XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE);
         poly_offset_back_offset =
-            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET].f32;
+            regs.Get<float>(XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET);
       }
     } else {
       if (pa_su_sc_mode_cntl.poly_offset_para_enable) {
         poly_offset_front_scale =
-            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
+            regs.Get<float>(XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE);
         poly_offset_front_offset =
-            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
+            regs.Get<float>(XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET);
         poly_offset_back_scale = poly_offset_front_scale;
         poly_offset_back_offset = poly_offset_front_offset;
       }
@@ -3883,21 +3931,21 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
     }
 
     dirty |= system_constants_.edram_blend_constant[0] !=
-             regs[XE_GPU_REG_RB_BLEND_RED].f32;
+             regs.Get<float>(XE_GPU_REG_RB_BLEND_RED);
     system_constants_.edram_blend_constant[0] =
-        regs[XE_GPU_REG_RB_BLEND_RED].f32;
+        regs.Get<float>(XE_GPU_REG_RB_BLEND_RED);
     dirty |= system_constants_.edram_blend_constant[1] !=
-             regs[XE_GPU_REG_RB_BLEND_GREEN].f32;
+             regs.Get<float>(XE_GPU_REG_RB_BLEND_GREEN);
     system_constants_.edram_blend_constant[1] =
-        regs[XE_GPU_REG_RB_BLEND_GREEN].f32;
+        regs.Get<float>(XE_GPU_REG_RB_BLEND_GREEN);
     dirty |= system_constants_.edram_blend_constant[2] !=
-             regs[XE_GPU_REG_RB_BLEND_BLUE].f32;
+             regs.Get<float>(XE_GPU_REG_RB_BLEND_BLUE);
     system_constants_.edram_blend_constant[2] =
-        regs[XE_GPU_REG_RB_BLEND_BLUE].f32;
+        regs.Get<float>(XE_GPU_REG_RB_BLEND_BLUE);
     dirty |= system_constants_.edram_blend_constant[3] !=
-             regs[XE_GPU_REG_RB_BLEND_ALPHA].f32;
+             regs.Get<float>(XE_GPU_REG_RB_BLEND_ALPHA);
     system_constants_.edram_blend_constant[3] =
-        regs[XE_GPU_REG_RB_BLEND_ALPHA].f32;
+        regs.Get<float>(XE_GPU_REG_RB_BLEND_ALPHA);
   }
 
   if (dirty) {
@@ -3924,10 +3972,10 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
   // These are the constant base addresses/ranges for shaders.
   // We have these hardcoded right now cause nothing seems to differ on the Xbox
   // 360 (however, OpenGL ES on Adreno 200 on Android has different ranges).
-  assert_true(regs[XE_GPU_REG_SQ_VS_CONST].u32 == 0x000FF000 ||
-              regs[XE_GPU_REG_SQ_VS_CONST].u32 == 0x00000000);
-  assert_true(regs[XE_GPU_REG_SQ_PS_CONST].u32 == 0x000FF100 ||
-              regs[XE_GPU_REG_SQ_PS_CONST].u32 == 0x00000000);
+  assert_true(regs[XE_GPU_REG_SQ_VS_CONST] == 0x000FF000 ||
+              regs[XE_GPU_REG_SQ_VS_CONST] == 0x00000000);
+  assert_true(regs[XE_GPU_REG_SQ_PS_CONST] == 0x000FF100 ||
+              regs[XE_GPU_REG_SQ_PS_CONST] == 0x00000000);
   // Check if the float constant layout is still the same and get the counts.
   const Shader::ConstantRegisterMap& float_constant_map_vertex =
       vertex_shader->constant_register_map();
@@ -4022,8 +4070,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
           float_constant_map_entry &= ~(1ull << float_constant_index);
           std::memcpy(mapping,
                       &regs[XE_GPU_REG_SHADER_CONSTANT_000_X + (i << 8) +
-                            (float_constant_index << 2)]
-                           .f32,
+                            (float_constant_index << 2)],
                       sizeof(float) * 4);
           mapping += sizeof(float) * 4;
         }
@@ -4054,8 +4101,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
           float_constant_map_entry &= ~(1ull << float_constant_index);
           std::memcpy(mapping,
                       &regs[XE_GPU_REG_SHADER_CONSTANT_256_X + (i << 8) +
-                            (float_constant_index << 2)]
-                           .f32,
+                            (float_constant_index << 2)],
                       sizeof(float) * 4);
           mapping += sizeof(float) * 4;
         }
@@ -4076,7 +4122,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
         return false;
       }
       buffer_info.range = VkDeviceSize(kBoolLoopConstantsSize);
-      std::memcpy(mapping, &regs[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031].u32,
+      std::memcpy(mapping, &regs[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031],
                   kBoolLoopConstantsSize);
       current_constant_buffers_up_to_date_ |=
           UINT32_C(1) << SpirvShaderTranslator::kConstantBufferBoolLoop;
@@ -4094,7 +4140,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
         return false;
       }
       buffer_info.range = VkDeviceSize(kFetchConstantsSize);
-      std::memcpy(mapping, &regs[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0].u32,
+      std::memcpy(mapping, &regs[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0],
                   kFetchConstantsSize);
       current_constant_buffers_up_to_date_ |=
           UINT32_C(1) << SpirvShaderTranslator::kConstantBufferFetch;

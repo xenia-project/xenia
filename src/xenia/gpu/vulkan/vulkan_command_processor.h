@@ -744,6 +744,9 @@ class VulkanCommandProcessor final : public CommandProcessor {
 
   // System shader constants.
   SpirvShaderTranslator::SystemConstants system_constants_;
+
+  // Temporary storage for memexport stream constants used in the draw.
+  std::vector<draw_util::MemExportRange> memexport_ranges_;
 };
 
 }  // namespace vulkan

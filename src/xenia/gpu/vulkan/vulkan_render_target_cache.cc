@@ -4156,21 +4156,16 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               builder.createAccessChain(spv::StorageClassPushConstant,
                                         push_constants, id_vector_temp),
               spv::NoPrecision);
-          spv::Id stencil_sample_passed = builder.createBinOp(
-              spv::OpINotEqual, type_bool,
-              builder.createBinOp(spv::OpBitwiseAnd, type_uint, packed,
-                                  stencil_mask_constant),
-              builder.makeUintConstant(0));
-          spv::Block& stencil_bit_kill_block = builder.makeNewBlock();
-          spv::Block& stencil_bit_merge_block = builder.makeNewBlock();
-          builder.createSelectionMerge(&stencil_bit_merge_block,
-                                       spv::SelectionControlMaskNone);
-          builder.createConditionalBranch(stencil_sample_passed,
-                                          &stencil_bit_merge_block,
-                                          &stencil_bit_kill_block);
-          builder.setBuildPoint(&stencil_bit_kill_block);
+          SpirvBuilder::IfBuilder stencil_kill_if(
+              builder.createBinOp(
+                  spv::OpIEqual, type_bool,
+                  builder.createBinOp(spv::OpBitwiseAnd, type_uint, packed,
+                                      stencil_mask_constant),
+                  builder.makeUintConstant(0)),
+              spv::SelectionControlMaskNone, builder);
           builder.createNoResultOp(spv::OpKill);
-          builder.setBuildPoint(&stencil_bit_merge_block);
+          // OpKill terminates the block.
+          stencil_kill_if.makeEndIf(false);
         }
       } break;
     }

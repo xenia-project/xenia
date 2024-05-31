@@ -373,12 +373,12 @@ struct GetViewportInfoArgs {
     pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
     pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
     pa_su_vtx_cntl = regs.Get<reg::PA_SU_VTX_CNTL>();
-    PA_CL_VPORT_XSCALE = regs[XE_GPU_REG_PA_CL_VPORT_XSCALE].f32;
-    PA_CL_VPORT_YSCALE = regs[XE_GPU_REG_PA_CL_VPORT_YSCALE].f32;
-    PA_CL_VPORT_ZSCALE = regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE].f32;
-    PA_CL_VPORT_XOFFSET = regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET].f32;
-    PA_CL_VPORT_YOFFSET = regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET].f32;
-    PA_CL_VPORT_ZOFFSET = regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET].f32;
+    PA_CL_VPORT_XSCALE = regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_XSCALE);
+    PA_CL_VPORT_YSCALE = regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_YSCALE);
+    PA_CL_VPORT_ZSCALE = regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_ZSCALE);
+    PA_CL_VPORT_XOFFSET = regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_XOFFSET);
+    PA_CL_VPORT_YOFFSET = regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_YOFFSET);
+    PA_CL_VPORT_ZOFFSET = regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_ZOFFSET);
     pa_sc_window_offset = regs.Get<reg::PA_SC_WINDOW_OFFSET>();
     depth_format = regs.Get<reg::RB_DEPTH_INFO>().depth_format;
   }

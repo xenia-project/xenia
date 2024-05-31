@@ -12,8 +12,12 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 
+#include "xenia/base/assert.h"
+#include "xenia/base/memory.h"
 #include "xenia/gpu/registers.h"
+#include "xenia/gpu/xenos.h"
 
 namespace xe {
 namespace gpu {
@@ -34,39 +38,53 @@ class RegisterFile {
   static const RegisterInfo* GetRegisterInfo(uint32_t index);
   static bool IsValidRegister(uint32_t index);
   static constexpr size_t kRegisterCount = 0x5003;
-  union RegisterValue {
-    uint32_t u32;
-    float f32;
-  };
-  RegisterValue values[kRegisterCount];
+  uint32_t values[kRegisterCount];
 
-  const RegisterValue& operator[](uint32_t reg) const { return values[reg]; }
-  RegisterValue& operator[](uint32_t reg) { return values[reg]; }
-  const RegisterValue& operator[](Register reg) const { return values[reg]; }
-  RegisterValue& operator[](Register reg) { return values[reg]; }
+  const uint32_t& operator[](uint32_t reg) const { return values[reg]; }
+  uint32_t& operator[](uint32_t reg) { return values[reg]; }
+
   template <typename T>
-  const T& Get(uint32_t reg) const {
-    return *reinterpret_cast<const T*>(&values[reg]);
+  T Get(uint32_t reg) const {
+    return xe::memory::Reinterpret<T>(values[reg]);
   }
   template <typename T>
-  T& Get(uint32_t reg) {
-    return *reinterpret_cast<T*>(&values[reg]);
+  T Get(Register reg) const {
+    return Get<T>(static_cast<uint32_t>(reg));
   }
   template <typename T>
-  const T& Get(Register reg) const {
-    return *reinterpret_cast<const T*>(&values[reg]);
+  T Get() const {
+    return Get<T>(T::register_index);
   }
-  template <typename T>
-  T& Get(Register reg) {
-    return *reinterpret_cast<T*>(&values[reg]);
+
+  xenos::xe_gpu_vertex_fetch_t GetVertexFetch(uint32_t index) const {
+    assert_true(index < 96);
+    xenos::xe_gpu_vertex_fetch_t fetch;
+    std::memcpy(&fetch,
+                &values[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
+                        (sizeof(fetch) / sizeof(uint32_t)) * index],
+                sizeof(fetch));
+    return fetch;
   }
-  template <typename T>
-  const T& Get() const {
-    return *reinterpret_cast<const T*>(&values[T::register_index]);
+
+  xenos::xe_gpu_texture_fetch_t GetTextureFetch(uint32_t index) const {
+    assert_true(index < 32);
+    xenos::xe_gpu_texture_fetch_t fetch;
+    std::memcpy(&fetch,
+                &values[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 +
+                        (sizeof(fetch) / sizeof(uint32_t)) * index],
+                sizeof(fetch));
+    return fetch;
   }
-  template <typename T>
-  T& Get() {
-    return *reinterpret_cast<T*>(&values[T::register_index]);
+
+  xenos::xe_gpu_memexport_stream_t GetMemExportStream(
+      uint32_t float_constant_index) const {
+    assert_true(float_constant_index < 512);
+    xenos::xe_gpu_memexport_stream_t stream;
+    std::memcpy(
+        &stream,
+        &values[XE_GPU_REG_SHADER_CONSTANT_000_X + 4 * float_constant_index],
+        sizeof(stream));
+    return stream;
   }
 };
 

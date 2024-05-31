@@ -455,9 +455,9 @@ void CommandProcessor::HandleSpecialRegisterWrite(uint32_t index,
   // Scratch register writeback.
   if (index >= XE_GPU_REG_SCRATCH_REG0 && index <= XE_GPU_REG_SCRATCH_REG7) {
     uint32_t scratch_reg = index - XE_GPU_REG_SCRATCH_REG0;
-    if ((1 << scratch_reg) & regs.values[XE_GPU_REG_SCRATCH_UMSK].u32) {
+    if ((1 << scratch_reg) & regs.values[XE_GPU_REG_SCRATCH_UMSK]) {
       // Enabled - write to address.
-      uint32_t scratch_addr = regs.values[XE_GPU_REG_SCRATCH_ADDR].u32;
+      uint32_t scratch_addr = regs.values[XE_GPU_REG_SCRATCH_ADDR];
       uint32_t mem_addr = scratch_addr + (scratch_reg * 4);
       xe::store_and_swap<uint32_t>(memory_->TranslatePhysical(mem_addr), value);
     }
@@ -467,7 +467,7 @@ void CommandProcessor::HandleSpecialRegisterWrite(uint32_t index,
       // This will block the command processor the next time it WAIT_MEM_REGs
       // and allow us to synchronize the memory.
       case XE_GPU_REG_COHER_STATUS_HOST: {
-        regs.values[index].u32 |= UINT32_C(0x80000000);
+        regs.values[index] |= UINT32_C(0x80000000);
       } break;
 
       case XE_GPU_REG_DC_LUT_RW_INDEX: {
@@ -478,12 +478,12 @@ void CommandProcessor::HandleSpecialRegisterWrite(uint32_t index,
 
       case XE_GPU_REG_DC_LUT_SEQ_COLOR: {
         // Should be in the 256-entry table writing mode.
-        assert_zero(regs[XE_GPU_REG_DC_LUT_RW_MODE].u32 & 0b1);
-        auto& gamma_ramp_rw_index = regs.Get<reg::DC_LUT_RW_INDEX>();
+        assert_zero(regs[XE_GPU_REG_DC_LUT_RW_MODE] & 0b1);
+        auto gamma_ramp_rw_index = regs.Get<reg::DC_LUT_RW_INDEX>();
         // DC_LUT_SEQ_COLOR is in the red, green, blue order, but the write
         // enable mask is blue, green, red.
         bool write_gamma_ramp_component =
-            (regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK].u32 &
+            (regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK] &
              (UINT32_C(1) << (2 - gamma_ramp_rw_component_))) != 0;
         if (write_gamma_ramp_component) {
           reg::DC_LUT_30_COLOR& gamma_ramp_entry =
@@ -505,7 +505,11 @@ void CommandProcessor::HandleSpecialRegisterWrite(uint32_t index,
         }
         if (++gamma_ramp_rw_component_ >= 3) {
           gamma_ramp_rw_component_ = 0;
-          ++gamma_ramp_rw_index.rw_index;
+          reg::DC_LUT_RW_INDEX new_gamma_ramp_rw_index = gamma_ramp_rw_index;
+          ++new_gamma_ramp_rw_index.rw_index;
+          WriteRegister(
+              XE_GPU_REG_DC_LUT_RW_INDEX,
+              xe::memory::Reinterpret<uint32_t>(new_gamma_ramp_rw_index));
         }
         if (write_gamma_ramp_component) {
           OnGammaRamp256EntryTableValueWritten();
@@ -514,14 +518,14 @@ void CommandProcessor::HandleSpecialRegisterWrite(uint32_t index,
 
       case XE_GPU_REG_DC_LUT_PWL_DATA: {
         // Should be in the PWL writing mode.
-        assert_not_zero(regs[XE_GPU_REG_DC_LUT_RW_MODE].u32 & 0b1);
-        auto& gamma_ramp_rw_index = regs.Get<reg::DC_LUT_RW_INDEX>();
+        assert_not_zero(regs[XE_GPU_REG_DC_LUT_RW_MODE] & 0b1);
+        auto gamma_ramp_rw_index = regs.Get<reg::DC_LUT_RW_INDEX>();
         // Bit 7 of the index is ignored for PWL.
         uint32_t gamma_ramp_rw_index_pwl = gamma_ramp_rw_index.rw_index & 0x7F;
         // DC_LUT_PWL_DATA is likely in the red, green, blue order because
         // DC_LUT_SEQ_COLOR is, but the write enable mask is blue, green, red.
         bool write_gamma_ramp_component =
-            (regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK].u32 &
+            (regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK] &
              (UINT32_C(1) << (2 - gamma_ramp_rw_component_))) != 0;
         if (write_gamma_ramp_component) {
           reg::DC_LUT_PWL_DATA& gamma_ramp_entry =
@@ -534,13 +538,17 @@ void CommandProcessor::HandleSpecialRegisterWrite(uint32_t index,
         }
         if (++gamma_ramp_rw_component_ >= 3) {
           gamma_ramp_rw_component_ = 0;
+          reg::DC_LUT_RW_INDEX new_gamma_ramp_rw_index = gamma_ramp_rw_index;
           // TODO(Triang3l): Should this increase beyond 7 bits for PWL?
           // Direct3D 9 explicitly sets rw_index to 0x80 after writing the last
           // PWL entry. However, the DC_LUT_RW_INDEX documentation says that for
           // PWL, the bit 7 is ignored.
-          gamma_ramp_rw_index.rw_index =
+          new_gamma_ramp_rw_index.rw_index =
               (gamma_ramp_rw_index.rw_index & ~UINT32_C(0x7F)) |
               ((gamma_ramp_rw_index_pwl + 1) & 0x7F);
+          WriteRegister(
+              XE_GPU_REG_DC_LUT_RW_INDEX,
+              xe::memory::Reinterpret<uint32_t>(new_gamma_ramp_rw_index));
         }
         if (write_gamma_ramp_component) {
           OnGammaRampPWLValueWritten();
@@ -549,10 +557,10 @@ void CommandProcessor::HandleSpecialRegisterWrite(uint32_t index,
 
       case XE_GPU_REG_DC_LUT_30_COLOR: {
         // Should be in the 256-entry table writing mode.
-        assert_zero(regs[XE_GPU_REG_DC_LUT_RW_MODE].u32 & 0b1);
-        auto& gamma_ramp_rw_index = regs.Get<reg::DC_LUT_RW_INDEX>();
+        assert_zero(regs[XE_GPU_REG_DC_LUT_RW_MODE] & 0b1);
+        auto gamma_ramp_rw_index = regs.Get<reg::DC_LUT_RW_INDEX>();
         uint32_t gamma_ramp_write_enable_mask =
-            regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK].u32 & 0b111;
+            regs[XE_GPU_REG_DC_LUT_WRITE_EN_MASK] & 0b111;
         if (gamma_ramp_write_enable_mask) {
           reg::DC_LUT_30_COLOR& gamma_ramp_entry =
               gamma_ramp_256_entry_table_[gamma_ramp_rw_index.rw_index];
@@ -567,11 +575,16 @@ void CommandProcessor::HandleSpecialRegisterWrite(uint32_t index,
             gamma_ramp_entry.color_10_red = gamma_ramp_value.color_10_red;
           }
         }
-        ++gamma_ramp_rw_index.rw_index;
         // TODO(Triang3l): Should this reset the component write index? If this
         // increase is assumed to behave like a full DC_LUT_RW_INDEX write, it
-        // probably should.
+        // probably should. Currently this also calls WriteRegister for
+        // DC_LUT_RW_INDEX, which resets gamma_ramp_rw_component_ as well.
         gamma_ramp_rw_component_ = 0;
+        reg::DC_LUT_RW_INDEX new_gamma_ramp_rw_index = gamma_ramp_rw_index;
+        ++new_gamma_ramp_rw_index.rw_index;
+        WriteRegister(
+            XE_GPU_REG_DC_LUT_RW_INDEX,
+            xe::memory::Reinterpret<uint32_t>(new_gamma_ramp_rw_index));
         if (gamma_ramp_write_enable_mask) {
           OnGammaRamp256EntryTableValueWritten();
         }
@@ -583,7 +596,7 @@ void CommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
   // chrispy: rearrange check order, place set after checks
 
   if (XE_LIKELY(index < RegisterFile::kRegisterCount)) {
-    register_file_->values[index].u32 = value;
+    register_file_->values[index] = value;
 
     // quick pre-test
     // todo: figure out just how unlikely this is. if very (it ought to be,
@@ -708,10 +721,11 @@ void CommandProcessor::MakeCoherent() {
   // https://web.archive.org/web/20160711162346/https://amd-dev.wpengine.netdna-cdn.com/wordpress/media/2013/10/R6xx_R7xx_3D.pdf
   // https://cgit.freedesktop.org/xorg/driver/xf86-video-radeonhd/tree/src/r6xx_accel.c?id=3f8b6eccd9dba116cc4801e7f80ce21a879c67d2#n454
 
-  RegisterFile* regs = register_file_;
-  auto& status_host = regs->Get<reg::COHER_STATUS_HOST>();
-  auto base_host = regs->values[XE_GPU_REG_COHER_BASE_HOST].u32;
-  auto size_host = regs->values[XE_GPU_REG_COHER_SIZE_HOST].u32;
+  volatile uint32_t* regs_volatile = register_file_->values;
+  auto status_host = xe::memory::Reinterpret<reg::COHER_STATUS_HOST>(
+      uint32_t(regs_volatile[XE_GPU_REG_COHER_STATUS_HOST]));
+  uint32_t base_host = regs_volatile[XE_GPU_REG_COHER_BASE_HOST];
+  uint32_t size_host = regs_volatile[XE_GPU_REG_COHER_SIZE_HOST];
 
   if (!status_host.status) {
     return;
@@ -731,7 +745,7 @@ void CommandProcessor::MakeCoherent() {
          base_host + size_host, size_host, action);
 
   // Mark coherent.
-  status_host.status = 0;
+  regs_volatile[XE_GPU_REG_COHER_STATUS_HOST] = 0;
 }
 
 void CommandProcessor::PrepareForWait() { trace_writer_.Flush(); }

@@ -122,7 +122,7 @@ void XmaContext::ConvertFrame(const uint8_t** samples, bool is_two_channel,
       auto in = reinterpret_cast<const float*>(samples[j]);
 
       // Raw samples sometimes aren't within [-1, 1]
-      float scaled_sample = xe::saturate_signed(in[i]) * scale;
+      float scaled_sample = xe::clamp_float(in[i], -1.0f, 1.0f) * scale;
 
       // Convert the sample and output it in big endian.
       auto sample = static_cast<int16_t>(scaled_sample);

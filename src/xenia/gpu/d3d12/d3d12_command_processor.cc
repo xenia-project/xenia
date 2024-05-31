@@ -1768,7 +1768,7 @@ void D3D12CommandProcessor::WriteRegisterForceinline(uint32_t index,
   __m128i is_above_lower = _mm_cmpgt_epi16(to_rangecheck, lower_bounds);
   __m128i is_below_upper = _mm_cmplt_epi16(to_rangecheck, upper_bounds);
   __m128i is_within_range = _mm_and_si128(is_above_lower, is_below_upper);
-  register_file_->values[index].u32 = value;
+  register_file_->values[index] = value;
 
   uint32_t movmask = static_cast<uint32_t>(_mm_movemask_epi8(is_within_range));
 
@@ -2047,7 +2047,7 @@ void D3D12CommandProcessor::WritePossiblySpecialRegistersFromMem(
   for (uint32_t index = start_index; index < end; ++index, ++base) {
     uint32_t value = xe::load_and_swap<uint32_t>(base);
 
-    register_file_->values[index].u32 = value;
+    register_file_->values[index] = value;
 
     unsigned expr = 0;
 
@@ -2780,8 +2780,8 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       while (xe::bit_scan_forward(vfetch_bits_remaining, &j)) {
         vfetch_bits_remaining = xe::clear_lowest_bit(vfetch_bits_remaining);
         uint32_t vfetch_index = i * 32 + j;
-        const auto& vfetch_constant = regs.Get<xenos::xe_gpu_vertex_fetch_t>(
-            XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + vfetch_index * 2);
+        xenos::xe_gpu_vertex_fetch_t vfetch_constant =
+            regs.GetVertexFetch(vfetch_index);
         switch (vfetch_constant.type) {
           case xenos::FetchConstantType::kVertex:
             break;
@@ -3554,10 +3554,10 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
 
     // Blend factor.
     float blend_factor[] = {
-        regs[XE_GPU_REG_RB_BLEND_RED].f32,
-        regs[XE_GPU_REG_RB_BLEND_GREEN].f32,
-        regs[XE_GPU_REG_RB_BLEND_BLUE].f32,
-        regs[XE_GPU_REG_RB_BLEND_ALPHA].f32,
+        regs.Get<float>(XE_GPU_REG_RB_BLEND_RED),
+        regs.Get<float>(XE_GPU_REG_RB_BLEND_GREEN),
+        regs.Get<float>(XE_GPU_REG_RB_BLEND_BLUE),
+        regs.Get<float>(XE_GPU_REG_RB_BLEND_ALPHA),
     };
     // std::memcmp instead of != so in case of NaN, every draw won't be
     // invalidating it.
@@ -3599,7 +3599,7 @@ XE_NOINLINE void D3D12CommandProcessor::UpdateSystemConstantValues_Impl(
   auto pa_cl_clip_cntl = regs.Get<reg::PA_CL_CLIP_CNTL>();
   auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
   auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
-  float rb_alpha_ref = regs[XE_GPU_REG_RB_ALPHA_REF].f32;
+  auto rb_alpha_ref = regs.Get<float>(XE_GPU_REG_RB_ALPHA_REF);
   auto rb_colorcontrol = regs.Get<reg::RB_COLORCONTROL>();
   auto rb_depth_info = regs.Get<reg::RB_DEPTH_INFO>();
   auto rb_stencilrefmask = regs.Get<reg::RB_STENCILREFMASK>();
@@ -3753,10 +3753,10 @@ XE_NOINLINE void D3D12CommandProcessor::UpdateSystemConstantValues_Impl(
 
   // Tessellation factor range, plus 1.0 according to the images in
   // https://www.slideshare.net/blackdevilvikas/next-generation-graphics-programming-on-xbox-360
-  float tessellation_factor_min =
-      regs[XE_GPU_REG_VGT_HOS_MIN_TESS_LEVEL].f32 + 1.0f;
-  float tessellation_factor_max =
-      regs[XE_GPU_REG_VGT_HOS_MAX_TESS_LEVEL].f32 + 1.0f;
+  auto tessellation_factor_min =
+      regs.Get<float>(XE_GPU_REG_VGT_HOS_MIN_TESS_LEVEL) + 1.0f;
+  auto tessellation_factor_max =
+      regs.Get<float>(XE_GPU_REG_VGT_HOS_MAX_TESS_LEVEL) + 1.0f;
 
   update_dirty_floatmask(system_constants_.tessellation_factor_range_min,
                          tessellation_factor_min);
@@ -3804,12 +3804,12 @@ XE_NOINLINE void D3D12CommandProcessor::UpdateSystemConstantValues_Impl(
                                 &user_clip_plane_index)) {
       user_clip_planes_remaining =
           xe::clear_lowest_bit(user_clip_planes_remaining);
-      const float* user_clip_plane =
-          &regs[XE_GPU_REG_PA_CL_UCP_0_X + user_clip_plane_index * 4].f32;
-      if (std::memcmp(user_clip_plane_write_ptr, user_clip_plane,
+      const void* user_clip_plane_regs =
+          &regs[XE_GPU_REG_PA_CL_UCP_0_X + user_clip_plane_index * 4];
+      if (std::memcmp(user_clip_plane_write_ptr, user_clip_plane_regs,
                       4 * sizeof(float))) {
         dirty = true;
-        std::memcpy(user_clip_plane_write_ptr, user_clip_plane,
+        std::memcpy(user_clip_plane_write_ptr, user_clip_plane_regs,
                     4 * sizeof(float));
       }
       user_clip_plane_write_ptr += 4;
@@ -3974,9 +3974,8 @@ XE_NOINLINE void D3D12CommandProcessor::UpdateSystemConstantValues_Impl(
         color_exp_bias -= 5;
       }
     }
-    float color_exp_bias_scale;
-    *reinterpret_cast<int32_t*>(&color_exp_bias_scale) =
-        0x3F800000 + (color_exp_bias << 23);
+    auto color_exp_bias_scale = xe::memory::Reinterpret<float>(
+        int32_t(0x3F800000 + (color_exp_bias << 23)));
 
     update_dirty_floatmask(system_constants_.color_exp_bias[i],
                            color_exp_bias_scale);
@@ -4028,7 +4027,7 @@ XE_NOINLINE void D3D12CommandProcessor::UpdateSystemConstantValues_Impl(
 
 #endif
         uint32_t blend_factors_ops =
-            regs[reg::RB_BLENDCONTROL::rt_register_indices[i]].u32 & 0x1FFF1FFF;
+            regs[reg::RB_BLENDCONTROL::rt_register_indices[i]] & 0x1FFF1FFF;
 
         update_dirty_uint32_cmp(system_constants_.edram_rt_blend_factors_ops[i],
                                 blend_factors_ops);
@@ -4060,22 +4059,22 @@ XE_NOINLINE void D3D12CommandProcessor::UpdateSystemConstantValues_Impl(
     if (primitive_polygonal) {
       if (pa_su_sc_mode_cntl.poly_offset_front_enable) {
         poly_offset_front_scale =
-            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
+            regs.Get<float>(XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE);
         poly_offset_front_offset =
-            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
+            regs.Get<float>(XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET);
       }
       if (pa_su_sc_mode_cntl.poly_offset_back_enable) {
         poly_offset_back_scale =
-            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE].f32;
+            regs.Get<float>(XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_SCALE);
         poly_offset_back_offset =
-            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET].f32;
+            regs.Get<float>(XE_GPU_REG_PA_SU_POLY_OFFSET_BACK_OFFSET);
       }
     } else {
       if (pa_su_sc_mode_cntl.poly_offset_para_enable) {
         poly_offset_front_scale =
-            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE].f32;
+            regs.Get<float>(XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE);
         poly_offset_front_offset =
-            regs[XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET].f32;
+            regs.Get<float>(XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET);
         poly_offset_back_scale = poly_offset_front_scale;
         poly_offset_back_offset = poly_offset_front_offset;
       }
@@ -4153,26 +4152,26 @@ XE_NOINLINE void D3D12CommandProcessor::UpdateSystemConstantValues_Impl(
       }
     }
     update_dirty_floatmask(system_constants_.edram_blend_constant[0],
-                           regs[XE_GPU_REG_RB_BLEND_RED].f32);
+                           regs.Get<float>(XE_GPU_REG_RB_BLEND_RED));
 
     system_constants_.edram_blend_constant[0] =
-        regs[XE_GPU_REG_RB_BLEND_RED].f32;
+        regs.Get<float>(XE_GPU_REG_RB_BLEND_RED);
 
     update_dirty_floatmask(system_constants_.edram_blend_constant[1],
-                           regs[XE_GPU_REG_RB_BLEND_GREEN].f32);
+                           regs.Get<float>(XE_GPU_REG_RB_BLEND_GREEN));
 
     system_constants_.edram_blend_constant[1] =
-        regs[XE_GPU_REG_RB_BLEND_GREEN].f32;
+        regs.Get<float>(XE_GPU_REG_RB_BLEND_GREEN);
     update_dirty_floatmask(system_constants_.edram_blend_constant[2],
-                           regs[XE_GPU_REG_RB_BLEND_BLUE].f32);
+                           regs.Get<float>(XE_GPU_REG_RB_BLEND_BLUE));
 
     system_constants_.edram_blend_constant[2] =
-        regs[XE_GPU_REG_RB_BLEND_BLUE].f32;
+        regs.Get<float>(XE_GPU_REG_RB_BLEND_BLUE);
     update_dirty_floatmask(system_constants_.edram_blend_constant[3],
-                           regs[XE_GPU_REG_RB_BLEND_ALPHA].f32);
+                           regs.Get<float>(XE_GPU_REG_RB_BLEND_ALPHA));
 
     system_constants_.edram_blend_constant[3] =
-        regs[XE_GPU_REG_RB_BLEND_ALPHA].f32;
+        regs.Get<float>(XE_GPU_REG_RB_BLEND_ALPHA);
   }
   dirty |= ArchFloatMaskSignbit(dirty_float_mask);
 
@@ -4266,10 +4265,10 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
   // These are the constant base addresses/ranges for shaders.
   // We have these hardcoded right now cause nothing seems to differ on the Xbox
   // 360 (however, OpenGL ES on Adreno 200 on Android has different ranges).
-  assert_true(regs[XE_GPU_REG_SQ_VS_CONST].u32 == 0x000FF000 ||
-              regs[XE_GPU_REG_SQ_VS_CONST].u32 == 0x00000000);
-  assert_true(regs[XE_GPU_REG_SQ_PS_CONST].u32 == 0x000FF100 ||
-              regs[XE_GPU_REG_SQ_PS_CONST].u32 == 0x00000000);
+  assert_true(regs[XE_GPU_REG_SQ_VS_CONST] == 0x000FF000 ||
+              regs[XE_GPU_REG_SQ_VS_CONST] == 0x00000000);
+  assert_true(regs[XE_GPU_REG_SQ_PS_CONST] == 0x000FF100 ||
+              regs[XE_GPU_REG_SQ_PS_CONST] == 0x00000000);
   // Check if the float constant layout is still the same and get the counts.
   const Shader::ConstantRegisterMap& float_constant_map_vertex =
       vertex_shader->constant_register_map();
@@ -4344,8 +4343,7 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
             xe::clear_lowest_bit(float_constant_map_entry);
         std::memcpy(float_constants,
                     &regs[XE_GPU_REG_SHADER_CONSTANT_000_X + (i << 8) +
-                          (float_constant_index << 2)]
-                         .f32,
+                          (float_constant_index << 2)],
                     4 * sizeof(float));
         float_constants += 4 * sizeof(float);
       }
@@ -4376,8 +4374,7 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
               xe::clear_lowest_bit(float_constant_map_entry);
           std::memcpy(float_constants,
                       &regs[XE_GPU_REG_SHADER_CONSTANT_256_X + (i << 8) +
-                            (float_constant_index << 2)]
-                           .f32,
+                            (float_constant_index << 2)],
                       4 * sizeof(float));
           float_constants += 4 * sizeof(float);
         }
@@ -4397,8 +4394,7 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
       return false;
     }
     xe::smallcpy_const<kBoolLoopConstantsSize>(
-        bool_loop_constants,
-        &regs[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031].u32);
+        bool_loop_constants, &regs[XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031]);
 
     cbuffer_binding_bool_loop_.up_to_date = true;
     current_graphics_root_up_to_date_ &=
@@ -4414,7 +4410,7 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
       return false;
     }
     xe::smallcpy_const<kFetchConstantsSize>(
-        fetch_constants, &regs[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0].u32);
+        fetch_constants, &regs[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0]);
 
     cbuffer_binding_fetch_.up_to_date = true;
     current_graphics_root_up_to_date_ &=
