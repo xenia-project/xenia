@@ -205,7 +205,7 @@ class A64Emitter : public oaknut::CodeBlock, public oaknut::CodeGenerator {
 
   std::byte* GetVConstPtr() const;
   std::byte* GetVConstPtr(VConst id) const;
-  static constexpr uintptr_t GetVConstOffset(VConst id){
+  static constexpr uintptr_t GetVConstOffset(VConst id) {
     return sizeof(vec128_t) * id;
   }
   void LoadConstantV(oaknut::QReg dest, float v);

@@ -290,7 +290,6 @@ struct LOAD_LOCAL_I8
     : Sequence<LOAD_LOCAL_I8, I<OPCODE_LOAD_LOCAL, I8Op, I32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     e.LDRB(i.dest, SP, i.src1.constant());
-    // e.mov(i.dest, e.byte[e.rsp + i.src1.constant()]);
     // e.TraceLoadI8(DATA_LOCAL, i.src1.constant, i.dest);
   }
 };
@@ -404,7 +403,6 @@ struct LOAD_CONTEXT_I8
     : Sequence<LOAD_CONTEXT_I8, I<OPCODE_LOAD_CONTEXT, I8Op, OffsetOp>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     e.LDRB(i.dest, e.GetContextReg(), i.src1.value);
-    // e.mov(i.dest, e.byte[addr]);
     if (IsTracingData()) {
       e.MOV(e.GetNativeParam(0), i.src1.value);
       e.LDRB(e.GetNativeParam(1).toW(), e.GetContextReg(), i.src1.value);
@@ -1084,63 +1082,7 @@ struct CACHE_CONTROL
     }
     size_t cache_line_size = i.src2.value;
 
-    // RegExp addr;
-    // uint32_t address_constant;
-    // if (i.src1.is_constant) {
-    //   // TODO(benvanik): figure out how to do this without a temp.
-    //   // Since the constant is often 0x8... if we tried to use that as a
-    //   // displacement it would be sign extended and mess things up.
-    //   address_constant = static_cast<uint32_t>(i.src1.constant());
-    //   if (address_constant < 0x80000000) {
-    //     addr = e.GetMembaseReg() + address_constant;
-    //   } else {
-    //     if (address_constant >= 0xE0000000 &&
-    //         xe::memory::allocation_granularity() > 0x1000) {
-    //       // e.mov(e.eax, address_constant + 0x1000);
-    //     } else {
-    //       // e.mov(e.eax, address_constant);
-    //     }
-    //     addr = e.GetMembaseReg() + e.rax;
-    //   }
-    // } else {
-    //   if (xe::memory::allocation_granularity() > 0x1000) {
-    //     // Emulate the 4 KB physical address offset in 0xE0000000+ when can't
-    //     do
-    //     // it via memory mapping.
-    //     // e.cmp(i.src1.reg().cvt32(), 0xE0000000);
-    //     // e.setae(e.al);
-    //     // e.movzx(e.eax, e.al);
-    //     // e.shl(e.eax, 12);
-    //     // e.add(e.eax, i.src1.reg().cvt32());
-    //   } else {
-    //     // Clear the top 32 bits, as they are likely garbage.
-    //     // TODO(benvanik): find a way to avoid doing this.
-    //     // e.mov(e.eax, i.src1.reg().cvt32());
-    //   }
-    //   addr = e.GetMembaseReg() + e.rax;
-    // }
-    // if (is_clflush) {
-    //   // e.clflush(e.ptr[addr]);
-    // }
-    // if (is_prefetch) {
-    //   // e.prefetcht0(e.ptr[addr]);
-    // }
-
-    // if (cache_line_size >= 128) {
-    //   // Prefetch the other 64 bytes of the 128-byte cache line.
-    //   if (i.src1.is_constant && address_constant < 0x80000000) {
-    //     addr = e.GetMembaseReg() + (address_constant ^ 64);
-    //   } else {
-    //     // e.xor_(e.eax, 64);
-    //   }
-    //   if (is_clflush) {
-    //     // e.clflush(e.ptr[addr]);
-    //   }
-    //   if (is_prefetch) {
-    //     // e.prefetcht0(e.ptr[addr]);
-    //   }
-    //   assert_true(cache_line_size == 128);
-    // }
+    // TODO(wunkolo): Arm64 cache-control
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_CACHE_CONTROL, CACHE_CONTROL);
@@ -1151,10 +1093,6 @@ EMITTER_OPCODE_TABLE(OPCODE_CACHE_CONTROL, CACHE_CONTROL);
 struct MEMORY_BARRIER
     : Sequence<MEMORY_BARRIER, I<OPCODE_MEMORY_BARRIER, VoidOp>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    // mfence on x64 flushes all writes before any later instructions
-    // e.mfence();
-
-    // This is equivalent to DMB SY
     e.DMB(BarrierOp::SY);
   }
 };

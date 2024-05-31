@@ -295,10 +295,8 @@ struct CONVERT_I32_F32
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     // TODO(benvanik): saturation check? cvtt* (trunc?)
     if (i.instr->flags == ROUND_TO_ZERO) {
-      // e.vcvttss2si(i.dest, i.src1);
       e.FCVTZS(i.dest, i.src1.reg().toS());
     } else {
-      // e.vcvtss2si(i.dest, i.src1);
       e.FCVTNS(i.dest, i.src1.reg().toS());
     }
   }
@@ -307,13 +305,10 @@ struct CONVERT_I32_F64
     : Sequence<CONVERT_I32_F64, I<OPCODE_CONVERT, I32Op, F64Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     // Intel returns 0x80000000 if the double value does not fit within an int32
-    // ARM64 and PPC saturates the value instead.
-    // e.vminsd(e.xmm0, i.src1, e.GetVConstPtr(XMMIntMaxPD));
+    // ARM64 and PPC saturates the value instead
     if (i.instr->flags == ROUND_TO_ZERO) {
-      // e.vcvttsd2si(i.dest, e.xmm0);
       e.FCVTZS(i.dest, i.src1.reg().toD());
     } else {
-      // e.vcvtsd2si(i.dest, e.xmm0);
       e.FCVTNS(i.dest, i.src1.reg().toD());
     }
   }
@@ -322,10 +317,8 @@ struct CONVERT_I64_F64
     : Sequence<CONVERT_I64_F64, I<OPCODE_CONVERT, I64Op, F64Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     if (i.instr->flags == ROUND_TO_ZERO) {
-      // e.vcvttsd2si(i.dest, i.src1);
       e.FCVTZS(i.dest, i.src1.reg().toD());
     } else {
-      // e.vcvtsd2si(i.dest, i.src1);
       e.FCVTNS(i.dest, i.src1.reg().toD());
     }
   }
@@ -333,24 +326,18 @@ struct CONVERT_I64_F64
 struct CONVERT_F32_I32
     : Sequence<CONVERT_F32_I32, I<OPCODE_CONVERT, F32Op, I32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    // TODO(benvanik): saturation check? cvtt* (trunc?)
-    // e.vcvtsi2ss(i.dest, i.src1);
     e.SCVTF(i.dest.reg().toS(), i.src1);
   }
 };
 struct CONVERT_F32_F64
     : Sequence<CONVERT_F32_F64, I<OPCODE_CONVERT, F32Op, F64Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    // TODO(benvanik): saturation check? cvtt* (trunc?)
-    // e.vcvtsd2ss(i.dest, i.src1);
     e.FCVT(i.dest.reg().toS(), i.src1.reg().toD());
   }
 };
 struct CONVERT_F64_I64
     : Sequence<CONVERT_F64_I64, I<OPCODE_CONVERT, F64Op, I64Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    // TODO(benvanik): saturation check? cvtt* (trunc?)
-    // e.vcvtsi2sd(i.dest, i.src1);
     e.SCVTF(i.dest.reg().toD(), i.src1);
   }
 };
@@ -372,19 +359,15 @@ struct ROUND_F32 : Sequence<ROUND_F32, I<OPCODE_ROUND, F32Op, F32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     switch (i.instr->flags) {
       case ROUND_TO_ZERO:
-        // e.vroundss(i.dest, i.src1, 0b00000011);
         e.FRINTZ(i.dest.reg().toS(), i.src1.reg().toS());
         break;
       case ROUND_TO_NEAREST:
-        // e.vroundss(i.dest, i.src1, 0b00000000);
         e.FRINTN(i.dest.reg().toS(), i.src1.reg().toS());
         break;
       case ROUND_TO_MINUS_INFINITY:
-        // e.vroundss(i.dest, i.src1, 0b00000001);
         e.FRINTM(i.dest.reg().toS(), i.src1.reg().toS());
         break;
       case ROUND_TO_POSITIVE_INFINITY:
-        // e.vroundss(i.dest, i.src1, 0b00000010);
         e.FRINTP(i.dest.reg().toS(), i.src1.reg().toS());
         break;
     }
@@ -394,19 +377,15 @@ struct ROUND_F64 : Sequence<ROUND_F64, I<OPCODE_ROUND, F64Op, F64Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     switch (i.instr->flags) {
       case ROUND_TO_ZERO:
-        // e.vroundsd(i.dest, i.src1, 0b00000011);
         e.FRINTZ(i.dest, i.src1);
         break;
       case ROUND_TO_NEAREST:
-        // e.vroundsd(i.dest, i.src1, 0b00000000);
         e.FRINTN(i.dest, i.src1);
         break;
       case ROUND_TO_MINUS_INFINITY:
-        // e.vroundsd(i.dest, i.src1, 0b00000001);
         e.FRINTM(i.dest, i.src1);
         break;
       case ROUND_TO_POSITIVE_INFINITY:
-        // e.vroundsd(i.dest, i.src1, 0b00000010);
         e.FRINTP(i.dest, i.src1);
         break;
     }
@@ -416,19 +395,15 @@ struct ROUND_V128 : Sequence<ROUND_V128, I<OPCODE_ROUND, V128Op, V128Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     switch (i.instr->flags) {
       case ROUND_TO_ZERO:
-        // e.vroundps(i.dest, i.src1, 0b00000011);
         e.FRINTZ(i.dest.reg().S4(), i.src1.reg().S4());
         break;
       case ROUND_TO_NEAREST:
-        // e.vroundps(i.dest, i.src1, 0b00000000);
         e.FRINTN(i.dest.reg().S4(), i.src1.reg().S4());
         break;
       case ROUND_TO_MINUS_INFINITY:
-        // e.vroundps(i.dest, i.src1, 0b00000001);
         e.FRINTM(i.dest.reg().S4(), i.src1.reg().S4());
         break;
       case ROUND_TO_POSITIVE_INFINITY:
-        // e.vroundps(i.dest, i.src1, 0b00000010);
         e.FRINTP(i.dest.reg().S4(), i.src1.reg().S4());
         break;
     }
@@ -684,12 +659,12 @@ struct SELECT_F64
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     // dest = src1 != 0 ? src2 : src3
 
-    DReg src2 = i.src2.is_constant ? D2 : i.src2;
+    const DReg src2 = i.src2.is_constant ? D2 : i.src2;
     if (i.src2.is_constant) {
       e.LoadConstantV(src2.toQ(), i.src2.constant());
     }
 
-    DReg src3 = i.src3.is_constant ? D3 : i.src3;
+    const DReg src3 = i.src3.is_constant ? D3 : i.src3;
     if (i.src3.is_constant) {
       e.LoadConstantV(src3.toQ(), i.src3.constant());
     }
@@ -703,12 +678,12 @@ struct SELECT_V128_I8
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     // dest = src1 != 0 ? src2 : src3
 
-    QReg src2 = i.src2.is_constant ? Q2 : i.src2;
+    const QReg src2 = i.src2.is_constant ? Q2 : i.src2;
     if (i.src2.is_constant) {
       e.LoadConstantV(src2, i.src2.constant());
     }
 
-    QReg src3 = i.src3.is_constant ? Q3 : i.src3;
+    const QReg src3 = i.src3.is_constant ? Q3 : i.src3;
     if (i.src3.is_constant) {
       e.LoadConstantV(src3, i.src3.constant());
     }
@@ -730,12 +705,12 @@ struct SELECT_V128_V128
       e.MOV(src1.B16(), i.src1.reg().B16());
     }
 
-    const QReg src2 = i.src2.is_constant ? Q1 : i.src2;
+    const QReg src2 = i.src2.is_constant ? Q2 : i.src2;
     if (i.src2.is_constant) {
       e.LoadConstantV(src2, i.src2.constant());
     }
 
-    const QReg src3 = i.src3.is_constant ? Q2 : i.src3;
+    const QReg src3 = i.src3.is_constant ? Q3 : i.src3;
     if (i.src3.is_constant) {
       e.LoadConstantV(src3, i.src3.constant());
     }
@@ -1123,24 +1098,20 @@ void EmitAddXX(A64Emitter& e, const ARGS& i) {
   SEQ::EmitCommutativeBinaryOp(
       e, i,
       [](A64Emitter& e, REG dest_src, REG src) {
-        // e.add(dest_src, src);
         e.ADD(dest_src, dest_src, src);
       },
       [](A64Emitter& e, REG dest_src, int32_t constant) {
-        // e.add(dest_src, constant);
         e.MOV(REG(1), constant);
         e.ADD(dest_src, dest_src, REG(1));
       });
 }
 struct ADD_I8 : Sequence<ADD_I8, I<OPCODE_ADD, I8Op, I8Op, I8Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    // EmitAddXX<ADD_I8, WReg>(e, i);
     EmitAddXX<ADD_I8, WReg>(e, i);
   }
 };
 struct ADD_I16 : Sequence<ADD_I16, I<OPCODE_ADD, I16Op, I16Op, I16Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    // EmitAddXX<ADD_I16, WReg>(e, i);
     EmitAddXX<ADD_I16, WReg>(e, i);
   }
 };
@@ -1158,7 +1129,6 @@ struct ADD_F32 : Sequence<ADD_F32, I<OPCODE_ADD, F32Op, F32Op, F32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     EmitCommutativeBinaryVOp<SReg>(
         e, i, [](A64Emitter& e, SReg dest, SReg src1, SReg src2) {
-          // e.vaddss(dest, src1, src2);
           e.FADD(dest, src1, src2);
         });
   }
@@ -1167,7 +1137,6 @@ struct ADD_F64 : Sequence<ADD_F64, I<OPCODE_ADD, F64Op, F64Op, F64Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     EmitCommutativeBinaryVOp<DReg>(
         e, i, [](A64Emitter& e, DReg dest, DReg src1, DReg src2) {
-          // e.vaddsd(dest, src1, src2);
           e.FADD(dest, src1, src2);
         });
   }
@@ -1176,7 +1145,6 @@ struct ADD_V128 : Sequence<ADD_V128, I<OPCODE_ADD, V128Op, V128Op, V128Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     EmitCommutativeBinaryVOp(
         e, i, [](A64Emitter& e, QReg dest, QReg src1, QReg src2) {
-          // e.vaddps(dest, src1, src2);
           e.FADD(dest.S4(), src1.S4(), src2.S4());
         });
   }
@@ -2030,7 +1998,7 @@ struct POW2_F32 : Sequence<POW2_F32, I<OPCODE_POW2, F32Op, F32Op>> {
   }
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     assert_always();
-    e.ADD(e.GetNativeParam(0), XSP, e.StashV(0, i.src1.reg().toQ()));
+    e.ADD(e.GetNativeParam(0), SP, e.StashV(0, i.src1.reg().toQ()));
     e.CallNativeSafe(reinterpret_cast<void*>(EmulatePow2));
     e.FMOV(i.dest, S0);
   }
@@ -2044,7 +2012,7 @@ struct POW2_F64 : Sequence<POW2_F64, I<OPCODE_POW2, F64Op, F64Op>> {
   }
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     assert_always();
-    e.ADD(e.GetNativeParam(0), XSP, e.StashV(0, i.src1.reg().toQ()));
+    e.ADD(e.GetNativeParam(0), SP, e.StashV(0, i.src1.reg().toQ()));
     e.CallNativeSafe(reinterpret_cast<void*>(EmulatePow2));
     e.FMOV(i.dest, D0);
   }
@@ -2059,7 +2027,7 @@ struct POW2_V128 : Sequence<POW2_V128, I<OPCODE_POW2, V128Op, V128Op>> {
     return vld1q_f32(values);
   }
   static void Emit(A64Emitter& e, const EmitArgType& i) {
-    e.ADD(e.GetNativeParam(0), XSP, e.StashV(0, i.src1.reg().toQ()));
+    e.ADD(e.GetNativeParam(0), SP, e.StashV(0, i.src1.reg().toQ()));
     e.CallNativeSafe(reinterpret_cast<void*>(EmulatePow2));
     e.MOV(i.dest.reg().B16(), Q0.B16());
   }
@@ -2082,9 +2050,9 @@ struct LOG2_F32 : Sequence<LOG2_F32, I<OPCODE_LOG2, F32Op, F32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     assert_always();
     if (i.src1.is_constant) {
-      e.ADD(e.GetNativeParam(0), XSP, e.StashConstantV(0, i.src1.constant()));
+      e.ADD(e.GetNativeParam(0), SP, e.StashConstantV(0, i.src1.constant()));
     } else {
-      e.ADD(e.GetNativeParam(0), XSP, e.StashV(0, i.src1.reg().toQ()));
+      e.ADD(e.GetNativeParam(0), SP, e.StashV(0, i.src1.reg().toQ()));
     }
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateLog2));
     e.FMOV(i.dest, S0);
@@ -2100,9 +2068,9 @@ struct LOG2_F64 : Sequence<LOG2_F64, I<OPCODE_LOG2, F64Op, F64Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     assert_always();
     if (i.src1.is_constant) {
-      e.ADD(e.GetNativeParam(0), XSP, e.StashConstantV(0, i.src1.constant()));
+      e.ADD(e.GetNativeParam(0), SP, e.StashConstantV(0, i.src1.constant()));
     } else {
-      e.ADD(e.GetNativeParam(0), XSP, e.StashV(0, i.src1.reg().toQ()));
+      e.ADD(e.GetNativeParam(0), SP, e.StashV(0, i.src1.reg().toQ()));
     }
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateLog2));
     e.FMOV(i.dest, D0);
@@ -2119,9 +2087,9 @@ struct LOG2_V128 : Sequence<LOG2_V128, I<OPCODE_LOG2, V128Op, V128Op>> {
   }
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     if (i.src1.is_constant) {
-      e.ADD(e.GetNativeParam(0), XSP, e.StashConstantV(0, i.src1.constant()));
+      e.ADD(e.GetNativeParam(0), SP, e.StashConstantV(0, i.src1.constant()));
     } else {
-      e.ADD(e.GetNativeParam(0), XSP, e.StashV(0, i.src1.reg().toQ()));
+      e.ADD(e.GetNativeParam(0), SP, e.StashV(0, i.src1.reg().toQ()));
     }
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateLog2));
     e.MOV(i.dest.reg().B16(), Q0.B16());
@@ -2455,7 +2423,7 @@ struct SHL_V128 : Sequence<SHL_V128, I<OPCODE_SHL, V128Op, V128Op, I8Op>> {
     } else {
       e.MOV(e.GetNativeParam(1), i.src2.reg().toX());
     }
-    e.ADD(e.GetNativeParam(0), XSP, e.StashV(0, i.src1));
+    e.ADD(e.GetNativeParam(0), SP, e.StashV(0, i.src1));
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateShlV128));
     e.MOV(i.dest.reg().B16(), Q0.B16());
   }
@@ -2534,7 +2502,7 @@ struct SHR_V128 : Sequence<SHR_V128, I<OPCODE_SHR, V128Op, V128Op, I8Op>> {
     } else {
       e.MOV(e.GetNativeParam(1), i.src2.reg().toX());
     }
-    e.ADD(e.GetNativeParam(0), XSP, e.StashV(0, i.src1));
+    e.ADD(e.GetNativeParam(0), SP, e.StashV(0, i.src1));
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateShrV128));
     e.MOV(i.dest.reg().B16(), Q0.B16());
   }
