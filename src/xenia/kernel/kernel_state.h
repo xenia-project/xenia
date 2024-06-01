@@ -11,6 +11,7 @@
 #define XENIA_KERNEL_KERNEL_STATE_H_
 
 #include <atomic>
+#include <bitset>
 #include <condition_variable>
 #include <functional>
 #include <list>
@@ -193,7 +194,7 @@ class KernelState {
     return content_manager_.get();
   }
 
-  uint8_t GetConnectedUsers() const;
+  std::bitset<4> GetConnectedUsers() const;
   void UpdateUsedUserProfiles();
 
   bool IsUserSignedIn(uint32_t index) const {

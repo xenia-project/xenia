@@ -1042,7 +1042,7 @@ bool KernelState::Restore(ByteStream* stream) {
   return true;
 }
 
-uint8_t KernelState::GetConnectedUsers() const {
+std::bitset<4> KernelState::GetConnectedUsers() const {
   auto input_sys = emulator_->input_system();
 
   auto lock = input_sys->lock();
@@ -1109,10 +1109,10 @@ void KernelState::EmulateCPInterruptDPC(uint32_t interrupt_callback,
 }
 
 void KernelState::UpdateUsedUserProfiles() {
-  const uint8_t used_slots_bitmask = GetConnectedUsers();
+  const std::bitset<4> used_slots = GetConnectedUsers();
 
   for (uint32_t i = 1; i < cvars::max_signed_profiles; i++) {
-    bool is_used = used_slots_bitmask & (1 << i);
+    bool is_used = used_slots.test(i);
 
     if (IsUserSignedIn(i) && !is_used) {
       user_profiles_.erase(i);

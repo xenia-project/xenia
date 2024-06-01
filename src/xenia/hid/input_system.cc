@@ -7,6 +7,8 @@
  ******************************************************************************
  */
 
+#include "xenia/base/logging.h"
+
 #include "xenia/hid/input_system.h"
 
 #include "xenia/base/profiling.h"
@@ -18,6 +20,13 @@ namespace hid {
 
 DEFINE_bool(vibration, true, "Toggle controller vibration.", "HID");
 
+DEFINE_double(left_stick_deadzone_percentage, 0.0,
+              "Defines deadzone level for left stick. Allowed range [0.0-1.0].",
+              "HID");
+DEFINE_double(
+    right_stick_deadzone_percentage, 0.0,
+    "Defines deadzone level for right stick. Allowed range [0.0-1.0].", "HID");
+
 InputSystem::InputSystem(xe::ui::Window* window) : window_(window) {}
 
 InputSystem::~InputSystem() = default;
@@ -28,15 +37,30 @@ void InputSystem::AddDriver(std::unique_ptr<InputDriver> driver) {
   drivers_.push_back(std::move(driver));
 }
 
-void InputSystem::UpdateUsedSlot(uint8_t slot, bool connected) {
+void InputSystem::UpdateUsedSlot(InputDriver* driver, uint8_t slot,
+                                 bool connected) {
   if (slot == 0xFF) {
     slot = 0;
   }
 
-  if (connected) {
-    connected_slot |= (1 << slot);
-  } else {
-    connected_slot &= ~(1 << slot);
+  if (connected_slots.test(slot) == connected) {
+    // No state change, so nothing to do.
+    return;
+  }
+
+  XELOGI(controller_slot_state_change_message[connected].c_str(), slot);
+  connected_slots.flip(slot);
+
+  if (driver) {
+    X_INPUT_CAPABILITIES capabilities = {};
+    const X_RESULT result = driver->GetCapabilities(slot, 0, &capabilities);
+    if (result != X_STATUS_SUCCESS) {
+      return;
+    }
+
+    controllers_max_joystick_value[slot] = {
+        {capabilities.gamepad.thumb_lx, capabilities.gamepad.thumb_ly},
+        {capabilities.gamepad.thumb_rx, capabilities.gamepad.thumb_ry}};
   }
 }
 
@@ -51,11 +75,11 @@ X_RESULT InputSystem::GetCapabilities(uint32_t user_index, uint32_t flags,
       any_connected = true;
     }
     if (result == X_ERROR_SUCCESS) {
-      UpdateUsedSlot(user_index, any_connected);
+      UpdateUsedSlot(driver.get(), user_index, any_connected);
       return result;
     }
   }
-  UpdateUsedSlot(user_index, any_connected);
+  UpdateUsedSlot(nullptr, user_index, any_connected);
   return any_connected ? X_ERROR_EMPTY : X_ERROR_DEVICE_NOT_CONNECTED;
 }
 
@@ -69,11 +93,12 @@ X_RESULT InputSystem::GetState(uint32_t user_index, X_INPUT_STATE* out_state) {
       any_connected = true;
     }
     if (result == X_ERROR_SUCCESS) {
-      UpdateUsedSlot(user_index, any_connected);
+      UpdateUsedSlot(driver.get(), user_index, any_connected);
+      AdjustDeadzoneLevels(user_index, &out_state->gamepad);
       return result;
     }
   }
-  UpdateUsedSlot(user_index, any_connected);
+  UpdateUsedSlot(nullptr, user_index, any_connected);
   return any_connected ? X_ERROR_EMPTY : X_ERROR_DEVICE_NOT_CONNECTED;
 }
 
@@ -88,11 +113,11 @@ X_RESULT InputSystem::SetState(uint32_t user_index,
       any_connected = true;
     }
     if (result == X_ERROR_SUCCESS) {
-      UpdateUsedSlot(user_index, any_connected);
+      UpdateUsedSlot(driver.get(), user_index, any_connected);
       return result;
     }
   }
-  UpdateUsedSlot(user_index, any_connected);
+  UpdateUsedSlot(nullptr, user_index, any_connected);
   return any_connected ? X_ERROR_EMPTY : X_ERROR_DEVICE_NOT_CONNECTED;
 }
 
@@ -107,11 +132,11 @@ X_RESULT InputSystem::GetKeystroke(uint32_t user_index, uint32_t flags,
       any_connected = true;
     }
     if (result == X_ERROR_SUCCESS || result == X_ERROR_EMPTY) {
-      UpdateUsedSlot(user_index, any_connected);
+      UpdateUsedSlot(driver.get(), user_index, any_connected);
       return result;
     }
   }
-  UpdateUsedSlot(user_index, any_connected);
+  UpdateUsedSlot(nullptr, user_index, any_connected);
   return any_connected ? X_ERROR_EMPTY : X_ERROR_DEVICE_NOT_CONNECTED;
 }
 
@@ -120,8 +145,70 @@ void InputSystem::ToggleVibration() {
   // Send instant update to vibration state to prevent awaiting for next tick.
   X_INPUT_VIBRATION vibration = X_INPUT_VIBRATION();
 
-  for (uint8_t user_index = 0; user_index < 4; user_index++) {
+  for (uint8_t user_index = 0; user_index < max_allowed_controllers;
+       user_index++) {
     SetState(user_index, &vibration);
+  }
+}
+
+void InputSystem::AdjustDeadzoneLevels(const uint8_t slot,
+                                       X_INPUT_GAMEPAD* gamepad) {
+  if (slot > max_allowed_controllers) {
+    return;
+  }
+
+  // Left stick
+  if (cvars::left_stick_deadzone_percentage > 0.0 &&
+      cvars::left_stick_deadzone_percentage < 1.0) {
+    const double deadzone_lx_percentage =
+        controllers_max_joystick_value[slot].first.first *
+        cvars::left_stick_deadzone_percentage;
+    const double deadzone_ly_percentage =
+        controllers_max_joystick_value[slot].first.second *
+        cvars::left_stick_deadzone_percentage;
+
+    const double theta = std::atan2(static_cast<double>(gamepad->thumb_ly),
+                                    static_cast<double>(gamepad->thumb_lx));
+
+    const double deadzone_y_value = std::sin(theta) * deadzone_ly_percentage;
+    const double deadzone_x_value = std::cos(theta) * deadzone_lx_percentage;
+
+    if (gamepad->thumb_ly > -deadzone_y_value &&
+        gamepad->thumb_ly < deadzone_y_value) {
+      gamepad->thumb_ly = 0;
+    }
+
+    if (gamepad->thumb_lx > -deadzone_x_value &&
+        gamepad->thumb_lx < deadzone_x_value) {
+      gamepad->thumb_lx = 0;
+    }
+  }
+
+  // Right stick
+  if (cvars::right_stick_deadzone_percentage > 0.0 &&
+      cvars::right_stick_deadzone_percentage < 1.0) {
+    const double deadzone_rx_percentage =
+        controllers_max_joystick_value[slot].second.first *
+        cvars::right_stick_deadzone_percentage;
+    const double deadzone_ry_percentage =
+        controllers_max_joystick_value[slot].second.second *
+        cvars::right_stick_deadzone_percentage;
+
+    const double theta = std::atan2(static_cast<double>(gamepad->thumb_ry),
+                                    static_cast<double>(gamepad->thumb_rx));
+
+    const double deadzone_y_value = std::sin(theta) * deadzone_ry_percentage;
+    const double deadzone_x_value = std::cos(theta) * deadzone_rx_percentage;
+
+    if (gamepad->thumb_ry > -deadzone_y_value &&
+        gamepad->thumb_ry < deadzone_y_value) {
+      gamepad->thumb_ry = 0;
+    }
+
+    if (gamepad->thumb_rx > -deadzone_x_value &&
+        gamepad->thumb_rx < deadzone_x_value) {
+      gamepad->thumb_rx = 0;
+    }
   }
 }
 
