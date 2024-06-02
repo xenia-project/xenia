@@ -1082,7 +1082,73 @@ struct CACHE_CONTROL
     }
     size_t cache_line_size = i.src2.value;
 
-    // TODO(wunkolo): Arm64 cache-control
+    XReg addr = X0;
+    uint32_t address_constant;
+    if (i.src1.is_constant) {
+      // TODO(benvanik): figure out how to do this without a temp.
+      // Since the constant is often 0x8... if we tried to use that as a
+      // displacement it would be sign extended and mess things up.
+      address_constant = static_cast<uint32_t>(i.src1.constant());
+      if (address_constant < 0x80000000) {
+        e.ADD(addr, e.GetMembaseReg(), address_constant);
+      } else {
+        if (address_constant >= 0xE0000000 &&
+            xe::memory::allocation_granularity() > 0x1000) {
+          e.MOV(X1, address_constant + 0x1000);
+        } else {
+          e.MOV(X1, address_constant);
+        }
+        e.ADD(addr, e.GetMembaseReg(), X1);
+      }
+    } else {
+      if (xe::memory::allocation_granularity() > 0x1000) {
+        // Emulate the 4 KB physical address offset in 0xE0000000+ when can't do
+        // it via memory mapping.
+        e.MOV(X1, 0xE0000000);
+        e.CMP(i.src1.reg(), X1);
+        e.CSET(X1, Cond::HS);
+        e.ADD(X1, i.src1.reg(), X1, LSL, 12);
+      } else {
+        // Clear the top 32 bits, as they are likely garbage.
+        e.MOV(W1, i.src1.reg().toW());
+      }
+      e.ADD(addr, e.GetMembaseReg(), X1);
+    }
+
+    if (is_clflush) {
+      // TODO(wunkolo): These kind of cache-maintenance instructions cause an
+      // illegal-instruction on windows, but is trapped to proper EL1 code on
+      // Linux. Need a way to do cache-maintenance on Windows-Arm
+      // e.DC(DcOp::CIVAC, addr);
+
+      // Full data sync
+      e.DSB(BarrierOp::ISH);
+    }
+    if (is_prefetch) {
+      e.PRFM(PrfOp::PLDL1KEEP, addr);
+    }
+
+    if (cache_line_size >= 128) {
+      // Prefetch the other 64 bytes of the 128-byte cache line.
+      if (i.src1.is_constant && address_constant < 0x80000000) {
+        e.ADD(addr, e.GetMembaseReg(), address_constant ^ 64);
+      } else {
+        e.EOR(X1, X1, 64);
+      }
+      if (is_clflush) {
+        // TODO(wunkolo): These kind of cache-maintenance instructions cause an
+        // illegal-instruction on windows, but is trapped to proper EL1 code on
+        // Linux. Need a way to do cache-maintenance on Windows-Arm
+        // e.DC(DcOp::CIVAC, addr);
+
+        // Full data sync
+        e.DSB(BarrierOp::ISH);
+      }
+      if (is_prefetch) {
+        e.PRFM(PrfOp::PLDL1KEEP, addr);
+      }
+      assert_true(cache_line_size == 128);
+    }
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_CACHE_CONTROL, CACHE_CONTROL);
