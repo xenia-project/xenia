@@ -539,7 +539,7 @@ struct VECTOR_SHL_V128
       }
       if (all_same) {
         // Every count is the same, so we can use SHL
-        e.SHL(i.dest.reg().B16(), i.src1.reg().B16(), shamt.u8[0]);
+        e.SHL(i.dest.reg().B16(), i.src1.reg().B16(), shamt.u8[0] & 0x7);
         return;
       }
       e.ADD(e.GetNativeParam(1), SP, e.StashConstantV(1, i.src2.constant()));
@@ -563,7 +563,7 @@ struct VECTOR_SHL_V128
       }
       if (all_same) {
         // Every count is the same, so we can use SHL
-        e.SHL(i.dest.reg().H8(), i.src1.reg().H8(), shamt.u8[0]);
+        e.SHL(i.dest.reg().H8(), i.src1.reg().H8(), shamt.u8[0] & 0xF);
         return;
       }
       e.ADD(e.GetNativeParam(1), SP, e.StashConstantV(1, i.src2.constant()));
@@ -587,7 +587,7 @@ struct VECTOR_SHL_V128
       }
       if (all_same) {
         // Every count is the same, so we can use SHL
-        e.SHL(i.dest.reg().S4(), i.src1.reg().S4(), shamt.u8[0]);
+        e.SHL(i.dest.reg().S4(), i.src1.reg().S4(), shamt.u8[0] & 0x1F);
         return;
       }
       e.ADD(e.GetNativeParam(1), SP, e.StashConstantV(1, i.src2.constant()));
