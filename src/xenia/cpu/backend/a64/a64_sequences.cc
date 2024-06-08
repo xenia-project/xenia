@@ -2758,7 +2758,7 @@ struct SET_ROUNDING_MODE_I32
     e.AND(W1, i.src1, 0b111);
 
     // Use the low 3 bits as an index into a LUT
-    e.MOVP2R(X0, fpcr_table);
+    e.MOV(X0, reinterpret_cast<uintptr_t>(fpcr_table));
     e.LDRB(W0, X0, X1);
 
     // Replace FPCR bits with new value
