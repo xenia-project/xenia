@@ -58,8 +58,6 @@ using xe::cpu::hir::Instr;
 using namespace xe::literals;
 using namespace oaknut::util;
 
-static const size_t kMaxCodeSize = 1_MiB;
-
 static const size_t kStashOffset = 32;
 // static const size_t kStashOffsetHigh = 32 + 32;
 
@@ -73,8 +71,7 @@ const uint8_t A64Emitter::fpr_reg_map_[A64Emitter::FPR_COUNT] = {
 };
 
 A64Emitter::A64Emitter(A64Backend* backend)
-    : CodeBlock(kMaxCodeSize),
-      CodeGenerator(CodeBlock::ptr()),
+    : VectorCodeGenerator(assembly_buffer),
       processor_(backend->processor()),
       backend_(backend),
       code_cache_(backend->code_cache()) {
@@ -138,23 +135,22 @@ bool A64Emitter::Emit(GuestFunction* function, HIRBuilder* builder,
 void* A64Emitter::Emplace(const EmitFunctionInfo& func_info,
                           GuestFunction* function) {
   // Copy the current oaknut instruction-buffer into the code-cache
-  uint32_t* old_address = CodeBlock::ptr();
   void* new_execute_address;
   void* new_write_address;
 
   assert_true(func_info.code_size.total == offset());
 
   if (function) {
-    code_cache_->PlaceGuestCode(function->address(), CodeBlock::ptr(),
+    code_cache_->PlaceGuestCode(function->address(), assembly_buffer.data(),
                                 func_info, function, new_execute_address,
                                 new_write_address);
   } else {
-    code_cache_->PlaceHostCode(0, CodeBlock::ptr(), func_info,
+    code_cache_->PlaceHostCode(0, assembly_buffer.data(), func_info,
                                new_execute_address, new_write_address);
   }
 
   // Reset the oaknut instruction-buffer
-  set_wptr(reinterpret_cast<uint32_t*>(old_address));
+  assembly_buffer.clear();
   label_lookup_.clear();
 
   return new_execute_address;
@@ -224,7 +220,8 @@ bool A64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
 
     // Call count.
     MOV(W0, 1);
-    MOVP2R(X5, low_address(&trace_header->function_call_count));
+    MOV(X5, reinterpret_cast<uintptr_t>(
+                low_address(&trace_header->function_call_count)));
     LDADDAL(X0, X0, X5);
 
     // Get call history slot.
@@ -234,8 +231,8 @@ bool A64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
     AND(W0, W0, 0b00000011);
 
     // Record call history value into slot (guest addr in W1).
-    MOV(X5, uint32_t(
-                uint64_t(low_address(&trace_header->function_caller_history))));
+    MOV(X5, reinterpret_cast<uintptr_t>(
+                low_address(&trace_header->function_caller_history)));
     STR(W1, X5, X0, oaknut::IndexExt::LSL, 2);
 
     // Calling thread. Load X0 with thread ID.
@@ -243,7 +240,8 @@ bool A64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
     MOV(W5, 1);
     LSL(W0, W5, W0);
 
-    MOVP2R(X5, low_address(&trace_header->function_thread_use));
+    MOV(X5, reinterpret_cast<uintptr_t>(
+                low_address(&trace_header->function_thread_use)));
     LDSET(W0, WZR, X5);
   }
 
@@ -334,8 +332,9 @@ void A64Emitter::MarkSourceOffset(const Instr* i) {
     const uint32_t instruction_index =
         (entry->guest_address - trace_data_->start_address()) / 4;
     MOV(X0, 1);
-    MOVP2R(X1, low_address(trace_data_->instruction_execute_counts() +
-                           instruction_index * 8));
+    MOV(X1, reinterpret_cast<uintptr_t>(
+                low_address(trace_data_->instruction_execute_counts() +
+                            instruction_index * 8)));
     LDADDAL(X0, ZR, X1);
   }
 }
@@ -803,11 +802,9 @@ void A64Emitter::FreeConstData(uintptr_t data) {
                        memory::DeallocationType::kRelease);
 }
 
-std::byte* A64Emitter::GetVConstPtr() const {
-  return reinterpret_cast<std::byte*>(backend_->emitter_data());
-}
+uintptr_t A64Emitter::GetVConstPtr() const { return backend_->emitter_data(); }
 
-std::byte* A64Emitter::GetVConstPtr(VConst id) const {
+uintptr_t A64Emitter::GetVConstPtr(VConst id) const {
   // Load through fixed constant table setup by PlaceConstData.
   // It's important that the pointer is not signed, as it will be sign-extended.
   return GetVConstPtr() + GetVConstOffset(id);

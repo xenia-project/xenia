@@ -122,7 +122,7 @@ enum A64EmitterFeatureFlags {
   kA64EmitF16C = 1 << 1,
 };
 
-class A64Emitter : public oaknut::CodeBlock, public oaknut::CodeGenerator {
+class A64Emitter : public oaknut::VectorCodeGenerator {
  public:
   A64Emitter(A64Backend* backend);
   virtual ~A64Emitter();
@@ -203,8 +203,8 @@ class A64Emitter : public oaknut::CodeBlock, public oaknut::CodeGenerator {
   static bool ConstantFitsIn32Reg(uint64_t v);
   void MovMem64(const oaknut::XRegSp& addr, intptr_t offset, uint64_t v);
 
-  std::byte* GetVConstPtr() const;
-  std::byte* GetVConstPtr(VConst id) const;
+  uintptr_t GetVConstPtr() const;
+  uintptr_t GetVConstPtr(VConst id) const;
   static constexpr uintptr_t GetVConstOffset(VConst id) {
     return sizeof(vec128_t) * id;
   }
@@ -238,6 +238,8 @@ class A64Emitter : public oaknut::CodeBlock, public oaknut::CodeGenerator {
   A64Backend* backend_ = nullptr;
   A64CodeCache* code_cache_ = nullptr;
   uint32_t feature_flags_ = 0;
+
+  std::vector<std::uint32_t> assembly_buffer;
 
   oaknut::Label* epilog_label_ = nullptr;
 

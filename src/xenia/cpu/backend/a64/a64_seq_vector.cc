@@ -83,10 +83,10 @@ struct LOAD_VECTOR_SHL_I8
     if (i.src1.is_constant) {
       auto sh = i.src1.constant();
       assert_true(sh < xe::countof(lvsl_table));
-      e.MOVP2R(X0, &lvsl_table[sh]);
+      e.MOV(X0, reinterpret_cast<uintptr_t>(&lvsl_table[sh]));
       e.LDR(i.dest, X0);
     } else {
-      e.MOVP2R(X0, lvsl_table);
+      e.MOV(X0, reinterpret_cast<uintptr_t>(lvsl_table));
       e.AND(X1, i.src1.reg().toX(), 0xf);
       e.LDR(i.dest, X0, X1, IndexExt::LSL, 4);
     }
@@ -121,10 +121,10 @@ struct LOAD_VECTOR_SHR_I8
     if (i.src1.is_constant) {
       auto sh = i.src1.constant();
       assert_true(sh < xe::countof(lvsr_table));
-      e.MOVP2R(X0, &lvsr_table[sh]);
+      e.MOV(X0, reinterpret_cast<uintptr_t>(&lvsr_table[sh]));
       e.LDR(i.dest, X0);
     } else {
-      e.MOVP2R(X0, lvsr_table);
+      e.MOV(X0, reinterpret_cast<uintptr_t>(lvsr_table));
       e.AND(X1, i.src1.reg().toX(), 0xf);
       e.LDR(i.dest, X0, X1, IndexExt::LSL, 4);
     }
@@ -1007,7 +1007,7 @@ struct EXTRACT_I32
       e.AND(X0, i.src2.reg().toX(), 0b11);
       e.LSL(X0, X0, 4);
 
-      e.MOVP2R(X1, extract_table_32);
+      e.MOV(X1, reinterpret_cast<uintptr_t>(extract_table_32));
       e.LDR(Q0, X1, X0);
 
       // Byte-table lookup
@@ -1335,7 +1335,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     }
 
     const XReg VConstData = X3;
-    e.MOVP2R(VConstData, e.GetVConstPtr());
+    e.MOV(VConstData, e.GetVConstPtr());
 
     // Saturate to [3,3....] so that only values between 3...[00] and 3...[FF]
     // are valid - max before min to pack NaN as zero (5454082B is heavily
@@ -1435,7 +1435,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       e.LoadConstantV(src, i.src1.constant());
     }
     const XReg VConstData = X3;
-    e.MOVP2R(VConstData, e.GetVConstPtr());
+    e.MOV(VConstData, e.GetVConstPtr());
 
     // Saturate
     e.LDR(Q1, VConstData, e.GetVConstOffset(VPackSHORT_Min));
@@ -1456,7 +1456,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       e.LoadConstantV(src, i.src1.constant());
     }
     const XReg VConstData = X3;
-    e.MOVP2R(VConstData, e.GetVConstPtr());
+    e.MOV(VConstData, e.GetVConstPtr());
 
     // Saturate
     e.LDR(Q1, VConstData, e.GetVConstOffset(VPackSHORT_Min));
@@ -1478,7 +1478,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       e.LoadConstantV(src, i.src1.constant());
     }
     const XReg VConstData = X3;
-    e.MOVP2R(VConstData, e.GetVConstPtr());
+    e.MOV(VConstData, e.GetVConstPtr());
 
     // Saturate.
     e.LDR(Q1, VConstData, e.GetVConstOffset(VPackUINT_2101010_MinUnpacked));
@@ -1519,7 +1519,7 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
       e.LoadConstantV(src, i.src1.constant());
     }
     const XReg VConstData = X3;
-    e.MOVP2R(VConstData, e.GetVConstPtr());
+    e.MOV(VConstData, e.GetVConstPtr());
 
     // Saturate.
     e.LDR(Q1, VConstData, e.GetVConstOffset(VPackULONG_4202020_MinUnpacked));
@@ -1740,7 +1740,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
   static void EmitD3DCOLOR(A64Emitter& e, const EmitArgType& i) {
     // ARGB (WXYZ) -> RGBA (XYZW)
     const XReg VConstData = X3;
-    e.MOVP2R(VConstData, e.GetVConstPtr());
+    e.MOV(VConstData, e.GetVConstPtr());
 
     QReg src(0);
 
@@ -1849,7 +1849,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     // (VD.w) = 1.0 (games splat W after unpacking to get vectors of 1.0f)
     // src is (xx,xx,xx,VALUE)
     const XReg VConstData = X3;
-    e.MOVP2R(VConstData, e.GetVConstPtr());
+    e.MOV(VConstData, e.GetVConstPtr());
 
     QReg src(0);
     if (i.src1.is_constant) {
@@ -1892,7 +1892,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     // src is (xx,xx,VALUE,VALUE)
 
     const XReg VConstData = X3;
-    e.MOVP2R(VConstData, e.GetVConstPtr());
+    e.MOV(VConstData, e.GetVConstPtr());
 
     QReg src(0);
     if (i.src1.is_constant) {
@@ -1928,7 +1928,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
   }
   static void EmitUINT_2101010(A64Emitter& e, const EmitArgType& i) {
     const XReg VConstData = X3;
-    e.MOVP2R(VConstData, e.GetVConstPtr());
+    e.MOV(VConstData, e.GetVConstPtr());
 
     QReg src(0);
     if (i.src1.is_constant) {
@@ -1972,7 +1972,7 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
   }
   static void EmitULONG_4202020(A64Emitter& e, const EmitArgType& i) {
     const XReg VConstData = X3;
-    e.MOVP2R(VConstData, e.GetVConstPtr());
+    e.MOV(VConstData, e.GetVConstPtr());
 
     QReg src(0);
     if (i.src1.is_constant) {
