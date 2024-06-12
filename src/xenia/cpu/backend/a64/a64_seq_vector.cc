@@ -1026,6 +1026,10 @@ EMITTER_OPCODE_TABLE(OPCODE_EXTRACT, EXTRACT_I8, EXTRACT_I16, EXTRACT_I32);
 struct SPLAT_I8 : Sequence<SPLAT_I8, I<OPCODE_SPLAT, V128Op, I8Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     if (i.src1.is_constant) {
+      if (i.src1.constant() <= 0xFF) {
+        e.MOVI(i.dest.reg().B16(), i.src1.constant());
+        return;
+      }
       e.MOV(W0, i.src1.constant());
       e.DUP(i.dest.reg().B16(), W0);
     } else {
@@ -1036,6 +1040,10 @@ struct SPLAT_I8 : Sequence<SPLAT_I8, I<OPCODE_SPLAT, V128Op, I8Op>> {
 struct SPLAT_I16 : Sequence<SPLAT_I16, I<OPCODE_SPLAT, V128Op, I16Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     if (i.src1.is_constant) {
+      if (i.src1.constant() <= 0xFF) {
+        e.MOVI(i.dest.reg().H8(), i.src1.constant());
+        return;
+      }
       e.MOV(W0, i.src1.constant());
       e.DUP(i.dest.reg().H8(), W0);
     } else {
@@ -1046,6 +1054,10 @@ struct SPLAT_I16 : Sequence<SPLAT_I16, I<OPCODE_SPLAT, V128Op, I16Op>> {
 struct SPLAT_I32 : Sequence<SPLAT_I32, I<OPCODE_SPLAT, V128Op, I32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     if (i.src1.is_constant) {
+      if (i.src1.constant() <= 0xFF) {
+        e.MOVI(i.dest.reg().S4(), i.src1.constant());
+        return;
+      }
       e.MOV(W0, i.src1.constant());
       e.DUP(i.dest.reg().S4(), W0);
     } else {
@@ -1056,6 +1068,10 @@ struct SPLAT_I32 : Sequence<SPLAT_I32, I<OPCODE_SPLAT, V128Op, I32Op>> {
 struct SPLAT_F32 : Sequence<SPLAT_F32, I<OPCODE_SPLAT, V128Op, F32Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     if (i.src1.is_constant) {
+      if (i.src1.value->constant.i32 <= 0xFF) {
+        e.MOVI(i.dest.reg().S4(), i.src1.value->constant.i32);
+        return;
+      }
       e.MOV(W0, i.src1.value->constant.i32);
       e.DUP(i.dest.reg().S4(), W0);
     } else {
