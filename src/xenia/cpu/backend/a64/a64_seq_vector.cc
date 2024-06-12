@@ -1138,13 +1138,11 @@ struct PERMUTE_V128
     }
 
     // Indices must be endian-swapped
-    e.MOV(W0, 0b11);
-    e.DUP(Q1.B16(), W0);
+    e.MOVI(Q1.B16(), 0b11);
     e.EOR(indices.B16(), indices.B16(), Q1.B16());
 
     // Modulo 32 the indices
-    e.MOV(W0, 0b0001'1111);
-    e.DUP(Q1.B16(), W0);
+    e.MOVI(Q1.B16(), 0b0001'1111);
     e.AND(indices.B16(), indices.B16(), Q1.B16());
 
     // Table-registers must be sequential indices
@@ -1186,22 +1184,18 @@ struct PERMUTE_V128
     }
 
     // Indices must be endian-swapped
-    e.MOV(W0, 0b1);
-    e.DUP(Q1.H8(), W0);
+    e.MOVI(Q1.H8(), 0b1);
     e.EOR(indices.B16(), indices.B16(), Q1.B16());
 
     // Modulo-16 the indices
-    e.MOV(W0, 0b0000'1111);
-    e.DUP(Q1.H8(), W0);
+    e.MOVI(Q1.H8(), 0b0000'1111);
     e.AND(indices.B16(), indices.B16(), Q1.B16());
 
     // Convert int16 indices into int8
-    e.MOV(W0, 0x02'02);
-    e.DUP(Q1.H8(), W0);
+    e.MOVI(Q1.H8(), 0x02'02);
     e.MUL(indices.H8(), indices.H8(), Q1.H8());
 
-    e.MOV(W0, 0x01'00);
-    e.DUP(Q1.H8(), W0);
+    e.MOVI(Q1.H8(), 0x01'00);
     e.ADD(indices.H8(), indices.H8(), Q1.H8());
 
     // Table-registers must be sequential indices
