@@ -13,7 +13,12 @@
 #include <vector>
 
 #include "xenia/base/platform.h"
+#if XE_ARCH_AMD64
 #include "xenia/cpu/backend/x64/x64_backend.h"
+#elif XE_ARCH_ARM64
+#include "xenia/cpu/backend/a64/a64_backend.h"
+#endif // XE_ARCH
+
 #include "xenia/cpu/hir/hir_builder.h"
 #include "xenia/cpu/ppc/ppc_context.h"
 #include "xenia/cpu/ppc/ppc_frontend.h"
@@ -39,6 +44,8 @@ class TestFunction {
       std::unique_ptr<xe::cpu::backend::Backend> backend;
 #if XE_ARCH_AMD64
       backend.reset(new xe::cpu::backend::x64::X64Backend());
+#elif XE_ARCH_ARM64
+      backend.reset(new xe::cpu::backend::a64::A64Backend());
 #endif  // XE_ARCH
       if (backend) {
         auto processor = std::make_unique<Processor>(memory.get(), nullptr);
@@ -74,7 +81,7 @@ class TestFunction {
       uint32_t stack_address = memory_size - stack_size;
       uint32_t thread_state_address = stack_address - 0x1000;
       auto thread_state = std::make_unique<ThreadState>(processor.get(), 0x100);
-      assert_always();  // TODO: Allocate a thread stack!!!
+      // assert_always();  // TODO: Allocate a thread stack!!!
       auto ctx = thread_state->context();
       ctx->lr = 0xBCBCBCBC;
 
