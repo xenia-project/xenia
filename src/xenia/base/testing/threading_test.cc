@@ -975,8 +975,7 @@ TEST_CASE("Create and Run Thread", "[thread]") {
     thread = Thread::Create(params, [] {
       Thread::Exit(-1);
       FAIL("Function must not return");
-      while (true)
-        ;
+      while (true);
     });
     result = Wait(thread.get(), false, 1s);
     REQUIRE(result == WaitResult::kSuccess);
@@ -992,8 +991,7 @@ TEST_CASE("Create and Run Thread", "[thread]") {
     thread = Thread::Create(params, [] {
       Thread::Exit(-1);
       FAIL("Function must not return");
-      while (true)
-        ;
+      while (true);
     });
     REQUIRE(thread != nullptr);
     result = Wait(thread.get(), false, 1s);
@@ -1128,8 +1126,7 @@ TEST_CASE("Test Thread QueueUserCallback", "[thread]") {
     order++;  // 2
     AlertableSleep(1s);
     FAIL("Thread should have been terminated during alertable sleep");
-    while (true)
-      ;
+    while (true);
   });
   REQUIRE(!spin_wait_for(100ms, [&] { return order == 3; }));  // timeout
   thread->QueueUserCallback([] { Thread::Exit(0); });

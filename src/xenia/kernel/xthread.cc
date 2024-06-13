@@ -520,8 +520,8 @@ X_STATUS XThread::Terminate(int exit_code) {
 
 class reenter_exception {
  public:
-  reenter_exception(uint32_t address) : address_(address){};
-  virtual ~reenter_exception(){};
+  reenter_exception(uint32_t address) : address_(address) {};
+  virtual ~reenter_exception() {};
   uint32_t address() const { return address_; }
 
  private:

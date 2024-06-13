@@ -202,8 +202,7 @@ const char* HostExceptionReport::GetFormattedAddress(uintptr_t address) {
 
       size_t search_back = strlen(tmp_module_name);
       // hunt backwards for the last sep
-      while (tmp_module_name[--search_back] != '\\')
-        ;
+      while (tmp_module_name[--search_back] != '\\');
 
       // MessageBoxA(nullptr, tmp_module_name, "ffds", MB_OK);
       sprintf_s(current_buffer, "%s+%llX", tmp_module_name + search_back + 1,

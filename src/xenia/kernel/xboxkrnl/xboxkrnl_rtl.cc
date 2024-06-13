@@ -151,15 +151,13 @@ static int RtlCompareStringN_impl(uint8_t* string_1, unsigned int string_1_len,
                                   int case_insensitive) {
   if (string_1_len == 0xFFFFFFFF) {
     uint8_t* string1_strlen_iter = string_1;
-    while (*string1_strlen_iter++)
-      ;
+    while (*string1_strlen_iter++);
     string_1_len =
         static_cast<unsigned int>(string1_strlen_iter - string_1 - 1);
   }
   if (string_2_len == 0xFFFFFFFF) {
     uint8_t* string2_strlen_iter = string_2;
-    while (*string2_strlen_iter++)
-      ;
+    while (*string2_strlen_iter++);
     string_2_len =
         static_cast<unsigned int>(string2_strlen_iter - string_2 - 1);
   }

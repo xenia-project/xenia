@@ -23,7 +23,7 @@ DiscZarchiveDevice::DiscZarchiveDevice(const std::string_view mount_path,
                                        const std::filesystem::path& host_path)
     : Device(mount_path), name_("GDFX"), host_path_(host_path), reader_() {}
 
-DiscZarchiveDevice::~DiscZarchiveDevice(){};
+DiscZarchiveDevice::~DiscZarchiveDevice() {};
 
 bool DiscZarchiveDevice::Initialize() {
   reader_ =

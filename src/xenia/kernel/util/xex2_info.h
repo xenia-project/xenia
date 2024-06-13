@@ -394,7 +394,7 @@ struct xex2_opt_bound_path {
 struct xex2_opt_checksum_timedatestamp {
   xe::be<uint32_t> checksum;       // 0x0 sz:0x4
   xe::be<uint32_t> timedatestamp;  // 0x4 sz:0x4
-};                                 // size 8
+};  // size 8
 static_assert_size(xex2_opt_checksum_timedatestamp, 0x8);
 
 struct xex2_opt_static_library {

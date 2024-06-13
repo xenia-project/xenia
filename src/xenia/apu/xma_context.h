@@ -183,11 +183,11 @@ class XmaContext {
   };
   virtual bool Work() { return false; };
 
-  virtual void Enable(){};
+  virtual void Enable() {};
   virtual bool Block(bool poll) { return 0; };
-  virtual void Clear(){};
-  virtual void Disable(){};
-  virtual void Release(){};
+  virtual void Clear() {};
+  virtual void Disable() {};
+  virtual void Release() {};
 
   Memory* memory() const { return memory_; }
 

@@ -74,7 +74,7 @@ class UserData {
     };
   };
 
-  UserData(){};
+  UserData() {};
   UserData(X_USER_DATA_TYPE type) { data_.type = type; }
 
   virtual void Append(X_USER_DATA* data, DataByteStream* stream) {

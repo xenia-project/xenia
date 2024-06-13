@@ -51,7 +51,7 @@ struct PatchDataEntry {
   const PatchDataValue data;
 
   PatchDataEntry(const uint32_t memory_address, const PatchDataValue patch_data)
-      : address(memory_address), data(patch_data){};
+      : address(memory_address), data(patch_data) {};
 };
 
 struct PatchInfoEntry {
@@ -86,7 +86,7 @@ struct PatchData {
   uint8_t size;
   PatchDataType type;
 
-  PatchData(uint8_t size_, PatchDataType type_) : size(size_), type(type_){};
+  PatchData(uint8_t size_, PatchDataType type_) : size(size_), type(type_) {};
 };
 
 class PatchDB {

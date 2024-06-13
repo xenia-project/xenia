@@ -80,7 +80,7 @@ class XContentContainerDevice : public Device {
   // multiple file.
   virtual Result LoadHostFiles(FILE* header_file) = 0;
   // Initialize any container specific fields.
-  virtual void SetupContainer(){};
+  virtual void SetupContainer() {};
 
   Entry* ResolvePath(const std::string_view path);
   void CloseFiles();

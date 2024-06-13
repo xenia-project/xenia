@@ -82,7 +82,7 @@ class Backend {
      uses
   */
   virtual void DeinitializeBackendContext(void* ctx) {}
-  virtual void SetGuestRoundingMode(void* ctx, unsigned int mode){};
+  virtual void SetGuestRoundingMode(void* ctx, unsigned int mode) {};
   /*
         called by KeSetCurrentStackPointers in xboxkrnl_threading.cc just prior
   to calling XThread::Reenter this is an opportunity for a backend to clear any
