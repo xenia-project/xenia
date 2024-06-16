@@ -248,8 +248,6 @@ class Emulator {
   bool RestoreFromFile(const std::filesystem::path& path);
 
   // The game can request another title to be loaded.
-  bool TitleRequested();
-  void LaunchNextTitle();
   const std::filesystem::path GetNewDiscPath(std::string window_message = "");
 
   void WaitUntilExit();

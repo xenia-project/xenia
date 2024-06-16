@@ -905,20 +905,6 @@ bool Emulator::RestoreFromFile(const std::filesystem::path& path) {
   return true;
 }
 
-bool Emulator::TitleRequested() {
-  auto xam = kernel_state()->GetKernelModule<kernel::xam::XamModule>("xam.xex");
-  return xam->loader_data().launch_data_present;
-}
-
-void Emulator::LaunchNextTitle() {
-  auto xam = kernel_state()->GetKernelModule<kernel::xam::XamModule>("xam.xex");
-  auto next_title = xam->loader_data().launch_path;
-
-  // Swap disk doesn't require reloading
-  // This function should be purged?
-  CompleteLaunch("", next_title);
-}
-
 const std::filesystem::path Emulator::GetNewDiscPath(
     std::string window_message) {
   std::filesystem::path path = "";
