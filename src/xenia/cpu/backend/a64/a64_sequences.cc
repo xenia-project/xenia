@@ -2111,11 +2111,6 @@ struct DOT_PRODUCT_3_V128
           e.MOV(dest.toQ().Selem()[3], WZR);
           e.FADDP(dest.toQ().S4(), dest.toQ().S4(), dest.toQ().S4());
           e.FADDP(dest.toS(), dest.toD().S2());
-
-          // Isolate lower lane
-          e.MOVI(Q0.D2(), RepImm(0b00'00'00'00));
-          e.INS(Q0.Selem()[0], dest.toQ().Selem()[0]);
-          e.MOV(dest.toQ().B16(), Q0.B16());
         });
   }
 };
@@ -2134,11 +2129,6 @@ struct DOT_PRODUCT_4_V128
           e.FMUL(dest.toQ().S4(), src1.S4(), src2.S4());
           e.FADDP(dest.toQ().S4(), dest.toQ().S4(), dest.toQ().S4());
           e.FADDP(dest.toS(), dest.toD().S2());
-
-          // Isolate lower lane
-          e.MOVI(Q0.D2(), RepImm(0b00'00'00'00));
-          e.INS(Q0.Selem()[0], dest.toQ().Selem()[0]);
-          e.MOV(dest.toQ().B16(), Q0.B16());
         });
   }
 };
