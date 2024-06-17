@@ -17,8 +17,10 @@
 #include <utility>
 
 #include "third_party/cpptoml/include/cpptoml.h"
+#include "third_party/fmt/include/fmt/chrono.h"
 #include "third_party/fmt/include/fmt/format.h"
 #include "third_party/imgui/imgui.h"
+#include "third_party/stb/stb_image_write.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/cvar.h"
@@ -649,6 +651,9 @@ bool EmulatorWindow::Initialize() {
     display_menu->AddChild(
         MenuItem::Create(MenuItem::Type::kString, "&Fullscreen", "F11",
                          std::bind(&EmulatorWindow::ToggleFullscreen, this)));
+    display_menu->AddChild(
+        MenuItem::Create(MenuItem::Type::kString, "&Take Screenshot", "F10",
+                         std::bind(&EmulatorWindow::TakeScreenshot, this)));
   }
   main_menu->AddChild(std::move(display_menu));
 
@@ -833,6 +838,10 @@ void EmulatorWindow::OnKeyDown(ui::KeyEvent& e) {
     case ui::VirtualKey::kF11: {
       ToggleFullscreen();
     } break;
+    case ui::VirtualKey::kF10: {
+      TakeScreenshot();
+    } break;
+
     case ui::VirtualKey::kEscape: {
       // Allow users to escape fullscreen (but not enter it).
       if (!window_->IsFullscreen()) {
@@ -888,6 +897,71 @@ void EmulatorWindow::OnMouseDown(const ui::MouseEvent& e) {
 
 void EmulatorWindow::OnMouseUp(const ui::MouseEvent& e) {
   last_mouse_up = steady_clock::now();
+}
+
+void EmulatorWindow::TakeScreenshot() {
+  xe::ui::RawImage image;
+  if (!GetGraphicsSystemPresenter()->CaptureGuestOutput(image) ||
+      GetGraphicsSystemPresenter() == nullptr) {
+    XELOGE("Failed to capture guest output for screenshot");
+    return;
+  }
+  ExportScreenshot(image);
+}
+
+void EmulatorWindow::ExportScreenshot(const xe::ui::RawImage& image) {
+  auto t = std::time(nullptr);
+
+  // The format is: Year-Month-DayTHours-Minutes-Seconds based off ISO 8601
+  std::string datetime = fmt::format("{:%Y-%m-%dT%H-%M-%S}", fmt::localtime(t));
+
+  // Get the title id of the game because some titles contain characters that
+  // cannot be used as a directory
+  std::string title_id;
+  if (emulator()->title_id()) {
+    title_id = fmt::format("{:08X}", emulator()->title_id());
+  } else {
+    XELOGE("Failed to get the current title id");
+    return;
+  }
+
+  // Find where xenia.exe or xenia_canary.exe is located and create a
+  // screenshots folder
+  auto screenshot_path =
+      (xe::filesystem::GetExecutableFolder() / "screenshots" / title_id);
+
+  if (!std::filesystem::exists(screenshot_path)) {
+    std::filesystem::create_directories(screenshot_path);
+  }
+
+  std::string filename = fmt::format("{} - {}.png", title_id, datetime);
+  SaveImage(screenshot_path / filename, image);
+
+  xe::ui::ImGuiDialog::ShowMessageBox(
+      imgui_drawer_.get(), "Screenshot saved",
+      fmt::format("Screenshot saved to {}", xe::path_to_utf8(screenshot_path)));
+}
+
+// Converts a RawImage into a PNG file
+void EmulatorWindow::SaveImage(const std::filesystem::path& filepath,
+                               const xe::ui::RawImage& image) {
+  auto file = std::ofstream(filepath, std::ios::binary);
+  if (!file.is_open()) {
+    XELOGE("Failed to open file for writing: {}", xe::path_to_utf8(filepath));
+    return;
+  }
+
+  auto result = stbi_write_png_to_func(
+      [](void* context, void* data, int size) {
+        auto file = reinterpret_cast<std::ofstream*>(context);
+        file->write(reinterpret_cast<const char*>(data), size);
+      },
+      &file, image.width, image.height, 4, image.data.data(),
+      (int)image.stride);
+  if (result == 0) {
+    XELOGE("Failed to write PNG to file: {}", xe::path_to_utf8(filepath));
+    return;
+  }
 }
 
 void EmulatorWindow::ToggleFullscreenOnDoubleClick() {

@@ -87,6 +87,11 @@ class EmulatorWindow {
   void ToggleFullscreen();
   void SetInitializingShaderStorage(bool initializing);
 
+  void TakeScreenshot();
+  void ExportScreenshot(const xe::ui::RawImage& image);
+  void SaveImage(const std::filesystem::path& path,
+                 const xe::ui::RawImage& image);
+
   // Types of button functions for hotkeys.
   enum class ButtonFunctions {
     ToggleFullscreen,
