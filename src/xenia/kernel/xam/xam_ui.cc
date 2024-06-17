@@ -14,6 +14,7 @@
 #include "xenia/kernel/kernel_flags.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
+#include "xenia/kernel/xam/xam_content_device.h"
 #include "xenia/kernel/xam/xam_private.h"
 #include "xenia/ui/imgui_dialog.h"
 #include "xenia/ui/imgui_drawer.h"
@@ -24,6 +25,10 @@
 namespace xe {
 namespace kernel {
 namespace xam {
+
+DEFINE_bool(storage_selection_dialog, false,
+            "Show storage device selection dialog when the game requests it.",
+            "UI");
 
 // TODO(gibbed): This is all one giant WIP that seems to work better than the
 // previous immediate synchronous completion of dialogs.
@@ -286,7 +291,7 @@ static dword_result_t XamShowMessageBoxUi(
   }
 
   X_RESULT result;
-  if (cvars::headless) {
+  if (::cvars::headless) {
     // Auto-pick the focused button.
     auto run = [result_ptr, active_button]() -> X_RESULT {
       *result_ptr = static_cast<uint32_t>(active_button);
@@ -358,7 +363,7 @@ dword_result_t XNotifyQueueUI_entry(dword_t exnq, dword_t dwUserIndex,
 
   XELOGI("XNotifyQueueUI: {}", displayText);
 
-  if (cvars::headless) {
+  if (::cvars::headless) {
     return X_ERROR_SUCCESS;
   }
 
@@ -478,7 +483,7 @@ dword_result_t XamShowKeyboardUI_entry(
   auto buffer_size = static_cast<size_t>(buffer_length) * 2;
 
   X_RESULT result;
-  if (cvars::headless) {
+  if (::cvars::headless) {
     auto run = [default_text, buffer, buffer_length,
                 buffer_size]() -> X_RESULT {
       // Redirect default_text back into the buffer.
@@ -526,18 +531,49 @@ dword_result_t XamShowDeviceSelectorUI_entry(
     dword_t user_index, dword_t content_type, dword_t content_flags,
     qword_t total_requested, lpdword_t device_id_ptr,
     pointer_t<XAM_OVERLAPPED> overlapped) {
-  return xeXamDispatchHeadless(
-      [device_id_ptr]() -> X_RESULT {
-        // NOTE: 0x00000001 is our dummy device ID from xam_content.cc
-        *device_id_ptr = 0x00000001;
-        return X_ERROR_SUCCESS;
-      },
+  std::vector<const DummyDeviceInfo*> devices = ListStorageDevices();
+
+  if (::cvars::headless || !cvars::storage_selection_dialog) {
+    // Default to the first storage device (HDD) if headless.
+    return xeXamDispatchHeadless(
+        [device_id_ptr, devices]() -> X_RESULT {
+          if (devices.empty()) return X_ERROR_CANCELLED;
+
+          const DummyDeviceInfo* device_info = devices.front();
+          *device_id_ptr = static_cast<uint32_t>(device_info->device_id);
+          return X_ERROR_SUCCESS;
+        },
+        overlapped);
+  }
+
+  auto close = [device_id_ptr, devices](MessageBoxDialog* dialog) -> X_RESULT {
+    uint32_t button = dialog->chosen_button();
+    if (button >= devices.size()) return X_ERROR_CANCELLED;
+
+    const DummyDeviceInfo* device_info = devices.at(button);
+    *device_id_ptr = static_cast<uint32_t>(device_info->device_id);
+    return X_ERROR_SUCCESS;
+  };
+
+  std::string title = "Select storage device";
+  std::string desc = "";
+
+  cxxopts::OptionNames buttons;
+  for (auto& device_info : devices) {
+    buttons.push_back(to_utf8(device_info->name));
+  }
+  buttons.push_back("Cancel");
+
+  const Emulator* emulator = kernel_state()->emulator();
+  ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
+  return xeXamDispatchDialog<MessageBoxDialog>(
+      new MessageBoxDialog(imgui_drawer, title, desc, buttons, 0), close,
       overlapped);
 }
 DECLARE_XAM_EXPORT1(XamShowDeviceSelectorUI, kUI, kImplemented);
 
 void XamShowDirtyDiscErrorUI_entry(dword_t user_index) {
-  if (cvars::headless) {
+  if (::cvars::headless) {
     assert_always();
     exit(1);
     return;

@@ -59,6 +59,20 @@ const DummyDeviceInfo* GetDummyDeviceInfo(uint32_t device_id) {
   return it == end ? nullptr : *it;
 }
 
+std::vector<const DummyDeviceInfo*> ListStorageDevices(bool include_readonly) {
+  // FIXME: Should probably check content flags here instead.
+  std::vector<const DummyDeviceInfo*> devices;
+
+  for (const auto& device_info : dummy_device_infos_) {
+    if (!include_readonly && device_info->device_type == DeviceType::ODD) {
+      continue;
+    }
+    devices.emplace_back(device_info);
+  }
+
+  return devices;
+}
+
 dword_result_t XamContentGetDeviceName_entry(dword_t device_id,
                                              lpu16string_t name_buffer,
                                              dword_t name_capacity) {

@@ -35,6 +35,8 @@ struct DummyDeviceInfo {
 };
 
 const DummyDeviceInfo* GetDummyDeviceInfo(uint32_t device_id);
+std::vector<const DummyDeviceInfo*> ListStorageDevices(
+    bool include_readonly = false);
 
 }  // namespace xam
 }  // namespace kernel
