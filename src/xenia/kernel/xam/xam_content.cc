@@ -210,8 +210,9 @@ dword_result_t xeXamContentCreate(dword_t user_index, lpstring_t root_name,
     if (license_mask_ptr && XSUCCEEDED(result)) {
       *license_mask_ptr = 0;  // Stub!
 
-      // Set license only for DLCs
-      if (content_data.content_type == xe::XContentType::kMarketplaceContent) {
+      // Set license only for DLCs and XBLA titles
+      if (content_data.content_type == xe::XContentType::kMarketplaceContent ||
+          content_data.content_type == xe::XContentType::kArcadeTitle) {
         *license_mask_ptr = static_cast<uint32_t>(cvars::license_mask);
       }
     }
