@@ -22,14 +22,13 @@
 #include "xenia/ui/windowed_app_context.h"
 #include "xenia/xbox.h"
 
-namespace xe {
-namespace kernel {
-namespace xam {
-
 DEFINE_bool(storage_selection_dialog, false,
             "Show storage device selection dialog when the game requests it.",
             "UI");
 
+namespace xe {
+namespace kernel {
+namespace xam {
 // TODO(gibbed): This is all one giant WIP that seems to work better than the
 // previous immediate synchronous completion of dialogs.
 //
@@ -291,7 +290,7 @@ static dword_result_t XamShowMessageBoxUi(
   }
 
   X_RESULT result;
-  if (::cvars::headless) {
+  if (cvars::headless) {
     // Auto-pick the focused button.
     auto run = [result_ptr, active_button]() -> X_RESULT {
       *result_ptr = static_cast<uint32_t>(active_button);
@@ -363,7 +362,7 @@ dword_result_t XNotifyQueueUI_entry(dword_t exnq, dword_t dwUserIndex,
 
   XELOGI("XNotifyQueueUI: {}", displayText);
 
-  if (::cvars::headless) {
+  if (cvars::headless) {
     return X_ERROR_SUCCESS;
   }
 
@@ -483,7 +482,7 @@ dword_result_t XamShowKeyboardUI_entry(
   auto buffer_size = static_cast<size_t>(buffer_length) * 2;
 
   X_RESULT result;
-  if (::cvars::headless) {
+  if (cvars::headless) {
     auto run = [default_text, buffer, buffer_length,
                 buffer_size]() -> X_RESULT {
       // Redirect default_text back into the buffer.
@@ -533,7 +532,7 @@ dword_result_t XamShowDeviceSelectorUI_entry(
     pointer_t<XAM_OVERLAPPED> overlapped) {
   std::vector<const DummyDeviceInfo*> devices = ListStorageDevices();
 
-  if (::cvars::headless || !cvars::storage_selection_dialog) {
+  if (cvars::headless || !cvars::storage_selection_dialog) {
     // Default to the first storage device (HDD) if headless.
     return xeXamDispatchHeadless(
         [device_id_ptr, devices]() -> X_RESULT {
@@ -573,7 +572,7 @@ dword_result_t XamShowDeviceSelectorUI_entry(
 DECLARE_XAM_EXPORT1(XamShowDeviceSelectorUI, kUI, kImplemented);
 
 void XamShowDirtyDiscErrorUI_entry(dword_t user_index) {
-  if (::cvars::headless) {
+  if (cvars::headless) {
     assert_always();
     exit(1);
     return;
