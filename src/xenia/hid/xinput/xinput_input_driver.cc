@@ -162,13 +162,17 @@ X_RESULT XInputInputDriver::GetState(uint32_t user_index,
   }
 
   out_state->packet_number = native_state.state.dwPacketNumber;
-  out_state->gamepad.buttons = native_state.state.Gamepad.wButtons;
-  out_state->gamepad.left_trigger = native_state.state.Gamepad.bLeftTrigger;
-  out_state->gamepad.right_trigger = native_state.state.Gamepad.bRightTrigger;
-  out_state->gamepad.thumb_lx = native_state.state.Gamepad.sThumbLX;
-  out_state->gamepad.thumb_ly = native_state.state.Gamepad.sThumbLY;
-  out_state->gamepad.thumb_rx = native_state.state.Gamepad.sThumbRX;
-  out_state->gamepad.thumb_ry = native_state.state.Gamepad.sThumbRY;
+  if (is_active()) {
+    out_state->gamepad.buttons = native_state.state.Gamepad.wButtons;
+    out_state->gamepad.left_trigger = native_state.state.Gamepad.bLeftTrigger;
+    out_state->gamepad.right_trigger = native_state.state.Gamepad.bRightTrigger;
+    out_state->gamepad.thumb_lx = native_state.state.Gamepad.sThumbLX;
+    out_state->gamepad.thumb_ly = native_state.state.Gamepad.sThumbLY;
+    out_state->gamepad.thumb_rx = native_state.state.Gamepad.sThumbRX;
+    out_state->gamepad.thumb_ry = native_state.state.Gamepad.sThumbRY;
+  } else {
+    std::memset(&out_state->gamepad, 0, sizeof(out_state->gamepad));
+  }
 
   return result;
 }
@@ -218,6 +222,10 @@ X_RESULT XInputInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
   result = xigk(user_index, 0, &native_keystroke);
   if (result) {
     return result;
+  }
+
+  if (!is_active()) {
+    return X_ERROR_EMPTY;
   }
 
   out_keystroke->virtual_key = native_keystroke.VirtualKey;
