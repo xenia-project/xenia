@@ -62,4 +62,5 @@ cd ..
 
 echo ""
 echo "Cleaning up binutils build temp"
-#rm -rf ./binutils-$SNAPSHOT_VERSION
+rm -rf ./binutils-$SNAPSHOT_VERSION
+rm -rf ./binutils-$SNAPSHOT_VERSION.tar.gz
