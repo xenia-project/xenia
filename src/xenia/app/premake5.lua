@@ -32,6 +32,7 @@ project("xenia-app")
     "libavcodec",
     "libavutil",
     "mspack",
+    "SDL2",
     "snappy",
     "xxhash",
   })
