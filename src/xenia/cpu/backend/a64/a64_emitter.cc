@@ -196,7 +196,14 @@ bool A64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   // IMPORTANT: any changes to the prolog must be kept in sync with
   //     A64CodeCache, which dynamically generates exception information.
   //     Adding or changing anything here must be matched!
-  const size_t stack_size = StackLayout::GUEST_STACK_SIZE + stack_offset;
+  size_t stack_size = StackLayout::GUEST_STACK_SIZE + stack_offset;
+
+  // The SUB instruction can only encode immediates withi 0xFFF or 0xFFF000
+  // If the stack size is greater than 0xFFF, then just align it to 0x1000
+  if (stack_size > 0xFFF) {
+    stack_size = xe::align(stack_size, static_cast<size_t>(0x1000));
+  }
+
   assert_true(stack_size % 16 == 0);
   func_info.stack_size = stack_size;
   stack_size_ = stack_size;
