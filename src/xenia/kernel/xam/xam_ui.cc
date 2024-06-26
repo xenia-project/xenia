@@ -742,6 +742,74 @@ dword_result_t XamShowMarketplaceUI_entry(dword_t user_index, dword_t ui_type,
 }
 DECLARE_XAM_EXPORT1(XamShowMarketplaceUI, kUI, kSketchy);
 
+dword_result_t XamShowMarketplaceDownloadItemsUI_entry(
+    dword_t user_index, dword_t ui_type, lpqword_t offers, dword_t num_offers,
+    lpdword_t hresult_ptr, pointer_t<XAM_OVERLAPPED> overlapped_ptr) {
+  // ui_type:
+  // 1000 - free
+  // 1001 - paid
+  if (user_index >= 4) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  if (!kernel_state()->IsUserSignedIn(user_index)) {
+    return X_ERROR_NO_SUCH_USER;
+  }
+
+  if (cvars::headless) {
+    return xeXamDispatchHeadless(
+        [hresult_ptr]() -> X_RESULT {
+          if (hresult_ptr) {
+            *hresult_ptr = X_E_SUCCESS;
+          }
+          return X_ERROR_SUCCESS;
+        },
+        overlapped_ptr);
+  }
+
+  auto close = [hresult_ptr](MessageBoxDialog* dialog) -> X_RESULT {
+    if (hresult_ptr) {
+      // TODO
+      *hresult_ptr = X_E_SUCCESS;
+    }
+    return X_ERROR_SUCCESS;
+  };
+
+  std::string title = "Xbox Marketplace";
+  std::string desc = "";
+  cxxopts::OptionNames buttons = {"OK"};
+
+  switch (ui_type) {
+    case 1000:
+      desc =
+          "Game requested to open download page for the following free offer "
+          "IDs:";
+      break;
+    case 1001:
+      desc =
+          "Game requested to open download page for the following offer IDs:";
+      break;
+    default:
+      return X_ERROR_INVALID_PARAMETER;
+  }
+
+  for (uint32_t i = 0; i < num_offers; i++) {
+    desc += fmt::format("\n0x{:16X}", offers[i]);
+  }
+
+  desc +=
+      "\n\nNote that since Xenia cannot access Xbox Marketplace, any DLC "
+      "must "
+      "be installed manually using File -> Install Content.";
+
+  const Emulator* emulator = kernel_state()->emulator();
+  ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
+  return xeXamDispatchDialog<MessageBoxDialog>(
+      new MessageBoxDialog(imgui_drawer, title, desc, buttons, 0), close,
+      overlapped_ptr);
+}
+DECLARE_XAM_EXPORT1(XamShowMarketplaceDownloadItemsUI, kUI, kSketchy);
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
