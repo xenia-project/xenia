@@ -593,9 +593,16 @@ X_STATUS Emulator::LaunchDefaultModule(const std::filesystem::path& path) {
   return result;
 }
 
-X_STATUS Emulator::InstallContentPackage(const std::filesystem::path& path) {
+X_STATUS Emulator::InstallContentPackage(
+    const std::filesystem::path& path,
+    ContentInstallationInfo& installation_info) {
   std::unique_ptr<vfs::Device> device =
       vfs::XContentContainerDevice::CreateContentDevice("", path);
+
+  installation_info.content_name = "Invalid Content Package!";
+  installation_info.content_type = static_cast<XContentType>(0);
+  installation_info.installation_path = xe::path_to_utf8(path.filename());
+
   if (!device || !device->Initialize()) {
     XELOGE("Failed to initialize device");
     return X_STATUS_INVALID_PARAMETER;
@@ -612,6 +619,15 @@ X_STATUS Emulator::InstallContentPackage(const std::filesystem::path& path) {
       content_root() / fmt::format("{:08X}", dev->title_id()) / "Headers" /
       fmt::format("{:08X}", dev->content_type()) / path.filename();
 
+  installation_info.installation_path =
+      fmt::format("{:08X}/{:08X}/{}", dev->title_id(), dev->content_type(),
+                  xe::path_to_utf8(path.filename()));
+
+  installation_info.content_name =
+      xe::to_utf8(dev->content_header().display_name());
+  installation_info.content_type =
+      static_cast<XContentType>(dev->content_type());
+
   if (std::filesystem::exists(installation_path)) {
     // TODO(Gliniak): Popup
     // Do you want to overwrite already existing data?
@@ -619,6 +635,7 @@ X_STATUS Emulator::InstallContentPackage(const std::filesystem::path& path) {
     std::error_code error_code;
     std::filesystem::create_directories(installation_path, error_code);
     if (error_code) {
+      installation_info.content_name = "Cannot Create Content Directory!";
       return error_code.value();
     }
   }

@@ -10,6 +10,7 @@
 #ifndef XENIA_XBOX_H_
 #define XENIA_XBOX_H_
 
+#include <map>
 #include <string>
 
 #include "xenia/base/memory.h"
@@ -436,6 +437,43 @@ enum class XContentType : uint32_t {
   kPodcastVideo = 0x00500000,
   kViralVideo = 0x00600000,
   kCommunityGame = 0x02000000,
+};
+
+const static std::map<XContentType, std::string> XContentTypeMap = {
+    {XContentType::kSavedGame, "Saved Game"},
+    {XContentType::kMarketplaceContent, "Marketplace Content"},
+    {XContentType::kPublisher, "Publisher"},
+    {XContentType::kXbox360Title, "Xbox 360 Title"},
+    {XContentType::kIptvPauseBuffer, "IPTV Pause Buffer"},
+    {XContentType::kXNACommunity, "XNA Community"},
+    {XContentType::kInstalledGame, "Installed Game"},
+    {XContentType::kXboxTitle, "Xbox Title"},
+    {XContentType::kSocialTitle, "Social Title"},
+    {XContentType::kGamesOnDemand, "Game on Demand"},
+    {XContentType::kSUStoragePack, "SU Storage Pack"},
+    {XContentType::kAvatarItem, "Avatar Item"},
+    {XContentType::kProfile, "Profile"},
+    {XContentType::kGamerPicture, "Gamer Picture"},
+    {XContentType::kTheme, "Theme"},
+    {XContentType::kCacheFile, "Cache File"},
+    {XContentType::kStorageDownload, "Storage Download"},
+    {XContentType::kXboxSavedGame, "Xbox Saved Game"},
+    {XContentType::kXboxDownload, "Xbox Download"},
+    {XContentType::kGameDemo, "Game Demo"},
+    {XContentType::kVideo, "Video"},
+    {XContentType::kGameTitle, "Game Title"},
+    {XContentType::kInstaller, "Installer"},
+    {XContentType::kGameTrailer, "Game Trailer"},
+    {XContentType::kArcadeTitle, "Arcade Title"},
+    {XContentType::kXNA, "XNA"},
+    {XContentType::kLicenseStore, "License Store"},
+    {XContentType::kMovie, "Movie"},
+    {XContentType::kTV, "TV"},
+    {XContentType::kMusicVideo, "Music Video"},
+    {XContentType::kGameVideo, "Game Video"},
+    {XContentType::kPodcastVideo, "Podcast Video"},
+    {XContentType::kViralVideo, "Viral Video"},
+    {XContentType::kCommunityGame, "Community Game"},
 };
 
 enum class XDeploymentType : uint32_t {

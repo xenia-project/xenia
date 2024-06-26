@@ -1045,20 +1045,58 @@ void EmulatorWindow::InstallContent() {
     return;
   }
 
-  for (auto path : paths) {
+  using content_installation_data =
+      std::tuple<X_STATUS, std::string, std::string>;
+  std::map<XContentType, std::vector<content_installation_data>>
+      content_installation_details;
+
+  for (const auto& path : paths) {
     // Normalize the path and make absolute.
     auto abs_path = std::filesystem::absolute(path);
-    auto result = emulator_->InstallContentPackage(abs_path);
 
-    if (result != X_STATUS_SUCCESS) {
-      XELOGE("Failed to install content! Error code: {:08X}", result);
+    Emulator::ContentInstallationInfo installation_info;
+    auto result = emulator_->InstallContentPackage(abs_path, installation_info);
 
-      xe::ui::ImGuiDialog::ShowMessageBox(
-          imgui_drawer_.get(), "Failed to install content!",
-          "Failed to install content!\n\nCheck xenia.log for technical "
-          "details.");
-    }
+    auto entry =
+        content_installation_details.find(installation_info.content_type);
+
+    // There is no entry with that specific type of XContent, so we must add it.
+    if (entry == content_installation_details.end()) {
+      content_installation_details.insert({installation_info.content_type, {}});
+      entry = content_installation_details.find(installation_info.content_type);
+    };
+
+    entry->second.push_back({result, installation_info.content_name,
+                             installation_info.installation_path});
   }
+
+  // Prepare installation process summary message
+  std::string summary = "Installation result: \n";
+
+  for (const auto& content_type : content_installation_details) {
+    if (XContentTypeMap.find(content_type.first) != XContentTypeMap.cend()) {
+      summary += XContentTypeMap.at(content_type.first) + ":\n";
+    } else {
+      summary += "Unknown:\n";
+    }
+
+    for (const auto& content_installation_entry : content_type.second) {
+      const std::string status =
+          std::get<0>(content_installation_entry) == X_STATUS_SUCCESS
+              ? "Success"
+              : fmt::format("Failed (0x{:08X})",
+                            std::get<0>(content_installation_entry));
+
+      summary += fmt::format("\t{} - {} => {}\n", status,
+                             std::get<1>(content_installation_entry),
+                             std::get<2>(content_installation_entry));
+    }
+
+    summary += "\n";
+  }
+
+  xe::ui::ImGuiDialog::ShowMessageBox(imgui_drawer_.get(),
+                                      "Content Installation Summary", summary);
 }
 
 void EmulatorWindow::ExtractZarchive() {
