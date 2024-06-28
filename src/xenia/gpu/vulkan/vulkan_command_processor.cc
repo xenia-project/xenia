@@ -1286,8 +1286,11 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
     return;
   }
 
+  auto aspect = graphics_system_->GetScaledAspectRatio();
+
   presenter->RefreshGuestOutput(
-      frontbuffer_width_scaled, frontbuffer_height_scaled, 1280, 720,
+      frontbuffer_width_scaled, frontbuffer_height_scaled, aspect.first,
+      aspect.second,
       [this, frontbuffer_width_scaled, frontbuffer_height_scaled,
        frontbuffer_format, swap_texture_view](
           ui::Presenter::GuestOutputRefreshContext& context) -> bool {

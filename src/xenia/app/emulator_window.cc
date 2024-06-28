@@ -161,11 +161,12 @@ const std::string kRecentlyPlayedTitlesFilename = "recent.toml";
 const std::string kBaseTitle = "Xenia-canary";
 
 EmulatorWindow::EmulatorWindow(Emulator* emulator,
-                               ui::WindowedAppContext& app_context)
+                               ui::WindowedAppContext& app_context,
+                               uint32_t width, uint32_t height)
     : emulator_(emulator),
       app_context_(app_context),
       window_listener_(*this),
-      window_(ui::Window::Create(app_context, kBaseTitle, 1280, 720)),
+      window_(ui::Window::Create(app_context, kBaseTitle, width, height)),
       imgui_drawer_(
           std::make_unique<ui::ImGuiDrawer>(window_.get(), kZOrderImGui)),
       display_config_game_config_load_callback_(
@@ -190,10 +191,11 @@ EmulatorWindow::EmulatorWindow(Emulator* emulator,
 }
 
 std::unique_ptr<EmulatorWindow> EmulatorWindow::Create(
-    Emulator* emulator, ui::WindowedAppContext& app_context) {
+    Emulator* emulator, ui::WindowedAppContext& app_context, uint32_t width,
+    uint32_t height) {
   assert_true(app_context.IsInUIThread());
   std::unique_ptr<EmulatorWindow> emulator_window(
-      new EmulatorWindow(emulator, app_context));
+      new EmulatorWindow(emulator, app_context, width, height));
   if (!emulator_window->Initialize()) {
     return nullptr;
   }

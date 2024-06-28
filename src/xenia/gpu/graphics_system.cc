@@ -67,6 +67,9 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
   kernel_state_ = kernel_state;
   app_context_ = app_context;
 
+  scaled_aspect_x_ = 16;
+  scaled_aspect_y_ = 9;
+
   if (provider_) {
     // Safe if either the UI thread call or the presenter creation fails.
     if (app_context_) {

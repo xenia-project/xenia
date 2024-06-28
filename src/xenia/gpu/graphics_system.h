@@ -86,6 +86,14 @@ class GraphicsSystem {
   bool Save(ByteStream* stream);
   bool Restore(ByteStream* stream);
 
+  std::pair<uint32_t, uint32_t> GetScaledAspectRatio() const {
+    return {scaled_aspect_x_, scaled_aspect_y_};
+  };
+  void SetScaledAspectRatio(uint32_t x, uint32_t y) {
+    scaled_aspect_x_ = x;
+    scaled_aspect_y_ = y;
+  };
+
  protected:
   GraphicsSystem();
 
@@ -116,6 +124,9 @@ class GraphicsSystem {
   std::unique_ptr<CommandProcessor> command_processor_;
 
   bool paused_ = false;
+
+  uint32_t scaled_aspect_x_ = 0;
+  uint32_t scaled_aspect_y_ = 0;
 
  private:
   std::unique_ptr<ui::Presenter> presenter_;
