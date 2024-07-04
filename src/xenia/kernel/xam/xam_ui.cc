@@ -575,6 +575,22 @@ dword_result_t XamShowDeviceSelectorUI_entry(
     dword_t user_index, dword_t content_type, dword_t content_flags,
     qword_t total_requested, lpdword_t device_id_ptr,
     pointer_t<XAM_OVERLAPPED> overlapped) {
+  if (!overlapped) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  if ((user_index >= 4 && user_index != 0xFF) ||
+      (content_flags & 0x83F00008) != 0 || !device_id_ptr) {
+    XOverlappedSetExtendedError(overlapped, X_ERROR_INVALID_PARAMETER);
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  if (user_index != 0xFF && !kernel_state()->IsUserSignedIn(user_index)) {
+    kernel_state()->CompleteOverlappedImmediate(overlapped,
+                                                X_ERROR_NO_SUCH_USER);
+    return X_ERROR_IO_PENDING;
+  }
+
   std::vector<const DummyDeviceInfo*> devices = ListStorageDevices();
 
   if (cvars::headless || !cvars::storage_selection_dialog) {
@@ -666,11 +682,12 @@ dword_result_t XamGetDashContext_entry(const ppc_context_t& ctx) {
 DECLARE_XAM_EXPORT1(XamGetDashContext, kNone, kImplemented);
 
 dword_result_t XamShowMarketplaceUI_entry(dword_t user_index, dword_t ui_type,
-                                          qword_t offer_id, dword_t unk_dword) {
+                                          qword_t offer_id,
+                                          dword_t content_types) {
   // ui_type:
   // 0 - view all content for the current title
   // 1 - view content specified by offer id
-  // unk_dword:
+  // content_types:
   // always -1? check more games
   if (user_index >= 4) {
     return X_ERROR_INVALID_PARAMETER;
@@ -744,15 +761,20 @@ DECLARE_XAM_EXPORT1(XamShowMarketplaceUI, kUI, kSketchy);
 
 dword_result_t XamShowMarketplaceDownloadItemsUI_entry(
     dword_t user_index, dword_t ui_type, lpqword_t offers, dword_t num_offers,
-    lpdword_t hresult_ptr, pointer_t<XAM_OVERLAPPED> overlapped_ptr) {
+    lpdword_t hresult_ptr, pointer_t<XAM_OVERLAPPED> overlapped) {
   // ui_type:
   // 1000 - free
   // 1001 - paid
-  if (user_index >= 4) {
+  if (user_index >= 4 || !offers || num_offers > 6) {
     return X_ERROR_INVALID_PARAMETER;
   }
 
   if (!kernel_state()->IsUserSignedIn(user_index)) {
+    if (overlapped) {
+      kernel_state()->CompleteOverlappedImmediate(overlapped,
+                                                  X_ERROR_NO_SUCH_USER);
+      return X_ERROR_IO_PENDING;
+    }
     return X_ERROR_NO_SUCH_USER;
   }
 
@@ -764,7 +786,7 @@ dword_result_t XamShowMarketplaceDownloadItemsUI_entry(
           }
           return X_ERROR_SUCCESS;
         },
-        overlapped_ptr);
+        overlapped);
   }
 
   auto close = [hresult_ptr](MessageBoxDialog* dialog) -> X_RESULT {
@@ -806,7 +828,7 @@ dword_result_t XamShowMarketplaceDownloadItemsUI_entry(
   ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
   return xeXamDispatchDialog<MessageBoxDialog>(
       new MessageBoxDialog(imgui_drawer, title, desc, buttons, 0), close,
-      overlapped_ptr);
+      overlapped);
 }
 DECLARE_XAM_EXPORT1(XamShowMarketplaceDownloadItemsUI, kUI, kSketchy);
 
