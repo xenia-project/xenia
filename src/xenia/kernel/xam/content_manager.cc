@@ -79,14 +79,30 @@ std::filesystem::path ContentManager::ResolvePackagePath(
   // Content path:
   // content_root/title_id/content_type/data_file_name/
   auto package_root = ResolvePackageRoot(data.content_type, data.title_id);
-  std::string disc_directory = "";
-  std::filesystem::path package_path =
-      package_root / xe::to_path(data.file_name());
+  std::string final_name = xe::string_util::trim(data.file_name());
+  std::filesystem::path package_path = package_root / xe::to_path(final_name);
 
   if (disc_number != -1) {
     package_path /= fmt::format("disc{:03}", disc_number);
   }
   return package_path;
+}
+
+std::filesystem::path ContentManager::ResolvePackageHeaderPath(
+    const std::string_view file_name, XContentType content_type,
+    uint32_t title_id) {
+  if (title_id == kCurrentlyRunningTitleId) {
+    title_id = kernel_state_->title_id();
+  }
+  auto title_id_str = fmt::format("{:08X}", title_id);
+  auto content_type_str = fmt::format("{:08X}", uint32_t(content_type));
+  std::string final_name =
+      xe::string_util::trim(std::string(file_name)) + ".header";
+
+  // Header root path:
+  // content_root/title_id/Headers/content_type/
+  return root_path_ / title_id_str / kGameContentHeaderDirName /
+         content_type_str / final_name;
 }
 
 std::vector<XCONTENT_AGGREGATE_DATA> ContentManager::ListContent(
@@ -165,23 +181,20 @@ bool ContentManager::ContentExists(const XCONTENT_AGGREGATE_DATA& data) {
 
 X_RESULT ContentManager::WriteContentHeaderFile(
     const XCONTENT_AGGREGATE_DATA* data) {
-  auto title_id = fmt::format("{:08X}", kernel_state_->title_id());
-  auto content_type =
-      fmt::format("{:08X}", load_and_swap<uint32_t>(&data->content_type));
-  auto header_path =
-      root_path_ / title_id / kGameContentHeaderDirName / content_type;
+  auto header_path = ResolvePackageHeaderPath(
+      data->file_name(), data->content_type, data->title_id);
+  auto parent_path = header_path.parent_path();
 
-  if (!std::filesystem::exists(header_path)) {
-    if (!std::filesystem::create_directories(header_path)) {
+  if (!std::filesystem::exists(parent_path)) {
+    if (!std::filesystem::create_directories(parent_path)) {
       return X_STATUS_ACCESS_DENIED;
     }
   }
-  auto header_filename = data->file_name() + ".header";
 
-  xe::filesystem::CreateEmptyFile(header_path / header_filename);
+  xe::filesystem::CreateEmptyFile(header_path);
 
-  if (std::filesystem::exists(header_path / header_filename)) {
-    auto file = xe::filesystem::OpenFile(header_path / header_filename, "wb");
+  if (std::filesystem::exists(header_path)) {
+    auto file = xe::filesystem::OpenFile(header_path, "wb");
     fwrite(data, 1, sizeof(XCONTENT_AGGREGATE_DATA), file);
     fclose(file);
     return X_STATUS_SUCCESS;
@@ -193,15 +206,8 @@ X_RESULT ContentManager::ReadContentHeaderFile(const std::string_view file_name,
                                                XContentType content_type,
                                                XCONTENT_AGGREGATE_DATA& data,
                                                const uint32_t title_id) {
-  auto title_id_str = fmt::format("{:08X}", title_id);
-  if (title_id == -1) {
-    title_id_str = fmt::format("{:08X}", kernel_state_->title_id());
-  }
-
-  auto content_type_directory = fmt::format("{:08X}", content_type);
-  auto header_file_path = root_path_ / title_id_str /
-                          kGameContentHeaderDirName / content_type_directory /
-                          file_name;
+  auto header_file_path =
+      ResolvePackageHeaderPath(file_name, content_type, title_id);
   constexpr uint32_t header_size = sizeof(XCONTENT_AGGREGATE_DATA);
 
   if (std::filesystem::exists(header_file_path)) {

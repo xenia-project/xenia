@@ -175,6 +175,9 @@ class ContentManager {
                                            uint32_t title_id = -1);
   std::filesystem::path ResolvePackagePath(const XCONTENT_AGGREGATE_DATA& data,
                                            const uint32_t disc_number = -1);
+  std::filesystem::path ResolvePackageHeaderPath(
+      const std::string_view file_name, XContentType content_type,
+      uint32_t title_id = -1);
 
   KernelState* kernel_state_;
   std::filesystem::path root_path_;
