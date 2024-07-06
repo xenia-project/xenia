@@ -142,9 +142,9 @@ std::vector<XCONTENT_AGGREGATE_DATA> ContentManager::ListContent(
       }
 
       XCONTENT_AGGREGATE_DATA content_data;
-      if (XSUCCEEDED(ReadContentHeaderFile(
-              xe::path_to_utf8(file_info.name) + ".header", content_type,
-              content_data, title_id))) {
+      if (XSUCCEEDED(ReadContentHeaderFile(xe::path_to_utf8(file_info.name),
+                                           content_type, content_data,
+                                           title_id))) {
         result.emplace_back(std::move(content_data));
       } else {
         content_data.device_id = device_id;
