@@ -56,7 +56,7 @@ jobs:
 
   build-windows:
     name: Build (Windows) #  runner.os can't be used here
-    runs-on: windows-2022
+    runs-on: windows-2019
     needs: lint
     env:
       POWERSHELL_TELEMETRY_OPTOUT: 1

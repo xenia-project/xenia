@@ -8,7 +8,7 @@ REM Environment Validation
 REM ============================================================================
 
 SET "PYTHON_MINIMUM_VERSION[0]=3"
-SET "PYTHON_MINIMUM_VERSION[1]=8"
+SET "PYTHON_MINIMUM_VERSION[1]=7"
 CALL :check_python
 IF %_RESULT% NEQ 0 (
   ECHO.
