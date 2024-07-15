@@ -69,9 +69,7 @@ void GetSubresourcesFromFetchConstant(
   uint32_t mip_page = fetch.mip_address & 0x1FFFF;
 
   uint32_t mip_min_level, mip_max_level;
-  // Not taking mip_filter == kBaseMap into account for mip_max_level because
-  // the mip filter may be overridden by shader fetch instructions.
-  if (mip_page == 0) {
+  if (fetch.mip_filter == xenos::TextureFilter::kBaseMap || mip_page == 0) {
     mip_min_level = 0;
     mip_max_level = 0;
   } else {
