@@ -120,6 +120,13 @@ uint32_t XAchievementEnumerator::WriteItems(uint32_t buffer_ptr,
 uint32_t XUserStatsEnumerator::WriteItems(uint32_t buffer_ptr,
                                           uint8_t* buffer_data,
                                           uint32_t* written_count) {
+  size_t count = std::min(items_.size() - current_item_, items_per_enumerate());
+  if (!count) {
+    return X_ERROR_NO_MORE_FILES;
+  }
+
+  size_t size = count * item_size();
+
   return X_ERROR_SUCCESS;
 }
 

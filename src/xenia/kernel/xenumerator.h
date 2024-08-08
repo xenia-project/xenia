@@ -176,6 +176,12 @@ class XAchievementEnumerator : public XEnumerator {
 
 class XUserStatsEnumerator : public XEnumerator {
  public:
+  struct XUSER_STATS_SPEC {
+    xe::be<uint32_t> ViewId;
+    xe::be<uint32_t> NumColumnIds;
+    xe::be<uint16_t> rgwColumnIds[0x40];
+  };
+
   XUserStatsEnumerator(KernelState* kernel_state, size_t items_per_enumerate)
       : XEnumerator(kernel_state, items_per_enumerate, 0) {}
 
@@ -183,6 +189,7 @@ class XUserStatsEnumerator : public XEnumerator {
                       uint32_t* written_count) override;
 
  private:
+  std::vector<XUSER_STATS_SPEC> items_;
   size_t current_item_ = 0;
 };
 
