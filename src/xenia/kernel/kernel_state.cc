@@ -991,10 +991,10 @@ uint32_t KernelState::CreateKeTimestampBundle() {
 
   xe::store_and_swap<uint32_t>(&lpKeTimeStampBundle->padding, 0);
 
+  ke_timestamp_bundle_ptr_ = pKeTimeStampBundle;
   timestamp_timer_ = xe::threading::HighResolutionTimer::CreateRepeating(
       std::chrono::milliseconds(1),
       [this]() { this->UpdateKeTimestampBundle(); });
-  ke_timestamp_bundle_ptr_ = pKeTimeStampBundle;
   return pKeTimeStampBundle;
 }
 
