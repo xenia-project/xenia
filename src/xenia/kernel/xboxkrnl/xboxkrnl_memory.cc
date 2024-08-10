@@ -452,7 +452,8 @@ uint32_t xeMmAllocatePhysicalMemoryEx(uint32_t flags, uint32_t region_size,
     // Failed - assume no memory available.
     return 0;
   }
-  XELOGD("MmAllocatePhysicalMemoryEx = {:08X}", base_address);
+  XELOGD("MmAllocatePhysicalMemoryEx = {:08X} Size: {:08X}", base_address,
+         adjusted_size);
 
   return base_address;
 }
