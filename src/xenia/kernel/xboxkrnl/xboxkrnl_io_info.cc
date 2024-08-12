@@ -205,6 +205,11 @@ dword_result_t NtSetInformationFile_entry(
   uint32_t out_length;
 
   switch (info_class) {
+    case XFileBasicInformation: {
+      auto info = info_ptr.as<X_FILE_BASIC_INFORMATION*>();
+      out_length = sizeof(*info);
+      break;
+    }
     case XFileRenameInformation: {
       auto info = info_ptr.as<X_FILE_RENAME_INFORMATION*>();
       // Compute path, possibly attrs relative.

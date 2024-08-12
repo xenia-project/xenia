@@ -58,6 +58,16 @@ enum X_FILE_INFORMATION_CLASS {
 
 #pragma pack(push, 1)
 
+// https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_file_basic_information
+struct X_FILE_BASIC_INFORMATION {
+  be<uint64_t> creation_time;
+  be<uint64_t> last_access_time;
+  be<uint64_t> last_write_time;
+  be<uint64_t> change_time;
+  be<uint64_t> attributes;
+};
+static_assert_size(X_FILE_BASIC_INFORMATION, 0x28);
+
 // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_internal_information
 struct X_FILE_INTERNAL_INFORMATION {
   be<uint64_t> index_number;
