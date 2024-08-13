@@ -31,7 +31,10 @@ namespace xbdm {
   dword_result_t x##_entry() { return X_STATUS_INVALID_PARAMETER; } \
   DECLARE_XBDM_EXPORT1(x, kDebug, kStub)
 
-MAKE_DUMMY_STUB_PTR(DmAllocatePool);
+dword_result_t DmAllocatePool_entry(dword_t bytes) {
+  return kernel_memory()->SystemHeapAlloc(bytes);
+};
+DECLARE_XBDM_EXPORT1(DmAllocatePool, kDebug, kImplemented);
 
 void DmCloseLoadedModules_entry(lpdword_t unk0_ptr) {}
 DECLARE_XBDM_EXPORT1(DmCloseLoadedModules, kDebug, kStub);
@@ -150,6 +153,9 @@ dword_result_t DmGetSystemInfo_entry(pointer_t<XBDM_SYSTEM_INFO> info) {
   return XBDM_SUCCESSFUL;
 }
 DECLARE_XBDM_EXPORT1(DmGetSystemInfo, kDebug, kStub);
+
+dword_result_t DmIsFastCAPEnabled_entry() { return XBDM_UNSUCCESSFUL; }
+DECLARE_XBDM_EXPORT1(DmIsFastCAPEnabled, kDebug, kStub);
 
 void __CAP_Start_Profiling_entry(dword_t a1, dword_t a2) {}
 
