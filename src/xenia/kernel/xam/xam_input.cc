@@ -31,6 +31,15 @@ constexpr uint32_t XINPUT_FLAG_MIC = 0x20;  // Based on "karaoke" titles
 constexpr uint32_t XINPUT_FLAG_ANYDEVICE = 0xFF;
 constexpr uint32_t XINPUT_FLAG_ANY_USER = 1 << 30;
 
+dword_result_t XAutomationpUnbindController_entry(dword_t user_index) {
+  if (user_index > 4) {
+    return 0;
+  }
+
+  return 1;
+}
+DECLARE_XAM_EXPORT1(XAutomationpUnbindController, kInput, kStub);
+
 void XamResetInactivity_entry() {
   // Do we need to do anything?
 }
