@@ -132,5 +132,47 @@ void HostPathEntry::update() {
   }
 }
 
+bool HostPathEntry::SetAttributes(uint64_t attributes) {
+  if (device_->is_read_only()) {
+    return false;
+  }
+  return xe::filesystem::SetAttributes(host_path_, attributes);
+}
+
+bool HostPathEntry::SetCreateTimestamp(uint64_t timestamp) {
+  if (device_->is_read_only()) {
+    XELOGW(
+        "{} - Tried to change read-only creation timestamp for file: {} to: {}",
+        __FUNCTION__, name_, timestamp);
+    return false;
+  }
+  XELOGI("{} - Tried to change creation timestamp for file: {} to: {}",
+         __FUNCTION__, name_, timestamp);
+  return true;
+}
+
+bool HostPathEntry::SetAccessTimestamp(uint64_t timestamp) {
+  if (device_->is_read_only()) {
+    XELOGW(
+        "{} - Tried to change read-only access timestamp for file: {} to: {}",
+        __FUNCTION__, name_, timestamp);
+    return false;
+  }
+  XELOGI("{} - Tried to change access timestamp for file: {} to: {}",
+         __FUNCTION__, name_, timestamp);
+  return true;
+}
+
+bool HostPathEntry::SetWriteTimestamp(uint64_t timestamp) {
+  if (device_->is_read_only()) {
+    XELOGW("{} - Tried to change read-only write timestamp for file: {} to: {}",
+           __FUNCTION__, name_, timestamp);
+    return false;
+  }
+  XELOGI("{} - Tried to change write timestamp for file: {} to: {}",
+         __FUNCTION__, name_, timestamp);
+  return true;
+}
+
 }  // namespace vfs
 }  // namespace xe

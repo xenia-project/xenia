@@ -40,6 +40,11 @@ class HostPathEntry : public Entry {
                                            size_t length) override;
   void update() override;
 
+  bool SetAttributes(uint64_t attributes) override;
+  bool SetCreateTimestamp(uint64_t timestamp) override;
+  bool SetAccessTimestamp(uint64_t timestamp) override;
+  bool SetWriteTimestamp(uint64_t timestamp) override;
+
  private:
   friend class HostPathDevice;
 

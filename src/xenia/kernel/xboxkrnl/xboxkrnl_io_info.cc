@@ -207,6 +207,26 @@ dword_result_t NtSetInformationFile_entry(
   switch (info_class) {
     case XFileBasicInformation: {
       auto info = info_ptr.as<X_FILE_BASIC_INFORMATION*>();
+
+      bool basic_result = true;
+      if (info->creation_time) {
+        basic_result &= file->entry()->SetCreateTimestamp(info->creation_time);
+      }
+
+      if (info->last_access_time) {
+        basic_result &=
+            file->entry()->SetAccessTimestamp(info->last_access_time);
+      }
+
+      if (info->last_write_time) {
+        basic_result &= file->entry()->SetWriteTimestamp(info->last_write_time);
+      }
+
+      basic_result &= file->entry()->SetAttributes(info->attributes);
+      if (!basic_result) {
+        result = X_STATUS_UNSUCCESSFUL;
+      }
+
       out_length = sizeof(*info);
       break;
     }

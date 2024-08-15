@@ -94,6 +94,11 @@ class Entry {
   uint64_t access_timestamp() const { return access_timestamp_; }
   uint64_t write_timestamp() const { return write_timestamp_; }
 
+  virtual bool SetAttributes(uint64_t attributes) { return false; }
+  virtual bool SetCreateTimestamp(uint64_t timestamp) { return false; }
+  virtual bool SetAccessTimestamp(uint64_t timestamp) { return false; }
+  virtual bool SetWriteTimestamp(uint64_t timestamp) { return false; }
+
   bool is_read_only() const;
 
   Entry* GetChild(const std::string_view name);

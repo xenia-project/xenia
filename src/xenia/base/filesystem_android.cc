@@ -274,5 +274,9 @@ int OpenAndroidContentFileDescriptor(const std::string_view uri,
   return file_descriptor;
 }
 
+bool SetAttributes(const std::filesystem::path& path, uint64_t attributes) {
+  return false;
+}
+
 }  // namespace filesystem
 }  // namespace xe
