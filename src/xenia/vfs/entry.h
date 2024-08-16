@@ -93,11 +93,15 @@ class Entry {
   uint64_t create_timestamp() const { return create_timestamp_; }
   uint64_t access_timestamp() const { return access_timestamp_; }
   uint64_t write_timestamp() const { return write_timestamp_; }
+  bool delete_on_close() const { return delete_on_close_; }
 
   virtual bool SetAttributes(uint64_t attributes) { return false; }
   virtual bool SetCreateTimestamp(uint64_t timestamp) { return false; }
   virtual bool SetAccessTimestamp(uint64_t timestamp) { return false; }
   virtual bool SetWriteTimestamp(uint64_t timestamp) { return false; }
+  void SetForDeletion(bool delete_on_close) {
+    delete_on_close_ = delete_on_close;
+  }
 
   bool is_read_only() const;
 
@@ -151,6 +155,7 @@ class Entry {
   uint64_t create_timestamp_;
   uint64_t access_timestamp_;
   uint64_t write_timestamp_;
+  bool delete_on_close_;
   std::vector<std::unique_ptr<Entry>> children_;
 };
 

@@ -253,6 +253,7 @@ dword_result_t NtSetInformationFile_entry(
       // Used to set deletion flag. Which we don't support. Probably?
       auto info = info_ptr.as<X_FILE_DISPOSITION_INFORMATION*>();
       bool delete_on_close = info->delete_file ? true : false;
+      file->entry()->SetForDeletion(static_cast<bool>(info->delete_file));
       out_length = 0;
       XELOGW("NtSetInformationFile ignoring delete on close: {}",
              delete_on_close);

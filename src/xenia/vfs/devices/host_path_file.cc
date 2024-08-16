@@ -21,7 +21,12 @@ HostPathFile::HostPathFile(
 
 HostPathFile::~HostPathFile() = default;
 
-void HostPathFile::Destroy() { delete this; }
+void HostPathFile::Destroy() {
+  if (entry_ && entry_->delete_on_close()) {
+    entry()->Delete();
+  }
+  delete this;
+}
 
 X_STATUS HostPathFile::ReadSync(void* buffer, size_t buffer_length,
                                 size_t byte_offset, size_t* out_bytes_read) {

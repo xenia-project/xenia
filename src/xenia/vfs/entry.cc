@@ -25,7 +25,8 @@ Entry::Entry(Device* device, Entry* parent, const std::string_view path)
       allocation_size_(0),
       create_timestamp_(0),
       access_timestamp_(0),
-      write_timestamp_(0) {
+      write_timestamp_(0),
+      delete_on_close_(false) {
   assert_not_null(device);
   absolute_path_ = xe::utf8::join_guest_paths(device->mount_path(), path);
   name_ = xe::utf8::find_name_from_guest_path(path);
