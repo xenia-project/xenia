@@ -315,40 +315,58 @@ dword_result_t XamContentGetCreator_entry(dword_t user_index,
                                           lpdword_t is_creator_ptr,
                                           lpqword_t creator_xuid_ptr,
                                           lpunknown_t overlapped_ptr) {
-  auto result = X_ERROR_SUCCESS;
+  if (!is_creator_ptr) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
 
   XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
 
-  bool content_exists =
-      kernel_state()->content_manager()->ContentExists(content_data);
+  auto run = [content_data, user_index, is_creator_ptr, creator_xuid_ptr,
+              overlapped_ptr](uint32_t& extended_error,
+                              uint32_t& length) -> X_RESULT {
+    X_RESULT result = X_ERROR_SUCCESS;
 
-  if (content_exists) {
-    if (content_data.content_type == XContentType::kSavedGame) {
-      // User always creates saves.
-      *is_creator_ptr = 1;
-      if (creator_xuid_ptr) {
-        if (kernel_state()->IsUserSignedIn(user_index)) {
-          const auto& user_profile = kernel_state()->user_profile(user_index);
-          *creator_xuid_ptr = user_profile->xuid();
-        } else {
-          result = X_ERROR_NO_SUCH_USER;
+    bool content_exists =
+        kernel_state()->content_manager()->ContentExists(content_data);
+
+    if (content_exists) {
+      if (content_data.content_type == XContentType::kSavedGame) {
+        // User always creates saves.
+        *is_creator_ptr = 1;
+        if (creator_xuid_ptr) {
+          if (kernel_state()->IsUserSignedIn(user_index)) {
+            const auto& user_profile = kernel_state()->user_profile(user_index);
+            *creator_xuid_ptr = user_profile->xuid();
+          } else {
+            result = X_ERROR_NO_SUCH_USER;
+          }
+        }
+      } else {
+        *is_creator_ptr = 0;
+        if (creator_xuid_ptr) {
+          *creator_xuid_ptr = 0;
         }
       }
     } else {
-      *is_creator_ptr = 0;
-      if (creator_xuid_ptr) {
-        *creator_xuid_ptr = 0;
-      }
+      result = X_ERROR_PATH_NOT_FOUND;
     }
-  } else {
-    result = X_ERROR_PATH_NOT_FOUND;
-  }
 
-  if (overlapped_ptr) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr, result);
-    return X_ERROR_IO_PENDING;
-  } else {
+    extended_error = X_HRESULT_FROM_WIN32(result);
+    length = 0;
+
+    if (result && overlapped_ptr) {
+      result = X_ERROR_FUNCTION_FAILED;
+    }
+
     return result;
+  };
+
+  if (!overlapped_ptr) {
+    uint32_t extended_error, length;
+    return run(extended_error, length);
+  } else {
+    kernel_state()->CompleteOverlappedDeferredEx(run, overlapped_ptr);
+    return X_ERROR_IO_PENDING;
   }
 }
 DECLARE_XAM_EXPORT1(XamContentGetCreator, kContent, kImplemented);
