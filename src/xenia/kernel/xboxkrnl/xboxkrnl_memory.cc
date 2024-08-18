@@ -17,6 +17,7 @@
 #include "xenia/kernel/xboxkrnl/xboxkrnl_memory.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/xbox.h"
+
 DEFINE_bool(
     ignore_offset_for_ranged_allocations, false,
     "Allows to ignore 4k offset for physical allocations with provided range. "
@@ -513,6 +514,14 @@ void MmSetAddressProtect_entry(lpvoid_t base_address, dword_t region_size,
 
   uint32_t protect = FromXdkProtectFlags(protect_bits);
   auto heap = kernel_memory()->LookupHeap(base_address);
+
+  // More research required: 544307D1 uses it with base_address in xex range,
+  // which causes write exception in long term. Probably console disables
+  // modification of xex range page protection for security reasons.
+  if (heap->heap_type() == HeapType::kGuestXex) {
+    return;
+  }
+
   heap->Protect(base_address.guest_address(), region_size, protect);
 }
 DECLARE_XBOXKRNL_EXPORT1(MmSetAddressProtect, kMemory, kImplemented);
