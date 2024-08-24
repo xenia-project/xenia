@@ -629,7 +629,8 @@ dword_result_t MmQueryStatistics_entry(
 
   return X_STATUS_SUCCESS;
 }
-DECLARE_XBOXKRNL_EXPORT1(MmQueryStatistics, kMemory, kImplemented);
+DECLARE_XBOXKRNL_EXPORT2(MmQueryStatistics, kMemory, kImplemented,
+                         kHighFrequency);
 
 // https://msdn.microsoft.com/en-us/library/windows/hardware/ff554547(v=vs.85).aspx
 dword_result_t MmGetPhysicalAddress_entry(dword_t base_address) {
