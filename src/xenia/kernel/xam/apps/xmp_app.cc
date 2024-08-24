@@ -435,6 +435,12 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
 
       return X_E_SUCCESS;
     }
+    case 0x00070025: {
+      // XMPCreateUserPlaylistEnumerator
+      // For whatever reason buffer_length is 0 in this case.
+      // Return buffer size is set to be items * 0x338 bytes.
+      return X_E_SUCCESS;
+    }
     case 0x00070029: {
       // XMPGetPlaybackBehavior
       assert_true(!buffer_length || buffer_length == 16);
