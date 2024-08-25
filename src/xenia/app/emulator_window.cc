@@ -1138,33 +1138,35 @@ void EmulatorWindow::ExtractZarchive() {
     return;
   }
 
-  std::string overview = "";
+  std::string extract_overview = "";
 
   for (auto& zarchive_file_path : zarchive_files) {
-    overview += "\n" + path_to_utf8(zarchive_file_path);
+    extract_overview += "\n" + path_to_utf8(zarchive_file_path);
   }
 
   app_context_.CallInUIThread([&]() {
     new xe::ui::HostNotificationWindow(imgui_drawer(), "Extracting...",
-                                       string_util::trim(overview), 0);
+                                       string_util::trim(extract_overview), 0);
   });
 
-  for (auto& zarchive_file_path : zarchive_files) {
-    // Normalize the path and make absolute.
-    auto abs_path = std::filesystem::absolute(zarchive_file_path);
-    std::filesystem::path abs_extract_dir;
+  auto run = [this, extract_dir, zarchive_files]() -> void {
+    std::string summary = "";
 
-    if (zarchive_files.size() > 1) {
-      abs_extract_dir =
-          std::filesystem::absolute((extract_dir / abs_path.stem()));
-    } else {
-      abs_extract_dir = std::filesystem::absolute(extract_dir);
-    }
+    for (auto& zarchive_file_path : zarchive_files) {
+      // Normalize the path and make absolute.
+      auto abs_path = std::filesystem::absolute(zarchive_file_path);
+      std::filesystem::path abs_extract_dir;
 
-    XELOGI("Extracting zar package: {}\n",
-           zarchive_file_path.filename().string());
+      if (zarchive_files.size() > 1) {
+        abs_extract_dir =
+            std::filesystem::absolute((extract_dir / abs_path.stem()));
+      } else {
+        abs_extract_dir = std::filesystem::absolute(extract_dir);
+      }
 
-    auto run = [this, abs_path, abs_extract_dir]() -> void {
+      XELOGI("Extracting zar package: {}\n",
+             zarchive_file_path.filename().string());
+
       auto result =
           emulator_->ExtractZarchivePackage(abs_path, abs_extract_dir);
 
@@ -1174,17 +1176,21 @@ void EmulatorWindow::ExtractZarchive() {
         // delete incomplete output file
         std::filesystem::remove(abs_extract_dir, ec);
 
+        summary +=
+            fmt::format("\nFailed: {}", path_to_utf8(zarchive_file_path));
+
         XELOGE("Failed to extract Zarchive package.", result);
-
-        xe::ui::ImGuiDialog::ShowMessageBox(
-            imgui_drawer_.get(), "Failed to extract Zarchive package.",
-            "Failed to extract Zarchive package.");
+      } else {
+        summary += fmt::format("\nSuccess: {}", path_to_utf8(abs_extract_dir));
       }
-    };
+    }
 
-    auto thd = std::thread(run);
-    thd.detach();
-  }
+    new xe::ui::HostNotificationWindow(imgui_drawer(), "Zar Extraction Summary",
+                                       string_util::trim(summary), 0);
+  };
+
+  auto zarThread = std::thread(run);
+  zarThread.detach();
 }
 
 void EmulatorWindow::CreateZarchive() {
@@ -1227,7 +1233,7 @@ void EmulatorWindow::CreateZarchive() {
     return;
   }
 
-  std::string overview = "";
+  std::string create_overview = "";
 
   std::map<std::filesystem::path, std::filesystem::path> zarchive_files{};
 
@@ -1245,21 +1251,23 @@ void EmulatorWindow::CreateZarchive() {
 
     zarchive_files[content_path] = abs_zarchive_file;
 
-    overview += "\n" + path_to_utf8(abs_zarchive_file);
+    create_overview += "\n" + path_to_utf8(abs_zarchive_file);
   }
 
   app_context_.CallInUIThread([&]() {
     new xe::ui::HostNotificationWindow(imgui_drawer(), "Creating...",
-                                       string_util::trim(overview), 0);
+                                       string_util::trim(create_overview), 0);
   });
 
-  for (auto const& [content_path, zarchive_file] : zarchive_files) {
-    // Normalize the path and make absolute.
-    auto abs_content_dir = std::filesystem::absolute(content_path);
+  auto run = [this, zarchive_files]() -> void {
+    std::string summary = "";
 
-    XELOGI("Creating zar package: {}\n", zarchive_file.filename().string());
+    for (auto const& [content_path, zarchive_file] : zarchive_files) {
+      // Normalize the path and make absolute.
+      auto abs_content_dir = std::filesystem::absolute(content_path);
 
-    auto run = [this, abs_content_dir, zarchive_file]() -> void {
+      XELOGI("Creating zar package: {}\n", zarchive_file.filename().string());
+
       auto result =
           emulator_->CreateZarchivePackage(abs_content_dir, zarchive_file);
 
@@ -1269,17 +1277,20 @@ void EmulatorWindow::CreateZarchive() {
         // delete incomplete output file
         std::filesystem::remove(zarchive_file, ec);
 
+        summary += fmt::format("\nFailed: {}", path_to_utf8(abs_content_dir));
+
         XELOGE("Failed to create Zarchive package.", result);
-
-        xe::ui::ImGuiDialog::ShowMessageBox(
-            imgui_drawer_.get(), "Failed to create Zarchive package.",
-            "Failed to create Zarchive package.");
+      } else {
+        summary += fmt::format("\nSuccess: {}", path_to_utf8(zarchive_file));
       }
-    };
+    }
 
-    auto thd = std::thread(run);
-    thd.detach();
-  }
+    new xe::ui::HostNotificationWindow(imgui_drawer(), "Zar Creation Summary",
+                                       string_util::trim(summary), 0);
+  };
+
+  auto zarThread = std::thread(run);
+  zarThread.detach();
 }
 
 void EmulatorWindow::ShowContentDirectory() {
