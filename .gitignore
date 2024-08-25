@@ -103,6 +103,7 @@ node_modules/.bin/
 /tools/shader-playground/*.dll
 /profile_print_times.py
 /profile_times.txt
+/cache
 /cache1
 /cache0
 recent.toml
