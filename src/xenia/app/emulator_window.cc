@@ -41,6 +41,7 @@
 #include "xenia/ui/graphics_provider.h"
 #include "xenia/ui/imgui_dialog.h"
 #include "xenia/ui/imgui_drawer.h"
+#include "xenia/ui/imgui_host_notification.h"
 #include "xenia/ui/immediate_drawer.h"
 #include "xenia/ui/presenter.h"
 #include "xenia/ui/ui_event.h"
@@ -654,7 +655,7 @@ bool EmulatorWindow::Initialize() {
         MenuItem::Create(MenuItem::Type::kString, "&Fullscreen", "F11",
                          std::bind(&EmulatorWindow::ToggleFullscreen, this)));
     display_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, "&Take Screenshot", "F10",
+        MenuItem::Create(MenuItem::Type::kString, "&Take Screenshot", "F12",
                          std::bind(&EmulatorWindow::TakeScreenshot, this)));
   }
   main_menu->AddChild(std::move(display_menu));
@@ -840,7 +841,7 @@ void EmulatorWindow::OnKeyDown(ui::KeyEvent& e) {
     case ui::VirtualKey::kF11: {
       ToggleFullscreen();
     } break;
-    case ui::VirtualKey::kF10: {
+    case ui::VirtualKey::kF12: {
       TakeScreenshot();
     } break;
 
@@ -939,9 +940,13 @@ void EmulatorWindow::ExportScreenshot(const xe::ui::RawImage& image) {
   std::string filename = fmt::format("{} - {}.png", title_id, datetime);
   SaveImage(screenshot_path / filename, image);
 
-  xe::ui::ImGuiDialog::ShowMessageBox(
-      imgui_drawer_.get(), "Screenshot saved",
-      fmt::format("Screenshot saved to {}", xe::path_to_utf8(screenshot_path)));
+  const std::string notification_text =
+      fmt::format("Screenshot saved: {}", filename);
+
+  app_context_.CallInUIThread([&, notification_text]() {
+    new xe::ui::HostNotificationWindow(imgui_drawer(), "Screenshot Created!",
+                                       notification_text, 0);
+  });
 }
 
 // Converts a RawImage into a PNG file

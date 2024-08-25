@@ -467,8 +467,22 @@ void ImGuiDrawer::Draw(UIDrawContext& ui_draw_context) {
   dialog_loop_next_index_ = SIZE_MAX;
 
   if (!notifications_.empty()) {
-    // We only care about drawing next notification.
-    notifications_.at(0)->Draw();
+    bool was_guest_notification_drawn = false;
+    bool was_host_notification_drawn = false;
+
+    for (const auto& notification : notifications_) {
+      if (notification->GetNotificationType() == NotificationType::Guest &&
+          !was_guest_notification_drawn) {
+        was_guest_notification_drawn = true;
+        notification->Draw();
+      }
+
+      if (notification->GetNotificationType() == NotificationType::Host &&
+          !was_host_notification_drawn) {
+        was_host_notification_drawn = true;
+        notification->Draw();
+      }
+    }
   }
 
   ImGui::Render();
