@@ -74,7 +74,7 @@ std::vector<const DummyDeviceInfo*> ListStorageDevices(bool include_readonly) {
 }
 
 dword_result_t XamContentGetDeviceName_entry(dword_t device_id,
-                                             lpu16string_t name_buffer,
+                                             dword_t name_buffer_ptr,
                                              dword_t name_capacity) {
   auto device_info = GetDummyDeviceInfo(device_id);
   if (device_info == nullptr) {
@@ -84,6 +84,10 @@ dword_result_t XamContentGetDeviceName_entry(dword_t device_id,
   if (name_capacity < name.size() + 1) {
     return X_ERROR_INSUFFICIENT_BUFFER;
   }
+
+  char16_t* name_buffer =
+      kernel_memory()->TranslateVirtual<char16_t*>(name_buffer_ptr);
+
   xe::string_util::copy_and_swap_truncating(name_buffer, name, name_capacity);
   return X_ERROR_SUCCESS;
 }
