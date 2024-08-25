@@ -1138,6 +1138,17 @@ void EmulatorWindow::ExtractZarchive() {
     return;
   }
 
+  std::string overview = "";
+
+  for (auto& zarchive_file_path : zarchive_files) {
+    overview += "\n" + path_to_utf8(zarchive_file_path);
+  }
+
+  app_context_.CallInUIThread([&]() {
+    new xe::ui::HostNotificationWindow(imgui_drawer(), "Extracting...",
+                                       string_util::trim(overview), 0);
+  });
+
   for (auto& zarchive_file_path : zarchive_files) {
     // Normalize the path and make absolute.
     auto abs_path = std::filesystem::absolute(zarchive_file_path);
@@ -1153,20 +1164,26 @@ void EmulatorWindow::ExtractZarchive() {
     XELOGI("Extracting zar package: {}\n",
            zarchive_file_path.filename().string());
 
-    auto result = emulator_->ExtractZarchivePackage(abs_path, abs_extract_dir);
+    auto run = [this, abs_path, abs_extract_dir]() -> void {
+      auto result =
+          emulator_->ExtractZarchivePackage(abs_path, abs_extract_dir);
 
-    if (result != X_STATUS_SUCCESS) {
-      std::error_code ec;
+      if (result != X_STATUS_SUCCESS) {
+        std::error_code ec;
 
-      // delete incomplete output file
-      std::filesystem::remove(abs_extract_dir, ec);
+        // delete incomplete output file
+        std::filesystem::remove(abs_extract_dir, ec);
 
-      XELOGE("Failed to extract Zarchive package.", result);
+        XELOGE("Failed to extract Zarchive package.", result);
 
-      xe::ui::ImGuiDialog::ShowMessageBox(
-          imgui_drawer_.get(), "Failed to extract Zarchive package.",
-          "Failed to extract Zarchive package.");
-    }
+        xe::ui::ImGuiDialog::ShowMessageBox(
+            imgui_drawer_.get(), "Failed to extract Zarchive package.",
+            "Failed to extract Zarchive package.");
+      }
+    };
+
+    auto thd = std::thread(run);
+    thd.detach();
   }
 }
 
@@ -1210,6 +1227,10 @@ void EmulatorWindow::CreateZarchive() {
     return;
   }
 
+  std::string overview = "";
+
+  std::map<std::filesystem::path, std::filesystem::path> zarchive_files{};
+
   for (auto& content_path : content_dirs) {
     // Normalize the path and make absolute.
     auto abs_content_dir = std::filesystem::absolute(content_path);
@@ -1222,23 +1243,42 @@ void EmulatorWindow::CreateZarchive() {
       abs_zarchive_file = std::filesystem::absolute(zarchive_dir);
     }
 
-    XELOGI("Creating zar package: {}\n", abs_zarchive_file.filename().string());
+    zarchive_files[content_path] = abs_zarchive_file;
 
-    auto result =
-        emulator_->CreateZarchivePackage(abs_content_dir, abs_zarchive_file);
+    overview += "\n" + path_to_utf8(abs_zarchive_file);
+  }
 
-    if (result != X_ERROR_SUCCESS) {
-      std::error_code ec;
+  app_context_.CallInUIThread([&]() {
+    new xe::ui::HostNotificationWindow(imgui_drawer(), "Creating...",
+                                       string_util::trim(overview), 0);
+  });
 
-      // delete incomplete output file
-      std::filesystem::remove(abs_zarchive_file, ec);
+  for (auto const& [content_path, zarchive_file] : zarchive_files) {
+    // Normalize the path and make absolute.
+    auto abs_content_dir = std::filesystem::absolute(content_path);
 
-      XELOGE("Failed to create Zarchive package.", result);
+    XELOGI("Creating zar package: {}\n", zarchive_file.filename().string());
 
-      xe::ui::ImGuiDialog::ShowMessageBox(imgui_drawer_.get(),
-                                          "Failed to create Zarchive package.",
-                                          "Failed to create Zarchive package.");
-    }
+    auto run = [this, abs_content_dir, zarchive_file]() -> void {
+      auto result =
+          emulator_->CreateZarchivePackage(abs_content_dir, zarchive_file);
+
+      if (result != X_ERROR_SUCCESS) {
+        std::error_code ec;
+
+        // delete incomplete output file
+        std::filesystem::remove(zarchive_file, ec);
+
+        XELOGE("Failed to create Zarchive package.", result);
+
+        xe::ui::ImGuiDialog::ShowMessageBox(
+            imgui_drawer_.get(), "Failed to create Zarchive package.",
+            "Failed to create Zarchive package.");
+      }
+    };
+
+    auto thd = std::thread(run);
+    thd.detach();
   }
 }
 
