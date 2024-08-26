@@ -258,6 +258,9 @@ class KernelState {
   void SetExecutableModule(object_ref<UserModule> module);
   object_ref<UserModule> LoadUserModule(const std::string_view name,
                                         bool call_entry = true);
+  object_ref<UserModule> LoadUserModuleFromMemory(const std::string_view name,
+                                                  const void* addr,
+                                                  const size_t length);
   X_RESULT FinishLoadingUserModule(const object_ref<UserModule> module,
                                    bool call_entry = true);
   void UnloadUserModule(const object_ref<UserModule>& module,

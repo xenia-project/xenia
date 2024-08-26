@@ -76,6 +76,8 @@ class UserModule : public XModule {
 
   X_STATUS LoadFromFile(const std::string_view path);
   X_STATUS LoadFromMemory(const void* addr, const size_t length);
+  X_STATUS LoadFromMemoryNamed(const std::string_view name, const void* addr,
+                               const size_t length);
   X_STATUS LoadContinue();
   X_STATUS Unload();
 

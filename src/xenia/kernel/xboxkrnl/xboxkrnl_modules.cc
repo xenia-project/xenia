@@ -91,19 +91,28 @@ dword_result_t XexGetModuleSection_entry(lpvoid_t hmodule, lpstring_t name,
 }
 DECLARE_XBOXKRNL_EXPORT1(XexGetModuleSection, kModules, kImplemented);
 
-dword_result_t XexLoadImage_entry(lpstring_t module_name, dword_t module_flags,
-                                  dword_t min_version, lpdword_t hmodule_ptr) {
+dword_result_t xeXexLoadImage(
+    lpstring_t module_name, dword_t module_flags, dword_t min_version,
+    lpdword_t hmodule_ptr,
+    const std::function<object_ref<UserModule>()>& load_callback,
+    bool isFromMemory) {
   X_STATUS result = X_STATUS_NO_SUCH_FILE;
 
   uint32_t hmodule = 0;
   auto module = kernel_state()->GetModule(module_name.value());
   if (module) {
-    // Existing module found.
-    hmodule = module->hmodule_ptr();
-    result = X_STATUS_SUCCESS;
+    if (isFromMemory) {
+      // Existing module found; return error status.
+      *hmodule_ptr = hmodule;
+      return X_STATUS_OBJECT_NAME_COLLISION;
+    } else {
+      // Existing module found.
+      hmodule = module->hmodule_ptr();
+      result = X_STATUS_SUCCESS;
+    }
   } else {
     // Not found; attempt to load as a user module.
-    auto user_module = kernel_state()->LoadUserModule(module_name.value());
+    auto user_module = load_callback();
     if (user_module) {
       kernel_state()->FinishLoadingUserModule(user_module);
       // Give up object ownership, this reference will be released by the last
@@ -125,7 +134,30 @@ dword_result_t XexLoadImage_entry(lpstring_t module_name, dword_t module_flags,
 
   return result;
 }
+
+dword_result_t XexLoadImage_entry(lpstring_t module_name, dword_t module_flags,
+                                  dword_t min_version, lpdword_t hmodule_ptr) {
+  auto load_callback = [module_name] {
+    return kernel_state()->LoadUserModule(module_name.value());
+  };
+  return xeXexLoadImage(module_name, module_flags, min_version, hmodule_ptr,
+                        load_callback, false);
+}
 DECLARE_XBOXKRNL_EXPORT1(XexLoadImage, kModules, kImplemented);
+
+dword_result_t XexLoadImageFromMemory_entry(lpdword_t buffer, dword_t size,
+                                            lpstring_t module_name,
+                                            dword_t module_flags,
+                                            dword_t min_version,
+                                            lpdword_t hmodule_ptr) {
+  auto load_callback = [module_name, buffer, size] {
+    return kernel_state()->LoadUserModuleFromMemory(module_name.value(), buffer,
+                                                    size);
+  };
+  return xeXexLoadImage(module_name, module_flags, min_version, hmodule_ptr,
+                        load_callback, true);
+}
+DECLARE_XBOXKRNL_EXPORT1(XexLoadImageFromMemory, kModules, kImplemented);
 
 dword_result_t XexLoadExecutable_entry(lpstring_t module_name,
                                        dword_t module_flags,

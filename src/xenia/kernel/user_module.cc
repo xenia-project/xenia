@@ -182,6 +182,13 @@ X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
   return X_STATUS_SUCCESS;
 }
 
+X_STATUS UserModule::LoadFromMemoryNamed(const std::string_view raw_name,
+                                         const void* addr,
+                                         const size_t length) {
+  name_ = std::string(raw_name);
+  return LoadFromMemory(addr, length);
+}
+
 X_STATUS UserModule::LoadContinue() {
   // LoadXexContinue: finishes loading XEX after a patch has been applied (or
   // patch wasn't found)
