@@ -140,6 +140,8 @@ X_RESULT InputSystem::GetKeystroke(uint32_t user_index, uint32_t flags,
   return any_connected ? X_ERROR_EMPTY : X_ERROR_DEVICE_NOT_CONNECTED;
 }
 
+bool InputSystem::GetVibrationCvar() { return cvars::vibration; }
+
 void InputSystem::ToggleVibration() {
   OVERRIDE_bool(vibration, !cvars::vibration);
   // Send instant update to vibration state to prevent awaiting for next tick.

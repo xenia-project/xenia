@@ -1606,6 +1606,9 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
     }
   }
 
+  std::string notificationTitle = "";
+  std::string notificationDesc = "";
+
   EmulatorWindow::ControllerHotKey button_combination = it->second;
 
   switch (button_combination.function) {
@@ -1630,45 +1633,81 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
         GpuClearCaches();
       }
 
+      notificationTitle = "Toggle Clear Memory Page State";
+      notificationDesc =
+          cvars::clear_memory_page_state ? "Enabled" : "Disabled";
+
       // Extra Sleep
       xe::threading::Sleep(delay);
       break;
     case ButtonFunctions::ReadbackResolve:
       ToggleGPUSetting(gpu_cvar::ReadbackResolve);
 
+      notificationTitle = "Toggle Readback Resolve";
+      notificationDesc = cvars::d3d12_readback_resolve ? "Enabled" : "Disabled";
+
       // Extra Sleep
       xe::threading::Sleep(delay);
       break;
     case ButtonFunctions::CpuTimeScalarSetHalf:
       CpuTimeScalarSetHalf();
+
+      notificationTitle = "Time Scalar";
+      notificationDesc =
+          fmt::format("Decreased to {}", Clock::guest_time_scalar());
       break;
     case ButtonFunctions::CpuTimeScalarSetDouble:
       CpuTimeScalarSetDouble();
+
+      notificationTitle = "Time Scalar";
+      notificationDesc =
+          fmt::format("Increased to {}", Clock::guest_time_scalar());
       break;
     case ButtonFunctions::CpuTimeScalarReset:
       CpuTimeScalarReset();
+
+      notificationTitle = "Time Scalar";
+      notificationDesc = fmt::format("Reset to {}", Clock::guest_time_scalar());
       break;
     case ButtonFunctions::ClearGPUCache:
       GpuClearCaches();
 
-      // Extra Sleep
-      xe::threading::Sleep(delay);
-      break;
-    case ButtonFunctions::ToggleControllerVibration:
-      ToggleControllerVibration();
+      notificationTitle = "Clear GPU Cache";
+      notificationDesc = "Complete";
 
       // Extra Sleep
       xe::threading::Sleep(delay);
       break;
+    case ButtonFunctions::ToggleControllerVibration: {
+      ToggleControllerVibration();
+
+      bool vibration = false;
+
+      auto input_sys = emulator()->input_system();
+      if (input_sys) {
+        vibration = input_sys->GetVibrationCvar();
+      }
+
+      notificationTitle = "Toggle Controller Vibration";
+      notificationDesc = vibration ? "Enabled" : "Disabled";
+
+      // Extra Sleep
+      xe::threading::Sleep(delay);
+    } break;
     case ButtonFunctions::IncTitleSelect:
       selected_title_index++;
       break;
     case ButtonFunctions::DecTitleSelect:
       selected_title_index--;
       break;
-    case ButtonFunctions::ToggleLogging:
+    case ButtonFunctions::ToggleLogging: {
       logging::internal::ToggleLogLevel();
-      break;
+
+      notificationTitle = "Toggle Logging";
+
+      LogLevel level = static_cast<LogLevel>(logging::internal::GetLogLevel());
+      notificationDesc = level == LogLevel::Disabled ? "Disabled" : "Enabled";
+    } break;
     case ButtonFunctions::Unknown:
     default:
       break;
@@ -1702,6 +1741,13 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
 
     xe::ui::ImGuiDialog::ShowMessageBox(imgui_drawer_.get(), "Title Selection",
                                         title);
+  }
+
+  if (!notificationTitle.empty()) {
+    app_context_.CallInUIThread([&]() {
+      new xe::ui::HostNotificationWindow(imgui_drawer(), notificationTitle,
+                                         notificationDesc, 0);
+    });
   }
 
   xe::threading::Sleep(delay);

@@ -86,6 +86,7 @@ void ToggleLogLevel();
 
 bool ShouldLog(LogLevel log_level,
                uint32_t log_mask = xe::LogSrc::Uncategorized);
+uint32_t GetLogLevel();
 std::pair<char*, size_t> GetThreadBuffer();
 XE_NOALIAS
 void AppendLogLine(LogLevel log_level, const char prefix_char, size_t written);

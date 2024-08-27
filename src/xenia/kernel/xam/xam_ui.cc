@@ -18,6 +18,7 @@
 #include "xenia/kernel/xam/xam_private.h"
 #include "xenia/ui/imgui_dialog.h"
 #include "xenia/ui/imgui_drawer.h"
+#include "xenia/ui/imgui_guest_notification.h"
 #include "xenia/ui/window.h"
 #include "xenia/ui/windowed_app_context.h"
 #include "xenia/xbox.h"
@@ -398,8 +399,8 @@ dword_result_t XNotifyQueueUI_entry(dword_t exnq, dword_t dwUserIndex,
                                     qword_t qwAreas,
                                     lpu16string_t displayText_ptr,
                                     lpvoid_t contextData) {
-  std::string title_text = "XNotifyQueueUI";
   std::string displayText = "";
+  const uint8_t position_id = static_cast<uint8_t>(qwAreas);
 
   if (displayText_ptr) {
     displayText = xe::to_utf8(displayText_ptr.value());
@@ -407,23 +408,11 @@ dword_result_t XNotifyQueueUI_entry(dword_t exnq, dword_t dwUserIndex,
 
   XELOGI("XNotifyQueueUI: {}", displayText);
 
-  if (cvars::headless) {
-    return X_ERROR_SUCCESS;
-  }
-
-  auto close = [](MessageBoxDialog* dialog) -> X_RESULT {
-    dialog->chosen_button();
-    return X_ERROR_SUCCESS;
-  };
-
-  std::vector<std::string> buttons(1, "OK");
-
   const Emulator* emulator = kernel_state()->emulator();
   ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
 
-  xeXamDispatchDialog<MessageBoxDialog>(
-      new MessageBoxDialog(imgui_drawer, title_text, displayText, buttons, 0),
-      close, false);
+  new xe::ui::XNotifyWindow(imgui_drawer, "", displayText, dwUserIndex,
+                            position_id);
 
   // XNotifyQueueUI -> XNotifyQueueUIEx -> XMsgProcessRequest ->
   // XMsgStartIORequestEx & XMsgInProcessCall

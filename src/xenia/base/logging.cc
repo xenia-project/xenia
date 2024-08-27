@@ -482,6 +482,7 @@ bool logging::internal::ShouldLog(LogLevel log_level, uint32_t log_mask) {
   return static_cast<int32_t>(log_level) <= cvars::log_level &&
          (log_mask & cvars::log_mask) == 0;
 }
+uint32_t logging::internal::GetLogLevel() { return cvars::log_level; }
 
 std::pair<char*, size_t> logging::internal::GetThreadBuffer() {
   return {thread_log_buffer_, sizeof(thread_log_buffer_)};

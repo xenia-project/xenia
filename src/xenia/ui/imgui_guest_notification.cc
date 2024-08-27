@@ -180,5 +180,82 @@ void AchievementNotificationWindow::OnDraw(ImGuiIO& io) {
   ImGui::End();
 }
 
+void XNotifyWindow::OnDraw(ImGuiIO& io) {
+  UpdateNotificationState();
+
+  if (IsNotificationExpired()) {
+    delete this;
+    return;
+  }
+
+  const std::string longest_notification_text_line =
+      GetTitle().size() > GetDescription().size() ? GetTitle().c_str()
+                                                  : GetDescription().c_str();
+
+  const ImVec2 screen_size = io.DisplaySize;
+  const float window_scale =
+      std::fminf(screen_size.x / default_drawing_resolution.x,
+                 screen_size.y / default_drawing_resolution.y);
+  const float font_scale = default_font_size / io.Fonts->Fonts[0]->FontSize;
+  const ImVec2 text_size = io.Fonts->Fonts[0]->CalcTextSizeA(
+      default_font_size * default_notification_text_scale * window_scale,
+      FLT_MAX, -1.0f, longest_notification_text_line.c_str());
+
+  const ImVec2 final_notification_size =
+      CalculateNotificationSize(text_size, window_scale);
+
+  const ImVec2 notification_position = CalculateNotificationScreenPosition(
+      screen_size, final_notification_size, GetPositionId());
+
+  if (isnan(notification_position.x) || isnan(notification_position.y)) {
+    return;
+  }
+
+  ImVec2 current_notification_size = final_notification_size;
+  current_notification_size.x *= notification_draw_progress_;
+  current_notification_size.x = std::floorf(current_notification_size.x);
+
+  // Initialize position and window size
+  ImGui::SetNextWindowSize(current_notification_size);
+  ImGui::SetNextWindowPos(notification_position);
+
+  // Set new window style before drawing window
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding,
+                      default_notification_rounding * window_scale);
+  ImGui::PushStyleColor(ImGuiCol_WindowBg,
+                        default_notification_background_color);
+  ImGui::PushStyleColor(ImGuiCol_Separator,
+                        default_notification_background_color);
+  ImGui::PushStyleColor(ImGuiCol_Border, default_notification_border_color);
+
+  ImGui::Begin("Notification Window", NULL, NOTIFY_TOAST_FLAGS);
+  {
+    ImGui::SetWindowFontScale(default_notification_text_scale * font_scale *
+                              window_scale);
+    // Set offset to image to prevent it from being right on border.
+    ImGui::SetCursorPos(ImVec2(final_notification_size.x * 0.005f,
+                               final_notification_size.y * 0.05f));
+    // Elements of window
+    ImGui::Image(reinterpret_cast<ImTextureID>(
+                     GetDrawer()->GetNotificationIcon(GetUserIndex())),
+                 ImVec2(default_notification_icon_size.x * window_scale,
+                        default_notification_icon_size.y * window_scale));
+
+    // Set offset to image to prevent it from being right on border.
+    // ImGui::SetCursorPos(ImVec2(final_notification_size.x * 0.1f,
+    //                           final_notification_size.y * 0.2f));
+
+    ImGui::SameLine();
+    if (notification_draw_progress_ > 0.5f) {
+      ImGui::TextColored(white_color, GetDescription().c_str());
+    }
+  }
+  // Restore previous style
+  ImGui::PopStyleVar();
+  ImGui::PopStyleColor(3);
+
+  ImGui::End();
+}
+
 }  // namespace ui
 }  // namespace xe
