@@ -25,7 +25,7 @@ ImGuiHostNotification::ImGuiHostNotification(ui::ImGuiDrawer* imgui_drawer,
                                              uint8_t position_id)
     : ImGuiNotification(imgui_drawer, NotificationType::Host, title,
                         description, user_index, position_id) {
-  SetCreationTime(Clock::QueryHostUptimeMillis());
+  SetCreationTime(Clock::QueryHostUptimeMillis() + notification_initial_delay);
   imgui_drawer->AddNotification(this);
 }
 
@@ -39,8 +39,13 @@ const ImVec2 ImGuiHostNotification::CalculateNotificationSize(ImVec2 text_size,
 }
 
 void HostNotificationWindow::OnDraw(ImGuiIO& io) {
-  if (IsNotificationClosingTime()) {
+  if (IsNotificationClosingTime() || IsMarkedForDeletion()) {
     delete this;
+    return;
+  }
+
+  // Adding 200ms of delay in case of notification spam.
+  if (Clock::QueryHostUptimeMillis() < GetCreationTime()) {
     return;
   }
 

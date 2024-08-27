@@ -26,6 +26,9 @@ class ImGuiHostNotification : public ImGuiNotification {
   ~ImGuiHostNotification();
 
  protected:
+  const uint64_t notification_initial_delay =
+      std::chrono::milliseconds(200).count();
+
   const ImVec2 CalculateNotificationSize(ImVec2 text_size,
                                          float scale) override;
 

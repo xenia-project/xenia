@@ -37,7 +37,7 @@ ImGuiNotification::~ImGuiNotification() {
 void ImGuiNotification::Draw() { OnDraw(imgui_drawer_->GetIO()); }
 
 const NotificationAlignment ImGuiNotification::GetNotificationAlignment(
-    const uint8_t notification_position_id) {
+    const uint8_t notification_position_id) const {
   NotificationAlignment alignment = NotificationAlignment::kAlignUnknown;
 
   if (notification_position_id >=
@@ -60,7 +60,8 @@ const NotificationAlignment ImGuiNotification::GetNotificationAlignment(
 }
 
 const ImVec2 ImGuiNotification::CalculateNotificationScreenPosition(
-    ImVec2 screen_size, ImVec2 window_size, uint8_t notification_position_id) {
+    ImVec2 screen_size, ImVec2 window_size,
+    uint8_t notification_position_id) const {
   ImVec2 result = {NAN, NAN};
 
   if (window_size.x >= screen_size.x || window_size.y >= screen_size.y) {

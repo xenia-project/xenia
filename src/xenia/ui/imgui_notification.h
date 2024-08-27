@@ -63,14 +63,21 @@ class ImGuiNotification {
     return notification_type_;
   }
 
+  void SetDeletionPending() { marked_for_deletion_ = true; }
+
  protected:
   ImGuiDrawer* GetDrawer() { return imgui_drawer_; }
 
-  const bool IsNotificationClosingTime() {
-    return Clock::QueryHostUptimeMillis() - creation_time_ > time_to_close_;
+  const bool IsNotificationClosingTime() const {
+    const uint64_t current_time = Clock::QueryHostUptimeMillis();
+    // We're before showing notification
+    if (current_time < creation_time_) {
+      return false;
+    }
+    return current_time - creation_time_ > time_to_close_;
   }
 
-  const std::string GetNotificationText() {
+  const std::string GetNotificationText() const {
     std::string text = title_;
 
     if (!description_.empty()) {
@@ -83,17 +90,20 @@ class ImGuiNotification {
     creation_time_ = new_creation_time;
   }
 
-  const std::string GetTitle() { return title_; }
-  const std::string GetDescription() { return description_; }
+  const bool IsMarkedForDeletion() const { return marked_for_deletion_; }
+  const std::string GetTitle() const { return title_; }
+  const std::string GetDescription() const { return description_; }
 
-  const uint8_t GetPositionId() { return position_; }
-  const uint8_t GetUserIndex() { return user_index_; }
+  const uint8_t GetPositionId() const { return position_; }
+  const uint8_t GetUserIndex() const { return user_index_; }
+  const uint64_t GetCreationTime() const { return creation_time_; }
 
   const NotificationAlignment GetNotificationAlignment(
-      const uint8_t notification_position_id);
+      const uint8_t notification_position_id) const;
 
   const ImVec2 CalculateNotificationScreenPosition(
-      ImVec2 screen_size, ImVec2 window_size, uint8_t notification_position_id);
+      ImVec2 screen_size, ImVec2 window_size,
+      uint8_t notification_position_id) const;
 
   virtual const ImVec2 CalculateNotificationSize(ImVec2 text_size,
                                                  float scale) = 0;
@@ -113,6 +123,8 @@ class ImGuiNotification {
 
   std::string title_;
   std::string description_;
+
+  bool marked_for_deletion_ = false;
 
   ImGuiDrawer* imgui_drawer_ = nullptr;
 };
