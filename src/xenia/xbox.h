@@ -259,8 +259,64 @@ struct X_UNICODE_STRING {
 };
 static_assert_size(X_UNICODE_STRING, 8);
 
-// https://pastebin.com/SMypYikG
+// https://github.com/ThirteenAG/Ultimate-ASI-Loader/blob/master/source/xlive/xliveless.h
 typedef uint32_t XNotificationID;
+enum : XNotificationID {
+  // Notification Areas
+  kXNotifySystem = 0x00000001,
+  kXNotifyLive = 0x00000002,
+  kXNotifyFriends = 0x00000004,
+  kXNotifyCustom = 0x00000008,
+  kXNotifyXmp = 0x00000020,
+  kXNotifyMsgr = 0x00000040,
+  kXNotifyParty = 0x00000080,
+  kXNotifyAll = 0x000000EF,
+
+  // XNotification System
+  kXNotificationIDSystemUI = 0x00000009,
+  kXNotificationIDSystemSignInChanged = 0x0000000A,
+  kXNotificationIDSystemStorageDevicesChanged = 0x0000000B,
+  kXNotificationIDSystemProfileSettingChanged = 0x0000000E,
+  kXNotificationIDSystemMuteListChanged = 0x00000011,
+  kXNotificationIDSystemInputDevicesChanged = 0x00000012,
+  kXNotificationIDSystemInputDeviceConfigChanged = 0x00000013,
+  kXNotificationIDSystemPlayerTimerNotice = 0x00000015,
+  kXNotificationIDSystemAvatarChanged = 0x00000017,
+  kXNotificationIDSystemNUIHardwareStatusChanged = 0x00000019,
+  kXNotificationIDSystemNUIPause = 0x0000001A,
+  kXNotificationIDSystemNUIUIApproach = 0x0000001B,
+  kXNotificationIDSystemDeviceRemap = 0x0000001C,
+  kXNotificationIDSystemNUIBindingChanged = 0x0000001D,
+  kXNotificationIDSystemAudioLatencyChanged = 0x0000001E,
+  kXNotificationIDSystemNUIChatBindingChanged = 0x0000001F,
+  kXNotificationIDSystemInputActivityChanged = 0x00000020,
+
+  // XNotification Live
+  kXNotificationIDLiveConnectionChanged = 0x02000001,
+  kXNotificationIDLiveInviteAccepted = 0x02000002,
+  kXNotificationIDLiveLinkStateChanged = 0x02000003,
+  kXNotificationIDLiveContentInstalled = 0x02000007,
+  kXNotificationIDLiveMembershipPurchased = 0x02000008,
+  kXNotificationIDLiveVoicechatAway = 0x02000009,
+  kXNotificationIDLivePresenceChanged = 0x0200000A,
+
+  // XNotification Friends
+  kXNotificationIDFriendsPresenceChanged = 0x04000001,
+  kXNotificationIDFriendsFriendAdded = 0x04000002,
+  kXNotificationIDFriendsFriendRemoved = 0x04000003,
+
+  // XNotification Custom
+  kXNotificationIDCustomActionPressed = 0x06000003,
+  kXNotificationIDCustomGamercard = 0x06000004,
+
+  // XNotification XMP
+  kNotificationXmpStateChanged = 0x0A000001,
+  kNotificationXmpPlaybackBehaviorChanged = 0x0A000002,
+  kNotificationXmpPlaybackControllerChanged = 0x0A000003,
+
+  // XNotification Party
+  kXNotificationIDPartyMembersChanged = 0x0E000002,
+};
 
 // https://github.com/CodeAsm/ffplay360/blob/master/Common/XTLOnPC.h
 struct X_VIDEO_MODE {

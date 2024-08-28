@@ -544,7 +544,7 @@ DECLARE_XAM_EXPORT1(XamUserAreUsersFriends, kUserProfiles, kStub);
 
 dword_result_t XamShowSigninUI_entry(dword_t users_needed, dword_t unk_mask) {
   // XN_SYS_UI (on)
-  kernel_state()->BroadcastNotification(0x00000009, 1);
+  kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, 1);
   kernel_state()->UpdateUsedUserProfiles();
   // Mask values vary. Probably matching user types? Local/remote?
   // Games seem to sit and loop until we trigger this notification:
@@ -560,10 +560,11 @@ dword_result_t XamShowSigninUI_entry(dword_t users_needed, dword_t unk_mask) {
   }
 
   // XN_SYS_SIGNINCHANGED (players)
-  kernel_state()->BroadcastNotification(0xA, user_mask);
+  kernel_state()->BroadcastNotification(kXNotificationIDSystemSignInChanged,
+                                        user_mask);
 
   // XN_SYS_UI (off)
-  kernel_state()->BroadcastNotification(0x00000009, 0);
+  kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, 0);
   return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamShowSigninUI, kUserProfiles, kStub);

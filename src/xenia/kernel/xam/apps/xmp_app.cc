@@ -12,6 +12,7 @@
 
 #include "xenia/base/logging.h"
 #include "xenia/base/threading.h"
+#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
@@ -142,7 +143,8 @@ X_HRESULT XmpApp::XMPPlayTitlePlaylist(uint32_t playlist_handle,
   active_song_index_ = 0;
   state_ = State::kPlaying;
   OnStateChanged();
-  kernel_state_->BroadcastNotification(kMsgPlaybackBehaviorChanged, 1);
+  kernel_state_->BroadcastNotification(kNotificationXmpPlaybackBehaviorChanged,
+                                       1);
   return X_E_SUCCESS;
 }
 
@@ -202,7 +204,7 @@ X_HRESULT XmpApp::XMPPrevious() {
 }
 
 void XmpApp::OnStateChanged() {
-  kernel_state_->BroadcastNotification(kMsgStateChanged,
+  kernel_state_->BroadcastNotification(kNotificationXmpStateChanged,
                                        static_cast<uint32_t>(state_));
 }
 
@@ -270,7 +272,8 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       playback_mode_ = static_cast<PlaybackMode>(uint32_t(args->playback_mode));
       repeat_mode_ = static_cast<RepeatMode>(uint32_t(args->repeat_mode));
       unknown_flags_ = args->flags;
-      kernel_state_->BroadcastNotification(kMsgPlaybackBehaviorChanged, 0);
+      kernel_state_->BroadcastNotification(
+          kNotificationXmpPlaybackBehaviorChanged, 0);
       return X_E_SUCCESS;
     }
     case 0x00070009: {
@@ -405,8 +408,8 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
              uint32_t(args->controller), uint32_t(args->playback_client));
 
       playback_client_ = PlaybackClient(uint32_t(args->playback_client));
-      kernel_state_->BroadcastNotification(kMsgPlaybackControllerChanged,
-                                           !args->playback_client);
+      kernel_state_->BroadcastNotification(
+          kNotificationXmpPlaybackControllerChanged, !args->playback_client);
       return X_E_SUCCESS;
     }
     case 0x0007001B: {

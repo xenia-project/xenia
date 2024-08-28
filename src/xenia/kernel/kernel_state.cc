@@ -764,14 +764,14 @@ void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
   // Games seem to expect a few notifications on startup, only for the first
   // listener.
   // https://cs.rin.ru/forum/viewtopic.php?f=38&t=60668&hilit=resident+evil+5&start=375
-  if (!has_notified_startup_ && listener->mask() & 0x00000001) {
+  if (!has_notified_startup_ && listener->mask() & kXNotifySystem) {
     has_notified_startup_ = true;
     // XN_SYS_UI (on, off)
-    listener->EnqueueNotification(0x00000009, 1);
-    listener->EnqueueNotification(0x00000009, 0);
+    listener->EnqueueNotification(kXNotificationIDSystemUI, 1);
+    listener->EnqueueNotification(kXNotificationIDSystemUI, 0);
     // XN_SYS_SIGNINCHANGED x2
-    listener->EnqueueNotification(0x0000000A, 1);
-    listener->EnqueueNotification(0x0000000A, 1);
+    listener->EnqueueNotification(kXNotificationIDSystemSignInChanged, 1);
+    listener->EnqueueNotification(kXNotificationIDSystemSignInChanged, 1);
   }
 }
 
@@ -1149,12 +1149,12 @@ void KernelState::UpdateUsedUserProfiles() {
 
     if (IsUserSignedIn(i) && !is_used) {
       user_profiles_.erase(i);
-      BroadcastNotification(0x12, 0);
+      BroadcastNotification(kXNotificationIDSystemInputDevicesChanged, 0);
     }
 
     if (!IsUserSignedIn(i) && is_used) {
       user_profiles_.emplace(i, std::make_unique<xam::UserProfile>(i));
-      BroadcastNotification(0x12, 0);
+      BroadcastNotification(kXNotificationIDSystemInputDevicesChanged, 0);
     }
   }
 }
