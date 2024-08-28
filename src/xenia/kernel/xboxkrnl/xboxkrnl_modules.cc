@@ -98,6 +98,10 @@ dword_result_t xeXexLoadImage(
     bool isFromMemory) {
   X_STATUS result = X_STATUS_NO_SUCH_FILE;
 
+  if (!hmodule_ptr) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
   uint32_t hmodule = 0;
   auto module = kernel_state()->GetModule(module_name.value());
   if (module) {
