@@ -961,7 +961,7 @@ uint32_t NtWaitForSingleObjectEx(uint32_t object_handle, uint32_t wait_mode,
         object->Wait(3, wait_mode, alertable, timeout_ptr ? &timeout : nullptr);
     if (alertable) {
       if (result == X_STATUS_USER_APC) {
-        result = xeProcessUserApcs(nullptr);
+        xeProcessUserApcs(nullptr);
       }
     }
   } else {
