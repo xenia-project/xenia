@@ -416,10 +416,7 @@ uint32_t KeDelayExecutionThread(uint32_t processor_mode, uint32_t alertable,
   X_STATUS result = thread->Delay(processor_mode, alertable, *interval_ptr);
 
   if (result == X_STATUS_USER_APC) {
-    result = xeProcessUserApcs(ctx);
-    if (result == X_STATUS_USER_APC) {
-      return result;
-    }
+    xeProcessUserApcs(ctx);
   }
 
   return result;
@@ -931,7 +928,7 @@ uint32_t xeKeWaitForSingleObject(void* object_ptr, uint32_t wait_reason,
       object->Wait(wait_reason, processor_mode, alertable, timeout_ptr);
   if (alertable) {
     if (result == X_STATUS_USER_APC) {
-      result = xeProcessUserApcs(nullptr);
+      xeProcessUserApcs(nullptr);
     }
   }
   return result;
@@ -1009,7 +1006,7 @@ dword_result_t KeWaitForMultipleObjects_entry(
       wait_reason, processor_mode, alertable, timeout_ptr ? &timeout : nullptr);
   if (alertable) {
     if (result == X_STATUS_USER_APC) {
-      result = xeProcessUserApcs(nullptr);
+      xeProcessUserApcs(nullptr);
     }
   }
   return result;
@@ -1053,7 +1050,7 @@ uint32_t xeNtWaitForMultipleObjectsEx(uint32_t count, xe::be<uint32_t>* handles,
                             wait_type, 6, wait_mode, alertable, timeout_ptr);
   if (alertable) {
     if (result == X_STATUS_USER_APC) {
-      result = xeProcessUserApcs(nullptr);
+      xeProcessUserApcs(nullptr);
     }
   }
   return result;
@@ -1098,7 +1095,7 @@ dword_result_t NtSignalAndWaitForSingleObjectEx_entry(dword_t signal_handle,
 
   if (alertable) {
     if (result == X_STATUS_USER_APC) {
-      result = xeProcessUserApcs(nullptr);
+      xeProcessUserApcs(nullptr);
     }
   }
   return result;
