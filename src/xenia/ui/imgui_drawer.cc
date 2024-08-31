@@ -34,7 +34,8 @@ DEFINE_path(
     custom_font_path, "",
     "Allows user to load custom font and use it instead of default one.", "UI");
 
-DEFINE_uint32(font_size, 12, "Allows user to set custom font size.", "UI");
+DEFINE_uint32(font_size, 14, "Allows user to set custom font size.", "UI");
+UPDATE_from_uint32(font_size, 2024, 8, 31, 20, 12);
 
 namespace xe {
 namespace ui {
