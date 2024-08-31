@@ -9,6 +9,7 @@ test_suite("xenia-cpu-tests", project_root, ".", {
     "xenia-base",
     "xenia-core",
     "xenia-cpu",
+    "xenia-gpu",
 
     -- TODO(benvanik): cut these dependencies?
     "xenia-kernel",
