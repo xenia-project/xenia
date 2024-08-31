@@ -134,7 +134,8 @@ class Entry {
   virtual void update() { return; }
 
  protected:
-  Entry(Device* device, Entry* parent, const std::string_view path);
+  Entry(Device* device, Entry* parent, const std::string_view path,
+        const std::string_view name);
 
   virtual std::unique_ptr<Entry> CreateEntryInternal(
       const std::string_view name, uint32_t attributes) {

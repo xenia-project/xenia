@@ -26,7 +26,8 @@ class XContentContainerDevice;
 class XContentContainerEntry : public Entry {
  public:
   XContentContainerEntry(Device* device, Entry* parent,
-                         const std::string_view path, MultiFileHandles* files);
+                         const std::string_view path,
+                         const std::string_view name, MultiFileHandles* files);
   ~XContentContainerEntry() override;
 
   static std::unique_ptr<XContentContainerEntry> Create(

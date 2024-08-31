@@ -26,7 +26,7 @@ NullDevice::NullDevice(const std::string& mount_path,
 NullDevice::~NullDevice() = default;
 
 bool NullDevice::Initialize() {
-  auto root_entry = new NullEntry(this, nullptr, mount_path_);
+  auto root_entry = new NullEntry(this, nullptr, mount_path_, "");
   root_entry->attributes_ = kFileAttributeDirectory;
   root_entry_ = std::unique_ptr<Entry>(root_entry);
 

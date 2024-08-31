@@ -24,7 +24,7 @@ class DiscImageDevice;
 class DiscImageEntry : public Entry {
  public:
   DiscImageEntry(Device* device, Entry* parent, const std::string_view path,
-                 MappedMemory* mmap);
+                 const std::string_view name, MappedMemory* mmap);
   ~DiscImageEntry() override;
 
   static std::unique_ptr<DiscImageEntry> Create(Device* device, Entry* parent,

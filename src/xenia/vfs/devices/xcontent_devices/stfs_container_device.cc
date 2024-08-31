@@ -53,7 +53,7 @@ XContentContainerDevice::Result StfsContainerDevice::LoadHostFiles(
 StfsContainerDevice::Result StfsContainerDevice::Read() {
   auto& file = files_.at(0);
 
-  auto root_entry = new XContentContainerEntry(this, nullptr, "", &files_);
+  auto root_entry = new XContentContainerEntry(this, nullptr, "", "", &files_);
   root_entry->attributes_ = kFileAttributeDirectory;
   root_entry_ = std::unique_ptr<Entry>(root_entry);
 

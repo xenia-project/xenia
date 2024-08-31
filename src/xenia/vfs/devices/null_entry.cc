@@ -20,14 +20,15 @@
 namespace xe {
 namespace vfs {
 
-NullEntry::NullEntry(Device* device, Entry* parent, std::string path)
-    : Entry(device, parent, path) {}
+NullEntry::NullEntry(Device* device, Entry* parent, std::string path,
+                     const std::string_view name)
+    : Entry(device, parent, path, name) {}
 
 NullEntry::~NullEntry() = default;
 
 NullEntry* NullEntry::Create(Device* device, Entry* parent,
                              const std::string& path) {
-  auto entry = new NullEntry(device, parent, path);
+  auto entry = new NullEntry(device, parent, path, "");
 
   entry->create_timestamp_ = 0;
   entry->access_timestamp_ = 0;

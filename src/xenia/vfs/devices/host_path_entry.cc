@@ -23,8 +23,9 @@ namespace vfs {
 
 HostPathEntry::HostPathEntry(Device* device, Entry* parent,
                              const std::string_view path,
+                             const std::string_view name,
                              const std::filesystem::path& host_path)
-    : Entry(device, parent, path), host_path_(host_path) {}
+    : Entry(device, parent, path, name), host_path_(host_path) {}
 
 HostPathEntry::~HostPathEntry() = default;
 
@@ -33,7 +34,8 @@ HostPathEntry* HostPathEntry::Create(Device* device, Entry* parent,
                                      xe::filesystem::FileInfo file_info) {
   auto path = xe::utf8::join_guest_paths(parent->path(),
                                          xe::path_to_utf8(file_info.name));
-  auto entry = new HostPathEntry(device, parent, path, full_path);
+  auto entry = new HostPathEntry(device, parent, path,
+                                 xe::path_to_utf8(file_info.name), full_path);
 
   entry->create_timestamp_ = file_info.create_timestamp;
   entry->access_timestamp_ = file_info.access_timestamp;

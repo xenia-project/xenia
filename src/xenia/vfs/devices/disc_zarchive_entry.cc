@@ -20,8 +20,9 @@ namespace xe {
 namespace vfs {
 
 DiscZarchiveEntry::DiscZarchiveEntry(Device* device, Entry* parent,
-                                     const std::string_view path)
-    : Entry(device, parent, path),
+                                     const std::string_view path,
+                                     const std::string_view name)
+    : Entry(device, parent, path, name),
       data_offset_(0),
       data_size_(0),
       handle_(ZARCHIVE_INVALID_NODE) {}
@@ -31,7 +32,7 @@ DiscZarchiveEntry::~DiscZarchiveEntry() = default;
 std::unique_ptr<DiscZarchiveEntry> DiscZarchiveEntry::Create(
     Device* device, Entry* parent, const std::string_view name) {
   auto path = name;  // xe::utf8::join_guest_paths(parent->path(), name);
-  auto entry = std::make_unique<DiscZarchiveEntry>(device, parent, path);
+  auto entry = std::make_unique<DiscZarchiveEntry>(device, parent, path, name);
   return std::move(entry);
 }
 

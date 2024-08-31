@@ -36,7 +36,7 @@ bool DiscZarchiveDevice::Initialize() {
 
   const std::string root_path = std::string("/");
   const ZArchiveNodeHandle handle = reader_->LookUp(root_path);
-  auto root_entry = new DiscZarchiveEntry(this, nullptr, root_path);
+  auto root_entry = new DiscZarchiveEntry(this, nullptr, root_path, "");
   root_entry->attributes_ = kFileAttributeDirectory;
   root_entry->handle_ = static_cast<uint32_t>(handle);
   root_entry->name_ = root_path;
@@ -79,7 +79,8 @@ bool DiscZarchiveDevice::ReadAllEntries(const std::string& path,
   }
 
   if (reader_->IsFile(handle)) {
-    auto entry = new DiscZarchiveEntry(this, parent, path);
+    auto entry = new DiscZarchiveEntry(
+        this, parent, path, xe::utf8::find_name_from_guest_path(path));
     entry->attributes_ = kFileAttributeReadOnly;
     entry->handle_ = static_cast<uint32_t>(handle);
     entry->parent_ = parent;
@@ -103,7 +104,8 @@ bool DiscZarchiveDevice::ReadAllEntries(const std::string& path,
         return false;
       }
 
-      auto entry = new DiscZarchiveEntry(this, parent, full_path);
+      auto entry =
+          new DiscZarchiveEntry(this, parent, full_path, dirEntry.name);
       entry->handle_ = static_cast<uint32_t>(fileHandle);
       entry->data_offset_ = 0;
 
