@@ -16,10 +16,41 @@ namespace xe {
 namespace kernel {
 namespace xam {
 namespace apps {
+/*
+ * Most of the structs below were found in the Source SDK, provided as stubs.
+ * Specifically, they can be found in the Source 2007 SDK and the Alien Swarm
+ * Source SDK. Both are available on Steam for free. A GitHub mirror of the
+ * Alien Swarm SDK can be found here:
+ * https://github.com/NicolasDe/AlienSwarm/blob/master/src/common/xbox/xboxstubs.h
+ */
 
 struct X_XUSER_ACHIEVEMENT {
   xe::be<uint32_t> user_idx;
   xe::be<uint32_t> achievement_id;
+};
+
+struct XUSER_STATS_VIEW {
+  xe::be<uint32_t> ViewId;
+  xe::be<uint32_t> TotalViewRows;
+  xe::be<uint32_t> NumRows;
+  xe::be<uint32_t> pRows;
+};
+
+struct XUSER_STATS_COLUMN {
+  xe::be<uint16_t> ColumnId;
+  X_USER_DATA Value;
+};
+
+struct XUSER_STATS_RESET {
+  xe::be<uint32_t> user_index;
+  xe::be<uint32_t> view_id;
+};
+
+struct XUSER_ANID {
+  xe::be<uint32_t> user_index;
+  xe::be<uint32_t> cchAnIdBuffer;
+  xe::be<uint32_t> pszAnIdBuffer;
+  xe::be<uint32_t> value_const;  // 1
 };
 
 XgiApp::XgiApp(KernelState* kernel_state) : App(kernel_state, 0xFB) {}
@@ -108,6 +139,8 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       return X_E_SUCCESS;
     }
     case 0x000B0010: {
+      XELOGD("XSessionCreate({:08X}, {:08X}), implemented in netplay",
+             buffer_ptr, buffer_length);
       assert_true(!buffer_length || buffer_length == 28);
       // Sequence:
       // - XamSessionCreateHandle
@@ -130,8 +163,8 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       return X_E_SUCCESS;
     }
     case 0x000B0011: {
-      // TODO(PermaNull): reverse buffer contents.
-      XELOGD("XGISessionDelete");
+      XELOGD("XGISessionDelete({:08X}, {:08X}), implemented in netplay",
+             buffer_ptr, buffer_length);
       return X_STATUS_SUCCESS;
     }
     case 0x000B0012: {
@@ -150,16 +183,19 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     case 0x000B0014: {
       // Gets 584107FB in game.
       // get high score table?
-      XELOGD("XGI_unknown");
+      XELOGD("XSessionStart({:08X}), implemented in netplay", buffer_ptr);
       return X_STATUS_SUCCESS;
     }
     case 0x000B0015: {
       // send high scores?
-      XELOGD("XGI_unknown");
+      XELOGD("XSessionEnd({:08X}, {:08X}), implemented in netplay", buffer_ptr,
+             buffer_length);
       return X_STATUS_SUCCESS;
     }
     case 0x000B0021: {
-      struct XLeaderboard {
+      XELOGD("XUserReadStats");
+
+      struct XUserReadStats {
         xe::be<uint32_t> titleId;
         xe::be<uint32_t> xuids_count;
         xe::be<uint32_t> xuids_guest_address;
@@ -167,7 +203,7 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
         xe::be<uint32_t> specs_guest_address;
         xe::be<uint32_t> results_size;
         xe::be<uint32_t> results_guest_address;
-      }* data = reinterpret_cast<XLeaderboard*>(buffer);
+      }* data = reinterpret_cast<XUserReadStats*>(buffer);
 
       if (!data->results_guest_address) {
         return 1;
@@ -177,13 +213,16 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       // Called after opening xbox live arcade and clicking on xbox live v5759
       // to 5787 and called after clicking xbox live in the game library from
       // v6683 to v6717
-      XELOGD("XGIUnkB0036, unimplemented");
+      XELOGD("XGIUnkB0036({:08X}, {:08X}), unimplemented", buffer_ptr,
+             buffer_length);
       return X_E_FAIL;
     }
     case 0x000B003D: {
-      // Games used in:
-      // - 5451082a (netplay build).
-      XELOGD("XGIUnkB003D, unimplemented");
+      // Used in 5451082A, 5553081E
+
+      // XUserGetCachedANID
+      XELOGI("XUserGetANID({:08X}, {:08X}), implemented in netplay", buffer_ptr,
+             buffer_length);
       return X_E_FAIL;
     }
     case 0x000B0041: {
@@ -209,10 +248,11 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
         }
         xe::store_and_swap<uint32_t>(context + 4, value);
       }
-      return X_E_FAIL;
+      return X_E_SUCCESS;
     }
     case 0x000B0071: {
-      XELOGD("XGI 0x000B0071, unimplemented");
+      XELOGD("XGIUnkB0071({:08X}, {:08X}), unimplemented", buffer_ptr,
+             buffer_length);
       return X_E_SUCCESS;
     }
   }

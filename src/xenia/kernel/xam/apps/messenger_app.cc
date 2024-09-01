@@ -27,15 +27,21 @@ X_RESULT MessengerApp::DispatchMessageSync(uint32_t message,
   auto buffer = memory_->TranslateVirtual(buffer_ptr);
   switch (message) {
     case 0x00200002: {
-      // Used on start in blades dashboard v5759 (marketplace update) and
-      // possibly to 6717 with netplay
-      XELOGD("MessengerUnk200002, unimplemented");
+      // Used on start in blades dashboard v5759 (marketplace update) and 6717
+      XELOGD("MessengerUnk200002({:08X}, {:08X}), unimplemented", buffer_ptr,
+             buffer_length);
+      return X_E_FAIL;
+    }
+    case 0x00200018: {
+      // Used on logging out in blades 6717
+      XELOGD("MessengerUnk200018({:08X}, {:08X}), unimplemented", buffer_ptr,
+             buffer_length);
       return X_E_FAIL;
     }
   }
   XELOGE(
-      "Unimplemented Messenger message app=%.8X, msg=%.8X, arg1=%.8X, "
-      "arg2=%.8X",
+      "Unimplemented Messenger message app={:08X}, msg={:08X}, arg1={:08X}, "
+      "arg2={:08X}",
       app_id(), message, buffer_ptr, buffer_length);
   return X_STATUS_UNSUCCESSFUL;
 }

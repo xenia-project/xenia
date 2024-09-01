@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_XAM_APPS_UNKNOWN_F7_APP_H_
-#define XENIA_KERNEL_XAM_APPS_UNKNOWN_F7_APP_H_
+#ifndef XENIA_KERNEL_XAM_APPS_MESSENGER_APP_H_
+#define XENIA_KERNEL_XAM_APPS_MESSENGER_APP_H_
 
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xam/app_manager.h"
@@ -31,4 +31,4 @@ class MessengerApp : public App {
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_XAM_APPS_UNKNOWN_FE_APP_H_
+#endif XENIA_KERNEL_XAM_APPS_MESSENGER_APP_H_
