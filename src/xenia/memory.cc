@@ -84,6 +84,17 @@ void CrashDump() {
   --in_crash_dump;
 }
 
+xe::memory::PageAccess ToPageAccess(uint32_t protect) {
+  if ((protect & kMemoryProtectRead) && !(protect & kMemoryProtectWrite)) {
+    return xe::memory::PageAccess::kReadOnly;
+  } else if ((protect & kMemoryProtectRead) &&
+             (protect & kMemoryProtectWrite)) {
+    return xe::memory::PageAccess::kReadWrite;
+  } else {
+    return xe::memory::PageAccess::kNoAccess;
+  }
+}
+
 Memory::Memory() {
   system_page_size_ = uint32_t(xe::memory::page_size());
   system_allocation_granularity_ =
@@ -195,6 +206,17 @@ bool Memory::Initialize() {
       0xC0000000, 0x01000000, 32,
       kMemoryAllocationReserve | kMemoryAllocationCommit,
       kMemoryProtectRead | kMemoryProtectWrite);
+
+  // TODO(Gliniak): Seems like GPU has access to whole physical memory range
+  // without any restriction. This however needs some form of validation.
+  // That's why we're commiting whole physical memory range and deal with
+  // allocations issues on custom page protection level.
+  for (size_t i = 1; i <= 16; i++) {
+    xe::memory::AllocFixed(heaps_.physical.TranslateRelative(i << 24),
+                           heaps_.physical.page_size() * 0x10000,
+                           xe::memory::AllocationType::kCommit,
+                           xe::memory::PageAccess::kReadWrite);
+  }
 
   // Add handlers for MMIO.
   mmio_handler_ = cpu::MMIOHandler::Install(
@@ -668,17 +690,6 @@ bool Memory::Restore(ByteStream* stream) {
   heaps_.physical.Restore(stream);
 
   return true;
-}
-
-xe::memory::PageAccess ToPageAccess(uint32_t protect) {
-  if ((protect & kMemoryProtectRead) && !(protect & kMemoryProtectWrite)) {
-    return xe::memory::PageAccess::kReadOnly;
-  } else if ((protect & kMemoryProtectRead) &&
-             (protect & kMemoryProtectWrite)) {
-    return xe::memory::PageAccess::kReadWrite;
-  } else {
-    return xe::memory::PageAccess::kNoAccess;
-  }
 }
 
 uint32_t FromPageAccess(xe::memory::PageAccess protect) {

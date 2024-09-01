@@ -421,24 +421,6 @@ bool D3D12SharedMemory::UploadRanges(
     trace_writer_.WriteMemoryRead(upload_range_start << page_size_log2(),
                                   upload_range_length << page_size_log2());
 
-    if (upload_range_length > 0) {
-      // Hacky handling for certain games (494707D4, 55530874) that crashes due
-      // to accessing unallocated pages
-      const uint32_t upload_range_last_page =
-          upload_range_start + upload_range_length - 1;
-
-      memory::PageAccess page_access =
-          memory().GetPhysicalHeap()->QueryRangeAccess(
-              upload_range_last_page << page_size_log2(),
-              (upload_range_last_page
-               << page_size_log2()));  // Check only last page
-
-      if (page_access == xe::memory::PageAccess::kNoAccess) {
-        XELOGE("Invalid upload range for GPU: {:08X}", upload_range_start);
-        return false;
-      }
-    }
-
     while (upload_range_length != 0) {
       ID3D12Resource* upload_buffer;
       size_t upload_buffer_offset, upload_buffer_size;
