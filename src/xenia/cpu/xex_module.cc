@@ -304,7 +304,7 @@ int XexModule::ApplyPatch(XexModule* module) {
   assert_not_null(file_format_header);
 
   // Apply header patch...
-  uint32_t headerpatch_size = patch_header->info.compressed_len + 0xC;
+  uint32_t headerpatch_size = patch_header->size;
 
   int result_code = lzxdelta_apply_patch(
       &patch_header->info, headerpatch_size,
