@@ -193,7 +193,8 @@ XboxkrnlModule::XboxkrnlModule(Emulator* emulator, KernelState* kernel_state)
     command_line += " " + cvars::cl;
   }
   uint32_t command_line_length =
-      xe::align(static_cast<uint32_t>(command_line.length()) + 1, 1024u);
+      xe::align(static_cast<uint32_t>(command_line.length()) + 1,
+                static_cast<uint32_t>(kExLoadedCommandLineSize));
   uint32_t pExLoadedCommandLine = memory_->SystemHeapAlloc(command_line_length);
   auto lpExLoadedCommandLine = memory_->TranslateVirtual(pExLoadedCommandLine);
   export_resolver_->SetVariableMapping(

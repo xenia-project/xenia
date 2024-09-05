@@ -41,6 +41,8 @@ DEFINE_uint32(max_signed_profiles, 4,
 DEFINE_uint32(kernel_build_version, 1888, "Define current kernel version",
               "Kernel");
 
+DECLARE_string(cl);
+
 namespace xe {
 namespace kernel {
 
@@ -386,6 +388,25 @@ void KernelState::SetExecutableModule(object_ref<UserModule> module) {
         variable_ptr, executable_module_->path(),
         xboxkrnl::XboxkrnlModule::kExLoadedImageNameSize);
   }
+
+  // Setup the kernel's ExLoadedCommandLine field
+  export_entry = processor()->export_resolver()->GetExportByOrdinal(
+      "xboxkrnl.exe", ordinals::ExLoadedCommandLine);
+  if (export_entry) {
+    char* variable_ptr =
+        memory()->TranslateVirtual<char*>(export_entry->variable_ptr);
+
+    std::string module_name =
+        fmt::format("\"{}.xex\"", executable_module_->name());
+    if (!cvars::cl.empty()) {
+      module_name += " " + cvars::cl;
+    }
+
+    xe::string_util::copy_truncating(
+        variable_ptr, module_name,
+        xboxkrnl::XboxkrnlModule::kExLoadedCommandLineSize);
+  }
+
   // Spin up deferred dispatch worker.
   // TODO(benvanik): move someplace more appropriate (out of ctor, but around
   // here).
