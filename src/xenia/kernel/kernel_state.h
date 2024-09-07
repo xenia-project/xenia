@@ -279,7 +279,7 @@ class KernelState {
     return object_ref<T>(reinterpret_cast<T*>(module.release()));
   }
 
-  X_RESULT ApplyTitleUpdate(const object_ref<UserModule> module);
+  X_RESULT ApplyTitleUpdate(const object_ref<UserModule> title_module);
   // Terminates a title: Unloads all modules, and kills all guest threads.
   // This DOES NOT RETURN if called from a guest thread!
   void TerminateTitle();
@@ -352,6 +352,18 @@ class KernelState {
   void SetProcessTLSVars(X_KPROCESS* process, int num_slots, int tls_data_size,
                          int tls_static_data_address);
   void InitializeKernelGuestGlobals();
+
+  std::vector<xam::XCONTENT_AGGREGATE_DATA> FindTitleUpdate(
+      const uint32_t title_id) const;
+  const object_ref<UserModule> LoadTitleUpdate(
+      const xam::XCONTENT_AGGREGATE_DATA* title_update,
+      const object_ref<UserModule> module);
+  bool IsPatchSignatureProper(const object_ref<UserModule> title_module,
+                              const object_ref<UserModule> patch_module) const;
+
+  X_RESULT ApplyTitleUpdate(const object_ref<UserModule> title_module,
+                            const object_ref<UserModule> patch_module);
+
   Emulator* emulator_;
   Memory* memory_;
   cpu::Processor* processor_;

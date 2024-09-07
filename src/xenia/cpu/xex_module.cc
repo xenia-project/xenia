@@ -230,18 +230,6 @@ int XexModule::ApplyPatch(XexModule* module) {
                reinterpret_cast<void**>(&patch_header));
   assert_not_null(patch_header);
 
-  // Compare hash inside delta descriptor to base XEX signature
-  uint8_t digest[0x14];
-  sha1::SHA1 s;
-  s.processBytes(module->xex_security_info()->rsa_signature, 0x100);
-  s.finalize(digest);
-
-  if (memcmp(digest, patch_header->digest_source, 0x14) != 0) {
-    XELOGW(
-        "XEX patch signature hash doesn't match base XEX signature hash, patch "
-        "will likely fail!");
-  }
-
   uint32_t size = module->xex_header()->header_size;
   if (patch_header->delta_headers_source_offset > size) {
     XELOGE("XEX header patch source is outside base XEX header area");
@@ -419,6 +407,8 @@ int XexModule::ApplyPatch(XexModule* module) {
            original_image_size - image_target_size);
   }
 
+  uint8_t digest[0x14];
+  sha1::SHA1 s;
   // Now loop through each block and apply the delta patches inside
   while (cur_block->block_size) {
     const auto* next_block = (const xex2_compressed_block_info*)p;
