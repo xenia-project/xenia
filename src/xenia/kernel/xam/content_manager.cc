@@ -78,14 +78,32 @@ std::filesystem::path ContentManager::ResolvePackagePath(
     const XCONTENT_AGGREGATE_DATA& data, const uint32_t disc_number) {
   // Content path:
   // content_root/title_id/content_type/data_file_name/
-  auto package_root = ResolvePackageRoot(data.content_type, data.title_id);
-  std::string final_name = xe::string_util::trim(data.file_name());
-  std::filesystem::path package_path = package_root / xe::to_path(final_name);
+  std::set<uint32_t> title_ids = {data.title_id};
 
-  if (disc_number != -1) {
-    package_path /= fmt::format("disc{:03}", disc_number);
+  if (data.content_type == XContentType::kPublisher) {
+    title_ids = FindPublisherTitleIds(data.title_id);
   }
-  return package_path;
+
+  for (const auto& title_id : title_ids) {
+    auto package_root = ResolvePackageRoot(data.content_type, title_id);
+    std::string final_name = xe::string_util::trim(data.file_name());
+    std::filesystem::path package_path = package_root / xe::to_path(final_name);
+
+    if (disc_number != -1) {
+      package_path /= fmt::format("disc{:03}", disc_number);
+    }
+
+    if (data.content_type == XContentType::kPublisher) {
+      if (!std::filesystem::exists(package_path)) {
+        continue;
+      }
+      return package_path;
+    }
+    return package_path;
+  }
+
+  assert_always("ResolvePackagePath: Reached unreachable path!");
+  return "";
 }
 
 std::filesystem::path ContentManager::ResolvePackageHeaderPath(
@@ -105,6 +123,35 @@ std::filesystem::path ContentManager::ResolvePackageHeaderPath(
          content_type_str / final_name;
 }
 
+std::set<uint32_t> ContentManager::FindPublisherTitleIds(
+    uint32_t base_title_id) const {
+  if (base_title_id == kCurrentlyRunningTitleId) {
+    base_title_id = kernel_state_->title_id();
+  }
+  std::set<uint32_t> title_ids = {base_title_id};
+
+  std::string publisher_id_regex =
+      fmt::format("^{:04X}.*", static_cast<uint16_t>(base_title_id >> 16));
+  // Get all publisher entries
+  auto publisher_entries =
+      xe::filesystem::FilterByName(xe::filesystem::ListDirectories(root_path_),
+                                   std::regex(publisher_id_regex));
+
+  for (const auto& entry : publisher_entries) {
+    std::filesystem::path path_to_publisher_dir =
+        entry.path / entry.name /
+        fmt::format("{:08X}", XContentType::kPublisher);
+
+    if (!std::filesystem::exists(path_to_publisher_dir)) {
+      continue;
+    }
+
+    title_ids.insert(xe::string_util::from_string<uint32_t>(
+        xe::path_to_utf8(entry.name), true));
+  }
+  return title_ids;
+}
+
 std::vector<XCONTENT_AGGREGATE_DATA> ContentManager::ListContent(
     uint32_t device_id, XContentType content_type, uint32_t title_id) {
   std::vector<XCONTENT_AGGREGATE_DATA> result;
@@ -116,17 +163,7 @@ std::vector<XCONTENT_AGGREGATE_DATA> ContentManager::ListContent(
   std::set<uint32_t> title_ids = {title_id};
 
   if (content_type == XContentType::kPublisher) {
-    std::string publisher_id_regex =
-        fmt::format("^{:04X}.*", static_cast<uint16_t>(title_id >> 16));
-    // Get all publisher entries
-    auto publisher_entries = xe::filesystem::FilterByName(
-        xe::filesystem::ListDirectories(root_path_),
-        std::regex(publisher_id_regex));
-
-    for (const auto& entry : publisher_entries) {
-      title_ids.insert(xe::string_util::from_string<uint32_t>(
-          xe::path_to_utf8(entry.name), true));
-    }
+    title_ids = FindPublisherTitleIds(title_id);
   }
 
   for (const uint32_t& title_id : title_ids) {

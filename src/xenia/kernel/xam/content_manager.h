@@ -11,6 +11,7 @@
 #define XENIA_KERNEL_XAM_CONTENT_MANAGER_H_
 
 #include <memory>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -178,6 +179,9 @@ class ContentManager {
   std::filesystem::path ResolvePackageHeaderPath(
       const std::string_view file_name, XContentType content_type,
       uint32_t title_id = -1);
+
+  std::set<uint32_t> FindPublisherTitleIds(
+      uint32_t base_title_id = kCurrentlyRunningTitleId) const;
 
   KernelState* kernel_state_;
   std::filesystem::path root_path_;
