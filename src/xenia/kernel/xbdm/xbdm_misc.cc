@@ -12,6 +12,7 @@
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xbdm/xbdm_private.h"
 #include "xenia/kernel/xthread.h"
+#include "xenia/vfs/devices/host_path_device.h"
 #include "xenia/xbox.h"
 
 // chrispy: no idea what a real valid value is for this
@@ -108,11 +109,27 @@ dword_result_t DmWalkLoadedModules_entry(lpdword_t unk0_ptr,
 }
 DECLARE_XBDM_EXPORT1(DmWalkLoadedModules, kDebug, kStub);
 
-void DmMapDevkitDrive_entry(const ppc_context_t& ctx) {
-  // games check for nonzero result, failure if nz
-  ctx->r[3] = 0ULL;
+dword_result_t DmMapDevkitDrive_entry(const ppc_context_t& ctx) {
+  auto devkit_device =
+      std::make_unique<xe::vfs::HostPathDevice>("\\DEVKIT", "devkit", false);
+
+  auto fs = kernel_state()->file_system();
+
+  if (!devkit_device->Initialize()) {
+    XELOGE("Unable to scan devkit path");
+    return XBDM_UNSUCCESSFUL;
+  }
+
+  if (!fs->RegisterDevice(std::move(devkit_device))) {
+    XELOGE("Unable to register devkit path");
+    return XBDM_UNSUCCESSFUL;
+  }
+
+  fs->RegisterSymbolicLink("DEVKIT:", "\\DEVKIT");
+  fs->RegisterSymbolicLink("e:", "\\DEVKIT");
+  return 0;
 }
-DECLARE_XBDM_EXPORT1(DmMapDevkitDrive, kDebug, kStub);
+DECLARE_XBDM_EXPORT1(DmMapDevkitDrive, kDebug, kImplemented);
 
 dword_result_t DmFindPdbSignature_entry(lpdword_t unk0_ptr,
                                         lpdword_t unk1_ptr) {
