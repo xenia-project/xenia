@@ -116,7 +116,7 @@ inline std::u16string TranslateUnicodeString(
           unicode_string->pointer);
   std::u16string translated_string;
   translated_string.reserve(length);
-  for (uint16_t i = 0; i < length; ++i) {
+  for (uint16_t i = 0; i < length / sizeof(uint16_t); ++i) {
     translated_string += char16_t(uint16_t(guest_string[i]));
   }
   return translated_string;
