@@ -10,8 +10,8 @@
 #include "xenia/kernel/xam/content_manager.h"
 
 #include <array>
-#include <set>
 #include <string>
+#include <unordered_set>
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/filesystem.h"
@@ -78,13 +78,7 @@ std::filesystem::path ContentManager::ResolvePackagePath(
     const XCONTENT_AGGREGATE_DATA& data, const uint32_t disc_number) {
   // Content path:
   // content_root/title_id/content_type/data_file_name/
-  std::set<uint32_t> title_ids = {data.title_id};
-
-  if (data.content_type == XContentType::kPublisher) {
-    title_ids = FindPublisherTitleIds(data.title_id);
-  }
-
-  for (const auto& title_id : title_ids) {
+  auto get_package_path = [&, data, disc_number](const uint32_t title_id) {
     auto package_root = ResolvePackageRoot(data.content_type, title_id);
     std::string final_name = xe::string_util::trim(data.file_name());
     std::filesystem::path package_path = package_root / xe::to_path(final_name);
@@ -92,18 +86,25 @@ std::filesystem::path ContentManager::ResolvePackagePath(
     if (disc_number != -1) {
       package_path /= fmt::format("disc{:03}", disc_number);
     }
+    return package_path;
+  };
 
-    if (data.content_type == XContentType::kPublisher) {
+  if (data.content_type == XContentType::kPublisher) {
+    const std::unordered_set<uint32_t> title_ids =
+        FindPublisherTitleIds(data.title_id);
+
+    for (const auto& title_id : title_ids) {
+      auto package_path = get_package_path(title_id);
+
       if (!std::filesystem::exists(package_path)) {
         continue;
       }
       return package_path;
     }
-    return package_path;
   }
 
-  assert_always("ResolvePackagePath: Reached unreachable path!");
-  return "";
+  // Default handling for current title
+  return get_package_path(data.title_id);
 }
 
 std::filesystem::path ContentManager::ResolvePackageHeaderPath(
@@ -123,12 +124,12 @@ std::filesystem::path ContentManager::ResolvePackageHeaderPath(
          content_type_str / final_name;
 }
 
-std::set<uint32_t> ContentManager::FindPublisherTitleIds(
+std::unordered_set<uint32_t> ContentManager::FindPublisherTitleIds(
     uint32_t base_title_id) const {
   if (base_title_id == kCurrentlyRunningTitleId) {
     base_title_id = kernel_state_->title_id();
   }
-  std::set<uint32_t> title_ids = {base_title_id};
+  std::unordered_set<uint32_t> title_ids = {};
 
   std::string publisher_id_regex =
       fmt::format("^{:04X}.*", static_cast<uint16_t>(base_title_id >> 16));
@@ -149,6 +150,11 @@ std::set<uint32_t> ContentManager::FindPublisherTitleIds(
     title_ids.insert(xe::string_util::from_string<uint32_t>(
         xe::path_to_utf8(entry.name), true));
   }
+
+  // Always remove current title. It will be handled differently
+  if (title_ids.count(base_title_id)) {
+    title_ids.erase(base_title_id);
+  }
   return title_ids;
 }
 
@@ -160,7 +166,7 @@ std::vector<XCONTENT_AGGREGATE_DATA> ContentManager::ListContent(
     title_id = kernel_state_->title_id();
   }
 
-  std::set<uint32_t> title_ids = {title_id};
+  std::unordered_set<uint32_t> title_ids = {title_id};
 
   if (content_type == XContentType::kPublisher) {
     title_ids = FindPublisherTitleIds(title_id);

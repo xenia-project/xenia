@@ -11,9 +11,9 @@
 #define XENIA_KERNEL_XAM_CONTENT_MANAGER_H_
 
 #include <memory>
-#include <set>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "xenia/base/memory.h"
@@ -180,7 +180,7 @@ class ContentManager {
       const std::string_view file_name, XContentType content_type,
       uint32_t title_id = -1);
 
-  std::set<uint32_t> FindPublisherTitleIds(
+  std::unordered_set<uint32_t> FindPublisherTitleIds(
       uint32_t base_title_id = kCurrentlyRunningTitleId) const;
 
   KernelState* kernel_state_;
