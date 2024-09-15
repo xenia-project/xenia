@@ -224,6 +224,8 @@ int XexModule::ApplyPatch(XexModule* module) {
     return 1;
   }
 
+  const uint32_t original_base_address = module->base_address();
+
   // Grab the delta descriptor and get to work.
   xex2_opt_delta_patch_descriptor* patch_header = nullptr;
   GetOptHeader(XEX_HEADER_DELTA_PATCH_DESCRIPTOR,
@@ -317,6 +319,25 @@ int XexModule::ApplyPatch(XexModule* module) {
     uint32_t size_delta = new_image_size - original_image_size;
     uint32_t addr_new_mem = module->base_address_ + original_image_size;
 
+    // Before we allocate new range we must check if patch haven't modified
+    // base_address.
+    uint32_t new_base_address = module->base_address();
+    xe::be<uint32_t>* base_addr_opt = nullptr;
+    if (module->GetOptHeader(XEX_HEADER_IMAGE_BASE_ADDRESS, &base_addr_opt)) {
+      new_base_address = *base_addr_opt;
+    }
+
+    if (original_base_address != new_base_address) {
+      XELOGW(
+          "Patch for module: {} changed base_address from {:08X} to {:08X}, "
+          "need to reallocate xex "
+          "data!",
+          module->name(), module->base_address_, new_base_address);
+      module->base_address_ = new_base_address;
+      addr_new_mem = new_base_address;
+      size_delta = new_image_size;
+    }
+
     bool alloc_result =
         memory()
             ->LookupHeap(addr_new_mem)
@@ -330,6 +351,13 @@ int XexModule::ApplyPatch(XexModule* module) {
              size_delta);
       assert_always();
       return 6;
+    }
+
+    // For base_address change we need to copy data from previous allocation to
+    // new one
+    if (original_base_address != new_base_address) {
+      kernel_state_->memory()->Copy(new_base_address, original_base_address,
+                                    original_image_size);
     }
   }
 
