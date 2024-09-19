@@ -1902,15 +1902,27 @@ std::string EmulatorWindow::CanonicalizeFileExtension(
   return xe::utf8::lower_ascii(xe::path_to_utf8(path.extension()));
 }
 
-xe::X_STATUS EmulatorWindow::RunTitle(std::filesystem::path path_to_file) {
-  bool titleExists = !std::filesystem::exists(path_to_file);
+xe::X_STATUS EmulatorWindow::RunTitle(
+    const std::filesystem::path& path_to_file) {
+  std::error_code ec = {};
+  bool titleExists = std::filesystem::exists(path_to_file, ec);
 
-  if (path_to_file.empty() || titleExists) {
-    char* log_msg = path_to_file.empty()
-                        ? "Failed to launch title path is empty."
-                        : "Failed to launch title path is invalid.";
+  if (path_to_file.empty() || !titleExists) {
+    std::string log_msg =
+        fmt::format("Failed to launch title path is {}.",
+                    path_to_file.empty() ? "empty" : "invalid");
 
-    XELOGE(log_msg);
+    if (!path_to_file.empty() && !titleExists) {
+      log_msg.append(
+          fmt::format("\nProvided Path: {}", xe::path_to_utf8(path_to_file)));
+    }
+
+    if (ec) {
+      log_msg.append(fmt::format("\nExtended message info: {} ({:08X})",
+                                 ec.message(), ec.value()));
+    }
+
+    XELOGE("{}", log_msg);
 
     imgui_drawer_.get()->ClearDialogs();
 

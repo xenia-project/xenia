@@ -82,7 +82,7 @@ class EmulatorWindow {
 
   void OnEmulatorInitialized();
 
-  xe::X_STATUS RunTitle(std::filesystem::path path_to_file);
+  xe::X_STATUS RunTitle(const std::filesystem::path& path_to_file);
   void UpdateTitle();
   void SetFullscreen(bool fullscreen);
   void ToggleFullscreen();
