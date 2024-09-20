@@ -143,18 +143,18 @@ XLast::GetProductInformationAttributes() const {
 }
 
 std::vector<XLanguage> XLast::GetSupportedLanguages() const {
-  std::vector<XLanguage> launguages;
+  std::vector<XLanguage> languages;
 
   std::string xpath = fmt::format(
       "/XboxLiveSubmissionProject/GameConfigProject/LocalizedStrings");
 
   if (!HasXLast()) {
-    return launguages;
+    return languages;
   }
 
   const pugi::xpath_node node = parsed_xlast_->select_node(xpath.c_str());
   if (!node) {
-    return launguages;
+    return languages;
   }
 
   const auto locale = node.node().children("SupportedLocale");
@@ -163,12 +163,12 @@ std::vector<XLanguage> XLast::GetSupportedLanguages() const {
 
     for (const auto& language : language_mapping) {
       if (language.second == locale_name) {
-        launguages.push_back(language.first);
+        languages.push_back(language.first);
       }
     }
   }
 
-  return launguages;
+  return languages;
 }
 
 std::u16string XLast::GetLocalizedString(uint32_t string_id,
@@ -308,7 +308,7 @@ XLastMatchmakingQuery* XLast::GetMatchmakingQuery(
 
 std::vector<uint32_t> XLast::GetAllValuesFromNode(
     const pugi::xpath_node node, const std::string child_name,
-    const std::string attirbute_name) {
+    const std::string attribute_name) {
   std::vector<uint32_t> result{};
 
   const auto searched_child = node.node().child(child_name.c_str());
@@ -316,7 +316,7 @@ std::vector<uint32_t> XLast::GetAllValuesFromNode(
   for (pugi::xml_node_iterator itr = searched_child.begin();
        itr != searched_child.end(); itr++) {
     result.push_back(xe::string_util::from_string<uint32_t>(
-        itr->attribute(attirbute_name.c_str()).value(), true));
+        itr->attribute(attribute_name.c_str()).value(), true));
   }
 
   return result;

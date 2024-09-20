@@ -88,7 +88,7 @@ class XLast {
   XLastMatchmakingQuery* GetMatchmakingQuery(uint32_t query_id) const;
   static std::vector<uint32_t> GetAllValuesFromNode(
       const pugi::xpath_node node, const std::string child_name,
-      const std::string attirbute_name);
+      const std::string attribute_name);
 
   void Dump(std::string file_name) const;
 
