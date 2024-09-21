@@ -89,6 +89,10 @@ XLast::~XLast() {}
 std::u16string XLast::GetTitleName() const {
   std::string xpath = "/XboxLiveSubmissionProject/GameConfigProject";
 
+  if (!HasXLast()) {
+    return std::u16string();
+  }
+
   const pugi::xpath_node node = parsed_xlast_->select_node(xpath.c_str());
   if (!node) {
     return std::u16string();
@@ -103,6 +107,10 @@ XLast::GetProductInformationAttributes() const {
 
   std::string xpath =
       "/XboxLiveSubmissionProject/GameConfigProject/ProductInformation";
+
+  if (!HasXLast()) {
+    return attributes;
+  }
 
   const pugi::xpath_node node = parsed_xlast_->select_node(xpath.c_str());
   if (!node) {
@@ -140,6 +148,10 @@ std::vector<XLanguage> XLast::GetSupportedLanguages() const {
   std::string xpath = fmt::format(
       "/XboxLiveSubmissionProject/GameConfigProject/LocalizedStrings");
 
+  if (!HasXLast()) {
+    return launguages;
+  }
+
   const pugi::xpath_node node = parsed_xlast_->select_node(xpath.c_str());
   if (!node) {
     return launguages;
@@ -166,6 +178,10 @@ std::u16string XLast::GetLocalizedString(uint32_t string_id,
       "LocalizedString[@id = \"{}\"]",
       string_id);
 
+  if (!HasXLast()) {
+    return std::u16string();
+  }
+
   const pugi::xpath_node node = parsed_xlast_->select_node(xpath.c_str());
   if (!node) {
     return std::u16string();
@@ -182,6 +198,66 @@ std::u16string XLast::GetLocalizedString(uint32_t string_id,
   return xe::to_utf16(locale_node.child_value());
 }
 
+const std::optional<uint32_t> XLast::GetPresenceStringId(
+    const uint32_t context_id) {
+  std::string xpath = fmt::format(
+      "/XboxLiveSubmissionProject/GameConfigProject/Presence/"
+      "PresenceMode[@contextValue = \"{}\"]",
+      context_id);
+
+  std::optional<uint32_t> id = std::nullopt;
+
+  if (!HasXLast()) {
+    return id;
+  }
+
+  pugi::xpath_node node = parsed_xlast_->select_node(xpath.c_str());
+
+  if (node) {
+    const auto string_id = node.node().attribute("stringId").value();
+    id = xe::string_util::from_string<uint32_t>(string_id);
+  }
+
+  return id;
+}
+
+const std::optional<uint32_t> XLast::GetPropertyStringId(
+    const uint32_t property_id) {
+  std::string xpath = fmt::format(
+      "/XboxLiveSubmissionProject/GameConfigProject/Properties/Property[@id = "
+      "\"0x{:08X}\"]",
+      property_id);
+
+  std::optional<uint32_t> value = std::nullopt;
+
+  if (!HasXLast()) {
+    return value;
+  }
+
+  pugi::xpath_node node = parsed_xlast_->select_node(xpath.c_str());
+
+  if (node) {
+    const auto string_id_value = node.node().attribute("stringId").value();
+    value = xe::string_util::from_string<uint32_t>(string_id_value);
+  }
+
+  return value;
+}
+
+const std::u16string XLast::GetPresenceRawString(const uint32_t presence_value,
+                                                 const XLanguage language) {
+  const std::optional<uint32_t> presence_string_id =
+      GetPresenceStringId(presence_value);
+
+  std::u16string raw_presence = u"";
+
+  if (presence_string_id.has_value()) {
+    raw_presence = GetLocalizedString(presence_string_id.value(), language);
+  }
+
+  return raw_presence;
+}
+
 XLastMatchmakingQuery* XLast::GetMatchmakingQuery(
     const uint32_t query_id) const {
   std::string xpath = fmt::format(
@@ -190,6 +266,11 @@ XLastMatchmakingQuery* XLast::GetMatchmakingQuery(
       query_id);
 
   XLastMatchmakingQuery* query = nullptr;
+
+  if (!HasXLast()) {
+    return query;
+  }
+
   pugi::xpath_node node = parsed_xlast_->select_node(xpath.c_str());
   if (!node) {
     return query;
@@ -215,7 +296,7 @@ std::vector<uint32_t> XLast::GetAllValuesFromNode(
 }
 
 void XLast::Dump(std::string file_name) const {
-  if (xlast_decompressed_xml_.empty()) {
+  if (!HasXLast()) {
     return;
   }
 
