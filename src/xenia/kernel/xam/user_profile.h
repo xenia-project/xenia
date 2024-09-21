@@ -164,7 +164,7 @@ class UserProfile {
   UserSetting* GetSetting(uint32_t setting_id);
 
   bool AddProperty(const Property* property);
-  const Property* GetProperty(const AttributeKey id) const;
+  Property* GetProperty(const AttributeKey id);
 
   std::map<uint32_t, uint32_t> contexts_;
 
