@@ -71,7 +71,7 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
 
       const util::XdbfGameData title_xdbf = kernel_state_->title_xdbf();
       if (title_xdbf.is_valid()) {
-        const auto property = title_xdbf.GetContext(property_id);
+        const auto property = title_xdbf.GetProperty(property_id);
         const XLanguage title_language = title_xdbf.GetExistingLanguage(
             static_cast<XLanguage>(XLanguage::kEnglish));
         const std::string desc =
