@@ -258,6 +258,33 @@ const std::u16string XLast::GetPresenceRawString(const uint32_t presence_value,
   return raw_presence;
 }
 
+const std::optional<uint32_t> XLast::GetContextStringId(
+    const uint32_t context_id, const uint32_t context_value) {
+  std::string xpath = fmt::format(
+      "/XboxLiveSubmissionProject/GameConfigProject/Contexts/Context[@id = "
+      "\"0x{:08X}\"]/ContextValue[@value = \"{}\"]",
+      context_id, context_value);
+
+  std::optional<uint32_t> value = std::nullopt;
+
+  if (!HasXLast()) {
+    return value;
+  }
+
+  pugi::xpath_node node = parsed_xlast_->select_node(xpath.c_str());
+
+  if (node) {
+    // const auto default_value =
+    //     node.node().parent().attribute("defaultValue").value();
+    // value = xe::string_util::from_string<uint32_t>(default_value);
+
+    const auto string_id_value = node.node().attribute("stringId").value();
+    value = xe::string_util::from_string<uint32_t>(string_id_value);
+  }
+
+  return value;
+}
+
 XLastMatchmakingQuery* XLast::GetMatchmakingQuery(
     const uint32_t query_id) const {
   std::string xpath = fmt::format(

@@ -83,6 +83,8 @@ class XLast {
   const std::optional<uint32_t> GetPropertyStringId(const uint32_t property_id);
   const std::u16string GetPresenceRawString(const uint32_t presence_value,
                                             const XLanguage language);
+  const std::optional<uint32_t> GetContextStringId(
+      const uint32_t context_id, const uint32_t context_value);
   XLastMatchmakingQuery* GetMatchmakingQuery(uint32_t query_id) const;
   static std::vector<uint32_t> GetAllValuesFromNode(
       const pugi::xpath_node node, const std::string child_name,
