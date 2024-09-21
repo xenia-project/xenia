@@ -96,7 +96,7 @@
 	url = https://github.com/p-ranav/tabulate.git
 [submodule "third_party/rapidcsv"]
 	path = third_party/rapidcsv
-	url = https://github.com/d99kris/rapidcsv
+	url = https://github.com/d99kris/rapidcsv.git
 [submodule "third_party/zlib"]
 	path = third_party/zlib
 	url = https://github.com/madler/zlib.git
