@@ -548,23 +548,30 @@ dword_result_t XamShowSigninUI_entry(dword_t users_needed, dword_t unk_mask) {
   kernel_state()->UpdateUsedUserProfiles();
   // Mask values vary. Probably matching user types? Local/remote?
   // Games seem to sit and loop until we trigger this notification:
-  uint32_t user_mask = 0;
-  uint32_t active_users = 0;
 
-  for (uint32_t i = 0; i < 4; i++) {
-    if (kernel_state()->IsUserSignedIn(i)) {
-      user_mask |= (1 << i);
-      active_users++;
-      if (active_users >= users_needed) break;
+  auto run = [users_needed]() -> void {
+    uint32_t user_mask = 0;
+    uint32_t active_users = 0;
+
+    for (uint32_t i = 0; i < 4; i++) {
+      if (kernel_state()->IsUserSignedIn(i)) {
+        user_mask |= (1 << i);
+        active_users++;
+        if (active_users >= users_needed) break;
+      }
     }
-  }
 
-  // XN_SYS_SIGNINCHANGED (players)
-  kernel_state()->BroadcastNotification(kXNotificationIDSystemSignInChanged,
-                                        user_mask);
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    // XN_SYS_SIGNINCHANGED (players)
+    kernel_state()->BroadcastNotification(kXNotificationIDSystemSignInChanged,
+                                          user_mask);
+    // XN_SYS_UI (off)
+    kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, 0);
+  };
 
-  // XN_SYS_UI (off)
-  kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, 0);
+  std::thread thread(run);
+  thread.detach();
+
   return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamShowSigninUI, kUserProfiles, kStub);
