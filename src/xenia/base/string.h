@@ -22,6 +22,8 @@ char* xe_strdup(const char* source);
 
 std::string to_utf8(const std::u16string_view source);
 std::u16string to_utf16(const std::string_view source);
+std::string utf8_to_win1252(const std::string_view source);
+std::string win1252_to_utf8(const std::string_view source);
 
 }  // namespace xe
 

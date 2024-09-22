@@ -153,7 +153,9 @@ SvodContainerDevice::Result SvodContainerDevice::ReadEntry(
     return Result::kReadError;
   }
 
-  auto name = std::string(name_buffer.get(), dir_entry.name_length);
+  // Filename is stored as Windows-1252, convert it to UTF-8.
+  auto ansi_name = std::string(name_buffer.get(), dir_entry.name_length);
+  auto name = xe::win1252_to_utf8(ansi_name);
 
   // Read the left node
   if (dir_entry.node_l) {

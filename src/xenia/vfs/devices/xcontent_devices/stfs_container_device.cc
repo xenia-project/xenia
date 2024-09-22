@@ -113,8 +113,10 @@ StfsContainerDevice::Result StfsContainerDevice::Read() {
 std::unique_ptr<XContentContainerEntry> StfsContainerDevice::ReadEntry(
     Entry* parent, MultiFileHandles* files,
     const StfsDirectoryEntry* dir_entry) {
-  std::string name(reinterpret_cast<const char*>(dir_entry->name),
-                   dir_entry->flags.name_length & 0x3F);
+  // Filename is stored as Windows-1252, convert it to UTF-8.
+  std::string ansi_name(reinterpret_cast<const char*>(dir_entry->name),
+                        dir_entry->flags.name_length & 0x3F);
+  std::string name = xe::win1252_to_utf8(ansi_name);
 
   auto entry = XContentContainerEntry::Create(this, parent, name, &files_);
 
