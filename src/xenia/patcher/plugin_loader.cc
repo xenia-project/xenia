@@ -116,13 +116,17 @@ void PluginLoader::LoadTitleConfig(const uint32_t title_id) {
           plugin_entry.as_table()->get_as<bool>("is_enabled")->get();
     }
 
-    if (!plugin_entry.as_table()->contains("hash")) {
+    entry.hashes = GetHashes(plugin_entry.as_table()->get("hash"));
+
+    if (!plugin_entry.as_table()->contains("hash") || entry.hashes.empty()) {
+      const std::string file =
+          fmt::format("plugins\\{:08X}\\plugins.toml", title_id);
+
       XELOGE("Hash error! skipping plugin {} in: {}", entry.name,
-             path_to_utf8(title_plugins_config));
+             path_to_utf8(file));
       continue;
     }
 
-    entry.hashes = GetHashes(plugin_entry.as_table()->get("hash"));
     plugin_configs_.push_back(entry);
   }
 }
@@ -136,8 +140,13 @@ std::vector<uint64_t> PluginLoader::GetHashes(
   }
 
   if (toml_entry->is_value()) {
-    hashes.push_back(xe::string_util::from_string<uint64_t>(
-        toml_entry->as_string()->get(), true));
+    const std::string hash = toml_entry->as_string()->get();
+
+    if (hash.empty()) {
+      return hashes;
+    }
+
+    hashes.push_back(xe::string_util::from_string<uint64_t>(hash, true));
   }
 
   if (toml_entry->is_array()) {

@@ -65,7 +65,8 @@ PatchFileEntry PatchDB::ReadPatchFile(
   try {
     patch_toml_fields = ParseFile(file_path);
   } catch (...) {
-    XELOGE("PatchDB: Cannot load patch file: {}", path_to_utf8(file_path));
+    XELOGE("PatchDB: Cannot load patch file: {}",
+           path_to_utf8(file_path.filename()));
     patch_file.title_id = -1;
     return patch_file;
   };
@@ -73,6 +74,13 @@ PatchFileEntry PatchDB::ReadPatchFile(
   auto title_name = patch_toml_fields.get_as<std::string>("title_name");
   auto title_id = patch_toml_fields.get_as<std::string>("title_id");
   auto hashes_node = patch_toml_fields.get("hash");
+
+  if (!title_name || !title_id || !hashes_node) {
+    XELOGE("PatchDB: Cannot load patch file: {}",
+           path_to_utf8(file_path.filename()));
+    patch_file.title_id = -1;
+    return patch_file;
+  }
 
   patch_file.title_id = strtoul(title_id->get().c_str(), NULL, 16);
   patch_file.title_name = title_name->get();
