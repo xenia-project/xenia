@@ -55,9 +55,10 @@ DEFINE_bool(
     "when MSAA is used with fullscreen passes.",
     "GPU");
 
-DEFINE_int32(query_occlusion_fake_sample_count, 1000,
+DEFINE_int32(query_occlusion_fake_sample_count, 100,
              "If set to -1 no sample counts are written, games may hang. Else, "
              "the sample count of every tile will be incremented on every "
              "EVENT_WRITE_ZPD by this number. Setting this to 0 means "
              "everything is reported as occluded.",
              "GPU");
+UPDATE_from_int32(query_occlusion_fake_sample_count, 2024, 9, 23, 9, 1000);
