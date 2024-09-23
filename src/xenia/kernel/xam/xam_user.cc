@@ -717,7 +717,7 @@ dword_result_t XamUserGetSubscriptionType_entry(dword_t user_index,
                                                 dword_t unk4, dword_t unk5,
                                                 dword_t unk6) {
   if (!unk2 || !unk3 || user_index > 4) {
-    return 0x80070057;
+    return X_E_INVALIDARG;
   }
 
   return 0;
