@@ -491,7 +491,7 @@ dword_result_t XamUserGetMembershipTier_entry(dword_t user_index) {
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  if (kernel_state()->IsUserSignedIn(user_index)) {
+  if (!kernel_state()->IsUserSignedIn(user_index)) {
     return X_ERROR_NO_SUCH_USER;
   }
   return 6 /* 6 appears to be Gold */;
