@@ -14,7 +14,7 @@
 #include <cstring>
 #include <vector>
 
-#include "xenia/kernel/achievement_manager.h"
+#include "xenia/kernel/xam/achievement_manager.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
 
@@ -134,8 +134,9 @@ class XAchievementEnumerator : public XEnumerator {
                          uint32_t flags)
       : XEnumerator(
             kernel_state, items_per_enumerate,
-            sizeof(X_ACHIEVEMENT_DETAILS) +
-                (!!(flags & 7) ? X_ACHIEVEMENT_DETAILS::kStringBufferSize : 0)),
+            sizeof(xam::X_ACHIEVEMENT_DETAILS) +
+                (!!(flags & 7) ? xam::X_ACHIEVEMENT_DETAILS::kStringBufferSize
+                               : 0)),
         flags_(flags) {}
 
   void AppendItem(AchievementDetails item) {

@@ -234,7 +234,7 @@ X_HRESULT_result_t XamUserGetDeviceContext_entry(dword_t user_index,
   // If this function fails they assume zero, so let's fail AND
   // set zero just to be safe.
   *out_ptr = 0;
-  if (kernel_state()->IsUserSignedIn(user_index) ||
+  if (kernel_state()->xam_state()->IsUserSignedIn(user_index) ||
       (user_index & 0xFF) == 0xFF) {
     *out_ptr = (uint32_t)user_index;
     return X_E_SUCCESS;

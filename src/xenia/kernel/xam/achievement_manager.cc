@@ -21,6 +21,7 @@ DECLARE_int32(user_language);
 
 namespace xe {
 namespace kernel {
+namespace xam {
 
 AchievementManager::AchievementManager() { unlocked_achievements.clear(); };
 
@@ -85,5 +86,6 @@ uint64_t AchievementManager::GetAchievementUnlockTime(uint32_t achievement_id) {
   return itr->second;
 }
 
+}  // namespace xam
 }  // namespace kernel
 }  // namespace xe

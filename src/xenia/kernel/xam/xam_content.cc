@@ -334,8 +334,9 @@ dword_result_t XamContentGetCreator_entry(dword_t user_index,
         // User always creates saves.
         *is_creator_ptr = 1;
         if (creator_xuid_ptr) {
-          if (kernel_state()->IsUserSignedIn(user_index)) {
-            const auto& user_profile = kernel_state()->user_profile(user_index);
+          if (kernel_state()->xam_state()->IsUserSignedIn(user_index)) {
+            const auto& user_profile =
+                kernel_state()->xam_state()->GetUserProfile(user_index);
             *creator_xuid_ptr = user_profile->xuid();
           } else {
             result = X_ERROR_NO_SUCH_USER;

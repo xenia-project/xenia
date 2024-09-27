@@ -275,7 +275,9 @@ X_RESULT ContentManager::ReadContentHeaderFile(const std::string_view file_name,
     // usually requires title_id to be provided
     // Kinda simple workaround for that, but still assumption
     data.title_id = title_id;
-    data.unk134 = kernel_state_->user_profile(uint32_t(0))->xuid();
+    data.xuid = kernel_state_->xam_state()
+                    ->GetUserProfile(static_cast<uint32_t>(0))
+                    ->xuid();
     return X_STATUS_SUCCESS;
   }
   return X_STATUS_NO_SUCH_FILE;
@@ -400,8 +402,9 @@ X_RESULT ContentManager::DeleteContent(const XCONTENT_AGGREGATE_DATA& data) {
 
 std::filesystem::path ContentManager::ResolveGameUserContentPath() {
   auto title_id = fmt::format("{:08X}", kernel_state_->title_id());
-  auto user_name =
-      xe::to_path(kernel_state_->user_profile(uint32_t(0))->name());
+  auto user_name = xe::to_path(kernel_state_->xam_state()
+                                   ->GetUserProfile(static_cast<uint32_t>(0))
+                                   ->name());
 
   // Per-game per-profile data location:
   // content_root/title_id/profile/user_name

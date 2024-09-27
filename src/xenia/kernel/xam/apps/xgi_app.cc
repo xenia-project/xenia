@@ -54,7 +54,8 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
         XELOGD("XGIUserSetContextEx: {} - Set to value: {}", desc,
                context_value);
 
-        UserProfile* user_profile = kernel_state_->user_profile(user_index);
+        UserProfile* user_profile =
+            kernel_state_->xam_state()->GetUserProfile(user_index);
         if (user_profile) {
           user_profile->contexts_[context_id] = context_value;
         }
@@ -81,7 +82,7 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
             Property(property_id, value_size,
                      memory_->TranslateVirtual<uint8_t*>(value_ptr));
 
-        auto user = kernel_state_->user_profile(user_index);
+        auto user = kernel_state_->xam_state()->GetUserProfile(user_index);
         if (user) {
           user->AddProperty(&property);
         }
@@ -197,7 +198,8 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
              context_ptr, context_id);
       uint32_t value = 0;
       if (context) {
-        UserProfile* user_profile = kernel_state_->user_profile(user_index);
+        UserProfile* user_profile =
+            kernel_state_->xam_state()->GetUserProfile(user_index);
         if (user_profile) {
           if (user_profile->contexts_.find(context_id) !=
               user_profile->contexts_.cend()) {

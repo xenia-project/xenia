@@ -18,7 +18,6 @@
 #include <memory>
 #include <vector>
 
-#include "achievement_manager.h"
 #include "xenia/base/bit_map.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/mutex.h"
@@ -28,9 +27,11 @@
 #include "xenia/kernel/util/native_list.h"
 #include "xenia/kernel/util/object_table.h"
 #include "xenia/kernel/util/xdbf_utils.h"
+#include "xenia/kernel/xam/achievement_manager.h"
 #include "xenia/kernel/xam/app_manager.h"
 #include "xenia/kernel/xam/content_manager.h"
 #include "xenia/kernel/xam/user_profile.h"
+#include "xenia/kernel/xam/xam_state.h"
 #include "xenia/kernel/xevent.h"
 #include "xenia/memory.h"
 #include "xenia/vfs/virtual_file_system.h"
@@ -186,41 +187,17 @@ class KernelState {
   util::XdbfGameData title_xdbf() const;
   util::XdbfGameData module_xdbf(object_ref<UserModule> exec_module) const;
 
-  AchievementManager* achievement_manager() const {
-    return achievement_manager_.get();
+  xam::XamState* xam_state() const { return xam_state_.get(); }
+
+  xam::AchievementManager* achievement_manager() const {
+    return xam_state()->achievement_manager();
   }
-  xam::AppManager* app_manager() const { return app_manager_.get(); }
+  xam::AppManager* app_manager() const { return xam_state()->app_manager(); }
   xam::ContentManager* content_manager() const {
-    return content_manager_.get();
+    return xam_state()->content_manager();
   }
 
   std::bitset<4> GetConnectedUsers() const;
-  void UpdateUsedUserProfiles();
-
-  bool IsUserSignedIn(uint32_t index) const {
-    return user_profiles_.find(index) != user_profiles_.cend();
-  }
-
-  bool IsUserSignedIn(uint64_t xuid) const {
-    return user_profile(xuid) != nullptr;
-  }
-
-  xam::UserProfile* user_profile(uint32_t index) const {
-    if (!IsUserSignedIn(index)) {
-      return nullptr;
-    }
-
-    return user_profiles_.at(index).get();
-  }
-
-  xam::UserProfile* user_profile(uint64_t xuid) const {
-    for (const auto& [key, value] : user_profiles_) {
-      if (value->xuid() == xuid) {
-        return user_profiles_.at(key).get();
-      }
-    }
-    return nullptr;
-  }
 
   // Access must be guarded by the global critical region.
   util::ObjectTable* object_table() { return &object_table_; }
@@ -368,11 +345,7 @@ class KernelState {
   Memory* memory_;
   cpu::Processor* processor_;
   vfs::VirtualFileSystem* file_system_;
-
-  std::unique_ptr<xam::AppManager> app_manager_;
-  std::unique_ptr<xam::ContentManager> content_manager_;
-  std::map<uint8_t, std::unique_ptr<xam::UserProfile>> user_profiles_;
-  std::unique_ptr<AchievementManager> achievement_manager_;
+  std::unique_ptr<xam::XamState> xam_state_;
 
   KernelVersion kernel_version_;
 

@@ -574,7 +574,8 @@ dword_result_t XamShowDeviceSelectorUI_entry(
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  if (user_index != 0xFF && !kernel_state()->IsUserSignedIn(user_index)) {
+  if (user_index != 0xFF &&
+      !kernel_state()->xam_state()->IsUserSignedIn(user_index)) {
     kernel_state()->CompleteOverlappedImmediate(overlapped,
                                                 X_ERROR_NO_SUCH_USER);
     return X_ERROR_IO_PENDING;
@@ -682,7 +683,7 @@ dword_result_t XamShowMarketplaceUI_entry(dword_t user_index, dword_t ui_type,
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  if (!kernel_state()->IsUserSignedIn(user_index)) {
+  if (!kernel_state()->xam_state()->IsUserSignedIn(user_index)) {
     return X_ERROR_NO_SUCH_USER;
   }
 
@@ -758,7 +759,7 @@ dword_result_t XamShowMarketplaceDownloadItemsUI_entry(
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  if (!kernel_state()->IsUserSignedIn(user_index)) {
+  if (!kernel_state()->xam_state()->IsUserSignedIn(user_index)) {
     if (overlapped) {
       kernel_state()->CompleteOverlappedImmediate(overlapped,
                                                   X_ERROR_NO_SUCH_USER);

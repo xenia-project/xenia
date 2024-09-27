@@ -88,12 +88,13 @@ uint32_t XAchievementEnumerator::WriteItems(uint32_t buffer_ptr,
 
   size_t size = count * item_size();
 
-  auto details = reinterpret_cast<X_ACHIEVEMENT_DETAILS*>(buffer_data);
-  size_t string_offset = items_per_enumerate() * sizeof(X_ACHIEVEMENT_DETAILS);
+  auto details = reinterpret_cast<xam::X_ACHIEVEMENT_DETAILS*>(buffer_data);
+  size_t string_offset =
+      items_per_enumerate() * sizeof(xam::X_ACHIEVEMENT_DETAILS);
   auto string_buffer =
       StringBuffer{buffer_ptr + static_cast<uint32_t>(string_offset),
                    &buffer_data[string_offset],
-                   count * X_ACHIEVEMENT_DETAILS::kStringBufferSize};
+                   count * xam::X_ACHIEVEMENT_DETAILS::kStringBufferSize};
   for (size_t i = 0, o = current_item_; i < count; ++i, ++current_item_) {
     const auto& item = items_[current_item_];
     details[i].id = item.id;

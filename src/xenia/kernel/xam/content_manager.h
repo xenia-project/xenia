@@ -94,7 +94,7 @@ struct XCONTENT_DATA {
 static_assert_size(XCONTENT_DATA, 0x134);
 
 struct XCONTENT_AGGREGATE_DATA : XCONTENT_DATA {
-  be<uint64_t> unk134;  // some titles store XUID here?
+  be<uint64_t> xuid;  // some titles store XUID here?
   be<uint32_t> title_id;
 
   XCONTENT_AGGREGATE_DATA() = default;
@@ -104,7 +104,7 @@ struct XCONTENT_AGGREGATE_DATA : XCONTENT_DATA {
     set_display_name(other.display_name());
     set_file_name(other.file_name());
     padding[0] = padding[1] = 0;
-    unk134 = 0;
+    xuid = 0;
     title_id = kCurrentlyRunningTitleId;
   }
 

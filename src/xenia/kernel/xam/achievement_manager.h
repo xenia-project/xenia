@@ -7,8 +7,8 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_KERNEL_ACHIEVEMENT_MANAGER_H_
-#define XENIA_KERNEL_ACHIEVEMENT_MANAGER_H_
+#ifndef XENIA_KERNEL_XAM_ACHIEVEMENT_MANAGER_H_
+#define XENIA_KERNEL_XAM_ACHIEVEMENT_MANAGER_H_
 
 #include <map>
 #include <string>
@@ -18,6 +18,7 @@
 
 namespace xe {
 namespace kernel {
+namespace xam {
 
 // TODO(gibbed): probably a FILETIME/LARGE_INTEGER, unknown currently
 struct X_ACHIEVEMENT_UNLOCK_TIME {
@@ -55,7 +56,8 @@ class AchievementManager {
   // void Save();
 };
 
+}  // namespace xam
 }  // namespace kernel
 }  // namespace xe
 
-#endif  // XENIA_KERNEL_ACHIEVEMENT_MANAGER_H_
+#endif  // XENIA_KERNEL_XAM_ACHIEVEMENT_MANAGER_H_

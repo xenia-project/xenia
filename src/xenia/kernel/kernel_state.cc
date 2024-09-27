@@ -37,10 +37,6 @@
 
 DEFINE_bool(apply_title_update, true, "Apply title updates.", "Kernel");
 
-DEFINE_uint32(max_signed_profiles, 4,
-              "Limits how many profiles can be assigned. Possible values: 1-4",
-              "Kernel");
-
 DEFINE_uint32(kernel_build_version, 1888, "Define current kernel version",
               "Kernel");
 
@@ -68,19 +64,10 @@ KernelState::KernelState(Emulator* emulator)
   shared_kernel_state_ = this;
   processor_ = emulator->processor();
   file_system_ = emulator->file_system();
-
-  app_manager_ = std::make_unique<xam::AppManager>();
-  achievement_manager_ = std::make_unique<AchievementManager>();
-  user_profiles_.emplace(0, std::make_unique<xam::UserProfile>(0));
+  xam_state_ = std::make_unique<xam::XamState>(emulator, this);
 
   InitializeKernelGuestGlobals();
   kernel_version_ = KernelVersion(cvars::kernel_build_version);
-
-  auto content_root = emulator_->content_root();
-  if (!content_root.empty()) {
-    content_root = std::filesystem::absolute(content_root);
-  }
-  content_manager_ = std::make_unique<xam::ContentManager>(this, content_root);
 
   // Hardcoded maximum of 2048 TLS slots.
   tls_bitmap_.Resize(2048);
@@ -92,8 +79,6 @@ KernelState::KernelState(Emulator* emulator)
       kMemoryProtectRead | kMemoryProtectWrite);
 
   xenia_assert(fixed_alloc_worked);
-
-  xam::AppManager::RegisterApps(this, app_manager_.get());
 }
 
 KernelState::~KernelState() {
@@ -112,8 +97,7 @@ KernelState::~KernelState() {
   // Delete all objects.
   object_table_.Reset();
 
-  // Shutdown apps.
-  app_manager_.reset();
+  xam_state_.reset();
 
   assert_true(shared_kernel_state_ == this);
   shared_kernel_state_ = nullptr;
@@ -592,8 +576,8 @@ std::vector<xam::XCONTENT_AGGREGATE_DATA> KernelState::FindTitleUpdate(
     return {};
   }
 
-  return content_manager()->ListContent(1, xe::XContentType::kInstaller,
-                                        title_id);
+  return xam_state_->content_manager()->ListContent(
+      1, xe::XContentType::kInstaller, title_id);
 }
 
 const object_ref<UserModule> KernelState::LoadTitleUpdate(
@@ -1250,24 +1234,6 @@ void KernelState::EmulateCPInterruptDPC(uint32_t interrupt_callback,
   xboxkrnl::xeKeSetCurrentProcessType(X_PROCTYPE_IDLE, current_context);
 
   EndDPCImpersonation(current_context, dpc_scope);
-}
-
-void KernelState::UpdateUsedUserProfiles() {
-  const std::bitset<4> used_slots = GetConnectedUsers();
-
-  for (uint32_t i = 1; i < cvars::max_signed_profiles; i++) {
-    bool is_used = used_slots.test(i);
-
-    if (IsUserSignedIn(i) && !is_used) {
-      user_profiles_.erase(i);
-      BroadcastNotification(kXNotificationIDSystemInputDevicesChanged, 0);
-    }
-
-    if (!IsUserSignedIn(i) && is_used) {
-      user_profiles_.emplace(i, std::make_unique<xam::UserProfile>(i));
-      BroadcastNotification(kXNotificationIDSystemInputDevicesChanged, 0);
-    }
-  }
 }
 
 void KernelState::InitializeProcess(X_KPROCESS* process, uint32_t type,
