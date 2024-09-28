@@ -27,8 +27,6 @@ class Window;
 namespace xe {
 namespace hid {
 
-static constexpr uint8_t max_allowed_controllers = 4;
-
 class InputSystem {
  public:
   explicit InputSystem(xe::ui::Window* window);
@@ -51,7 +49,7 @@ class InputSystem {
 
   void ToggleVibration();
 
-  const std::bitset<max_allowed_controllers> GetConnectedSlots() const {
+  const std::bitset<XUserMaxUserCount> GetConnectedSlots() const {
     return connected_slots;
   }
 
@@ -72,8 +70,8 @@ class InputSystem {
 
   std::vector<std::unique_ptr<InputDriver>> drivers_;
 
-  std::bitset<max_allowed_controllers> connected_slots = {};
-  std::array<std::pair<joystick_value, joystick_value>, max_allowed_controllers>
+  std::bitset<XUserMaxUserCount> connected_slots = {};
+  std::array<std::pair<joystick_value, joystick_value>, XUserMaxUserCount>
       controllers_max_joystick_value = {};
 
   xe_unlikely_mutex lock_;

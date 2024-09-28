@@ -50,6 +50,7 @@
 #include "xenia/ui/file_picker.h"
 #include "xenia/ui/imgui_dialog.h"
 #include "xenia/ui/imgui_drawer.h"
+#include "xenia/ui/imgui_host_notification.h"
 #include "xenia/ui/window.h"
 #include "xenia/ui/windowed_app_context.h"
 #include "xenia/vfs/device.h"
@@ -594,6 +595,163 @@ X_STATUS Emulator::LaunchDefaultModule(const std::filesystem::path& path) {
   return result;
 }
 
+X_STATUS Emulator::DataMigration(const uint64_t xuid) {
+  uint32_t failure_count = 0;
+  const std::string xuid_string = fmt::format("{:016X}", xuid);
+  const std::string common_xuid_string = fmt::format("{:016X}", 0);
+  const std::filesystem::path path_to_profile_data =
+      content_root_ / xuid_string / "FFFE07D1" / "00010000" / xuid_string;
+  // Filter directories inside. First we need to find any content type
+  // directories.
+  // Savefiles must go to user specific directory
+  // Everything else goes to common
+  const auto titles_to_move = xe::filesystem::FilterByName(
+      xe::filesystem::ListDirectories(content_root_),
+      std::regex("[A-F0-9]{8}"));
+
+  for (const auto& title : titles_to_move) {
+    if (xe::path_to_utf8(title.name) == "FFFE07D1" ||
+        xe::path_to_utf8(title.name) == "00000000") {
+      // SKip any dashboard/profile related data that was previously installed
+      continue;
+    }
+
+    const auto content_type_dirs = xe::filesystem::FilterByName(
+        xe::filesystem::ListDirectories(title.path / title.name),
+        std::regex("[A-F0-9]{8}"));
+
+    for (const auto& content_type : content_type_dirs) {
+      const std::string used_xuid =
+          xe::path_to_utf8(content_type.name) == "00000001"
+              ? xuid_string
+              : common_xuid_string;
+
+      const auto previous_path = content_root_ / title.name / content_type.name;
+      const auto path = content_root_ / used_xuid / title.name;
+
+      if (!std::filesystem::exists(path)) {
+        std::filesystem::create_directories(path);
+      }
+
+      std::error_code ec;
+      std::filesystem::rename(previous_path, path / content_type.name, ec);
+
+      if (ec) {
+        failure_count++;
+        XELOGW("{}: Moving from: {} to: {} failed! Error message: {} ({:08X})",
+               __func__, xe::path_to_utf8(previous_path),
+               xe::path_to_utf8(path / content_type.name), ec.message(),
+               ec.value());
+      }
+    }
+    // Other directories:
+    // Headers - Just copy everything to both common and xuid locations
+    // profile - ?
+    if (std::filesystem::exists(title.path / title.name / "Headers")) {
+      const auto xuid_path =
+          content_root_ / xuid_string / title.name / "Headers";
+
+      std::filesystem::create_directories(xuid_path);
+
+      std::error_code ec;
+      // Copy to specific user
+      std::filesystem::copy(title.path / title.name / "Headers", xuid_path,
+                            std::filesystem::copy_options::recursive |
+                                std::filesystem::copy_options::skip_existing,
+                            ec);
+      if (ec) {
+        failure_count++;
+        XELOGW("{}: Copying from: {} to: {} failed! Error message: {} ({:08X})",
+               __func__, xe::path_to_utf8(title.path / title.name / "Headers"),
+               xe::path_to_utf8(xuid_path), ec.message(), ec.value());
+      }
+
+      const auto header_types =
+          xe::filesystem::ListDirectories(title.path / title.name / "Headers");
+
+      if (!(header_types.size() == 1 &&
+            header_types.at(0).name == "00000001")) {
+        const auto common_path =
+            content_root_ / common_xuid_string / title.name / "Headers";
+
+        std::filesystem::create_directories(common_path);
+
+        // Copy to common, skip cases where only savefile header is available
+        std::filesystem::copy(title.path / title.name / "Headers", common_path,
+                              std::filesystem::copy_options::recursive |
+                                  std::filesystem::copy_options::skip_existing,
+                              ec);
+        if (ec) {
+          failure_count++;
+          XELOGW(
+              "{}: Copying from: {} to: {} failed! Error message: {} ({:08X})",
+              __func__, xe::path_to_utf8(title.path / title.name / "Headers"),
+              xe::path_to_utf8(common_path), ec.message(), ec.value());
+        }
+      }
+
+      if (!ec) {
+        // Remove previous directory
+        std::error_code ec;
+        std::filesystem::remove_all(title.path / title.name / "Headers", ec);
+      }
+    }
+
+    if (std::filesystem::exists(title.path / title.name / "profile")) {
+      // Find directory with previous username. There should be only one!
+      const auto old_profile_data =
+          xe::filesystem::ListDirectories(title.path / title.name / "profile");
+
+      xe::filesystem::FileInfo& entry_to_copy = xe::filesystem::FileInfo();
+      if (old_profile_data.size() != 1) {
+        for (const auto& entry : old_profile_data) {
+          if (entry.name == "User") {
+            entry_to_copy = entry;
+          }
+        }
+      } else {
+        entry_to_copy = old_profile_data.front();
+      }
+
+      const auto path_from =
+          title.path / title.name / "profile" / entry_to_copy.name;
+      std::error_code ec;
+      // Move files from inside to outside for convenience
+      std::filesystem::rename(path_from, path_to_profile_data / title.name, ec);
+      if (ec) {
+        failure_count++;
+        XELOGW("{}: Moving from: {} to: {} failed! Error message: {} ({:08X})",
+               __func__, xe::path_to_utf8(path_from),
+               xe::path_to_utf8(path_to_profile_data / title.name),
+               ec.message(), ec.value());
+      } else {
+        std::error_code ec;
+        std::filesystem::remove_all(title.path / title.name / "profile", ec);
+      }
+    }
+
+    const auto remaining_file_list =
+        xe::filesystem::ListDirectories(title.path / title.name);
+
+    if (remaining_file_list.empty()) {
+      std::error_code ec;
+      std::filesystem::remove_all(title.path / title.name, ec);
+    }
+  }
+
+  std::string migration_status_message =
+      fmt::format("Migration finished with {} {}.", failure_count,
+                  failure_count == 1 ? "error" : "errors");
+
+  if (failure_count) {
+    migration_status_message.append(
+        " For more information check xenia.log file.");
+  }
+  new xe::ui::HostNotificationWindow(imgui_drawer_, "Migration Status",
+                                     migration_status_message, 0);
+  return X_STATUS_SUCCESS;
+}
+
 X_STATUS Emulator::InstallContentPackage(
     const std::filesystem::path& path,
     ContentInstallationInfo& installation_info) {
@@ -613,16 +771,18 @@ X_STATUS Emulator::InstallContentPackage(
       (vfs::XContentContainerDevice*)device.get();
 
   std::filesystem::path installation_path =
-      content_root() / fmt::format("{:08X}", dev->title_id()) /
+      content_root() / fmt::format("{:016X}", dev->xuid()) /
+      fmt::format("{:08X}", dev->title_id()) /
       fmt::format("{:08X}", dev->content_type()) / path.filename();
 
   std::filesystem::path header_path =
-      content_root() / fmt::format("{:08X}", dev->title_id()) / "Headers" /
+      content_root() / fmt::format("{:016X}", dev->xuid()) /
+      fmt::format("{:08X}", dev->title_id()) / "Headers" /
       fmt::format("{:08X}", dev->content_type()) / path.filename();
 
   installation_info.installation_path =
-      fmt::format("{:08X}/{:08X}/{}", dev->title_id(), dev->content_type(),
-                  xe::path_to_utf8(path.filename()));
+      fmt::format("{:016X}/{:08X}/{:08X}/{}", dev->xuid(), dev->title_id(),
+                  dev->content_type(), xe::path_to_utf8(path.filename()));
 
   installation_info.content_name =
       xe::to_utf8(dev->content_header().display_name());

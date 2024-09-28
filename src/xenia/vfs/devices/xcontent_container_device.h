@@ -53,6 +53,8 @@ class XContentContainerDevice : public Device {
     return files_total_size_ - sizeof(XContentContainerHeader);
   }
 
+  uint64_t xuid() const { return header_->content_metadata.profile_id; }
+
   uint32_t title_id() const {
     return header_->content_metadata.execution_info.title_id;
   }

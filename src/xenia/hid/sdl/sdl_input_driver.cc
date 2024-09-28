@@ -282,7 +282,7 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
   // TODO(JoelLinn): Figure out the flags
   // https://github.com/evilC/UCR/blob/0489929e2a8e39caa3484c67f3993d3fba39e46f/Libraries/XInput.ahk#L85-L98
   assert(sdl_events_initialized_ && sdl_gamecontroller_initialized_);
-  bool user_any = users == 0xFF;
+  bool user_any = users == XUserIndexAny;
   if (users >= HID_SDL_USER_COUNT && !user_any) {
     return X_ERROR_BAD_ARGUMENTS;
   }

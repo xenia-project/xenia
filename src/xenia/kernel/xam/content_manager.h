@@ -142,45 +142,52 @@ class ContentManager {
                  const std::filesystem::path& root_path);
   ~ContentManager();
 
-  std::vector<XCONTENT_AGGREGATE_DATA> ListContent(uint32_t device_id,
-                                                   XContentType content_type,
-                                                   uint32_t title_id = -1);
+  std::vector<XCONTENT_AGGREGATE_DATA> ListContent(
+      const uint32_t device_id, const uint64_t xuid, const uint32_t title_id,
+      const XContentType content_type) const;
 
   std::unique_ptr<ContentPackage> ResolvePackage(
-      const std::string_view root_name, const XCONTENT_AGGREGATE_DATA& data,
-      const uint32_t disc_number = -1);
+      const std::string_view root_name, const uint64_t xuid,
+      const XCONTENT_AGGREGATE_DATA& data, const uint32_t disc_number = -1);
 
-  bool ContentExists(const XCONTENT_AGGREGATE_DATA& data);
-  X_RESULT WriteContentHeaderFile(const XCONTENT_AGGREGATE_DATA* data_raw);
+  bool ContentExists(const uint64_t xuid, const XCONTENT_AGGREGATE_DATA& data);
+  X_RESULT WriteContentHeaderFile(const uint64_t xuid,
+                                  const XCONTENT_AGGREGATE_DATA* data_raw);
   X_RESULT ReadContentHeaderFile(const std::string_view file_name,
+                                 const uint64_t xuid, const uint32_t title_id,
                                  XContentType content_type,
-                                 XCONTENT_AGGREGATE_DATA& data,
-                                 const uint32_t title_id = -1);
-  X_RESULT CreateContent(const std::string_view root_name,
+                                 XCONTENT_AGGREGATE_DATA& data) const;
+  X_RESULT CreateContent(const std::string_view root_name, const uint64_t xuid,
                          const XCONTENT_AGGREGATE_DATA& data);
-  X_RESULT OpenContent(const std::string_view root_name,
+  X_RESULT OpenContent(const std::string_view root_name, const uint64_t xuid,
                        const XCONTENT_AGGREGATE_DATA& data,
                        const uint32_t disc_number = -1);
   X_RESULT CloseContent(const std::string_view root_name);
-  X_RESULT GetContentThumbnail(const XCONTENT_AGGREGATE_DATA& data,
+  X_RESULT GetContentThumbnail(const uint64_t xuid,
+                               const XCONTENT_AGGREGATE_DATA& data,
                                std::vector<uint8_t>* buffer);
-  X_RESULT SetContentThumbnail(const XCONTENT_AGGREGATE_DATA& data,
+  X_RESULT SetContentThumbnail(const uint64_t xuid,
+                               const XCONTENT_AGGREGATE_DATA& data,
                                std::vector<uint8_t> buffer);
-  X_RESULT DeleteContent(const XCONTENT_AGGREGATE_DATA& data);
-  std::filesystem::path ResolveGameUserContentPath();
+  X_RESULT DeleteContent(const uint64_t xuid,
+                         const XCONTENT_AGGREGATE_DATA& data);
+  std::filesystem::path ResolveGameUserContentPath(const uint64_t xuid);
   bool IsContentOpen(const XCONTENT_AGGREGATE_DATA& data) const;
   void CloseOpenedFilesFromContent(const std::string_view root_name);
 
  private:
-  std::filesystem::path ResolvePackageRoot(XContentType content_type,
-                                           uint32_t title_id = -1);
-  std::filesystem::path ResolvePackagePath(const XCONTENT_AGGREGATE_DATA& data,
+  std::filesystem::path ResolvePackageRoot(
+      const uint64_t xuid, const uint32_t title_id,
+      const XContentType content_type) const;
+  std::filesystem::path ResolvePackagePath(const uint64_t xuid,
+                                           const XCONTENT_AGGREGATE_DATA& data,
                                            const uint32_t disc_number = -1);
   std::filesystem::path ResolvePackageHeaderPath(
-      const std::string_view file_name, XContentType content_type,
-      uint32_t title_id = -1);
+      const std::string_view file_name, uint64_t xuid, uint32_t title_id,
+      const XContentType content_type) const;
 
   std::unordered_set<uint32_t> FindPublisherTitleIds(
+      const uint64_t xuid,
       uint32_t base_title_id = kCurrentlyRunningTitleId) const;
 
   KernelState* kernel_state_;

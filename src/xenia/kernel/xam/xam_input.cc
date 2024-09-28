@@ -32,7 +32,7 @@ constexpr uint32_t XINPUT_FLAG_ANYDEVICE = 0xFF;
 constexpr uint32_t XINPUT_FLAG_ANY_USER = 1 << 30;
 
 dword_result_t XAutomationpUnbindController_entry(dword_t user_index) {
-  if (user_index > 4) {
+  if (user_index >= XUserMaxUserCount) {
     return 0;
   }
 
@@ -79,7 +79,8 @@ dword_result_t XamInputGetCapabilitiesEx_entry(
   }
 
   uint32_t actual_user_index = user_index;
-  if ((actual_user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
+  if ((actual_user_index & XUserIndexAny) == XUserIndexAny ||
+      (flags & XINPUT_FLAG_ANY_USER)) {
     // Always pin user to 0.
     actual_user_index = 0;
   }
@@ -105,7 +106,7 @@ dword_result_t XamInputGetState_entry(dword_t user_index, dword_t flags,
   if (input_state) {
     memset((void*)input_state.host_address(), 0, sizeof(X_INPUT_STATE));
   }
-  if (user_index >= 4) {
+  if (user_index >= XUserMaxUserCount) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
@@ -118,7 +119,8 @@ dword_result_t XamInputGetState_entry(dword_t user_index, dword_t flags,
 
   uint32_t actual_user_index = user_index;
   // chrispy: change this, logic is not right
-  if ((actual_user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
+  if ((actual_user_index & XUserIndexAny) == XUserIndexAny ||
+      (flags & XINPUT_FLAG_ANY_USER)) {
     // Always pin user to 0.
     actual_user_index = 0;
   }
@@ -134,17 +136,11 @@ dword_result_t XamInputSetState_entry(
     dword_t user_index,
     dword_t flags, /* flags, as far as i can see, is not used*/
     pointer_t<X_INPUT_VIBRATION> vibration) {
-  if (user_index >= 4) {
+  if (user_index >= XUserMaxUserCount) {
     return X_E_DEVICE_NOT_CONNECTED;
   }
   if (!vibration) {
     return X_ERROR_BAD_ARGUMENTS;
-  }
-
-  uint32_t actual_user_index = user_index;
-  if ((user_index & 0xFF) == 0xFF) {
-    // Always pin user to 0.
-    actual_user_index = 0;
   }
 
   auto input_system = kernel_state()->emulator()->input_system();
@@ -170,7 +166,8 @@ dword_result_t XamInputGetKeystroke_entry(
   }
 
   uint32_t actual_user_index = user_index;
-  if ((actual_user_index & 0xFF) == 0xFF || (flags & XINPUT_FLAG_ANY_USER)) {
+  if ((actual_user_index & XUserIndexAny) == XUserIndexAny ||
+      (flags & XINPUT_FLAG_ANY_USER)) {
     // Always pin user to 0.
     actual_user_index = 0;
   }
@@ -197,7 +194,7 @@ dword_result_t XamInputGetKeystrokeEx_entry(
   uint32_t user_index = *user_index_ptr;
   auto input_system = kernel_state()->emulator()->input_system();
   auto lock = input_system->lock();
-  if ((user_index & 0xFF) == 0xFF) {
+  if ((user_index & XUserIndexAny) == XUserIndexAny) {
     // Always pin user to 0.
     user_index = 0;
   }
@@ -206,7 +203,7 @@ dword_result_t XamInputGetKeystrokeEx_entry(
     // That flag means we should iterate over every connected controller and
     // check which one have pending request.
     auto result = X_ERROR_DEVICE_NOT_CONNECTED;
-    for (uint32_t i = 0; i < 4; i++) {
+    for (uint32_t i = 0; i < XUserMaxUserCount; i++) {
       auto result = input_system->GetKeystroke(i, flags, keystroke);
 
       // Return result from first user that have pending request
@@ -235,7 +232,7 @@ X_HRESULT_result_t XamUserGetDeviceContext_entry(dword_t user_index,
   // set zero just to be safe.
   *out_ptr = 0;
   if (kernel_state()->xam_state()->IsUserSignedIn(user_index) ||
-      (user_index & 0xFF) == 0xFF) {
+      (user_index & XUserIndexAny) == XUserIndexAny) {
     *out_ptr = (uint32_t)user_index;
     return X_E_SUCCESS;
   } else {

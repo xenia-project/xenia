@@ -14,6 +14,7 @@
 #include "xenia/base/profiling.h"
 #include "xenia/hid/hid_flags.h"
 #include "xenia/hid/input_driver.h"
+#include "xenia/kernel/util/shim_utils.h"
 
 namespace xe {
 namespace hid {
@@ -39,7 +40,7 @@ void InputSystem::AddDriver(std::unique_ptr<InputDriver> driver) {
 
 void InputSystem::UpdateUsedSlot(InputDriver* driver, uint8_t slot,
                                  bool connected) {
-  if (slot == 0xFF) {
+  if (slot == XUserIndexAny) {
     slot = 0;
   }
 
@@ -50,6 +51,10 @@ void InputSystem::UpdateUsedSlot(InputDriver* driver, uint8_t slot,
 
   XELOGI(controller_slot_state_change_message[connected].c_str(), slot);
   connected_slots.flip(slot);
+  if (kernel::kernel_state()) {
+    kernel::kernel_state()->BroadcastNotification(
+        kXNotificationIDSystemInputDevicesChanged, 0);
+  }
 
   if (driver) {
     X_INPUT_CAPABILITIES capabilities = {};
@@ -147,15 +152,14 @@ void InputSystem::ToggleVibration() {
   // Send instant update to vibration state to prevent awaiting for next tick.
   X_INPUT_VIBRATION vibration = X_INPUT_VIBRATION();
 
-  for (uint8_t user_index = 0; user_index < max_allowed_controllers;
-       user_index++) {
+  for (uint8_t user_index = 0; user_index < XUserMaxUserCount; user_index++) {
     SetState(user_index, &vibration);
   }
 }
 
 void InputSystem::AdjustDeadzoneLevels(const uint8_t slot,
                                        X_INPUT_GAMEPAD* gamepad) {
-  if (slot > max_allowed_controllers) {
+  if (slot > XUserMaxUserCount) {
     return;
   }
 

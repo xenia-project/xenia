@@ -91,7 +91,7 @@ dword_result_t XamContentAggregateCreateEnumerator_entry(qword_t xuid,
   auto e = make_object<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>>(
       kernel_state(), 1);
   X_KENUMERATOR_CONTENT_AGGREGATE* extra;
-  auto result = e->Initialize(0xFF, 0xFE, 0x2000E, 0x20010, 0, &extra);
+  auto result = e->Initialize(XUserIndexAny, 0xFE, 0x2000E, 0x20010, 0, &extra);
   if (XFAILED(result)) {
     return result;
   }
@@ -115,8 +115,8 @@ dword_result_t XamContentAggregateCreateEnumerator_entry(qword_t xuid,
     for (auto& title_id : title_ids) {
       // Get all content data.
       auto content_datas = kernel_state()->content_manager()->ListContent(
-          static_cast<uint32_t>(DummyDeviceId::HDD), content_type_enum,
-          title_id);
+          static_cast<uint32_t>(DummyDeviceId::HDD), xuid == -1 ? 0 : xuid,
+          title_id, content_type_enum);
       for (const auto& content_data : content_datas) {
         auto item = e->AppendItem();
         assert_not_null(item);

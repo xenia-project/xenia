@@ -208,7 +208,7 @@ X_RESULT XInputInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
   // we are not passing back an uninitialized X_INPUT_KEYSTROKE structure.
   // If any user (0xFF) is polled this bug does not occur but GetCapabilities
   // would fail so we need to skip it.
-  if (user_index != 0xFF) {
+  if (user_index != XUserIndexAny) {
     XINPUT_CAPABILITIES caps;
     auto xigc = (decltype(&XInputGetCapabilities))XInputGetCapabilities_;
     result = xigc(user_index, 0, &caps);

@@ -340,7 +340,8 @@ struct XContentMetadata {
   } description_ex_raw;
 
   std::u16string display_name(XLanguage language) const {
-    uint32_t lang_id = uint32_t(language) - 1;
+    uint32_t lang_id =
+        language == XLanguage::kInvalid ? 1 : uint32_t(language) - 1;
 
     if (lang_id >= kNumLanguagesV2) {
       assert_always();

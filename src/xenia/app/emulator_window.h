@@ -25,7 +25,7 @@
 #include "xenia/ui/windowed_app_context.h"
 #include "xenia/xbox.h"
 
-#define MAX_USERS 4
+#include "xenia/app/profile_dialogs.h"
 
 namespace xe {
 namespace app {
@@ -92,6 +92,12 @@ class EmulatorWindow {
   void ExportScreenshot(const xe::ui::RawImage& image);
   void SaveImage(const std::filesystem::path& path,
                  const xe::ui::RawImage& image);
+
+  void ToggleProfilesConfigDialog();
+  void SetHotkeysState(bool enabled) { disable_hotkeys_ = !enabled; }
+  // We need to store it somewhere so there will be no situation when there are
+  // multiple instances opened.
+  std::unique_ptr<CreateProfileDialog> profile_creation_dialog_;
 
   // Types of button functions for hotkeys.
   enum class ButtonFunctions {
@@ -257,11 +263,16 @@ class EmulatorWindow {
   std::unique_ptr<ui::ImmediateDrawer> immediate_drawer_;
 
   bool emulator_initialized_ = false;
+  std::atomic<bool> disable_hotkeys_ = false;
 
   std::string base_title_;
   bool initializing_shader_storage_ = false;
 
   std::unique_ptr<DisplayConfigDialog> display_config_dialog_;
+
+  // Storing pointers and toggling dialog state is useful for broadcasting
+  // messages back to guest.
+  std::unique_ptr<ProfileConfigDialog> profile_config_dialog_;
 
   std::vector<RecentTitleEntry> recently_launched_titles_;
 };

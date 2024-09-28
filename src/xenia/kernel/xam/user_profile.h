@@ -153,10 +153,10 @@ class UserSetting {
 
 class UserProfile {
  public:
-  UserProfile(uint8_t index);
+  UserProfile(uint64_t xuid, X_XAMACCOUNTINFO* account_info);
 
   uint64_t xuid() const { return xuid_; }
-  std::string name() const { return name_; }
+  std::string name() const { return account_info_.GetGamertagString(); }
   uint32_t signin_state() const { return 1; }
   uint32_t type() const { return 1 | 2; /* local | online profile? */ }
 
@@ -170,7 +170,8 @@ class UserProfile {
 
  private:
   uint64_t xuid_;
-  std::string name_;
+  X_XAMACCOUNTINFO account_info_;
+
   std::vector<std::unique_ptr<UserSetting>> setting_list_;
   std::unordered_map<uint32_t, UserSetting*> settings_;
 

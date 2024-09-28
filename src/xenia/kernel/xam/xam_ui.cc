@@ -565,13 +565,13 @@ dword_result_t XamShowDeviceSelectorUI_entry(
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  if ((user_index >= 4 && user_index != 0xFF) ||
+  if ((user_index >= XUserMaxUserCount && user_index != XUserIndexAny) ||
       (content_flags & 0x83F00008) != 0 || !device_id_ptr) {
     XOverlappedSetExtendedError(overlapped, X_ERROR_INVALID_PARAMETER);
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  if (user_index != 0xFF &&
+  if (user_index != XUserIndexAny &&
       !kernel_state()->xam_state()->IsUserSignedIn(user_index)) {
     kernel_state()->CompleteOverlappedImmediate(overlapped,
                                                 X_ERROR_NO_SUCH_USER);
@@ -676,7 +676,7 @@ dword_result_t XamShowMarketplaceUI_entry(dword_t user_index, dword_t ui_type,
   // 1 - view content specified by offer id
   // content_types:
   // game specific, usually just -1
-  if (user_index >= 4) {
+  if (user_index >= XUserMaxUserCount) {
     return X_ERROR_INVALID_PARAMETER;
   }
 
@@ -752,7 +752,7 @@ dword_result_t XamShowMarketplaceDownloadItemsUI_entry(
   // ui_type:
   // 1000 - free
   // 1001 - paid
-  if (user_index >= 4 || !offers || num_offers > 6) {
+  if (user_index >= XUserMaxUserCount || !offers || num_offers > 6) {
     return X_ERROR_INVALID_PARAMETER;
   }
 
@@ -818,6 +818,39 @@ dword_result_t XamShowMarketplaceDownloadItemsUI_entry(
       overlapped);
 }
 DECLARE_XAM_EXPORT1(XamShowMarketplaceDownloadItemsUI, kUI, kSketchy);
+
+dword_result_t XamShowSigninUI_entry(dword_t users_needed, dword_t unk_mask) {
+  // XN_SYS_UI (on)
+  kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, 1);
+  // Mask values vary. Probably matching user types? Local/remote?
+  // Games seem to sit and loop until we trigger this notification:
+
+  auto run = [users_needed]() -> void {
+    uint32_t user_mask = 0;
+    uint32_t active_users = 0;
+
+    for (uint32_t i = 0; i < XUserMaxUserCount; i++) {
+      if (kernel_state()->xam_state()->IsUserSignedIn(i)) {
+        user_mask |= (1 << i);
+        active_users++;
+        if (active_users >= users_needed) break;
+      }
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    // XN_SYS_SIGNINCHANGED (players)
+    kernel_state()->BroadcastNotification(kXNotificationIDSystemSignInChanged,
+                                          user_mask);
+    // XN_SYS_UI (off)
+    kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, 0);
+  };
+
+  std::thread thread(run);
+  thread.detach();
+
+  return X_ERROR_SUCCESS;
+}
+DECLARE_XAM_EXPORT1(XamShowSigninUI, kUserProfiles, kStub);
 
 }  // namespace xam
 }  // namespace kernel

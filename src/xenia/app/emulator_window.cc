@@ -36,7 +36,9 @@
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/hid/input_system.h"
+#include "xenia/kernel/xam/profile_manager.h"
 #include "xenia/kernel/xam/xam_module.h"
+#include "xenia/kernel/xam/xam_state.h"
 #include "xenia/ui/file_picker.h"
 #include "xenia/ui/graphics_provider.h"
 #include "xenia/ui/imgui_dialog.h"
@@ -148,6 +150,14 @@ DEFINE_int32(recent_titles_entry_amount, 10,
              "General");
 
 namespace xe {
+namespace kernel {
+namespace xam {
+extern std::atomic<int> xam_dialogs_shown_;
+}
+}  // namespace kernel
+}  // namespace xe
+
+namespace xe {
 namespace app {
 
 using xe::ui::FileDropEvent;
@@ -250,6 +260,14 @@ void EmulatorWindow::ShutdownGraphicsSystemPresenterPainting() {
 }
 
 void EmulatorWindow::OnEmulatorInitialized() {
+  if (!emulator_->kernel_state()
+           ->xam_state()
+           ->profile_manager()
+           ->GetProfilesCount()) {
+    new NoProfileDialog(imgui_drawer_.get(), this);
+    disable_hotkeys_ = true;
+  }
+
   emulator_initialized_ = true;
   window_->SetMainMenuEnabled(true);
   // When the user can see that the emulator isn't initializing anymore (the
@@ -592,6 +610,15 @@ bool EmulatorWindow::Initialize() {
                          [this]() { window_->RequestClose(); }));
   }
   main_menu->AddChild(std::move(file_menu));
+
+  // Profile Menu
+  auto profile_menu = MenuItem::Create(MenuItem::Type::kPopup, "&Profile");
+  {
+    profile_menu->AddChild(MenuItem::Create(
+        MenuItem::Type::kString, "&Show Profile Menu", "",
+        std::bind(&EmulatorWindow::ToggleProfilesConfigDialog, this)));
+  }
+  main_menu->AddChild(std::move(profile_menu));
 
   // CPU menu.
   auto cpu_menu = MenuItem::Create(MenuItem::Type::kPopup, "&CPU");
@@ -1104,6 +1131,10 @@ void EmulatorWindow::InstallContent() {
     summary += "\n";
   }
 
+  if (content_installation_details.count(XContentType::kProfile)) {
+    emulator_->kernel_state()->xam_state()->profile_manager()->ReloadProfiles();
+  }
+
   xe::ui::ImGuiDialog::ShowMessageBox(imgui_drawer_.get(),
                                       "Content Installation Summary", summary);
 }
@@ -1296,24 +1327,13 @@ void EmulatorWindow::CreateZarchive() {
 }
 
 void EmulatorWindow::ShowContentDirectory() {
-  std::filesystem::path target_path;
-
   auto content_root = emulator_->content_root();
-  if (!emulator_->is_title_open() || !emulator_->kernel_state()) {
-    target_path = content_root;
-  } else {
-    // TODO(gibbed): expose this via ContentManager?
-    auto title_id =
-        fmt::format("{:08X}", emulator_->kernel_state()->title_id());
-    auto package_root = content_root / title_id;
-    target_path = package_root;
+
+  if (!std::filesystem::exists(content_root)) {
+    std::filesystem::create_directories(content_root);
   }
 
-  if (!std::filesystem::exists(target_path)) {
-    std::filesystem::create_directories(target_path);
-  }
-
-  LaunchFileExplorer(target_path);
+  LaunchFileExplorer(content_root);
 }
 
 void EmulatorWindow::CpuTimeScalarReset() {
@@ -1379,6 +1399,23 @@ void EmulatorWindow::ToggleDisplayConfigDialog() {
         new DisplayConfigDialog(imgui_drawer_.get(), *this));
   } else {
     display_config_dialog_.reset();
+  }
+}
+
+void EmulatorWindow::ToggleProfilesConfigDialog() {
+  if (!profile_config_dialog_) {
+    disable_hotkeys_ = true;
+    emulator_->kernel_state()->BroadcastNotification(kXNotificationIDSystemUI,
+                                                     1);
+    profile_config_dialog_ =
+        std::make_unique<ProfileConfigDialog>(imgui_drawer_.get(), this);
+    kernel::xam::xam_dialogs_shown_++;
+  } else {
+    disable_hotkeys_ = false;
+    emulator_->kernel_state()->BroadcastNotification(kXNotificationIDSystemUI,
+                                                     0);
+    profile_config_dialog_.reset();
+    kernel::xam::xam_dialogs_shown_--;
   }
 }
 
@@ -1579,7 +1616,13 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
   // Default return value
   EmulatorWindow::ControllerHotKey Unknown_hotkey = {};
 
-  if (buttons == 0) return Unknown_hotkey;
+  if (buttons == 0) {
+    return Unknown_hotkey;
+  }
+
+  if (disable_hotkeys_.load()) {
+    return Unknown_hotkey;
+  }
 
   // Hotkey cool-down to prevent toggling too fast
   const std::chrono::milliseconds delay(75);
@@ -1790,7 +1833,8 @@ void EmulatorWindow::GamepadHotKeys() {
     while (true) {
       auto input_lock = input_sys->lock();
 
-      for (uint32_t user_index = 0; user_index < MAX_USERS; ++user_index) {
+      for (uint32_t user_index = 0; user_index < XUserMaxUserCount;
+           ++user_index) {
         X_RESULT result = input_sys->GetState(user_index, &state);
 
         // Release the lock before processing the hotkey
@@ -1961,6 +2005,17 @@ xe::X_STATUS EmulatorWindow::RunTitle(
   }
 
   auto result = emulator_->LaunchPath(abs_path);
+
+  disable_hotkeys_ = false;
+
+  if (profile_config_dialog_) {
+    profile_config_dialog_.reset();
+    kernel::xam::xam_dialogs_shown_--;
+  }
+
+  if (display_config_dialog_) {
+    display_config_dialog_.reset();
+  }
 
   imgui_drawer_.get()->ClearDialogs();
 
