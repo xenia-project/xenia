@@ -212,14 +212,18 @@ X_RESULT xeXamDispatchDialogAsync(T* dialog,
   // Important to pass captured vars by value here since we return from this
   // without waiting for the dialog to close so the original local vars will be
   // destroyed.
-  // FIXME: Probably not the best idea to call Sleep in UI thread.
   dialog->set_close_callback([dialog, close_callback]() {
     close_callback(dialog);
 
     --xam_dialogs_shown_;
 
-    xe::threading::Sleep(std::chrono::milliseconds(100));
-    kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, false);
+    auto run = []() -> void {
+      xe::threading::Sleep(std::chrono::milliseconds(100));
+      kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, false);
+    };
+
+    std::thread thread(run);
+    thread.detach();
   });
 
   return X_ERROR_SUCCESS;
@@ -235,8 +239,13 @@ X_RESULT xeXamDispatchHeadlessAsync(std::function<void()> run_callback) {
 
     --xam_dialogs_shown_;
 
-    xe::threading::Sleep(std::chrono::milliseconds(100));
-    kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, false);
+    auto run = []() -> void {
+      xe::threading::Sleep(std::chrono::milliseconds(100));
+      kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, false);
+    };
+
+    std::thread thread(run);
+    thread.detach();
   });
 
   return X_ERROR_SUCCESS;
