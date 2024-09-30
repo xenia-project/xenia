@@ -643,8 +643,16 @@ X_STATUS Emulator::InstallContentPackage(
 
   vfs::VirtualFileSystem::ExtractContentHeader(device.get(), header_path);
 
-  return vfs::VirtualFileSystem::ExtractContentFiles(device.get(),
-                                                     installation_path);
+  X_STATUS error_code = vfs::VirtualFileSystem::ExtractContentFiles(
+      device.get(), installation_path);
+  if (error_code != X_ERROR_SUCCESS) {
+    return error_code;
+  }
+
+  kernel_state()->BroadcastNotification(kXNotificationIDLiveContentInstalled,
+                                        0);
+
+  return error_code;
 }
 
 X_STATUS Emulator::ExtractZarchivePackage(
