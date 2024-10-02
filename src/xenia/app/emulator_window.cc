@@ -895,7 +895,9 @@ void EmulatorWindow::OnKeyDown(ui::KeyEvent& e) {
 }
 
 void EmulatorWindow::OnMouseDown(const ui::MouseEvent& e) {
-  ToggleFullscreenOnDoubleClick();
+  if (e.button() == ui::MouseEvent::Button::kLeft) {
+    ToggleFullscreenOnDoubleClick();
+  }
 }
 
 void EmulatorWindow::OnMouseUp(const ui::MouseEvent& e) {
