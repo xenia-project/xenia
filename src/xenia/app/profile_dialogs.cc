@@ -183,7 +183,11 @@ void ProfileConfigDialog::OnDraw(ImGuiIO& io) {
     const uint8_t user_index =
         profile_manager->GetUserIndexAssignedToProfile(xuid);
 
-    DrawProfileContent(xuid, user_index, &account);
+    if (!DrawProfileContent(xuid, user_index, &account)) {
+      ImGui::PopID();
+      ImGui::End();
+      return;
+    }
 
     ImGui::PopID();
     ImGui::Spacing();
