@@ -8,6 +8,7 @@
  */
 
 #include "third_party/imgui/imgui.h"
+#include "xenia/app/profile_dialogs.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/string_util.h"
 #include "xenia/base/system.h"
@@ -24,6 +25,8 @@
 #include "xenia/ui/window.h"
 #include "xenia/ui/windowed_app_context.h"
 #include "xenia/xbox.h"
+
+#include "third_party/fmt/include/fmt/chrono.h"
 
 DEFINE_bool(storage_selection_dialog, false,
             "Show storage device selection dialog when the game requests it.",
@@ -53,6 +56,8 @@ namespace xam {
 // to create a listener (if they're insane enough do this).
 
 extern std::atomic<int> xam_dialogs_shown_;
+
+constexpr ImVec2 default_image_icon_size = ImVec2(75.f, 75.f);
 
 class XamDialog : public xe::ui::ImGuiDialog {
  public:
@@ -379,6 +384,404 @@ class GamertagModifyDialog final : public ui::ImGuiDialog {
   char gamertag_[16] = "";
   const uint64_t xuid_;
   ProfileManager* profile_manager_;
+};
+
+struct AchievementInfo {
+  uint32_t id;
+  std::u16string name;
+  std::u16string desc;
+  std::u16string unachieved;
+  uint32_t gamerscore;
+  uint32_t image_id;
+  uint32_t flags;
+  std::chrono::system_clock::time_point unlock_time;
+
+  bool IsUnlocked() const {
+    return (flags & static_cast<uint32_t>(AchievementFlags::kAchieved)) ||
+           flags & static_cast<uint32_t>(AchievementFlags::kAchievedOnline);
+  }
+
+  // Unlocked online means that unlock time is confirmed and valid!
+  bool IsUnlockedOnline() const {
+    return (flags & static_cast<uint32_t>(AchievementFlags::kAchievedOnline));
+  }
+};
+
+struct TitleInfo {
+  std::string title_name;
+  uint32_t id;
+  uint32_t unlocked_achievements_count;
+  uint32_t achievements_count;
+  uint32_t title_earned_gamerscore;
+  uint64_t last_played;  // Convert from guest to some tm?
+};
+
+class GameAchievementsDialog final : public XamDialog {
+ public:
+  GameAchievementsDialog(ui::ImGuiDrawer* imgui_drawer,
+                         const ImVec2 drawing_position,
+                         const TitleInfo* title_info,
+                         const UserProfile* profile)
+      : XamDialog(imgui_drawer),
+        drawing_position_(drawing_position),
+        title_info_(*title_info),
+        profile_(profile) {
+    LoadAchievementsData();
+  }
+
+ private:
+  bool LoadAchievementsData() {
+    xe::ui::IconsData data;
+
+    const auto title_achievements =
+        kernel_state()
+            ->xam_state()
+            ->achievement_manager()
+            ->GetTitleAchievements(profile_->xuid(), title_info_.id);
+
+    const auto title_gpd = kernel_state()->title_xdbf();
+
+    if (!title_achievements) {
+      return false;
+    }
+
+    for (const auto& entry : *title_achievements) {
+      AchievementInfo info;
+      info.id = entry.achievement_id;
+      info.name =
+          xe::load_and_swap<std::u16string>(entry.achievement_name.c_str());
+      info.desc =
+          xe::load_and_swap<std::u16string>(entry.unlocked_description.c_str());
+      info.unachieved =
+          xe::load_and_swap<std::u16string>(entry.locked_description.c_str());
+
+      info.flags = entry.flags;
+      info.gamerscore = entry.gamerscore;
+      info.image_id = entry.image_id;
+      info.unlock_time = {};
+
+      if (entry.IsUnlocked()) {
+        const uint64_t filetime_time =
+            (static_cast<uint64_t>(entry.unlock_time.high_part) << 32) |
+            entry.unlock_time.low_part;
+
+        info.unlock_time = chrono::WinSystemClock::to_sys(
+            chrono::WinSystemClock::from_file_time(filetime_time));
+      }
+
+      achievements_info_.insert({info.id, info});
+
+      const auto& icon_entry =
+          title_gpd.GetEntry(util::XdbfSection::kImage, info.image_id);
+
+      data.insert({info.image_id,
+                   std::make_pair(icon_entry.buffer,
+                                  static_cast<uint32_t>(icon_entry.size))});
+    }
+
+    achievements_icons_ = imgui_drawer()->LoadIcons(data);
+    return true;
+  }
+
+  std::string GetAchievementTitle(const AchievementInfo& achievement_entry) {
+    std::string title = "Secret trophy";
+
+    if (achievement_entry.IsUnlocked() || show_locked_info_ ||
+        achievement_entry.flags &
+            static_cast<uint32_t>(AchievementFlags::kShowUnachieved)) {
+      title = xe::to_utf8(achievement_entry.name);
+    }
+
+    return title;
+  }
+
+  std::string GetAchievementDescription(
+      const AchievementInfo& achievement_entry) {
+    std::string description = "Hidden description";
+
+    if (achievement_entry.flags &
+        static_cast<uint32_t>(AchievementFlags::kShowUnachieved)) {
+      description = xe::to_utf8(achievement_entry.unachieved);
+    }
+
+    if (achievement_entry.IsUnlocked() || show_locked_info_) {
+      description = xe::to_utf8(achievement_entry.desc);
+    }
+
+    return description;
+  }
+
+  void DrawTitleAchievementInfo(ImGuiIO& io,
+                                const AchievementInfo& achievement_entry) {
+    const auto start_drawing_pos = ImGui::GetCursorPos();
+
+    ImGui::TableSetColumnIndex(0);
+    if (achievement_entry.IsUnlocked() || show_locked_info_) {
+      if (achievements_icons_.count(achievement_entry.image_id)) {
+        ImGui::Image(achievements_icons_.at(achievement_entry.image_id).get(),
+                     default_image_icon_size);
+      } else {
+        // Case when for whatever reason there is no icon available.
+        ImGui::Image(0, default_image_icon_size);
+      }
+    } else {
+      ImGui::Image(imgui_drawer()->GetLockedAchievementIcon(),
+                   default_image_icon_size);
+    }
+
+    ImGui::TableNextColumn();
+
+    ImGui::PushFont(imgui_drawer()->GetTitleFont());
+    const auto primary_line_height = ImGui::GetTextLineHeight();
+    ImGui::TextUnformatted(
+        fmt::format("{}", GetAchievementTitle(achievement_entry)).c_str());
+    ImGui::PopFont();
+
+    ImGui::PushTextWrapPos(ImGui::GetMainViewport()->Size.x * 0.5f);
+    ImGui::TextWrapped(
+        fmt::format("{}", GetAchievementDescription(achievement_entry))
+            .c_str());
+    ImGui::PopTextWrapPos();
+
+    ImGui::SetCursorPosY(start_drawing_pos.y + default_image_icon_size.x -
+                         ImGui::GetTextLineHeight());
+
+    if (achievement_entry.IsUnlocked()) {
+      if (achievement_entry.IsUnlockedOnline()) {
+        ImGui::TextUnformatted(fmt::format("Unlocked: {:%Y-%m-%d %H:%M}",
+                                           achievement_entry.unlock_time)
+                                   .c_str());
+      } else {
+        ImGui::TextUnformatted(fmt::format("Unlocked: Locally").c_str());
+      }
+    }
+
+    ImGui::TableNextColumn();
+
+    // TODO(Gliniak): There is no easy way to align text to middle, so I have to
+    // do it manually.
+    const float achievement_row_middle_alignment =
+        ((default_image_icon_size.x / 2.f) - ImGui::GetTextLineHeight() / 2.f) *
+        0.85f;
+
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
+                         achievement_row_middle_alignment);
+    ImGui::PushFont(imgui_drawer()->GetTitleFont());
+    ImGui::TextUnformatted(
+        fmt::format("{} G", achievement_entry.gamerscore).c_str());
+    ImGui::PopFont();
+  }
+
+  void OnDraw(ImGuiIO& io) override {
+    ImGui::SetNextWindowPos(drawing_position_, ImGuiCond_FirstUseEver);
+
+    const auto xenia_window_size = ImGui::GetMainViewport()->Size;
+
+    ImGui::SetNextWindowSizeConstraints(
+        ImVec2(xenia_window_size.x * 0.2f, xenia_window_size.y * 0.3f),
+        ImVec2(xenia_window_size.x * 0.6f, xenia_window_size.y * 0.8f));
+    ImGui::SetNextWindowBgAlpha(0.8f);
+
+    bool dialog_open = true;
+
+    if (!ImGui::Begin(
+            fmt::format("{} Achievements List", title_info_.title_name).c_str(),
+            &dialog_open,
+            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize |
+                ImGuiWindowFlags_HorizontalScrollbar)) {
+      Close();
+      ImGui::End();
+      return;
+    }
+
+    ImGui::Checkbox("Show locked achievements information", &show_locked_info_);
+    ImGui::Separator();
+
+    if (achievements_info_.empty()) {
+      ImGui::TextUnformatted(fmt::format("No achievements data!").c_str());
+    } else {
+      if (ImGui::BeginTable("", 3,
+                            ImGuiTableFlags_::ImGuiTableFlags_BordersInnerH)) {
+        for (const auto& [_, entry] : achievements_info_) {
+          ImGui::TableNextRow(0, default_image_icon_size.y);
+          DrawTitleAchievementInfo(io, entry);
+        }
+
+        ImGui::EndTable();
+      }
+    }
+
+    if (!dialog_open) {
+      Close();
+      ImGui::End();
+      return;
+    }
+
+    ImGui::End();
+  };
+
+  bool show_locked_info_ = false;
+
+  const ImVec2 drawing_position_ = {};
+
+  const TitleInfo title_info_;
+  const UserProfile* profile_;
+
+  std::map<uint32_t, AchievementInfo> achievements_info_;
+  std::map<uint32_t, std::unique_ptr<ui::ImmediateTexture>> achievements_icons_;
+};
+
+class GamesInfoDialog final : public ui::ImGuiDialog {
+ public:
+  GamesInfoDialog(ui::ImGuiDrawer* imgui_drawer, const ImVec2 drawing_position,
+                  const UserProfile* profile)
+      : ui::ImGuiDialog(imgui_drawer),
+        drawing_position_(drawing_position),
+        profile_(profile),
+        dialog_name_(fmt::format("{}'s Games List", profile->name())) {
+    LoadProfileGameInfo(imgui_drawer, profile);
+  }
+
+ private:
+  void LoadProfileGameInfo(ui::ImGuiDrawer* imgui_drawer,
+                           const UserProfile* profile) {
+    info_.clear();
+
+    // TODO(Gliniak): This code should be adjusted for GPD support. Instead of
+    // using whole profile it should only take vector of gpd entries. Ideally
+    // remapped to another struct.
+    if (kernel_state()->emulator()->is_title_open()) {
+      const auto xdbf = kernel_state()->title_xdbf();
+
+      if (!xdbf.is_valid()) {
+        return;
+      }
+
+      const auto title_summary_info =
+          kernel_state()->achievement_manager()->GetTitleAchievementsInfo(
+              profile->xuid(), kernel_state()->title_id());
+
+      if (!title_summary_info) {
+        return;
+      }
+
+      TitleInfo game;
+      game.id = kernel_state()->title_id();
+      game.title_name = xdbf.title();
+      game.title_earned_gamerscore = title_summary_info->gamerscore;
+      game.unlocked_achievements_count =
+          title_summary_info->unlocked_achievements_count;
+      game.achievements_count = title_summary_info->achievements_count;
+      game.last_played = 0;
+
+      xe::ui::IconsData data;
+      const auto& image_data = xdbf.icon();
+      data[game.id] = {image_data.buffer, (uint32_t)image_data.size};
+
+      title_icon = imgui_drawer->LoadIcons(data);
+      info_.insert({game.id, game});
+    }
+  }
+
+  void DrawTitleEntry(ImGuiIO& io, const TitleInfo& entry) {
+    const auto start_position = ImGui::GetCursorPos();
+    const ImVec2 next_window_position =
+        ImVec2(ImGui::GetWindowPos().x + ImGui::GetWindowSize().x + 20.f,
+               ImGui::GetWindowPos().y);
+
+    // First Column
+    ImGui::TableSetColumnIndex(0);
+    ImGui::Image(title_icon.count(entry.id) ? title_icon.at(entry.id).get() : 0,
+                 default_image_icon_size);
+
+    // Second Column
+    ImGui::TableNextColumn();
+    ImGui::PushFont(imgui_drawer()->GetTitleFont());
+    ImGui::TextUnformatted(entry.title_name.c_str());
+    ImGui::PopFont();
+
+    ImGui::TextUnformatted(
+        fmt::format("{}/{} Achievements unlocked ({} Gamerscore)",
+                    entry.unlocked_achievements_count, entry.achievements_count,
+                    entry.title_earned_gamerscore)
+            .c_str());
+
+    ImGui::SetCursorPosY(start_position.y + default_image_icon_size.y -
+                         ImGui::GetTextLineHeight());
+
+    // TODO(Gliniak): For now I left hardcoded now, but in the future it must be
+    // changed to include last time of boot.
+    ImGui::TextUnformatted(fmt::format("Last played: {}", "Now").c_str());
+
+    ImGui::SetCursorPos(start_position);
+
+    if (ImGui::Selectable("##Selectable", false,
+                          ImGuiSelectableFlags_SpanAllColumns,
+                          ImGui::GetContentRegionAvail())) {
+      new GameAchievementsDialog(imgui_drawer(), next_window_position, &entry,
+                                 profile_);
+    }
+  }
+
+  void OnDraw(ImGuiIO& io) override {
+    ImGui::SetNextWindowPos(drawing_position_, ImGuiCond_FirstUseEver);
+    const auto xenia_window_size = ImGui::GetMainViewport()->Size;
+
+    ImGui::SetNextWindowSizeConstraints(
+        ImVec2(xenia_window_size.x * 0.05f, xenia_window_size.y * 0.05f),
+        ImVec2(xenia_window_size.x * 0.4f, xenia_window_size.y * 0.5f));
+    ImGui::SetNextWindowBgAlpha(0.8f);
+
+    bool dialog_open = true;
+    if (!ImGui::Begin(dialog_name_.c_str(), &dialog_open,
+                      ImGuiWindowFlags_NoCollapse |
+                          ImGuiWindowFlags_AlwaysAutoResize |
+                          ImGuiWindowFlags_HorizontalScrollbar)) {
+      ImGui::End();
+      return;
+    }
+
+    if (!info_.empty()) {
+      if (ImGui::BeginTable("", 2,
+                            ImGuiTableFlags_::ImGuiTableFlags_BordersInnerH)) {
+        for (const auto& [_, entry] : info_) {
+          ImGui::TableNextRow(0, default_image_icon_size.y);
+          DrawTitleEntry(io, entry);
+        }
+
+        ImGui::EndTable();
+      }
+    } else {
+      // Align text to the center
+      std::string no_entries_message = "There are no titles, so far.";
+
+      ImGui::PushFont(imgui_drawer()->GetTitleFont());
+      float windowWidth = ImGui::GetContentRegionAvail().x;
+      ImVec2 textSize = ImGui::CalcTextSize(no_entries_message.c_str());
+      float textOffsetX = (windowWidth - textSize.x) * 0.5f;
+      if (textOffsetX > 0.0f) {
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + textOffsetX);
+      }
+
+      ImGui::Text(no_entries_message.c_str());
+      ImGui::PopFont();
+    }
+
+    ImGui::End();
+
+    if (!dialog_open) {
+      delete this;
+      return;
+    }
+  }
+
+  std::string dialog_name_ = "";
+  const ImVec2 drawing_position_ = {};
+
+  const UserProfile* profile_;
+
+  std::map<uint32_t, std::unique_ptr<ui::ImmediateTexture>> title_icon;
+  std::map<uint32_t, TitleInfo> info_;
 };
 
 static dword_result_t XamShowMessageBoxUi(
@@ -895,6 +1298,9 @@ bool xeDrawProfileContent(ui::ImGuiDrawer* imgui_drawer, const uint64_t xuid,
   auto profile_manager = kernel_state()->xam_state()->profile_manager();
 
   const float default_image_size = 75.0f;
+  const ImVec2 next_window_position =
+      ImVec2(ImGui::GetWindowPos().x + ImGui::GetWindowSize().x + 20.f,
+             ImGui::GetWindowPos().y);
   const ImVec2 drawing_start_position = ImGui::GetCursorPos();
   ImVec2 current_drawing_position = ImGui::GetCursorPos();
 
@@ -970,7 +1376,10 @@ bool xeDrawProfileContent(ui::ImGuiDrawer* imgui_drawer, const uint64_t xuid,
       }
       ImGui::EndDisabled();
 
-      ImGui::MenuItem("Show Achievements (unsupported)");
+      if (ImGui::MenuItem("Show Achievements")) {
+        new GamesInfoDialog(imgui_drawer, next_window_position,
+                            profile_manager->GetProfile(user_index));
+      }
 
       if (ImGui::MenuItem("Show Content Directory")) {
         const auto path = profile_manager->GetProfileContentPath(
@@ -1305,6 +1714,31 @@ dword_result_t XamShowSigninUIp_entry(dword_t user_index, dword_t users_needed,
   return xeXamShowSigninUI(user_index, users_needed, flags);
 }
 DECLARE_XAM_EXPORT1(XamShowSigninUIp, kUserProfiles, kImplemented);
+
+dword_result_t XamShowAchievementsUI_entry(dword_t user_index,
+                                           dword_t unk_mask) {
+  auto user = kernel_state()->xam_state()->GetUserProfile(user_index);
+  if (!user) {
+    return X_ERROR_NO_SUCH_USER;
+  }
+
+  if (!kernel_state()->title_xdbf().is_valid()) {
+    return X_ERROR_FUNCTION_FAILED;
+  }
+
+  TitleInfo info = {};
+  info.id = kernel_state()->title_id();
+  info.title_name = kernel_state()->title_xdbf().title();
+
+  ui::ImGuiDrawer* imgui_drawer = kernel_state()->emulator()->imgui_drawer();
+
+  auto close = [](GameAchievementsDialog* dialog) -> void {};
+  return xeXamDispatchDialogAsync<GameAchievementsDialog>(
+      new GameAchievementsDialog(imgui_drawer, ImVec2(100.f, 100.f), &info,
+                                 user),
+      close);
+}
+DECLARE_XAM_EXPORT1(XamShowAchievementsUI, kUserProfiles, kStub);
 
 }  // namespace xam
 }  // namespace kernel

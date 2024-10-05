@@ -17,10 +17,11 @@
 DEFINE_bool(show_achievement_notification, false,
             "Show achievement notification on screen.", "UI");
 
-DEFINE_string(default_achievement_backend, "",
-              "Defines which achievement backend should be used as an default. "
-              "Possible options: [].",
-              "Achievements");
+DEFINE_string(
+    default_achievements_backend, "GPD",
+    "Defines which achievements backend should be used as an default. "
+    "Possible options: GPD.",
+    "Kernel");
 
 DECLARE_int32(user_language);
 
@@ -49,8 +50,11 @@ void GpdAchievementBackend::EarnAchievement(const uint64_t xuid,
              achievement->achievement_name.c_str())));
 
   const uint64_t unlock_time = Clock::QueryHostSystemTime();
-  achievement->flags =
-      achievement->flags | static_cast<uint32_t>(AchievementFlags::kAchieved);
+  // We're adding achieved online flag because on console locally achieved
+  // entries don't have valid unlock time.
+  achievement->flags = achievement->flags |
+                       static_cast<uint32_t>(AchievementFlags::kAchieved) |
+                       static_cast<uint32_t>(AchievementFlags::kAchievedOnline);
   achievement->unlock_time.high_part = static_cast<uint32_t>(unlock_time >> 32);
   achievement->unlock_time.low_part = static_cast<uint32_t>(unlock_time);
 
@@ -204,6 +208,31 @@ const std::vector<AchievementGpdStructure>*
 AchievementManager::GetTitleAchievements(const uint64_t xuid,
                                          const uint32_t title_id) const {
   return default_achievements_backend_->GetTitleAchievements(xuid, title_id);
+}
+
+const std::optional<TitleAchievementsProfileInfo>
+AchievementManager::GetTitleAchievementsInfo(const uint64_t xuid,
+                                             const uint32_t title_id) const {
+  TitleAchievementsProfileInfo info = {};
+
+  const auto achievements = GetTitleAchievements(xuid, title_id);
+
+  if (!achievements) {
+    return std::nullopt;
+  }
+
+  info.achievements_count = static_cast<uint32_t>(achievements->size());
+
+  for (const auto& entry : *achievements) {
+    if (!entry.IsUnlocked()) {
+      continue;
+    }
+
+    info.unlocked_achievements_count++;
+    info.gamerscore += entry.gamerscore;
+  }
+
+  return info;
 }
 
 bool AchievementManager::DoesAchievementExist(

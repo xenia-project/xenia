@@ -11,6 +11,7 @@
 #define XENIA_KERNEL_XAM_ACHIEVEMENT_MANAGER_H_
 
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -20,6 +21,34 @@
 namespace xe {
 namespace kernel {
 namespace xam {
+
+enum class AchievementType : uint32_t {
+  kCompletion = 1,
+  kLeveling = 2,
+  kUnlock = 3,
+  kEvent = 4,
+  kTournament = 5,
+  kCheckpoint = 6,
+  kOther = 7,
+};
+
+enum class AchievementPlatform : uint32_t {
+  kX360 = 0x100000,
+  kPC = 0x200000,
+  kMobile = 0x300000,
+  kWebGames = 0x400000,
+};
+
+enum class AchievementFlags : uint32_t {
+  kTypeMask = 0x7,
+  kShowUnachieved = 0x8,
+  kAchievedOnline = 0x10000,
+  kAchieved = 0x20000,
+  kNotAchievable = 0x40000,
+  kWasNotAchievable = 0x80000,
+  kPlatformMask = 0x700000,
+  kColorizable = 0x1000000,  // avatar awards only?
+};
 
 struct X_ACHIEVEMENT_UNLOCK_TIME {
   xe::be<uint32_t> high_part;
@@ -81,34 +110,17 @@ struct AchievementGpdStructure {
   std::u16string achievement_name;
   std::u16string unlocked_description;
   std::u16string locked_description;
+
+  bool IsUnlocked() const {
+    return (flags & static_cast<uint32_t>(AchievementFlags::kAchieved)) ||
+           flags & static_cast<uint32_t>(AchievementFlags::kAchievedOnline);
+  }
 };
 
-enum class AchievementType : uint32_t {
-  kCompletion = 1,
-  kLeveling = 2,
-  kUnlock = 3,
-  kEvent = 4,
-  kTournament = 5,
-  kCheckpoint = 6,
-  kOther = 7,
-};
-
-enum class AchievementPlatform : uint32_t {
-  kX360 = 0x100000,
-  kPC = 0x200000,
-  kMobile = 0x300000,
-  kWebGames = 0x400000,
-};
-
-enum class AchievementFlags : uint32_t {
-  kTypeMask = 0x7,
-  kShowUnachieved = 0x8,
-  kAchievedOnline = 0x10000,
-  kAchieved = 0x20000,
-  kNotAchievable = 0x40000,
-  kWasNotAchievable = 0x80000,
-  kPlatformMask = 0x700000,
-  kColorizable = 0x1000000,  // avatar awards only?
+struct TitleAchievementsProfileInfo {
+  uint32_t achievements_count;
+  uint32_t unlocked_achievements_count;
+  uint32_t gamerscore;
 };
 
 class AchievementBackendInterface {
@@ -182,6 +194,8 @@ class AchievementManager {
       const uint64_t xuid, const uint32_t title_id,
       const uint32_t achievement_id) const;
   const std::vector<AchievementGpdStructure>* GetTitleAchievements(
+      const uint64_t xuid, const uint32_t title_id) const;
+  const std::optional<TitleAchievementsProfileInfo> GetTitleAchievementsInfo(
       const uint64_t xuid, const uint32_t title_id) const;
 
  private:

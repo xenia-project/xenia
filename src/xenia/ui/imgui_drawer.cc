@@ -139,7 +139,11 @@ void ImGuiDrawer::Initialize() {
   internal_state_ = ImGui::CreateContext();
   ImGui::SetCurrentContext(internal_state_);
 
-  InitializeFonts();
+  const float font_size = std::max((float)cvars::font_size, 8.f);
+  const float title_font_size = font_size + 6.f;
+
+  InitializeFonts(font_size);
+  InitializeFonts(title_font_size);
 
   auto& style = ImGui::GetStyle();
   style.ScrollbarRounding = 6.0f;
@@ -230,12 +234,33 @@ std::optional<ImGuiKey> ImGuiDrawer::VirtualKeyToImGuiKey(VirtualKey vkey) {
   }
 }
 
+std::map<uint32_t, std::unique_ptr<ImmediateTexture>> ImGuiDrawer::LoadIcons(
+    IconsData data) {
+  std::map<uint32_t, std::unique_ptr<ImmediateTexture>> icons_;
+
+  if (!immediate_drawer_) {
+    return icons_;
+  }
+
+  int width, height, channels;
+
+  for (const auto& icon : data) {
+    unsigned char* image_data =
+        stbi_load_from_memory(icon.second.first, icon.second.second, &width,
+                              &height, &channels, STBI_rgb_alpha);
+
+    icons_[icon.first] = (immediate_drawer_->CreateTexture(
+        width, height, ImmediateTextureFilter::kLinear, true,
+        reinterpret_cast<uint8_t*>(image_data)));
+  }
+
+  return icons_;
+}
+
 void ImGuiDrawer::SetupNotificationTextures() {
   if (!immediate_drawer_) {
     return;
   }
-
-  ImGuiIO& io = GetIO();
 
   // We're including 4th to include all visible
   for (uint8_t i = 0; i <= 4; i++) {
@@ -350,10 +375,9 @@ bool ImGuiDrawer::LoadJapaneseFont(ImGuiIO& io, float font_size) {
   return false;
 };
 
-void ImGuiDrawer::InitializeFonts() {
+void ImGuiDrawer::InitializeFonts(const float font_size) {
   auto& io = ImGui::GetIO();
 
-  const float font_size = std::max((float)cvars::font_size, 8.f);
   // TODO(gibbed): disable imgui.ini saving for now,
   // imgui assumes paths are char* so we can't throw a good path at it on
   // Windows.
@@ -423,6 +447,16 @@ void ImGuiDrawer::SetImmediateDrawer(ImmediateDrawer* new_immediate_drawer) {
   if (immediate_drawer_) {
     SetupFontTexture();
     SetupNotificationTextures();
+
+    // Load locked achievement icon.
+    unsigned char* image_data;
+    int width, height, channels;
+    image_data = stbi_load_from_memory(locked_achievement_icon.first,
+                                       locked_achievement_icon.second, &width,
+                                       &height, &channels, STBI_rgb_alpha);
+    locked_achievement_icon_ = immediate_drawer_->CreateTexture(
+        width, height, ImmediateTextureFilter::kLinear, true,
+        reinterpret_cast<uint8_t*>(image_data));
   }
 }
 
