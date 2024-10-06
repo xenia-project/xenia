@@ -418,7 +418,7 @@ bool ProfileManager::CreateProfile(const std::string gamertag,
   }
 
   const bool is_account_created = CreateAccount(xuid, gamertag);
-  if (is_account_created && default_xuid) {
+  if (is_account_created) {
     Login(xuid);
   }
   return is_account_created;
