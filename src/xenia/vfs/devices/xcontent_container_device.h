@@ -64,6 +64,9 @@ class XContentContainerDevice : public Device {
   }
 
   kernel::xam::XCONTENT_AGGREGATE_DATA content_header() const;
+  uint32_t license_mask() const {
+    return header_->content_header.licenses[0].license_bits;
+  }
 
  protected:
   XContentContainerDevice(const std::string_view mount_path,

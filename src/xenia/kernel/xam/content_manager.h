@@ -125,15 +125,21 @@ class ContentPackage {
                  const std::filesystem::path& package_path);
   ~ContentPackage();
 
+  void LoadPackageLicenseMask(const std::filesystem::path header_path);
+
   const XCONTENT_AGGREGATE_DATA& GetPackageContentData() const {
     return content_data_;
   }
+
+  const uint32_t GetPackageLicense() const { return license_; }
 
  private:
   KernelState* kernel_state_;
   std::string root_name_;
   std::string device_path_;
   XCONTENT_AGGREGATE_DATA content_data_;
+  uint32_t license_;
+  ;
 };
 
 class ContentManager {
@@ -161,6 +167,7 @@ class ContentManager {
                          const XCONTENT_AGGREGATE_DATA& data);
   X_RESULT OpenContent(const std::string_view root_name, const uint64_t xuid,
                        const XCONTENT_AGGREGATE_DATA& data,
+                       uint32_t& content_license,
                        const uint32_t disc_number = -1);
   X_RESULT CloseContent(const std::string_view root_name);
   X_RESULT GetContentThumbnail(const uint64_t xuid,

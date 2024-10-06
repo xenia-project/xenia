@@ -53,6 +53,26 @@ ContentPackage::~ContentPackage() {
   fs->UnregisterDevice(device_path_);
 }
 
+void ContentPackage::LoadPackageLicenseMask(
+    const std::filesystem::path header_path) {
+  license_ = 0;
+
+  if (!std::filesystem::exists(header_path)) {
+    return;
+  }
+
+  auto file = xe::filesystem::OpenFile(header_path, "rb");
+  auto file_size = std::filesystem::file_size(header_path);
+  if (file_size < sizeof(XCONTENT_AGGREGATE_DATA) + sizeof(license_)) {
+    fclose(file);
+    return;
+  }
+
+  fseek(file, sizeof(XCONTENT_AGGREGATE_DATA), SEEK_SET);
+  size_t result = fread(&license_, 1, sizeof(license_), file);
+  fclose(file);
+}
+
 ContentManager::ContentManager(KernelState* kernel_state,
                                const std::filesystem::path& root_path)
     : kernel_state_(kernel_state), root_path_(root_path) {}
@@ -267,16 +287,17 @@ X_RESULT ContentManager::ReadContentHeaderFile(
     std::array<uint8_t, header_size> buffer;
 
     auto file_size = std::filesystem::file_size(header_file_path);
-    if (file_size != header_size && file_size != sizeof(XCONTENT_DATA)) {
+    if (file_size < header_size) {
       fclose(file);
       return X_STATUS_END_OF_FILE;
     }
 
-    size_t result = fread(buffer.data(), 1, file_size, file);
-    if (result != file_size) {
+    size_t result = fread(buffer.data(), 1, header_size, file);
+    if (result != header_size) {
       fclose(file);
       return X_STATUS_END_OF_FILE;
     }
+
     fclose(file);
     std::memcpy(&data, buffer.data(), buffer.size());
     // It only reads basic info, however importing savefiles
@@ -321,6 +342,7 @@ X_RESULT ContentManager::CreateContent(const std::string_view root_name,
 X_RESULT ContentManager::OpenContent(const std::string_view root_name,
                                      const uint64_t xuid,
                                      const XCONTENT_AGGREGATE_DATA& data,
+                                     uint32_t& content_license,
                                      const uint32_t disc_number) {
   auto global_lock = global_critical_region_.Acquire();
 
@@ -338,6 +360,11 @@ X_RESULT ContentManager::OpenContent(const std::string_view root_name,
   // Open package.
   auto package = ResolvePackage(root_name, xuid, data, disc_number);
   assert_not_null(package);
+
+  package->LoadPackageLicenseMask(ResolvePackageHeaderPath(
+      data.file_name(), xuid, kernel_state_->title_id(), data.content_type));
+
+  content_license = package->GetPackageLicense();
 
   open_packages_.insert({string_key::create(root_name), package.release()});
 

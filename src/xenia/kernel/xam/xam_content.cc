@@ -251,23 +251,19 @@ dword_result_t xeXamContentCreate(dword_t user_index, lpstring_t root_name,
         break;
     }
 
+    uint32_t content_license = 0;
     if (disposition == kDispositionState::Create) {
       result = content_manager->CreateContent(root_name, xuid, content_data);
       if (XSUCCEEDED(result)) {
         content_manager->WriteContentHeaderFile(xuid, &content_data);
       }
     } else if (disposition == kDispositionState::Open) {
-      result = content_manager->OpenContent(root_name, xuid, content_data);
+      result = content_manager->OpenContent(root_name, xuid, content_data,
+                                            content_license);
     }
 
     if (license_mask_ptr && XSUCCEEDED(result)) {
-      *license_mask_ptr = 0;  // Stub!
-
-      // Set license only for DLCs and XBLA titles
-      if (content_data.content_type == xe::XContentType::kMarketplaceContent ||
-          content_data.content_type == xe::XContentType::kArcadeTitle) {
-        *license_mask_ptr = static_cast<uint32_t>(cvars::license_mask);
-      }
+      *license_mask_ptr = content_license;
     }
 
     extended_error = X_HRESULT_FROM_WIN32(result);

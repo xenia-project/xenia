@@ -437,8 +437,11 @@ void VirtualFileSystem::ExtractContentHeader(Device* device,
     auto file = xe::filesystem::OpenFile(header_path, "wb");
     kernel::xam::XCONTENT_AGGREGATE_DATA data =
         xcontent_device->content_header();
+    uint32_t license_mask = xcontent_device->license_mask();
+
     data.set_file_name(base_path.filename().string());
     fwrite(&data, 1, sizeof(kernel::xam::XCONTENT_AGGREGATE_DATA), file);
+    fwrite(&license_mask, 1, sizeof(license_mask), file);
     fclose(file);
   }
   return;
