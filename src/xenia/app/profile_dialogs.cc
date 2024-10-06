@@ -323,13 +323,17 @@ bool ProfileConfigDialog::DrawProfileContent(const uint64_t xuid,
   ImGui::SetCursorPosY(position.y + ImGui::GetTextLineHeight());
   ImGui::TextUnformatted(fmt::format("XUID: {:016X}\n", xuid).c_str());
 
+  ImGui::SameLine();
+  ImGui::SetCursorPos(position);
+  ImGui::SetCursorPosY(position.y + 2 * ImGui::GetTextLineHeight());
+
   if (user_index != static_cast<uint8_t>(-1)) {
-    ImGui::SameLine();
-    ImGui::SetCursorPos(position);
-    ImGui::SetCursorPosY(position.y + 2 * ImGui::GetTextLineHeight());
     ImGui::TextUnformatted(
-        fmt::format("Assigned to slot: {}\n", user_index).c_str());
+        fmt::format("Assigned to slot: {}\n", user_index + 1).c_str());
+  } else {
+    ImGui::TextUnformatted(fmt::format("Profile is not signed in").c_str());
   }
+
   return true;
 }
 
