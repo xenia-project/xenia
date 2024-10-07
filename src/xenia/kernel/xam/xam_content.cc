@@ -38,18 +38,33 @@ namespace kernel {
 namespace xam {
 
 dword_result_t XamContentGetLicenseMask_entry(lpdword_t mask_ptr,
-                                              lpunknown_t overlapped_ptr) {
-  // Each bit in the mask represents a granted license. Available licenses
-  // seems to vary from game to game, but most appear to use bit 0 to indicate
-  // if the game is purchased or not.
-  *mask_ptr = static_cast<uint32_t>(cvars::license_mask);
+                                              lpvoid_t overlapped_ptr) {
+  if (!mask_ptr) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
 
-  if (overlapped_ptr) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr,
-                                                X_ERROR_SUCCESS);
-    return X_ERROR_IO_PENDING;
+  auto run = [mask_ptr](uint32_t& extended_error, uint32_t& length) {
+    X_RESULT result = X_ERROR_FUNCTION_FAILED;
+
+    if (kernel_state()->deployment_type_ != XDeploymentType::kOpticalDisc) {
+      // Each bit in the mask represents a granted license. Available licenses
+      // seems to vary from game to game, but most appear to use bit 0 to
+      // indicate if the game is purchased or not.
+      *mask_ptr = static_cast<uint32_t>(cvars::license_mask);
+      result = X_ERROR_SUCCESS;
+    }
+
+    extended_error = X_HRESULT_FROM_WIN32(result);
+    length = 0;
+    return result;
+  };
+
+  if (!overlapped_ptr) {
+    uint32_t extended_error, length;
+    return run(extended_error, length);
   } else {
-    return X_ERROR_SUCCESS;
+    kernel_state()->CompleteOverlappedDeferredEx(run, overlapped_ptr);
+    return X_ERROR_IO_PENDING;
   }
 }
 DECLARE_XAM_EXPORT2(XamContentGetLicenseMask, kContent, kStub, kHighFrequency);
