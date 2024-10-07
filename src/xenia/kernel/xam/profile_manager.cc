@@ -15,6 +15,7 @@
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/logging.h"
 #include "xenia/emulator.h"
+#include "xenia/hid/input_system.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/crypto_utils.h"
 #include "xenia/vfs/devices/host_path_device.h"
@@ -149,6 +150,10 @@ UserProfile* ProfileManager::GetProfile(const uint64_t xuid) const {
 }
 
 UserProfile* ProfileManager::GetProfile(uint8_t user_index) const {
+  if (user_index == XUserIndexLatest) {
+    user_index = kernel_state_->emulator()->input_system()->GetLastUsedSlot();
+  }
+
   if (user_index == XUserIndexNone) {
     return nullptr;
   }

@@ -100,6 +100,10 @@ X_RESULT InputSystem::GetState(uint32_t user_index, X_INPUT_STATE* out_state) {
     if (result == X_ERROR_SUCCESS) {
       UpdateUsedSlot(driver.get(), user_index, any_connected);
       AdjustDeadzoneLevels(user_index, &out_state->gamepad);
+
+      if (out_state->gamepad.buttons != 0) {
+        last_used_slot = user_index;
+      }
       return result;
     }
   }

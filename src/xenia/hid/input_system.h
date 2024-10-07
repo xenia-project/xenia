@@ -53,6 +53,8 @@ class InputSystem {
     return connected_slots;
   }
 
+  uint32_t GetLastUsedSlot() const { return last_used_slot; }
+
   std::unique_lock<xe_unlikely_mutex> lock();
 
  private:
@@ -73,6 +75,7 @@ class InputSystem {
   std::bitset<XUserMaxUserCount> connected_slots = {};
   std::array<std::pair<joystick_value, joystick_value>, XUserMaxUserCount>
       controllers_max_joystick_value = {};
+  uint32_t last_used_slot = 0;
 
   xe_unlikely_mutex lock_;
 };
