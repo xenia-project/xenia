@@ -22,6 +22,8 @@
 #include "xenia/kernel/xobject.h"
 #include "xenia/vfs/devices/host_path_device.h"
 
+DECLARE_int32(license_mask);
+
 namespace xe {
 namespace kernel {
 namespace xam {
@@ -55,7 +57,7 @@ ContentPackage::~ContentPackage() {
 
 void ContentPackage::LoadPackageLicenseMask(
     const std::filesystem::path header_path) {
-  license_ = 0;
+  license_ = cvars::license_mask;
 
   if (!std::filesystem::exists(header_path)) {
     return;

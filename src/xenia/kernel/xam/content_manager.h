@@ -139,7 +139,6 @@ class ContentPackage {
   std::string device_path_;
   XCONTENT_AGGREGATE_DATA content_data_;
   uint32_t license_;
-  ;
 };
 
 class ContentManager {
