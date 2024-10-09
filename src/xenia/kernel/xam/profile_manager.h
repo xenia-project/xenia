@@ -79,15 +79,18 @@ class ProfileManager {
 
   ~ProfileManager();
 
-  bool CreateProfile(const std::string gamertag, bool default_xuid = false);
+  bool CreateProfile(const std::string gamertag, bool autologin,
+                     bool default_xuid = false);
   // bool CreateProfile(const X_XAMACCOUNTINFO* account_info);
   bool DeleteProfile(const uint64_t xuid);
 
   bool MountProfile(const uint64_t xuid);
   bool DismountProfile(const uint64_t xuid);
 
-  void Login(const uint64_t xuid, const uint8_t user_index = -1);
-  void Logout(const uint8_t user_index);
+  void Login(const uint64_t xuid, const uint8_t user_index = -1,
+             bool notify = true);
+  void Logout(const uint8_t user_index, bool notify = true);
+  void LoginMultiple(const std::map<uint8_t, uint64_t>& profiles);
 
   bool LoadAccount(const uint64_t xuid);
   void LoadAccounts(const std::vector<uint64_t> profiles_xuids);

@@ -254,7 +254,8 @@ bool ProfileManager::DismountProfile(const uint64_t xuid) {
       fmt::format("{:016X}", xuid) + ':');
 }
 
-void ProfileManager::Login(const uint64_t xuid, const uint8_t user_index) {
+void ProfileManager::Login(const uint64_t xuid, const uint8_t user_index,
+                           bool notify) {
   if (logged_profiles_.size() >= 4 && user_index >= XUserMaxUserCount) {
     XELOGE(
         "Cannot login account with XUID: {:016X} due to lack of free slots "
@@ -293,21 +294,37 @@ void ProfileManager::Login(const uint64_t xuid, const uint8_t user_index) {
 
   logged_profiles_[assigned_user_slot] =
       std::make_unique<UserProfile>(xuid, &profile);
-  kernel_state_->BroadcastNotification(kXNotificationIDSystemSignInChanged,
-                                       GetUsedUserSlots().to_ulong());
+  if (notify) {
+    kernel_state_->BroadcastNotification(kXNotificationIDSystemSignInChanged,
+                                         GetUsedUserSlots().to_ulong());
+  }
   UpdateConfig(xuid, assigned_user_slot);
 }
 
-void ProfileManager::Logout(const uint8_t user_index) {
+void ProfileManager::Logout(const uint8_t user_index, bool notify) {
   auto profile = logged_profiles_.find(user_index);
   if (profile == logged_profiles_.cend()) {
     return;
   }
   DismountProfile(profile->second->xuid());
   logged_profiles_.erase(profile);
-  kernel_state_->BroadcastNotification(kXNotificationIDSystemSignInChanged,
-                                       GetUsedUserSlots().to_ulong());
+  if (notify) {
+    kernel_state_->BroadcastNotification(kXNotificationIDSystemSignInChanged,
+                                         GetUsedUserSlots().to_ulong());
+  }
   UpdateConfig(0, user_index);
+}
+
+void ProfileManager::LoginMultiple(
+    const std::map<uint8_t, uint64_t>& profiles) {
+  int slots_mask = 0;
+  for (auto [slot, xuid] : profiles) {
+    Login(xuid, slot, false);
+    slots_mask |= (1 << slot);
+  }
+
+  kernel_state_->BroadcastNotification(kXNotificationIDSystemSignInChanged,
+                                       slots_mask);
 }
 
 std::vector<uint64_t> ProfileManager::FindProfiles() const {
@@ -410,7 +427,7 @@ std::filesystem::path ProfileManager::GetProfilePath(
          fmt::format("{:08X}", XContentType::kProfile) / xuid;
 }
 
-bool ProfileManager::CreateProfile(const std::string gamertag,
+bool ProfileManager::CreateProfile(const std::string gamertag, bool autologin,
                                    bool default_xuid) {
   const auto xuid = !default_xuid ? GenerateXuid() : 0xB13EBABEBABEBABE;
 
@@ -423,7 +440,7 @@ bool ProfileManager::CreateProfile(const std::string gamertag,
   }
 
   const bool is_account_created = CreateAccount(xuid, gamertag);
-  if (is_account_created) {
+  if (is_account_created && autologin) {
     Login(xuid);
   }
   return is_account_created;

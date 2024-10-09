@@ -26,15 +26,16 @@ class CreateProfileDialog final : public ui::ImGuiDialog {
                       bool with_migration = false)
       : ui::ImGuiDialog(imgui_drawer),
         emulator_window_(emulator_window),
-        migration(with_migration) {
-    memset(gamertag, 0, sizeof(gamertag));
+        migration_(with_migration) {
+    memset(gamertag_, 0, sizeof(gamertag_));
   }
 
  protected:
   void OnDraw(ImGuiIO& io) override;
 
-  bool migration = false;
-  char gamertag[16] = "";
+  bool has_opened_ = false;
+  bool migration_ = false;
+  char gamertag_[16] = "";
   EmulatorWindow* emulator_window_;
 };
 
@@ -54,19 +55,13 @@ class ProfileConfigDialog final : public ui::ImGuiDialog {
  public:
   ProfileConfigDialog(ui::ImGuiDrawer* imgui_drawer,
                       EmulatorWindow* emulator_window)
-      : ui::ImGuiDialog(imgui_drawer), emulator_window_(emulator_window) {
-    memset(gamertag, 0, sizeof(gamertag));
-  }
+      : ui::ImGuiDialog(imgui_drawer), emulator_window_(emulator_window) {}
 
  protected:
   void OnDraw(ImGuiIO& io) override;
 
  private:
-  bool DrawProfileContent(const uint64_t xuid, const uint8_t user_index,
-                          const X_XAMACCOUNTINFO* account);
-
   uint64_t selected_xuid_ = 0;
-  char gamertag[16] = "";
   EmulatorWindow* emulator_window_;
 };
 

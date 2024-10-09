@@ -95,9 +95,6 @@ class EmulatorWindow {
 
   void ToggleProfilesConfigDialog();
   void SetHotkeysState(bool enabled) { disable_hotkeys_ = !enabled; }
-  // We need to store it somewhere so there will be no situation when there are
-  // multiple instances opened.
-  std::unique_ptr<CreateProfileDialog> profile_creation_dialog_;
 
   // Types of button functions for hotkeys.
   enum class ButtonFunctions {
