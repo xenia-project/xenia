@@ -142,6 +142,10 @@ X_RESULT InputSystem::GetKeystroke(uint32_t user_index, uint32_t flags,
     }
     if (result == X_ERROR_SUCCESS || result == X_ERROR_EMPTY) {
       UpdateUsedSlot(driver.get(), user_index, any_connected);
+
+      if (result == X_ERROR_SUCCESS) {
+        last_used_slot = user_index;
+      }
       return result;
     }
   }
