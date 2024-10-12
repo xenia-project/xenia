@@ -46,7 +46,10 @@ dword_result_t XamContentGetLicenseMask_entry(lpdword_t mask_ptr,
   auto run = [mask_ptr](uint32_t& extended_error, uint32_t& length) {
     X_RESULT result = X_ERROR_FUNCTION_FAILED;
 
-    if (kernel_state()->deployment_type_ != XDeploymentType::kOpticalDisc) {
+    // Remark: This cannot be reflected as on console. Xenia can boot games
+    // directly and XBLA games can be repacked to ZAR. For these titles we must
+    // provide some license. Normally it should fail for OpticalDisc type.
+    if (kernel_state()->deployment_type_ != XDeploymentType::kUnknown) {
       // Each bit in the mask represents a granted license. Available licenses
       // seems to vary from game to game, but most appear to use bit 0 to
       // indicate if the game is purchased or not.
