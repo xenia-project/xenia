@@ -103,7 +103,10 @@ std::filesystem::path ContentManager::ResolvePackagePath(
   // Content path:
   // content_root/title_id/content_type/data_file_name/
   auto get_package_path = [&, data, disc_number](const uint32_t title_id) {
-    auto package_root = ResolvePackageRoot(xuid, title_id, data.content_type);
+    uint64_t used_xuid = (data.xuid != -1 && data.xuid != 0) ? data.xuid : xuid;
+
+    auto package_root =
+        ResolvePackageRoot(used_xuid, title_id, data.content_type);
     std::string final_name = xe::string_util::trim(data.file_name());
     std::filesystem::path package_path = package_root / xe::to_path(final_name);
 
@@ -252,10 +255,17 @@ bool ContentManager::ContentExists(const uint64_t xuid,
   return std::filesystem::exists(path);
 }
 
-X_RESULT ContentManager::WriteContentHeaderFile(
-    const uint64_t xuid, const XCONTENT_AGGREGATE_DATA* data) {
-  auto header_path = ResolvePackageHeaderPath(
-      data->file_name(), xuid, data->title_id, data->content_type);
+X_RESULT ContentManager::WriteContentHeaderFile(const uint64_t xuid,
+                                                XCONTENT_AGGREGATE_DATA data) {
+  if (data.title_id == -1) {
+    data.title_id = kernel_state_->title_id();
+  }
+  if (data.xuid == -1) {
+    data.xuid = xuid;
+  }
+
+  auto header_path = ResolvePackageHeaderPath(data.file_name(), xuid,
+                                              data.title_id, data.content_type);
   auto parent_path = header_path.parent_path();
 
   if (!std::filesystem::exists(parent_path)) {
@@ -268,7 +278,7 @@ X_RESULT ContentManager::WriteContentHeaderFile(
 
   if (std::filesystem::exists(header_path)) {
     auto file = xe::filesystem::OpenFile(header_path, "wb");
-    fwrite(data, 1, sizeof(XCONTENT_AGGREGATE_DATA), file);
+    fwrite(&data, 1, sizeof(XCONTENT_AGGREGATE_DATA), file);
     fclose(file);
     return X_STATUS_SUCCESS;
   }
@@ -302,12 +312,6 @@ X_RESULT ContentManager::ReadContentHeaderFile(
 
     fclose(file);
     std::memcpy(&data, buffer.data(), buffer.size());
-    // It only reads basic info, however importing savefiles
-    // usually requires title_id to be provided
-    // Kinda simple workaround for that, but still assumption
-    data.title_id = title_id;
-    data.xuid = xuid;
-
     return X_STATUS_SUCCESS;
   }
   return X_STATUS_NO_SUCH_FILE;

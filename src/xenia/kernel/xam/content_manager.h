@@ -157,7 +157,7 @@ class ContentManager {
 
   bool ContentExists(const uint64_t xuid, const XCONTENT_AGGREGATE_DATA& data);
   X_RESULT WriteContentHeaderFile(const uint64_t xuid,
-                                  const XCONTENT_AGGREGATE_DATA* data_raw);
+                                  XCONTENT_AGGREGATE_DATA data);
   X_RESULT ReadContentHeaderFile(const std::string_view file_name,
                                  const uint64_t xuid, const uint32_t title_id,
                                  XContentType content_type,

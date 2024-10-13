@@ -273,7 +273,7 @@ dword_result_t xeXamContentCreate(dword_t user_index, lpstring_t root_name,
     if (disposition == kDispositionState::Create) {
       result = content_manager->CreateContent(root_name, xuid, content_data);
       if (XSUCCEEDED(result)) {
-        content_manager->WriteContentHeaderFile(xuid, &content_data);
+        content_manager->WriteContentHeaderFile(xuid, content_data);
       }
     } else if (disposition == kDispositionState::Open) {
       result = content_manager->OpenContent(root_name, xuid, content_data,
