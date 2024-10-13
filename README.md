@@ -6,12 +6,12 @@
 
 <h1 align="center">Xenia Canary - Xbox 360 Emulator</h1>
 
-Xenia is an experimental emulator for the Xbox 360. For more information, see the
-[Xenia wiki](https://github.com/xenia-canary/xenia-canary/wiki).
+Xenia Canary is an experimental fork of the Xenia emulator. For more information, see the
+[Xenia Canary wiki](https://github.com/xenia-canary/xenia-canary/wiki).
 
 Come chat with us about **emulator-related topics** on [Discord](https://discord.gg/Q9mxZf9).
 For developer chat join `#dev` but stay on topic. Lurking is not only fine, but encouraged!
-Please check the [FAQ](https://github.com/xenia-project/xenia/wiki/FAQ) page before asking questions.
+Please check the [FAQ](https://github.com/xenia-canary/xenia-canary/wiki/FAQ) page before asking questions.
 We've got jobs/lives/etc, so don't expect instant answers.
 
 Discussing illegal activities will get you banned.
@@ -26,17 +26,17 @@ Netplay Build | | [Latest](https://github.com/AdrianCassar/xenia-canary/releases
 
 ## Quickstart
 
-See the [Quickstart](https://github.com/xenia-project/xenia/wiki/Quickstart) page.
+See the [Quickstart](https://github.com/xenia-canary/xenia-canary/wiki/Quickstart) page.
 
 ## FAQ
 
-See the [frequently asked questions](https://github.com/xenia-project/xenia/wiki/FAQ) page.
+See the [frequently asked questions](https://github.com/xenia-canary/xenia-canary/wiki/FAQ) page.
 
 ## Game Compatibility
 
-See the [Game compatibility list](https://github.com/xenia-project/game-compatibility/issues)
+See the [Game compatibility list](https://github.com/xenia-canary/game-compatibility/issues)
 for currently tracked games, and feel free to contribute your own updates,
-screenshots, and information there following the [existing conventions](https://github.com/xenia-project/game-compatibility/blob/master/README.md).
+screenshots, and information there following the [existing conventions](https://github.com/xenia-canary/game-compatibility/blob/master/README.md).
 
 ## Building
 
@@ -55,11 +55,11 @@ is wide open greenfield fun.
 Fixes and optimizations are always welcome (please!), but in addition to
 that there are some major work areas still untouched:
 
-* Help work through [missing functionality/bugs in games](https://github.com/xenia-project/xenia/labels/compat)
-* Reduce the size of Xenia's [huge log files](https://github.com/xenia-project/xenia/issues/1526)
-* Skilled with Linux? A strong contributor is needed to [help with porting](https://github.com/xenia-project/xenia/labels/platform-linux)
+* Help work through [missing functionality/bugs in games](https://github.com/xenia-canary/xenia-canary/labels/compat)
+* Reduce the size of Xenia's [huge log files](https://github.com/xenia-canary/xenia-canary/issues/1526)
+* Skilled with Linux? A strong contributor is needed to [help with porting](https://github.com/xenia-canary/xenia-canary/labels/platform-linux)
 
-See more projects [good for contributors](https://github.com/xenia-project/xenia/labels/good%20first%20issue). It's a good idea to ask on Discord and check the issues page before beginning work on
+See more projects [good for contributors](https://github.com/xenia-canary/xenia-canary/labels/good%20first%20issue). It's a good idea to ask on Discord and check the issues page before beginning work on
 something.
 
 ## Disclaimer

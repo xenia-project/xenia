@@ -8,21 +8,21 @@ body:
       value: |
         Try to create a very concise title that's straight to the point.
 
-        **THIS IS NOT A SUPPORT FORUM!** For support, first read the wiki: https://github.com/xenia-project/xenia/wiki
+        **THIS IS NOT A SUPPORT FORUM!** For support, first read the wiki: https://github.com/xenia-canary/xenia-canary/wiki
         If your question wasn't answered there or you need help, proceed to #help in the Discord server: https://discord.gg/Q9mxZf9
 
         DO NOT CREATE ISSUES ABOUT SPECIFIC GAMES IN THIS REPOSITORY!
         A game specific issue would be e.g. "Game X crashes after you hit a character a certain way"
         A Xenia issue would be e.g. "Kernel export NtDoSomething does nothing"
-        For specific games, visit https://github.com/xenia-project/game-compatibility#game-compatibility
+        For specific games, visit https://github.com/xenia-canary/game-compatibility#game-compatibility
   - id: validation
     type: checkboxes
     attributes:
       label: Validation
       options:
-      - label: I've read the [FAQ](https://github.com/xenia-project/xenia/wiki/FAQ).
+      - label: I've read the [FAQ](https://github.com/xenia-canary/xenia-canary/wiki/FAQ).
         required: true
-      - label: The Xenia build used is from the master branch (not MLBS/AlexVS/Canary/pull requests, etc.)
+      - label: The Xenia build used is from a Canary branch. (not UWP/MLBS/AlexVS/master/pull requests, etc)
         required: true
       - label: This issue isn't for tech support (help with Xenia).
         required: true
@@ -30,9 +30,9 @@ body:
         required: true
       - label: I've checked if this issue hasn't already been reported.
         required: true
-      - label: 'My device meets the minimum requirements: https://github.com/xenia-project/xenia/wiki/Quickstart#system-requirements'
+      - label: 'My device meets the minimum requirements: https://github.com/xenia-canary/xenia-canary/wiki/Quickstart#system-requirements'
         required: true
-      - label: '(If building) I have read the building doc: https://github.com/xenia-project/xenia/blob/master/docs/building.md'
+      - label: '(If building) I have read the building doc: https://github.com/xenia-canary/xenia-canary/blob/master/docs/building.md'
   - id: problem
     type: textarea
     attributes:
