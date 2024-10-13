@@ -55,15 +55,24 @@ jobs:
         run: .\xb lint --all
 
   build-windows:
-    name: Build (Windows) #  runner.os can't be used here
-    runs-on: windows-2019
+    name: Build (Windows, VS${{ matrix.vsver }}) #  runner.os can't be used here
     needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        vsver: [2022, 2019]
+    runs-on: windows-${{ matrix.vsver }}
     env:
       POWERSHELL_TELEMETRY_OPTOUT: 1
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Update Python (VS2019)
+        uses: actions/setup-python@v5
+        if: matrix.vsver == '2019'
+        with:
+          python-version: '3.12'
       - name: Setup
         run: .\xb setup
       - name: Build
@@ -76,7 +85,7 @@ jobs:
       - name: Upload xenia canary artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: xenia_canary
+          name: xenia_canary_vs${{ matrix.vsver }}
           path: artifacts\xenia_canary
           if-no-files-found: error
       - name: Create release
@@ -84,7 +93,8 @@ jobs:
           github.repository == 'xenia-canary/xenia-canary' &&
           github.event.action != 'pull_request' &&
           contains(github.ref, 'refs/heads/canary') &&
-          github.ref != 'refs/heads/canary_base'
+          github.ref != 'refs/heads/canary_base' &&
+          matrix.vsver == '2019'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
