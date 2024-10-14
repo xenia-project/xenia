@@ -18,17 +18,22 @@ namespace apu {
 
 class AudioDriver {
  public:
-  explicit AudioDriver(Memory* memory);
+  static const uint32_t kFrameFrequencyDefault = 48000;
+  static const uint32_t kFrameChannelsDefault = 6;
+  static const uint32_t kChannelSamplesDefault = 256;
+  static const uint32_t kFrameSamplesMax =
+      kFrameChannelsDefault * kChannelSamplesDefault;
+  static const uint32_t kFrameSizeMax = sizeof(float) * kFrameSamplesMax;
+
   virtual ~AudioDriver();
 
-  virtual void SubmitFrame(uint32_t samples_ptr) = 0;
+  virtual bool Initialize() = 0;
+  virtual void Shutdown() = 0;
 
- protected:
-  inline uint8_t* TranslatePhysical(uint32_t guest_address) const {
-    return memory_->TranslatePhysical(guest_address);
-  }
-
-  Memory* memory_ = nullptr;
+  virtual void SubmitFrame(float* samples) = 0;
+  virtual void Pause() = 0;
+  virtual void Resume() = 0;
+  virtual void SetVolume(float volume) = 0;
 };
 
 }  // namespace apu

@@ -29,18 +29,24 @@ namespace xaudio2 {
 
 class XAudio2AudioDriver : public AudioDriver {
  public:
-  XAudio2AudioDriver(Memory* memory, xe::threading::Semaphore* semaphore);
+  XAudio2AudioDriver(xe::threading::Semaphore* semaphore,
+                     uint32_t frequency = kFrameFrequencyDefault,
+                     uint32_t channels = kFrameChannelsDefault,
+                     bool need_format_conversion = true);
   ~XAudio2AudioDriver() override;
 
-  bool Initialize();
+  bool Initialize() override;
   // Must not be called from COM STA threads as MTA XAudio2 will be used. It's
   // fine to call this from threads that have never initialized COM as
   // initializing MTA for any thread implicitly initializes it for all threads
   // not explicitly requesting STA (until COM is uninitialized all threads that
   // have initialized MTA).
   // https://devblogs.microsoft.com/oldnewthing/?p=4613
-  void SubmitFrame(uint32_t frame_ptr) override;
-  void Shutdown();
+  void SubmitFrame(float* frame) override;
+  void Pause() override;
+  void Resume() override;
+  void SetVolume(float volume) override;
+  void Shutdown() override;
 
  private:
   // First CPU (2.8 default). XAUDIO2_ANY_PROCESSOR (2.7 default) steals too
@@ -94,12 +100,15 @@ class XAudio2AudioDriver : public AudioDriver {
   class VoiceCallback;
   VoiceCallback* voice_callback_ = nullptr;
 
+  uint32_t frame_frequency_;
+  uint32_t frame_channels_;
+  uint32_t channel_samples_;
+  uint32_t frame_size_;
+  bool need_format_conversion_;
+
   static const uint32_t frame_count_ = api::XE_XAUDIO2_MAX_QUEUED_BUFFERS;
-  static const uint32_t frame_channels_ = 6;
-  static const uint32_t channel_samples_ = 256;
-  static const uint32_t frame_samples_ = frame_channels_ * channel_samples_;
-  static const uint32_t frame_size_ = sizeof(float) * frame_samples_;
-  float frames_[frame_count_][frame_samples_];
+
+  float frames_[frame_count_][kFrameSamplesMax];
   uint32_t current_frame_ = 0;
 };
 

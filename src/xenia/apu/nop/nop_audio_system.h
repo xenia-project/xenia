@@ -27,6 +27,9 @@ class NopAudioSystem : public AudioSystem {
 
   X_STATUS CreateDriver(size_t index, xe::threading::Semaphore* semaphore,
                         AudioDriver** out_driver) override;
+  AudioDriver* CreateDriver(xe::threading::Semaphore* semaphore,
+                            uint32_t frequency, uint32_t channels,
+                            bool need_format_conversion) override;
   void DestroyDriver(AudioDriver* driver) override;
 };
 

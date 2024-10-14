@@ -30,6 +30,12 @@ X_STATUS NopAudioSystem::CreateDriver(size_t index,
   return X_STATUS_NOT_IMPLEMENTED;
 }
 
+AudioDriver* NopAudioSystem::CreateDriver(xe::threading::Semaphore* semaphore,
+                                          uint32_t frequency, uint32_t channels,
+                                          bool need_format_conversion) {
+  return nullptr;
+}
+
 void NopAudioSystem::DestroyDriver(AudioDriver* driver) { assert_always(); }
 
 }  // namespace nop

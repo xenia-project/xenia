@@ -210,13 +210,13 @@ X_STATUS AudioSystem::RegisterClient(uint32_t callback, uint32_t callback_arg,
   return X_STATUS_SUCCESS;
 }
 
-void AudioSystem::SubmitFrame(size_t index, uint32_t samples_ptr) {
+void AudioSystem::SubmitFrame(size_t index, float* samples) {
   SCOPE_profile_cpu_f("apu");
 
   auto global_lock = global_critical_region_.Acquire();
   assert_true(index < kMaximumClientCount);
   assert_true(clients_[index].driver != NULL);
-  (clients_[index].driver)->SubmitFrame(samples_ptr);
+  (clients_[index].driver)->SubmitFrame(samples);
 }
 
 void AudioSystem::UnregisterClient(size_t index) {

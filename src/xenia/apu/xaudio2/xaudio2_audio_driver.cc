@@ -43,9 +43,27 @@ class XAudio2AudioDriver::VoiceCallback : public api::IXAudio2VoiceCallback {
   xe::threading::Semaphore* semaphore_ = nullptr;
 };
 
-XAudio2AudioDriver::XAudio2AudioDriver(Memory* memory,
-                                       xe::threading::Semaphore* semaphore)
-    : AudioDriver(memory), semaphore_(semaphore) {}
+XAudio2AudioDriver::XAudio2AudioDriver(xe::threading::Semaphore* semaphore,
+                                       uint32_t frequency, uint32_t channels,
+                                       bool need_format_conversion)
+    : semaphore_(semaphore),
+      frame_frequency_(frequency),
+      frame_channels_(channels),
+      need_format_conversion_(need_format_conversion) {
+  switch (frame_channels_) {
+    case 6:
+      channel_samples_ = 256;
+      break;
+    case 2:
+      channel_samples_ = 768;
+      break;
+    default:
+      assert_unhandled_case(frame_channels_);
+  }
+  frame_size_ = sizeof(float) * frame_channels_ * channel_samples_;
+  assert_true(frame_size_ <= kFrameSizeMax);
+  assert_true(!need_format_conversion_ || frame_channels_ == 6);
+}
 
 XAudio2AudioDriver::~XAudio2AudioDriver() = default;
 
@@ -136,7 +154,7 @@ bool XAudio2AudioDriver::InitializeObjects(Objects& objects) {
 
   waveformat.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
   waveformat.Format.nChannels = frame_channels_;
-  waveformat.Format.nSamplesPerSec = 48000;
+  waveformat.Format.nSamplesPerSec = frame_frequency_;
   waveformat.Format.wBitsPerSample = 32;
   waveformat.Format.nBlockAlign =
       (waveformat.Format.nChannels * waveformat.Format.wBitsPerSample) / 8;
@@ -184,8 +202,7 @@ bool XAudio2AudioDriver::InitializeObjects(Objects& objects) {
   return true;
 }
 
-void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
-  // Process samples! They are big-endian floats.
+void XAudio2AudioDriver::SubmitFrame(float* frame) {
   HRESULT hr;
 
   api::XAUDIO2_VOICE_STATE state;
@@ -197,13 +214,15 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
   }
   assert_true(state.BuffersQueued < frame_count_);
 
-  auto input_frame = memory_->TranslateVirtual<float*>(frame_ptr);
   auto output_frame = reinterpret_cast<float*>(frames_[current_frame_]);
-  auto interleave_channels = frame_channels_;
 
-  // interleave the data
-  conversion::sequential_6_BE_to_interleaved_6_LE(output_frame, input_frame,
-                                                  channel_samples_);
+  if (need_format_conversion_) {
+    // Convert planar big endian samples into interleaved little endian.
+    conversion::sequential_6_BE_to_interleaved_6_LE(output_frame, frame,
+                                                    channel_samples_);
+  } else {
+    memcpy(output_frame, frame, frame_size_);
+  }
 
   api::XAUDIO2_BUFFER buffer;
   buffer.Flags = 0;
@@ -234,6 +253,32 @@ void XAudio2AudioDriver::SubmitFrame(uint32_t frame_ptr) {
     objects_.api_2_8.pcm_voice->SetFrequencyRatio(frequency_ratio);
   } else {
     objects_.api_2_7.pcm_voice->SetFrequencyRatio(frequency_ratio);
+  }
+}
+
+void XAudio2AudioDriver::Pause() {
+  if (api_minor_version_ >= 8) {
+    objects_.api_2_8.pcm_voice->Stop();
+  } else {
+    objects_.api_2_7.pcm_voice->Stop();
+  }
+}
+
+void XAudio2AudioDriver::Resume() {
+  if (api_minor_version_ >= 8) {
+    objects_.api_2_8.pcm_voice->Start();
+  } else {
+    objects_.api_2_7.pcm_voice->Start();
+  }
+}
+
+void XAudio2AudioDriver::SetVolume(float volume) {
+  if (cvars::mute) return;
+
+  if (api_minor_version_ >= 8) {
+    objects_.api_2_8.pcm_voice->SetVolume(volume);
+  } else {
+    objects_.api_2_7.pcm_voice->SetVolume(volume);
   }
 }
 

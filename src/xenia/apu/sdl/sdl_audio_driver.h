@@ -24,12 +24,18 @@ namespace sdl {
 
 class SDLAudioDriver : public AudioDriver {
  public:
-  SDLAudioDriver(Memory* memory, xe::threading::Semaphore* semaphore);
+  SDLAudioDriver(xe::threading::Semaphore* semaphore,
+                 uint32_t frequency = kFrameFrequencyDefault,
+                 uint32_t channels = kFrameChannelsDefault,
+                 bool need_format_conversion = true);
   ~SDLAudioDriver() override;
 
-  bool Initialize();
-  void SubmitFrame(uint32_t frame_ptr) override;
-  void Shutdown();
+  bool Initialize() override;
+  void SubmitFrame(float* frame) override;
+  void Pause() override;
+  void Resume() override;
+  void SetVolume(float volume) override { volume_ = volume; };
+  void Shutdown() override;
 
  protected:
   static void SDLCallback(void* userdata, Uint8* stream, int len);
@@ -40,11 +46,13 @@ class SDLAudioDriver : public AudioDriver {
   bool sdl_initialized_ = false;
   uint8_t sdl_device_channels_ = 0;
 
-  static const uint32_t frame_frequency_ = 48000;
-  static const uint32_t frame_channels_ = 6;
-  static const uint32_t channel_samples_ = 256;
-  static const uint32_t frame_samples_ = frame_channels_ * channel_samples_;
-  static const uint32_t frame_size_ = sizeof(float) * frame_samples_;
+  float volume_ = 1.0f;
+
+  uint32_t frame_frequency_;
+  uint32_t frame_channels_;
+  uint32_t channel_samples_;
+  uint32_t frame_size_;
+  bool need_format_conversion_;
   std::queue<float*> frames_queued_ = {};
   std::stack<float*> frames_unused_ = {};
   std::mutex frames_mutex_ = {};
