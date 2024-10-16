@@ -449,17 +449,12 @@ bool EmulatorApp::OnInitialize() {
   emulator_ =
       std::make_unique<Emulator>("", storage_root, content_root, cache_root);
 
-  // Determine window size based on user widescreen setting.
-  uint32_t window_w = 1280;
-  uint32_t window_h = 720;
-  if (!cvars::widescreen) {
-    window_w = 1024;
-    window_h = 768;
-  }
+  // Determine window size based on user setting.
+  auto res = xe::gpu::GraphicsSystem::GetInternalDisplayResolution();
 
   // Main emulator display window.
   emulator_window_ = EmulatorWindow::Create(emulator_.get(), app_context(),
-                                            window_w, window_h);
+                                            res.first, res.second);
   if (!emulator_window_) {
     XELOGE("Failed to create the main emulator window");
     return false;
