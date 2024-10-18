@@ -92,7 +92,7 @@ jobs:
         if: |
           github.repository == 'xenia-canary/xenia-canary' &&
           github.event.action != 'pull_request' &&
-          github.ref == 'canary_experimental' &&
+          github.ref == 'refs/heads/canary_experimental' &&
           matrix.vsver == '2019'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
