@@ -860,9 +860,9 @@ bool xeDrawProfileContent(ui::ImGuiDrawer* imgui_drawer, const uint64_t xuid,
         }
 
         if (ImGui::BeginMenu("Login to slot:")) {
-          for (uint8_t i = 0; i < XUserMaxUserCount; i++) {
+          for (uint8_t i = 1; i <= XUserMaxUserCount; i++) {
             if (ImGui::MenuItem(fmt::format("slot {}", i).c_str())) {
-              profile_manager->Login(xuid, i);
+              profile_manager->Login(xuid, i - 1);
             }
           }
           ImGui::EndMenu();
