@@ -521,20 +521,21 @@ DECLARE_XAM_EXPORT1(XamContentSetThumbnail, kContent, kImplemented);
 dword_result_t XamContentDelete_entry(dword_t user_index,
                                       lpvoid_t content_data_ptr,
                                       lpunknown_t overlapped_ptr) {
-  if (user_index >= XUserMaxUserCount) {
-    return X_ERROR_ACCESS_DENIED;
-  }
+  uint64_t xuid = 0;
+  if (user_index != XUserIndexNone) {
+    const auto& user = kernel_state()->xam_state()->GetUserProfile(user_index);
 
-  const auto& user = kernel_state()->xam_state()->GetUserProfile(user_index);
+    if (!user) {
+      return X_ERROR_NO_SUCH_USER;
+    }
 
-  if (!user) {
-    return X_ERROR_NO_SUCH_USER;
+    xuid = user->xuid();
   }
 
   XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
 
-  auto result = kernel_state()->content_manager()->DeleteContent(user->xuid(),
-                                                                 content_data);
+  auto result =
+      kernel_state()->content_manager()->DeleteContent(xuid, content_data);
 
   if (overlapped_ptr) {
     kernel_state()->CompleteOverlappedImmediate(overlapped_ptr, result);

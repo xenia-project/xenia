@@ -263,8 +263,9 @@ X_RESULT ContentManager::WriteContentHeaderFile(const uint64_t xuid,
   if (data.xuid == -1) {
     data.xuid = xuid;
   }
+  uint64_t used_xuid = (data.xuid != -1 && data.xuid != 0) ? data.xuid : xuid;
 
-  auto header_path = ResolvePackageHeaderPath(data.file_name(), xuid,
+  auto header_path = ResolvePackageHeaderPath(data.file_name(), used_xuid,
                                               data.title_id, data.content_type);
   auto parent_path = header_path.parent_path();
 
