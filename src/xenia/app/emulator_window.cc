@@ -322,6 +322,7 @@ void EmulatorWindow::DisplayConfigDialog::OnDraw(ImGuiIO& io) {
   // In the top-left corner so it's close to the menu bar from where it was
   // opened.
   // Origin Y coordinate 20 was taken from the Dear ImGui demo.
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f);
   ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowSize(ImVec2(20, 20), ImGuiCond_FirstUseEver);
   // Alpha from Dear ImGui tooltips (0.35 from the overlay provides too low

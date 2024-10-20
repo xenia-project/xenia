@@ -97,6 +97,7 @@ void NoProfileDialog::OnDraw(ImGuiIO& io) {
   const auto window_position =
       ImVec2(GetIO().DisplaySize.x * 0.35f, GetIO().DisplaySize.y * 0.4f);
 
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f);
   ImGui::SetNextWindowPos(window_position, ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowBgAlpha(1.0f);
 
@@ -166,6 +167,7 @@ void ProfileConfigDialog::OnDraw(ImGuiIO& io) {
 
   auto profiles = profile_manager->GetProfiles();
 
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f);
   ImGui::SetNextWindowPos(ImVec2(40, 40), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowBgAlpha(0.8f);
 
