@@ -1,4 +1,4 @@
-HALF-PRECISION FLOATING POINT LIBRARY (Version 1.11.0)
+HALF-PRECISION FLOATING POINT LIBRARY (Version 1.12.0)
 ------------------------------------------------------
 
 This is a C++ header-only library to provide an IEEE 754 conformant 16-bit 
@@ -29,14 +29,15 @@ or when a feature should be explicitly disabled:
   - Static assertions for extended compile-time checks (enabled for VC++ 2010, 
     gcc 4.3, clang 2.9 and newer, overridable with 'HALF_ENABLE_CPP11_STATIC_ASSERT').
 
-  - Generalized constant expressions (enabled for gcc 4.6, clang 3.1 and newer, 
-    overridable with 'HALF_ENABLE_CPP11_CONSTEXPR').
+  - Generalized constant expressions (enabled for VC++ 2015, gcc 4.6, clang 3.1 
+    and newer, overridable with 'HALF_ENABLE_CPP11_CONSTEXPR').
 
-  - noexcept exception specifications (enabled for gcc 4.6, clang 3.0 and newer, 
-    overridable with 'HALF_ENABLE_CPP11_NOEXCEPT').
+  - noexcept exception specifications (enabled for VC++ 2015, gcc 4.6, clang 3.0 
+    and newer, overridable with 'HALF_ENABLE_CPP11_NOEXCEPT').
 
   - User-defined literals for half-precision literals to work (enabled for 
-    gcc 4.7, clang 3.1 and newer, overridable with 'HALF_ENABLE_CPP11_USER_LITERALS').
+    VC++ 2015, gcc 4.7, clang 3.1 and newer, overridable with 
+    'HALF_ENABLE_CPP11_USER_LITERALS').
 
   - Type traits and template meta-programming features from <type_traits> 
     (enabled for VC++ 2010, libstdc++ 4.3, libc++ and newer, overridable with 
@@ -53,7 +54,7 @@ or when a feature should be explicitly disabled:
   - Hash functor 'std::hash' from <functional> (enabled for VC++ 2010, 
     libstdc++ 4.3, libc++ and newer, overridable with 'HALF_ENABLE_CPP11_HASH').
 
-The library has been tested successfully with Visual C++ 2005-2013, gcc 4.4-4.8 
+The library has been tested successfully with Visual C++ 2005-2015, gcc 4.4-4.8 
 and clang 3.1. Please contact me if you have any problems, suggestions or even 
 just success testing it on other platforms.
 
@@ -106,7 +107,7 @@ Furthermore the library provides proper specializations for
 the library also defines the 'HUGE_VALH' constant and maybe the 'FP_FAST_FMAH' 
 symbol.
 
-CONVERSIONS
+CONVERSIONS AND ROUNDING
 
 The half is explicitly constructible/convertible from a single-precision float 
 argument. Thus it is also explicitly constructible/convertible from any type 
@@ -122,7 +123,7 @@ you can also directly assign float values to halfs.
 
 In contrast to the float-to-half conversion, which reduces precision, the 
 conversion from half to float (and thus to any other type implicitly 
-convertible to float) is implicit, because all values represetable with 
+convertible from float) is implicit, because all values represetable with 
 half-precision are also representable with single-precision. This way the 
 half-to-float conversion behaves similar to the builtin float-to-double 
 conversion and all arithmetic expressions involving both half-precision and 
@@ -156,20 +157,23 @@ to 'std::numeric_limits<float>::round_style'):
 In addition to changing the overall default rounding mode one can also use the 
 'half_cast'. This converts between half and any built-in arithmetic type using 
 a configurable rounding mode (or the default rounding mode if none is 
-specified). In addition to a configurable rounding mode, 'half_cast' has two 
-other differences to a mere 'static_cast': (1) Floating point types are 
-explicitly cast to float before being converted to half-precision and thus any 
-warnings for narrowing conversions are suppressed. (2) Conversions to/from 
-integer types are performed directly using the given rounding mode, without any 
-intermediate conversion to/from float.
+specified). In addition to a configurable rounding mode, 'half_cast' has 
+another big difference to a mere 'static_cast': Any conversions are performed 
+directly using the given rounding mode, without any intermediate conversion 
+to/from 'float'. This is especially relevant for conversions to integer types, 
+which don't necessarily truncate anymore. But also for conversions from 
+'double' or 'long double' this may produce more precise results than a 
+pre-conversion to 'float' using the single-precision implementation's current 
+rounding mode would.
 
     half a = half_cast<half>(4.2);
     half b = half_cast<half,std::numeric_limits<float>::round_style>(4.2f);
     assert( half_cast<int, std::round_to_nearest>( 0.7_h )     == 1 );
     assert( half_cast<half,std::round_toward_zero>( 4097 )     == 4096.0_h );
     assert( half_cast<half,std::round_toward_infinity>( 4097 ) == 4100.0_h );
+    assert( half_cast<half,std::round_toward_infinity>( std::numeric_limits<double>::min() ) > 0.0_h );
 
-When using round to nearest (either as default or thorugh 'half_cast') ties are 
+When using round to nearest (either as default or through 'half_cast') ties are 
 by default resolved by rounding them away from zero (and thus equal to the 
 behaviour of the 'round' function). But by redefining the 
 'HALF_ROUND_TIES_TO_EVEN' preprocessor symbol to 1 (before including half.hpp) 
@@ -207,9 +211,9 @@ implication is, that in the presence of rounding errors or over-/underflows
 arithmetic expressions may produce different results when compared to 
 converting to half-precision after each individual operation:
 
-    half a = (std::numeric_limits<half>::max() * 2.0_h) / 2.0_h; // a = MAX
-    half b = std::numeric_limits<half>::max() * 2.0_h;           // b = INF
-    b /= 2.0_h;                                                  // b stays INF
+    half a = std::numeric_limits<half>::max() * 2.0_h / 2.0_h;       // a = MAX
+    half b = half(std::numeric_limits<half>::max() * 2.0_h) / 2.0_h; // b = INF
+    assert( a != b );
 
 But this should only be a problem in very few cases. One last word has to be 
 said when talking about performance. Even with its efforts in reducing 

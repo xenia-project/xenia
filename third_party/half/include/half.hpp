@@ -1,6 +1,6 @@
 // half - IEEE 754-based half-precision floating point library.
 //
-// Copyright (c) 2012-2013 Christian Rau <rauy@users.sourceforge.net>
+// Copyright (c) 2012-2017 Christian Rau <rauy@users.sourceforge.net>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation 
 // files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, 
@@ -14,7 +14,7 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, 
 // ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-// Version 1.11.0
+// Version 1.12.0
 
 /// \file
 /// Main header file for half precision functionality.
@@ -74,6 +74,15 @@
 		#endif
 	#endif
 #elif defined(_MSC_VER)										//Visual C++
+	#if _MSC_VER >= 1900 && !defined(HALF_ENABLE_CPP11_CONSTEXPR)
+		#define HALF_ENABLE_CPP11_CONSTEXPR 1
+	#endif
+	#if _MSC_VER >= 1900 && !defined(HALF_ENABLE_CPP11_NOEXCEPT)
+		#define HALF_ENABLE_CPP11_NOEXCEPT 1
+	#endif
+	#if _MSC_VER >= 1900 && !defined(HALF_ENABLE_CPP11_USER_LITERALS)
+		#define HALF_ENABLE_CPP11_USER_LITERALS 1
+	#endif
 	#if _MSC_VER >= 1600 && !defined(HALF_ENABLE_CPP11_STATIC_ASSERT)
 		#define HALF_ENABLE_CPP11_STATIC_ASSERT 1
 	#endif
@@ -173,6 +182,7 @@
 #include <climits>
 #include <cmath>
 #include <cstring>
+#include <cstdlib>
 #if HALF_ENABLE_CPP11_TYPE_TRAITS
 	#include <type_traits>
 #endif
@@ -253,6 +263,19 @@ namespace half_float
 {
 	class half;
 
+#if HALF_ENABLE_CPP11_USER_LITERALS
+	/// Library-defined half-precision literals.
+	/// Import this namespace to enable half-precision floating point literals:
+	/// ~~~~{.cpp}
+	/// using namespace half_float::literal;
+	/// half_float::half = 4.2_h;
+	/// ~~~~
+	namespace literal
+	{
+		half operator""_h(long double);
+	}
+#endif
+
 	/// \internal
 	/// \brief Implementation details.
 	namespace detail
@@ -288,24 +311,35 @@ namespace half_float
 		template<> struct is_float<long double> : true_type {};
 	#endif
 
+		/// Type traits for floating point bits.
+		template<typename T> struct bits { typedef unsigned char type; };
+		template<typename T> struct bits<const T> : bits<T> {};
+		template<typename T> struct bits<volatile T> : bits<T> {};
+		template<typename T> struct bits<const volatile T> : bits<T> {};
+
 	#if HALF_ENABLE_CPP11_CSTDINT
 		/// Unsigned integer of (at least) 16 bits width.
 		typedef std::uint_least16_t uint16;
 
 		/// Unsigned integer of (at least) 32 bits width.
-		typedef std::uint_least32_t uint32;
+		template<> struct bits<float> { typedef std::uint_least32_t type; };
 
-		/// Fastest signed integer capable of holding all values of type uint16.
-		typedef std::int_fast32_t int17;
+		/// Unsigned integer of (at least) 64 bits width.
+		template<> struct bits<double> { typedef std::uint_least64_t type; };
 	#else
 		/// Unsigned integer of (at least) 16 bits width.
 		typedef unsigned short uint16;
 
 		/// Unsigned integer of (at least) 32 bits width.
-		typedef conditional<std::numeric_limits<unsigned int>::digits>=32,unsigned int,unsigned long>::type uint32;
+		template<> struct bits<float> : conditional<std::numeric_limits<unsigned int>::digits>=32,unsigned int,unsigned long> {};
 
-		/// Fastest signed integer capable of holding all values of type uint16.
-		typedef conditional<std::numeric_limits<int>::digits>=16,int,long>::type int17;
+		#if HALF_ENABLE_CPP11_LONG_LONG
+			/// Unsigned integer of (at least) 64 bits width.
+			template<> struct bits<double> : conditional<std::numeric_limits<unsigned long>::digits>=64,unsigned long,unsigned long long> {};
+		#else
+			/// Unsigned integer of (at least) 64 bits width.
+			template<> struct bits<double> { typedef unsigned long type; };
+		#endif
 	#endif
 
 		/// Tag type for binary construction.
@@ -320,11 +354,11 @@ namespace half_float
 		{
 			/// Conversion constructor.
 			/// \param f single-precision value to convert
-			explicit HALF_CONSTEXPR expr(float f) : value_(f) {}
+			explicit HALF_CONSTEXPR expr(float f) HALF_NOEXCEPT : value_(f) {}
 
 			/// Conversion to single-precision.
 			/// \return single precision value representing expression value
-			HALF_CONSTEXPR operator float() const { return value_; }
+			HALF_CONSTEXPR operator float() const HALF_NOEXCEPT { return value_; }
 
 		private:
 			/// Internal expression value stored in single-precision.
@@ -372,7 +406,7 @@ namespace half_float
 		#if HALF_ENABLE_CPP11_CMATH
 			return std::isinf(arg);
 		#elif defined(_MSC_VER)
-			return !_finite(static_cast<double>(arg)) && !_isnan(static_cast<double>(arg));
+			return !::_finite(static_cast<double>(arg)) && !::_isnan(static_cast<double>(arg));
 		#else
 			return arg == std::numeric_limits<T>::infinity() || arg == -std::numeric_limits<T>::infinity();
 		#endif
@@ -388,7 +422,7 @@ namespace half_float
 		#if HALF_ENABLE_CPP11_CMATH
 			return std::isnan(arg);
 		#elif defined(_MSC_VER)
-			return _isnan(static_cast<double>(arg)) != 0;
+			return ::_isnan(static_cast<double>(arg)) != 0;
 		#else
 			return arg != arg;
 		#endif
@@ -419,11 +453,53 @@ namespace half_float
 		/// \return binary representation of half-precision value
 		template<std::float_round_style R> uint16 float2half_impl(float value, true_type)
 		{
-		#if HALF_ENABLE_CPP11_STATIC_ASSERT
-			static_assert(std::numeric_limits<float>::is_iec559, "float to half conversion needs IEEE 754 conformant 'float' type");
-			static_assert(sizeof(uint32)==sizeof(float), "float to half conversion needs unsigned integer type of exactly the size of a 'float'");
-		#endif
-			static const uint16 base_table[512] = { 
+			typedef bits<float>::type uint32;
+			uint32 bits;// = *reinterpret_cast<uint32*>(&value);		//violating strict aliasing!
+			std::memcpy(&bits, &value, sizeof(float));
+/*			uint16 hbits = (bits>>16) & 0x8000;
+			bits &= 0x7FFFFFFF;
+			int exp = bits >> 23;
+			if(exp == 255)
+				return hbits | 0x7C00 | (0x3FF&-static_cast<unsigned>((bits&0x7FFFFF)!=0));
+			if(exp > 142)
+			{
+				if(R == std::round_toward_infinity)
+					return hbits | 0x7C00 - (hbits>>15);
+				if(R == std::round_toward_neg_infinity)
+					return hbits | 0x7BFF + (hbits>>15);
+				return hbits | 0x7BFF + (R!=std::round_toward_zero);
+			}
+			int g, s;
+			if(exp > 112)
+			{
+				g = (bits>>12) & 1;
+				s = (bits&0xFFF) != 0;
+				hbits |= ((exp-112)<<10) | ((bits>>13)&0x3FF);
+			}
+			else if(exp > 101)
+			{
+				int i = 125 - exp;
+				bits = (bits&0x7FFFFF) | 0x800000;
+				g = (bits>>i) & 1;
+				s = (bits&((1L<<i)-1)) != 0;
+				hbits |= bits >> (i+1);
+			}
+			else
+			{
+				g = 0;
+				s = bits != 0;
+			}
+			if(R == std::round_to_nearest)
+				#if HALF_ROUND_TIES_TO_EVEN
+					hbits += g & (s|hbits);
+				#else
+					hbits += g;
+				#endif
+			else if(R == std::round_toward_infinity)
+				hbits += ~(hbits>>15) & (s|g);
+			else if(R == std::round_toward_neg_infinity)
+				hbits += (hbits>>15) & (g|s);
+*/			static const uint16 base_table[512] = { 
 				0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 
 				0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 
 				0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 
@@ -473,8 +549,6 @@ namespace half_float
 				24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 
 				24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 
 				24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 13 };
-			uint32 bits;// = *reinterpret_cast<uint32*>(&value);		//violating strict aliasing!
-			std::memcpy(&bits, &value, sizeof(float));
 			uint16 hbits = base_table[bits>>23] + static_cast<uint16>((bits&0x7FFFFF)>>shift_table[bits>>23]);
 			if(R == std::round_to_nearest)
 				hbits += (((bits&0x7FFFFF)>>(shift_table[bits>>23]-1))|(((bits>>23)&0xFF)==102)) & ((hbits&0x7C00)!=0x7C00)
@@ -493,13 +567,72 @@ namespace half_float
 			return hbits;
 		}
 
-		/// Convert non-IEEE single-precision to half-precision.
-		/// \param value single-precision value
+		/// Convert IEEE double-precision to half-precision.
+		/// \tparam R rounding mode to use, `std::round_indeterminate` for fastest rounding
+		/// \param value double-precision value
 		/// \return binary representation of half-precision value
-		template<std::float_round_style R> uint16 float2half_impl(float value, false_type)
+		template<std::float_round_style R> uint16 float2half_impl(double value, true_type)
 		{
-			uint16 hbits = builtin_signbit(value) << 15;
-			if(value == 0.0f)
+			typedef bits<float>::type uint32;
+			typedef bits<double>::type uint64;
+			uint64 bits;// = *reinterpret_cast<uint64*>(&value);		//violating strict aliasing!
+			std::memcpy(&bits, &value, sizeof(double));
+			uint32 hi = bits >> 32, lo = bits & 0xFFFFFFFF;
+			uint16 hbits = (hi>>16) & 0x8000;
+			hi &= 0x7FFFFFFF;
+			int exp = hi >> 20;
+			if(exp == 2047)
+				return hbits | 0x7C00 | (0x3FF&-static_cast<unsigned>((bits&0xFFFFFFFFFFFFF)!=0));
+			if(exp > 1038)
+			{
+				if(R == std::round_toward_infinity)
+					return hbits | 0x7C00 - (hbits>>15);
+				if(R == std::round_toward_neg_infinity)
+					return hbits | 0x7BFF + (hbits>>15);
+				return hbits | 0x7BFF + (R!=std::round_toward_zero);
+			}
+			int g, s = lo != 0;
+			if(exp > 1008)
+			{
+				g = (hi>>9) & 1;
+				s |= (hi&0x1FF) != 0;
+				hbits |= ((exp-1008)<<10) | ((hi>>10)&0x3FF);
+			}
+			else if(exp > 997)
+			{
+				int i = 1018 - exp;
+				hi = (hi&0xFFFFF) | 0x100000;
+				g = (hi>>i) & 1;
+				s |= (hi&((1L<<i)-1)) != 0;
+				hbits |= hi >> (i+1);
+			}
+			else
+			{
+				g = 0;
+				s |= hi != 0;
+			}
+			if(R == std::round_to_nearest)
+				#if HALF_ROUND_TIES_TO_EVEN
+					hbits += g & (s|hbits);
+				#else
+					hbits += g;
+				#endif
+			else if(R == std::round_toward_infinity)
+				hbits += ~(hbits>>15) & (s|g);
+			else if(R == std::round_toward_neg_infinity)
+				hbits += (hbits>>15) & (g|s);
+			return hbits;
+		}
+
+		/// Convert non-IEEE floating point to half-precision.
+		/// \tparam R rounding mode to use, `std::round_indeterminate` for fastest rounding
+		/// \tparam T source type (builtin floating point type)
+		/// \param value floating point value
+		/// \return binary representation of half-precision value
+		template<std::float_round_style R,typename T> uint16 float2half_impl(T value, ...)
+		{
+			uint16 hbits = static_cast<unsigned>(builtin_signbit(value)) << 15;
+			if(value == T())
 				return hbits;
 			if(builtin_isnan(value))
 				return hbits | 0x7FFF;
@@ -509,45 +642,45 @@ namespace half_float
 			std::frexp(value, &exp);
 			if(exp > 16)
 			{
-				if(R == std::round_toward_zero)
-					return hbits | 0x7BFF;
-				else if(R == std::round_toward_infinity)
-					return hbits | 0x7C00 - (hbits>>15);
+				if(R == std::round_toward_infinity)
+					return hbits | (0x7C00-(hbits>>15));
 				else if(R == std::round_toward_neg_infinity)
-					return hbits | 0x7BFF + (hbits>>15);
-				return hbits | 0x7C00;
+					return hbits | (0x7BFF+(hbits>>15));
+				return hbits | (0x7BFF+(R!=std::round_toward_zero));
 			}
 			if(exp < -13)
 				value = std::ldexp(value, 24);
 			else
 			{
 				value = std::ldexp(value, 11-exp);
-				hbits |= ((exp+14)<<10);
+				hbits |= ((exp+13)<<10);
 			}
-			int ival = static_cast<int>(value);
-			hbits |= static_cast<uint16>(std::abs(ival)&0x3FF);
+			T ival, frac = std::modf(value, &ival);
+			hbits += static_cast<uint16>(std::abs(static_cast<int>(ival)));
 			if(R == std::round_to_nearest)
 			{
-				float diff = std::abs(value-static_cast<float>(ival));
+				frac = std::abs(frac);
 				#if HALF_ROUND_TIES_TO_EVEN
-					hbits += (diff>0.5f) | ((diff==0.5f)&hbits);
+					hbits += (frac>T(0.5)) | ((frac==T(0.5))&hbits);
 				#else
-					hbits += diff >= 0.5f;
+					hbits += frac >= T(0.5);
 				#endif
 			}
 			else if(R == std::round_toward_infinity)
-				hbits += value > static_cast<float>(ival);
+				hbits += frac > T();
 			else if(R == std::round_toward_neg_infinity)
-				hbits += value < static_cast<float>(ival);
+				hbits += frac < T();
 			return hbits;
 		}
 
-		/// Convert single-precision to half-precision.
-		/// \param value single-precision value
+		/// Convert floating point to half-precision.
+		/// \tparam R rounding mode to use, `std::round_indeterminate` for fastest rounding
+		/// \tparam T source type (builtin floating point type)
+		/// \param value floating point value
 		/// \return binary representation of half-precision value
-		template<std::float_round_style R> uint16 float2half(float value)
+		template<std::float_round_style R,typename T> uint16 float2half(T value)
 		{
-			return float2half_impl<R>(value, bool_type<std::numeric_limits<float>::is_iec559&&sizeof(uint32)==sizeof(float)>());
+			return float2half_impl<R>(value, bool_type<std::numeric_limits<T>::is_iec559&&sizeof(typename bits<T>::type)==sizeof(T)>());
 		}
 
 		/// Convert integer to half-precision floating point.
@@ -558,10 +691,13 @@ namespace half_float
 		/// \return binary representation of half-precision value
 		template<std::float_round_style R,bool S,typename T> uint16 int2half_impl(T value)
 		{
+		#if HALF_ENABLE_CPP11_STATIC_ASSERT && HALF_ENABLE_CPP11_TYPE_TRAITS
+			static_assert(std::is_integral<T>::value, "int to half conversion only supports builtin integer types");
+		#endif
 			if(S)
 				value = -value;
 			uint16 bits = S << 15;
-			if(value > 65504)
+			if(value > 0xFFFF)
 			{
 				if(R == std::round_toward_infinity)
 					bits |= 0x7C00 - S;
@@ -572,22 +708,22 @@ namespace half_float
 			}
 			else if(value)
 			{
-				unsigned int m = value, exp = 25;
+				unsigned int m = value, exp = 24;
 				for(; m<0x400; m<<=1,--exp) ;
 				for(; m>0x7FF; m>>=1,++exp) ;
-				bits |= (exp<<10) | (m&0x3FF);
-				if(exp > 25)
+				bits |= (exp<<10) + m;
+				if(exp > 24)
 				{
 					if(R == std::round_to_nearest)
-						bits += (value>>(exp-26)) & 1
+						bits += (value>>(exp-25)) & 1
 						#if HALF_ROUND_TIES_TO_EVEN
-							& (((((1<<(exp-26))-1)&value)!=0)|bits)
+							& (((((1<<(exp-25))-1)&value)!=0)|bits)
 						#endif
 						;
 					else if(R == std::round_toward_infinity)
-						bits += ((value&((1<<(exp-25))-1))!=0) & !S;
+						bits += ((value&((1<<(exp-24))-1))!=0) & !S;
 					else if(R == std::round_toward_neg_infinity)
-						bits += ((value&((1<<(exp-25))-1))!=0) & S;
+						bits += ((value&((1<<(exp-24))-1))!=0) & S;
 				}
 			}
 			return bits;
@@ -607,13 +743,18 @@ namespace half_float
 		/// Credit for this goes to [Jeroen van der Zijp](ftp://ftp.fox-toolkit.org/pub/fasthalffloatconversion.pdf).
 		/// \param value binary representation of half-precision value
 		/// \return single-precision value
-		inline float half2float_impl(uint16 value, true_type)
+		inline float half2float_impl(uint16 value, float, true_type)
 		{
-		#if HALF_ENABLE_CPP11_STATIC_ASSERT
-			static_assert(std::numeric_limits<float>::is_iec559, "half to float conversion needs IEEE 754 conformant 'float' type");
-			static_assert(sizeof(uint32)==sizeof(float), "half to float conversion needs unsigned integer type of exactly the size of a 'float'");
-		#endif
-			static const uint32 mantissa_table[2048] = { 
+			typedef bits<float>::type uint32;
+/*			uint32 bits = static_cast<uint32>(value&0x8000) << 16;
+			int abs = value & 0x7FFF;
+			if(abs)
+			{
+				bits |= 0x38000000 << static_cast<unsigned>(abs>=0x7C00);
+				for(; abs<0x400; abs<<=1,bits-=0x800000) ;
+				bits += static_cast<uint32>(abs) << 13;
+			}
+*/			static const uint32 mantissa_table[2048] = { 
 				0x00000000, 0x33800000, 0x34000000, 0x34400000, 0x34800000, 0x34A00000, 0x34C00000, 0x34E00000, 0x35000000, 0x35100000, 0x35200000, 0x35300000, 0x35400000, 0x35500000, 0x35600000, 0x35700000, 
 				0x35800000, 0x35880000, 0x35900000, 0x35980000, 0x35A00000, 0x35A80000, 0x35B00000, 0x35B80000, 0x35C00000, 0x35C80000, 0x35D00000, 0x35D80000, 0x35E00000, 0x35E80000, 0x35F00000, 0x35F80000, 
 				0x36000000, 0x36040000, 0x36080000, 0x360C0000, 0x36100000, 0x36140000, 0x36180000, 0x361C0000, 0x36200000, 0x36240000, 0x36280000, 0x362C0000, 0x36300000, 0x36340000, 0x36380000, 0x363C0000, 
@@ -751,37 +892,60 @@ namespace half_float
 				   0, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 
 				   0, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024 };
 			uint32 bits = mantissa_table[offset_table[value>>10]+(value&0x3FF)] + exponent_table[value>>10];
-//			uint32 bits = mantissa_table[(((value&0x7C00)!=0)<<10)+(value&0x3FF)] + exponent_table[value>>10];
 //			return *reinterpret_cast<float*>(&bits);			//violating strict aliasing!
 			float out;
 			std::memcpy(&out, &bits, sizeof(float));
 			return out;
 		}
 
-		/// Convert half-precision to non-IEEE single-precision.
+		/// Convert half-precision to IEEE double-precision.
 		/// \param value binary representation of half-precision value
-		/// \return single-precision value
-		inline float half2float_impl(uint16 value, false_type)
+		/// \return double-precision value
+		inline double half2float_impl(uint16 value, double, true_type)
 		{
-			float out;
+			typedef bits<float>::type uint32;
+			typedef bits<double>::type uint64;
+			uint32 hi = static_cast<uint32>(value&0x8000) << 16;
+			int abs = value & 0x7FFF;
+			if(abs)
+			{
+				hi |= 0x3F000000 << static_cast<unsigned>(abs>=0x7C00);
+				for(; abs<0x400; abs<<=1,hi-=0x100000) ;
+				hi += static_cast<uint32>(abs) << 10;
+			}
+			uint64 bits = static_cast<uint64>(hi) << 32;
+//			return *reinterpret_cast<double*>(&bits);			//violating strict aliasing!
+			double out;
+			std::memcpy(&out, &bits, sizeof(double));
+			return out;
+		}
+
+		/// Convert half-precision to non-IEEE floating point.
+		/// \tparam T type to convert to (builtin integer type)
+		/// \param value binary representation of half-precision value
+		/// \return floating point value
+		template<typename T> T half2float_impl(uint16 value, T, ...)
+		{
+			T out;
 			int abs = value & 0x7FFF;
 			if(abs > 0x7C00)
-				out = std::numeric_limits<float>::has_quiet_NaN ? std::numeric_limits<float>::quiet_NaN() : 0.0f;
+				out = std::numeric_limits<T>::has_quiet_NaN ? std::numeric_limits<T>::quiet_NaN() : T();
 			else if(abs == 0x7C00)
-				out = std::numeric_limits<float>::has_infinity ? std::numeric_limits<float>::infinity() : std::numeric_limits<float>::max();
+				out = std::numeric_limits<T>::has_infinity ? std::numeric_limits<T>::infinity() : std::numeric_limits<T>::max();
 			else if(abs > 0x3FF)
-				out = std::ldexp(static_cast<float>((value&0x3FF)|0x400), (abs>>10)-25);
+				out = std::ldexp(static_cast<T>((abs&0x3FF)|0x400), (abs>>10)-25);
 			else
-				out = std::ldexp(static_cast<float>(abs), -24);
+				out = std::ldexp(static_cast<T>(abs), -24);
 			return (value&0x8000) ? -out : out;
 		}
 
-		/// Convert half-precision to single-precision.
+		/// Convert half-precision to floating point.
+		/// \tparam T type to convert to (builtin integer type)
 		/// \param value binary representation of half-precision value
-		/// \return single-precision value
-		inline float half2float(uint16 value)
+		/// \return floating point value
+		template<typename T> T half2float(uint16 value)
 		{
-			return half2float_impl(value, bool_type<std::numeric_limits<float>::is_iec559&&sizeof(uint32)==sizeof(float)>());
+			return half2float_impl(value, T(), bool_type<std::numeric_limits<T>::is_iec559&&sizeof(typename bits<T>::type)==sizeof(T)>());
 		}
 
 		/// Convert half-precision floating point to integer.
@@ -792,6 +956,9 @@ namespace half_float
 		/// \return integral value
 		template<std::float_round_style R,bool E,typename T> T half2int_impl(uint16 value)
 		{
+		#if HALF_ENABLE_CPP11_STATIC_ASSERT && HALF_ENABLE_CPP11_TYPE_TRAITS
+			static_assert(std::is_integral<T>::value, "half to int conversion only supports builtin integer types");
+		#endif
 			unsigned int e = value & 0x7FFF;
 			if(e >= 0x7C00)
 				return (value&0x8000) ? std::numeric_limits<T>::min() : std::numeric_limits<T>::max();
@@ -803,28 +970,21 @@ namespace half_float
 					return -T(value>0x8000);
 				return T();
 			}
-			int17 m = (value&0x3FF) | 0x400;
+			unsigned int m = (value&0x3FF) | 0x400;
 			e >>= 10;
 			if(e < 25)
 			{
-				if(R == std::round_indeterminate || R == std::round_toward_zero)
-					m >>= 25 - e;
-				else
-				{
-					if(R == std::round_to_nearest)
-						m += (1<<(24-e)) - (~(m>>(25-e))&E);
-					else if(R == std::round_toward_infinity)
-						m += ((value>>15)-1) & ((1<<(25-e))-1U);
-					else if(R == std::round_toward_neg_infinity)
-						m += -(value>>15) & ((1<<(25-e))-1U);
-					m >>= 25 - e;
-				}
+				if(R == std::round_to_nearest)
+					m += (1<<(24-e)) - (~(m>>(25-e))&E);
+				else if(R == std::round_toward_infinity)
+					m += ((value>>15)-1) & ((1<<(25-e))-1U);
+				else if(R == std::round_toward_neg_infinity)
+					m += -(value>>15) & ((1<<(25-e))-1U);
+				m >>= 25 - e;
 			}
 			else
 				m <<= e - 25;
-//			if(std::numeric_limits<T>::digits < 16)
-//				return std::min(std::max(m, static_cast<int17>(std::numeric_limits<T>::min())), static_cast<int17>(std::numeric_limits<T>::max()));
-			return static_cast<T>((value&0x8000) ? -m : m);
+			return (value&0x8000) ? -static_cast<T>(m) : static_cast<T>(m);
 		}
 
 		/// Convert half-precision floating point to integer.
@@ -897,7 +1057,7 @@ namespace half_float
 	/// conversions. It is implicitly convertible to single-precision floating point, which makes artihmetic expressions and 
 	/// functions with mixed-type operands to be of the most precise operand type. Additionally all arithmetic operations 
 	/// (and many mathematical functions) are carried out in single-precision internally. All conversions from single- to 
-	/// half-precision are done using truncation (round towards zero), but temporary results inside chained arithmetic 
+	/// half-precision are done using the library's default rounding mode, but temporary results inside chained arithmetic 
 	/// expressions are kept in single-precision as long as possible (while of course still maintaining a strong half-precision type).
 	///
 	/// According to the C++98/03 definition, the half type is not a POD type. But according to C++11's less strict and 
@@ -922,17 +1082,20 @@ namespace half_float
 	#if HALF_ENABLE_CPP11_HASH
 		friend struct std::hash<half>;
 	#endif
+	#if HALF_ENABLE_CPP11_USER_LITERALS
+		friend half literal::operator""_h(long double);
+	#endif
 
 	public:
 		/// Default constructor.
 		/// This initializes the half to 0. Although this does not match the builtin types' default-initialization semantics 
 		/// and may be less efficient than no initialization, it is needed to provide proper value-initialization semantics.
-		HALF_CONSTEXPR half() : data_() {}
+		HALF_CONSTEXPR half() HALF_NOEXCEPT : data_() {}
 
 		/// Copy constructor.
 		/// \tparam T type of concrete half expression
 		/// \param rhs half expression to copy from
-		half(detail::expr rhs) : data_(detail::float2half<round_style>(rhs)) {}
+		half(detail::expr rhs) : data_(detail::float2half<round_style>(static_cast<float>(rhs))) {}
 
 		/// Conversion constructor.
 		/// \param rhs float to convert
@@ -940,7 +1103,7 @@ namespace half_float
 	
 		/// Conversion to single-precision.
 		/// \return single precision value representing expression value
-		operator float() const { return detail::half2float(data_); }
+		operator float() const { return detail::half2float<float>(data_); }
 
 		/// Assignment operator.
 		/// \tparam T type of concrete half expression
@@ -980,22 +1143,22 @@ namespace half_float
 		/// Arithmetic assignment.
 		/// \param rhs single-precision value to add
 		/// \return reference to this half
-		half& operator+=(float rhs) { data_ = detail::float2half<round_style>(detail::half2float(data_)+rhs); return *this; }
+		half& operator+=(float rhs) { data_ = detail::float2half<round_style>(detail::half2float<float>(data_)+rhs); return *this; }
 
 		/// Arithmetic assignment.
 		/// \param rhs single-precision value to subtract
 		/// \return reference to this half
-		half& operator-=(float rhs) { data_ = detail::float2half<round_style>(detail::half2float(data_)-rhs); return *this; }
+		half& operator-=(float rhs) { data_ = detail::float2half<round_style>(detail::half2float<float>(data_)-rhs); return *this; }
 
 		/// Arithmetic assignment.
 		/// \param rhs single-precision value to multiply with
 		/// \return reference to this half
-		half& operator*=(float rhs) { data_ = detail::float2half<round_style>(detail::half2float(data_)*rhs); return *this; }
+		half& operator*=(float rhs) { data_ = detail::float2half<round_style>(detail::half2float<float>(data_)*rhs); return *this; }
 
 		/// Arithmetic assignment.
 		/// \param rhs single-precision value to divide by
 		/// \return reference to this half
-		half& operator/=(float rhs) { data_ = detail::float2half<round_style>(detail::half2float(data_)/rhs); return *this; }
+		half& operator/=(float rhs) { data_ = detail::float2half<round_style>(detail::half2float<float>(data_)/rhs); return *this; }
 
 		/// Prefix increment.
 		/// \return incremented half value
@@ -1014,32 +1177,26 @@ namespace half_float
 		half operator--(int) { half out(*this); --*this; return out; }
 	
 	private:
-		/// Rounding mode to use (always `std::round_indeterminate`)
+		/// Rounding mode to use
 		static const std::float_round_style round_style = (std::float_round_style)(HALF_ROUND_STYLE);
 
 		/// Constructor.
 		/// \param bits binary representation to set half to
-		HALF_CONSTEXPR half(detail::binary_t, detail::uint16 bits) : data_(bits) {}
+		HALF_CONSTEXPR half(detail::binary_t, detail::uint16 bits) HALF_NOEXCEPT : data_(bits) {}
 
 		/// Internal binary representation
 		detail::uint16 data_;
 	};
 
 #if HALF_ENABLE_CPP11_USER_LITERALS
-	/// Library-defined half-precision literals.
-	/// Import this namespace to enable half-precision floating point literals:
-	/// ~~~~{.cpp}
-	/// using namespace half_float::literal;
-	/// half_float::half = 4.2_h;
-	/// ~~~~
 	namespace literal
 	{
 		/// Half literal.
 		/// While this returns an actual half-precision value, half literals can unfortunately not be constant expressions due 
-		/// to rather involved single-to-half conversion.
+		/// to rather involved conversions.
 		/// \param value literal value
 		/// \return half with given value (if representable)
-		inline half operator "" _h(long double value) { return half(static_cast<float>(value)); }
+		inline half operator""_h(long double value) { return half(detail::binary, detail::float2half<half::round_style>(value)); }
 	}
 #endif
 
@@ -1202,7 +1359,7 @@ namespace half_float
 
 			/// Get NaN.
 			/// \return Half-precision quiet NaN
-			static half nanh(const char*) { return half(binary, 0x7FFF); }
+			static half nanh() { return half(binary, 0x7FFF); }
 
 			/// Exponential implementation.
 			/// \param arg function argument
@@ -1282,7 +1439,7 @@ namespace half_float
 			#else
 				if(builtin_isnan(arg) || builtin_isinf(arg))
 					return expr(arg);
-				return expr(builtin_signbit(arg) ? -static_cast<float>(std::pow(std::fabs(static_cast<double>(arg)), 1.0/3.0)) : 
+				return expr(builtin_signbit(arg) ? -static_cast<float>(std::pow(-static_cast<double>(arg), 1.0/3.0)) : 
 					static_cast<float>(std::pow(static_cast<double>(arg), 1.0/3.0)));
 			#endif
 			}
@@ -1428,17 +1585,15 @@ namespace half_float
 			#else
 				if(builtin_isinf(arg))
 					return expr(std::numeric_limits<float>::infinity());
-				double z = static_cast<double>(arg);
-				if(z < 0)
+				if(arg < 0.0f)
 				{
-					double i, f = std::modf(-z, &i);
-					if(f == 0.0)
+					float i, f = std::modf(-arg, &i);
+					if(f == 0.0f)
 						return expr(std::numeric_limits<float>::infinity());
-					return expr(static_cast<float>(1.1447298858494001741434273513531-std::log(std::abs(std::sin(3.1415926535897932384626433832795*f)))-lgamma(1.0-z)));
+					return expr(static_cast<float>(1.1447298858494001741434273513531-
+						std::log(std::abs(std::sin(3.1415926535897932384626433832795*f)))-lgamma(1.0-arg)));
 				}
-//				if(z < 8.0)
-					return expr(static_cast<float>(lgamma(static_cast<double>(arg))));
-				return expr(static_cast<float>(0.5*(1.8378770664093454835606594728112-std::log(z))+z*(std::log(z+1.0/(12.0*z-1.0/(10.0*z)-1.0))-1.0)));
+				return expr(static_cast<float>(lgamma(static_cast<double>(arg))));
 			#endif
 			}
 
@@ -1450,22 +1605,19 @@ namespace half_float
 			#if HALF_ENABLE_CPP11_CMATH
 				return expr(std::tgamma(arg));
 			#else
-				double z = static_cast<double>(arg);
-				if(z == 0.0)
-					return builtin_signbit(z) ? expr(-std::numeric_limits<float>::infinity()) : expr(std::numeric_limits<float>::infinity());
-				if(z < 0.0)
+				if(arg == 0.0f)
+					return builtin_signbit(arg) ? expr(-std::numeric_limits<float>::infinity()) : expr(std::numeric_limits<float>::infinity());
+				if(arg < 0.0f)
 				{
-					double i, f = std::modf(-z, &i);
-					if(f == 0.0)
+					float i, f = std::modf(-arg, &i);
+					if(f == 0.0f)
 						return expr(std::numeric_limits<float>::quiet_NaN());
-					double sign = (std::fmod(i, 2.0)==0.0) ? -1.0 : 1.0;
-					return expr(static_cast<float>(sign*3.1415926535897932384626433832795/(std::sin(3.1415926535897932384626433832795*f)*std::exp(lgamma(1.0-z)))));
+					double value = 3.1415926535897932384626433832795 / (std::sin(3.1415926535897932384626433832795*f)*std::exp(lgamma(1.0-arg)));
+					return expr(static_cast<float>((std::fmod(i, 2.0f)==0.0f) ? -value : value));
 				}
 				if(builtin_isinf(arg))
 					return expr(arg);
-//				if(arg < 8.0f)
-					return expr(static_cast<float>(std::exp(lgamma(z))));
-				return expr(static_cast<float>(std::sqrt(6.283185307179586476925286766559/z)*std::pow(0.36787944117144232159552377016146*(z+1.0/(12.0*z-1.0/(10.0*z))), z)));
+				return expr(static_cast<float>(std::exp(lgamma(static_cast<double>(arg)))));
 			#endif
 			}
 
@@ -1522,13 +1674,11 @@ namespace half_float
 			/// \return normalized significant
 			static half frexp(half arg, int *exp)
 			{
-				unsigned int m = arg.data_ & 0x7FFF;
+				int m = arg.data_ & 0x7FFF, e = -14;
 				if(m >= 0x7C00 || !m)
 					return *exp = 0, arg;
-				int e = m >> 10;
-				if(!e)
-					for(m<<=1; m<0x400; m<<=1,--e) ;
-				return *exp = e-14, half(binary, static_cast<uint16>((arg.data_&0x8000)|0x3800|(m&0x3FF)));
+				for(; m<0x400; m<<=1,--e) ;
+				return *exp = e+(m>>10), half(binary, (arg.data_&0x8000)|0x3800|(m&0x3FF));
 			}
 
 			/// Decompression implementation.
@@ -1537,9 +1687,9 @@ namespace half_float
 			/// \return fractional part
 			static half modf(half arg, half *iptr)
 			{
-				unsigned int e = arg.data_ & 0x7C00;
-				if(e > 0x6000)
-					return *iptr = arg, (e==0x7C00&&(arg.data_&0x3FF)) ? arg : half(binary, arg.data_&0x8000);
+				unsigned int e = arg.data_ & 0x7FFF;
+				if(e >= 0x6400)
+					return *iptr = arg, half(binary, arg.data_&(0x8000U|-(e>0x7C00)));
 				if(e < 0x3C00)
 					return iptr->data_ = arg.data_ & 0x8000, arg;
 				e >>= 10;
@@ -1557,21 +1707,13 @@ namespace half_float
 			/// \return scaled number
 			static half scalbln(half arg, long exp)
 			{
-				long e = arg.data_ & 0x7C00;
-				if(e == 0x7C00)
+				unsigned int m = arg.data_ & 0x7FFF;
+				if(m >= 0x7C00 || !m)
 					return arg;
-				unsigned int m = arg.data_ & 0x3FF;
-				if(e >>= 10)
-					m |= 0x400;
-				else
-				{
-					if(!m)
-						return arg;
-					for(m<<=1; m<0x400; m<<=1,--e) ;
-				}
-				e += exp;
+				for(; m<0x400; m<<=1,--exp) ;
+				exp += m >> 10;
 				uint16 value = arg.data_ & 0x8000;
-				if(e > 30)
+				if(exp > 30)
 				{
 					if(half::round_style == std::round_toward_zero)
 						value |= 0x7BFF;
@@ -1582,27 +1724,28 @@ namespace half_float
 					else
 						value |= 0x7C00;
 				}
-				else if(e > 0)
-					value |= (e<<10) | (m&0x3FF);
-				else if(e > -11)
+				else if(exp > 0)
+					value |= (exp<<10) | (m&0x3FF);
+				else if(exp > -11)
 				{
+					m = (m&0x3FF) | 0x400;
 					if(half::round_style == std::round_to_nearest)
 					{
-						m += 1 << -e;
+						m += 1 << -exp;
 					#if HALF_ROUND_TIES_TO_EVEN
-						m -= (m>>(1-e)) & 1;
+						m -= (m>>(1-exp)) & 1;
 					#endif
 					}
 					else if(half::round_style == std::round_toward_infinity)
-						m += ((value>>15)-1) & ((1<<(1-e))-1U);
+						m += ((value>>15)-1) & ((1<<(1-exp))-1U);
 					else if(half::round_style == std::round_toward_neg_infinity)
-						m += -(value>>15) & ((1<<(1-e))-1U);
-					value |= m >> (1-e);
+						m += -(value>>15) & ((1<<(1-exp))-1U);
+					value |= m >> (1-exp);
 				}
 				else if(half::round_style == std::round_toward_infinity)
-					value |= ((value>>15)-1) & 1;
+					value -= (value>>15) - 1;
 				else if(half::round_style == std::round_toward_neg_infinity)
-					value |= value >> 15;
+					value += value >> 15;
 				return half(binary, value);
 			}
 
@@ -1611,16 +1754,17 @@ namespace half_float
 			/// \return floating point exponent
 			static int ilogb(half arg)
 			{
-				int exp = arg.data_ & 0x7FFF;
-				if(!exp)
+				int abs = arg.data_ & 0x7FFF;
+				if(!abs)
 					return FP_ILOGB0;
-				if(exp < 0x7C00)
+				if(abs < 0x7C00)
 				{
-					if(!(exp>>=10))
-						for(unsigned int m=(arg.data_&0x3FF); m<0x200; m<<=1,--exp) ;
-					return exp - 15;
+					int exp = (abs>>10) - 15;
+					if(abs < 0x400)
+						for(; abs<0x200; abs<<=1,--exp) ;
+					return exp;
 				}
-				if(exp > 0x7C00)
+				if(abs > 0x7C00)
 					return FP_ILOGBNAN;
 				return INT_MAX;
 			}
@@ -1630,16 +1774,24 @@ namespace half_float
 			/// \return floating point exponent
 			static half logb(half arg)
 			{
-				int exp = arg.data_ & 0x7FFF;
-				if(!exp)
+				int abs = arg.data_ & 0x7FFF;
+				if(!abs)
 					return half(binary, 0xFC00);
-				if(exp < 0x7C00)
+				if(abs < 0x7C00)
 				{
-					if(!(exp>>=10))
-						for(unsigned int m=(arg.data_&0x3FF); m<0x200; m<<=1,--exp) ;
-					return half(static_cast<float>(exp-15));
+					int exp = (abs>>10) - 15;
+					if(abs < 0x400)
+						for(; abs<0x200; abs<<=1,--exp) ;
+					uint16 bits = (exp<0) << 15;
+					if(exp)
+					{
+						unsigned int m = std::abs(exp) << 6, e = 18;
+						for(; m<0x400; m<<=1,--e) ;
+						bits |= (e<<10) + m;
+					}
+					return half(binary, bits);
 				}
-				if(exp > 0x7C00)
+				if(abs > 0x7C00)
 					return arg;
 				return half(binary, 0x7C00);
 			}
@@ -1657,9 +1809,9 @@ namespace half_float
 					return to;
 				if(!fabs)
 					return half(binary, (to.data_&0x8000)+1);
-				bool lt = (signbit(from) ? (static_cast<int17>(0x8000)-from.data_) : static_cast<int17>(from.data_)) < 
-					(signbit(to) ? (static_cast<int17>(0x8000)-to.data_) : static_cast<int17>(to.data_));
-				return half(binary, from.data_+(((from.data_>>15)^static_cast<uint16>(lt))<<1)-1);
+				bool lt = ((fabs==from.data_) ? static_cast<int>(fabs) : -static_cast<int>(fabs)) < 
+					((tabs==to.data_) ? static_cast<int>(tabs) : -static_cast<int>(tabs));
+				return half(binary, from.data_+(((from.data_>>15)^static_cast<unsigned>(lt))<<1)-1);
 			}
 
 			/// Enumeration implementation.
@@ -1675,7 +1827,7 @@ namespace half_float
 					return half(static_cast<float>(to));
 				if(!(from.data_&0x7FFF))
 					return half(binary, (static_cast<detail::uint16>(builtin_signbit(to))<<15)+1);
-				return half(binary, from.data_+(((from.data_>>15)^static_cast<uint16>(lfrom<to))<<1)-1);
+				return half(binary, from.data_+(((from.data_>>15)^static_cast<unsigned>(lfrom<to))<<1)-1);
 			}
 
 			/// Sign implementation
@@ -1691,13 +1843,7 @@ namespace half_float
 			static int fpclassify(half arg)
 			{
 				unsigned int abs = arg.data_ & 0x7FFF;
-				if(abs > 0x7C00)
-					return FP_NAN;
-				if(abs == 0x7C00)
-					return FP_INFINITE;
-				if(abs > 0x3FF)
-					return FP_NORMAL;
-				return abs ? FP_SUBNORMAL : FP_ZERO;
+				return abs ? ((abs>0x3FF) ? ((abs>=0x7C00) ? ((abs>0x7C00) ? FP_NAN : FP_INFINITE) : FP_NORMAL) :FP_SUBNORMAL) : FP_ZERO;
 			}
 
 			/// Classification implementation.
@@ -1749,44 +1895,56 @@ namespace half_float
 			/// \param y second operand
 			/// \retval true if \a x > \a y
 			/// \retval false else
-			static bool isgreater(half x, half y) { return !isnan(x) && !isnan(y) && ((signbit(x) ? (static_cast<int17>(0x8000)-x.data_) : 
-				static_cast<int17>(x.data_)) > (signbit(y) ? (static_cast<int17>(0x8000)-y.data_) : static_cast<int17>(y.data_))); }
+			static bool isgreater(half x, half y)
+			{
+				int xabs = x.data_ & 0x7FFF, yabs = y.data_ & 0x7FFF;
+				return xabs<=0x7C00 && yabs<=0x7C00 && (((xabs==x.data_) ? xabs : -xabs) > ((yabs==y.data_) ? yabs : -yabs));
+			}
 
 			/// Comparison implementation.
 			/// \param x first operand
 			/// \param y second operand
 			/// \retval true if \a x >= \a y
 			/// \retval false else
-			static bool isgreaterequal(half x, half y) { return !isnan(x) && !isnan(y) && ((signbit(x) ? (static_cast<int17>(0x8000)-x.data_) : 
-				static_cast<int17>(x.data_)) >= (signbit(y) ? (static_cast<int17>(0x8000)-y.data_) : static_cast<int17>(y.data_))); }
+			static bool isgreaterequal(half x, half y)
+			{
+				int xabs = x.data_ & 0x7FFF, yabs = y.data_ & 0x7FFF;
+				return xabs<=0x7C00 && yabs<=0x7C00 && (((xabs==x.data_) ? xabs : -xabs) >= ((yabs==y.data_) ? yabs : -yabs));
+			}
 
 			/// Comparison implementation.
 			/// \param x first operand
 			/// \param y second operand
 			/// \retval true if \a x < \a y
 			/// \retval false else
-			static bool isless(half x, half y) { return !isnan(x) && !isnan(y) && ((signbit(x) ? (static_cast<int17>(0x8000)-x.data_) : 
-				static_cast<int17>(x.data_)) < (signbit(y) ? (static_cast<int17>(0x8000)-y.data_) : static_cast<int17>(y.data_))); }
+			static bool isless(half x, half y)
+			{
+				int xabs = x.data_ & 0x7FFF, yabs = y.data_ & 0x7FFF;
+				return xabs<=0x7C00 && yabs<=0x7C00 && (((xabs==x.data_) ? xabs : -xabs) < ((yabs==y.data_) ? yabs : -yabs));
+			}
 
 			/// Comparison implementation.
 			/// \param x first operand
 			/// \param y second operand
 			/// \retval true if \a x <= \a y
 			/// \retval false else
-			static bool islessequal(half x, half y) { return !isnan(x) && !isnan(y) && ((signbit(x) ? (static_cast<int17>(0x8000)-x.data_) : 
-				static_cast<int17>(x.data_)) <= (signbit(y) ? (static_cast<int17>(0x8000)-y.data_) : static_cast<int17>(y.data_))); }
+			static bool islessequal(half x, half y)
+			{
+				int xabs = x.data_ & 0x7FFF, yabs = y.data_ & 0x7FFF;
+				return xabs<=0x7C00 && yabs<=0x7C00 && (((xabs==x.data_) ? xabs : -xabs) <= ((yabs==y.data_) ? yabs : -yabs));
+			}
 
 			/// Comparison implementation.
 			/// \param x first operand
 			/// \param y second operand
-			/// \retval true neither \a x > \a y nor \a x < \a y
+			/// \retval true if either \a x > \a y nor \a x < \a y
 			/// \retval false else
 			static bool islessgreater(half x, half y)
 			{
-				if(isnan(x) || isnan(y))
+				int xabs = x.data_ & 0x7FFF, yabs = y.data_ & 0x7FFF;
+				if(xabs > 0x7C00 || yabs > 0x7C00)
 					return false;
-				int17 a = signbit(x) ? (static_cast<int17>(0x8000)-x.data_) : static_cast<int17>(x.data_);
-				int17 b = signbit(y) ? (static_cast<int17>(0x8000)-y.data_) : static_cast<int17>(y.data_);
+				int a = (xabs==x.data_) ? xabs : -xabs, b = (yabs==y.data_) ? yabs : -yabs;
 				return a < b || a > b;
 			}
 
@@ -1802,8 +1960,7 @@ namespace half_float
 			{
 				if(builtin_isinf(arg))
 					return (arg<0.0) ? -1.0 : 1.0;
-				double x2 = static_cast<double>(arg) * static_cast<double>(arg), ax2 = 0.147 * x2;
-				double value = std::sqrt(1.0-std::exp(-x2*(1.2732395447351626861510701069801+ax2)/(1.0+ax2)));
+				double x2 = arg * arg, ax2 = 0.147 * x2, value = std::sqrt(1.0-std::exp(-x2*(1.2732395447351626861510701069801+ax2)/(1.0+ax2)));
 				return builtin_signbit(arg) ? -value : value;
 			}
 
@@ -1811,7 +1968,7 @@ namespace half_float
 			{
 				double v = 1.0;
 				for(; arg<8.0; ++arg) v *= arg;
-				double w = 1.0 / (arg * arg);
+				double w = 1.0 / (arg*arg);
 				return (((((((-0.02955065359477124183006535947712*w+0.00641025641025641025641025641026)*w+
 					-0.00191752691752691752691752691753)*w+8.4175084175084175084175084175084e-4)*w+
 					-5.952380952380952380952380952381e-4)*w+7.9365079365079365079365079365079e-4)*w+
@@ -1883,21 +2040,21 @@ namespace half_float
 		{
 			static half fmin(half x, half y)
 			{
-				if(functions::isnan(x))
+				int xabs = x.data_ & 0x7FFF, yabs = y.data_ & 0x7FFF;
+				if(xabs > 0x7C00)
 					return y;
-				if(functions::isnan(y))
+				if(yabs > 0x7C00)
 					return x;
-				return ((functions::signbit(x) ? (static_cast<int17>(0x8000)-x.data_) : static_cast<int17>(x.data_)) >
-						(functions::signbit(y) ? (static_cast<int17>(0x8000)-y.data_) : static_cast<int17>(y.data_))) ? y : x;
+				return (((xabs==x.data_) ? xabs : -xabs) > ((yabs==y.data_) ? yabs : -yabs)) ? y : x;
 			}
 			static half fmax(half x, half y)
 			{
-				if(functions::isnan(x))
+				int xabs = x.data_ & 0x7FFF, yabs = y.data_ & 0x7FFF;
+				if(xabs > 0x7C00)
 					return y;
-				if(functions::isnan(y))
+				if(yabs > 0x7C00)
 					return x;
-				return ((functions::signbit(x) ? (static_cast<int17>(0x8000)-x.data_) : static_cast<int17>(x.data_)) <
-						(functions::signbit(y) ? (static_cast<int17>(0x8000)-y.data_) : static_cast<int17>(y.data_))) ? y : x;
+				return (((xabs==x.data_) ? xabs : -xabs) < ((yabs==y.data_) ? yabs : -yabs)) ? y : x;
 			}
 		};
 
@@ -1914,11 +2071,10 @@ namespace half_float
 			static_assert(std::is_arithmetic<U>::value, "half_cast from non-arithmetic type unsupported");
 		#endif
 
-			typedef half type;
 			static half cast(U arg) { return cast_impl(arg, is_float<U>()); };
 
 		private:
-			static half cast_impl(U arg, true_type) { return half(binary, float2half<R>(static_cast<float>(arg))); }
+			static half cast_impl(U arg, true_type) { return half(binary, float2half<R>(arg)); }
 			static half cast_impl(U arg, false_type) { return half(binary, int2half<R>(arg)); }
 		};
 		template<typename T,std::float_round_style R> struct half_caster<T,half,R>
@@ -1927,20 +2083,29 @@ namespace half_float
 			static_assert(std::is_arithmetic<T>::value, "half_cast to non-arithmetic type unsupported");
 		#endif
 
-			typedef T type;
-			template<typename U> static T cast(U arg) { return cast_impl(arg, is_float<T>()); }
+			static T cast(half arg) { return cast_impl(arg, is_float<T>()); }
+
+		private:
+			static T cast_impl(half arg, true_type) { return half2float<T>(arg.data_); }
+			static T cast_impl(half arg, false_type) { return half2int<R,T>(arg.data_); }
+		};
+		template<typename T,std::float_round_style R> struct half_caster<T,expr,R>
+		{
+		#if HALF_ENABLE_CPP11_STATIC_ASSERT && HALF_ENABLE_CPP11_TYPE_TRAITS
+			static_assert(std::is_arithmetic<T>::value, "half_cast to non-arithmetic type unsupported");
+		#endif
+
+			static T cast(expr arg) { return cast_impl(arg, is_float<T>()); }
 
 		private:
 			static T cast_impl(float arg, true_type) { return static_cast<T>(arg); }
 			static T cast_impl(half arg, false_type) { return half2int<R,T>(arg.data_); }
 		};
-		template<typename T,std::float_round_style R> struct half_caster<T,expr,R> : public half_caster<T,half,R> {};
 		template<std::float_round_style R> struct half_caster<half,half,R>
 		{
-			typedef half type;
 			static half cast(half arg) { return arg; }
 		};
-		template<std::float_round_style R> struct half_caster<half,expr,R> : public half_caster<half,half,R> {};
+		template<std::float_round_style R> struct half_caster<half,expr,R> : half_caster<half,half,R> {};
 
 		/// \name Comparison operators
 		/// \{
@@ -2138,9 +2303,8 @@ namespace half_float
 		inline expr fdim(expr x, expr y) { return functions::fdim(x, y); }
 
 		/// Get NaN value.
-		/// \param arg descriptive string (ignored)
 		/// \return quiet NaN
-		inline half nanh(const char *arg) { return functions::nanh(arg); }
+		inline half nanh(const char*) { return functions::nanh(); }
 
 		/// \}
 		/// \name Exponential functions
@@ -2661,11 +2825,9 @@ namespace half_float
 		/// \{
 
 		/// Cast to or from half-precision floating point number.
-		/// This casts between [half](\ref half_float::half) and any built-in arithmetic type. Floating point types are 
-		/// converted via an explicit cast to/from `float` (using the rounding mode of the built-in single precision 
-		/// implementation) and thus any possible warnings due to an otherwise implicit conversion to/from `float` will be 
-		/// suppressed. Integer types are converted directly using the given rounding mode, without any roundtrip over `float` 
-		/// that a `static_cast` would otherwise do. It uses the default rounding mode.
+		/// This casts between [half](\ref half_float::half) and any built-in arithmetic type. The values are converted 
+		/// directly using the given rounding mode, without any roundtrip over `float` that a `static_cast` would otherwise do. 
+		/// It uses the default rounding mode.
 		///
 		/// Using this cast with neither of the two types being a [half](\ref half_float::half) or with any of the two types 
 		/// not being a built-in arithmetic type (apart from [half](\ref half_float::half), of course) results in a compiler 
@@ -2674,14 +2836,11 @@ namespace half_float
 		/// \tparam U source type (half or built-in arithmetic type)
 		/// \param arg value to cast
 		/// \return \a arg converted to destination type
-		template<typename T,typename U> typename half_caster<T,U>::type half_cast(U arg) { return half_caster<T,U>::cast(arg); }
+		template<typename T,typename U> T half_cast(U arg) { return half_caster<T,U>::cast(arg); }
 
 		/// Cast to or from half-precision floating point number.
-		/// This casts between [half](\ref half_float::half) and any built-in arithmetic type. Floating point types are 
-		/// converted via an explicit cast to/from `float` (using the rounding mode of the built-in single precision 
-		/// implementation) and thus any possible warnings due to an otherwise implicit conversion to/from `float` will be 
-		/// suppressed. Integer types are converted directly using the given rounding mode, without any roundtrip over `float` 
-		/// that a `static_cast` would otherwise do.
+		/// This casts between [half](\ref half_float::half) and any built-in arithmetic type. The values are converted 
+		/// directly using the given rounding mode, without any roundtrip over `float` that a `static_cast` would otherwise do.
 		///
 		/// Using this cast with neither of the two types being a [half](\ref half_float::half) or with any of the two types 
 		/// not being a built-in arithmetic type (apart from [half](\ref half_float::half), of course) results in a compiler 
@@ -2691,8 +2850,7 @@ namespace half_float
 		/// \tparam U source type (half or built-in arithmetic type)
 		/// \param arg value to cast
 		/// \return \a arg converted to destination type
-		template<typename T,std::float_round_style R,typename U> typename half_caster<T,U,R>::type half_cast(U arg)
-			{ return half_caster<T,U,R>::cast(arg); }
+		template<typename T,std::float_round_style R,typename U> T half_cast(U arg) { return half_caster<T,U,R>::cast(arg); }
 		/// \}
 	}
 
@@ -2818,8 +2976,9 @@ namespace std
 
 		/// Rounding mode.
 		/// Due to the mix of internal single-precision computations (using the rounding mode of the underlying 
-		/// single-precision implementation) with explicit truncation of the single-to-half conversions, the actual rounding 
-		/// mode is indeterminate.
+		/// single-precision implementation) with the rounding mode of the single-to-half conversions, the actual rounding 
+		/// mode might be `std::round_indeterminate` if the default half-precision rounding mode doesn't match the 
+		/// single-precision rounding mode.
 		static HALF_CONSTEXPR_CONST float_round_style round_style = (std::numeric_limits<float>::round_style==
 			half_float::half::round_style) ? half_float::half::round_style : round_indeterminate;
 
@@ -2891,7 +3050,7 @@ namespace std
 		/// \param arg half to hash
 		/// \return hash value
 		result_type operator()(argument_type arg) const
-			{ return hash<half_float::detail::uint16>()(static_cast<unsigned int>(arg.data_)&-(arg.data_!=0x8000)); }
+			{ return hash<half_float::detail::uint16>()(static_cast<unsigned>(arg.data_)&-(arg.data_!=0x8000)); }
 	};
 #endif
 }

@@ -899,11 +899,9 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
         } break;
         case xenos::VertexFormat::k_16_16_FLOAT: {
           auto e0 = LOADEL(uint32_t, 0);
-          ImGui::Text("%.2f",
-                      half_float::detail::half2float((e0 >> 16) & 0xFFFF));
+          ImGui::Text("%.2f", half_float::detail::uint16((e0 >> 16) & 0xFFFF));
           ImGui::NextColumn();
-          ImGui::Text("%.2f",
-                      half_float::detail::half2float((e0 >> 0) & 0xFFFF));
+          ImGui::Text("%.2f", half_float::detail::uint16((e0 >> 0) & 0xFFFF));
           ImGui::NextColumn();
         } break;
         case xenos::VertexFormat::k_32_32:
@@ -974,17 +972,13 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
         case xenos::VertexFormat::k_16_16_16_16_FLOAT: {
           auto e0 = LOADEL(uint32_t, 0);
           auto e1 = LOADEL(uint32_t, 1);
-          ImGui::Text("%.2f",
-                      half_float::detail::half2float((e0 >> 16) & 0xFFFF));
+          ImGui::Text("%.2f", half_float::detail::uint16((e0 >> 16) & 0xFFFF));
           ImGui::NextColumn();
-          ImGui::Text("%.2f",
-                      half_float::detail::half2float((e0 >> 0) & 0xFFFF));
+          ImGui::Text("%.2f", half_float::detail::uint16((e0 >> 0) & 0xFFFF));
           ImGui::NextColumn();
-          ImGui::Text("%.2f",
-                      half_float::detail::half2float((e1 >> 16) & 0xFFFF));
+          ImGui::Text("%.2f", half_float::detail::uint16((e1 >> 16) & 0xFFFF));
           ImGui::NextColumn();
-          ImGui::Text("%.2f",
-                      half_float::detail::half2float((e1 >> 0) & 0xFFFF));
+          ImGui::Text("%.2f", half_float::detail::uint16((e1 >> 0) & 0xFFFF));
           ImGui::NextColumn();
         } break;
         case xenos::VertexFormat::k_32_32_32_32_FLOAT:
