@@ -111,6 +111,8 @@ void NoProfileDialog::OnDraw(ImGuiIO& io) {
     return;
   }
 
+  ImGui::PopStyleVar();
+
   const std::string message =
       "There is no profile available! You will not be able to save without "
       "one.\n\nWould you like to create one?";
@@ -179,6 +181,8 @@ void ProfileConfigDialog::OnDraw(ImGuiIO& io) {
     ImGui::End();
     return;
   }
+
+  ImGui::PopStyleVar();
 
   if (profiles->empty()) {
     ImGui::TextUnformatted("No profiles found!");

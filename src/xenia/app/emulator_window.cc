@@ -337,6 +337,8 @@ void EmulatorWindow::DisplayConfigDialog::OnDraw(ImGuiIO& io) {
     ImGui::End();
     return;
   }
+
+  ImGui::PopStyleVar();
   // Even if the close button has been pressed, still paint everything not to
   // have one frame with an empty window.
 
