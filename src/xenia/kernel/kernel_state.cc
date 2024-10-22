@@ -592,8 +592,9 @@ const object_ref<UserModule> KernelState::LoadTitleUpdate(
     disc_number = module->disc_number();
   }
 
-  X_RESULT open_status =
-      content_manager()->OpenContent("UPDATE", 0, *title_update, disc_number);
+  uint32_t content_license = 0;
+  X_RESULT open_status = content_manager()->OpenContent(
+      "UPDATE", 0, *title_update, content_license, disc_number);
 
   // Use the corresponding patch for the launch module
   std::filesystem::path patch_xexp;
