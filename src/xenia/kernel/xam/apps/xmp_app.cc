@@ -497,7 +497,7 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
                   args->xmp_client == 0x00000000);
       // We don't use the storage, so just fudge the number.
       xe::store_and_swap<uint32_t>(memory_->TranslateVirtual(args->size_ptr),
-                                   4 + uint32_t(args->song_count) * 128);
+                                   args->song_count * 0x3E8 + 0x88);
       return X_E_SUCCESS;
     }
     case 0x0007002F: {
