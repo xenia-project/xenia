@@ -7,6 +7,7 @@
  ******************************************************************************
  */
 
+#include <map>
 #include "xenia/base/platform_win.h"
 #include "xenia/base/string.h"
 #include "xenia/base/system.h"
@@ -46,6 +47,21 @@ void ShowSimpleMessageBox(SimpleMessageBoxType type,
   }
   MessageBoxW(nullptr, reinterpret_cast<LPCWSTR>(wide_message.c_str()), title,
               type_flags);
+}
+
+static std::map<const uint32_t, DWORD> xeniaToWindowsPriorityClassMapping = {
+    {0, NORMAL_PRIORITY_CLASS},
+    {1, ABOVE_NORMAL_PRIORITY_CLASS},
+    {2, HIGH_PRIORITY_CLASS},
+    {3, REALTIME_PRIORITY_CLASS}};
+
+bool SetProcessPriorityClass(const uint32_t priority_class) {
+  if (!xeniaToWindowsPriorityClassMapping.count(priority_class)) {
+    return false;
+  }
+
+  return SetPriorityClass(GetCurrentProcess(),
+                          xeniaToWindowsPriorityClassMapping[priority_class]);
 }
 
 }  // namespace xe

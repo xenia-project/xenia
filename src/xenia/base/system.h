@@ -27,6 +27,8 @@ void ShutdownAndroidSystem();
 void LaunchWebBrowser(const std::string_view url);
 void LaunchFileExplorer(const std::filesystem::path& path);
 
+bool SetProcessPriorityClass(const uint32_t priority_class);
+
 enum class SimpleMessageBoxType {
   Help,
   Warning,

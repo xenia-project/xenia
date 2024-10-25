@@ -294,4 +294,6 @@ void ShowSimpleMessageBox(SimpleMessageBoxType type, std::string_view message) {
   // Java VM for the calling thread is needed.
 }
 
+bool SetProcessPriorityClass(const uint32_t priority_class) { return true; }
+
 }  // namespace xe
