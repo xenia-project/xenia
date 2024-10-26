@@ -358,11 +358,11 @@ void EmulatorWindow::DisplayConfigDialog::OnDraw(ImGuiIO& io) {
       ImGui::RadioButton("None", &new_swap_post_effect_index,
                          int(gpu::CommandProcessor::SwapPostEffect::kNone));
       ImGui::RadioButton(
-          "NVIDIA Fast Approximate Anti-Aliasing 3.11 (FXAA), normal quality",
+          "NVIDIA Fast Approximate Anti-Aliasing (FXAA) [Normal Quality]",
           &new_swap_post_effect_index,
           int(gpu::CommandProcessor::SwapPostEffect::kFxaa));
       ImGui::RadioButton(
-          "NVIDIA Fast Approximate Anti-Aliasing 3.11 (FXAA), extreme quality",
+          "NVIDIA Fast Approximate Anti-Aliasing (FXAA) [Extreme Quality]",
           &new_swap_post_effect_index,
           int(gpu::CommandProcessor::SwapPostEffect::kFxaaExtreme));
       gpu::CommandProcessor::SwapPostEffect new_swap_post_effect =
@@ -396,7 +396,7 @@ void EmulatorWindow::DisplayConfigDialog::OnDraw(ImGuiIO& io) {
       // Filtering effect.
       int new_effect_index = int(new_presenter_config.GetEffect());
       ImGui::RadioButton(
-          "None / bilinear", &new_effect_index,
+          "None / Bilinear", &new_effect_index,
           int(ui::Presenter::GuestOutputPaintConfig::Effect::kBilinear));
       ImGui::RadioButton(
           "AMD FidelityFX Contrast Adaptive Sharpening (CAS)",
@@ -470,8 +470,8 @@ void EmulatorWindow::DisplayConfigDialog::OnDraw(ImGuiIO& io) {
               new_presenter_config.GetFsrSharpnessReduction();
           ImGui::TextUnformatted(
               "FSR sharpness reduction when upscaling (lower is sharper):");
-          const auto label =
-              fmt::format("{:.3f} stops", fsr_sharpness_reduction);
+          const auto label = fmt::format(
+              "{} %%", static_cast<int>(fsr_sharpness_reduction * 100));
           // Power 2.0 scaling as the reduction is in stops, used in exp2.
           fsr_sharpness_reduction = sqrt(2.f * fsr_sharpness_reduction);
           ImGui::SliderFloat(
@@ -498,11 +498,13 @@ void EmulatorWindow::DisplayConfigDialog::OnDraw(ImGuiIO& io) {
                 ? "CAS additional sharpness when not upscaling (higher is "
                   "sharper):"
                 : "CAS additional sharpness (higher is sharper):");
+        const auto label = fmt::format(
+            "{} %%", static_cast<int>(cas_additional_sharpness * 100));
         ImGui::SliderFloat(
             "##CASAdditionalSharpness", &cas_additional_sharpness,
             ui::Presenter::GuestOutputPaintConfig::kCasAdditionalSharpnessMin,
             ui::Presenter::GuestOutputPaintConfig::kCasAdditionalSharpnessMax,
-            "%.3f");
+            label.c_str(), ImGuiSliderFlags_NoInput);
         ImGui::SameLine();
         if (ImGui::Button("Reset##ResetCASAdditionalSharpness")) {
           cas_additional_sharpness = ui::Presenter::GuestOutputPaintConfig ::
