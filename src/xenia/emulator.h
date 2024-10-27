@@ -17,6 +17,7 @@
 #include <string>
 #include <vector>
 
+#include "xenia/apu/audio_media_player.h"
 #include "xenia/base/delegate.h"
 #include "xenia/base/exception_handler.h"
 #include "xenia/kernel/kernel_state.h"
@@ -140,6 +141,11 @@ class Emulator {
 
   // Audio hardware emulation for decoding and playback.
   apu::AudioSystem* audio_system() const { return audio_system_.get(); }
+
+  // Xbox media player (XMP) emulation for WMA and MP3 playback.
+  apu::AudioMediaPlayer* audio_media_player() const {
+    return audio_media_player_.get();
+  }
 
   // GPU emulation for command list processing.
   gpu::GraphicsSystem* graphics_system() const {
@@ -301,6 +307,7 @@ class Emulator {
 
   std::unique_ptr<cpu::Processor> processor_;
   std::unique_ptr<apu::AudioSystem> audio_system_;
+  std::unique_ptr<apu::AudioMediaPlayer> audio_media_player_;
   std::unique_ptr<gpu::GraphicsSystem> graphics_system_;
   std::unique_ptr<hid::InputSystem> input_system_;
 

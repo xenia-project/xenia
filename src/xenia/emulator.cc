@@ -120,6 +120,7 @@ Emulator::Emulator(const std::filesystem::path& command_line,
       display_window_(nullptr),
       memory_(),
       audio_system_(),
+      audio_media_player_(),
       graphics_system_(),
       input_system_(),
       export_resolver_(),
@@ -176,6 +177,7 @@ Emulator::~Emulator() {
   input_system_.reset();
   graphics_system_.reset();
   audio_system_.reset();
+  audio_media_player_.reset();
 
   kernel_state_.reset();
   file_system_.reset();
@@ -311,6 +313,9 @@ X_STATUS Emulator::Setup(
     if (result) {
       return result;
     }
+    audio_media_player_ = std::make_unique<apu::AudioMediaPlayer>(
+        audio_system_.get(), kernel_state_.get());
+    audio_media_player_->Setup();
   }
 
   // Initialize emulator fallback exception handling last.

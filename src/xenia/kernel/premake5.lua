@@ -16,14 +16,8 @@ project("xenia-kernel")
     "xenia-cpu",
     "xenia-hid",
     "xenia-vfs",
-    "libavcodec",
-    "libavformat",
-    "libavutil",
   })
   defines({
-  })
-  includedirs({
-    project_root.."/third_party/FFmpeg/",
   })
   recursive_platform_files()
   files({

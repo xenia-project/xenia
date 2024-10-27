@@ -9,6 +9,7 @@ project("xenia-apu")
   links({
     "libavcodec",
     "libavutil",
+    "libavformat",
     "xenia-base",
   })
   defines({
