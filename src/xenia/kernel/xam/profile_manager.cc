@@ -233,6 +233,26 @@ void ProfileManager::LoadAccounts(const std::vector<uint64_t> profiles_xuids) {
   }
 }
 
+void ProfileManager::ModifyGamertag(const uint64_t xuid, std::string gamertag) {
+  if (!accounts_.count(xuid)) {
+    return;
+  }
+
+  xe::X_XAMACCOUNTINFO* account = &accounts_[xuid];
+
+  std::u16string gamertag_u16 = xe::to_utf16(gamertag);
+
+  string_util::copy_truncating(account->gamertag, gamertag_u16,
+                               sizeof(account->gamertag));
+
+  if (!MountProfile(xuid)) {
+    return;
+  }
+
+  UpdateAccount(xuid, account);
+  DismountProfile(xuid);
+}
+
 bool ProfileManager::MountProfile(const uint64_t xuid) {
   std::filesystem::path profile_path = GetProfilePath(xuid);
   std::string mount_path = fmt::format("{:016X}", xuid) + ':';
@@ -448,40 +468,44 @@ bool ProfileManager::CreateProfile(const std::string gamertag, bool autologin,
 
 bool ProfileManager::CreateAccount(const uint64_t xuid,
                                    const std::string gamertag) {
-  const std::string guest_path =
-      xe::string_util::to_hex_string(xuid) + ":\\Account";
-
-  xe::vfs::File* output_file;
-  xe::vfs::FileAction action = {};
-  auto status = kernel_state_->file_system()->OpenFile(
-      nullptr, guest_path, xe::vfs::FileDisposition::kCreate,
-      xe::vfs::FileAccess::kFileWriteData, false, true, &output_file, &action);
-
-  if (XFAILED(status) || !output_file || !output_file->entry()) {
-    XELOGI("{}: Failed to open Account file for creation: {:08X}", __func__,
-           status);
-    DismountProfile(xuid);
-    return false;
-  }
-
   X_XAMACCOUNTINFO account = {};
   std::u16string gamertag_u16 = xe::to_utf16(gamertag);
 
   string_util::copy_truncating(account.gamertag, gamertag_u16,
                                sizeof(account.gamertag));
 
+  UpdateAccount(xuid, &account);
+  DismountProfile(xuid);
+
+  accounts_.insert({xuid, account});
+  return true;
+}
+
+bool ProfileManager::UpdateAccount(const uint64_t xuid,
+                                   X_XAMACCOUNTINFO* account) {
+  const std::string guest_path =
+      xe::string_util::to_hex_string(xuid) + ":\\Account";
+
+  xe::vfs::File* output_file;
+  xe::vfs::FileAction action = {};
+  auto status = kernel_state_->file_system()->OpenFile(
+      nullptr, guest_path, xe::vfs::FileDisposition::kOpenIf,
+      xe::vfs::FileAccess::kFileWriteData, false, true, &output_file, &action);
+
+  if (XFAILED(status) || !output_file || !output_file->entry()) {
+    XELOGI("{}: Failed to open Account file for creation: {:08X}", __func__,
+           status);
+    return false;
+  }
+
   std::vector<uint8_t> encrypted_data;
   encrypted_data.resize(sizeof(X_XAMACCOUNTINFO) + 0x18);
-  EncryptAccountFile(&account, encrypted_data.data());
+  EncryptAccountFile(account, encrypted_data.data());
 
   size_t written_bytes = 0;
   output_file->WriteSync(encrypted_data.data(), encrypted_data.size(), 0,
                          &written_bytes);
   output_file->Destroy();
-
-  DismountProfile(xuid);
-
-  accounts_.insert({xuid, account});
   return true;
 }
 

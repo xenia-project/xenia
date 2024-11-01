@@ -315,6 +315,72 @@ class MessageBoxDialog : public XamDialog {
   uint32_t chosen_button_ = 0;
 };
 
+class GamertagModifyDialog final : public ui::ImGuiDialog {
+ public:
+  GamertagModifyDialog(ui::ImGuiDrawer* imgui_drawer,
+                       ProfileManager* profile_manager, uint64_t xuid)
+      : ui::ImGuiDialog(imgui_drawer),
+        profile_manager_(profile_manager),
+        xuid_(xuid) {
+    memset(gamertag_, 0, sizeof(gamertag_));
+  }
+
+ private:
+  void OnDraw(ImGuiIO& io) override {
+    if (!has_opened_) {
+      ImGui::OpenPopup("Modify Gamertag");
+      has_opened_ = true;
+    }
+
+    bool dialog_open = true;
+    if (!ImGui::BeginPopupModal("Modify Gamertag", &dialog_open,
+                                ImGuiWindowFlags_NoCollapse |
+                                    ImGuiWindowFlags_AlwaysAutoResize |
+                                    ImGuiWindowFlags_HorizontalScrollbar)) {
+      Close();
+      return;
+    }
+
+    if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
+        !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0)) {
+      ImGui::SetKeyboardFocusHere(0);
+    }
+
+    ImGui::TextUnformatted("New gamertag:");
+    ImGui::InputText("##Gamertag", gamertag_, sizeof(gamertag_));
+
+    const std::string gamertag_string = std::string(gamertag_);
+    bool valid = profile_manager_->IsGamertagValid(gamertag_string);
+
+    ImGui::BeginDisabled(!valid);
+    if (ImGui::Button("Update")) {
+      profile_manager_->ModifyGamertag(xuid_, gamertag_string);
+      std::fill(std::begin(gamertag_), std::end(gamertag_), '\0');
+      dialog_open = false;
+    }
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+
+    if (ImGui::Button("Cancel")) {
+      std::fill(std::begin(gamertag_), std::end(gamertag_), '\0');
+      dialog_open = false;
+    }
+
+    if (!dialog_open) {
+      ImGui::CloseCurrentPopup();
+      Close();
+      ImGui::EndPopup();
+      return;
+    }
+    ImGui::EndPopup();
+  };
+
+  bool has_opened_ = false;
+  char gamertag_[16] = "";
+  const uint64_t xuid_;
+  ProfileManager* profile_manager_;
+};
+
 static dword_result_t XamShowMessageBoxUi(
     dword_t user_index, lpu16string_t title_ptr, lpu16string_t text_ptr,
     dword_t button_count, lpdword_t button_ptrs, dword_t active_button,
@@ -873,7 +939,17 @@ bool xeDrawProfileContent(ui::ImGuiDrawer* imgui_drawer, const uint64_t xuid,
         }
       }
 
-      ImGui::MenuItem("Modify (unsupported)");
+      ImGui::BeginDisabled(kernel_state()->emulator()->is_title_open());
+      if (ImGui::BeginMenu("Modify")) {
+        if (ImGui::MenuItem("Gamertag")) {
+          new GamertagModifyDialog(imgui_drawer, profile_manager, xuid);
+        }
+
+        ImGui::MenuItem("Profile Icon (Unsupported)");
+        ImGui::EndMenu();
+      }
+      ImGui::EndDisabled();
+
       ImGui::MenuItem("Show Achievements (unsupported)");
 
       if (ImGui::MenuItem("Show Content Directory")) {

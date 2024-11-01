@@ -84,6 +84,8 @@ class ProfileManager {
   // bool CreateProfile(const X_XAMACCOUNTINFO* account_info);
   bool DeleteProfile(const uint64_t xuid);
 
+  void ModifyGamertag(const uint64_t xuid, std::string gamertag);
+
   bool MountProfile(const uint64_t xuid);
   bool DismountProfile(const uint64_t xuid);
 
@@ -116,6 +118,7 @@ class ProfileManager {
  private:
   void UpdateConfig(const uint64_t xuid, const uint8_t slot);
   bool CreateAccount(const uint64_t xuid, const std::string gamertag);
+  bool UpdateAccount(const uint64_t xuid, X_XAMACCOUNTINFO* account);
 
   std::filesystem::path GetProfilePath(const uint64_t xuid) const;
   std::filesystem::path GetProfilePath(const std::string xuid) const;
