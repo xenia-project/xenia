@@ -255,7 +255,7 @@ void AudioMediaPlayer::Play() {
 
   // We need to stop playback only if it wasn't
   if (result != ProcessAudioResult::ForcedFinish) {
-    Stop();
+    Stop(true, true);
   }
 
   // We're waiting for dangling samples to finish playing.
@@ -270,10 +270,10 @@ void AudioMediaPlayer::Play() {
   avio_context_free(&formatContext->pb);
   avformat_close_input(&formatContext);
 
-  DeleteDriver();
   processing_end_fence_.Signal();
 
   if (result == ProcessAudioResult::ForcedFinish) {
+    DeleteDriver();
     return;
   }
 
