@@ -205,26 +205,28 @@ std::unique_ptr<FileHandle> FileHandle::OpenExisting(
 
 #define COMBINE_TIME(t) (((uint64_t)t.dwHighDateTime << 32) | t.dwLowDateTime)
 
-bool GetInfo(const std::filesystem::path& path, FileInfo* out_info) {
-  std::memset(out_info, 0, sizeof(FileInfo));
+std::optional<FileInfo> GetInfo(const std::filesystem::path& path) {
   WIN32_FILE_ATTRIBUTE_DATA data = {0};
   if (!GetFileAttributesEx(path.c_str(), GetFileExInfoStandard, &data)) {
-    return false;
+    return {};
   }
+
+  FileInfo out_info{};
+
   if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-    out_info->type = FileInfo::Type::kDirectory;
-    out_info->total_size = 0;
+    out_info.type = FileInfo::Type::kDirectory;
+    out_info.total_size = 0;
   } else {
-    out_info->type = FileInfo::Type::kFile;
-    out_info->total_size =
+    out_info.type = FileInfo::Type::kFile;
+    out_info.total_size =
         (data.nFileSizeHigh * (size_t(MAXDWORD) + 1)) + data.nFileSizeLow;
   }
-  out_info->path = path.parent_path();
-  out_info->name = path.filename();
-  out_info->create_timestamp = COMBINE_TIME(data.ftCreationTime);
-  out_info->access_timestamp = COMBINE_TIME(data.ftLastAccessTime);
-  out_info->write_timestamp = COMBINE_TIME(data.ftLastWriteTime);
-  return true;
+  out_info.path = path.parent_path();
+  out_info.name = path.filename();
+  out_info.create_timestamp = COMBINE_TIME(data.ftCreationTime);
+  out_info.access_timestamp = COMBINE_TIME(data.ftLastAccessTime);
+  out_info.write_timestamp = COMBINE_TIME(data.ftLastWriteTime);
+  return std::move(out_info);
 }
 
 std::vector<FileInfo> ListFiles(const std::filesystem::path& path) {

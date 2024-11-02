@@ -306,7 +306,7 @@ void Win32X64CodeCache::InitializeUnwindEntry(
     unwind_code->FrameOffset = (USHORT)(func_info.stack_size) / 8;
   }
 
-  if (unwind_info->CountOfCodes % 1) {
+  if (unwind_info->CountOfCodes % 2) {
     // Count of unwind codes must always be even.
     std::memset(&unwind_info->UnwindCode[unwind_info->CountOfCodes + 1], 0,
                 sizeof(UNWIND_CODE));

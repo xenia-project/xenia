@@ -775,7 +775,7 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
                                : shaders::resolve_clear_64bpp_cs,
         draw_resolution_scaled ? sizeof(shaders::resolve_clear_64bpp_scaled_cs)
                                : sizeof(shaders::resolve_clear_64bpp_cs));
-    if (resolve_fsi_clear_32bpp_pipeline_ == VK_NULL_HANDLE) {
+    if (resolve_fsi_clear_64bpp_pipeline_ == VK_NULL_HANDLE) {
       XELOGE(
           "VulkanRenderTargetCache: Failed to create the 64bpp resolve EDRAM "
           "buffer clear pipeline");

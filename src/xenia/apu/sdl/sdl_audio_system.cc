@@ -31,13 +31,13 @@ X_STATUS SDLAudioSystem::CreateDriver(size_t index,
                                       xe::threading::Semaphore* semaphore,
                                       AudioDriver** out_driver) {
   assert_not_null(out_driver);
-  auto driver = new SDLAudioDriver(semaphore);
+  auto driver = std::make_unique<SDLAudioDriver>(semaphore);
   if (!driver->Initialize()) {
     driver->Shutdown();
     return X_STATUS_UNSUCCESSFUL;
   }
 
-  *out_driver = driver;
+  *out_driver = driver.release();
   return X_STATUS_SUCCESS;
 }
 

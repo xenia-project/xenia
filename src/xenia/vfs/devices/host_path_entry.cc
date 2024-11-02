@@ -90,12 +90,12 @@ std::unique_ptr<Entry> HostPathEntry::CreateEntryInternal(
     }
     fclose(file);
   }
-  xe::filesystem::FileInfo file_info;
-  if (!xe::filesystem::GetInfo(full_path, &file_info)) {
+  auto file_info = xe::filesystem::GetInfo(full_path);
+  if (!file_info) {
     return nullptr;
   }
   return std::unique_ptr<Entry>(
-      HostPathEntry::Create(device_, this, full_path, file_info));
+      HostPathEntry::Create(device_, this, full_path, file_info.value()));
 }
 
 bool HostPathEntry::DeleteEntryInternal(Entry* entry) {
@@ -123,14 +123,14 @@ void HostPathEntry::RenameEntryInternal(const std::filesystem::path file_path) {
 }
 
 void HostPathEntry::update() {
-  xe::filesystem::FileInfo file_info;
-  if (!xe::filesystem::GetInfo(host_path_, &file_info)) {
+  auto file_info = xe::filesystem::GetInfo(host_path_);
+  if (!file_info) {
     return;
   }
-  if (file_info.type == xe::filesystem::FileInfo::Type::kFile) {
-    size_ = file_info.total_size;
+  if (file_info->type == xe::filesystem::FileInfo::Type::kFile) {
+    size_ = file_info->total_size;
     allocation_size_ =
-        xe::round_up(file_info.total_size, device()->bytes_per_sector());
+        xe::round_up(file_info->total_size, device()->bytes_per_sector());
   }
 }
 
