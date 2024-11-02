@@ -68,6 +68,10 @@ class AudioMediaPlayer {
   XmpApp::PlaybackFlags GetPlaybackFlags() const { return playback_flags_; }
 
   void SetPlaybackClient(XmpApp::PlaybackClient playback_client) {
+    if (playback_client == XmpApp::PlaybackClient::kSystem) {
+      return;
+    }
+
     playback_client_ = playback_client;
   }
 
