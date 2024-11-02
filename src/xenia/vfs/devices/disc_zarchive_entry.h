@@ -23,8 +23,7 @@ class DiscZarchiveDevice;
 
 class DiscZarchiveEntry : public Entry {
  public:
-  DiscZarchiveEntry(Device* device, Entry* parent, const std::string_view path,
-                    const std::string_view name);
+  DiscZarchiveEntry(Device* device, Entry* parent, const std::string_view path);
   ~DiscZarchiveEntry() override;
 
   static std::unique_ptr<DiscZarchiveEntry> Create(Device* device,

@@ -99,7 +99,7 @@ XContentContainerDevice::Result SvodContainerDevice::Read() {
   const uint64_t root_creation_timestamp =
       decode_fat_timestamp(root_data.creation_date, root_data.creation_time);
 
-  auto root_entry = new XContentContainerEntry(this, nullptr, "", "", &files_);
+  auto root_entry = new XContentContainerEntry(this, nullptr, "", &files_);
   root_entry->attributes_ = kFileAttributeDirectory;
   root_entry->access_timestamp_ = root_creation_timestamp;
   root_entry->create_timestamp_ = root_creation_timestamp;

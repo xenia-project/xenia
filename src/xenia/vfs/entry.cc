@@ -16,12 +16,10 @@
 namespace xe {
 namespace vfs {
 
-Entry::Entry(Device* device, Entry* parent, const std::string_view path,
-             const std::string_view name)
+Entry::Entry(Device* device, Entry* parent, const std::string_view path)
     : device_(device),
       parent_(parent),
       path_(path),
-      name_(name),
       attributes_(0),
       size_(0),
       allocation_size_(0),
@@ -31,6 +29,7 @@ Entry::Entry(Device* device, Entry* parent, const std::string_view path,
       delete_on_close_(false) {
   assert_not_null(device);
   absolute_path_ = xe::utf8::join_guest_paths(device->mount_path(), path);
+  name_ = xe::utf8::find_name_from_guest_path(path);
 }
 
 Entry::~Entry() = default;

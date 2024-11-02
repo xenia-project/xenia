@@ -18,9 +18,8 @@ namespace xe {
 namespace vfs {
 
 DiscImageEntry::DiscImageEntry(Device* device, Entry* parent,
-                               const std::string_view path,
-                               const std::string_view name, MappedMemory* mmap)
-    : Entry(device, parent, path, name),
+                               const std::string_view path, MappedMemory* mmap)
+    : Entry(device, parent, path),
       mmap_(mmap),
       data_offset_(0),
       data_size_(0) {}
@@ -31,8 +30,7 @@ std::unique_ptr<DiscImageEntry> DiscImageEntry::Create(
     Device* device, Entry* parent, const std::string_view name,
     MappedMemory* mmap) {
   auto path = xe::utf8::join_guest_paths(parent->path(), name);
-  auto entry =
-      std::make_unique<DiscImageEntry>(device, parent, path, name, mmap);
+  auto entry = std::make_unique<DiscImageEntry>(device, parent, path, mmap);
   return std::move(entry);
 }
 

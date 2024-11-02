@@ -17,9 +17,8 @@ namespace vfs {
 
 XContentContainerEntry::XContentContainerEntry(Device* device, Entry* parent,
                                                const std::string_view path,
-                                               const std::string_view name,
                                                MultiFileHandles* files)
-    : Entry(device, parent, path, name),
+    : Entry(device, parent, path),
       files_(files),
       data_offset_(0),
       data_size_(0),
@@ -31,8 +30,8 @@ std::unique_ptr<XContentContainerEntry> XContentContainerEntry::Create(
     Device* device, Entry* parent, const std::string_view name,
     MultiFileHandles* files) {
   auto path = xe::utf8::join_guest_paths(parent->path(), name);
-  auto entry = std::make_unique<XContentContainerEntry>(device, parent, path,
-                                                        name, files);
+  auto entry =
+      std::make_unique<XContentContainerEntry>(device, parent, path, files);
 
   return std::move(entry);
 }

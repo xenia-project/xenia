@@ -23,7 +23,6 @@ class HostPathDevice;
 class HostPathEntry : public Entry {
  public:
   HostPathEntry(Device* device, Entry* parent, const std::string_view path,
-                const std::string_view name,
                 const std::filesystem::path& host_path);
   ~HostPathEntry() override;
 

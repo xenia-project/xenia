@@ -112,7 +112,7 @@ bool DiscImageDevice::VerifyMagic(ParseState* state, size_t offset) {
 
 DiscImageDevice::Error DiscImageDevice::ReadAllEntries(
     ParseState* state, const uint8_t* root_buffer) {
-  auto root_entry = new DiscImageEntry(this, nullptr, "", "", mmap_.get());
+  auto root_entry = new DiscImageEntry(this, nullptr, "", mmap_.get());
   root_entry->attributes_ = kFileAttributeDirectory;
   root_entry_ = std::unique_ptr<Entry>(root_entry);
 

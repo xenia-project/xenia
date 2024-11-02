@@ -22,8 +22,7 @@ class NullDevice;
 
 class NullEntry : public Entry {
  public:
-  NullEntry(Device* device, Entry* parent, std::string path,
-            const std::string_view name);
+  NullEntry(Device* device, Entry* parent, std::string path);
   ~NullEntry() override;
 
   static NullEntry* Create(Device* device, Entry* parent,

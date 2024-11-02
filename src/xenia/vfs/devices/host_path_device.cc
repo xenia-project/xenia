@@ -39,7 +39,7 @@ bool HostPathDevice::Initialize() {
     }
   }
 
-  auto root_entry = new HostPathEntry(this, nullptr, "", "", host_path_);
+  auto root_entry = new HostPathEntry(this, nullptr, "", host_path_);
   root_entry->attributes_ = kFileAttributeDirectory;
   root_entry_ = std::unique_ptr<Entry>(root_entry);
   PopulateEntry(root_entry);
