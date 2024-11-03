@@ -1135,9 +1135,11 @@ dword_result_t XamGetDashContext_entry(const ppc_context_t& ctx) {
 
 DECLARE_XAM_EXPORT1(XamGetDashContext, kNone, kImplemented);
 
-dword_result_t XamShowMarketplaceUI_entry(dword_t user_index, dword_t ui_type,
-                                          qword_t offer_id,
-                                          dword_t content_types) {
+// https://gitlab.com/GlitchyScripts/xlivelessness/-/blob/master/xlivelessness/xlive/xdefs.hpp?ref_type=heads#L1235
+X_HRESULT xeXShowMarketplaceUIEx(dword_t user_index, dword_t ui_type,
+                                 qword_t offer_id, dword_t content_types,
+                                 unknown_t unk5, unknown_t unk6, unknown_t unk7,
+                                 unknown_t unk8) {
   // ui_type:
   // 0 - view all content for the current title
   // 1 - view content specified by offer id
@@ -1172,15 +1174,59 @@ dword_result_t XamShowMarketplaceUI_entry(dword_t user_index, dword_t ui_type,
   cxxopts::OptionNames buttons;
 
   switch (ui_type) {
-    case 0:
+    case X_MARKETPLACE_ENTRYPOINT::ContentList:
       desc =
           "Game requested to open marketplace page with all content for the "
           "current title ID.";
       break;
-    case 1:
+    case X_MARKETPLACE_ENTRYPOINT::ContentItem:
       desc = fmt::format(
           "Game requested to open marketplace page for offer ID 0x{:016X}.",
-          static_cast<uint32_t>(offer_id));
+          static_cast<uint64_t>(offer_id));
+      break;
+    case X_MARKETPLACE_ENTRYPOINT::MembershipList:
+      desc = fmt::format(
+          "Game requested to open marketplace page with all xbox live "
+          "memberships 0x{:016X}.",
+          static_cast<uint64_t>(offer_id));
+      break;
+    case X_MARKETPLACE_ENTRYPOINT::MembershipItem:
+      desc = fmt::format(
+          "Game requested to open marketplace page for an xbox live "
+          "memberships 0x{:016X}.",
+          static_cast<uint64_t>(offer_id));
+      break;
+    case X_MARKETPLACE_ENTRYPOINT::ContentList_Background:
+      // Used when accessing microsoft points
+      desc = fmt::format(
+          "Xbox Marketplace requested access to Microsoft Points offer page "
+          "0x{:016X}.",
+          static_cast<uint64_t>(offer_id));
+      break;
+    case X_MARKETPLACE_ENTRYPOINT::ContentItem_Background:
+      // Used when accessing credit card information and calls
+      // XamShowCreditCardUI
+      desc = fmt::format(
+          "Xbox Marketplace requested access to credit card information page "
+          "0x{:016X}.",
+          static_cast<uint64_t>(offer_id));
+      break;
+    case X_MARKETPLACE_ENTRYPOINT::ForcedNameChangeV1:
+      // Used by XamShowForcedNameChangeUI v1888
+      desc = fmt::format("Changing gamertag currently not implemented");
+      break;
+    case X_MARKETPLACE_ENTRYPOINT::ForcedNameChangeV2:
+      // Used by XamShowForcedNameChangeUI NXE and up
+      desc = fmt::format("Changing gamertag currently not implemented");
+      break;
+    case X_MARKETPLACE_ENTRYPOINT::ProfileNameChange:
+      // Used by dashboard when selecting change gamertag in profile menu
+      desc = fmt::format("Changing gamertag currently not implemented");
+      break;
+    case X_MARKETPLACE_ENTRYPOINT::ActiveDownloads:
+      // Used in profile tabs when clicking active downloads
+      desc = fmt::format(
+          "There are no current plans to download files from xbox servers");
       break;
     default:
       desc = fmt::format("Unknown marketplace op {:d}",
@@ -1193,11 +1239,11 @@ dword_result_t XamShowMarketplaceUI_entry(dword_t user_index, dword_t ui_type,
       "installed manually using File -> Install Content.";
 
   switch (ui_type) {
-    case 0:
+    case X_MARKETPLACE_ENTRYPOINT::ContentList:
     default:
       buttons.push_back("OK");
       break;
-    case 1:
+    case X_MARKETPLACE_ENTRYPOINT::ContentItem:
       desc +=
           "\n\nTo start trial games in full mode, set license_mask to 1 in "
           "Xenia config file.\n\nDo you wish to change license_mask to 1 for "
@@ -1212,7 +1258,25 @@ dword_result_t XamShowMarketplaceUI_entry(dword_t user_index, dword_t ui_type,
   return xeXamDispatchDialogAsync<MessageBoxDialog>(
       new MessageBoxDialog(imgui_drawer, title, desc, buttons, 0), close);
 }
+
+dword_result_t XamShowMarketplaceUI_entry(dword_t user_index, dword_t ui_type,
+                                          qword_t offer_id,
+                                          dword_t content_types, unknown_t unk5,
+                                          unknown_t unk6) {
+  return xeXShowMarketplaceUIEx(user_index, ui_type, offer_id, content_types,
+                                unk5, 0, 0, unk6);
+}
 DECLARE_XAM_EXPORT1(XamShowMarketplaceUI, kUI, kSketchy);
+
+dword_result_t XamShowMarketplaceUIEx_entry(dword_t user_index, dword_t ui_type,
+                                            qword_t offer_id,
+                                            dword_t content_types,
+                                            unknown_t unk5, unknown_t unk6,
+                                            unknown_t unk7, unknown_t unk8) {
+  return xeXShowMarketplaceUIEx(user_index, ui_type, offer_id, content_types,
+                                unk5, unk6, unk7, unk8);
+}
+DECLARE_XAM_EXPORT1(XamShowMarketplaceUIEx, kUI, kSketchy);
 
 dword_result_t XamShowMarketplaceDownloadItemsUI_entry(
     dword_t user_index, dword_t ui_type, lpqword_t offers, dword_t num_offers,
@@ -1286,6 +1350,12 @@ dword_result_t XamShowMarketplaceDownloadItemsUI_entry(
       overlapped);
 }
 DECLARE_XAM_EXPORT1(XamShowMarketplaceDownloadItemsUI, kUI, kSketchy);
+
+dword_result_t XamShowForcedNameChangeUI_entry(dword_t user_index) {
+  // Changes from 6 to 8 past NXE
+  return xeXShowMarketplaceUIEx(user_index, 6, 0, 0xffffffff, 0, 0, 0, 0);
+}
+DECLARE_XAM_EXPORT1(XamShowForcedNameChangeUI, kUI, kImplemented);
 
 bool xeDrawProfileContent(ui::ImGuiDrawer* imgui_drawer, const uint64_t xuid,
                           const uint8_t user_index,
