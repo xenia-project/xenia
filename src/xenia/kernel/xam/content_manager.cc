@@ -243,6 +243,42 @@ std::vector<XCONTENT_AGGREGATE_DATA> ContentManager::ListContent(
   return result;
 }
 
+std::vector<XCONTENT_AGGREGATE_DATA> ContentManager::ListContentODD(
+    const uint32_t device_id, const uint64_t xuid, const uint32_t title_id,
+    const XContentType content_type) const {
+  std::vector<XCONTENT_AGGREGATE_DATA> result;
+
+  auto xuid_str = fmt::format("{:016X}", xuid);
+  auto title_id_str = fmt::format("{:08X}", title_id);
+  auto content_type_str =
+      fmt::format("{:08X}", static_cast<uint32_t>(content_type));
+
+  const std::filesystem::path game_content_path =
+      std::filesystem::path("GAME:") / "content" / xuid_str / title_id_str /
+      content_type_str;
+
+  auto entry = kernel_state_->file_system()->ResolvePath(
+      xe::path_to_utf8(game_content_path));
+
+  if (!entry) {
+    return {};
+  }
+
+  for (const auto& child : entry->children()) {
+    XCONTENT_AGGREGATE_DATA content_data;
+
+    content_data.device_id = device_id;
+    content_data.content_type = content_type;
+    content_data.set_display_name(xe::path_to_utf16(child->name()));
+    content_data.set_file_name(xe::path_to_utf8(child->name()));
+    content_data.title_id = title_id;
+    content_data.xuid = xuid;
+    result.emplace_back(std::move(content_data));
+  }
+
+  return result;
+}
+
 std::unique_ptr<ContentPackage> ContentManager::ResolvePackage(
     const std::string_view root_name, const uint64_t xuid,
     const XCONTENT_AGGREGATE_DATA& data, const uint32_t disc_number) {

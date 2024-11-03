@@ -151,6 +151,10 @@ class ContentManager {
       const uint32_t device_id, const uint64_t xuid, const uint32_t title_id,
       const XContentType content_type) const;
 
+  std::vector<XCONTENT_AGGREGATE_DATA> ListContentODD(
+      const uint32_t device_id, const uint64_t xuid, const uint32_t title_id,
+      const XContentType content_type) const;
+
   std::unique_ptr<ContentPackage> ResolvePackage(
       const std::string_view root_name, const uint64_t xuid,
       const XCONTENT_AGGREGATE_DATA& data, const uint32_t disc_number = -1);
