@@ -330,7 +330,7 @@ inline T rotate_right(T v, uint8_t sh) {
   constexpr unsigned char SHIFT_MASK = (CHAR_BIT * sizeof(T)) - 1;
   uint8_t rshr = sh & SHIFT_MASK;
   uint8_t lshl = static_cast<uint8_t>(-static_cast<int8_t>(sh)) & SHIFT_MASK;
-  return (n >> rshr) | (n << lshl);
+  return (v >> rshr) | (v << lshl);
 }
 #if XE_PLATFORM_WIN32
 template <>
