@@ -32,7 +32,11 @@
 #if XE_ARCH_AMD64
 #include <xmmintrin.h>
 #elif XE_ARCH_ARM64
-#include <arm64_neon.h>
+#include <arm_neon.h>
+#endif
+
+#ifdef __APPLE__
+#include <strings.h>
 #endif
 
 namespace xe {

@@ -138,6 +138,18 @@ inline std::string to_hex_string(const vec128_t& value) {
                      value.u32[1], value.u32[2], value.u32[3]);
 }
 
+// Overload for uintptr_t
+inline std::string to_hex_string(uintptr_t value) {
+    if constexpr (sizeof(uintptr_t) == sizeof(uint32_t)) {
+        return to_hex_string(static_cast<uint32_t>(value));
+    } else if constexpr (sizeof(uintptr_t) == sizeof(uint64_t)) {
+        return to_hex_string(static_cast<uint64_t>(value));
+    } else {
+        static_assert(sizeof(uintptr_t) == sizeof(uint32_t) || sizeof(uintptr_t) == sizeof(uint64_t),
+                      "Unsupported uintptr_t size for to_hex_string.");
+    }
+}
+
 template <typename T>
 inline T from_string(const std::string_view value, bool force_hex = false) {
   // Missing implementation for converting type T from string

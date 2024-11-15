@@ -7,6 +7,11 @@
  ******************************************************************************
  */
 
+// Add this to the beginning of your source file or a common header
+typedef unsigned int u_int;
+typedef unsigned char u_char;
+typedef unsigned short u_short;
+
 #include <algorithm>
 #include <string>
 

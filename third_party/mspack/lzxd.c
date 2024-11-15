@@ -12,8 +12,8 @@
 
 /* LZX decompression implementation */
 
-#include <system.h>
-#include <lzx.h>
+#include "system.h"
+#include "lzx.h"
 
 extern void xenia_log(const char*, ...);
 
@@ -94,7 +94,7 @@ extern void xenia_log(const char*, ...);
     READ_IF_NEEDED; b1 = *i_ptr++;      \
     INJECT_BITS((b1 << 8) | b0, 16);    \
 } while (0)
-#include <readbits.h>
+#include "readbits.h"
 
 /* import huffman-reading macros and code */
 #define TABLEBITS(tbl)      LZX_##tbl##_TABLEBITS
@@ -102,7 +102,7 @@ extern void xenia_log(const char*, ...);
 #define HUFF_TABLE(tbl,idx) lzx->tbl##_table[idx]
 #define HUFF_LEN(tbl,idx)   lzx->tbl##_len[idx]
 #define HUFF_ERROR          return lzx->error = MSPACK_ERR_DECRUNCH
-#include <readhuff.h>
+#include "readhuff.h"
 
 /* BUILD_TABLE(tbl) builds a huffman lookup table from code lengths */
 #define BUILD_TABLE(tbl)                                                \

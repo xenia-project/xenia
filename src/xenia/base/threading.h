@@ -123,6 +123,7 @@ void Sleep(std::chrono::duration<Rep, Period> duration) {
 enum class SleepResult {
   kSuccess,
   kAlerted,
+  kFailed
 };
 // Sleeps the current thread for at least as long as the given duration.
 // The thread is put in an alertable state and may wake to dispatch user

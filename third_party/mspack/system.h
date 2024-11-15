@@ -16,10 +16,10 @@ extern "C" {
 
 /* ensure config.h is read before mspack.h */
 #ifdef HAVE_CONFIG_H
-# include <config.h>
+# include "config.h"
 #endif
 
-#include <mspack.h>
+#include "mspack.h"
 
 /* assume <string.h> exists */
 #include <string.h>

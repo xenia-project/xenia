@@ -10,7 +10,7 @@
 #ifndef XENIA_CPU_BACKEND_A64_A64_TRACERS_H_
 #define XENIA_CPU_BACKEND_A64_A64_TRACERS_H_
 
-#include <arm64_neon.h>
+#include <arm_neon.h>
 #include <cstdint>
 
 namespace xe {

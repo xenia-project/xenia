@@ -6,15 +6,18 @@ project("xenia-cpu")
   uuid("0109c91e-5a04-41ab-9168-0d5187d11298")
   kind("StaticLib")
   language("C++")
+  cppdialect("C++20")
   links({
     "xenia-base",
     "mspack",
   })
   includedirs({
     project_root.."/third_party/llvm/include",
+    project_root.."/third_party/oaknut/include",
   })
   local_platform_files()
   local_platform_files("backend")
+  local_platform_files("backend/a64")
   local_platform_files("compiler")
   local_platform_files("compiler/passes")
   local_platform_files("hir")

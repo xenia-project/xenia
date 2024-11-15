@@ -34,7 +34,7 @@ using xe::cpu::hir::HIRBuilder;
 
 A64Assembler::A64Assembler(A64Backend* backend)
     : Assembler(backend), a64_backend_(backend), capstone_handle_(0) {
-  if (cs_open(CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN, &capstone_handle_) !=
+  if (cs_open(CS_ARCH_ARM, CS_MODE_LITTLE_ENDIAN, &capstone_handle_) !=
       CS_ERR_OK) {
     assert_always("Failed to initialize capstone");
   }

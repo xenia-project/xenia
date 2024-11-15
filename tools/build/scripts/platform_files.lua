@@ -41,6 +41,20 @@ local function match_platform_files(base_path, base_match)
       base_path.."/"..base_match.."_gtk.h",
       base_path.."/"..base_match.."_gtk.cc",
     })
+  filter("platforms:Mac")
+    files({
+      base_path.."/"..base_match.."_mac.cc",
+      base_path.."/"..base_match.."_posix.h",
+      -- base_path.."/"..base_match.."_posix.cc",
+      -- base_path.."/"..base_match.."_linux.h",
+      -- base_path.."/"..base_match.."_linux.cc",
+      -- base_path.."/"..base_match.."_gnulinux.h",
+      -- base_path.."/"..base_match.."_gnulinux.cc",
+      -- base_path.."/"..base_match.."_x11.h",
+      -- base_path.."/"..base_match.."_x11.cc",
+      -- base_path.."/"..base_match.."_gtk.h",
+      -- base_path.."/"..base_match.."_gtk.cc",
+    })
   filter("platforms:Android-*")
     files({
       base_path.."/"..base_match.."_android.h",

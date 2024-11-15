@@ -1,4 +1,4 @@
-﻿/**
+/**
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
@@ -53,7 +53,7 @@ using namespace xe::cpu::hir;
 using xe::cpu::hir::Instr;
 
 typedef bool (*SequenceSelectFn)(A64Emitter&, const Instr*);
-std::unordered_map<uint32_t, SequenceSelectFn> sequence_table;
+//std::unordered_map<uint32_t, SequenceSelectFn> sequence_table; Removed
 
 // ============================================================================
 // OPCODE_COMMENT
@@ -1992,9 +1992,9 @@ EMITTER_OPCODE_TABLE(OPCODE_RECIP, RECIP_F32, RECIP_F64, RECIP_V128);
 struct POW2_F32 : Sequence<POW2_F32, I<OPCODE_POW2, F32Op, F32Op>> {
   static float32x4_t EmulatePow2(void*, std::byte src[16]) {
     float src_value;
-    vst1q_lane_f32(&src_value, vld1q_u8(src), 0);
+    vst1q_lane_f32(&src_value, vld1q_u8(reinterpret_cast<const uint8_t*>(src)), 0);
     const float result = std::exp2(src_value);
-    return vld1q_lane_f32(&result, vld1q_u8(src), 0);
+    return vld1q_lane_f32(&result, vld1q_u8(reinterpret_cast<const uint8_t*>(src)), 0);
   }
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     assert_always();
@@ -2006,9 +2006,9 @@ struct POW2_F32 : Sequence<POW2_F32, I<OPCODE_POW2, F32Op, F32Op>> {
 struct POW2_F64 : Sequence<POW2_F64, I<OPCODE_POW2, F64Op, F64Op>> {
   static float64x2_t EmulatePow2(void*, std::byte src[16]) {
     double src_value;
-    vst1q_lane_f64(&src_value, vld1q_u8(src), 0);
+    vst1q_lane_f64(&src_value, vld1q_u8(reinterpret_cast<const uint8_t*>(src)), 0);
     const double result = std::exp2(src_value);
-    return vld1q_lane_f64(&result, vld1q_u8(src), 0);
+    return vld1q_lane_f64(&result, vld1q_u8(reinterpret_cast<const uint8_t*>(src)), 0);
   }
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     assert_always();
@@ -2020,7 +2020,7 @@ struct POW2_F64 : Sequence<POW2_F64, I<OPCODE_POW2, F64Op, F64Op>> {
 struct POW2_V128 : Sequence<POW2_V128, I<OPCODE_POW2, V128Op, V128Op>> {
   static float32x4_t EmulatePow2(void*, std::byte src[16]) {
     alignas(16) float values[4];
-    vst1q_f32(values, vld1q_u8(src));
+    vst1q_f32(values, vld1q_u8(reinterpret_cast<const uint8_t*>(src)));
     for (size_t i = 0; i < 4; ++i) {
       values[i] = std::exp2(values[i]);
     }
@@ -2043,9 +2043,9 @@ EMITTER_OPCODE_TABLE(OPCODE_POW2, POW2_F32, POW2_F64, POW2_V128);
 struct LOG2_F32 : Sequence<LOG2_F32, I<OPCODE_LOG2, F32Op, F32Op>> {
   static float32x4_t EmulateLog2(void*, std::byte src[16]) {
     float src_value;
-    vst1q_lane_f32(&src_value, vld1q_u8(src), 0);
+    vst1q_lane_f32(&src_value, vld1q_u8(reinterpret_cast<const uint8_t*>(src)), 0);
     float result = std::log2(src_value);
-    return vld1q_lane_f32(&result, vld1q_u8(src), 0);
+    return vld1q_lane_f32(&result, vld1q_u8(reinterpret_cast<const uint8_t*>(src)), 0);
   }
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     assert_always();
@@ -2061,9 +2061,9 @@ struct LOG2_F32 : Sequence<LOG2_F32, I<OPCODE_LOG2, F32Op, F32Op>> {
 struct LOG2_F64 : Sequence<LOG2_F64, I<OPCODE_LOG2, F64Op, F64Op>> {
   static float64x2_t EmulateLog2(void*, std::byte src[16]) {
     double src_value;
-    vst1q_lane_f64(&src_value, vld1q_u8(src), 0);
+    vst1q_lane_f64(&src_value, vld1q_u8(reinterpret_cast<const uint8_t*>(src)), 0);
     double result = std::log2(src_value);
-    return vld1q_lane_f64(&result, vld1q_u8(src), 0);
+    return vld1q_lane_f64(&result, vld1q_u8(reinterpret_cast<const uint8_t*>(src)), 0);
   }
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     assert_always();
@@ -2079,7 +2079,7 @@ struct LOG2_F64 : Sequence<LOG2_F64, I<OPCODE_LOG2, F64Op, F64Op>> {
 struct LOG2_V128 : Sequence<LOG2_V128, I<OPCODE_LOG2, V128Op, V128Op>> {
   static float32x4_t EmulateLog2(void*, std::byte src[16]) {
     alignas(16) float values[4];
-    vst1q_f32(values, vld1q_u8(src));
+    vst1q_f32(values, vld1q_u8(reinterpret_cast<const uint8_t*>(src)));
     for (size_t i = 0; i < 4; ++i) {
       values[i] = std::log2(values[i]);
     }
@@ -2111,11 +2111,6 @@ struct DOT_PRODUCT_3_V128
           e.MOV(dest.toQ().Selem()[3], WZR);
           e.FADDP(dest.toQ().S4(), dest.toQ().S4(), dest.toQ().S4());
           e.FADDP(dest.toS(), dest.toD().S2());
-
-          // Isolate lower lane
-          e.MOVI(Q0.D2(), RepImm(0b00'00'00'00));
-          e.INS(Q0.Selem()[0], dest.toQ().Selem()[0]);
-          e.MOV(dest.toQ().B16(), Q0.B16());
         });
   }
 };
@@ -2134,11 +2129,6 @@ struct DOT_PRODUCT_4_V128
           e.FMUL(dest.toQ().S4(), src1.S4(), src2.S4());
           e.FADDP(dest.toQ().S4(), dest.toQ().S4(), dest.toQ().S4());
           e.FADDP(dest.toS(), dest.toD().S2());
-
-          // Isolate lower lane
-          e.MOVI(Q0.D2(), RepImm(0b00'00'00'00));
-          e.INS(Q0.Selem()[0], dest.toQ().Selem()[0]);
-          e.MOV(dest.toQ().B16(), Q0.B16());
         });
   }
 };
@@ -2431,14 +2421,17 @@ struct SHL_V128 : Sequence<SHL_V128, I<OPCODE_SHL, V128Op, V128Op, I8Op>> {
     // Almost all instances are shamt = 1, but non-constant.
     // shamt is [0,7]
     uint8_t shamt = src2 & 0x7;
+      
+      // Load `src1` as a byte vector (uint8x16_t) then work on byte shifting
+      uint8x16_t byte_vec = vld1q_u8(reinterpret_cast<const uint8_t*>(src1));
     alignas(16) vec128_t value;
-    vst1q_f32(reinterpret_cast<float32x4_t*>(&value), vld1q_u8(src1));
+      vst1q_u8(reinterpret_cast<uint8_t*>(&value), byte_vec);
     for (int i = 0; i < 15; ++i) {
       value.u8[i ^ 0x3] = (value.u8[i ^ 0x3] << shamt) |
                           (value.u8[(i + 1) ^ 0x3] >> (8 - shamt));
     }
     value.u8[15 ^ 0x3] = value.u8[15 ^ 0x3] << shamt;
-    return vld1q_f32(reinterpret_cast<float32x4_t*>(&value));
+      return vreinterpretq_f32_u8(vld1q_u8(reinterpret_cast<const uint8_t*>(&value)));
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_SHL, SHL_I8, SHL_I16, SHL_I32, SHL_I64, SHL_V128);
@@ -2510,14 +2503,18 @@ struct SHR_V128 : Sequence<SHR_V128, I<OPCODE_SHR, V128Op, V128Op, I8Op>> {
     // Almost all instances are shamt = 1, but non-constant.
     // shamt is [0,7]
     uint8_t shamt = src2 & 0x7;
+    // Load `src1` as a byte vector (uint8x16_t) and store it into `value`
+    uint8x16_t byte_vec = vld1q_u8(reinterpret_cast<const uint8_t*>(src1));
     alignas(16) vec128_t value;
-    vst1q_f32(reinterpret_cast<float32x4_t*>(&value), vld1q_u8(src1));
+    vst1q_u8(reinterpret_cast<uint8_t*>(&value), byte_vec);
+
     for (int i = 15; i > 0; --i) {
       value.u8[i ^ 0x3] = (value.u8[i ^ 0x3] >> shamt) |
                           (value.u8[(i - 1) ^ 0x3] << (8 - shamt));
     }
     value.u8[0 ^ 0x3] = value.u8[0 ^ 0x3] >> shamt;
-    return vld1q_f32(reinterpret_cast<float32x4_t*>(&value));
+    // Convert to float32x4_t by reinterpreting the processed `value`
+    return vreinterpretq_f32_u8(vld1q_u8(reinterpret_cast<const uint8_t*>(&value)));
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_SHR, SHR_I8, SHR_I16, SHR_I32, SHR_I64, SHR_V128);
@@ -2779,17 +2776,18 @@ static int anchor_memory_dest = anchor_memory;
 extern volatile int anchor_vector;
 static int anchor_vector_dest = anchor_vector;
 
-bool SelectSequence(A64Emitter* e, const Instr* i, const Instr** new_tail) {
-  const InstrKey key(i);
-  auto it = sequence_table.find(key);
-  if (it != sequence_table.end()) {
-    if (it->second(*e, i)) {
-      *new_tail = i->next;
-      return true;
+bool SelectSequence(A64Emitter* e, const hir::Instr* i, const hir::Instr** new_tail) {
+    const InstrKey key(i);
+    auto& table = GetSequenceTable(); // Use the singleton accessor
+    auto it = table.find(key);
+    if (it != table.end()) {
+        if (it->second(*e, i)) {
+            *new_tail = i->next;
+            return true;
+        }
     }
-  }
-  XELOGE("No sequence match for variant {}", i->opcode->name);
-  return false;
+    XELOGE("No sequence match for variant {}", i->opcode->name);
+    return false;
 }
 
 }  // namespace a64

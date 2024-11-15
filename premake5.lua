@@ -92,20 +92,75 @@ filter("configurations:Release")
   -- (especially anything that may affect vertex position invariance) and CPU
   -- (such as constant propagation) emulation as predictable as possible,
   -- including handling of specials since games make assumptions about them.
-filter("platforms:Linux")
-  system("linux")
+
+-- Mac Stuff
+filter("platforms:Mac")
+  system("macosx")
   toolset("clang")
+  
+  -- Compiler Options
   buildoptions({
-    -- "-mlzcnt",  -- (don't) Assume lzcnt is supported.
+    "-Wall",                     -- Enable all warnings
+    "-Wextra",                   -- Enable extra warnings
+    "-Wno-unused-parameter",     -- Disable specific warnings if necessary
+    "-Wno-error",                -- Disable treating warnings as errors
+    "-ferror-limit=0"
+    -- Add other macOS-specific compiler flags as needed
   })
-  pkg_config.all("gtk+-x11-3.0")
+  
+  -- Linker Options
+  linkoptions({
+    "-v",
+    "-L/opt/homebrew/lib",
+    "-framework Cocoa",            -- GUI framework
+    "-framework IOKit",            -- Hardware interactions
+    "-framework CoreFoundation",    -- Fundamental data types and utilities
+    "-framework Security",         -- Security and cryptography
+    "-framework OpenGL",           -- Graphics rendering (if used)
+    "-framework Metal",            -- Modern graphics API (if used)
+    "-lc++",                       -- C++ standard library
+    "-lpthread",                   -- POSIX threads
+    "-llz4",                        -- Compression library
+    "--stdlib=libc++",             -- Use libc++ standard library
+    "-g",                          -- Debug symbols
+    -- Add other macOS-specific linker flags as needed
+  })
+  
+  -- Libraries to Link Against
   links({
-    "stdc++fs",
-    "dl",
-    "lz4",
     "pthread",
-    "rt",
+    "lz4",
+    "c++",
+    -- Remove "stdc++" as macOS uses "libc++" by default
+    -- "stdc++",
+    -- Add other necessary libraries here
   })
+  
+  -- Preprocessor Definitions
+  defines({
+    "__APPLE__",
+    "__MACH__",
+    -- Add other macOS-specific defines as needed
+  })
+  
+  -- Additional Settings
+  flags({
+    "NoPCH",            -- Disable Precompiled Headers if not used
+    "Symbols",          -- Include debugging symbols
+  -- "OptimizeSpeed",  -- Removed to prevent conflict
+    -- Add other flags as needed
+  })
+
+    -- Optimization Flags per Configuration
+    filter("configurations:Debug")
+    buildoptions({
+      "-O0",  -- Disable optimizations for Debug
+    })
+  
+  filter("configurations:Release")
+    optimize("Speed")  -- Enable speed optimizations for Release
+  
+filter({})
 
 filter({"platforms:Linux", "kind:*App"})
   linkgroups("On")
@@ -136,77 +191,6 @@ filter({"platforms:Linux", "language:C++", "toolset:clang", "files:*.cc or *.cpp
     "-stdlib=libstdc++",
   })
 
-filter("platforms:Android-*")
-  system("android")
-  systemversion("24")
-  cppstl("c++")
-  staticruntime("On")
-  -- Hidden visibility is needed to prevent dynamic relocations in FFmpeg
-  -- AArch64 Neon libavcodec assembly with PIC (accesses extern lookup tables
-  -- using `adrp` and `add`, without the Global Object Table, expecting that all
-  -- FFmpeg symbols that aren't a part of the FFmpeg API are hidden by FFmpeg's
-  -- original build system) by resolving those relocations at link time instead.
-  visibility("Hidden")
-  links({
-    "android",
-    "dl",
-    "log",
-  })
-
-filter("platforms:Windows-*")
-  system("windows")
-  toolset("msc")
-  buildoptions({
-    "/utf-8",   -- 'build correctly on systems with non-Latin codepages'.
-    -- Mark warnings as severe
-    "/w14839",  -- non-standard use of class 'type' as an argument to a variadic function
-    "/w14840",  -- non-portable use of class 'type' as an argument to a variadic function
-    -- Disable warnings
-    "/wd4100",  -- Unreferenced parameters are ok.
-    "/wd4201",  -- Nameless struct/unions are ok.
-    "/wd4512",  -- 'assignment operator was implicitly defined as deleted'.
-    "/wd4127",  -- 'conditional expression is constant'.
-    "/wd4324",  -- 'structure was padded due to alignment specifier'.
-    "/wd4189",  -- 'local variable is initialized but not referenced'.
-  })
-  flags({
-    "MultiProcessorCompile",  -- Multiprocessor compilation.
-    "NoMinimalRebuild",       -- Required for /MP above.
-  })
-
-  defines({
-    "_CRT_NONSTDC_NO_DEPRECATE",
-    "_CRT_SECURE_NO_WARNINGS",
-    "WIN32",
-    "_WIN64=1",
-  })
-  filter("architecture:x86_64")
-    defines({
-      "_AMD64=1",
-    })
-  filter({})
-  linkoptions({
-    "/ignore:4006",  -- Ignores complaints about empty obj files.
-    "/ignore:4221",
-  })
-  links({
-    "ntdll",
-    "wsock32",
-    "ws2_32",
-    "xinput",
-    "comctl32",
-    "shcore",
-    "shlwapi",
-    "dxguid",
-    "bcrypt",
-  })
-
--- Embed the manifest for things like dependencies and DPI awareness.
-filter({"platforms:Windows-*", "kind:ConsoleApp or WindowedApp"})
-  files({
-    "src/xenia/base/app_win32.manifest"
-  })
-
 -- Create scratch/ path
 if not os.isdir("scratch") then
   os.mkdir("scratch")
@@ -223,13 +207,14 @@ workspace("xenia")
       architecture("x86_64")
     filter({})
   else
-    architecture("x86_64")
     if os.istarget("linux") then
       platforms({"Linux"})
+      architecture("ARM64")
     elseif os.istarget("macosx") then
       platforms({"Mac"})
+      architecture("ARM64")  -- Explicitly set architecture
       xcodebuildsettings({           
-        ["ARCHS"] = "x86_64"
+        ["ARCHS"] = "arm64"
       })
     elseif os.istarget("windows") then
       platforms({"Windows-ARM64", "Windows-x86_64"})
@@ -237,14 +222,6 @@ workspace("xenia")
         architecture("ARM64")
       filter("platforms:Windows-x86_64")
         architecture("x86_64")
-      filter({})
-      -- 10.0.15063.0: ID3D12GraphicsCommandList1::SetSamplePositions.
-      -- 10.0.19041.0: D3D12_HEAP_FLAG_CREATE_NOT_ZEROED.
-      -- 10.0.22000.0: DWMWA_WINDOW_CORNER_PREFERENCE.
-      filter("action:vs2017")
-        systemversion("10.0.22000.0")
-      filter("action:vs2019")
-        systemversion("10.0")
       filter({})
     end
   end

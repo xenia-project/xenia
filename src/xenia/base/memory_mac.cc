@@ -69,6 +69,7 @@ size_t page_size() {
     return getpagesize();
 #endif
 }
+
 size_t allocation_granularity() { return page_size(); }
 
 uint32_t ToPosixProtectFlags(PageAccess access) {
@@ -95,13 +96,20 @@ void* AllocFixed(void* base_address, size_t length,
                  AllocationType allocation_type, PageAccess access) {
   // mmap does not support reserve / commit, so ignore allocation_type.
   uint32_t prot = ToPosixProtectFlags(access);
-  void* result = mmap(base_address, length, prot,
-                      MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, -1, 0);
+  
+  // On ARM64 macOS, we need to ensure the address is properly aligned
+  uintptr_t aligned_addr = reinterpret_cast<uintptr_t>(base_address);
+  if (aligned_addr != 0) {
+    aligned_addr = xe::round_up(aligned_addr, page_size());
+  }
+  
+  void* result = mmap(reinterpret_cast<void*>(aligned_addr), length, prot,
+                      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  
   if (result == MAP_FAILED) {
     return nullptr;
-  } else {
-    return result;
   }
+  return result;
 }
 
 bool DeallocFixed(void* base_address, size_t length,
@@ -190,16 +198,24 @@ void CloseFileMappingHandle(FileMappingHandle handle,
 }
 
 void* MapFileView(FileMappingHandle handle, void* base_address, size_t length,
-                 PageAccess access, size_t file_offset) {
-  uint32_t prot = ToPosixProtectFlags(access);
-#ifdef __APPLE__
-  // Remove MAP_ANONYMOUS for file-backed mappings
-  return mmap(base_address, length, prot, MAP_PRIVATE, handle, file_offset);
-#else
-  return mmap64(base_address, length, prot, MAP_PRIVATE, handle, file_offset);
-#endif
+                  PageAccess access, size_t file_offset) {
+  // On ARM64 macOS, we need to ensure proper alignment
+  uintptr_t aligned_addr = reinterpret_cast<uintptr_t>(base_address);
+  if (aligned_addr != 0) {
+    aligned_addr = xe::round_up(aligned_addr, page_size());
+  }
+  
+  void* result = mmap(reinterpret_cast<void*>(aligned_addr), length,
+                     ToPosixProtectFlags(access),
+                     MAP_SHARED | (base_address ? MAP_FIXED : 0),
+                     reinterpret_cast<int>(handle),
+                     file_offset);
+  
+  if (result == MAP_FAILED) {
+    return nullptr;
+  }
+  return result;
 }
-
 
 bool UnmapFileView(FileMappingHandle handle, void* base_address,
                    size_t length) {

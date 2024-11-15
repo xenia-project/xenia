@@ -11,8 +11,9 @@
 #define XENIA_CPU_BACKEND_A64_A64_SEQUENCES_H_
 
 #include "xenia/cpu/hir/instr.h"
-
 #include <unordered_map>
+#include <functional>
+#include <iostream> // For logging
 
 namespace xe {
 namespace cpu {
@@ -22,24 +23,33 @@ namespace a64 {
 class A64Emitter;
 
 typedef bool (*SequenceSelectFn)(A64Emitter&, const hir::Instr*);
-extern std::unordered_map<uint32_t, SequenceSelectFn> sequence_table;
 
+// Singleton accessor for sequence_table
+inline std::unordered_map<uint32_t, SequenceSelectFn>& GetSequenceTable() {
+    static std::unordered_map<uint32_t, SequenceSelectFn> sequence_table;
+    return sequence_table;
+}
+
+// Registration Functions
 template <typename T>
-bool Register() {
-  sequence_table.insert({T::head_key(), T::Select});
-  return true;
+bool RegisterSingle() {
+    bool inserted = GetSequenceTable().emplace(T::head_key(), T::Select).second;
+    if (!inserted) {
+        std::cerr << "Warning: Duplicate head_key detected for key " << T::head_key() << std::endl;
+    }
+    return inserted;
 }
 
-template <typename T, typename Tn, typename... Ts>
-static bool Register() {
-  bool b = true;
-  b = b && Register<T>();          // Call the above function
-  b = b && Register<Tn, Ts...>();  // Call ourself again (recursively)
-  return b;
+template <typename... Ts>
+bool RegisterAll() {
+    return (RegisterSingle<Ts>() && ...); // Fold expression (C++17)
 }
+
+// Macro for Registration
 #define EMITTER_OPCODE_TABLE(name, ...) \
-  const auto A64_INSTR_##name = Register<__VA_ARGS__>();
+    static const bool A64_INSTR_##name = RegisterAll<__VA_ARGS__>();
 
+// Function to Select Sequence
 bool SelectSequence(A64Emitter* e, const hir::Instr* i,
                     const hir::Instr** new_tail);
 

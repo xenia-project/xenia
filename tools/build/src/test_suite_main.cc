@@ -7,6 +7,10 @@
  ******************************************************************************
  */
 
+#ifdef __APPLE__
+    #define _DARWIN_C_SOURCE
+#endif
+
 #include <cstdlib>
 #include <cstring>
 #include <locale>

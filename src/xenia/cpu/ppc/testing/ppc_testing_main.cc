@@ -49,7 +49,7 @@ typedef std::vector<std::pair<std::string, std::string>> AnnotationList;
 const uint32_t START_ADDRESS = 0x80000000;
 
 struct TestCase {
-  TestCase(uint32_t address, std::string& name)
+  TestCase(uint32_t address, const std::string& name)
       : address(address), name(name) {}
   uint32_t address;
   std::string name;
@@ -67,6 +67,30 @@ class TestSuite {
     map_file_path_ = cvars::test_bin_path / name.replace_extension(".map");
     bin_file_path_ = cvars::test_bin_path / name.replace_extension(".bin");
   }
+    
+    // Move constructor
+    TestSuite(TestSuite&& other) noexcept
+        : name_(std::move(other.name_)),
+          src_file_path_(std::move(other.src_file_path_)),
+          map_file_path_(std::move(other.map_file_path_)),
+          bin_file_path_(std::move(other.bin_file_path_)),
+          test_cases_(std::move(other.test_cases_)) {}
+
+    // Move assignment operator
+    TestSuite& operator=(TestSuite&& other) noexcept {
+      if (this != &other) {
+        name_ = std::move(other.name_);
+        src_file_path_ = std::move(other.src_file_path_);
+        map_file_path_ = std::move(other.map_file_path_);
+        bin_file_path_ = std::move(other.bin_file_path_);
+        test_cases_ = std::move(other.test_cases_);
+      }
+      return *this;
+    }
+
+    // Delete copy constructor and copy assignment operator
+    TestSuite(const TestSuite&) = delete;
+    TestSuite& operator=(const TestSuite&) = delete;
 
   bool Load() {
     if (!ReadMap()) {
@@ -104,82 +128,97 @@ class TestSuite {
     return nullptr;
   }
 
-  bool ReadMap() {
-    FILE* f = filesystem::OpenFile(map_file_path_, "r");
-    if (!f) {
-      return false;
-    }
-    char line_buffer[BUFSIZ];
-    while (fgets(line_buffer, sizeof(line_buffer), f)) {
-      if (!strlen(line_buffer)) {
-        continue;
+    bool ReadMap() {
+      FILE* f = filesystem::OpenFile(map_file_path_, "r");
+      if (!f) {
+        return false;
       }
-      // 0000000000000000 t test_add1\n
-      char* newline = strrchr(line_buffer, '\n');
-      if (newline) {
-        *newline = 0;
-      }
-      char* t_test_ = strstr(line_buffer, " t test_");
-      if (!t_test_) {
-        continue;
-      }
-      std::string address(line_buffer, t_test_ - line_buffer);
-      std::string name(t_test_ + strlen(" t test_"));
-      test_cases_.emplace_back(START_ADDRESS + std::stoul(address, 0, 16),
-                               name);
-    }
-    fclose(f);
-    return true;
-  }
-
-  bool ReadAnnotations() {
-    TestCase* current_test_case = nullptr;
-    FILE* f = filesystem::OpenFile(src_file_path_, "r");
-    if (!f) {
-      return false;
-    }
-    char line_buffer[BUFSIZ];
-    while (fgets(line_buffer, sizeof(line_buffer), f)) {
-      if (!strlen(line_buffer)) {
-        continue;
-      }
-      // Eat leading whitespace.
-      char* start = line_buffer;
-      while (*start == ' ') {
-        ++start;
-      }
-      if (strncmp(start, "test_", strlen("test_")) == 0) {
-        // Global test label.
-        std::string label(start + strlen("test_"), strchr(start, ':'));
-        current_test_case = FindTestCase(label);
-        if (!current_test_case) {
-          XELOGE("Test case {} not found in corresponding map for {}", label,
-                 xe::path_to_utf8(src_file_path_));
-          return false;
+      char line_buffer[BUFSIZ];
+      while (fgets(line_buffer, sizeof(line_buffer), f)) {
+        if (!strlen(line_buffer)) {
+          continue;
         }
-      } else if (strlen(start) > 3 && start[0] == '#' && start[1] == '_') {
-        // Annotation.
-        // We don't actually verify anything here.
-        char* next_space = strchr(start + 3, ' ');
-        if (next_space) {
-          // Looks legit.
-          std::string key(start + 3, next_space);
-          std::string value(next_space + 1);
-          while (value.find_last_of(" \t\n") == value.size() - 1) {
-            value.erase(value.end() - 1);
-          }
-          if (!current_test_case) {
-            XELOGE("Annotation outside of test case in {}",
-                   xe::path_to_utf8(src_file_path_));
+        // Remove newline character.
+        char* newline = strrchr(line_buffer, '\n');
+        if (newline) {
+          *newline = 0;
+        }
+        char* t_test_ = strstr(line_buffer, " t test_");
+        if (!t_test_) {
+          continue;
+        }
+        // Extract address.
+        size_t address_length = static_cast<size_t>(t_test_ - line_buffer);
+        std::string address(line_buffer, address_length);
+        // Extract name.
+        const char* name_start = t_test_ + strlen(" t test_");
+        std::string name(name_start);
+        test_cases_.emplace_back(START_ADDRESS + std::stoul(address, nullptr, 16),
+                                 name);
+      }
+      fclose(f);
+      return true;
+    }
+
+    bool ReadAnnotations() {
+      TestCase* current_test_case = nullptr;
+      FILE* f = filesystem::OpenFile(src_file_path_, "r");
+      if (!f) {
+        return false;
+      }
+      char line_buffer[BUFSIZ];
+      while (fgets(line_buffer, sizeof(line_buffer), f)) {
+        if (!strlen(line_buffer)) {
+          continue;
+        }
+        // Eat leading whitespace.
+        char* start = line_buffer;
+        while (*start == ' ') {
+          ++start;
+        }
+        if (strncmp(start, "test_", strlen("test_")) == 0) {
+          // Global test label.
+          const char* label_start = start + strlen("test_");
+          char* label_end = strchr(start, ':');
+          if (!label_end) {
+            XELOGE("Malformed test label in {}", xe::path_to_utf8(src_file_path_));
+            fclose(f);
             return false;
           }
-          current_test_case->annotations.emplace_back(key, value);
+          size_t label_length = static_cast<size_t>(label_end - label_start);
+          std::string label(label_start, label_length);
+          current_test_case = FindTestCase(label);
+          if (!current_test_case) {
+            XELOGE("Test case {} not found in corresponding map for {}", label,
+                   xe::path_to_utf8(src_file_path_));
+            fclose(f);
+            return false;
+          }
+        } else if (strlen(start) > 3 && start[0] == '#' && start[1] == '_') {
+          // Annotation.
+          char* next_space = strchr(start + 3, ' ');
+          if (next_space) {
+            // Extract key and value.
+            const char* key_start = start + 3;
+            size_t key_length = static_cast<size_t>(next_space - key_start);
+            std::string key(key_start, key_length);
+            const char* value_start = next_space + 1;
+            std::string value(value_start);
+            // Trim trailing whitespace.
+            value.erase(value.find_last_not_of(" \t\n\r") + 1);
+            if (!current_test_case) {
+              XELOGE("Annotation outside of test case in {}",
+                     xe::path_to_utf8(src_file_path_));
+              fclose(f);
+              return false;
+            }
+            current_test_case->annotations.emplace_back(key, value);
+          }
         }
       }
+      fclose(f);
+      return true;
     }
-    fclose(f);
-    return true;
-  }
 };
 
 class TestRunner {
@@ -429,65 +468,68 @@ void ProtectedRunTest(TestSuite& test_suite, TestRunner& runner,
 }
 
 bool RunTests(const std::string_view test_name) {
-  int result_code = 1;
-  int failed_count = 0;
-  int passed_count = 0;
+    int result_code = 1;
+    int failed_count = 0;
+    int passed_count = 0;
 
 #if XE_ARCH_AMD64
-  XELOGI("Instruction feature mask {}.", cvars::x64_extension_mask);
+    XELOGI("Instruction feature mask {}.", cvars::x64_extension_mask);
 #endif  // XE_ARCH_AMD64
 
-  auto test_path_root = cvars::test_path;
-  std::vector<std::filesystem::path> test_files;
-  if (!DiscoverTests(test_path_root, test_files)) {
-    return false;
-  }
-  if (!test_files.size()) {
-    XELOGE("No tests discovered - invalid path?");
-    return false;
-  }
-  XELOGI("{} tests discovered.", test_files.size());
-  XELOGI("");
-
-  std::vector<TestSuite> test_suites;
-  bool load_failed = false;
-  for (auto& test_path : test_files) {
-    TestSuite test_suite(test_path);
-    if (!test_name.empty() && test_suite.name() != test_name) {
-      continue;
+    auto test_path_root = cvars::test_path;
+    std::cout << std::filesystem::current_path() << std::endl;
+    std::vector<std::filesystem::path> test_files;
+    if (!DiscoverTests(test_path_root, test_files)) {
+        return false;
     }
-    if (!test_suite.Load()) {
-      XELOGE("TEST SUITE {} FAILED TO LOAD", xe::path_to_utf8(test_path));
-      load_failed = true;
-      continue;
+    if (!test_files.size()) {
+        XELOGE("No tests discovered - invalid path?");
+        return false;
     }
-    test_suites.push_back(std::move(test_suite));
-  }
-  if (load_failed) {
-    XELOGE("One or more test suites failed to load.");
-  }
+    XELOGI("{} tests discovered.", test_files.size());
+    XELOGI("");
 
-  XELOGI("{} tests loaded.", test_suites.size());
-  TestRunner runner;
-  for (auto& test_suite : test_suites) {
-    XELOGI("{}.s:", test_suite.name());
+    std::vector<std::unique_ptr<TestSuite>> test_suites;
+    bool load_failed = false;
+    for (auto& test_path : test_files) {
+        auto test_suite = std::make_unique<TestSuite>(test_path);
+        if (!test_name.empty() && test_suite->name() != test_name) {
+            continue;
+        }
+        if (!test_suite->Load()) {
+            XELOGE("TEST SUITE {} FAILED TO LOAD", xe::path_to_utf8(test_path));
+            load_failed = true;
+            continue;
+        }
+        test_suites.push_back(std::move(test_suite));
+    }
+    if (load_failed) {
+        XELOGE("One or more test suites failed to load.");
+    }
 
-    for (auto& test_case : test_suite.test_cases()) {
-      XELOGI("  - {}", test_case.name);
-      ProtectedRunTest(test_suite, runner, test_case, failed_count,
-                       passed_count);
+    XELOGI("{} tests loaded.", test_suites.size());
+    TestRunner runner;
+    for (auto& test_suite_ptr : test_suites) {
+        auto& test_suite = *test_suite_ptr;
+        XELOGI("{}.s:", test_suite.name());
+
+        for (auto& test_case : test_suite.test_cases()) {
+            XELOGI("  - {}", test_case.name);
+            ProtectedRunTest(test_suite, runner, test_case, failed_count,
+                             passed_count);
+        }
+
+        XELOGI("");
     }
 
     XELOGI("");
-  }
+    XELOGI("Total tests: {}", failed_count + passed_count);
+    XELOGI("Passed: {}", passed_count);
+    XELOGI("Failed: {}", failed_count);
 
-  XELOGI("");
-  XELOGI("Total tests: {}", failed_count + passed_count);
-  XELOGI("Passed: {}", passed_count);
-  XELOGI("Failed: {}", failed_count);
-
-  return failed_count ? false : true;
+    return failed_count ? false : true;
 }
+
 
 int main(const std::vector<std::string>& args) {
   return RunTests(cvars::test_name) ? 0 : 1;

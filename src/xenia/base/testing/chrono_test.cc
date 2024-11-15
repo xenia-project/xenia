@@ -7,6 +7,7 @@
  ******************************************************************************
  */
 
+
 #include "xenia/base/chrono.h"
 
 #define CATCH_CONFIG_ENABLE_CHRONO_STRINGMAKER

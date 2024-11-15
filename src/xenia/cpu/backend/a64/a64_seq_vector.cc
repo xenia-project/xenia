@@ -6,7 +6,6 @@
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
-
 #include "xenia/cpu/backend/a64/a64_sequences.h"
 
 #include <algorithm>
@@ -498,15 +497,15 @@ static uint8x16_t EmulateVectorShl(void*, std::byte src1[16],
   alignas(16) T shamt[16 / sizeof(T)];
 
   // Load NEON registers into a C array.
-  vst1q_u8(reinterpret_cast<T*>(value), vld1q_u8(src1));
-  vst1q_u8(reinterpret_cast<T*>(shamt), vld1q_u8(src2));
+  vst1q_u8(reinterpret_cast<uint8_t*>(value), vld1q_u8(reinterpret_cast<const uint8_t*>(src1)));
+  vst1q_u8(reinterpret_cast<uint8_t*>(shamt), vld1q_u8(reinterpret_cast<const uint8_t*>(src2)));
 
   for (size_t i = 0; i < (16 / sizeof(T)); ++i) {
     value[i] = value[i] << (shamt[i] & ((sizeof(T) * 8) - 1));
   }
 
   // Store result and return it.
-  return vld1q_u8(value);
+  return vld1q_u8(reinterpret_cast<const uint8_t*>(value));
 }
 struct VECTOR_SHL_V128
     : Sequence<VECTOR_SHL_V128, I<OPCODE_VECTOR_SHL, V128Op, V128Op, V128Op>> {
@@ -610,16 +609,16 @@ static uint8x16_t EmulateVectorShr(void*, std::byte src1[16],
   alignas(16) T value[16 / sizeof(T)];
   alignas(16) T shamt[16 / sizeof(T)];
 
-  // Load NEON registers into a C array.
-  vst1q_u8(reinterpret_cast<T*>(value), vld1q_u8(src1));
-  vst1q_u8(reinterpret_cast<T*>(shamt), vld1q_u8(src2));
+  // Load NEON registers into a C array by casting to uint8_t*
+  vst1q_u8(reinterpret_cast<uint8_t*>(value), vld1q_u8(reinterpret_cast<const uint8_t*>(src1)));
+  vst1q_u8(reinterpret_cast<uint8_t*>(shamt), vld1q_u8(reinterpret_cast<const uint8_t*>(src2)));
 
   for (size_t i = 0; i < (16 / sizeof(T)); ++i) {
     value[i] = value[i] >> (shamt[i] & ((sizeof(T) * 8) - 1));
   }
 
-  // Store result and return it.
-  return vld1q_u8(value);
+  // Store result and return it by casting to uint8_t*
+  return vld1q_u8(reinterpret_cast<const uint8_t*>(value));
 }
 struct VECTOR_SHR_V128
     : Sequence<VECTOR_SHR_V128, I<OPCODE_VECTOR_SHR, V128Op, V128Op, V128Op>> {
@@ -819,16 +818,16 @@ static uint8x16_t EmulateVectorRotateLeft(void*, std::byte src1[16],
   alignas(16) T value[16 / sizeof(T)];
   alignas(16) T shamt[16 / sizeof(T)];
 
-  // Load NEON registers into a C array.
-  vst1q_u8(reinterpret_cast<T*>(value), vld1q_u8(src1));
-  vst1q_u8(reinterpret_cast<T*>(shamt), vld1q_u8(src2));
+  // Load NEON registers into a C array by casting to uint8_t*
+  vst1q_u8(reinterpret_cast<uint8_t*>(value), vld1q_u8(reinterpret_cast<const uint8_t*>(src1)));
+  vst1q_u8(reinterpret_cast<uint8_t*>(shamt), vld1q_u8(reinterpret_cast<const uint8_t*>(src2)));
 
   for (size_t i = 0; i < (16 / sizeof(T)); ++i) {
     value[i] = xe::rotate_left<T>(value[i], shamt[i] & ((sizeof(T) * 8) - 1));
   }
 
-  // Store result and return it.
-  return vld1q_u8(value);
+  // Store result and return it by casting to uint8_t*
+  return vld1q_u8(reinterpret_cast<const uint8_t*>(value));
 }
 struct VECTOR_ROTATE_LEFT_V128
     : Sequence<VECTOR_ROTATE_LEFT_V128,
@@ -1363,18 +1362,21 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     e.LDR(Q0, VConstData, e.GetVConstOffset(VPackD3DCOLOR));
     e.TBL(i.dest.reg().B16(), List{i.dest.reg().B16()}, Q0.B16());
   }
-  static uint8x16_t EmulateFLOAT16_2(void*, std::byte src1[16]) {
-    alignas(16) float a[4];
-    alignas(16) uint16_t b[8];
-    vst1q_u8(a, vld1q_u8(src1));
-    std::memset(b, 0, sizeof(b));
+    static uint8x16_t EmulateFLOAT16_2(void*, std::byte src1[16]) {
+      alignas(16) float a[4];
+      alignas(16) uint16_t b[8];
+      
+      // Load NEON registers into a C array by casting to uint8_t*
+      vst1q_u8(reinterpret_cast<uint8_t*>(a), vld1q_u8(reinterpret_cast<const uint8_t*>(src1)));
+      std::memset(b, 0, sizeof(b));
 
-    for (int i = 0; i < 2; i++) {
-      b[7 - i] = half_float::detail::float2half<std::round_toward_zero>(a[i]);
+      for (int i = 0; i < 2; i++) {
+        b[7 - i] = half_float::detail::float2half<std::round_toward_zero>(a[i]);
+      }
+
+      // Store the uint16_t array into a uint8x16_t NEON register
+      return vld1q_u8(reinterpret_cast<const uint8_t*>(b));
     }
-
-    return vld1q_u8(b);
-  }
   static void EmitFLOAT16_2(A64Emitter& e, const EmitArgType& i) {
     assert_true(i.src2.value->IsConstantZero());
     // http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
@@ -1400,19 +1402,21 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_2));
     e.MOV(i.dest.reg().B16(), Q0.B16());
   }
-  static uint8x16_t EmulateFLOAT16_4(void*, std::byte src1[16]) {
-    alignas(16) float a[4];
-    alignas(16) uint16_t b[8];
-    vst1q_u8(a, vld1q_u8(src1));
-    std::memset(b, 0, sizeof(b));
+    static uint8x16_t EmulateFLOAT16_4(void*, std::byte src1[16]) {
+      alignas(16) float a[4];
+      alignas(16) uint16_t b[8];
+      
+      // Load NEON registers into a C array by casting to uint8_t*
+      vst1q_u8(reinterpret_cast<uint8_t*>(a), vld1q_u8(reinterpret_cast<const uint8_t*>(src1)));
+      std::memset(b, 0, sizeof(b));
 
-    for (int i = 0; i < 4; i++) {
-      b[7 - (i ^ 2)] =
-          half_float::detail::float2half<std::round_toward_zero>(a[i]);
+      for (int i = 0; i < 4; i++) {
+        b[7 - (i ^ 2)] = half_float::detail::float2half<std::round_toward_zero>(a[i]);
+      }
+
+      // Store the uint16_t array into a uint8x16_t NEON register
+      return vld1q_u8(reinterpret_cast<const uint8_t*>(b));
     }
-
-    return vld1q_u8(b);
-  }
   static void EmitFLOAT16_4(A64Emitter& e, const EmitArgType& i) {
     assert_true(i.src2.value->IsConstantZero());
     // http://blogs.msdn.com/b/chuckw/archive/2012/09/11/directxmath-f16c-and-fma.aspx
@@ -1773,22 +1777,25 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     e.EOR(i.dest.reg().B16(), i.dest.reg().B16(), Q1.B16());
     // To convert to 0 to 1, games multiply by 0x47008081 and add 0xC7008081.
   }
-  static uint8x16_t EmulateFLOAT16_2(void*, std::byte src1[16]) {
-    alignas(16) uint16_t a[4];
-    alignas(16) float b[8];
-    vst1q_u8(a, vld1q_u8(src1));
-    std::memset(b, 0, sizeof(b));
+    static uint8x16_t EmulateFLOAT16_2(void*, std::byte src1[16]) {
+      alignas(16) uint16_t a[4];
+      alignas(16) float b[8];
+      
+      // Load NEON registers into a C array by casting to uint8_t*
+      vst1q_u8(reinterpret_cast<uint8_t*>(a), vld1q_u8(reinterpret_cast<const uint8_t*>(src1)));
+      std::memset(b, 0, sizeof(b));
 
-    for (int i = 0; i < 2; i++) {
-      b[i] = half_float::detail::half2float(a[VEC128_W(6 + i)]);
+      for (int i = 0; i < 2; i++) {
+        b[i] = half_float::detail::half2float(a[VEC128_W(6 + i)]);
+      }
+
+      // Constants, or something
+      b[2] = 0.f;
+      b[3] = 1.f;
+
+      // Store the float array into a uint8x16_t NEON register
+      return vld1q_u8(reinterpret_cast<const uint8_t*>(b));
     }
-
-    // Constants, or something
-    b[2] = 0.f;
-    b[3] = 1.f;
-
-    return vld1q_u8(b);
-  }
   static void EmitFLOAT16_2(A64Emitter& e, const EmitArgType& i) {
     // 1 bit sign, 5 bit exponent, 10 bit mantissa
     // D3D10 half float format
@@ -1820,17 +1827,20 @@ struct UNPACK : Sequence<UNPACK, I<OPCODE_UNPACK, V128Op, V128Op>> {
     e.CallNativeSafe(reinterpret_cast<void*>(EmulateFLOAT16_2));
     e.MOV(i.dest.reg().B16(), Q0.B16());
   }
-  static uint8x16_t EmulateFLOAT16_4(void*, std::byte src1[16]) {
-    alignas(16) uint16_t a[4];
-    alignas(16) float b[8];
-    vst1q_u8(a, vld1q_u8(src1));
+    static uint8x16_t EmulateFLOAT16_4(void*, std::byte src1[16]) {
+      alignas(16) uint16_t a[4];
+      alignas(16) float b[8];
+      
+      // Load NEON registers into a C array by casting to uint8_t*
+      vst1q_u8(reinterpret_cast<uint8_t*>(a), vld1q_u8(reinterpret_cast<const uint8_t*>(src1)));
 
-    for (int i = 0; i < 4; i++) {
-      b[i] = half_float::detail::half2float(a[VEC128_W(4 + i)]);
+      for (int i = 0; i < 4; i++) {
+        b[i] = half_float::detail::half2float(a[VEC128_W(4 + i)]);
+      }
+
+      // Store the float array into a uint8x16_t NEON register
+      return vld1q_u8(reinterpret_cast<const uint8_t*>(b));
     }
-
-    return vld1q_u8(b);
-  }
   static void EmitFLOAT16_4(A64Emitter& e, const EmitArgType& i) {
     // src = [(dest.x | dest.y), (dest.z | dest.w), 0, 0]
     if (e.IsFeatureEnabled(kA64EmitF16C)) {

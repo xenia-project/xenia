@@ -42,6 +42,21 @@ int xe_strncasecmp(const char* string1, const char* string2, size_t count) {
 #endif  // XE_PLATFORM_WIN32
 }
 
+#ifdef __APPLE__
+char* strdup (const char* s)
+{
+  size_t slen = strlen(s);
+    char* result = (char*) malloc(slen + 1);
+  if(result == NULL)
+  {
+    return NULL;
+  }
+
+  memcpy(result, s, slen+1);
+  return result;
+}
+#endif
+
 char* xe_strdup(const char* source) {
 #if XE_PLATFORM_WIN32
   return _strdup(source);

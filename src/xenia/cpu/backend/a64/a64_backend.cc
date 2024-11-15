@@ -70,10 +70,15 @@ class A64ThunkEmitter : public A64Emitter {
 };
 
 A64Backend::A64Backend() : Backend(), code_cache_(nullptr) {
-  if (cs_open(CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN, &capstone_handle_) !=
-      CS_ERR_OK) {
-    assert_always("Failed to initialize capstone");
-  }
+    cs_err err = cs_open(CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN, &capstone_handle_);
+    if (err) {
+        printf("Failed on cs_open() with error returned: %u\n", err);
+        assert_always("Failed to initialize capstone");
+    }
+//  if (cs_open(CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN, &capstone_handle_) !=
+//      CS_ERR_OK) {
+//      assert_always("Failed to initialize capstone");
+//  }
   cs_option(capstone_handle_, CS_OPT_SYNTAX, CS_OPT_SYNTAX_INTEL);
   cs_option(capstone_handle_, CS_OPT_DETAIL, CS_OPT_ON);
   cs_option(capstone_handle_, CS_OPT_SKIPDATA, CS_OPT_OFF);

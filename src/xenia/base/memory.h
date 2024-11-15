@@ -224,58 +224,90 @@ void copy_and_swap(T* dest, const T* src, size_t count) {
 
 template <typename T>
 T load(const void* mem);
+
+// Specializations using memcpy to avoid alignment issues
 template <>
 inline int8_t load<int8_t>(const void* mem) {
-  return *reinterpret_cast<const int8_t*>(mem);
+  int8_t value;
+  std::memcpy(&value, mem, sizeof(int8_t));
+  return value;
 }
+
 template <>
 inline uint8_t load<uint8_t>(const void* mem) {
-  return *reinterpret_cast<const uint8_t*>(mem);
+  uint8_t value;
+  std::memcpy(&value, mem, sizeof(uint8_t));
+  return value;
 }
+
 template <>
 inline int16_t load<int16_t>(const void* mem) {
-  return *reinterpret_cast<const int16_t*>(mem);
+  int16_t value;
+  std::memcpy(&value, mem, sizeof(int16_t));
+  return value;
 }
+
 template <>
 inline uint16_t load<uint16_t>(const void* mem) {
-  return *reinterpret_cast<const uint16_t*>(mem);
+  uint16_t value;
+  std::memcpy(&value, mem, sizeof(uint16_t));
+  return value;
 }
+
 template <>
 inline int32_t load<int32_t>(const void* mem) {
-  return *reinterpret_cast<const int32_t*>(mem);
+  int32_t value;
+  std::memcpy(&value, mem, sizeof(int32_t));
+  return value;
 }
+
 template <>
 inline uint32_t load<uint32_t>(const void* mem) {
-  return *reinterpret_cast<const uint32_t*>(mem);
+  uint32_t value;
+  std::memcpy(&value, mem, sizeof(uint32_t));
+  return value;
 }
+
 template <>
 inline int64_t load<int64_t>(const void* mem) {
-  return *reinterpret_cast<const int64_t*>(mem);
+  int64_t value;
+  std::memcpy(&value, mem, sizeof(int64_t));
+  return value;
 }
+
 template <>
 inline uint64_t load<uint64_t>(const void* mem) {
-  return *reinterpret_cast<const uint64_t*>(mem);
+  uint64_t value;
+  std::memcpy(&value, mem, sizeof(uint64_t));
+  return value;
 }
+
 template <>
 inline float load<float>(const void* mem) {
-  return *reinterpret_cast<const float*>(mem);
+  float value;
+  std::memcpy(&value, mem, sizeof(float));
+  return value;
 }
+
 template <>
 inline double load<double>(const void* mem) {
-  return *reinterpret_cast<const double*>(mem);
+  double value;
+  std::memcpy(&value, mem, sizeof(double));
+  return value;
 }
+
 template <typename T>
 inline T load(const void* mem) {
   if (sizeof(T) == 1) {
-    return static_cast<T>(load<uint8_t>(mem));
+    return load<uint8_t>(mem);
   } else if (sizeof(T) == 2) {
-    return static_cast<T>(load<uint16_t>(mem));
+    return load<uint16_t>(mem);
   } else if (sizeof(T) == 4) {
-    return static_cast<T>(load<uint32_t>(mem));
+    return load<uint32_t>(mem);
   } else if (sizeof(T) == 8) {
-    return static_cast<T>(load<uint64_t>(mem));
+    return load<uint64_t>(mem);
   } else {
-    assert_always("Invalid xe::load size");
+    assert(false && "Invalid xe::load size");
   }
 }
 
@@ -291,35 +323,51 @@ inline uint8_t load_and_swap<uint8_t>(const void* mem) {
 }
 template <>
 inline int16_t load_and_swap<int16_t>(const void* mem) {
-  return byte_swap(*reinterpret_cast<const int16_t*>(mem));
+  int16_t value;
+  std::memcpy(&value, mem, sizeof(int16_t));
+  return byte_swap(value);
 }
 template <>
 inline uint16_t load_and_swap<uint16_t>(const void* mem) {
-  return byte_swap(*reinterpret_cast<const uint16_t*>(mem));
+  uint16_t value;
+  std::memcpy(&value, mem, sizeof(uint16_t));
+  return byte_swap(value);
 }
 template <>
 inline int32_t load_and_swap<int32_t>(const void* mem) {
-  return byte_swap(*reinterpret_cast<const int32_t*>(mem));
+  int32_t value;
+  std::memcpy(&value, mem, sizeof(int32_t));
+  return byte_swap(value);
 }
 template <>
 inline uint32_t load_and_swap<uint32_t>(const void* mem) {
-  return byte_swap(*reinterpret_cast<const uint32_t*>(mem));
+  uint32_t value;
+  std::memcpy(&value, mem, sizeof(uint32_t));
+  return byte_swap(value);
 }
 template <>
 inline int64_t load_and_swap<int64_t>(const void* mem) {
-  return byte_swap(*reinterpret_cast<const int64_t*>(mem));
+  int64_t value;
+  std::memcpy(&value, mem, sizeof(int64_t));
+  return byte_swap(value);
 }
 template <>
 inline uint64_t load_and_swap<uint64_t>(const void* mem) {
-  return byte_swap(*reinterpret_cast<const uint64_t*>(mem));
+  uint64_t value;
+  std::memcpy(&value, mem, sizeof(uint64_t));
+  return byte_swap(value);
 }
 template <>
 inline float load_and_swap<float>(const void* mem) {
-  return byte_swap(*reinterpret_cast<const float*>(mem));
+  float value;
+  std::memcpy(&value, mem, sizeof(float));
+  return byte_swap(value);
 }
 template <>
 inline double load_and_swap<double>(const void* mem) {
-  return byte_swap(*reinterpret_cast<const double*>(mem));
+  double value;
+  std::memcpy(&value, mem, sizeof(double));
+  return byte_swap(value);
 }
 template <>
 inline std::string load_and_swap<std::string>(const void* mem) {
@@ -417,35 +465,43 @@ inline void store_and_swap<uint8_t>(void* mem, const uint8_t& value) {
 }
 template <>
 inline void store_and_swap<int16_t>(void* mem, const int16_t& value) {
-  *reinterpret_cast<int16_t*>(mem) = byte_swap(value);
+  int16_t swapped = byte_swap(value);
+  std::memcpy(mem, &swapped, sizeof(int16_t));
 }
 template <>
 inline void store_and_swap<uint16_t>(void* mem, const uint16_t& value) {
-  *reinterpret_cast<uint16_t*>(mem) = byte_swap(value);
+  uint16_t swapped = byte_swap(value);
+  std::memcpy(mem, &swapped, sizeof(uint16_t));
 }
 template <>
 inline void store_and_swap<int32_t>(void* mem, const int32_t& value) {
-  *reinterpret_cast<int32_t*>(mem) = byte_swap(value);
+  int32_t swapped = byte_swap(value);
+  std::memcpy(mem, &swapped, sizeof(int32_t));
 }
 template <>
 inline void store_and_swap<uint32_t>(void* mem, const uint32_t& value) {
-  *reinterpret_cast<uint32_t*>(mem) = byte_swap(value);
+  uint32_t swapped = byte_swap(value);
+  std::memcpy(mem, &swapped, sizeof(uint32_t));
 }
 template <>
 inline void store_and_swap<int64_t>(void* mem, const int64_t& value) {
-  *reinterpret_cast<int64_t*>(mem) = byte_swap(value);
+  int64_t swapped = byte_swap(value);
+  std::memcpy(mem, &swapped, sizeof(int64_t));
 }
 template <>
 inline void store_and_swap<uint64_t>(void* mem, const uint64_t& value) {
-  *reinterpret_cast<uint64_t*>(mem) = byte_swap(value);
+  uint64_t swapped = byte_swap(value);
+  std::memcpy(mem, &swapped, sizeof(uint64_t));
 }
 template <>
 inline void store_and_swap<float>(void* mem, const float& value) {
-  *reinterpret_cast<float*>(mem) = byte_swap(value);
+  float swapped = byte_swap(value);
+  std::memcpy(mem, &swapped, sizeof(float));
 }
 template <>
 inline void store_and_swap<double>(void* mem, const double& value) {
-  *reinterpret_cast<double*>(mem) = byte_swap(value);
+  double swapped = byte_swap(value);
+  std::memcpy(mem, &swapped, sizeof(double));
 }
 template <>
 inline void store_and_swap<std::string_view>(void* mem,
@@ -486,10 +542,15 @@ constexpr inline fourcc_t make_fourcc(char a, char b, char c, char d) {
 // This overload requires fourcc.length() == 4
 // make_fourcc("abcd") == 'abcd' == 0x61626364 for most compilers
 constexpr inline fourcc_t make_fourcc(const std::string_view fourcc) {
-  if (fourcc.length() != 4) {
-    throw std::runtime_error("Invalid fourcc length");
-  }
-  return make_fourcc(fourcc[0], fourcc[1], fourcc[2], fourcc[3]);
+    if (fourcc.size() != 4) {
+        throw std::runtime_error("Invalid fourcc length");
+    }
+
+    // Explicitly construct the fourcc code to ensure compatibility
+    return static_cast<fourcc_t>(fourcc[0] << 24) |
+           (static_cast<fourcc_t>(fourcc[1]) << 16) |
+           (static_cast<fourcc_t>(fourcc[2]) << 8) |
+           (static_cast<fourcc_t>(fourcc[3]));
 }
 
 }  // namespace xe

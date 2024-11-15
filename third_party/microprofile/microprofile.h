@@ -202,6 +202,8 @@ MICROPROFILE_API int64_t MicroProfileTicksPerSecondCpu();
 #include <unistd.h>
 #include <libkern/OSAtomic.h>
 #include <TargetConditionals.h>
+#include <stdlib.h>
+#include <alloca.h>
 
 #define MP_TICK() mach_absolute_time()
 inline int64_t MicroProfileTicksPerSecondCpu()
@@ -1065,6 +1067,8 @@ inline void MicroProfileThreadJoin(MicroProfileThread* pThread)
 #include <stdarg.h>
 #include <math.h>
 #include <algorithm>
+#include <strings.h>
+#include <stdlib.h>
 
 
 #ifndef MICROPROFILE_DEBUG
