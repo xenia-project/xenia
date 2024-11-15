@@ -37,16 +37,19 @@ uint64_t Clock::QueryHostSystemTime() {
   constexpr uint64_t seconds_per_day = 3600 * 24;
   // Don't forget the 89 leap days.
   constexpr uint64_t seconds_1601_to_1970 =
-      ((369 * 365 + 89) * seconds_per_day);
+      ((396 * 365 + 89) * seconds_per_day);
 
   timeval now;
   int error = gettimeofday(&now, nullptr);
   assert_zero(error);
 
   // NT systems use 100ns intervals.
-  return static_cast<uint64_t>(
-      (static_cast<int64_t>(now.tv_sec) + seconds_1601_to_1970) * 10000000ull +
+  uint64_t filetime = static_cast<uint64_t>(
+      static_cast<int64_t>(now.tv_sec) * 10000000ull +
       now.tv_usec * 10);
+  
+  // Add the epoch difference in 100ns intervals
+  return filetime + seconds_1601_to_1970 * 10000000ull;
 }
 
 uint64_t Clock::QueryHostUptimeMillis() {

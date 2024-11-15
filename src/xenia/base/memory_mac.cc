@@ -13,6 +13,9 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <cstddef>
+#if defined(__APPLE__)
+#include <mach/vm_statistics.h>
+#endif
 
 #include "xenia/base/math.h"
 #include "xenia/base/platform.h"
@@ -99,13 +102,24 @@ void* AllocFixed(void* base_address, size_t length,
   
   // On ARM64 macOS, we need to ensure the address is properly aligned
   uintptr_t aligned_addr = reinterpret_cast<uintptr_t>(base_address);
-  if (aligned_addr != 0) {
-    aligned_addr = xe::round_up(aligned_addr, page_size());
+  size_t page_mask = page_size() - 1;
+  if (aligned_addr & page_mask) {
+    aligned_addr = (aligned_addr + page_mask) & ~page_mask;
   }
+
+  // For large addresses on ARM64, we need VM_FLAGS_ANYWHERE to allow high memory allocations
+  int flags = MAP_PRIVATE | MAP_ANONYMOUS;
+  if (base_address) {
+    flags |= MAP_FIXED;
+  }
+#if defined(__aarch64__)
+  if (aligned_addr >= 0x100000000ULL) {
+    flags |= VM_FLAGS_ANYWHERE;
+  }
+#endif
   
-  void* result = mmap(reinterpret_cast<void*>(aligned_addr), length, prot,
-                      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  
+  void* result = mmap(reinterpret_cast<void*>(aligned_addr), length,
+                     prot, flags, -1, 0);
   if (result == MAP_FAILED) {
     return nullptr;
   }
