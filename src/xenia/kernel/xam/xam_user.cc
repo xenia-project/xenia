@@ -684,14 +684,23 @@ dword_result_t XamSessionRefObjByHandle_entry(dword_t handle,
 }
 DECLARE_XAM_EXPORT1(XamSessionRefObjByHandle, kUserProfiles, kStub);
 
-dword_result_t XamUserIsUnsafeProgrammingAllowed_entry(
-    dword_t unk1, dword_t unk2, lpdword_t unk3, dword_t unk4, dword_t unk5,
-    dword_t unk6) {
-  if (!unk3 || unk1 != 255 && unk1 >= 4) {
-    return 87;
+dword_result_t XamUserIsUnsafeProgrammingAllowed_entry(dword_t user_index,
+                                                       dword_t unk,
+                                                       lpdword_t result_ptr) {
+  if (!result_ptr) {
+    return X_ERROR_INVALID_PARAMETER;
   }
-  *unk3 = 1;
-  return 0;
+
+  if (user_index != XUserIndexAny && user_index >= XUserMaxUserCount) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  // uint32_t result = XamUserCheckPrivilege_entry(user_index, 0xD4u,
+  // result_ptr);
+
+  *result_ptr = 1;
+
+  return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamUserIsUnsafeProgrammingAllowed, kUserProfiles, kStub);
 
