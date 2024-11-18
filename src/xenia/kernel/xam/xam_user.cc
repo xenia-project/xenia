@@ -560,7 +560,7 @@ dword_result_t XamUserAreUsersFriends_entry(dword_t user_index, dword_t unk1,
 DECLARE_XAM_EXPORT1(XamUserAreUsersFriends, kUserProfiles, kStub);
 
 dword_result_t XamUserCreateAchievementEnumerator_entry(
-    dword_t title_id, dword_t user_index, dword_t xuid, dword_t flags,
+    dword_t title_id, dword_t user_index, qword_t xuid, dword_t flags,
     dword_t offset, dword_t count, lpdword_t buffer_size_ptr,
     lpdword_t handle_ptr) {
   if (!count || !buffer_size_ptr || !handle_ptr) {
