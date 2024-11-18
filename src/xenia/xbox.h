@@ -547,6 +547,28 @@ enum class XDeploymentType : uint32_t {
   kUnknown = 0xFF,
 };
 
+inline bool IsOfflineXUID(uint64_t xuid) { return ((xuid >> 60) & 0xF) == 0xE; }
+
+inline bool IsOnlineXUID(uint64_t xuid) {
+  return ((xuid >> 48) & 0xFFFF) == 0x9;
+}
+
+inline bool IsGuestXUID(uint64_t xuid) {
+  const uint32_t HighPart = xuid >> 48;
+  return ((HighPart & 0x000F) == 0x9) && ((HighPart & 0x00C0) > 0);
+}
+
+inline bool IsTeamXUID(uint64_t xuid) {
+  return (xuid & 0xFF00000000000140) == 0xFE00000000000100;
+}
+
+inline bool IsValidXUID(uint64_t xuid) {
+  const bool valid = IsOfflineXUID(xuid) || IsOnlineXUID(xuid) ||
+                     IsTeamXUID(xuid) || IsGuestXUID(xuid);
+
+  return valid;
+}
+
 #pragma pack(push, 4)
 struct X_XAMACCOUNTINFO {
   enum AccountReservedFlags {
@@ -596,13 +618,6 @@ struct X_XAMACCOUNTINFO {
   bool IsLiveEnabled() {
     return static_cast<bool>(reserved_flags &
                              AccountReservedFlags::kLiveEnabled);
-  }
-
-  bool IsXUIDOffline() { return ((xuid_online >> 60) & 0xF) == 0xE; }
-  bool IsXUIDOnline() { return ((xuid_online >> 48) & 0xFFFF) == 0x9; }
-  bool IsXUIDValid() { return IsXUIDOffline() != IsXUIDOnline(); }
-  bool IsTeamXUID() {
-    return (xuid_online & 0xFF00000000000140) == 0xFE00000000000100;
   }
 
   uint32_t GetCountry() const {
