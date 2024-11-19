@@ -589,6 +589,7 @@ struct X_XAMACCOUNTINFO {
   };
 
   enum AccountSubscriptionTier {
+    kSubscriptionTierNone = 0,
     kSubscriptionTierSilver = 3,
     kSubscriptionTierGold = 6,
     kSubscriptionTierFamilyGold = 9

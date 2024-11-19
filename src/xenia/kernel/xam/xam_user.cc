@@ -510,7 +510,8 @@ dword_result_t XamUserGetMembershipTier_entry(dword_t user_index) {
   if (!kernel_state()->xam_state()->IsUserSignedIn(user_index)) {
     return X_ERROR_NO_SUCH_USER;
   }
-  return 6 /* 6 appears to be Gold */;
+
+  return X_XAMACCOUNTINFO::AccountSubscriptionTier::kSubscriptionTierGold;
 }
 DECLARE_XAM_EXPORT1(XamUserGetMembershipTier, kUserProfiles, kStub);
 
@@ -705,14 +706,16 @@ dword_result_t XamUserIsUnsafeProgrammingAllowed_entry(dword_t user_index,
 DECLARE_XAM_EXPORT1(XamUserIsUnsafeProgrammingAllowed, kUserProfiles, kStub);
 
 dword_result_t XamUserGetSubscriptionType_entry(dword_t user_index,
-                                                dword_t unk2, dword_t unk3,
-                                                dword_t unk4, dword_t unk5,
-                                                dword_t unk6) {
-  if (!unk2 || !unk3 || user_index >= XUserMaxUserCount) {
+                                                dword_t unk2, dword_t unk3) {
+  if (user_index >= XUserMaxUserCount) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  if (!unk2 || !unk3) {
     return X_E_INVALIDARG;
   }
 
-  return 0;
+  return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamUserGetSubscriptionType, kUserProfiles, kStub);
 
