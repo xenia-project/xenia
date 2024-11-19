@@ -269,6 +269,9 @@ dword_result_t XGetLanguage_entry() {
 }
 DECLARE_XAM_EXPORT1(XGetLanguage, kNone, kImplemented);
 
+dword_result_t XamGetLanguage_entry() { return cvars::user_language; }
+DECLARE_XAM_EXPORT1(XamGetLanguage, kNone, kImplemented);
+
 dword_result_t XamGetCurrentTitleId_entry() {
   return kernel_state()->emulator()->title_id();
 }
