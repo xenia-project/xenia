@@ -642,6 +642,13 @@ struct X_XAMACCOUNTINFO {
 static_assert_size(X_XAMACCOUNTINFO, 0x17C);
 #pragma pack(pop)
 
+struct X_PROFILEENUMRESULT {
+  xe::be<uint64_t> xuid_offline;  // E0.....
+  X_XAMACCOUNTINFO account;
+  xe::be<uint32_t> device_id;
+};
+static_assert_size(X_PROFILEENUMRESULT, 0x188);
+
 }  // namespace xe
 
 // clang-format on

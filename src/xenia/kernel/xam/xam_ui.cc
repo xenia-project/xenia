@@ -1275,7 +1275,8 @@ class SigninDialog : public XamDialog {
   char gamertag_[16] = "";
 };
 
-dword_result_t XamShowSigninUI_entry(dword_t users_needed, dword_t unk_mask) {
+X_RESULT xeXamShowSigninUI(uint32_t user_index, uint32_t users_needed,
+                           uint32_t flags) {
   // Mask values vary. Probably matching user types? Local/remote?
   // Games seem to sit and loop until we trigger sign in notification.
   if (users_needed != 1 && users_needed != 2 && users_needed != 4) {
@@ -1305,7 +1306,17 @@ dword_result_t XamShowSigninUI_entry(dword_t users_needed, dword_t unk_mask) {
   return xeXamDispatchDialogAsync<SigninDialog>(
       new SigninDialog(imgui_drawer, users_needed), close);
 }
+
+dword_result_t XamShowSigninUI_entry(dword_t users_needed, dword_t flags) {
+  return xeXamShowSigninUI(XUserIndexAny, users_needed, flags);
+}
 DECLARE_XAM_EXPORT1(XamShowSigninUI, kUserProfiles, kImplemented);
+
+dword_result_t XamShowSigninUIp_entry(dword_t user_index, dword_t users_needed,
+                                      dword_t flags) {
+  return xeXamShowSigninUI(user_index, users_needed, flags);
+}
+DECLARE_XAM_EXPORT1(XamShowSigninUIp, kUserProfiles, kImplemented);
 
 }  // namespace xam
 }  // namespace kernel
