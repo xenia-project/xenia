@@ -121,6 +121,7 @@ typedef uint32_t X_HRESULT;
 
 #define X_E_FALSE                               static_cast<X_HRESULT>(0x80000000L)
 #define X_E_SUCCESS                             X_HRESULT_FROM_WIN32(X_ERROR_SUCCESS)
+#define X_E_ACCESS_DENIED                       X_HRESULT_FROM_WIN32(X_ERROR_ACCESS_DENIED)
 #define X_E_NOT_IMPLEMENTED                     static_cast<X_HRESULT>(0x80004001L)
 #define X_E_FAIL                                static_cast<X_HRESULT>(0x80004005L)
 #define X_E_NO_MORE_FILES                       X_HRESULT_FROM_WIN32(X_ERROR_NO_MORE_FILES)
