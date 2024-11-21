@@ -48,6 +48,10 @@ DEFINE_int32(avpack, 8,
 DECLARE_int32(user_country);
 DECLARE_int32(user_language);
 
+DEFINE_bool(staging_mode, 0,
+            "Enables preview mode in dashboards to render debug information.",
+            "Kernel");
+
 namespace xe {
 namespace kernel {
 namespace xam {
@@ -57,6 +61,9 @@ typedef enum _MODE { KernelMode, UserMode, MaximumMode } MODE;
 
 dword_result_t XamFeatureEnabled_entry(dword_t unk) { return 0; }
 DECLARE_XAM_EXPORT1(XamFeatureEnabled, kNone, kStub);
+
+dword_result_t XamGetStagingMode_entry() { return cvars::staging_mode; }
+DECLARE_XAM_EXPORT1(XamGetStagingMode, kNone, kStub);
 
 // Empty stub schema binary.
 uint8_t schema_bin[] = {
