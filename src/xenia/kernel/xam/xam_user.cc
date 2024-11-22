@@ -784,6 +784,35 @@ dword_result_t XamUserCreateStatsEnumerator_entry(
 }
 DECLARE_XAM_EXPORT1(XamUserCreateStatsEnumerator, kUserProfiles, kSketchy);
 
+dword_result_t XamProfileFindAccount_entry(qword_t offline_xuid,
+                                           pointer_t<X_XAMACCOUNTINFO> account,
+                                           lpdword_t device_id) {
+  if (!account) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  account.Zero();
+
+  const auto& profiles =
+      kernel_state()->xam_state()->profile_manager()->GetProfiles();
+
+  if (!profiles->count(offline_xuid)) {
+    return X_ERROR_NO_SUCH_USER;
+  }
+
+  memcpy(account, &profiles->at(offline_xuid), sizeof(X_XAMACCOUNTINFO));
+
+  xe::string_util::copy_and_swap_truncating(
+      account->gamertag, account->gamertag, sizeof(account->gamertag));
+
+  if (device_id) {
+    *device_id = 1;
+  }
+
+  return X_ERROR_SUCCESS;
+}
+DECLARE_XAM_EXPORT1(XamProfileFindAccount, kUserProfiles, kImplemented);
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
