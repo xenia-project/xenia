@@ -521,7 +521,12 @@ TEST_CASE("map_view", "[virtual_memory_mapping]") {
       path, length, xe::memory::PageAccess::kReadWrite, true);
   REQUIRE(memory != xe::memory::kFileMappingHandleInvalid);
 
+ifdef __APPLE__
+  // On MacOS, 0x100000000 is reserved.
   uintptr_t address = 0x200000000;
+#else
+  uintptr_t address = 0x100000000;
+#endif
   auto view =
       xe::memory::MapFileView(memory, reinterpret_cast<void*>(address), length,
                               xe::memory::PageAccess::kReadWrite, 0);

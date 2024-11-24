@@ -13,13 +13,12 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <cstddef>
-#if defined(__APPLE__)
-#include <mach/vm_statistics.h>
-#endif
+#include <iostream>
 
 #include "xenia/base/math.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/string.h"
+#include "xenia/base/logging.h"
 
 #if XE_PLATFORM_MAC
 #define MAP_ANONYMOUS MAP_ANON
@@ -44,24 +43,24 @@ static void* libandroid_;
 static int (*android_ASharedMemory_create_)(const char* name, size_t size);
 
 void AndroidInitialize() {
-  if (xe::GetAndroidApiLevel() >= 26) {
-    libandroid_ = dlopen("libandroid.so", RTLD_NOW);
-    assert_not_null(libandroid_);
-    if (libandroid_) {
-      android_ASharedMemory_create_ =
-          reinterpret_cast<decltype(android_ASharedMemory_create_)>(
-              dlsym(libandroid_, "ASharedMemory_create"));
-      assert_not_null(android_ASharedMemory_create_);
+    if (xe::GetAndroidApiLevel() >= 26) {
+        libandroid_ = dlopen("libandroid.so", RTLD_NOW);
+        assert_not_null(libandroid_);
+        if (libandroid_) {
+            android_ASharedMemory_create_ =
+            reinterpret_cast<decltype(android_ASharedMemory_create_)>(
+                                                                      dlsym(libandroid_, "ASharedMemory_create"));
+            assert_not_null(android_ASharedMemory_create_);
+        }
     }
-  }
 }
 
 void AndroidShutdown() {
-  android_ASharedMemory_create_ = nullptr;
-  if (libandroid_) {
-    dlclose(libandroid_);
-    libandroid_ = nullptr;
-  }
+    android_ASharedMemory_create_ = nullptr;
+    if (libandroid_) {
+        dlclose(libandroid_);
+        libandroid_ = nullptr;
+    }
 }
 #endif
 
@@ -76,164 +75,170 @@ size_t page_size() {
 size_t allocation_granularity() { return page_size(); }
 
 uint32_t ToPosixProtectFlags(PageAccess access) {
-  switch (access) {
-    case PageAccess::kNoAccess:
-      return PROT_NONE;
-    case PageAccess::kReadOnly:
-      return PROT_READ;
-    case PageAccess::kReadWrite:
-      return PROT_READ | PROT_WRITE;
-    case PageAccess::kExecuteReadOnly:
-      return PROT_READ | PROT_EXEC;
-    case PageAccess::kExecuteReadWrite:
-      return PROT_READ | PROT_WRITE | PROT_EXEC;
-    default:
-      assert_unhandled_case(access);
-      return PROT_NONE;
-  }
+    switch (access) {
+        case PageAccess::kNoAccess:
+            return PROT_NONE;
+        case PageAccess::kReadOnly:
+            return PROT_READ;
+        case PageAccess::kReadWrite:
+            return PROT_READ | PROT_WRITE;
+        case PageAccess::kExecuteReadOnly:
+            return PROT_READ | PROT_EXEC;
+        case PageAccess::kExecuteReadWrite:
+            return PROT_READ | PROT_WRITE | PROT_EXEC;
+        default:
+            assert_unhandled_case(access);
+            return PROT_NONE;
+    }
 }
 
 bool IsWritableExecutableMemorySupported() { return true; }
 
 void* AllocFixed(void* base_address, size_t length,
                  AllocationType allocation_type, PageAccess access) {
-  // mmap does not support reserve / commit, so ignore allocation_type.
-  uint32_t prot = ToPosixProtectFlags(access);
-  
-  // On ARM64 macOS, we need to ensure the address is properly aligned
-  uintptr_t aligned_addr = reinterpret_cast<uintptr_t>(base_address);
-  size_t page_mask = page_size() - 1;
-  if (aligned_addr & page_mask) {
-    aligned_addr = (aligned_addr + page_mask) & ~page_mask;
-  }
-
-  // For large addresses on ARM64, we need VM_FLAGS_ANYWHERE to allow high memory allocations
-  int flags = MAP_PRIVATE | MAP_ANONYMOUS;
-  if (base_address) {
-    flags |= MAP_FIXED;
-  }
-#if defined(__aarch64__)
-  if (aligned_addr >= 0x100000000ULL) {
-    flags |= VM_FLAGS_ANYWHERE;
-  }
-#endif
-  
-  void* result = mmap(reinterpret_cast<void*>(aligned_addr), length,
-                     prot, flags, -1, 0);
-  if (result == MAP_FAILED) {
-    return nullptr;
-  }
-  return result;
+    // mmap does not support reserve / commit, so ignore allocation_type.
+    uint32_t prot = ToPosixProtectFlags(access);
+    
+    // On ARM64 macOS, we need to ensure the address is properly aligned
+    // to the page size of 16384 bytes.
+    uintptr_t aligned_addr = reinterpret_cast<uintptr_t>(base_address);
+    if (aligned_addr != 0) {
+        aligned_addr = xe::round_up(aligned_addr, page_size());
+    }
+    
+    uint32_t flags = MAP_PRIVATE | MAP_ANONYMOUS;
+    if (access == PageAccess::kExecuteReadWrite) {
+        flags |= MAP_JIT;
+    }
+    
+    void* result = mmap(reinterpret_cast<void*>(aligned_addr), length, prot,
+                        flags, -1, 0);
+    
+    XELOGI("Memory Mapped from 0x{:X} to 0x{:X}", (size_t)result, (size_t)result + (size_t)length - 1);
+    
+    if (result == MAP_FAILED) {
+        XELOGE("Memory Allocation from Address 0x{:X} to 0x{:X} Failed!", (size_t)aligned_addr, (size_t)aligned_addr + length - 1);
+        return nullptr;
+    }
+    return result;
 }
 
 bool DeallocFixed(void* base_address, size_t length,
                   DeallocationType deallocation_type) {
-  return munmap(base_address, length) == 0;
+    return munmap(base_address, length) == 0;
 }
 
 bool Protect(void* base_address, size_t length, PageAccess access,
              PageAccess* out_old_access) {
-  // Linux does not have a syscall to query memory permissions.
-  assert_null(out_old_access);
-
-  uint32_t prot = ToPosixProtectFlags(access);
-  return mprotect(base_address, length, prot) == 0;
+    // Linux does not have a syscall to query memory permissions.
+    assert_null(out_old_access);
+    
+    uint32_t prot = ToPosixProtectFlags(access);
+    return mprotect(base_address, length, prot) == 0;
 }
 
 bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
-  return false;
+    return false;
 }
 
 FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path,
                                           size_t length, PageAccess access,
                                           bool commit) {
 #if XE_PLATFORM_ANDROID
-  // TODO(Triang3l): Check if memfd can be used instead on API 30+.
-  if (android_ASharedMemory_create_) {
-    int sharedmem_fd = android_ASharedMemory_create_(path.c_str(), length);
-    return sharedmem_fd >= 0 ? sharedmem_fd : kFileMappingHandleInvalid;
-  }
-
-  // Use /dev/ashmem on API versions below 26, which added ASharedMemory.
-  // /dev/ashmem was disabled on API 29 for apps targeting it.
-  // https://chromium.googlesource.com/chromium/src/+/master/third_party/ashmem/ashmem-dev.c
-  int ashmem_fd = open("/" ASHMEM_NAME_DEF, O_RDWR);
-  if (ashmem_fd < 0) {
-    return kFileMappingHandleInvalid;
-  }
-  char ashmem_name[ASHMEM_NAME_LEN];
-  strlcpy(ashmem_name, path.c_str(), xe::countof(ashmem_name));
-  if (ioctl(ashmem_fd, ASHMEM_SET_NAME, ashmem_name) < 0 ||
-      ioctl(ashmem_fd, ASHMEM_SET_SIZE, length) < 0) {
-    close(ashmem_fd);
-    return kFileMappingHandleInvalid;
-  }
-  return ashmem_fd;
+    // TODO(Triang3l): Check if memfd can be used instead on API 30+.
+    if (android_ASharedMemory_create_) {
+        int sharedmem_fd = android_ASharedMemory_create_(path.c_str(), length);
+        return sharedmem_fd >= 0 ? sharedmem_fd : kFileMappingHandleInvalid;
+    }
+    
+    // Use /dev/ashmem on API versions below 26, which added ASharedMemory.
+    // /dev/ashmem was disabled on API 29 for apps targeting it.
+    // https://chromium.googlesource.com/chromium/src/+/master/third_party/ashmem/ashmem-dev.c
+    int ashmem_fd = open("/" ASHMEM_NAME_DEF, O_RDWR);
+    if (ashmem_fd < 0) {
+        return kFileMappingHandleInvalid;
+    }
+    char ashmem_name[ASHMEM_NAME_LEN];
+    strlcpy(ashmem_name, path.c_str(), xe::countof(ashmem_name));
+    if (ioctl(ashmem_fd, ASHMEM_SET_NAME, ashmem_name) < 0 ||
+        ioctl(ashmem_fd, ASHMEM_SET_SIZE, length) < 0) {
+        close(ashmem_fd);
+        return kFileMappingHandleInvalid;
+    }
+    return ashmem_fd;
 #else
-  int oflag;
-  switch (access) {
-    case PageAccess::kNoAccess:
-      oflag = 0;
-      break;
-    case PageAccess::kReadOnly:
-    case PageAccess::kExecuteReadOnly:
-      oflag = O_RDONLY;
-      break;
-    case PageAccess::kReadWrite:
-    case PageAccess::kExecuteReadWrite:
-      oflag = O_RDWR;
-      break;
-    default:
-      assert_always();
-      return kFileMappingHandleInvalid;
-  }
-  oflag |= O_CREAT;
-  auto full_path = "/" / path;
-  int ret = shm_open(full_path.c_str(), oflag, 0777);
-  if (ret < 0) {
-    return kFileMappingHandleInvalid;
-  }
+    int oflag;
+    switch (access) {
+        case PageAccess::kNoAccess:
+            oflag = 0;
+            break;
+        case PageAccess::kReadOnly:
+        case PageAccess::kExecuteReadOnly:
+            oflag = O_RDONLY;
+            break;
+        case PageAccess::kReadWrite:
+        case PageAccess::kExecuteReadWrite:
+            oflag = O_RDWR;
+            break;
+        default:
+            assert_always();
+            return kFileMappingHandleInvalid;
+    }
+    oflag |= O_CREAT;
+    auto full_path = "/" / path;
+    int ret = shm_open(full_path.c_str(), oflag, 0777);
+    if (ret < 0) {
+        return kFileMappingHandleInvalid;
+    }
 #ifdef __APPLE__
     ftruncate(ret, length);
 #else
-  ftruncate64(ret, length);
+    ftruncate64(ret, length);
 #endif
-  return ret;
+    return ret;
 #endif
 }
 
 void CloseFileMappingHandle(FileMappingHandle handle,
                             const std::filesystem::path& path) {
-  close(handle);
+    close(handle);
 #if !XE_PLATFORM_ANDROID
-  auto full_path = "/" / path;
-  shm_unlink(full_path.c_str());
+    auto full_path = "/" / path;
+    shm_unlink(full_path.c_str());
 #endif
 }
 
 void* MapFileView(FileMappingHandle handle, void* base_address, size_t length,
                   PageAccess access, size_t file_offset) {
-  // On ARM64 macOS, we need to ensure proper alignment
-  uintptr_t aligned_addr = reinterpret_cast<uintptr_t>(base_address);
-  if (aligned_addr != 0) {
-    aligned_addr = xe::round_up(aligned_addr, page_size());
-  }
-  
-  void* result = mmap(reinterpret_cast<void*>(aligned_addr), length,
-                     ToPosixProtectFlags(access),
-                     MAP_SHARED | (base_address ? MAP_FIXED : 0),
-                     reinterpret_cast<int>(handle),
-                     file_offset);
-  
-  if (result == MAP_FAILED) {
-    return nullptr;
-  }
-  return result;
+    // On ARM64 macOS, we need to ensure proper alignment
+    uintptr_t aligned_addr = reinterpret_cast<uintptr_t>(base_address);
+    if (aligned_addr != 0) {
+        aligned_addr = xe::round_up(aligned_addr, page_size());
+    }
+    
+    int flags = MAP_SHARED | (base_address ? MAP_FIXED : 0);
+    void* result = mmap(reinterpret_cast<void*>(aligned_addr), length,
+                        ToPosixProtectFlags(access),
+                        flags,
+                        reinterpret_cast<int>(handle),
+                        file_offset);
+    
+    if (result == MAP_FAILED) {
+//        XELOGE("Shared Memory Object {} Mapping Failed", (int)handle, (size_t)result, (size_t)result + length);
+        int err = errno;  // Capture errno as soon as possible
+        std::cerr << "Shared Memory Object " << (int)handle
+                  << " Mapping Failed: " << strerror(err) << " (errno: " << err << ")\n";
+        return nullptr;
+    }
+    
+    XELOGI("Shared Memory Object {} Mapped from 0x{:X} to 0x{:X}", (int)handle, (size_t)result, (size_t)result + length);
+    
+    return result;
 }
 
 bool UnmapFileView(FileMappingHandle handle, void* base_address,
                    size_t length) {
-  return munmap(base_address, length) == 0;
+    return munmap(base_address, length) == 0;
 }
 
 }  // namespace memory
