@@ -7,6 +7,7 @@
  ******************************************************************************
  */
 
+#include <mach/mach_time.h>
 #include <sys/time.h>
 
 #include "xenia/base/assert.h"
@@ -15,45 +16,45 @@
 namespace xe {
 
 uint64_t Clock::host_tick_frequency_platform() {
-  timespec res;
-  int error = clock_getres(CLOCK_MONOTONIC_RAW, &res);
-  assert_zero(error);
-  assert_zero(res.tv_sec);  // Sub second resolution is required.
-
-  // Convert nano seconds to hertz. Resolution is 1ns on most systems.
-  return 1000000000ull / res.tv_nsec;
+  mach_timebase_info_data_t info;
+  mach_timebase_info(&info);
+  // Convert the timebase info to frequency in Hz.
+  return (uint64_t)((1e9 * (uint64_t)info.denom) / (uint64_t)info.numer);
 }
 
 uint64_t Clock::host_tick_count_platform() {
-  timespec tp;
-  int error = clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
-  assert_zero(error);
-
-  return tp.tv_nsec + tp.tv_sec * 1000000000ull;
+  return mach_absolute_time();
 }
 
 uint64_t Clock::QueryHostSystemTime() {
-  // https://docs.microsoft.com/en-us/windows/win32/sysinfo/converting-a-time-t-value-to-a-file-time
+  // Number of days from 1601-01-01 to 1970-01-01
   constexpr uint64_t seconds_per_day = 3600 * 24;
-  // Don't forget the 89 leap days.
-  constexpr uint64_t seconds_1601_to_1970 =
-      ((396 * 365 + 89) * seconds_per_day);
+  constexpr uint64_t days_per_year = 365;
+  constexpr uint64_t years = 369;  // 1970 - 1601
+  constexpr uint64_t leap_days = 89;
+  constexpr uint64_t days = years * days_per_year + leap_days;
+  constexpr uint64_t seconds_1601_to_1970 = days * seconds_per_day;
 
   timeval now;
   int error = gettimeofday(&now, nullptr);
   assert_zero(error);
 
-  // NT systems use 100ns intervals.
-  uint64_t filetime = static_cast<uint64_t>(
-      static_cast<int64_t>(now.tv_sec) * 10000000ull +
-      now.tv_usec * 10);
-  
-  // Add the epoch difference in 100ns intervals
-  return filetime + seconds_1601_to_1970 * 10000000ull;
+  // Total seconds since 1601-01-01
+  uint64_t total_seconds = seconds_1601_to_1970 + now.tv_sec;
+
+  // Convert to 100ns intervals
+  uint64_t filetime =
+      total_seconds * 10000000ull + static_cast<uint64_t>(now.tv_usec) * 10ull;
+
+  return filetime;
 }
 
 uint64_t Clock::QueryHostUptimeMillis() {
-  return host_tick_count_platform() * 1000 / host_tick_frequency_platform();
+  uint64_t ticks = host_tick_count_platform();
+  uint64_t frequency = host_tick_frequency_platform();
+
+  // Convert ticks to milliseconds
+  return (ticks * 1000ull) / frequency;
 }
 
 }  // namespace xe
