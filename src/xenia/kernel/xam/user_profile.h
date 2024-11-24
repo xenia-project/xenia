@@ -160,6 +160,8 @@ class UserProfile {
   uint32_t signin_state() const { return 1; }
   uint32_t type() const { return 1 | 2; /* local | online profile? */ }
 
+  uint32_t GetCachedFlags() const { return account_info_.GetCachedFlags(); };
+
   void AddSetting(std::unique_ptr<UserSetting> setting);
   UserSetting* GetSetting(uint32_t setting_id);
 

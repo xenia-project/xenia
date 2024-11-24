@@ -707,6 +707,29 @@ dword_result_t XamUserGetSubscriptionType_entry(dword_t user_index,
 }
 DECLARE_XAM_EXPORT1(XamUserGetSubscriptionType, kUserProfiles, kStub);
 
+dword_result_t XamUserGetUserFlags_entry(dword_t user_index) {
+  if (!kernel_state()->xam_state()->IsUserSignedIn(user_index)) {
+    return 0;
+  }
+
+  const auto& user_profile =
+      kernel_state()->xam_state()->GetUserProfile(user_index);
+
+  return user_profile->GetCachedFlags();
+}
+DECLARE_XAM_EXPORT1(XamUserGetUserFlags, kUserProfiles, kImplemented);
+
+dword_result_t XamUserGetUserFlagsFromXUID_entry(qword_t xuid) {
+  if (!kernel_state()->xam_state()->IsUserSignedIn(xuid)) {
+    return 0;
+  }
+
+  const auto& user_profile = kernel_state()->xam_state()->GetUserProfile(xuid);
+
+  return user_profile->GetCachedFlags();
+}
+DECLARE_XAM_EXPORT1(XamUserGetUserFlagsFromXUID, kUserProfiles, kImplemented);
+
 constexpr uint8_t kStatsMaxAmount = 64;
 
 struct X_STATS_DETAILS {
