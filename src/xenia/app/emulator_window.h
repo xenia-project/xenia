@@ -249,6 +249,8 @@ class EmulatorWindow {
   void AddRecentlyLaunchedTitle(std::filesystem::path path_to_file,
                                 std::string title_name);
 
+  void ClearDialogs();
+
   Emulator* emulator_;
   ui::WindowedAppContext& app_context_;
   EmulatorWindowListener window_listener_;
