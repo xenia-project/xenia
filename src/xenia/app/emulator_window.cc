@@ -263,7 +263,7 @@ void EmulatorWindow::OnEmulatorInitialized() {
   if (!emulator_->kernel_state()
            ->xam_state()
            ->profile_manager()
-           ->GetProfilesCount()) {
+           ->GetAccountCount()) {
     new NoProfileDialog(imgui_drawer_.get(), this);
     disable_hotkeys_ = true;
   }

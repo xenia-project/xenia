@@ -1051,7 +1051,6 @@ class SigninDialog : public XamDialog {
     if (ImGui::BeginPopupModal(title_.c_str(), nullptr,
                                ImGuiWindowFlags_AlwaysAutoResize)) {
       auto profile_manager = kernel_state()->xam_state()->profile_manager();
-      auto profiles = profile_manager->GetProfiles();
 
       for (uint32_t i = 0; i < users_needed_; i++) {
         ImGui::BeginGroup();
@@ -1136,12 +1135,12 @@ class SigninDialog : public XamDialog {
         // Draw profile badge.
         uint8_t slot = chosen_slots_[i];
         uint64_t xuid = chosen_xuids_[i];
+        const auto account = profile_manager->GetAccount(xuid);
 
-        if (slot == 0xFF || xuid == 0 || profiles->count(xuid) == 0) {
+        if (slot == 0xFF || xuid == 0 || !account) {
           float ypos = ImGui::GetCursorPosY();
           ImGui::SetCursorPosY(ypos + ImGui::GetTextLineHeight() * 5);
         } else {
-          const X_XAMACCOUNTINFO* account = &profiles->at(xuid);
           xeDrawProfileContent(imgui_drawer(), xuid, slot, account, nullptr);
         }
 
@@ -1229,7 +1228,7 @@ class SigninDialog : public XamDialog {
 
   void ReloadProfiles(bool first_draw) {
     auto profile_manager = kernel_state()->xam_state()->profile_manager();
-    auto profiles = profile_manager->GetProfiles();
+    auto profiles = profile_manager->GetAccounts();
 
     profile_data_.clear();
     for (auto& [xuid, account] : *profiles) {

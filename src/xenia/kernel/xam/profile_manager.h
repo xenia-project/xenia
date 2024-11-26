@@ -103,9 +103,12 @@ class ProfileManager {
   UserProfile* GetProfile(const uint8_t user_index) const;
   uint8_t GetUserIndexAssignedToProfile(const uint64_t xuid) const;
 
-  std::map<uint64_t, X_XAMACCOUNTINFO>* GetProfiles() { return &accounts_; }
+  const std::map<uint64_t, X_XAMACCOUNTINFO>* GetAccounts() {
+    return &accounts_;
+  }
+  const X_XAMACCOUNTINFO* GetAccount(const uint64_t xuid);
 
-  uint32_t GetProfilesCount() const {
+  uint32_t GetAccountCount() const {
     return static_cast<uint32_t>(accounts_.size());
   }
   bool IsAnyProfileSignedIn() const { return !logged_profiles_.empty(); }

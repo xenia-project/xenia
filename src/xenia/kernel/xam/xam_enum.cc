@@ -137,10 +137,10 @@ dword_result_t XamProfileCreateEnumerator_entry(dword_t device_id,
     return result;
   }
 
-  const auto& profiles =
-      kernel_state()->xam_state()->profile_manager()->GetProfiles();
+  const auto& accounts =
+      kernel_state()->xam_state()->profile_manager()->GetAccounts();
 
-  for (const auto& [xuid, account] : *profiles) {
+  for (const auto& [xuid, account] : *accounts) {
     X_PROFILEENUMRESULT* profile = e->AppendItem();
 
     profile->xuid_offline = xuid;

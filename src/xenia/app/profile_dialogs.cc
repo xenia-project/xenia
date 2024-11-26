@@ -57,7 +57,7 @@ void CreateProfileDialog::OnDraw(ImGuiIO& io) {
 
   ImGui::BeginDisabled(!valid);
   if (ImGui::Button("Create")) {
-    bool autologin = (profile_manager->GetProfilesCount() == 0);
+    bool autologin = (profile_manager->GetAccountCount() == 0);
     if (profile_manager->CreateProfile(gamertag_string, autologin,
                                        migration_) &&
         migration_) {
@@ -89,7 +89,7 @@ void NoProfileDialog::OnDraw(ImGuiIO& io) {
                              ->xam_state()
                              ->profile_manager();
 
-  if (profile_manager->GetProfilesCount()) {
+  if (profile_manager->GetAccountCount()) {
     delete this;
     return;
   }
@@ -164,7 +164,7 @@ void ProfileConfigDialog::OnDraw(ImGuiIO& io) {
     return;
   }
 
-  auto profiles = profile_manager->GetProfiles();
+  auto profiles = profile_manager->GetAccounts();
 
   ImGui::SetNextWindowPos(ImVec2(40, 40), ImGuiCond_FirstUseEver);
   ImGui::SetNextWindowBgAlpha(0.8f);
