@@ -625,6 +625,27 @@ dword_result_t XamUserCreateAchievementEnumerator_entry(
 DECLARE_XAM_EXPORT1(XamUserCreateAchievementEnumerator, kUserProfiles,
                     kSketchy);
 
+dword_result_t XamUserCreateTitlesPlayedEnumerator_entry(
+    dword_t title_id, dword_t user_index, qword_t xuid, dword_t starting_index,
+    dword_t game_count, lpdword_t buffer_size_ptr, lpdword_t handle_ptr) {
+  if (user_index >= XUserMaxUserCount && game_count != 0 && !buffer_size_ptr &&
+      !handle_ptr) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+  if (!kernel_state()->xam_state()->IsUserSignedIn(user_index)) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  // auto e = new XStaticEnumerator<X_XDBF_GPD_TITLEPLAYED>(kernel_state(),
+  // game_count); auto result = e->Initialize(user_index, 0xFB, 0xB0050,
+  // 0xB000B, 0x20, game_count, 0);
+
+  XELOGD("XamUserCreateTitlesPlayedEnumerator: Stubbed");
+
+  return X_ERROR_FUNCTION_FAILED;
+}
+DECLARE_XAM_EXPORT1(XamUserCreateTitlesPlayedEnumerator, kUserProfiles, kStub);
+
 dword_result_t XamParseGamerTileKey_entry(lpdword_t key_ptr, lpdword_t out1_ptr,
                                           lpdword_t out2_ptr,
                                           lpdword_t out3_ptr) {
