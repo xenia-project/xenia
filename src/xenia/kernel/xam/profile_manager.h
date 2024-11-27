@@ -89,7 +89,7 @@ class ProfileManager {
   bool MountProfile(const uint64_t xuid);
   bool DismountProfile(const uint64_t xuid);
 
-  void Login(const uint64_t xuid, const uint8_t user_index = -1,
+  void Login(const uint64_t xuid, const uint8_t user_index = XUserIndexAny,
              bool notify = true);
   void Logout(const uint8_t user_index, bool notify = true);
   void LoginMultiple(const std::map<uint8_t, uint64_t>& profiles);

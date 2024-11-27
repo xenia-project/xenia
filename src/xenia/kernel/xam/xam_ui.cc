@@ -1251,7 +1251,7 @@ class SigninDialog : public XamDialog {
         uint64_t xuid = elem.first;
         uint8_t slot = profile_manager->GetUserIndexAssignedToProfile(xuid);
         for (uint32_t j = 0; j < users_needed_; j++) {
-          if (chosen_slots_[j] != 0xFF && slot == chosen_slots_[j]) {
+          if (chosen_slots_[j] != XUserIndexAny && slot == chosen_slots_[j]) {
             chosen_xuids_[j] = xuid;
           }
         }
