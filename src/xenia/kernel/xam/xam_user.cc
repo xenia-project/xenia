@@ -65,6 +65,24 @@ X_HRESULT_result_t XamUserGetXUID_entry(dword_t user_index, dword_t type_mask,
 }
 DECLARE_XAM_EXPORT1(XamUserGetXUID, kUserProfiles, kImplemented);
 
+dword_result_t XamUserGetIndexFromXUID_entry(qword_t xuid, dword_t flags,
+                                             pointer_t<uint32_t> index) {
+  if (!index) {
+    return X_E_INVALIDARG;
+  }
+
+  auto profile_manager = kernel_state()->xam_state()->profile_manager();
+  const uint8_t user_index =
+      profile_manager->GetUserIndexAssignedToProfile(xuid);
+  if (user_index == XUserIndexAny) {
+    return X_E_NO_SUCH_USER;
+  }
+
+  *index = user_index;
+  return X_E_SUCCESS;
+}
+DECLARE_XAM_EXPORT1(XamUserGetIndexFromXUID, kUserProfiles, kImplemented);
+
 dword_result_t XamUserGetSigninState_entry(dword_t user_index) {
   // Yield, as some games spam this.
   xe::threading::MaybeYield();
