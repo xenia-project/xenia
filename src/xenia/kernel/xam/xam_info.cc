@@ -259,24 +259,36 @@ uint32_t xeXGetGameRegion() {
 dword_result_t XGetGameRegion_entry() { return xeXGetGameRegion(); }
 DECLARE_XAM_EXPORT1(XGetGameRegion, kNone, kStub);
 
-dword_result_t XGetLanguage_entry() {
+XLanguage xeGetLanguage(bool extended_languages_support) {
   auto desired_language = static_cast<XLanguage>(cvars::user_language);
+  uint32_t region = xeXGetGameRegion();
+  auto max_languages = extended_languages_support ? XLanguage::kMaxLanguages
+                                                  : XLanguage::kSChinese;
+  if (desired_language < max_languages) {
+    return desired_language;
+  }
+  if ((region & 0xff00) != 0x100) {
+    return XLanguage::kEnglish;
+  }
+  switch (region) {
+    case 0x101:  // NTSC-J (Japan)
+      return XLanguage::kJapanese;
+    case 0x102:  // NTSC-J (China)
+      return extended_languages_support ? XLanguage::kSChinese
+                                        : XLanguage::kEnglish;
+    default:
+      return XLanguage::kKorean;
+  }
+}
 
-  // Switch the language based on game region.
-  // TODO(benvanik): pull from xex header.
-  /* uint32_t game_region = XEX_REGION_NTSCU;
-  if (game_region & XEX_REGION_NTSCU) {
-    desired_language = XLanguage::kEnglish;
-  } else if (game_region & XEX_REGION_NTSCJ) {
-    desired_language = XLanguage::kJapanese;
-  }*/
-  // Add more overrides?
-
-  return uint32_t(desired_language);
+dword_result_t XGetLanguage_entry() {
+  return static_cast<uint32_t>(xeGetLanguage(false));
 }
 DECLARE_XAM_EXPORT1(XGetLanguage, kNone, kImplemented);
 
-dword_result_t XamGetLanguage_entry() { return cvars::user_language; }
+dword_result_t XamGetLanguage_entry() {
+  return static_cast<uint32_t>(xeGetLanguage(true));
+}
 DECLARE_XAM_EXPORT1(XamGetLanguage, kNone, kImplemented);
 
 dword_result_t XamGetCurrentTitleId_entry() {
