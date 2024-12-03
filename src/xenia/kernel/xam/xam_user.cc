@@ -71,15 +71,18 @@ dword_result_t XamUserGetIndexFromXUID_entry(qword_t xuid, dword_t flags,
     return X_E_INVALIDARG;
   }
 
-  auto profile_manager = kernel_state()->xam_state()->profile_manager();
-  const uint8_t user_index =
-      profile_manager->GetUserIndexAssignedToProfile(xuid);
+  const uint8_t user_index = kernel_state()
+                                 ->xam_state()
+                                 ->profile_manager()
+                                 ->GetUserIndexAssignedToProfile(xuid);
+
   if (user_index == XUserIndexAny) {
     return X_E_NO_SUCH_USER;
   }
 
   *index = user_index;
-  return X_E_SUCCESS;
+
+  return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamUserGetIndexFromXUID, kUserProfiles, kImplemented);
 
