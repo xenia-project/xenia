@@ -788,18 +788,29 @@ X_STATUS Emulator::InstallContentPackage(
   const vfs::XContentContainerDevice* dev =
       (vfs::XContentContainerDevice*)device.get();
 
+  // Always install savefiles to user signed to slot 0.
+  const auto profile =
+      kernel_state_->xam_state()->profile_manager()->GetProfile(
+          static_cast<uint8_t>(0));
+
+  uint64_t xuid = dev->xuid();
+  if (dev->content_type() == static_cast<uint32_t>(XContentType::kSavedGame) &&
+      profile) {
+    xuid = profile->xuid();
+  }
+
   std::filesystem::path installation_path =
-      content_root() / fmt::format("{:016X}", dev->xuid()) /
+      content_root() / fmt::format("{:016X}", xuid) /
       fmt::format("{:08X}", dev->title_id()) /
       fmt::format("{:08X}", dev->content_type()) / path.filename();
 
   std::filesystem::path header_path =
-      content_root() / fmt::format("{:016X}", dev->xuid()) /
+      content_root() / fmt::format("{:016X}", xuid) /
       fmt::format("{:08X}", dev->title_id()) / "Headers" /
       fmt::format("{:08X}", dev->content_type()) / path.filename();
 
   installation_info.installation_path =
-      fmt::format("{:016X}/{:08X}/{:08X}/{}", dev->xuid(), dev->title_id(),
+      fmt::format("{:016X}/{:08X}/{:08X}/{}", xuid, dev->title_id(),
                   dev->content_type(), xe::path_to_utf8(path.filename()));
 
   installation_info.content_name =
