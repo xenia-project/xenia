@@ -75,6 +75,20 @@ struct XdbfStringTableEntry {
 };
 static_assert_size(XdbfStringTableEntry, 4);
 
+struct XdbfTitleHeaderData {
+  xe::be<uint32_t> title_id;
+  xe::be<uint32_t> title_type;
+  xe::be<uint16_t> major;
+  xe::be<uint16_t> minor;
+  xe::be<uint16_t> build;
+  xe::be<uint16_t> revision;
+  xe::be<uint32_t> padding_0;
+  xe::be<uint32_t> padding_1;
+  xe::be<uint32_t> padding_2;
+  xe::be<uint32_t> padding_3;
+};
+static_assert_size(XdbfTitleHeaderData, 32);
+
 struct XdbfContextTableEntry {
   xe::be<uint32_t> id;
   xe::be<uint16_t> unk1;
@@ -183,6 +197,7 @@ class XdbfWrapper {
   std::vector<XdbfPropertyTableEntry> GetProperties() const;
   std::vector<XdbfContextTableEntry> GetContexts() const;
 
+  XdbfTitleHeaderData GetTitleInformation() const;
   XdbfAchievementTableEntry GetAchievement(const uint32_t id) const;
   XdbfPropertyTableEntry GetProperty(const uint32_t id) const;
   XdbfContextTableEntry GetContext(const uint32_t id) const;
