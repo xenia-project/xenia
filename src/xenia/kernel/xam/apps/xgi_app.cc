@@ -102,7 +102,8 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
           (X_XUSER_ACHIEVEMENT*)memory_->TranslateVirtual(achievements_ptr);
       for (uint32_t i = 0; i < achievement_count; i++, achievement++) {
         kernel_state_->achievement_manager()->EarnAchievement(
-            achievement->user_idx, 0, achievement->achievement_id);
+            achievement->user_idx, kernel_state_->title_id(),
+            achievement->achievement_id);
       }
       return X_E_SUCCESS;
     }

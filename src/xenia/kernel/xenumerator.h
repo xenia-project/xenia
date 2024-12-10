@@ -124,8 +124,8 @@ class XAchievementEnumerator : public XEnumerator {
     uint32_t image_id;
     uint32_t gamerscore;
     struct {
-      uint32_t unk_0;
-      uint32_t unk_4;
+      uint32_t high_part;
+      uint32_t low_part;
     } unlock_time;
     uint32_t flags;
   };

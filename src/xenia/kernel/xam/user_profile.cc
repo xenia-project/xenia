@@ -232,6 +232,31 @@ Property* UserProfile::GetProperty(const AttributeKey id) {
   return nullptr;
 }
 
+AchievementGpdStructure* UserProfile::GetAchievement(const uint32_t title_id,
+                                                     const uint32_t id) {
+  auto title_achievements = achievements_.find(title_id);
+  if (title_achievements == achievements_.end()) {
+    return nullptr;
+  }
+
+  for (auto& entry : title_achievements->second) {
+    if (entry.achievement_id == id) {
+      return &entry;
+    }
+  }
+  return nullptr;
+}
+
+std::vector<AchievementGpdStructure>* UserProfile::GetTitleAchievements(
+    const uint32_t title_id) {
+  auto title_achievements = achievements_.find(title_id);
+  if (title_achievements == achievements_.end()) {
+    return nullptr;
+  }
+
+  return &title_achievements->second;
+}
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe

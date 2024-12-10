@@ -43,6 +43,7 @@
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/gameinfo_utils.h"
 #include "xenia/kernel/util/xdbf_utils.h"
+#include "xenia/kernel/xam/achievement_manager.h"
 #include "xenia/kernel/xam/xam_module.h"
 #include "xenia/kernel/xbdm/xbdm_module.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
@@ -1516,6 +1517,17 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
       auto icon_block = game_info_database_->GetIcon();
       if (!icon_block.empty()) {
         display_window_->SetIcon(icon_block.data(), icon_block.size());
+      }
+
+      for (uint8_t slot = 0; slot < XUserMaxUserCount; slot++) {
+        auto user =
+            kernel_state_->xam_state()->profile_manager()->GetProfile(slot);
+
+        if (user) {
+          kernel_state_->xam_state()
+              ->achievement_manager()
+              ->LoadTitleAchievements(user->xuid(), db);
+        }
       }
     }
   }

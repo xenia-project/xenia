@@ -106,8 +106,8 @@ uint32_t XAchievementEnumerator::WriteItems(uint32_t buffer_ptr,
         !!(flags_ & 4) ? AppendString(string_buffer, item.unachieved) : 0;
     details[i].image_id = item.image_id;
     details[i].gamerscore = item.gamerscore;
-    details[i].unlock_time.unk_0 = item.unlock_time.unk_0;
-    details[i].unlock_time.unk_4 = item.unlock_time.unk_4;
+    details[i].unlock_time.high_part = item.unlock_time.high_part;
+    details[i].unlock_time.low_part = item.unlock_time.low_part;
     details[i].flags = item.flags;
   }
 

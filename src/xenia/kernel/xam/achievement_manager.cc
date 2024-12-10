@@ -2,12 +2,12 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2023 Ben Vanik. All rights reserved.                             *
+ * Copyright 2024 Xenia Canary. All rights reserved.                          *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#include "achievement_manager.h"
+#include "xenia/kernel/xam/achievement_manager.h"
 #include "xenia/emulator.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/kernel/kernel_state.h"
@@ -17,73 +17,224 @@
 DEFINE_bool(show_achievement_notification, false,
             "Show achievement notification on screen.", "UI");
 
+DEFINE_string(default_achievement_backend, "",
+              "Defines which achievement backend should be used as an default. "
+              "Possible options: [].",
+              "Achievements");
+
 DECLARE_int32(user_language);
 
 namespace xe {
 namespace kernel {
 namespace xam {
 
-AchievementManager::AchievementManager() { unlocked_achievements.clear(); };
+GpdAchievementBackend::GpdAchievementBackend() {}
+GpdAchievementBackend::~GpdAchievementBackend() {}
 
-void AchievementManager::EarnAchievement(uint64_t xuid, uint32_t title_id,
-                                         uint32_t achievement_id) {
-  if (IsAchievementUnlocked(achievement_id)) {
+void GpdAchievementBackend::EarnAchievement(const uint64_t xuid,
+                                            const uint32_t title_id,
+                                            const uint32_t achievement_id) {
+  const auto user = kernel_state()->xam_state()->GetUserProfile(xuid);
+  if (!user) {
     return;
   }
 
-  const Emulator* emulator = kernel_state()->emulator();
-  ui::WindowedAppContext& app_context =
-      kernel_state()->emulator()->display_window()->app_context();
-  ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
+  auto achievement = GetAchievementInfoInternal(xuid, title_id, achievement_id);
+  if (!achievement) {
+    return;
+  }
 
+  XELOGI("Player: {} Unlocked Achievement: {}", user->name(),
+         xe::to_utf8(xe::load_and_swap<std::u16string>(
+             achievement->achievement_name.c_str())));
+
+  const uint64_t unlock_time = Clock::QueryHostSystemTime();
+  achievement->flags =
+      achievement->flags | static_cast<uint32_t>(AchievementFlags::kAchieved);
+  achievement->unlock_time.high_part = static_cast<uint32_t>(unlock_time >> 32);
+  achievement->unlock_time.low_part = static_cast<uint32_t>(unlock_time);
+
+  SaveAchievementData(xuid, title_id, achievement_id);
+}
+
+AchievementGpdStructure* GpdAchievementBackend::GetAchievementInfoInternal(
+    const uint64_t xuid, const uint32_t title_id,
+    const uint32_t achievement_id) const {
+  const auto user = kernel_state()->xam_state()->GetUserProfile(xuid);
+  if (!user) {
+    return nullptr;
+  }
+
+  return user->GetAchievement(title_id, achievement_id);
+}
+
+const AchievementGpdStructure* GpdAchievementBackend::GetAchievementInfo(
+    const uint64_t xuid, const uint32_t title_id,
+    const uint32_t achievement_id) const {
+  return GetAchievementInfoInternal(xuid, title_id, achievement_id);
+}
+
+bool GpdAchievementBackend::IsAchievementUnlocked(
+    const uint64_t xuid, const uint32_t title_id,
+    const uint32_t achievement_id) const {
+  const auto achievement =
+      GetAchievementInfoInternal(xuid, title_id, achievement_id);
+
+  return (achievement->flags &
+          static_cast<uint32_t>(AchievementFlags::kAchieved)) != 0;
+}
+
+const std::vector<AchievementGpdStructure>*
+GpdAchievementBackend::GetTitleAchievements(const uint64_t xuid,
+                                            const uint32_t title_id) const {
+  const auto user = kernel_state()->xam_state()->GetUserProfile(xuid);
+  if (!user) {
+    return {};
+  }
+
+  return user->GetTitleAchievements(title_id);
+}
+
+bool GpdAchievementBackend::LoadAchievementsData(
+    const uint64_t xuid, const util::XdbfGameData title_data) {
+  auto user = kernel_state()->xam_state()->GetUserProfile(xuid);
+  if (!user) {
+    return false;
+  }
+
+  // Question. Should loading for GPD for profile be directly done by profile or
+  // here?
+  if (!title_data.is_valid()) {
+    return false;
+  }
+
+  const auto achievements = title_data.GetAchievements();
+  if (achievements.empty()) {
+    return true;
+  }
+
+  const auto title_id = title_data.GetTitleInformation().title_id;
+
+  const XLanguage title_language = title_data.GetExistingLanguage(
+      static_cast<XLanguage>(cvars::user_language));
+  for (const auto& achievement : achievements) {
+    AchievementGpdStructure achievementData(title_language, title_data,
+                                            achievement);
+    user->achievements_[title_id].push_back(achievementData);
+  }
+
+  // TODO(Gliniak): Here should be loader of GPD file for loaded title. That way
+  // we can load flags and unlock_time from specific user.
+  return true;
+}
+
+bool GpdAchievementBackend::SaveAchievementData(const uint64_t xuid,
+                                                const uint32_t title_id,
+                                                const uint32_t achievement_id) {
+  return true;
+}
+
+AchievementManager::AchievementManager() {
+  default_achievements_backend_ = std::make_unique<GpdAchievementBackend>();
+
+  // Add any optional backend here.
+};
+void AchievementManager::EarnAchievement(const uint32_t user_index,
+                                         const uint32_t title_id,
+                                         const uint32_t achievement_id) const {
+  const auto user = kernel_state()->xam_state()->GetUserProfile(user_index);
+  if (!user) {
+    return;
+  }
+
+  EarnAchievement(user->xuid(), title_id, achievement_id);
+};
+
+void AchievementManager::EarnAchievement(const uint64_t xuid,
+                                         const uint32_t title_id,
+                                         const uint32_t achievement_id) const {
+  if (!DoesAchievementExist(achievement_id)) {
+    XELOGW(
+        "{}: Achievement with ID: {} for title: {:08X} doesn't exist in "
+        "database!",
+        __func__, achievement_id, title_id);
+    return;
+  }
+  // Always send request to unlock in 3PP backends. It's up to them to check if
+  // achievement was unlocked
+  for (auto& backend : achievement_backends_) {
+    backend->EarnAchievement(xuid, title_id, achievement_id);
+  }
+
+  if (default_achievements_backend_->IsAchievementUnlocked(xuid, title_id,
+                                                           achievement_id)) {
+    return;
+  }
+
+  default_achievements_backend_->EarnAchievement(xuid, title_id,
+                                                 achievement_id);
+
+  if (!cvars::show_achievement_notification) {
+    return;
+  }
+
+  const auto achievement = default_achievements_backend_->GetAchievementInfo(
+      xuid, title_id, achievement_id);
+
+  if (!achievement) {
+    // Something went really wrong!
+    return;
+  }
+  ShowAchievementEarnedNotification(achievement);
+}
+
+void AchievementManager::LoadTitleAchievements(
+    const uint64_t xuid, const util::XdbfGameData title_data) const {
+  default_achievements_backend_->LoadAchievementsData(xuid, title_data);
+}
+
+const AchievementGpdStructure* AchievementManager::GetAchievementInfo(
+    const uint64_t xuid, const uint32_t title_id,
+    const uint32_t achievement_id) const {
+  return default_achievements_backend_->GetAchievementInfo(xuid, title_id,
+                                                           achievement_id);
+}
+
+const std::vector<AchievementGpdStructure>*
+AchievementManager::GetTitleAchievements(const uint64_t xuid,
+                                         const uint32_t title_id) const {
+  return default_achievements_backend_->GetTitleAchievements(xuid, title_id);
+}
+
+bool AchievementManager::DoesAchievementExist(
+    const uint32_t achievement_id) const {
   const util::XdbfGameData title_xdbf = kernel_state()->title_xdbf();
   const util::XdbfAchievementTableEntry achievement =
       title_xdbf.GetAchievement(achievement_id);
 
   if (!achievement.id) {
-    return;
+    return false;
   }
+  return true;
+}
 
-  const XLanguage title_language = title_xdbf.GetExistingLanguage(
-      static_cast<XLanguage>(cvars::user_language));
-
-  const std::string label =
-      title_xdbf.GetStringTableEntry(title_language, achievement.label_id);
-  const std::string desc = title_xdbf.GetStringTableEntry(
-      title_language, achievement.description_id);
-
-  XELOGI("Achievement unlocked: {}", label);
-
-  unlocked_achievements[achievement_id] = Clock::QueryHostSystemTime();
-  // Even if we disable popup we still should store info that this
-  // achievement was earned.
-  if (!cvars::show_achievement_notification) {
-    return;
-  }
-
+void AchievementManager::ShowAchievementEarnedNotification(
+    const AchievementGpdStructure* achievement) const {
   const std::string description =
-      fmt::format("{}G - {}", achievement.gamerscore, label);
+      fmt::format("{}G - {}", achievement->gamerscore,
+                  xe::to_utf8(xe::load_and_swap<std::u16string>(
+                      achievement->achievement_name.c_str())));
+
+  const Emulator* emulator = kernel_state()->emulator();
+  ui::WindowedAppContext& app_context =
+      emulator->display_window()->app_context();
+  ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
 
   app_context.CallInUIThread([imgui_drawer, description]() {
     new xe::ui::AchievementNotificationWindow(
         imgui_drawer, "Achievement unlocked", description, 0,
         kernel_state()->notification_position_);
   });
-}
-
-bool AchievementManager::IsAchievementUnlocked(uint32_t achievement_id) {
-  auto itr = unlocked_achievements.find(achievement_id);
-
-  return itr != unlocked_achievements.cend();
-}
-
-uint64_t AchievementManager::GetAchievementUnlockTime(uint32_t achievement_id) {
-  auto itr = unlocked_achievements.find(achievement_id);
-  if (itr == unlocked_achievements.cend()) {
-    return 0;
-  }
-
-  return itr->second;
 }
 
 }  // namespace xam

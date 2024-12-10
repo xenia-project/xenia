@@ -13,6 +13,7 @@
 #include <memory>
 #include <string>
 
+#include "xenia/app/profile_dialogs.h"
 #include "xenia/emulator.h"
 #include "xenia/gpu/command_processor.h"
 #include "xenia/ui/imgui_dialog.h"
@@ -24,8 +25,6 @@
 #include "xenia/ui/window_listener.h"
 #include "xenia/ui/windowed_app_context.h"
 #include "xenia/xbox.h"
-
-#include "xenia/app/profile_dialogs.h"
 
 namespace xe {
 namespace app {

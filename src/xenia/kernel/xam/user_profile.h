@@ -19,6 +19,7 @@
 #include "xenia/base/byte_stream.h"
 #include "xenia/kernel/util/property.h"
 #include "xenia/kernel/util/xuserdata.h"
+#include "xenia/kernel/xam/achievement_manager.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -173,12 +174,21 @@ class UserProfile {
 
   std::map<uint32_t, uint32_t> contexts_;
 
+  friend class GpdAchievementBackend;
+
+ protected:
+  AchievementGpdStructure* GetAchievement(const uint32_t title_id,
+                                          const uint32_t id);
+  std::vector<AchievementGpdStructure>* GetTitleAchievements(
+      const uint32_t title_id);
+
  private:
   uint64_t xuid_;
   X_XAMACCOUNTINFO account_info_;
 
   std::vector<std::unique_ptr<UserSetting>> setting_list_;
   std::unordered_map<uint32_t, UserSetting*> settings_;
+  std::map<uint32_t, std::vector<AchievementGpdStructure>> achievements_;
 
   std::vector<Property> properties_;
 
