@@ -108,7 +108,7 @@ class UserSetting {
  private:
   void CreateUserData(uint32_t setting_id, uint32_t data) {
     header_.setting_type = static_cast<uint8_t>(X_USER_DATA_TYPE::INT32);
-    header_.s64 = data;
+    header_.u32 = data;
     user_data_ = std::make_unique<Uint32UserData>(data);
   }
   void CreateUserData(uint32_t setting_id, int32_t data) {
