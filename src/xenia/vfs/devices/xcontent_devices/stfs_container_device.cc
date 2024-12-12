@@ -158,8 +158,8 @@ std::unique_ptr<XContentContainerEntry> StfsContainerDevice::ReadEntry(
       XELOGW(
           "STFS file {} only found {} bytes for file, expected {} ({} "
           "bytes missing)",
-          name, dir_entry->length - remaining_size, dir_entry->length,
-          remaining_size);
+          name, dir_entry->length.get() - remaining_size,
+          dir_entry->length.get(), remaining_size);
       assert_always();
     }
 

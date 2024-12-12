@@ -135,7 +135,7 @@ X_STATUS UserModule::LoadFromMemory(const void* addr, const size_t length) {
       XELOGE("XNA executables are not yet implemented");
       return X_STATUS_NOT_IMPLEMENTED;
     } else {
-      XELOGE("Unknown module magic: {:08X}", magic);
+      XELOGE("Unknown module magic: {:08X}", magic.get());
       return X_STATUS_NOT_IMPLEMENTED;
     }
   }
@@ -661,8 +661,8 @@ void UserModule::Dump() {
 
         for (uint32_t i = 0; i < opt_alternate_title_id->count(); i++) {
           if (opt_alternate_title_id->values[i] != 0) {
-            title_ids.append(
-                fmt::format(" {:08X},", opt_alternate_title_id->values[i]));
+            title_ids.append(fmt::format(
+                " {:08X},", opt_alternate_title_id->values[i].get()));
           }
         }
         // Remove last character as it is not necessary

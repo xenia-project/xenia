@@ -364,7 +364,9 @@ std::vector<uint64_t> ProfileManager::FindProfiles() const {
 
     if (!std::filesystem::exists(
             profile.path / profile.name / kDashboardStringID /
-            fmt::format("{:08X}", XContentType::kProfile) / profile.name)) {
+            fmt::format("{:08X}",
+                        static_cast<uint32_t>(XContentType::kProfile)) /
+            profile.name)) {
       XELOGE("Profile {} doesn't have profile package!", profile_xuid);
       continue;
     }
@@ -444,7 +446,8 @@ std::filesystem::path ProfileManager::GetProfilePath(
 std::filesystem::path ProfileManager::GetProfilePath(
     const std::string xuid) const {
   return kernel_state_->emulator()->content_root() / xuid / kDashboardStringID /
-         fmt::format("{:08X}", XContentType::kProfile) / xuid;
+         fmt::format("{:08X}", static_cast<uint32_t>(XContentType::kProfile)) /
+         xuid;
 }
 
 bool ProfileManager::CreateProfile(const std::string gamertag, bool autologin,

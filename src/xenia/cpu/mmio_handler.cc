@@ -465,7 +465,8 @@ bool MMIOHandler::ExceptionCallback(Exception* ex) {
   auto p = reinterpret_cast<const uint8_t*>(rip);
   DecodedLoadStore decoded_load_store;
   if (!TryDecodeLoadStore(p, decoded_load_store)) {
-    XELOGE("Unable to decode MMIO load or store instruction at {}", p);
+    XELOGE("Unable to decode MMIO load or store instruction at {}",
+           static_cast<const void*>(p));
     assert_always("Unknown MMIO instruction type");
     return false;
   }

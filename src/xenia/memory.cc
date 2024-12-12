@@ -647,8 +647,10 @@ void Memory::DumpMap() {
   XELOGE("               System Page Size: {0} ({0:08X})", system_page_size_);
   XELOGE("  System Allocation Granularity: {0} ({0:08X})",
          system_allocation_granularity_);
-  XELOGE("                Virtual Membase: {}", virtual_membase_);
-  XELOGE("               Physical Membase: {}", physical_membase_);
+  XELOGE("                Virtual Membase: {}",
+         static_cast<void*>(virtual_membase_));
+  XELOGE("               Physical Membase: {}",
+         static_cast<void*>(physical_membase_));
   XELOGE("");
   XELOGE("------------------------------------------------------------------");
   XELOGE("Virtual Heaps");

@@ -323,7 +323,7 @@ void XmaContextNew::Decode(XMA_CONTEXT_DATA* data) {
       "Processing context {} (offset {}, buffer {}, ptr {:p}, output buffer "
       "{:08X}, output buffer count {})",
       id(), data->input_buffer_read_offset, data->current_buffer,
-      current_input_buffer, data->output_buffer_ptr,
+      static_cast<void*>(current_input_buffer), data->output_buffer_ptr,
       data->output_buffer_block_count);
 
   const uint32_t current_input_size = GetCurrentInputBufferSize(data);

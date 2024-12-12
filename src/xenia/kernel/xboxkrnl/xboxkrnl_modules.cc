@@ -229,7 +229,8 @@ dword_result_t XexGetProcedureAddress_entry(lpvoid_t hmodule, dword_t ordinal,
         XELOGW(
             "ERROR: XexGetProcedureAddress ordinal {} (0x{:X}) in '{}' not "
             "found!",
-            ordinal, ordinal, module->name());
+            static_cast<uint32_t>(ordinal), static_cast<uint32_t>(ordinal),
+            module->name());
       }
       *out_function_ptr = 0;
       result = X_STATUS_DRIVER_ENTRYPOINT_NOT_FOUND;

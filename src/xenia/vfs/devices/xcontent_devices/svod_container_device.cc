@@ -47,7 +47,8 @@ SvodContainerDevice::Result SvodContainerDevice::LoadHostFiles(
 
   if (fragment_files.size() != header_->content_metadata.data_file_count) {
     XELOGE("SVOD expecting {} data fragments, but {} are present.",
-           header_->content_metadata.data_file_count, fragment_files.size());
+           header_->content_metadata.data_file_count.get(),
+           fragment_files.size());
     return Result::kFileMismatch;
   }
 

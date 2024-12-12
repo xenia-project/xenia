@@ -485,9 +485,10 @@ void SDLInputDriver::OnControllerDeviceAdded(const SDL_Event& event) {
       "ProductID(0x{:04X}), "
       "GUID({})",
       SDL_GameControllerName(controller),
-      SDL_JoystickGetType(SDL_GameControllerGetJoystick(controller)),
+      static_cast<uint32_t>(
+          SDL_JoystickGetType(SDL_GameControllerGetJoystick(controller))),
 #if SDL_VERSION_ATLEAST(2, 0, 12)
-      SDL_GameControllerGetType(controller),
+      static_cast<uint32_t>(SDL_GameControllerGetType(controller)),
 #else
       "?",
 #endif

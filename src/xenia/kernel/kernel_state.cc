@@ -1069,7 +1069,8 @@ bool KernelState::Save(ByteStream* stream) {
 
     stream->Write<uint32_t>(static_cast<uint32_t>(object->type()));
     if (!object->Save(stream)) {
-      XELOGD("Did not save object of type {}", object->type());
+      XELOGD("Did not save object of type {}",
+             static_cast<uint32_t>(object->type()));
       assert_always();
 
       // Revert backwards and overwrite if a save failed.

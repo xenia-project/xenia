@@ -148,8 +148,10 @@ DECLARE_XBOXKRNL_EXPORT2(RtlRaiseException, kDebug, kStub, kImportant);
 
 void KeBugCheckEx_entry(dword_t code, dword_t param1, dword_t param2,
                         dword_t param3, dword_t param4) {
-  XELOGD("*** STOP: 0x{:08X} (0x{:08X}, 0x{:08X}, 0x{:08X}, 0x{:08X})", code,
-         param1, param2, param3, param4);
+  XELOGD("*** STOP: 0x{:08X} (0x{:08X}, 0x{:08X}, 0x{:08X}, 0x{:08X})",
+         static_cast<uint32_t>(code), static_cast<uint32_t>(param1),
+         static_cast<uint32_t>(param2), static_cast<uint32_t>(param3),
+         static_cast<uint32_t>(param4));
   fflush(stdout);
   xe::debugging::Break();
   assert_always();

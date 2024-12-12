@@ -32,6 +32,7 @@
 #endif
 
 #include "third_party/fmt/include/fmt/format.h"
+#include "third_party/fmt/include/fmt/xchar.h"
 
 DEFINE_int32(avpack, 8,
              "Video modes\n"

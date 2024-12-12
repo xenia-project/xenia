@@ -175,7 +175,7 @@ std::unordered_set<uint32_t> ContentManager::FindPublisherTitleIds(
   for (const auto& entry : publisher_entries) {
     std::filesystem::path path_to_publisher_dir =
         entry.path / entry.name /
-        fmt::format("{:08X}", XContentType::kPublisher);
+        fmt::format("{:08X}", static_cast<uint32_t>(XContentType::kPublisher));
 
     if (!std::filesystem::exists(path_to_publisher_dir)) {
       continue;

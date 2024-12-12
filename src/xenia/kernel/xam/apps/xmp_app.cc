@@ -250,7 +250,8 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       static_assert_size(decltype(*args), 8);
 
       assert_true(args->xmp_client == 0x00000002);
-      XELOGD("XMPSetVolume({:d}, {:g})", args->xmp_client, float(args->value));
+      XELOGD("XMPSetVolume({:d}, {:g})", args->xmp_client.get(),
+             float(args->value));
       kernel_state_->emulator()->audio_media_player()->SetVolume(
           float(args->value));
       return X_E_SUCCESS;
@@ -476,8 +477,8 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       static_assert_size(decltype(*args), 16);
 
       XELOGD("XMPCaptureOutput({:08X}, {:08X}, {:08X}, {:08X})",
-             args->xmp_client, args->callback, args->context,
-             args->title_render);
+             args->xmp_client.get(), args->callback.get(), args->context.get(),
+             args->title_render.get());
       kernel_state_->emulator()->audio_media_player()->SetCaptureCallback(
           args->callback, args->context, static_cast<bool>(args->title_render));
       return X_E_SUCCESS;

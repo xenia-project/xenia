@@ -1072,8 +1072,9 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
         "Incorrect resolve sample selected for {}-sample {}: {}, treating like "
         "{}",
         1 << uint32_t(rb_surface_info.msaa_samples),
-        is_depth ? "depth" : "color", rb_copy_control.copy_sample_select,
-        sample_select);
+        is_depth ? "depth" : "color",
+        static_cast<uint32_t>(rb_copy_control.copy_sample_select),
+        static_cast<uint32_t>(sample_select));
   }
   info_out.copy_dest_coordinate_info.copy_sample_select = sample_select;
   // Get the format to pass to the shader in a unified way - for depth (for

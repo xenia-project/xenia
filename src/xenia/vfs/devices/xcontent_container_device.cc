@@ -93,7 +93,8 @@ bool XContentContainerDevice::Initialize() {
 
   auto header_loading_result = ReadHeaderAndVerify(header_file);
   if (header_loading_result != Result::kSuccess) {
-    XELOGE("Error reading XContent header: {}", header_loading_result);
+    XELOGE("Error reading XContent header: {}",
+           static_cast<int32_t>(header_loading_result));
     fclose(header_file);
     return false;
   }

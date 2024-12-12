@@ -102,7 +102,7 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
           memory_->TranslateVirtual<uint32_t*>(data->deployment_type_ptr);
       *deployment_type = static_cast<uint32_t>(kernel_state_->deployment_type_);
       XELOGD("XTitleGetDeploymentType({:08X}, {:08X}",
-             data->deployment_type_ptr, data->overlapped_ptr);
+             data->deployment_type_ptr.get(), data->overlapped_ptr.get());
       return X_E_SUCCESS;
     }
   }

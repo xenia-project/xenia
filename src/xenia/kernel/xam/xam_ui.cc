@@ -781,10 +781,11 @@ dword_result_t XamShowMarketplaceUI_entry(dword_t user_index, dword_t ui_type,
     case 1:
       desc = fmt::format(
           "Game requested to open marketplace page for offer ID 0x{:016X}.",
-          offer_id);
+          static_cast<uint32_t>(offer_id));
       break;
     default:
-      desc = fmt::format("Unknown marketplace op {:d}", ui_type);
+      desc = fmt::format("Unknown marketplace op {:d}",
+                         static_cast<uint32_t>(ui_type));
       break;
   }
 
@@ -871,7 +872,7 @@ dword_result_t XamShowMarketplaceDownloadItemsUI_entry(
   }
 
   for (uint32_t i = 0; i < num_offers; i++) {
-    desc += fmt::format("\n0x{:16X}", offers[i]);
+    desc += fmt::format("\n0x{:16X}", offers[i].get());
   }
 
   desc +=

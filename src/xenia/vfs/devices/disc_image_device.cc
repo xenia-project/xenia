@@ -41,13 +41,14 @@ bool DiscImageDevice::Initialize() {
   state.size = mmap_->size();
   auto result = Verify(&state);
   if (result != Error::kSuccess) {
-    XELOGE("Failed to verify disc image header: {}", result);
+    XELOGE("Failed to verify disc image header: {}",
+           static_cast<int32_t>(result));
     return false;
   }
 
   result = ReadAllEntries(&state, state.ptr + state.root_offset);
   if (result != Error::kSuccess) {
-    XELOGE("Failed to read all GDFX entries: {}", result);
+    XELOGE("Failed to read all GDFX entries: {}", static_cast<int32_t>(result));
     return false;
   }
 

@@ -90,9 +90,9 @@ void COMMAND_PROCESSOR::DisassembleCurrentPacket() XE_RESTRICT {
            packet_info.count, packet_info.predicated);
 
 #define LOG_ACTION_FIELD(__type, name) \
-  logger("\t" #name " = {:08X}\n", action.__type.name)
+  logger("\t" #name " = {:08X}\n", static_cast<uint32_t>(action.__type.name))
 #define LOG_ACTION_FIELD_DEC(__type, name) \
-  logger("\t" #name " = {}\n", action.__type.name)
+  logger("\t" #name " = {}\n", static_cast<size_t>(action.__type.name))
 
 #define LOG_ENDIANNESS(__type, name) \
   logger("\t" #name " = {}\n",       \

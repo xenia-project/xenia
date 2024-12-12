@@ -58,7 +58,7 @@ dword_result_t XamTaskSchedule_entry(lpvoid_t callback,
     auto v1 = option->value1;
     auto v2 = option->value2;  // typically 0?
 
-    XELOGI("Got xam task args: v1 = {:08X}, v2 = {:08X}", v1, v2);
+    XELOGI("Got xam task args: v1 = {:08X}, v2 = {:08X}", v1.get(), v2.get());
   }
 
   uint32_t stack_size = kernel_state()->GetExecutableModule()->stack_size();

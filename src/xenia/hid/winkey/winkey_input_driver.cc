@@ -79,7 +79,8 @@ void WinKeyInputDriver::ParseKeyBinding(ui::VirtualKey output_key,
 
     key_bindings_.push_back(key_binding);
     XELOGI("winkey: \"{}\" binds key 0x{:X} to controller input {}.",
-           source_token, key_binding.input_key, description);
+           source_token, static_cast<uint16_t>(key_binding.input_key),
+           description);
   }
 }
 

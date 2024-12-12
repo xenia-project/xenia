@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "third_party/dxbc/DXBCChecksum.h"
+#include "third_party/fmt/include/fmt/xchar.h"
 
 #include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"

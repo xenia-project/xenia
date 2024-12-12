@@ -221,7 +221,7 @@ bool AchievementManager::DoesAchievementExist(
 void AchievementManager::ShowAchievementEarnedNotification(
     const AchievementGpdStructure* achievement) const {
   const std::string description =
-      fmt::format("{}G - {}", achievement->gamerscore,
+      fmt::format("{}G - {}", achievement->gamerscore.get(),
                   xe::to_utf8(xe::load_and_swap<std::u16string>(
                       achievement->achievement_name.c_str())));
 
