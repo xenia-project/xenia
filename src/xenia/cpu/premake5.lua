@@ -23,8 +23,7 @@ project("xenia-cpu")
 
 include("testing")
 include("ppc/testing")
-filter({"configurations:Release", "platforms:Windows"})
-buildoptions({
-  "/Os",
-  "/O1"
-})
+--  filter({"configurations:Release", "platforms:Windows"})
+--  buildoptions({
+--    "/O1",
+--  })

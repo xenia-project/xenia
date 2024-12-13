@@ -8,12 +8,11 @@ project("fmt")
   defines({
     "_LIB",
   })
-  filter({"configurations:Release", "platforms:Windows"})
-    buildoptions({
-      "/Os",
-      "/O1"
-    })
-  filter {}
+--  filter({"configurations:Release", "platforms:Windows"})
+--    buildoptions({
+--      "/O1",
+--    })
+--  filter {}
 
   includedirs({
     "fmt/include",
