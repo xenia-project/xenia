@@ -63,11 +63,11 @@ filter({"configurations:Checked", "platforms:Linux"})
     "_GLIBCXX_DEBUG",   -- libstdc++ debug mode
   })
 filter({"configurations:Release", "platforms:Windows"})
-	buildoptions({
-		"/Gw", 
-		"/GS-", 
-		"/Oy"
-	})
+  buildoptions({
+    "/Gw",
+    "/GS-",
+    "/Ob3",
+  })
 
 filter("configurations:Debug")
   runtime("Release")
@@ -230,7 +230,7 @@ workspace("xenia")
       platforms({"Linux"})
     elseif os.istarget("macosx") then
       platforms({"Mac"})
-      xcodebuildsettings({           
+      xcodebuildsettings({
         ["ARCHS"] = "x86_64"
       })
     elseif os.istarget("windows") then
