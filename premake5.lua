@@ -65,7 +65,6 @@ filter({"configurations:Checked", "platforms:Linux"})
 filter({"configurations:Release", "platforms:Windows"})
   buildoptions({
     "/Gw",
-    "/GS-",
     "/Ob3",
   })
 
@@ -91,6 +90,7 @@ filter("configurations:Release")
   inlining("Auto")
   flags({
     "LinkTimeOptimization",
+    "NoBufferSecurityCheck",
   })
   -- Not using floatingpoint("Fast") - NaN checks are used in some places
   -- (though rarely), overall preferable to avoid any functional differences
