@@ -85,7 +85,7 @@ project("xenia-app")
     })
 
   filter({"architecture:x86_64", "files:../base/main_init_"..platform_suffix..".cc"})
-    vectorextensions("IA32")  -- Disable AVX for main_init_win.cc so our AVX check doesn't use AVX instructions.
+    vectorextensions("SSE2")  -- Disable AVX for main_init_win.cc so our AVX check doesn't use AVX instructions.
 
   filter("platforms:not Android-*")
     links({
