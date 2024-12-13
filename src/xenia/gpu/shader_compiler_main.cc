@@ -96,8 +96,7 @@ int shader_compiler_main(const std::vector<std::string>& args) {
 
   auto input_file = filesystem::OpenFile(cvars::shader_input, "rb");
   if (!input_file) {
-    XELOGE("Unable to open input file: {}",
-           xe::path_to_utf8(cvars::shader_input));
+    XELOGE("Unable to open input file: {}", cvars::shader_input);
     return 1;
   }
   size_t input_file_size = std::filesystem::file_size(cvars::shader_input);
@@ -105,8 +104,7 @@ int shader_compiler_main(const std::vector<std::string>& args) {
   fread(ucode_dwords.data(), 4, ucode_dwords.size(), input_file);
   fclose(input_file);
 
-  XELOGI("Opened {} as a {} shader, {} words ({} bytes).",
-         xe::path_to_utf8(cvars::shader_input),
+  XELOGI("Opened {} as a {} shader, {} words ({} bytes).", cvars::shader_input,
          shader_type == xenos::ShaderType::kVertex ? "vertex" : "pixel",
          ucode_dwords.size(), ucode_dwords.size() * 4);
 

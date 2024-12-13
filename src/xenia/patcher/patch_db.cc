@@ -44,7 +44,7 @@ void PatchDB::LoadPatches() {
     if (!std::regex_match(path_to_utf8(patch_file.name),
                           patch_filename_regex_)) {
       XELOGE("PatchDB: Skipped loading file {} due to incorrect filename",
-             path_to_utf8(patch_file.name));
+             patch_file.name);
       continue;
     }
 
@@ -65,8 +65,7 @@ PatchFileEntry PatchDB::ReadPatchFile(
   try {
     patch_toml_fields = ParseFile(file_path);
   } catch (...) {
-    XELOGE("PatchDB: Cannot load patch file: {}",
-           path_to_utf8(file_path.filename()));
+    XELOGE("PatchDB: Cannot load patch file: {}", file_path.filename());
     patch_file.title_id = -1;
     return patch_file;
   };
@@ -76,8 +75,7 @@ PatchFileEntry PatchDB::ReadPatchFile(
   auto hashes_node = patch_toml_fields.get("hash");
 
   if (!title_name || !title_id || !hashes_node) {
-    XELOGE("PatchDB: Cannot load patch file: {}",
-           path_to_utf8(file_path.filename()));
+    XELOGE("PatchDB: Cannot load patch file: {}", file_path.filename());
     patch_file.title_id = -1;
     return patch_file;
   }

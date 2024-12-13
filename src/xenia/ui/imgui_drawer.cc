@@ -311,7 +311,7 @@ bool ImGuiDrawer::LoadWindowsFont(ImGuiIO& io, ImFontConfig& font_config,
   io.Fonts->Build();
   // Something went wrong while loading custom font. Probably corrupted.
   if (!font->IsLoaded()) {
-    XELOGE("Failed to load custom font: {}", xe::path_to_utf8(font_path));
+    XELOGE("Failed to load custom font: {}", font_path);
     io.Fonts->Clear();
   }
   CoTaskMemFree(static_cast<void*>(fonts_dir));

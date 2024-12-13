@@ -16,8 +16,6 @@
 #include <string>
 #include <utility>
 
-#include "third_party/fmt/include/fmt/chrono.h"
-#include "third_party/fmt/include/fmt/format.h"
 #include "third_party/imgui/imgui.h"
 #include "third_party/stb/stb_image_write.h"
 #include "third_party/tomlplusplus/toml.hpp"
@@ -986,7 +984,7 @@ void EmulatorWindow::SaveImage(const std::filesystem::path& filepath,
                                const xe::ui::RawImage& image) {
   auto file = std::ofstream(filepath, std::ios::binary);
   if (!file.is_open()) {
-    XELOGE("Failed to open file for writing: {}", xe::path_to_utf8(filepath));
+    XELOGE("Failed to open file for writing: {}", filepath);
     return;
   }
 
@@ -998,7 +996,7 @@ void EmulatorWindow::SaveImage(const std::filesystem::path& filepath,
       &file, image.width, image.height, 4, image.data.data(),
       (int)image.stride);
   if (result == 0) {
-    XELOGE("Failed to write PNG to file: {}", xe::path_to_utf8(filepath));
+    XELOGE("Failed to write PNG to file: {}", filepath);
     return;
   }
 }
@@ -1212,12 +1210,11 @@ void EmulatorWindow::ExtractZarchive() {
         // delete incomplete output file
         std::filesystem::remove(abs_extract_dir, ec);
 
-        summary +=
-            fmt::format("\nFailed: {}", path_to_utf8(zarchive_file_path));
+        summary += fmt::format("\nFailed: {}", zarchive_file_path);
 
         XELOGE("Failed to extract Zarchive package.", result);
       } else {
-        summary += fmt::format("\nSuccess: {}", path_to_utf8(abs_extract_dir));
+        summary += fmt::format("\nSuccess: {}", abs_extract_dir);
       }
     }
 
@@ -1313,11 +1310,11 @@ void EmulatorWindow::CreateZarchive() {
         // delete incomplete output file
         std::filesystem::remove(zarchive_file, ec);
 
-        summary += fmt::format("\nFailed: {}", path_to_utf8(abs_content_dir));
+        summary += fmt::format("\nFailed: {}", abs_content_dir);
 
         XELOGE("Failed to create Zarchive package.", result);
       } else {
-        summary += fmt::format("\nSuccess: {}", path_to_utf8(zarchive_file));
+        summary += fmt::format("\nSuccess: {}", zarchive_file);
       }
     }
 
@@ -1962,8 +1959,7 @@ xe::X_STATUS EmulatorWindow::RunTitle(
                     path_to_file.empty() ? "empty" : "invalid");
 
     if (!path_to_file.empty() && !titleExists) {
-      log_msg.append(
-          fmt::format("\nProvided Path: {}", xe::path_to_utf8(path_to_file)));
+      log_msg.append(fmt::format("\nProvided Path: {}", path_to_file));
     }
 
     if (ec) {

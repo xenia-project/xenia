@@ -129,12 +129,11 @@ void SDLInputDriver::LoadGameControllerDB() {
 
   if (!std::filesystem::exists(cvars::mappings_file)) {
     XELOGW("SDL GameControllerDB: file '{}' does not exist.",
-           xe::path_to_utf8(cvars::mappings_file));
+           cvars::mappings_file);
     return;
   }
 
-  XELOGI("SDL GameControllerDB: Loading {}",
-         xe::path_to_utf8(cvars::mappings_file));
+  XELOGI("SDL GameControllerDB: Loading {}", cvars::mappings_file);
 
   uint32_t updated_mappings = 0;
   uint32_t added_mappings = 0;

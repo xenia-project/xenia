@@ -15,6 +15,7 @@
 #include <string>
 
 #include "third_party/fmt/include/fmt/format.h"
+#include "third_party/fmt/include/fmt/std.h"
 #include "xenia/base/string.h"
 
 namespace xe {

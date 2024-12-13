@@ -70,8 +70,7 @@ void PluginLoader::LoadTitleConfig(const uint32_t title_id) {
   try {
     plugins_config = ParseFile(title_plugins_config);
   } catch (...) {
-    XELOGE("Plugins: Cannot load plugin file {}",
-           path_to_utf8(title_plugins_config));
+    XELOGE("Plugins: Cannot load plugin file {}", title_plugins_config);
     return;
   }
 
@@ -82,8 +81,7 @@ void PluginLoader::LoadTitleConfig(const uint32_t title_id) {
       plugins_config.get_as<std::string>("title_id")->get();
 
   if (!plugins_config.contains("plugin")) {
-    XELOGE("Plugins: Cannot find [[plugin]] table in {}",
-           path_to_utf8(title_plugins_config));
+    XELOGE("Plugins: Cannot find [[plugin]] table in {}", title_plugins_config);
     return;
   }
 
@@ -122,8 +120,7 @@ void PluginLoader::LoadTitleConfig(const uint32_t title_id) {
       const std::string file =
           fmt::format("plugins\\{:08X}\\plugins.toml", title_id);
 
-      XELOGE("Hash error! skipping plugin {} in: {}", entry.name,
-             path_to_utf8(file));
+      XELOGE("Hash error! skipping plugin {} in: {}", entry.name, file);
       continue;
     }
 

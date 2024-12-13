@@ -47,7 +47,7 @@ toml::parse_result ParseConfig(const std::filesystem::path& config_path) {
     return ParseFile(config_path);
   } catch (toml::parse_error& e) {
     xe::FatalError(fmt::format("Failed to parse config file '{}':\n\n{}",
-                               xe::path_to_utf8(config_path), e.what()));
+                               config_path, e.what()));
     return toml::parse_result();
   }
 }
@@ -118,7 +118,7 @@ void ReadConfig(const std::filesystem::path& file_path,
     cvar::IConfigVarUpdate::ApplyUpdates(config_defaults_date);
   }
 
-  XELOGI("Loaded config: {}", xe::path_to_utf8(file_path));
+  XELOGI("Loaded config: {}", file_path);
 }
 
 void ReadGameConfig(const std::filesystem::path& file_path) {
@@ -136,7 +136,7 @@ void ReadGameConfig(const std::filesystem::path& file_path) {
       config_var->LoadConfigValue(config_key_node.node());
     }
   }
-  XELOGI("Loaded game config: {}", xe::path_to_utf8(file_path));
+  XELOGI("Loaded game config: {}", file_path);
 }
 
 void SaveConfig() {
@@ -236,7 +236,7 @@ void SaveConfig() {
 
   auto handle = xe::filesystem::OpenFile(config_path, "wb");
   if (!handle) {
-    XELOGE("Failed to open '{}' for writing.", xe::path_to_utf8(config_path));
+    XELOGE("Failed to open '{}' for writing.", config_path);
   } else {
     fwrite(sb.buffer(), 1, sb.length(), handle);
     fclose(handle);

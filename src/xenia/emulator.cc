@@ -421,8 +421,7 @@ X_STATUS Emulator::MountPath(const std::filesystem::path& path,
     return X_STATUS_NO_SUCH_FILE;
   }
   if (!file_system_->RegisterDevice(std::move(device))) {
-    XELOGE("Unable to register the input file to {}.",
-           xe::path_to_utf8(mount_path));
+    XELOGE("Unable to register the input file to {}.", mount_path);
     return X_STATUS_NO_SUCH_FILE;
   }
 
@@ -658,8 +657,7 @@ X_STATUS Emulator::DataMigration(const uint64_t xuid) {
       if (ec) {
         failure_count++;
         XELOGW("{}: Moving from: {} to: {} failed! Error message: {} ({:08X})",
-               __func__, xe::path_to_utf8(previous_path),
-               xe::path_to_utf8(path / content_type.name), ec.message(),
+               __func__, previous_path, path / content_type.name, ec.message(),
                ec.value());
       }
     }
@@ -681,8 +679,8 @@ X_STATUS Emulator::DataMigration(const uint64_t xuid) {
       if (ec) {
         failure_count++;
         XELOGW("{}: Copying from: {} to: {} failed! Error message: {} ({:08X})",
-               __func__, xe::path_to_utf8(title.path / title.name / "Headers"),
-               xe::path_to_utf8(xuid_path), ec.message(), ec.value());
+               __func__, title.path / title.name / "Headers", xuid_path,
+               ec.message(), ec.value());
       }
 
       const auto header_types =
@@ -704,8 +702,8 @@ X_STATUS Emulator::DataMigration(const uint64_t xuid) {
           failure_count++;
           XELOGW(
               "{}: Copying from: {} to: {} failed! Error message: {} ({:08X})",
-              __func__, xe::path_to_utf8(title.path / title.name / "Headers"),
-              xe::path_to_utf8(common_path), ec.message(), ec.value());
+              __func__, title.path / title.name / "Headers", common_path,
+              ec.message(), ec.value());
         }
       }
 
@@ -740,8 +738,7 @@ X_STATUS Emulator::DataMigration(const uint64_t xuid) {
       if (ec) {
         failure_count++;
         XELOGW("{}: Moving from: {} to: {} failed! Error message: {} ({:08X})",
-               __func__, xe::path_to_utf8(path_from),
-               xe::path_to_utf8(path_to_profile_data / title.name),
+               __func__, path_from, path_to_profile_data / title.name,
                ec.message(), ec.value());
       } else {
         std::error_code ec;
@@ -812,7 +809,7 @@ X_STATUS Emulator::InstallContentPackage(
 
   installation_info.installation_path =
       fmt::format("{:016X}/{:08X}/{:08X}/{}", xuid, dev->title_id(),
-                  dev->content_type(), xe::path_to_utf8(path.filename()));
+                  dev->content_type(), path.filename());
 
   installation_info.content_name =
       xe::to_utf8(dev->content_header().display_name());
@@ -1401,20 +1398,19 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
   XELOGI("Loading module {}", module_path);
   auto module = kernel_state_->LoadUserModule(module_path);
   if (!module) {
-    XELOGE("Failed to load user module {}", xe::path_to_utf8(path));
+    XELOGE("Failed to load user module {}", path);
     return X_STATUS_NOT_FOUND;
   }
 
   X_RESULT result = kernel_state_->ApplyTitleUpdate(module);
   if (XFAILED(result)) {
-    XELOGE("Failed to apply title update! Cannot run module {}",
-           xe::path_to_utf8(path));
+    XELOGE("Failed to apply title update! Cannot run module {}", path);
     return result;
   }
 
   result = kernel_state_->FinishLoadingUserModule(module);
   if (XFAILED(result)) {
-    XELOGE("Failed to initialize user module {}", xe::path_to_utf8(path));
+    XELOGE("Failed to initialize user module {}", path);
     return result;
   }
   // Grab the current title ID.

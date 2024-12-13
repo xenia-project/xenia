@@ -32,7 +32,7 @@ DEFINE_transient_path(dump_path, "",
 
 int vfs_dump_main(const std::vector<std::string>& args) {
   if (cvars::source.empty() || cvars::dump_path.empty()) {
-    XELOGE("Usage: {} [source] [dump_path]", xe::path_to_utf8(args[0]));
+    XELOGE("Usage: {} [source] [dump_path]", args[0]);
     return 1;
   }
 

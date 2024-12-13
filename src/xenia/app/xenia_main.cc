@@ -61,8 +61,6 @@
 #include "xenia/hid/xinput/xinput_hid.h"
 #endif  // XE_PLATFORM_WIN32
 
-#include "third_party/fmt/include/fmt/format.h"
-
 DEFINE_string(apu, "any", "Audio system. Use: [any, nop, sdl, xaudio2]", "APU");
 DEFINE_string(gpu, "any", "Graphics system. Use: [any, d3d12, vulkan, null]",
               "GPU");
@@ -408,7 +406,7 @@ bool EmulatorApp::OnInitialize() {
     }
   }
   storage_root = std::filesystem::absolute(storage_root);
-  XELOGI("Storage root: {}", xe::path_to_utf8(storage_root));
+  XELOGI("Storage root: {}", storage_root);
 
   config::SetupConfig(storage_root);
 
@@ -423,7 +421,7 @@ bool EmulatorApp::OnInitialize() {
     }
   }
   content_root = std::filesystem::absolute(content_root);
-  XELOGI("Content root: {}", xe::path_to_utf8(content_root));
+  XELOGI("Content root: {}", content_root);
 
   std::filesystem::path cache_root = cvars::cache_root;
   if (cache_root.empty()) {
@@ -438,7 +436,7 @@ bool EmulatorApp::OnInitialize() {
     }
   }
   cache_root = std::filesystem::absolute(cache_root);
-  XELOGI("Host cache root: {}", xe::path_to_utf8(cache_root));
+  XELOGI("Host cache root: {}", cache_root);
 
   if (cvars::discord) {
     discord::DiscordPresence::Initialize();
