@@ -62,7 +62,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        vsver: [2022, 2019]
+        vsver: [2022]
     runs-on: windows-${{ matrix.vsver }}
     env:
       POWERSHELL_TELEMETRY_OPTOUT: 1
@@ -70,11 +70,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Update Python (VS2019)
-        uses: actions/setup-python@v5
-        if: matrix.vsver == '2019'
-        with:
-          python-version: '3.12'
       - name: Setup
         run: .\xb setup
       - name: Build
@@ -94,8 +89,7 @@ jobs:
         if: |
           github.repository == 'xenia-canary/xenia-canary' &&
           github.event.action != 'pull_request' &&
-          github.ref == 'refs/heads/canary_experimental' &&
-          matrix.vsver == '2019'
+          github.ref == 'refs/heads/canary_experimental'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
