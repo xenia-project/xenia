@@ -149,36 +149,6 @@ class AchievementBackendInterface {
                                    const uint32_t achievement_id) = 0;
 };
 
-class GpdAchievementBackend : public AchievementBackendInterface {
- public:
-  GpdAchievementBackend();
-  ~GpdAchievementBackend();
-
-  void EarnAchievement(const uint64_t xuid, const uint32_t title_id,
-                       const uint32_t achievement_id) override;
-  bool IsAchievementUnlocked(const uint64_t xuid, const uint32_t title_id,
-                             const uint32_t achievement_id) const override;
-  const AchievementGpdStructure* GetAchievementInfo(
-      const uint64_t xuid, const uint32_t title_id,
-      const uint32_t achievement_id) const override;
-  const std::vector<AchievementGpdStructure>* GetTitleAchievements(
-      const uint64_t xuid, const uint32_t title_id) const override;
-  bool LoadAchievementsData(const uint64_t xuid,
-                            const util::XdbfGameData title_data) override;
-
- private:
-  AchievementGpdStructure* GetAchievementInfoInternal(
-      const uint64_t xuid, const uint32_t title_id,
-      const uint32_t achievement_id) const;
-
-  bool SaveAchievementsData(const uint64_t xuid,
-                            const uint32_t title_id) override {
-    return 0;
-  };
-  bool SaveAchievementData(const uint64_t xuid, const uint32_t title_id,
-                           const uint32_t achievement_id) override;
-};
-
 class AchievementManager {
  public:
   AchievementManager();
