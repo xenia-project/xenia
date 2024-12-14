@@ -41,7 +41,6 @@
 #include "xenia/hid/input_system.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
-#include "xenia/kernel/util/gameinfo_utils.h"
 #include "xenia/kernel/util/xdbf_utils.h"
 #include "xenia/kernel/xam/achievement_manager.h"
 #include "xenia/kernel/xam/xam_module.h"
@@ -1314,35 +1313,7 @@ std::string Emulator::FindLaunchModule() {
     return path + cvars::launch_module;
   }
 
-  std::string default_module("default.xex");
-
-  auto gameinfo_entry(file_system_->ResolvePath(path + "GameInfo.bin"));
-  if (gameinfo_entry) {
-    vfs::File* file = nullptr;
-    X_STATUS result =
-        gameinfo_entry->Open(vfs::FileAccess::kGenericRead, &file);
-    if (XSUCCEEDED(result)) {
-      std::vector<uint8_t> buffer(gameinfo_entry->size());
-      size_t bytes_read = 0;
-      result = file->ReadSync(buffer.data(), buffer.size(), 0, &bytes_read);
-      if (XSUCCEEDED(result)) {
-        kernel::util::GameInfo info(buffer);
-        if (info.is_valid()) {
-          XELOGI("Found virtual title {}", info.virtual_title_id());
-
-          const std::string xna_id("584E07D1");
-          auto xna_id_entry(file_system_->ResolvePath(path + xna_id));
-          if (xna_id_entry) {
-            default_module = xna_id + "\\" + info.module_name();
-          } else {
-            XELOGE("Could not find fixed XNA path {}", xna_id);
-          }
-        }
-      }
-    }
-  }
-
-  return path + default_module;
+  return path + "default.xex";
 }
 
 static std::string format_version(xex2_version version) {
