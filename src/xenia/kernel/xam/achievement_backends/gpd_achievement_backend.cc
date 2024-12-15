@@ -72,6 +72,10 @@ bool GpdAchievementBackend::IsAchievementUnlocked(
   const auto achievement =
       GetAchievementInfoInternal(xuid, title_id, achievement_id);
 
+  if (!achievement) {
+    return false;
+  }
+
   return (achievement->flags &
           static_cast<uint32_t>(AchievementFlags::kAchieved)) != 0;
 }

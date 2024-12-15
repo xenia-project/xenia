@@ -314,6 +314,15 @@ void ProfileManager::Login(const uint64_t xuid, const uint8_t user_index,
 
   logged_profiles_[assigned_user_slot] =
       std::make_unique<UserProfile>(xuid, &profile);
+
+  if (kernel_state_->emulator()->is_title_open()) {
+    const kernel::util::XdbfGameData db = kernel_state_->title_xdbf();
+    if (db.is_valid()) {
+      kernel_state_->xam_state()->achievement_manager()->LoadTitleAchievements(
+          xuid, db);
+    }
+  }
+
   if (notify) {
     kernel_state_->BroadcastNotification(kXNotificationIDSystemSignInChanged,
                                          GetUsedUserSlots().to_ulong());
