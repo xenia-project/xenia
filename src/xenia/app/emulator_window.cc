@@ -1799,10 +1799,11 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
   }
 
   if (!notificationTitle.empty()) {
-    app_context_.CallInUIThread([=]() {
-      new xe::ui::HostNotificationWindow(imgui_drawer(), notificationTitle,
-                                         notificationDesc, 0);
-    });
+    app_context_.CallInUIThread(
+        [imgui_drawer = imgui_drawer(), notificationTitle, notificationDesc]() {
+          new xe::ui::HostNotificationWindow(imgui_drawer, notificationTitle,
+                                             notificationDesc, 0);
+        });
   }
 
   xe::threading::Sleep(delay);

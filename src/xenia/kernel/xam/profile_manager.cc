@@ -104,8 +104,9 @@ void ProfileManager::EncryptAccountFile(const X_XAMACCOUNTINFO* input,
             enc_data_size);
 }
 
-ProfileManager::ProfileManager(KernelState* kernel_state)
-    : kernel_state_(kernel_state) {
+ProfileManager::ProfileManager(KernelState* kernel_state,
+                               UserTracker* user_tracker)
+    : kernel_state_(kernel_state), user_tracker_(user_tracker) {
   logged_profiles_.clear();
   accounts_.clear();
 
@@ -315,16 +316,12 @@ void ProfileManager::Login(const uint64_t xuid, const uint8_t user_index,
   XELOGI("Loaded {} (GUID: {:016X}) to slot {}", profile.GetGamertagString(),
          xuid, assigned_user_slot);
 
+  MountProfile(xuid);
+
   logged_profiles_[assigned_user_slot] =
       std::make_unique<UserProfile>(xuid, &profile);
 
-  if (kernel_state_->emulator()->is_title_open()) {
-    const kernel::util::XdbfGameData db = kernel_state_->title_xdbf();
-    if (db.is_valid()) {
-      kernel_state_->xam_state()->achievement_manager()->LoadTitleAchievements(
-          xuid, db);
-    }
-  }
+  user_tracker_->AddUser(xuid);
 
   if (notify) {
     kernel_state_->BroadcastNotification(kXNotificationSystemSignInChanged,
@@ -338,6 +335,9 @@ void ProfileManager::Logout(const uint8_t user_index, bool notify) {
   if (profile == logged_profiles_.cend()) {
     return;
   }
+
+  kernel_state_->xam_state()->user_tracker()->RemoveUser(
+      profile->second->xuid());
   DismountProfile(profile->second->xuid());
   logged_profiles_.erase(profile);
   if (notify) {
@@ -440,12 +440,19 @@ uint8_t ProfileManager::GetUserIndexAssignedToProfile(
 }
 
 std::filesystem::path ProfileManager::GetProfileContentPath(
-    const uint64_t xuid, const uint32_t title_id) const {
+    const uint64_t xuid, const uint32_t title_id,
+    const XContentType content_type) const {
   std::filesystem::path profile_content_path =
       kernel_state_->emulator()->content_root() / fmt::format("{:016X}", xuid);
   if (title_id != -1 && title_id != 0) {
     profile_content_path =
         profile_content_path / fmt::format("{:08X}", title_id);
+
+    if (content_type != XContentType::kInvalid) {
+      profile_content_path =
+          profile_content_path /
+          fmt::format("{:08X}", static_cast<uint32_t>(content_type));
+    }
   }
   return profile_content_path;
 }

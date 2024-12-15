@@ -16,6 +16,7 @@
 #include <cstring>
 #include <regex>
 #include <string>
+#include <variant>
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/assert.h"
@@ -426,6 +427,28 @@ inline vec128_t from_string<vec128_t>(const std::string_view value,
     }
   }
   return v;
+}
+
+inline std::u16string read_u16string_and_swap(const char16_t* string_ptr) {
+  std::u16string input_str = std::u16string(string_ptr);
+
+  std::u16string output_str = {};
+  output_str.resize(input_str.size() + 1);
+  copy_and_swap_truncating(output_str.data(), input_str, input_str.size() + 1);
+  return output_str;
+}
+
+inline size_t size_in_bytes(std::variant<std::string, std::u16string> string,
+                            bool include_terminator = true) {
+  if (std::holds_alternative<std::string>(string)) {
+    return std::get<std::string>(string).size() + include_terminator;
+  } else if (std::holds_alternative<std::u16string>(string)) {
+    return (std::get<std::u16string>(string).size() + include_terminator) *
+           sizeof(char16_t);
+  } else {
+    assert_always();
+  }
+  return 0;
 }
 
 }  // namespace string_util

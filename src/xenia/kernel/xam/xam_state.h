@@ -15,6 +15,7 @@
 #include "xenia/kernel/xam/app_manager.h"
 #include "xenia/kernel/xam/content_manager.h"
 #include "xenia/kernel/xam/profile_manager.h"
+#include "xenia/kernel/xam/user_tracker.h"
 
 namespace xe {
 class Emulator;
@@ -42,19 +43,28 @@ class XamState {
   }
   ProfileManager* profile_manager() const { return profile_manager_.get(); }
 
+  UserTracker* user_tracker() const { return user_tracker_.get(); }
+  SpaInfo* spa_info() const { return spa_info_.get(); }
+
   UserProfile* GetUserProfile(uint32_t user_index) const;
   UserProfile* GetUserProfile(uint64_t xuid) const;
 
   bool IsUserSignedIn(uint32_t user_index) const;
   bool IsUserSignedIn(uint64_t xuid) const;
 
+  //
+  void LoadSpaInfo(const SpaInfo* info);
+
  private:
   KernelState* kernel_state_;
 
   std::unique_ptr<AppManager> app_manager_;
   std::unique_ptr<ContentManager> content_manager_;
+  std::unique_ptr<UserTracker> user_tracker_;
   std::unique_ptr<AchievementManager> achievement_manager_;
   std::unique_ptr<ProfileManager> profile_manager_;
+
+  std::unique_ptr<SpaInfo> spa_info_;
 };
 
 }  // namespace xam

@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <span>
 #include <vector>
 
 #include "third_party/imgui/imgui.h"
@@ -34,7 +35,7 @@ class ImGuiDialog;
 class ImGuiNotification;
 class Window;
 
-using IconsData = std::map<uint32_t, std::pair<const uint8_t*, uint32_t>>;
+using IconsData = std::map<uint32_t, std::span<const uint8_t>>;
 
 class ImGuiDrawer : public WindowInputListener, public UIDrawer {
  public:

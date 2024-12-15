@@ -104,10 +104,20 @@ bool HostPathEntry::DeleteEntryInternal(Entry* entry) {
     auto removed = std::filesystem::remove_all(full_path, ec);
     return removed >= 1 && removed != static_cast<std::uintmax_t>(-1);
   } else {
-    // Delete file only if it exists.
-    return !std::filesystem::is_directory(full_path) &&
-           (!std::filesystem::exists(full_path) ||
-            std::filesystem::remove(full_path, ec));
+    // Skip directories, they we're handled above.
+    if (std::filesystem::is_directory(full_path)) {
+      return false;
+    }
+
+    if (std::filesystem::exists(full_path)) {
+      const auto result = std::filesystem::remove(full_path, ec);
+      if (ec) {
+        XELOGE("{}: Cannot remove file entry. File: {} Error: {}", __func__,
+               full_path, ec.message());
+        return false;
+      }
+    }
+    return true;
   }
 }
 

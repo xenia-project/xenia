@@ -34,6 +34,8 @@ class NullEntry : public Entry {
 
  private:
   friend class NullDevice;
+
+  bool DeleteEntryInternal(Entry* entry) override;
 };
 
 }  // namespace vfs

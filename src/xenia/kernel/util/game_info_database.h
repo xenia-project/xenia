@@ -13,8 +13,8 @@
 #include <string>
 #include <vector>
 
-#include "xenia/kernel/util/xdbf_utils.h"
 #include "xenia/kernel/util/xlast.h"
+#include "xenia/kernel/xam/xdbf/spa_info.h"
 
 namespace xe {
 namespace kernel {
@@ -87,11 +87,12 @@ class GameInfoDatabase {
 
   // Normally titles have at least XDBF file embedded into xex. There are
   // certain exceptions and that's why we need to check if it is even valid.
-  GameInfoDatabase(const XdbfGameData* data);
+  GameInfoDatabase(const xam::SpaInfo* data);
   ~GameInfoDatabase();
 
   bool IsValid() const { return is_valid_; }
 
+  void Update(const xam::SpaInfo* new_spa);
   // This is mostly extracted from XDBF.
   std::string GetTitleName(
       const XLanguage language = XLanguage::kInvalid) const;
@@ -123,8 +124,10 @@ class GameInfoDatabase {
   std::vector<StatsView> GetStatsViews() const;
 
  private:
+  void Init(const xam::SpaInfo* data);
+
   bool is_valid_ = false;
-  std::unique_ptr<XdbfGameData> xdbf_gamedata_;
+  std::unique_ptr<xam::SpaInfo> spa_gamedata_;
   std::unique_ptr<XLast> xlast_gamedata_;
 };
 

@@ -51,5 +51,7 @@ X_STATUS NullEntry::Open(uint32_t desired_access, File** out_file) {
   return X_STATUS_SUCCESS;
 }
 
+bool NullEntry::DeleteEntryInternal(Entry* entry) { return false; }
+
 }  // namespace vfs
 }  // namespace xe

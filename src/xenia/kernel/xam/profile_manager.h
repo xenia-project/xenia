@@ -29,37 +29,18 @@ class KernelState;
 namespace xe {
 namespace kernel {
 namespace xam {
+class UserTracker;
+}  // namespace xam
+}  // namespace kernel
+}  // namespace xe
+
+namespace xe {
+namespace kernel {
+namespace xam {
 
 constexpr uint32_t kDashboardID = 0xFFFE07D1;
 const static std::string kDashboardStringID =
     fmt::format("{:08X}", kDashboardID);
-
-enum class XTileType {
-  kAchievement,
-  kGameIcon,
-  kGamerTile,
-  kGamerTileSmall,
-  kLocalGamerTile,
-  kLocalGamerTileSmall,
-  kBkgnd,
-  kAwardedGamerTile,
-  kAwardedGamerTileSmall,
-  kGamerTileByImageId,
-  kPersonalGamerTile,
-  kPersonalGamerTileSmall,
-  kGamerTileByKey,
-  kAvatarGamerTile,
-  kAvatarGamerTileSmall,
-  kAvatarFullBody
-};
-
-// TODO: find filenames of other tile types that are stored in profile
-static const std::map<XTileType, std::string> kTileFileNames = {
-    {XTileType::kPersonalGamerTile, "tile_64.png"},
-    {XTileType::kPersonalGamerTileSmall, "tile_32.png"},
-    {XTileType::kAvatarGamerTile, "avtr_64.png"},
-    {XTileType::kAvatarGamerTileSmall, "avtr_32.png"},
-};
 
 class ProfileManager {
  public:
@@ -75,7 +56,7 @@ class ProfileManager {
 
   // Loading Profile means load everything
   // Loading Account means load basic data
-  ProfileManager(KernelState* kernel_state);
+  ProfileManager(KernelState* kernel_state, UserTracker* user_tracker);
 
   ~ProfileManager();
 
@@ -114,7 +95,8 @@ class ProfileManager {
   bool IsAnyProfileSignedIn() const { return !logged_profiles_.empty(); }
 
   std::filesystem::path GetProfileContentPath(
-      const uint64_t xuid, const uint32_t title_id = -1) const;
+      const uint64_t xuid, const uint32_t title_id = -1,
+      const XContentType content_type = XContentType::kInvalid) const;
 
   static bool IsGamertagValid(const std::string gamertag);
 
@@ -142,6 +124,7 @@ class ProfileManager {
   std::map<uint8_t, std::unique_ptr<UserProfile>> logged_profiles_;
 
   KernelState* kernel_state_;
+  UserTracker* user_tracker_;
 };
 
 }  // namespace xam

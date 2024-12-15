@@ -24,9 +24,36 @@ namespace apps {
  * https://github.com/NicolasDe/AlienSwarm/blob/master/src/common/xbox/xboxstubs.h
  */
 
-struct X_XUSER_ACHIEVEMENT {
+struct XGI_XUSER_ACHIEVEMENT {
   xe::be<uint32_t> user_idx;
   xe::be<uint32_t> achievement_id;
+};
+
+struct XGI_XUSER_GET_PROPERTY {
+  xe::be<uint32_t> user_index;
+  xe::be<uint32_t> unused;
+  xe::be<uint64_t> xuid;  // If xuid is 0 then user_index is used.
+  xe::be<uint32_t>
+      property_size_ptr;  // Normally filled with sizeof(XUSER_PROPERTY), with
+                          // exception of binary and wstring type.
+  xe::be<uint32_t> context_address;
+  xe::be<uint32_t> property_address;
+};
+
+struct XGI_XUSER_SET_CONTEXT {
+  xe::be<uint32_t> user_index;
+  xe::be<uint32_t> unused;
+  xe::be<uint64_t> xuid;
+  XUSER_CONTEXT context;
+};
+
+struct XGI_XUSER_SET_PROPERTY {
+  xe::be<uint32_t> user_index;
+  xe::be<uint32_t> unused;
+  xe::be<uint64_t> xuid;
+  xe::be<uint32_t> property_id;
+  xe::be<uint32_t> data_size;
+  xe::be<uint32_t> data_address;
 };
 
 struct XUSER_STATS_VIEW {
@@ -63,63 +90,58 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
   auto buffer = memory_->TranslateVirtual(buffer_ptr);
   switch (message) {
     case 0x000B0006: {
-      assert_true(!buffer_length || buffer_length == 24);
-      // dword r3 user index
-      // dword (unwritten?)
-      // qword 0
-      // dword r4 context enum
-      // dword r5 value
-      uint32_t user_index = xe::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t context_id = xe::load_and_swap<uint32_t>(buffer + 16);
-      uint32_t context_value = xe::load_and_swap<uint32_t>(buffer + 20);
-      XELOGD("XGIUserSetContextEx({:08X}, {:08X}, {:08X})", user_index,
-             context_id, context_value);
+      assert_true(!buffer_length ||
+                  buffer_length == sizeof(XGI_XUSER_SET_CONTEXT));
+      const XGI_XUSER_SET_CONTEXT* xgi_context =
+          reinterpret_cast<const XGI_XUSER_SET_CONTEXT*>(buffer);
 
-      const util::XdbfGameData title_xdbf = kernel_state_->title_xdbf();
-      if (title_xdbf.is_valid()) {
-        const auto context = title_xdbf.GetContext(context_id);
-        const XLanguage title_language = title_xdbf.GetExistingLanguage(
-            static_cast<XLanguage>(XLanguage::kEnglish));
-        const std::string desc =
-            title_xdbf.GetStringTableEntry(title_language, context.string_id);
-        XELOGD("XGIUserSetContextEx: {} - Set to value: {}", desc,
-               context_value);
+      XELOGD("XGIUserSetContext({:08X}, ID: {:08X}, Value: {:08X})",
+             xgi_context->user_index.get(),
+             xgi_context->context.context_id.get(),
+             xgi_context->context.value.get());
 
-        UserProfile* user_profile =
-            kernel_state_->xam_state()->GetUserProfile(user_index);
-        if (user_profile) {
-          user_profile->contexts_[context_id] = context_value;
-        }
+      UserProfile* user = nullptr;
+      if (xgi_context->xuid != 0) {
+        user = kernel_state_->xam_state()->GetUserProfile(xgi_context->xuid);
+      } else {
+        user =
+            kernel_state_->xam_state()->GetUserProfile(xgi_context->user_index);
+      }
+
+      if (user) {
+        kernel_state_->xam_state()->user_tracker()->UpdateContext(
+            user->xuid(), xgi_context->context.context_id,
+            xgi_context->context.value);
       }
       return X_E_SUCCESS;
     }
     case 0x000B0007: {
-      uint32_t user_index = xe::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t property_id = xe::load_and_swap<uint32_t>(buffer + 16);
-      uint32_t value_size = xe::load_and_swap<uint32_t>(buffer + 20);
-      uint32_t value_ptr = xe::load_and_swap<uint32_t>(buffer + 24);
-      XELOGD("XGIUserSetPropertyEx({:08X}, {:08X}, {}, {:08X})", user_index,
-             property_id, value_size, value_ptr);
+      const XGI_XUSER_SET_PROPERTY* xgi_property =
+          reinterpret_cast<const XGI_XUSER_SET_PROPERTY*>(buffer);
 
-      const util::XdbfGameData title_xdbf = kernel_state_->title_xdbf();
-      if (title_xdbf.is_valid()) {
-        const auto property_xdbf = title_xdbf.GetProperty(property_id);
-        const XLanguage title_language = title_xdbf.GetExistingLanguage(
-            static_cast<XLanguage>(XLanguage::kEnglish));
-        const std::string desc = title_xdbf.GetStringTableEntry(
-            title_language, property_xdbf.string_id);
+      XELOGD("XGIUserSetPropertyEx({:08X}, {:08X}, {}, {:08X})",
+             xgi_property->user_index.get(), xgi_property->property_id.get(),
+             xgi_property->data_size.get(), xgi_property->data_address.get());
 
-        Property property =
-            Property(property_id, value_size,
-                     memory_->TranslateVirtual<uint8_t*>(value_ptr));
-
-        auto user = kernel_state_->xam_state()->GetUserProfile(user_index);
-        if (user) {
-          user->AddProperty(&property);
-        }
-        XELOGD("XGIUserSetPropertyEx: Setting property: {}", desc);
+      UserProfile* user = nullptr;
+      if (xgi_property->xuid != 0) {
+        user = kernel_state_->xam_state()->GetUserProfile(xgi_property->xuid);
+      } else {
+        user = kernel_state_->xam_state()->GetUserProfile(
+            xgi_property->user_index);
       }
 
+      if (user) {
+        Property property(
+            xgi_property->property_id,
+            UserSetting::get_valid_data_size(xgi_property->property_id,
+                                             xgi_property->data_size),
+
+            memory_->TranslateVirtual<uint8_t*>(xgi_property->data_address));
+
+        kernel_state_->xam_state()->user_tracker()->AddProperty(user->xuid(),
+                                                                &property);
+      }
       return X_E_SUCCESS;
     }
     case 0x000B0008: {
@@ -130,7 +152,7 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
              achievements_ptr);
 
       auto* achievement =
-          (X_XUSER_ACHIEVEMENT*)memory_->TranslateVirtual(achievements_ptr);
+          memory_->TranslateVirtual<XGI_XUSER_ACHIEVEMENT*>(achievements_ptr);
       for (uint32_t i = 0; i < achievement_count; i++, achievement++) {
         kernel_state_->achievement_manager()->EarnAchievement(
             achievement->user_idx, kernel_state_->title_id(),
@@ -219,36 +241,68 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     }
     case 0x000B003D: {
       // Used in 5451082A, 5553081E
-
       // XUserGetCachedANID
       XELOGI("XUserGetANID({:08X}, {:08X}), implemented in netplay", buffer_ptr,
              buffer_length);
       return X_E_FAIL;
     }
     case 0x000B0041: {
-      assert_true(!buffer_length || buffer_length == 32);
-      // 00000000 2789fecc 00000000 00000000 200491e0 00000000 200491f0 20049340
-      uint32_t user_index = xe::load_and_swap<uint32_t>(buffer + 0);
-      uint32_t context_ptr = xe::load_and_swap<uint32_t>(buffer + 16);
-      auto context =
-          context_ptr ? memory_->TranslateVirtual(context_ptr) : nullptr;
-      uint32_t context_id =
-          context ? xe::load_and_swap<uint32_t>(context + 0) : 0;
-      XELOGD("XGIUserGetContext({:08X}, {:08X}{:08X}))", user_index,
-             context_ptr, context_id);
-      uint32_t value = 0;
-      if (context) {
-        UserProfile* user_profile =
-            kernel_state_->xam_state()->GetUserProfile(user_index);
-        if (user_profile) {
-          if (user_profile->contexts_.find(context_id) !=
-              user_profile->contexts_.cend()) {
-            value = user_profile->contexts_[context_id];
-          }
-        }
-        xe::store_and_swap<uint32_t>(context + 4, value);
+      assert_true(!buffer_length ||
+                  buffer_length == sizeof(XGI_XUSER_GET_PROPERTY));
+      const XGI_XUSER_GET_PROPERTY* xgi_property =
+          reinterpret_cast<const XGI_XUSER_GET_PROPERTY*>(buffer);
+
+      UserProfile* user = nullptr;
+      if (xgi_property->xuid != 0) {
+        user = kernel_state_->xam_state()->GetUserProfile(xgi_property->xuid);
+      } else {
+        user = kernel_state_->xam_state()->GetUserProfile(
+            xgi_property->user_index);
       }
-      return X_E_SUCCESS;
+
+      if (!user) {
+        XELOGD(
+            "XGIUserGetProperty - Invalid user provided: Index: {:08X} XUID: "
+            "{:16X}",
+            xgi_property->user_index.get(), xgi_property->xuid.get());
+        return X_E_NOTFOUND;
+      }
+
+      // Process context
+      if (xgi_property->context_address) {
+        XUSER_CONTEXT* context = memory_->TranslateVirtual<XUSER_CONTEXT*>(
+            xgi_property->context_address);
+
+        XELOGD("XGIUserGetProperty - Context requested: {:08X} XUID: {:16X}",
+               context->context_id.get(), user->xuid());
+
+        auto context_value =
+            kernel_state_->xam_state()->user_tracker()->GetUserContext(
+                user->xuid(), context->context_id);
+
+        if (!context_value) {
+          return X_E_INVALIDARG;
+        }
+
+        context->value = context_value.value();
+        return X_E_SUCCESS;
+      }
+
+      if (!xgi_property->property_size_ptr || !xgi_property->property_address) {
+        return X_E_INVALIDARG;
+      }
+
+      // Process property
+      XUSER_PROPERTY* property = memory_->TranslateVirtual<XUSER_PROPERTY*>(
+          xgi_property->property_address);
+
+      XELOGD("XGIUserGetProperty - Property requested: {:08X} XUID: {:16X}",
+             property->property_id.get(), user->xuid());
+
+      return kernel_state_->xam_state()->user_tracker()->GetProperty(
+          user->xuid(),
+          memory_->TranslateVirtual<uint32_t*>(xgi_property->property_size_ptr),
+          property);
     }
     case 0x000B0071: {
       XELOGD("XGIUnkB0071({:08X}, {:08X}), unimplemented", buffer_ptr,

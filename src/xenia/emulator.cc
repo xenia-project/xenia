@@ -41,9 +41,9 @@
 #include "xenia/hid/input_system.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
-#include "xenia/kernel/util/xdbf_utils.h"
 #include "xenia/kernel/xam/achievement_manager.h"
 #include "xenia/kernel/xam/xam_module.h"
+#include "xenia/kernel/xam/xdbf/spa_info.h"
 #include "xenia/kernel/xbdm/xbdm_module.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
 #include "xenia/memory.h"
@@ -1427,9 +1427,13 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
     }
     game_config_load_callback_loop_next_index_ = SIZE_MAX;
 
-    const kernel::util::XdbfGameData db = kernel_state_->module_xdbf(module);
+    const auto db = kernel_state_->module_xdbf(module);
 
-    game_info_database_ = std::make_unique<kernel::util::GameInfoDatabase>(&db);
+    game_info_database_ =
+        std::make_unique<kernel::util::GameInfoDatabase>(db.get());
+    kernel_state_->xam_state()->LoadSpaInfo(db.get());
+
+    kernel_state_->xam_state()->user_tracker()->AddTitleToPlayedList();
 
     if (game_info_database_->IsValid()) {
       title_name_ = game_info_database_->GetTitleName(
@@ -1489,17 +1493,6 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
       auto icon_block = game_info_database_->GetIcon();
       if (!icon_block.empty()) {
         display_window_->SetIcon(icon_block.data(), icon_block.size());
-      }
-
-      for (uint8_t slot = 0; slot < XUserMaxUserCount; slot++) {
-        auto user =
-            kernel_state_->xam_state()->profile_manager()->GetProfile(slot);
-
-        if (user) {
-          kernel_state_->xam_state()
-              ->achievement_manager()
-              ->LoadTitleAchievements(user->xuid(), db);
-        }
       }
     }
   }

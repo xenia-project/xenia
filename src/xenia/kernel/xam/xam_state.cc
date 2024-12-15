@@ -25,7 +25,9 @@ XamState::XamState(Emulator* emulator, KernelState* kernel_state)
   content_manager_ =
       std::make_unique<ContentManager>(kernel_state, content_root);
 
-  profile_manager_ = std::make_unique<ProfileManager>(kernel_state);
+  user_tracker_ = std::make_unique<UserTracker>();
+  profile_manager_ =
+      std::make_unique<ProfileManager>(kernel_state, user_tracker_.get());
   achievement_manager_ = std::make_unique<AchievementManager>();
 
   AppManager::RegisterApps(kernel_state, app_manager_.get());
@@ -56,6 +58,21 @@ bool XamState::IsUserSignedIn(uint32_t user_index) const {
 
 bool XamState::IsUserSignedIn(uint64_t xuid) const {
   return GetUserProfile(xuid) != nullptr;
+}
+
+void XamState::LoadSpaInfo(const SpaInfo* info) {
+  // Check if we have loaded SpaInfo already. If yes then check currently loaded
+  // version.
+  if (spa_info_) {
+    // Trying to load spa with lower version, for whatever reason.
+    if (*info <= *spa_info_) {
+      return;
+    }
+  }
+
+  spa_info_ = std::make_unique<SpaInfo>(*info);
+  spa_info_->Load();
+  user_tracker_->UpdateSpaInfo(spa_info_.get());
 }
 
 }  // namespace xam

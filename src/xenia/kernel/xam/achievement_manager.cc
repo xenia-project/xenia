@@ -13,6 +13,7 @@
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/achievement_backends/gpd_achievement_backend.h"
+#include "xenia/kernel/xam/xdbf/gpd_info.h"
 #include "xenia/ui/imgui_guest_notification.h"
 
 DEFINE_bool(show_achievement_notification, false,
@@ -81,25 +82,30 @@ void AchievementManager::EarnAchievement(const uint64_t xuid,
     // Something went really wrong!
     return;
   }
-  ShowAchievementEarnedNotification(achievement);
+  ShowAchievementEarnedNotification(&achievement.value());
 }
 
-void AchievementManager::LoadTitleAchievements(
-    const uint64_t xuid, const util::XdbfGameData title_data) const {
-  default_achievements_backend_->LoadAchievementsData(xuid, title_data);
+void AchievementManager::LoadTitleAchievements(const uint64_t xuid) const {
+  default_achievements_backend_->LoadAchievementsData(xuid);
 }
 
-const AchievementGpdStructure* AchievementManager::GetAchievementInfo(
+const std::optional<Achievement> AchievementManager::GetAchievementInfo(
     const uint64_t xuid, const uint32_t title_id,
     const uint32_t achievement_id) const {
   return default_achievements_backend_->GetAchievementInfo(xuid, title_id,
                                                            achievement_id);
 }
 
-const std::vector<AchievementGpdStructure>*
-AchievementManager::GetTitleAchievements(const uint64_t xuid,
-                                         const uint32_t title_id) const {
+const std::vector<Achievement> AchievementManager::GetTitleAchievements(
+    const uint64_t xuid, const uint32_t title_id) const {
   return default_achievements_backend_->GetTitleAchievements(xuid, title_id);
+}
+
+const std::span<const uint8_t> AchievementManager::GetAchievementIcon(
+    const uint64_t xuid, const uint32_t title_id,
+    const uint32_t achievement_id) const {
+  return default_achievements_backend_->GetAchievementIcon(xuid, title_id,
+                                                           achievement_id);
 }
 
 const std::optional<TitleAchievementsProfileInfo>
@@ -109,13 +115,13 @@ AchievementManager::GetTitleAchievementsInfo(const uint64_t xuid,
 
   const auto achievements = GetTitleAchievements(xuid, title_id);
 
-  if (!achievements) {
+  if (achievements.empty()) {
     return std::nullopt;
   }
 
-  info.achievements_count = static_cast<uint32_t>(achievements->size());
+  info.achievements_count = static_cast<uint32_t>(achievements.size());
 
-  for (const auto& entry : *achievements) {
+  for (const auto& entry : achievements) {
     if (!entry.IsUnlocked()) {
       continue;
     }
@@ -129,22 +135,15 @@ AchievementManager::GetTitleAchievementsInfo(const uint64_t xuid,
 
 bool AchievementManager::DoesAchievementExist(
     const uint32_t achievement_id) const {
-  const util::XdbfGameData title_xdbf = kernel_state()->title_xdbf();
-  const util::XdbfAchievementTableEntry achievement =
-      title_xdbf.GetAchievement(achievement_id);
-
-  if (!achievement.id) {
-    return false;
-  }
-  return true;
+  return kernel_state()->xam_state()->spa_info()->GetAchievement(
+      achievement_id);
 }
 
 void AchievementManager::ShowAchievementEarnedNotification(
-    const AchievementGpdStructure* achievement) const {
+    const Achievement* achievement) const {
   const std::string description =
-      fmt::format("{}G - {}", achievement->gamerscore.get(),
-                  xe::to_utf8(xe::load_and_swap<std::u16string>(
-                      achievement->achievement_name.c_str())));
+      fmt::format("{}G - {}", achievement->gamerscore,
+                  xe::to_utf8(achievement->achievement_name));
 
   const Emulator* emulator = kernel_state()->emulator();
   ui::WindowedAppContext& app_context =

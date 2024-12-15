@@ -16,7 +16,8 @@
 #include <vector>
 
 #include "xenia/base/chrono.h"
-#include "xenia/kernel/util/xdbf_utils.h"
+#include "xenia/kernel/xam/xdbf/gpd_info.h"
+#include "xenia/kernel/xam/xdbf/spa_info.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -40,48 +41,6 @@ enum class AchievementPlatform : uint32_t {
   kWebGames = 0x400000,
 };
 
-enum class AchievementFlags : uint32_t {
-  kTypeMask = 0x7,
-  kShowUnachieved = 0x8,
-  kAchievedOnline = 0x10000,
-  kAchieved = 0x20000,
-  kNotAchievable = 0x40000,
-  kWasNotAchievable = 0x80000,
-  kPlatformMask = 0x700000,
-  kColorizable = 0x1000000,  // avatar awards only?
-};
-
-struct X_ACHIEVEMENT_UNLOCK_TIME {
-  xe::be<uint32_t> high_part;
-  xe::be<uint32_t> low_part;
-
-  X_ACHIEVEMENT_UNLOCK_TIME() {
-    high_part = 0;
-    low_part = 0;
-  }
-
-  X_ACHIEVEMENT_UNLOCK_TIME(uint64_t filetime) {
-    high_part = static_cast<uint32_t>(filetime >> 32);
-    low_part = static_cast<uint32_t>(filetime);
-  }
-
-  X_ACHIEVEMENT_UNLOCK_TIME(std::time_t time) {
-    const auto file_time =
-        chrono::WinSystemClock::to_file_time(chrono::WinSystemClock::from_sys(
-            std::chrono::system_clock::from_time_t(time)));
-
-    high_part = static_cast<uint32_t>(file_time >> 32);
-    low_part = static_cast<uint32_t>(file_time);
-  }
-
-  chrono::WinSystemClock::time_point to_time_point() const {
-    const uint64_t filetime =
-        (static_cast<uint64_t>(high_part) << 32) | low_part;
-
-    return chrono::WinSystemClock::from_file_time(filetime);
-  }
-};
-
 struct X_ACHIEVEMENT_DETAILS {
   xe::be<uint32_t> id;
   xe::be<uint32_t> label_ptr;
@@ -89,12 +48,59 @@ struct X_ACHIEVEMENT_DETAILS {
   xe::be<uint32_t> unachieved_ptr;
   xe::be<uint32_t> image_id;
   xe::be<uint32_t> gamerscore;
-  X_ACHIEVEMENT_UNLOCK_TIME unlock_time;
+  X_FILETIME unlock_time;
   xe::be<uint32_t> flags;
 
   static const size_t kStringBufferSize = 464;
 };
 static_assert_size(X_ACHIEVEMENT_DETAILS, 36);
+
+// Host structures
+struct AchievementDetails {
+  uint32_t id;
+  std::u16string label;
+  std::u16string description;
+  std::u16string unachieved;
+  uint32_t image_id;
+  uint32_t gamerscore;
+  X_FILETIME unlock_time;
+  uint32_t flags;
+
+  AchievementDetails(uint32_t id, std::u16string label,
+                     std::u16string description, std::u16string unachieved,
+                     uint32_t image_id, uint32_t gamerscore,
+                     X_FILETIME unlock_time, uint32_t flags)
+      : id(id),
+        label(label),
+        description(description),
+        unachieved(unachieved),
+        image_id(image_id),
+        gamerscore(gamerscore),
+        unlock_time(unlock_time),
+        flags(flags) {};
+
+  AchievementDetails(const AchievementTableEntry* entry,
+                     const SpaInfo* spa_data, const XLanguage language) {
+    id = entry->id;
+    image_id = entry->image_id;
+    gamerscore = entry->gamerscore;
+    flags = entry->flags;
+    unlock_time = {};
+
+    label =
+        xe::to_utf16(spa_data->GetStringTableEntry(language, entry->label_id));
+    description = xe::to_utf16(
+        spa_data->GetStringTableEntry(language, entry->description_id));
+    unachieved = xe::to_utf16(
+        spa_data->GetStringTableEntry(language, entry->unachieved_id));
+  }
+};
+
+struct TitleAchievementsProfileInfo {
+  uint32_t achievements_count;
+  uint32_t unlocked_achievements_count;
+  uint32_t gamerscore;
+};
 
 // This is structure used inside GPD file.
 // GPD is writeable XDBF.
@@ -103,18 +109,30 @@ static_assert_size(X_ACHIEVEMENT_DETAILS, 36);
 // booted game (name, title_id, last boot time etc)
 // 2. In specific Title ID directory GPD contains there structure below for
 // every achievement. (unlocked or not)
-struct AchievementGpdStructure {
-  AchievementGpdStructure(const XLanguage language,
-                          const util::XdbfGameData xdbf,
-                          const util::XdbfAchievementTableEntry& xdbf_entry) {
-    const std::string label =
-        xdbf.GetStringTableEntry(language, xdbf_entry.label_id);
-    const std::string desc =
-        xdbf.GetStringTableEntry(language, xdbf_entry.description_id);
-    const std::string locked_desc =
-        xdbf.GetStringTableEntry(language, xdbf_entry.unachieved_id);
+struct Achievement {
+  Achievement() {};
 
-    struct_size = 0x1C;
+  Achievement(const X_XDBF_GPD_ACHIEVEMENT* xdbf_ach) {
+    if (!xdbf_ach) {
+      return;
+    }
+
+    achievement_id = xdbf_ach->id;
+    image_id = xdbf_ach->image_id;
+    flags = xdbf_ach->flags;
+    gamerscore = xdbf_ach->gamerscore;
+    unlock_time = static_cast<uint64_t>(xdbf_ach->unlock_time);
+  }
+
+  Achievement(const XLanguage language, const SpaInfo xdbf,
+              const AchievementTableEntry& xdbf_entry) {
+    const std::string label = "";
+    xdbf.GetStringTableEntry(language, xdbf_entry.label_id);
+    const std::string desc = "";
+    xdbf.GetStringTableEntry(language, xdbf_entry.description_id);
+    const std::string locked_desc = "";
+    xdbf.GetStringTableEntry(language, xdbf_entry.unachieved_id);
+
     achievement_id = static_cast<xe::be<uint32_t>>(xdbf_entry.id);
     image_id = xdbf_entry.image_id;
     gamerscore = static_cast<xe::be<uint32_t>>(xdbf_entry.gamerscore);
@@ -128,26 +146,23 @@ struct AchievementGpdStructure {
         xe::load_and_swap<std::u16string>(xe::to_utf16(locked_desc).c_str());
   }
 
-  xe::be<uint32_t> struct_size;
-  xe::be<uint32_t> achievement_id;
-  xe::be<uint32_t> image_id;
-  xe::be<uint32_t> gamerscore;
-  xe::be<uint32_t> flags;
-  X_ACHIEVEMENT_UNLOCK_TIME unlock_time;
+  uint32_t achievement_id = 0;
+  uint32_t image_id = 0;
+  uint32_t gamerscore = 0;
+  uint32_t flags = 0;
+  X_FILETIME unlock_time;
   std::u16string achievement_name;
   std::u16string unlocked_description;
   std::u16string locked_description;
 
   bool IsUnlocked() const {
     return (flags & static_cast<uint32_t>(AchievementFlags::kAchieved)) ||
-           flags & static_cast<uint32_t>(AchievementFlags::kAchievedOnline);
+           IsUnlockedOnline();
   }
-};
 
-struct TitleAchievementsProfileInfo {
-  uint32_t achievements_count;
-  uint32_t unlocked_achievements_count;
-  uint32_t gamerscore;
+  bool IsUnlockedOnline() const {
+    return (flags & static_cast<uint32_t>(AchievementFlags::kAchievedOnline));
+  }
 };
 
 class AchievementBackendInterface {
@@ -161,44 +176,47 @@ class AchievementBackendInterface {
                                      const uint32_t title_id,
                                      const uint32_t achievement_id) const = 0;
 
-  virtual const AchievementGpdStructure* GetAchievementInfo(
+  virtual const std::optional<Achievement> GetAchievementInfo(
       const uint64_t xuid, const uint32_t title_id,
       const uint32_t achievement_id) const = 0;
-  virtual const std::vector<AchievementGpdStructure>* GetTitleAchievements(
+  virtual const std::vector<Achievement> GetTitleAchievements(
       const uint64_t xuid, const uint32_t title_id) const = 0;
-  virtual bool LoadAchievementsData(const uint64_t xuid,
-                                    const util::XdbfGameData title_data) = 0;
+  virtual const std::span<const uint8_t> GetAchievementIcon(
+      const uint64_t xuid, const uint32_t title_id,
+      const uint32_t achievement_id) const = 0;
+  virtual bool LoadAchievementsData(const uint64_t xuid) = 0;
 
  private:
   virtual bool SaveAchievementsData(const uint64_t xuid,
                                     const uint32_t title_id) = 0;
   virtual bool SaveAchievementData(const uint64_t xuid, const uint32_t title_id,
-                                   const uint32_t achievement_id) = 0;
+                                   const Achievement* achievement) = 0;
 };
 
 class AchievementManager {
  public:
   AchievementManager();
 
-  void LoadTitleAchievements(const uint64_t xuid,
-                             const util::XdbfGameData title_id) const;
+  void LoadTitleAchievements(const uint64_t xuid) const;
 
   void EarnAchievement(const uint32_t user_index, const uint32_t title_id,
                        const uint32_t achievement_id) const;
   void EarnAchievement(const uint64_t xuid, const uint32_t title_id,
                        const uint32_t achievement_id) const;
-  const AchievementGpdStructure* GetAchievementInfo(
+  const std::optional<Achievement> GetAchievementInfo(
       const uint64_t xuid, const uint32_t title_id,
       const uint32_t achievement_id) const;
-  const std::vector<AchievementGpdStructure>* GetTitleAchievements(
+  const std::vector<Achievement> GetTitleAchievements(
       const uint64_t xuid, const uint32_t title_id) const;
   const std::optional<TitleAchievementsProfileInfo> GetTitleAchievementsInfo(
       const uint64_t xuid, const uint32_t title_id) const;
+  const std::span<const uint8_t> GetAchievementIcon(
+      const uint64_t xuid, const uint32_t title_id,
+      const uint32_t achievement_id) const;
 
  private:
   bool DoesAchievementExist(const uint32_t achievement_id) const;
-  void ShowAchievementEarnedNotification(
-      const AchievementGpdStructure* achievement) const;
+  void ShowAchievementEarnedNotification(const Achievement* achievement) const;
 
   // This contains all backends with exception of default storage.
   std::vector<std::unique_ptr<AchievementBackendInterface>>

@@ -51,6 +51,8 @@ class XContentContainerEntry : public Entry {
   friend class StfsContainerDevice;
   friend class SvodContainerDevice;
 
+  bool DeleteEntryInternal(Entry* entry) override;
+
   MultiFileHandles* files_;
   size_t data_offset_;
   size_t data_size_;

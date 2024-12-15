@@ -16,63 +16,24 @@
 #include <unordered_map>
 #include <vector>
 
-#include "xenia/base/byte_stream.h"
-#include "xenia/kernel/util/property.h"
-#include "xenia/kernel/util/xuserdata.h"
-#include "xenia/kernel/xam/achievement_manager.h"
+#include "xenia/kernel/xam/user_property.h"
+#include "xenia/kernel/xam/xdbf/gpd_info_profile.h"
+#include "xenia/kernel/xam/xdbf/gpd_info_title.h"
 #include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {
 namespace xam {
 
-constexpr uint32_t kMaxSettingSize = 0x03E8;
-
 enum class X_USER_PROFILE_SETTING_SOURCE : uint32_t {
   NOT_SET = 0,
-  DEFAULT = 1,
-  TITLE = 2,
+  DEFAULT = 1,  // Default value taken from default OS values.
+  TITLE = 2,    // Value written by title or OS.
   UNKNOWN = 3,
 };
 
-enum PREFERRED_COLOR_OPTIONS : uint32_t {
-  PREFERRED_COLOR_NONE,
-  PREFERRED_COLOR_BLACK,
-  PREFERRED_COLOR_WHITE,
-  PREFERRED_COLOR_YELLOW,
-  PREFERRED_COLOR_ORANGE,
-  PREFERRED_COLOR_PINK,
-  PREFERRED_COLOR_RED,
-  PREFERRED_COLOR_PURPLE,
-  PREFERRED_COLOR_BLUE,
-  PREFERRED_COLOR_GREEN,
-  PREFERRED_COLOR_BROWN,
-  PREFERRED_COLOR_SILVER
-};
-
-// Each setting contains 0x18 bytes long header
-struct X_USER_PROFILE_SETTING_HEADER {
-  xe::be<uint32_t> setting_id;
-  xe::be<uint32_t> unknown_1;
-  xe::be<uint8_t> setting_type;
-  char unknown_2[3];
-  xe::be<uint32_t> unknown_3;
-
-  union {
-    // Size is used only for types: CONTENT, WSTRING, BINARY
-    be<uint32_t> size;
-    // Raw values that can be written. They do not need to be serialized.
-    be<int32_t> s32;
-    be<int64_t> s64;
-    be<uint32_t> u32;
-    be<double> f64;
-    be<float> f32;
-  };
-};
-static_assert_size(X_USER_PROFILE_SETTING_HEADER, 0x18);
-
 struct X_USER_PROFILE_SETTING {
-  xe::be<uint32_t> from;
+  xe::be<X_USER_PROFILE_SETTING_SOURCE> source;
   union {
     xe::be<uint32_t> user_index;
     xe::be<uint64_t> xuid;
@@ -85,86 +46,33 @@ struct X_USER_PROFILE_SETTING {
 };
 static_assert_size(X_USER_PROFILE_SETTING, 40);
 
-class UserSetting {
- public:
-  template <typename T>
-  UserSetting(uint32_t setting_id, T data) {
-    header_.setting_id = setting_id;
+enum class XTileType {
+  kAchievement,
+  kGameIcon,
+  kGamerTile,
+  kGamerTileSmall,
+  kLocalGamerTile,
+  kLocalGamerTileSmall,
+  kBkgnd,
+  kAwardedGamerTile,
+  kAwardedGamerTileSmall,
+  kGamerTileByImageId,
+  kPersonalGamerTile,
+  kPersonalGamerTileSmall,
+  kGamerTileByKey,
+  kAvatarGamerTile,
+  kAvatarGamerTileSmall,
+  kAvatarFullBody
+};
 
-    setting_id_.value = setting_id;
-    CreateUserData(setting_id, data);
-  }
-
-  static bool is_title_specific(uint32_t setting_id) {
-    return (setting_id & 0x3F00) == 0x3F00;
-  }
-
-  bool is_title_specific() const {
-    return is_title_specific(setting_id_.value);
-  }
-
-  const uint32_t GetSettingId() const { return setting_id_.value; }
-  const X_USER_PROFILE_SETTING_SOURCE GetSettingSource() const {
-    return created_by_;
-  }
-  const X_USER_PROFILE_SETTING_HEADER* GetSettingHeader() const {
-    return &header_;
-  }
-  UserData* GetSettingData() { return user_data_.get(); }
-
-  void SetNewSettingSource(X_USER_PROFILE_SETTING_SOURCE new_source) {
-    created_by_ = new_source;
-  }
-
-  void SetNewSettingHeader(X_USER_PROFILE_SETTING_HEADER* header) {
-    header_ = *header;
-  }
-
- private:
-  void CreateUserData(uint32_t setting_id, uint32_t data) {
-    header_.setting_type = static_cast<uint8_t>(X_USER_DATA_TYPE::INT32);
-    header_.u32 = data;
-    user_data_ = std::make_unique<Uint32UserData>(data);
-  }
-  void CreateUserData(uint32_t setting_id, int32_t data) {
-    header_.setting_type = static_cast<uint8_t>(X_USER_DATA_TYPE::INT32);
-    header_.s32 = data;
-    user_data_ = std::make_unique<Int32UserData>(data);
-  }
-  void CreateUserData(uint32_t setting_id, float data) {
-    header_.setting_type = static_cast<uint8_t>(X_USER_DATA_TYPE::FLOAT);
-    header_.f32 = data;
-    user_data_ = std::make_unique<FloatUserData>(data);
-  }
-  void CreateUserData(uint32_t setting_id, double data) {
-    header_.setting_type = static_cast<uint8_t>(X_USER_DATA_TYPE::DOUBLE);
-    header_.f64 = data;
-    user_data_ = std::make_unique<DoubleUserData>(data);
-  }
-  void CreateUserData(uint32_t setting_id, int64_t data) {
-    header_.setting_type = static_cast<uint8_t>(X_USER_DATA_TYPE::INT64);
-    header_.s64 = data;
-    user_data_ = std::make_unique<Int64UserData>(data);
-  }
-  void CreateUserData(uint32_t setting_id, const std::u16string& data) {
-    header_.setting_type = static_cast<uint8_t>(X_USER_DATA_TYPE::WSTRING);
-    header_.size =
-        std::min(kMaxSettingSize, static_cast<uint32_t>((data.size() + 1) * 2));
-    user_data_ = std::make_unique<UnicodeUserData>(data);
-  }
-  void CreateUserData(uint32_t setting_id, const std::vector<uint8_t>& data) {
-    header_.setting_type = static_cast<uint8_t>(X_USER_DATA_TYPE::BINARY);
-    header_.size =
-        std::min(kMaxSettingSize, static_cast<uint32_t>(data.size()));
-    user_data_ = std::make_unique<BinaryUserData>(data);
-  }
-
-  X_USER_PROFILE_SETTING_SOURCE created_by_ =
-      X_USER_PROFILE_SETTING_SOURCE::DEFAULT;
-
-  X_USER_PROFILE_SETTING_HEADER header_ = {};
-  AttributeKey setting_id_ = {};
-  std::unique_ptr<UserData> user_data_ = nullptr;
+// TODO: find filenames of other tile types that are stored in profile
+static const std::map<XTileType, std::string> kTileFileNames = {
+    {XTileType::kGamerTile, "tile_64.png"},
+    {XTileType::kGamerTileSmall, "tile_32.png"},
+    {XTileType::kPersonalGamerTile, "tile_64.png"},
+    {XTileType::kPersonalGamerTileSmall, "tile_32.png"},
+    {XTileType::kAvatarGamerTile, "avtr_64.png"},
+    {XTileType::kAvatarGamerTileSmall, "avtr_32.png"},
 };
 
 class UserProfile {
@@ -180,39 +88,50 @@ class UserProfile {
   uint32_t GetSubscriptionTier() const {
     return account_info_.GetSubscriptionTier();
   }
+
+  std::span<const uint8_t> GetProfileIcon(XTileType icon_type) {
+    // Overwrite same types?
+    if (icon_type == XTileType::kPersonalGamerTile) {
+      icon_type = XTileType::kGamerTile;
+    }
+
+    if (icon_type == XTileType::kPersonalGamerTileSmall) {
+      icon_type = XTileType::kGamerTileSmall;
+    }
+
+    if (profile_images_.find(icon_type) == profile_images_.cend()) {
+      return {};
+    }
+
+    return {profile_images_[icon_type].data(),
+            profile_images_[icon_type].size()};
+  }
+
   void GetPasscode(uint16_t* passcode) const {
     std::memcpy(passcode, account_info_.passcode,
                 sizeof(account_info_.passcode));
   };
 
-  void AddSetting(std::unique_ptr<UserSetting> setting);
-  UserSetting* GetSetting(uint32_t setting_id);
-
-  bool AddProperty(const Property* property);
-  Property* GetProperty(const AttributeKey id);
-
-  std::map<uint32_t, uint32_t> contexts_;
-
+  friend class UserTracker;
   friend class GpdAchievementBackend;
-
- protected:
-  AchievementGpdStructure* GetAchievement(const uint32_t title_id,
-                                          const uint32_t id);
-  std::vector<AchievementGpdStructure>* GetTitleAchievements(
-      const uint32_t title_id);
 
  private:
   uint64_t xuid_;
   X_XAMACCOUNTINFO account_info_;
 
-  std::vector<std::unique_ptr<UserSetting>> setting_list_;
-  std::unordered_map<uint32_t, UserSetting*> settings_;
-  std::map<uint32_t, std::vector<AchievementGpdStructure>> achievements_;
+  GpdInfoProfile dashboard_gpd_;
+  std::map<uint32_t, GpdInfoTitle> games_gpd_;
+  std::vector<Property> properties_;  // Includes contexts!
 
-  std::vector<Property> properties_;
+  std::map<XTileType, std::vector<uint8_t>> profile_images_;
 
-  void LoadSetting(UserSetting*);
-  void SaveSetting(UserSetting*);
+  GpdInfo* GetGpd(const uint32_t title_id);
+  const GpdInfo* GetGpd(const uint32_t title_id) const;
+
+  void LoadProfileGpds();
+  void LoadProfileIcon(XTileType tile_type);
+  std::vector<uint8_t> LoadGpd(const uint32_t title_id);
+  bool WriteGpd(const uint32_t title_id);
 };
 
 }  // namespace xam

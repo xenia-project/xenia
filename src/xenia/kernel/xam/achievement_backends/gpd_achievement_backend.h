@@ -15,8 +15,8 @@
 #include <string>
 #include <vector>
 
-#include "xenia/kernel/util/xdbf_utils.h"
 #include "xenia/kernel/xam/achievement_manager.h"
+#include "xenia/kernel/xam/xdbf/gpd_info.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -32,25 +32,23 @@ class GpdAchievementBackend : public AchievementBackendInterface {
                        const uint32_t achievement_id) override;
   bool IsAchievementUnlocked(const uint64_t xuid, const uint32_t title_id,
                              const uint32_t achievement_id) const override;
-  const AchievementGpdStructure* GetAchievementInfo(
+  const std::optional<Achievement> GetAchievementInfo(
       const uint64_t xuid, const uint32_t title_id,
       const uint32_t achievement_id) const override;
-  const std::vector<AchievementGpdStructure>* GetTitleAchievements(
+  const std::vector<Achievement> GetTitleAchievements(
       const uint64_t xuid, const uint32_t title_id) const override;
-  bool LoadAchievementsData(const uint64_t xuid,
-                            const util::XdbfGameData title_data) override;
+  const std::span<const uint8_t> GetAchievementIcon(
+      const uint64_t xuid, const uint32_t title_id,
+      const uint32_t achievement_id) const override;
+  bool LoadAchievementsData(const uint64_t xuid) override;
 
  private:
-  AchievementGpdStructure* GetAchievementInfoInternal(
-      const uint64_t xuid, const uint32_t title_id,
-      const uint32_t achievement_id) const;
-
   bool SaveAchievementsData(const uint64_t xuid,
                             const uint32_t title_id) override {
     return 0;
   };
   bool SaveAchievementData(const uint64_t xuid, const uint32_t title_id,
-                           const uint32_t achievement_id) override;
+                           const Achievement* achievement) override;
 };
 
 }  // namespace xam

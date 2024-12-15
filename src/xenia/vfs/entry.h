@@ -140,7 +140,7 @@ class Entry {
       const std::string_view name, uint32_t attributes) {
     return nullptr;
   }
-  virtual bool DeleteEntryInternal(Entry* entry) { return false; }
+  virtual bool DeleteEntryInternal(Entry* entry) = 0;
   virtual void RenameEntryInternal(const std::filesystem::path file_path) {}
 
   xe::global_critical_region global_critical_region_;

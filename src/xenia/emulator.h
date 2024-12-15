@@ -171,6 +171,9 @@ class Emulator {
 
   patcher::PluginLoader* plugin_loader() const { return plugin_loader_.get(); }
 
+  kernel::util::GameInfoDatabase* game_info_database() const {
+    return game_info_database_.get();
+  }
   // Initializes the emulator and configures all components.
   // The given window is used for display and the provided functions are used
   // to create subsystems as required.

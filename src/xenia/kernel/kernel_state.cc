@@ -22,6 +22,7 @@
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_module.h"
+#include "xenia/kernel/xam/xdbf/xdbf_io.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_memory.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_ob.h"
@@ -134,11 +135,11 @@ bool KernelState::is_title_system_type(uint32_t title_id) {
   return (title_id >> 16) == 0xFFFE;
 }
 
-util::XdbfGameData KernelState::title_xdbf() const {
+const std::unique_ptr<xam::SpaInfo> KernelState::title_xdbf() const {
   return module_xdbf(executable_module_);
 }
 
-util::XdbfGameData KernelState::module_xdbf(
+const std::unique_ptr<xam::SpaInfo> KernelState::module_xdbf(
     object_ref<UserModule> exec_module) const {
   assert_not_null(exec_module);
 
@@ -147,11 +148,32 @@ util::XdbfGameData KernelState::module_xdbf(
   if (XSUCCEEDED(exec_module->GetSection(
           fmt::format("{:08X}", exec_module->title_id()).c_str(),
           &resource_data, &resource_size))) {
-    util::XdbfGameData db(memory()->TranslateVirtual(resource_data),
-                          resource_size);
-    return db;
+    return std::make_unique<xam::SpaInfo>(std::span<uint8_t>(
+        memory()->TranslateVirtual(resource_data), resource_size));
   }
-  return util::XdbfGameData(nullptr, resource_size);
+
+  return nullptr;
+}
+
+bool KernelState::UpdateSpaData(vfs::Entry* spa_file_update) {
+  vfs::File* file;
+  if (spa_file_update->Open(vfs::FileAccess::kFileReadData, &file) !=
+      X_STATUS_SUCCESS) {
+    return false;
+  }
+
+  std::vector<uint8_t> data(spa_file_update->size());
+
+  size_t read_bytes = 0;
+  if (file->ReadSync(data.data(), spa_file_update->size(), 0, &read_bytes) !=
+      X_STATUS_SUCCESS) {
+    return false;
+  }
+
+  xam::SpaInfo new_spa_data(std::span<uint8_t>(data.data(), data.size()));
+  xam_state_->LoadSpaInfo(&new_spa_data);
+  emulator_->game_info_database()->Update(&new_spa_data);
+  return true;
 }
 
 uint32_t KernelState::AllocateTLS() { return uint32_t(tls_bitmap_.Acquire()); }

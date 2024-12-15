@@ -245,10 +245,13 @@ std::map<uint32_t, std::unique_ptr<ImmediateTexture>> ImGuiDrawer::LoadIcons(
   int width, height, channels;
 
   for (const auto& icon : data) {
-    unsigned char* image_data =
-        stbi_load_from_memory(icon.second.first, icon.second.second, &width,
-                              &height, &channels, STBI_rgb_alpha);
+    unsigned char* image_data = stbi_load_from_memory(
+        icon.second.data(), static_cast<int>(icon.second.size()), &width,
+        &height, &channels, STBI_rgb_alpha);
 
+    if (!image_data) {
+      continue;
+    }
     icons_[icon.first] = (immediate_drawer_->CreateTexture(
         width, height, ImmediateTextureFilter::kLinear, true,
         reinterpret_cast<uint8_t*>(image_data)));

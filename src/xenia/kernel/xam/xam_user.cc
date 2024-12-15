@@ -7,18 +7,19 @@
  ******************************************************************************
  */
 
-#include <cstring>
-
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/string_util.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/user_profile.h"
+#include "xenia/kernel/xam/user_settings.h"
 #include "xenia/kernel/xam/xam_private.h"
 #include "xenia/kernel/xenumerator.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
+
+#include "third_party/stb/stb_image.h"
 
 DECLARE_int32(user_language);
 
@@ -207,22 +208,7 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
                                       be<uint32_t>* setting_ids, uint32_t unk,
                                       be<uint32_t>* buffer_size_ptr,
                                       uint8_t* buffer,
-                                      XAM_OVERLAPPED* overlapped) {
-  if (!xuid_count) {
-    assert_null(xuids);
-  } else {
-    assert_true(xuid_count == 1);
-    assert_not_null(xuids);
-    // TODO(gibbed): allow proper lookup of arbitrary XUIDs
-    // TODO(gibbed): we assert here, but in case a title passes xuid_count > 1
-    // until it's implemented for release builds...
-    xuid_count = 1;
-    if (kernel_state()->xam_state()->IsUserSignedIn(user_index)) {
-      const auto& user_profile =
-          kernel_state()->xam_state()->GetUserProfile(user_index);
-      assert_true(static_cast<uint64_t>(xuids[0]) == user_profile->xuid());
-    }
-  }
+                                      lpvoid_t overlapped_ptr) {
   assert_zero(unk);  // probably flags
 
   // must have at least 1 to 32 settings
@@ -270,109 +256,101 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
     return X_ERROR_INSUFFICIENT_BUFFER;
   }
 
-  auto user_profile = kernel_state()->xam_state()->GetUserProfile(user_index);
+  auto run = [=](uint32_t& extended_error, uint32_t& length) {
+    auto user_profile = kernel_state()->xam_state()->GetUserProfile(user_index);
 
-  if (!user_profile && !xuids) {
-    if (overlapped) {
-      kernel_state()->CompleteOverlappedImmediate(
-          kernel_state()->memory()->HostToGuestVirtual(overlapped),
-          X_ERROR_NO_SUCH_USER);
-      return X_ERROR_IO_PENDING;
-    }
-    return X_ERROR_NO_SUCH_USER;
-  }
-
-  if (xuids) {
-    uint64_t user_xuid = static_cast<uint64_t>(xuids[0]);
-    if (!kernel_state()->xam_state()->IsUserSignedIn(user_xuid)) {
-      if (overlapped) {
-        kernel_state()->CompleteOverlappedImmediate(
-            kernel_state()->memory()->HostToGuestVirtual(overlapped),
-            X_ERROR_NO_SUCH_USER);
-        return X_ERROR_IO_PENDING;
-      }
+    if (!user_profile && !xuids) {
       return X_ERROR_NO_SUCH_USER;
     }
-    user_profile = kernel_state()->xam_state()->GetUserProfile(user_xuid);
-  }
 
-  if (!user_profile) {
-    return X_ERROR_NO_SUCH_USER;
-  }
-
-  // First call asks for size (fill buffer_size_ptr).
-  // Second call asks for buffer contents with that size.
-
-  // TODO(gibbed): setting validity checking without needing a user profile
-  // object.
-  bool any_missing = false;
-  for (uint32_t i = 0; i < setting_count; ++i) {
-    auto setting_id = static_cast<uint32_t>(setting_ids[i]);
-    auto setting = user_profile->GetSetting(setting_id);
-    if (!setting) {
-      any_missing = true;
-      XELOGE(
-          "xeXamUserReadProfileSettingsEx requested unimplemented setting "
-          "{:08X}",
-          setting_id);
-    }
-  }
-  if (any_missing) {
-    // TODO(benvanik): don't fail? most games don't even check!
-    if (overlapped) {
-      kernel_state()->CompleteOverlappedImmediate(
-          kernel_state()->memory()->HostToGuestVirtual(overlapped),
-          X_ERROR_INVALID_PARAMETER);
-      return X_ERROR_IO_PENDING;
-    }
-    return X_ERROR_INVALID_PARAMETER;
-  }
-
-  auto out_header = reinterpret_cast<X_USER_READ_PROFILE_SETTINGS*>(buffer);
-  auto out_setting = reinterpret_cast<X_USER_PROFILE_SETTING*>(&out_header[1]);
-  out_header->setting_count = static_cast<uint32_t>(setting_count);
-  out_header->settings_ptr =
-      kernel_state()->memory()->HostToGuestVirtual(out_setting);
-
-  DataByteStream out_stream(
-      kernel_state()->memory()->HostToGuestVirtual(buffer), buffer, buffer_size,
-      needed_header_size);
-  for (uint32_t n = 0; n < setting_count; ++n) {
-    uint32_t setting_id = setting_ids[n];
-    auto setting = user_profile->GetSetting(setting_id);
-
-    std::memset(out_setting, 0, sizeof(X_USER_PROFILE_SETTING));
-    out_setting->from =
-        !setting ? 0 : static_cast<uint32_t>(setting->GetSettingSource());
     if (xuids) {
-      out_setting->xuid = user_profile->xuid();
-    } else {
-      out_setting->xuid = -1;
-      out_setting->user_index = user_index;
+      uint64_t user_xuid = static_cast<uint64_t>(xuids[0]);
+      if (!kernel_state()->xam_state()->IsUserSignedIn(user_xuid)) {
+        extended_error = X_HRESULT_FROM_WIN32(X_ERROR_NO_SUCH_USER);
+        length = 0;
+        return X_ERROR_NO_SUCH_USER;
+      }
+      user_profile = kernel_state()->xam_state()->GetUserProfile(user_xuid);
     }
-    out_setting->setting_id = setting_id;
 
-    if (setting) {
-      out_setting->data.type = static_cast<X_USER_DATA_TYPE>(
-          setting->GetSettingHeader()->setting_type.value);
-      setting->GetSettingData()->Append(&out_setting->data, &out_stream);
+    if (!user_profile) {
+      extended_error = X_HRESULT_FROM_WIN32(X_ERROR_NO_SUCH_USER);
+      length = 0;
+      return X_ERROR_NO_SUCH_USER;
     }
-    ++out_setting;
+
+    // First call asks for size (fill buffer_size_ptr).
+    // Second call asks for buffer contents with that size.
+
+    bool any_missing = false;
+    for (uint32_t i = 0; i < setting_count; ++i) {
+      auto setting_id = static_cast<uint32_t>(setting_ids[i]);
+      if (!UserSetting::is_setting_valid(setting_id)) {
+        XELOGE(
+            "xeXamUserReadProfileSettingsEx requested unimplemented "
+            "setting "
+            "{:08X}",
+            setting_id);
+        any_missing = true;
+      }
+    }
+    if (any_missing) {
+      extended_error = X_HRESULT_FROM_WIN32(X_ERROR_INVALID_PARAMETER);
+      length = 0;
+      return X_ERROR_INVALID_PARAMETER;
+      // TODO(benvanik): don't fail? most games don't even check!
+    }
+
+    auto out_header = reinterpret_cast<X_USER_READ_PROFILE_SETTINGS*>(buffer);
+    auto out_setting =
+        reinterpret_cast<X_USER_PROFILE_SETTING*>(&out_header[1]);
+    out_header->setting_count = static_cast<uint32_t>(setting_count);
+    out_header->settings_ptr =
+        kernel_state()->memory()->HostToGuestVirtual(out_setting);
+
+    uint32_t additional_data_buffer_ptr =
+        out_header->settings_ptr +
+        (setting_count * sizeof(X_USER_PROFILE_SETTING));
+
+    std::fill_n(out_setting, setting_count, X_USER_PROFILE_SETTING{});
+
+    for (uint32_t n = 0; n < setting_count; ++n) {
+      uint32_t setting_id = setting_ids[n];
+
+      const bool is_valid =
+          kernel_state()->xam_state()->user_tracker()->GetUserSetting(
+              user_profile->xuid(),
+              title_id ? title_id : kernel_state()->title_id(), setting_id,
+              out_setting, additional_data_buffer_ptr);
+
+      if (is_valid) {
+        if (xuids) {
+          out_setting->xuid = user_profile->xuid();
+        } else {
+          out_setting->user_index = user_index;
+        }
+      }
+      ++out_setting;
+    }
+
+    extended_error = X_HRESULT_FROM_WIN32(X_STATUS_SUCCESS);
+    length = 0;
+    return X_STATUS_SUCCESS;
+  };
+
+  if (!overlapped_ptr) {
+    uint32_t extended_error, length;
+    return run(extended_error, length);
   }
 
-  if (overlapped) {
-    kernel_state()->CompleteOverlappedImmediate(
-        kernel_state()->memory()->HostToGuestVirtual(overlapped),
-        X_ERROR_SUCCESS);
-    return X_ERROR_IO_PENDING;
-  }
-  return X_ERROR_SUCCESS;
+  kernel_state()->CompleteOverlappedDeferredEx(run, overlapped_ptr);
+  return X_ERROR_IO_PENDING;
 }
 
 dword_result_t XamUserReadProfileSettings_entry(
     dword_t title_id, dword_t user_index, dword_t xuid_count, lpqword_t xuids,
     dword_t setting_count, lpdword_t setting_ids, lpdword_t buffer_size_ptr,
-    lpvoid_t buffer_ptr, pointer_t<XAM_OVERLAPPED> overlapped) {
+    lpvoid_t buffer_ptr, lpvoid_t overlapped) {
   return XamUserReadProfileSettingsEx(title_id, user_index, xuid_count, xuids,
                                       setting_count, setting_ids, 0,
                                       buffer_size_ptr, buffer_ptr, overlapped);
@@ -382,7 +360,7 @@ DECLARE_XAM_EXPORT1(XamUserReadProfileSettings, kUserProfiles, kImplemented);
 dword_result_t XamUserReadProfileSettingsEx_entry(
     dword_t title_id, dword_t user_index, dword_t xuid_count, lpqword_t xuids,
     dword_t setting_count, lpdword_t setting_ids, lpdword_t buffer_size_ptr,
-    dword_t unk_2, lpvoid_t buffer_ptr, pointer_t<XAM_OVERLAPPED> overlapped) {
+    dword_t unk_2, lpvoid_t buffer_ptr, lpvoid_t overlapped) {
   return XamUserReadProfileSettingsEx(title_id, user_index, xuid_count, xuids,
                                       setting_count, setting_ids, unk_2,
                                       buffer_size_ptr, buffer_ptr, overlapped);
@@ -412,53 +390,14 @@ dword_result_t XamUserWriteProfileSettings_entry(
   }
 
   for (uint32_t n = 0; n < setting_count; ++n) {
-    const X_USER_PROFILE_SETTING& setting = settings[n];
+    const UserSetting setting = UserSetting(&settings[n]);
 
-    auto setting_type = static_cast<X_USER_DATA_TYPE>(setting.data.type);
-    if (setting_type == X_USER_DATA_TYPE::UNSET) {
+    if (!setting.is_valid_type()) {
       continue;
     }
 
-    XELOGD(
-        "XamUserWriteProfileSettings: setting index [{}]:"
-        " from={} setting_id={:08X} data.type={}",
-        n, (uint32_t)setting.from, (uint32_t)setting.setting_id,
-        static_cast<uint32_t>(setting.data.type));
-
-    switch (setting_type) {
-      case X_USER_DATA_TYPE::CONTENT:
-      case X_USER_DATA_TYPE::BINARY: {
-        uint8_t* binary_ptr =
-            kernel_state()->memory()->TranslateVirtual(setting.data.binary.ptr);
-
-        size_t binary_size = setting.data.binary.size;
-        std::vector<uint8_t> bytes;
-        if (setting.data.binary.ptr) {
-          // Copy provided data
-          bytes.resize(binary_size);
-          std::memcpy(bytes.data(), binary_ptr, binary_size);
-        } else {
-          // Data pointer was NULL, so just fill with zeroes
-          bytes.resize(binary_size, 0);
-        }
-
-        auto user_setting =
-            std::make_unique<UserSetting>(setting.setting_id, bytes);
-
-        user_setting->SetNewSettingSource(X_USER_PROFILE_SETTING_SOURCE::TITLE);
-        user_profile->AddSetting(std::move(user_setting));
-      } break;
-      case X_USER_DATA_TYPE::WSTRING:
-      case X_USER_DATA_TYPE::DOUBLE:
-      case X_USER_DATA_TYPE::FLOAT:
-      case X_USER_DATA_TYPE::INT32:
-      case X_USER_DATA_TYPE::INT64:
-      case X_USER_DATA_TYPE::DATETIME:
-      default: {
-        XELOGE("XamUserWriteProfileSettings: Unimplemented data type {}",
-               static_cast<uint32_t>(setting_type));
-      } break;
-    };
+    kernel_state()->xam_state()->user_tracker()->UpsertSetting(
+        user_profile->xuid(), title_id, &setting);
   }
 
   if (overlapped) {
@@ -630,7 +569,6 @@ dword_result_t XamUserCreateAchievementEnumerator_entry(
     requester_xuid = xuid;
   }
 
-  const util::XdbfGameData db = kernel_state()->title_xdbf();
   uint32_t title_id_ =
       title_id ? static_cast<uint32_t>(title_id) : kernel_state()->title_id();
 
@@ -638,18 +576,12 @@ dword_result_t XamUserCreateAchievementEnumerator_entry(
       kernel_state()->achievement_manager()->GetTitleAchievements(
           requester_xuid, title_id_);
 
-  if (user_title_achievements) {
-    for (const auto& entry : *user_title_achievements) {
-      auto item = XAchievementEnumerator::AchievementDetails{
-          entry.achievement_id,
-          xe::load_and_swap<std::u16string>(entry.achievement_name.c_str()),
-          xe::load_and_swap<std::u16string>(entry.unlocked_description.c_str()),
-          xe::load_and_swap<std::u16string>(entry.locked_description.c_str()),
-          entry.image_id,
-          entry.gamerscore,
-          entry.unlock_time.high_part,
-          entry.unlock_time.low_part,
-          entry.flags};
+  if (!user_title_achievements.empty()) {
+    for (const auto& entry : user_title_achievements) {
+      auto item = AchievementDetails(
+          entry.achievement_id, entry.achievement_name.c_str(),
+          entry.unlocked_description.c_str(), entry.locked_description.c_str(),
+          entry.image_id, entry.gamerscore, entry.unlock_time, entry.flags);
 
       e->AppendItem(item);
     }
@@ -692,18 +624,57 @@ dword_result_t XamParseGamerTileKey_entry(lpdword_t key_ptr, lpdword_t out1_ptr,
 }
 DECLARE_XAM_EXPORT1(XamParseGamerTileKey, kUserProfiles, kStub);
 
-dword_result_t XamReadTileToTexture_entry(dword_t unknown, dword_t title_id,
+dword_result_t XamReadTileToTexture_entry(dword_t tile_type, dword_t title_id,
                                           qword_t tile_id, dword_t user_index,
                                           lpvoid_t buffer_ptr, dword_t stride,
-                                          dword_t height,
+                                          dword_t tile_height,
                                           dword_t overlapped_ptr) {
-  // TODO(gibbed): unknown=0,2,3,9
-  if (!tile_id) {
+  if (!buffer_ptr) {
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  size_t size = size_t(stride) * size_t(height);
-  std::memset(buffer_ptr, 0xFF, size);
+  size_t buffer_size = size_t(stride) * size_t(tile_height);
+
+  auto user = kernel_state()->xam_state()->GetUserProfile(user_index);
+  if (!user) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  std::span<const uint8_t> tile =
+      kernel_state()->xam_state()->user_tracker()->GetIcon(
+          user->xuid(), title_id, static_cast<XTileType>(tile_type.value()),
+          tile_id);
+
+  if (tile.empty()) {
+    return X_ERROR_SUCCESS;
+  }
+
+  int width, height, channels;
+  unsigned char* imageData =
+      stbi_load_from_memory(tile.data(), static_cast<int>(tile.size()), &width,
+                            &height, &channels, STBI_rgb_alpha);
+
+  size_t icon_dimmension_size = width * height;
+  std::fill_n(reinterpret_cast<uint8_t*>(buffer_ptr.host_address()),
+              icon_dimmension_size * sizeof(uint32_t), 0);
+
+  for (int i = 0; i < icon_dimmension_size; i++) {
+    unsigned char* pixel = &imageData[i * sizeof(uint32_t)];
+
+    // RGBA to ARGB. TODO: Find faster method!
+    // RGBA->AGBR
+    std::swap(pixel[0], pixel[3]);
+    // AGBR->ARBG
+    std::swap(pixel[1], pixel[3]);
+    // ARBG->ARGB
+    std::swap(pixel[2], pixel[3]);
+  }
+
+  memcpy(buffer_ptr, imageData,
+         std::min(buffer_size, static_cast<size_t>(icon_dimmension_size *
+                                                   sizeof(uint32_t))));
+
+  stbi_image_free(imageData);
 
   if (overlapped_ptr) {
     kernel_state()->CompleteOverlappedImmediate(overlapped_ptr,

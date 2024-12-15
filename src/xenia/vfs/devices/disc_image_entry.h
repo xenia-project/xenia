@@ -45,6 +45,8 @@ class DiscImageEntry : public Entry {
  private:
   friend class DiscImageDevice;
 
+  bool DeleteEntryInternal(Entry* entry) override;
+
   MappedMemory* mmap_;
   size_t data_offset_;
   size_t data_size_;

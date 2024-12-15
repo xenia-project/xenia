@@ -45,6 +45,8 @@ class DiscZarchiveEntry : public Entry {
   friend class DiscZarchiveDevice;
   friend class DiscZarchiveFile;
 
+  bool DeleteEntryInternal(Entry* entry) override;
+
   uint32_t handle_;
   size_t data_offset_;
   size_t data_size_;

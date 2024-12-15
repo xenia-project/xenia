@@ -116,20 +116,6 @@ class XStaticEnumerator : public XStaticUntypedEnumerator {
 
 class XAchievementEnumerator : public XEnumerator {
  public:
-  struct AchievementDetails {
-    uint32_t id;
-    std::u16string label;
-    std::u16string description;
-    std::u16string unachieved;
-    uint32_t image_id;
-    uint32_t gamerscore;
-    struct {
-      uint32_t high_part;
-      uint32_t low_part;
-    } unlock_time;
-    uint32_t flags;
-  };
-
   XAchievementEnumerator(KernelState* kernel_state, size_t items_per_enumerate,
                          uint32_t flags)
       : XEnumerator(
@@ -139,7 +125,7 @@ class XAchievementEnumerator : public XEnumerator {
                                : 0)),
         flags_(flags) {}
 
-  void AppendItem(AchievementDetails item) {
+  void AppendItem(xam::AchievementDetails item) {
     items_.push_back(std::move(item));
   }
 
@@ -171,7 +157,7 @@ class XAchievementEnumerator : public XEnumerator {
 
  private:
   uint32_t flags_;
-  std::vector<AchievementDetails> items_;
+  std::vector<xam::AchievementDetails> items_;
   size_t current_item_ = 0;
 };
 

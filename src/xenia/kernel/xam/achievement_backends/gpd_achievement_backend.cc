@@ -28,48 +28,45 @@ void GpdAchievementBackend::EarnAchievement(const uint64_t xuid,
     return;
   }
 
-  auto achievement = GetAchievementInfoInternal(xuid, title_id, achievement_id);
-  if (!achievement) {
-    return;
-  }
-
-  XELOGI("Player: {} Unlocked Achievement: {}", user->name(),
-         xe::to_utf8(xe::load_and_swap<std::u16string>(
-             achievement->achievement_name.c_str())));
-
-  const uint64_t unlock_time = Clock::QueryHostSystemTime();
-  // We're adding achieved online flag because on console locally achieved
-  // entries don't have valid unlock time.
-  achievement->flags = achievement->flags |
-                       static_cast<uint32_t>(AchievementFlags::kAchieved) |
-                       static_cast<uint32_t>(AchievementFlags::kAchievedOnline);
-  achievement->unlock_time = unlock_time;
-
-  SaveAchievementData(xuid, title_id, achievement_id);
+  kernel_state()->xam_state()->user_tracker()->UnlockAchievement(
+      xuid, achievement_id);
 }
 
-AchievementGpdStructure* GpdAchievementBackend::GetAchievementInfoInternal(
+const std::optional<Achievement> GpdAchievementBackend::GetAchievementInfo(
     const uint64_t xuid, const uint32_t title_id,
     const uint32_t achievement_id) const {
   const auto user = kernel_state()->xam_state()->GetUserProfile(xuid);
   if (!user) {
-    return nullptr;
+    return std::nullopt;
   }
 
-  return user->GetAchievement(title_id, achievement_id);
-}
+  auto entry = user->games_gpd_.find(title_id);
+  if (entry == user->games_gpd_.cend()) {
+    return std::nullopt;
+  }
 
-const AchievementGpdStructure* GpdAchievementBackend::GetAchievementInfo(
-    const uint64_t xuid, const uint32_t title_id,
-    const uint32_t achievement_id) const {
-  return GetAchievementInfoInternal(xuid, title_id, achievement_id);
+  const auto achievement_entry =
+      entry->second.GetAchievementEntry(achievement_id);
+
+  if (!achievement_entry) {
+    return std::nullopt;
+  }
+
+  Achievement achievement(achievement_entry);
+  achievement.achievement_name =
+      entry->second.GetAchievementTitle(achievement_id);
+  achievement.unlocked_description =
+      entry->second.GetAchievementDescription(achievement_id);
+  achievement.locked_description =
+      entry->second.GetAchievementUnachievedDescription(achievement_id);
+
+  return achievement;
 }
 
 bool GpdAchievementBackend::IsAchievementUnlocked(
     const uint64_t xuid, const uint32_t title_id,
     const uint32_t achievement_id) const {
-  const auto achievement =
-      GetAchievementInfoInternal(xuid, title_id, achievement_id);
+  const auto achievement = GetAchievementInfo(xuid, title_id, achievement_id);
 
   if (!achievement) {
     return false;
@@ -79,53 +76,48 @@ bool GpdAchievementBackend::IsAchievementUnlocked(
           static_cast<uint32_t>(AchievementFlags::kAchieved)) != 0;
 }
 
-const std::vector<AchievementGpdStructure>*
-GpdAchievementBackend::GetTitleAchievements(const uint64_t xuid,
-                                            const uint32_t title_id) const {
+const std::vector<Achievement> GpdAchievementBackend::GetTitleAchievements(
+    const uint64_t xuid, const uint32_t title_id) const {
   const auto user = kernel_state()->xam_state()->GetUserProfile(xuid);
   if (!user) {
     return {};
   }
 
-  return user->GetTitleAchievements(title_id);
+  return kernel_state()->xam_state()->user_tracker()->GetUserTitleAchievements(
+      xuid, title_id);
 }
 
-bool GpdAchievementBackend::LoadAchievementsData(
-    const uint64_t xuid, const util::XdbfGameData title_data) {
+const std::span<const uint8_t> GpdAchievementBackend::GetAchievementIcon(
+    const uint64_t xuid, const uint32_t title_id,
+    const uint32_t achievement_id) const {
+  const auto user = kernel_state()->xam_state()->GetUserProfile(xuid);
+  if (!user) {
+    return {};
+  }
+
+  return kernel_state()->xam_state()->user_tracker()->GetAchievementIcon(
+      xuid, title_id, achievement_id);
+}
+
+bool GpdAchievementBackend::LoadAchievementsData(const uint64_t xuid) {
   auto user = kernel_state()->xam_state()->GetUserProfile(xuid);
   if (!user) {
     return false;
   }
 
-  // Question. Should loading for GPD for profile be directly done by profile or
-  // here?
-  if (!title_data.is_valid()) {
-    return false;
-  }
-
-  const auto achievements = title_data.GetAchievements();
-  if (achievements.empty()) {
-    return true;
-  }
-
-  const auto title_id = title_data.GetTitleInformation().title_id;
-
-  const XLanguage title_language = title_data.GetExistingLanguage(
-      static_cast<XLanguage>(cvars::user_language));
-  for (const auto& achievement : achievements) {
-    AchievementGpdStructure achievementData(title_language, title_data,
-                                            achievement);
-    user->achievements_[title_id].push_back(achievementData);
-  }
-
-  // TODO(Gliniak): Here should be loader of GPD file for loaded title. That way
-  // we can load flags and unlock_time from specific user.
+  // GPDs are handled by UserTracker
   return true;
 }
 
-bool GpdAchievementBackend::SaveAchievementData(const uint64_t xuid,
-                                                const uint32_t title_id,
-                                                const uint32_t achievement_id) {
+bool GpdAchievementBackend::SaveAchievementData(
+    const uint64_t xuid, const uint32_t title_id,
+    const Achievement* achievement) {
+  auto user = kernel_state()->xam_state()->GetUserProfile(xuid);
+  if (!user) {
+    return false;
+  }
+
+  // GPDs are handled by UserTracker
   return true;
 }
 

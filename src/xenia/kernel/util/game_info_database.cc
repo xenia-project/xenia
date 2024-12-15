@@ -14,21 +14,24 @@ namespace xe {
 namespace kernel {
 namespace util {
 
-GameInfoDatabase::GameInfoDatabase(const XdbfGameData* data) {
+GameInfoDatabase::GameInfoDatabase(const xam::SpaInfo* data) {
   if (!data) {
     return;
   }
 
-  if (!data->is_valid()) {
-    return;
-  }
+  Init(data);
+}
 
+GameInfoDatabase::~GameInfoDatabase() {}
+
+void GameInfoDatabase::Init(const xam::SpaInfo* data) {
+  spa_gamedata_ = std::make_unique<xam::SpaInfo>(*data);
+  spa_gamedata_->Load();
   is_valid_ = true;
-  xdbf_gamedata_ = std::make_unique<XdbfGameData>(*data);
 
   uint32_t compressed_size, decompressed_size = 0;
   const uint8_t* xlast_ptr =
-      xdbf_gamedata_->ReadXLast(compressed_size, decompressed_size);
+      spa_gamedata_->ReadXLast(compressed_size, decompressed_size);
 
   if (!xlast_ptr) {
     XELOGW(
@@ -48,26 +51,24 @@ GameInfoDatabase::GameInfoDatabase(const XdbfGameData* data) {
   }
 }
 
-GameInfoDatabase::~GameInfoDatabase() {}
-
-std::string GameInfoDatabase::GetTitleName(const XLanguage language) const {
-  if (!is_valid_) {
-    return "";
+void GameInfoDatabase::Update(const xam::SpaInfo* new_spa) {
+  if (*spa_gamedata_ <= *new_spa) {
+    return;
   }
 
-  return xdbf_gamedata_->title(xdbf_gamedata_->GetExistingLanguage(language));
+  Init(new_spa);
+}
+
+std::string GameInfoDatabase::GetTitleName(const XLanguage language) const {
+  return spa_gamedata_->title_name(
+      spa_gamedata_->GetExistingLanguage(language));
 }
 
 std::vector<uint8_t> GameInfoDatabase::GetIcon() const {
   std::vector<uint8_t> data;
 
-  if (!is_valid_) {
-    return data;
-  }
-
-  const XdbfBlock icon = xdbf_gamedata_->icon();
-  data.resize(icon.size);
-  std::memcpy(data.data(), icon.buffer, icon.size);
+  const auto icon = spa_gamedata_->title_icon();
+  data.insert(data.begin(), icon.begin(), icon.end());
   return data;
 }
 
@@ -76,17 +77,13 @@ XLanguage GameInfoDatabase::GetDefaultLanguage() const {
     return XLanguage::kEnglish;
   }
 
-  return xdbf_gamedata_->default_language();
+  return spa_gamedata_->default_language();
 }
 
 std::string GameInfoDatabase::GetLocalizedString(const uint32_t id,
                                                  XLanguage language) const {
-  if (!is_valid_) {
-    return "";
-  }
-
-  return xdbf_gamedata_->GetStringTableEntry(
-      xdbf_gamedata_->GetExistingLanguage(language), id);
+  return spa_gamedata_->GetStringTableEntry(
+      spa_gamedata_->GetExistingLanguage(language), id);
 }
 
 GameInfoDatabase::Context GameInfoDatabase::GetContext(
@@ -97,12 +94,15 @@ GameInfoDatabase::Context GameInfoDatabase::GetContext(
     return context;
   }
 
-  const auto xdbf_context = xdbf_gamedata_->GetContext(id);
+  const auto xdbf_context = spa_gamedata_->GetContext(id);
+  if (!xdbf_context) {
+    return context;
+  }
 
-  context.id = xdbf_context.id;
-  context.default_value = xdbf_context.default_value;
-  context.max_value = xdbf_context.max_value;
-  context.description = GetLocalizedString(xdbf_context.string_id);
+  context.id = xdbf_context->id;
+  context.default_value = xdbf_context->default_value;
+  context.max_value = xdbf_context->max_value;
+  context.description = GetLocalizedString(xdbf_context->string_id);
   return context;
 }
 
@@ -114,11 +114,14 @@ GameInfoDatabase::Property GameInfoDatabase::GetProperty(
     return property;
   }
 
-  const auto xdbf_property = xdbf_gamedata_->GetProperty(id);
+  const auto xdbf_property = spa_gamedata_->GetProperty(id);
+  if (!xdbf_property) {
+    return property;
+  }
 
-  property.id = xdbf_property.id;
-  property.data_size = xdbf_property.data_size;
-  property.description = GetLocalizedString(xdbf_property.string_id);
+  property.id = xdbf_property->id;
+  property.data_size = xdbf_property->data_size;
+  property.description = GetLocalizedString(xdbf_property->string_id);
   return property;
 }
 
@@ -130,31 +133,29 @@ GameInfoDatabase::Achievement GameInfoDatabase::GetAchievement(
     return achievement;
   }
 
-  const auto xdbf_achievement = xdbf_gamedata_->GetAchievement(id);
+  const auto xdbf_achievement = spa_gamedata_->GetAchievement(id);
+  if (!xdbf_achievement) {
+    return achievement;
+  }
 
-  achievement.id = xdbf_achievement.id;
-  achievement.image_id = xdbf_achievement.id;
-  achievement.gamerscore = xdbf_achievement.gamerscore;
-  achievement.flags = xdbf_achievement.flags;
+  achievement.id = xdbf_achievement->id;
+  achievement.image_id = xdbf_achievement->id;
+  achievement.gamerscore = xdbf_achievement->gamerscore;
+  achievement.flags = xdbf_achievement->flags;
 
-  achievement.label = GetLocalizedString(xdbf_achievement.label_id);
-  achievement.description = GetLocalizedString(xdbf_achievement.description_id);
+  achievement.label = GetLocalizedString(xdbf_achievement->label_id);
+  achievement.description =
+      GetLocalizedString(xdbf_achievement->description_id);
   achievement.unachieved_description =
-      GetLocalizedString(xdbf_achievement.unachieved_id);
+      GetLocalizedString(xdbf_achievement->unachieved_id);
   return achievement;
 }
 
 std::vector<uint32_t> GameInfoDatabase::GetMatchmakingAttributes(
     const uint32_t id) const {
+  // TODO(Gliniak): Implement when we will fully understand how to read it from
+  // SPA.
   std::vector<uint32_t> result;
-
-  const auto xdbf_matchmaking_data = xdbf_gamedata_->GetMatchCollection();
-
-  result.insert(result.end(), xdbf_matchmaking_data.contexts.cbegin(),
-                xdbf_matchmaking_data.contexts.cend());
-  result.insert(result.end(), xdbf_matchmaking_data.properties.cbegin(),
-                xdbf_matchmaking_data.properties.cend());
-
   return result;
 }
 
@@ -240,9 +241,9 @@ std::vector<GameInfoDatabase::Context> GameInfoDatabase::GetContexts() const {
     return contexts;
   }
 
-  const auto xdbf_contexts = xdbf_gamedata_->GetContexts();
+  const auto xdbf_contexts = spa_gamedata_->GetContexts();
   for (const auto& entry : xdbf_contexts) {
-    contexts.push_back(GetContext(entry.id));
+    contexts.push_back(GetContext(entry->id));
   }
 
   return contexts;
@@ -256,9 +257,9 @@ std::vector<GameInfoDatabase::Property> GameInfoDatabase::GetProperties()
     return properties;
   }
 
-  const auto xdbf_properties = xdbf_gamedata_->GetProperties();
+  const auto xdbf_properties = spa_gamedata_->GetProperties();
   for (const auto& entry : xdbf_properties) {
-    properties.push_back(GetProperty(entry.id));
+    properties.push_back(GetProperty(entry->id));
   }
 
   return properties;
@@ -272,9 +273,9 @@ std::vector<GameInfoDatabase::Achievement> GameInfoDatabase::GetAchievements()
     return achievements;
   }
 
-  const auto xdbf_achievements = xdbf_gamedata_->GetAchievements();
+  const auto xdbf_achievements = spa_gamedata_->GetAchievements();
   for (const auto& entry : xdbf_achievements) {
-    achievements.push_back(GetAchievement(entry.id));
+    achievements.push_back(GetAchievement(entry->id));
   }
 
   return achievements;

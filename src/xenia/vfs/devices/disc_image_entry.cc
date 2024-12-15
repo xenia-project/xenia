@@ -51,5 +51,6 @@ std::unique_ptr<MappedMemory> DiscImageEntry::OpenMapped(
   return mmap_->Slice(real_offset, real_length);
 }
 
+bool DiscImageEntry::DeleteEntryInternal(Entry* entry) { return false; }
 }  // namespace vfs
 }  // namespace xe

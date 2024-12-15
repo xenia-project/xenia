@@ -45,5 +45,7 @@ std::unique_ptr<MappedMemory> DiscZarchiveEntry::OpenMapped(
   return nullptr;
 }
 
+bool DiscZarchiveEntry::DeleteEntryInternal(Entry* entry) { return false; }
+
 }  // namespace vfs
 }  // namespace xe

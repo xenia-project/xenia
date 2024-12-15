@@ -16,6 +16,7 @@
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/string.h"
+#include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xam/user_profile.h"
 #include "xenia/kernel/xfile.h"
@@ -30,6 +31,7 @@ namespace xam {
 
 static const char* kThumbnailFileName = "__thumbnail.png";
 static const char* kGameContentHeaderDirName = "Headers";
+static const char* kSpaFilename = "spa.bin";
 
 static int content_device_id_ = 0;
 
@@ -380,6 +382,15 @@ X_RESULT ContentManager::OpenContent(const std::string_view root_name,
       data.file_name(), xuid, kernel_state_->title_id(), data.content_type));
 
   content_license = package->GetPackageLicense();
+
+  // Check for SPA file in package. Check it only for DLCs
+  if (data.content_type == XContentType::kMarketplaceContent) {
+    std::string spa_path = fmt::format("{}:\\{}", root_name, kSpaFilename);
+    auto spa_update = kernel_state_->file_system()->ResolvePath(spa_path);
+    if (spa_update) {
+      kernel_state_->UpdateSpaData(spa_update);
+    }
+  }
 
   open_packages_.insert({string_key::create(root_name), package.release()});
 

@@ -26,12 +26,13 @@
 #include "xenia/kernel/util/kernel_fwd.h"
 #include "xenia/kernel/util/native_list.h"
 #include "xenia/kernel/util/object_table.h"
-#include "xenia/kernel/util/xdbf_utils.h"
 #include "xenia/kernel/xam/achievement_manager.h"
 #include "xenia/kernel/xam/app_manager.h"
 #include "xenia/kernel/xam/content_manager.h"
 #include "xenia/kernel/xam/user_profile.h"
 #include "xenia/kernel/xam/xam_state.h"
+#include "xenia/kernel/xam/xdbf/spa_info.h"
+#include "xenia/kernel/xam/xdbf/xdbf_io.h"
 #include "xenia/kernel/xevent.h"
 #include "xenia/memory.h"
 #include "xenia/vfs/virtual_file_system.h"
@@ -184,8 +185,10 @@ class KernelState {
 
   uint32_t title_id() const;
   static bool is_title_system_type(uint32_t title_id);
-  util::XdbfGameData title_xdbf() const;
-  util::XdbfGameData module_xdbf(object_ref<UserModule> exec_module) const;
+  const std::unique_ptr<xam::SpaInfo> title_xdbf() const;
+  const std::unique_ptr<xam::SpaInfo> module_xdbf(
+      object_ref<UserModule> exec_module) const;
+  bool UpdateSpaData(vfs::Entry* spa_file_update);
 
   xam::XamState* xam_state() const { return xam_state_.get(); }
 

@@ -42,5 +42,7 @@ X_STATUS XContentContainerEntry::Open(uint32_t desired_access,
   return X_STATUS_SUCCESS;
 }
 
+bool XContentContainerEntry::DeleteEntryInternal(Entry* entry) { return false; }
+
 }  // namespace vfs
 }  // namespace xe
