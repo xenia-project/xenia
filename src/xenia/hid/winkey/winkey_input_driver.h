@@ -72,7 +72,7 @@ class WinKeyInputDriver final : public InputDriver {
   xe::global_critical_region global_critical_region_;
   std::queue<KeyEvent> key_events_;
   std::vector<KeyBinding> key_bindings_;
-
+  uint8_t key_map_[256];
   uint32_t packet_number_ = 1;
 };
 

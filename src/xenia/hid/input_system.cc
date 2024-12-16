@@ -140,6 +140,7 @@ X_RESULT InputSystem::GetKeystroke(uint32_t user_index, uint32_t flags,
     if (result != X_ERROR_DEVICE_NOT_CONNECTED) {
       any_connected = true;
     }
+
     if (result == X_ERROR_SUCCESS || result == X_ERROR_EMPTY) {
       UpdateUsedSlot(driver.get(), user_index, any_connected);
 
@@ -147,6 +148,10 @@ X_RESULT InputSystem::GetKeystroke(uint32_t user_index, uint32_t flags,
         last_used_slot = user_index;
       }
       return result;
+    }
+
+    if (result == X_ERROR_EMPTY) {
+      continue;
     }
   }
   UpdateUsedSlot(nullptr, user_index, any_connected);

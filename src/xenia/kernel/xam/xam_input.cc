@@ -25,12 +25,6 @@ using xe::hid::X_INPUT_KEYSTROKE;
 using xe::hid::X_INPUT_STATE;
 using xe::hid::X_INPUT_VIBRATION;
 
-constexpr uint32_t XINPUT_FLAG_GAMEPAD = 0x01;
-constexpr uint32_t XINPUT_FLAG_KEYBOARD = 0x02;
-constexpr uint32_t XINPUT_FLAG_MIC = 0x20;  // Based on "karaoke" titles
-constexpr uint32_t XINPUT_FLAG_ANYDEVICE = 0xFF;
-constexpr uint32_t XINPUT_FLAG_ANY_USER = 1 << 30;
-
 dword_result_t XAutomationpUnbindController_entry(dword_t user_index) {
   if (user_index >= XUserMaxUserCount) {
     return 0;
@@ -73,11 +67,6 @@ dword_result_t XamInputGetCapabilitiesEx_entry(
     // should trap
   }
 
-  if ((flags & XINPUT_FLAG_ANYDEVICE) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
-    // Ignore any query for other types of devices.
-    return X_ERROR_DEVICE_NOT_CONNECTED;
-  }
-
   uint32_t actual_user_index = user_index;
   if ((actual_user_index & XUserIndexAny) == XUserIndexAny ||
       (flags & XINPUT_FLAG_ANY_USER)) {
@@ -111,11 +100,6 @@ dword_result_t XamInputGetState_entry(dword_t user_index, dword_t flags,
   }
 
   // Games call this with a NULL state ptr, probably as a query.
-
-  if ((flags & XINPUT_FLAG_ANYDEVICE) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
-    // Ignore any query for other types of devices.
-    return X_ERROR_DEVICE_NOT_CONNECTED;
-  }
 
   uint32_t actual_user_index = user_index;
   // chrispy: change this, logic is not right
@@ -160,11 +144,6 @@ dword_result_t XamInputGetKeystroke_entry(
     return X_ERROR_BAD_ARGUMENTS;
   }
 
-  if ((flags & XINPUT_FLAG_ANYDEVICE) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
-    // Ignore any query for other types of devices.
-    return X_ERROR_DEVICE_NOT_CONNECTED;
-  }
-
   uint32_t actual_user_index = user_index;
   if ((actual_user_index & XUserIndexAny) == XUserIndexAny ||
       (flags & XINPUT_FLAG_ANY_USER)) {
@@ -184,11 +163,6 @@ dword_result_t XamInputGetKeystrokeEx_entry(
     pointer_t<X_INPUT_KEYSTROKE> keystroke) {
   if (!keystroke) {
     return X_ERROR_BAD_ARGUMENTS;
-  }
-
-  if ((flags & XINPUT_FLAG_ANYDEVICE) && (flags & XINPUT_FLAG_GAMEPAD) == 0) {
-    // Ignore any query for other types of devices.
-    return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
   uint32_t user_index = *user_index_ptr;
