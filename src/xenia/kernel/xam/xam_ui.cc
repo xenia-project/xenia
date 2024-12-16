@@ -1376,10 +1376,13 @@ bool xeDrawProfileContent(ui::ImGuiDrawer* imgui_drawer, const uint64_t xuid,
       }
       ImGui::EndDisabled();
 
+      const bool is_signedin = profile_manager->GetProfile(xuid) != nullptr;
+      ImGui::BeginDisabled(!is_signedin);
       if (ImGui::MenuItem("Show Achievements")) {
         new GamesInfoDialog(imgui_drawer, next_window_position,
                             profile_manager->GetProfile(user_index));
       }
+      ImGui::EndDisabled();
 
       if (ImGui::MenuItem("Show Content Directory")) {
         const auto path = profile_manager->GetProfileContentPath(
