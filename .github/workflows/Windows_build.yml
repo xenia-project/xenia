@@ -50,7 +50,7 @@ jobs:
     name: Lint
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@main
       - name: Check Clang-Format Version
         run: clang-format --version
       - name: Lint
@@ -67,7 +67,7 @@ jobs:
     env:
       POWERSHELL_TELEMETRY_OPTOUT: 1
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@main
         with:
           fetch-depth: 0
       - name: Setup
@@ -80,7 +80,7 @@ jobs:
           robocopy   build\bin\${{ runner.os }}\Release artifacts\xenia_canary   xenia_canary.exe   xenia_canary.pdb   LICENSE /r:0 /w:0
           If ($LastExitCode -le 7) { echo "LastExitCode = $LastExitCode";$LastExitCode = 0 }
       - name: Upload xenia canary artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@main
         with:
           name: xenia_canary_vs${{ matrix.vsver }}
           path: artifacts\xenia_canary
