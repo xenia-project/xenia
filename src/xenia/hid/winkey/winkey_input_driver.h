@@ -20,6 +20,8 @@ namespace xe {
 namespace hid {
 namespace winkey {
 
+enum class KeyboardMode { Disabled, Enabled, Passthrough };
+
 class WinKeyInputDriver final : public InputDriver {
  public:
   explicit WinKeyInputDriver(xe::ui::Window* window, size_t window_z_order);

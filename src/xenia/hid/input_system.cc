@@ -137,6 +137,10 @@ X_RESULT InputSystem::GetKeystroke(uint32_t user_index, uint32_t flags,
   bool any_connected = false;
   for (auto& driver : drivers_) {
     X_RESULT result = driver->GetKeystroke(user_index, flags, out_keystroke);
+    if (result == X_ERROR_INVALID_PARAMETER) {
+      continue;
+    }
+
     if (result != X_ERROR_DEVICE_NOT_CONNECTED) {
       any_connected = true;
     }

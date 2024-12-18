@@ -200,9 +200,6 @@ X_RESULT XInputInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
   // flags is reserved on desktop.
   DWORD result;
 
-  if ((flags & XINPUT_FLAG_KEYBOARD) != 0) {
-    return X_ERROR_INVALID_PARAMETER;
-  }
   // XInputGetKeystroke on Windows has a bug where it will return
   // ERROR_SUCCESS (0) even if the device is not connected:
   // https://stackoverflow.com/questions/23669238/xinputgetkeystroke-returning-error-success-while-controller-is-unplugged
