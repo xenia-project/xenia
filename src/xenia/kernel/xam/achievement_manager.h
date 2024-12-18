@@ -65,6 +65,15 @@ struct X_ACHIEVEMENT_UNLOCK_TIME {
     low_part = static_cast<uint32_t>(filetime);
   }
 
+  X_ACHIEVEMENT_UNLOCK_TIME(std::time_t time) {
+    const auto file_time =
+        chrono::WinSystemClock::to_file_time(chrono::WinSystemClock::from_sys(
+            std::chrono::system_clock::from_time_t(time)));
+
+    high_part = static_cast<uint32_t>(file_time >> 32);
+    low_part = static_cast<uint32_t>(file_time);
+  }
+
   chrono::WinSystemClock::time_point to_time_point() const {
     const uint64_t filetime =
         (static_cast<uint64_t>(high_part) << 32) | low_part;
