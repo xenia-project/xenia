@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "xenia/base/chrono.h"
 #include "xenia/kernel/util/xdbf_utils.h"
 #include "xenia/xbox.h"
 
@@ -53,6 +54,23 @@ enum class AchievementFlags : uint32_t {
 struct X_ACHIEVEMENT_UNLOCK_TIME {
   xe::be<uint32_t> high_part;
   xe::be<uint32_t> low_part;
+
+  X_ACHIEVEMENT_UNLOCK_TIME() {
+    high_part = 0;
+    low_part = 0;
+  }
+
+  X_ACHIEVEMENT_UNLOCK_TIME(uint64_t filetime) {
+    high_part = static_cast<uint32_t>(filetime >> 32);
+    low_part = static_cast<uint32_t>(filetime);
+  }
+
+  chrono::WinSystemClock::time_point to_time_point() const {
+    const uint64_t filetime =
+        (static_cast<uint64_t>(high_part) << 32) | low_part;
+
+    return chrono::WinSystemClock::from_file_time(filetime);
+  }
 };
 
 struct X_ACHIEVEMENT_DETAILS {

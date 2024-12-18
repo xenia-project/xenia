@@ -461,12 +461,8 @@ class GameAchievementsDialog final : public XamDialog {
       info.unlock_time = {};
 
       if (entry.IsUnlocked()) {
-        const uint64_t filetime_time =
-            (static_cast<uint64_t>(entry.unlock_time.high_part) << 32) |
-            entry.unlock_time.low_part;
-
-        info.unlock_time = chrono::WinSystemClock::to_sys(
-            chrono::WinSystemClock::from_file_time(filetime_time));
+        info.unlock_time =
+            chrono::WinSystemClock::to_sys(entry.unlock_time.to_time_point());
       }
 
       achievements_info_.insert({info.id, info});

@@ -43,8 +43,7 @@ void GpdAchievementBackend::EarnAchievement(const uint64_t xuid,
   achievement->flags = achievement->flags |
                        static_cast<uint32_t>(AchievementFlags::kAchieved) |
                        static_cast<uint32_t>(AchievementFlags::kAchievedOnline);
-  achievement->unlock_time.high_part = static_cast<uint32_t>(unlock_time >> 32);
-  achievement->unlock_time.low_part = static_cast<uint32_t>(unlock_time);
+  achievement->unlock_time = unlock_time;
 
   SaveAchievementData(xuid, title_id, achievement_id);
 }
