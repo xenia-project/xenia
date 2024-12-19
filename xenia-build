@@ -17,6 +17,7 @@ import re
 import shutil
 import subprocess
 import sys
+from tools.build.helpers import has_bin, get_bin
 
 __author__ = 'ben.vanik@gmail.com (Ben Vanik)'
 
@@ -190,41 +191,6 @@ def print_box(msg):
         '│{1: ^{2}}║\n'
         '╘{0:═^{2}}╝\n'
         .format('', msg, len(msg) + 2))
-
-
-def has_bin(binary):
-    """Checks whether the given binary is present.
-
-    Args:
-      binary: binary name (without .exe, etc).
-
-    Returns:
-      True if the binary exists.
-    """
-    bin_path = get_bin(binary)
-    if not bin_path:
-        return False
-    return True
-
-
-def get_bin(binary):
-    """Checks whether the given binary is present and returns the path.
-
-    Args:
-      binary: binary name (without .exe, etc).
-
-    Returns:
-      Full path to the binary or None if not found.
-    """
-    for path in os.environ['PATH'].split(os.pathsep):
-        path = path.strip('"')
-        exe_file = os.path.join(path, binary)
-        if os.path.isfile(exe_file) and os.access(exe_file, os.X_OK):
-            return exe_file
-        exe_file += '.exe'
-        if os.path.isfile(exe_file) and os.access(exe_file, os.X_OK):
-            return exe_file
-    return None
 
 
 def shell_call(command, throw_on_error=True, stdout_path=None, stderr_path=None, shell=False):
