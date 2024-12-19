@@ -12,12 +12,14 @@ import json
 import os
 import shutil
 import subprocess
+import pathlib
 import sys
 import re
+from helpers import is_executable
 
 
 self_path = os.path.dirname(os.path.abspath(__file__))
-root_path = os.path.join(self_path, '..', '..')
+root_path = pathlib.Path(self_path).parent.parent.absolute()
 premake_submodule_path = os.path.join(root_path, 'third_party', 'premake-core')
 premake_path = premake_submodule_path
 
@@ -54,15 +56,15 @@ setup_premake_path_override()
 def main():
   # First try the freshly-built premake.
   premake5_bin = os.path.join(premake_path, 'bin', 'release', 'premake5')
-  if not has_bin(premake5_bin):
+  if not is_executable(premake5_bin):
     # No fresh build, so fallback to checked in copy (which we may not have).
     premake5_bin = os.path.join(self_path, 'bin', 'premake5')
-  if not has_bin(premake5_bin):
+  if not is_executable(premake5_bin):
     # Still no valid binary, so build it.
     print('premake5 executable not found, attempting build...')
     build_premake()
     premake5_bin = os.path.join(premake_path, 'bin', 'release', 'premake5')
-  if not has_bin(premake5_bin):
+  if not is_executable(premake5_bin):
     # Nope, boned.
     print('ERROR: cannot build premake5 executable.')
     sys.exit(1)
@@ -150,22 +152,6 @@ def clone_premake_to_internal_storage():
       premake_submodule_path,
       premake_path,
       ])
-
-
-def has_bin(bin):
-  """Checks whether the given binary is present.
-  """
-  for path in os.environ["PATH"].split(os.pathsep):
-    if sys.platform == 'win32':
-      exe_file = os.path.join(path, bin + '.exe')
-      if os.path.isfile(exe_file) and os.access(exe_file, os.X_OK):
-        return True
-    else:
-      path = path.strip('"')
-      exe_file = os.path.join(path, bin)
-      if os.path.isfile(exe_file) and os.access(exe_file, os.X_OK):
-        return True
-  return None
 
 
 def shell_call(command, throw_on_error=True, stdout_path=None, stderr_path=None, shell=False):
