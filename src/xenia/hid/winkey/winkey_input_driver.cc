@@ -39,7 +39,7 @@ namespace xe {
 namespace hid {
 namespace winkey {
 
-bool static IsPassthroughEnabled(uint32_t user_index) {
+bool static IsPassthroughEnabled() {
   return static_cast<KeyboardMode>(cvars::keyboard_mode) ==
          KeyboardMode::Passthrough;
 }
@@ -272,6 +272,14 @@ X_RESULT WinKeyInputDriver::SetState(uint32_t user_index,
 
 X_RESULT WinKeyInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
                                          X_INPUT_KEYSTROKE* out_keystroke) {
+  if (!is_active()) {
+    return X_ERROR_DEVICE_NOT_CONNECTED;
+  }
+
+  if (!IsKeyboardForUserEnabled(user_index) && !IsPassthroughEnabled()) {
+    return X_ERROR_DEVICE_NOT_CONNECTED;
+  }
+
   // Pop from the queue.
   KeyEvent evt;
   {
@@ -284,15 +292,6 @@ X_RESULT WinKeyInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
     key_events_.pop();
   }
 
-  if (!IsKeyboardForUserEnabled(user_index) &&
-      !IsPassthroughEnabled(user_index)) {
-    return X_ERROR_DEVICE_NOT_CONNECTED;
-  }
-
-  if (!is_active()) {
-    return X_ERROR_EMPTY;
-  }
-
   X_RESULT result = X_ERROR_EMPTY;
 
   ui::VirtualKey xinput_virtual_key = ui::VirtualKey::kNone;
@@ -302,7 +301,7 @@ X_RESULT WinKeyInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
 
   bool capital = IsKeyToggled(VK_CAPITAL) || IsKeyDown(VK_SHIFT);
 
-  if (!IsPassthroughEnabled(user_index)) {
+  if (!IsPassthroughEnabled()) {
     if (IsKeyboardForUserEnabled(user_index)) {
       for (const KeyBinding& b : key_bindings_) {
         if (b.input_key == evt.virtual_key &&
@@ -338,7 +337,7 @@ X_RESULT WinKeyInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
       keystroke_flags |= 0x0002;  // XINPUT_KEYSTROKE_KEYUP
     }
 
-    if (IsPassthroughEnabled(user_index)) {
+    if (IsPassthroughEnabled()) {
       if (GetKeyboardState(key_map_)) {
         WCHAR buf;
         if (ToUnicode(uint8_t(xinput_virtual_key), 0, key_map_, &buf, 1, 0) ==
@@ -373,7 +372,8 @@ void WinKeyInputDriver::WinKeyWindowInputListener::OnKeyUp(ui::KeyEvent& e) {
 }
 
 void WinKeyInputDriver::OnKey(ui::KeyEvent& e, bool is_down) {
-  if (!is_active()) {
+  if (!is_active() || static_cast<KeyboardMode>(cvars::keyboard_mode) ==
+                          KeyboardMode::Disabled) {
     return;
   }
 
