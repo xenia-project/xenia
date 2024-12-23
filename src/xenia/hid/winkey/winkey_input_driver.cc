@@ -25,15 +25,17 @@
 #include "winkey_binding_table.inc"
 #undef XE_HID_WINKEY_BINDING
 
-DEFINE_int32(keyboard_mode, 1,
+DEFINE_int32(keyboard_mode, 0,
              "Allows user do specify keyboard working mode. Possible values: 0 "
-             "- Disabled, 1 - Enabled, 2 - Passthrough",
+             "- Disabled, 1 - Enabled, 2 - Passthrough. Passthrough requires "
+             "controller being connected!",
              "HID");
 
-DEFINE_int32(keyboard_user_index, 0,
-             "Controller port that keyboard emulates. -1 - Keyboard usage "
-             "disabled, [0, 3] - Keyboard is assigned to selected slot.",
-             "HID");
+DEFINE_int32(
+    keyboard_user_index, 0,
+    "Controller port that keyboard emulates. [0, 3] - Keyboard is assigned to "
+    "selected slot. Passthrough does not require assigning slot.",
+    "HID");
 
 namespace xe {
 namespace hid {
@@ -126,7 +128,7 @@ X_STATUS WinKeyInputDriver::Setup() { return X_STATUS_SUCCESS; }
 
 X_RESULT WinKeyInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
                                             X_INPUT_CAPABILITIES* out_caps) {
-  if (!IsKeyboardForUserEnabled(user_index)) {
+  if (!IsKeyboardForUserEnabled(user_index) && !IsPassthroughEnabled()) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
@@ -258,12 +260,16 @@ X_RESULT WinKeyInputDriver::GetState(uint32_t user_index,
   out_state->gamepad.thumb_rx = thumb_rx;
   out_state->gamepad.thumb_ry = thumb_ry;
 
+  if (IsPassthroughEnabled()) {
+    memset(out_state, 0, sizeof(out_state));
+  }
+
   return X_ERROR_SUCCESS;
 }
 
 X_RESULT WinKeyInputDriver::SetState(uint32_t user_index,
                                      X_INPUT_VIBRATION* vibration) {
-  if (!IsKeyboardForUserEnabled(user_index)) {
+  if (!IsKeyboardForUserEnabled(user_index) && !IsPassthroughEnabled()) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
@@ -279,7 +285,6 @@ X_RESULT WinKeyInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
   if (!IsKeyboardForUserEnabled(user_index) && !IsPassthroughEnabled()) {
     return X_ERROR_DEVICE_NOT_CONNECTED;
   }
-
   // Pop from the queue.
   KeyEvent evt;
   {
@@ -385,6 +390,20 @@ void WinKeyInputDriver::OnKey(ui::KeyEvent& e, bool is_down) {
 
   auto global_lock = global_critical_region_.Acquire();
   key_events_.push(key);
+}
+
+InputType WinKeyInputDriver::GetInputType() const {
+  switch (static_cast<KeyboardMode>(cvars::keyboard_mode)) {
+    case KeyboardMode::Disabled:
+      return InputType::None;
+    case KeyboardMode::Enabled:
+      return InputType::Controller;
+    case KeyboardMode::Passthrough:
+      return InputType::Keyboard;
+    default:
+      break;
+  }
+  return InputType::Controller;
 }
 
 }  // namespace winkey

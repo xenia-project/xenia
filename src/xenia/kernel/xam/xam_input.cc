@@ -21,6 +21,7 @@ namespace kernel {
 namespace xam {
 
 using xe::hid::X_INPUT_CAPABILITIES;
+using xe::hid::X_INPUT_FLAG;
 using xe::hid::X_INPUT_KEYSTROKE;
 using xe::hid::X_INPUT_STATE;
 using xe::hid::X_INPUT_VIBRATION;
@@ -59,7 +60,7 @@ dword_result_t XamInputGetCapabilitiesEx_entry(
 
   caps.Zero();
 
-  if ((flags & XINPUT_FLAG_ANY_USER) != 0) {
+  if ((flags & X_INPUT_FLAG::X_INPUT_FLAG_ANY_USER) != 0) {
     // should trap
   }
 
@@ -69,14 +70,20 @@ dword_result_t XamInputGetCapabilitiesEx_entry(
 
   uint32_t actual_user_index = user_index;
   if ((actual_user_index & XUserIndexAny) == XUserIndexAny ||
-      (flags & XINPUT_FLAG_ANY_USER)) {
+      (flags & X_INPUT_FLAG::X_INPUT_FLAG_ANY_USER)) {
     // Always pin user to 0.
     actual_user_index = 0;
   }
 
+  uint32_t actual_flags = flags;
+  if (!flags) {
+    actual_flags = X_INPUT_FLAG::X_INPUT_FLAG_GAMEPAD |
+                   X_INPUT_FLAG::X_INPUT_FLAG_KEYBOARD;
+  }
+
   auto input_system = kernel_state()->emulator()->input_system();
   auto lock = input_system->lock();
-  return input_system->GetCapabilities(actual_user_index, flags, caps);
+  return input_system->GetCapabilities(actual_user_index, actual_flags, caps);
 }
 DECLARE_XAM_EXPORT1(XamInputGetCapabilitiesEx, kInput, kSketchy);
 
@@ -104,7 +111,7 @@ dword_result_t XamInputGetState_entry(dword_t user_index, dword_t flags,
   uint32_t actual_user_index = user_index;
   // chrispy: change this, logic is not right
   if ((actual_user_index & XUserIndexAny) == XUserIndexAny ||
-      (flags & XINPUT_FLAG_ANY_USER)) {
+      (flags & X_INPUT_FLAG::X_INPUT_FLAG_ANY_USER)) {
     // Always pin user to 0.
     actual_user_index = 0;
   }
@@ -146,7 +153,7 @@ dword_result_t XamInputGetKeystroke_entry(
 
   uint32_t actual_user_index = user_index;
   if ((actual_user_index & XUserIndexAny) == XUserIndexAny ||
-      (flags & XINPUT_FLAG_ANY_USER)) {
+      (flags & X_INPUT_FLAG::X_INPUT_FLAG_ANY_USER)) {
     // Always pin user to 0.
     actual_user_index = 0;
   }
@@ -173,7 +180,7 @@ dword_result_t XamInputGetKeystrokeEx_entry(
     user_index = 0;
   }
 
-  if (flags & XINPUT_FLAG_ANY_USER) {
+  if (flags & X_INPUT_FLAG::X_INPUT_FLAG_ANY_USER) {
     // That flag means we should iterate over every connected controller and
     // check which one have pending request.
     auto result = X_ERROR_DEVICE_NOT_CONNECTED;

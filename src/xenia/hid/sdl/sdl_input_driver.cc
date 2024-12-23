@@ -288,9 +288,7 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
   if (!out_keystroke) {
     return X_ERROR_BAD_ARGUMENTS;
   }
-  if ((flags & XINPUT_FLAG_KEYBOARD) != 0) {
-    return X_ERROR_INVALID_PARAMETER;
-  }
+
   // The order of this list is also the order in which events are send if
   // multiple buttons change at once.
   static_assert(sizeof(X_INPUT_GAMEPAD::buttons) == 2);
@@ -430,6 +428,8 @@ X_RESULT SDLInputDriver::GetKeystroke(uint32_t users, uint32_t flags,
   }
   return X_ERROR_EMPTY;
 }
+
+InputType SDLInputDriver::GetInputType() const { return InputType::Controller; }
 
 void SDLInputDriver::HandleEvent(const SDL_Event& event) {
   // This callback will likely run on the thread that posts the event, which

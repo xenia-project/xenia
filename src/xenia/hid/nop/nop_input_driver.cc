@@ -45,6 +45,8 @@ X_RESULT NopInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
   return X_ERROR_DEVICE_NOT_CONNECTED;
 }
 
+InputType NopInputDriver::GetInputType() const { return InputType::Other; }
+
 }  // namespace nop
 }  // namespace hid
 }  // namespace xe

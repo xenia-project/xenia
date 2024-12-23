@@ -239,6 +239,10 @@ X_RESULT XInputInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
   return result;
 }
 
+InputType XInputInputDriver::GetInputType() const {
+  return InputType::Controller;
+}
+
 }  // namespace xinput
 }  // namespace hid
 }  // namespace xe

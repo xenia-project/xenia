@@ -663,12 +663,6 @@ struct X_PROFILEENUMRESULT {
 };
 static_assert_size(X_PROFILEENUMRESULT, 0x188);
 
-constexpr uint32_t XINPUT_FLAG_GAMEPAD = 0x01;
-constexpr uint32_t XINPUT_FLAG_KEYBOARD = 0x02;
-constexpr uint32_t XINPUT_FLAG_MIC = 0x20;  // Based on "karaoke" titles
-constexpr uint32_t XINPUT_FLAG_ANYDEVICE = 0xFF;
-constexpr uint32_t XINPUT_FLAG_ANY_USER = 1 << 30;
-
 }  // namespace xe
 
 // clang-format on

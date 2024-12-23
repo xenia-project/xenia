@@ -46,7 +46,6 @@ class InputSystem {
                         X_INPUT_KEYSTROKE* out_keystroke);
 
   bool GetVibrationCvar();
-
   void ToggleVibration();
 
   const std::bitset<XUserMaxUserCount> GetConnectedSlots() const {
@@ -67,6 +66,8 @@ class InputSystem {
   void UpdateUsedSlot(InputDriver* driver, uint8_t slot, bool connected);
   void AdjustDeadzoneLevels(const uint8_t slot, X_INPUT_GAMEPAD* gamepad);
   X_INPUT_VIBRATION ModifyVibrationLevel(X_INPUT_VIBRATION* vibration);
+
+  std::vector<InputDriver*> FilterDrivers(uint32_t flags);
 
   xe::ui::Window* window_ = nullptr;
 

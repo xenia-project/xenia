@@ -186,6 +186,18 @@ class EmulatorApp final : public xe::ui::WindowedApp {
             instances.emplace_back(std::move(instance));
           }
         }
+#if XE_PLATFORM_WIN32
+        // Always add winkey for passthrough
+        it = std::find_if(
+            creators_.cbegin(), creators_.cend(),
+            [&name](const auto& f) { return f.name.compare("winkey") == 0; });
+        if (it != creators_.cend() && (*it).is_available()) {
+          auto instance = (*it).instantiate(std::forward<Args>(args)...);
+          if (instance) {
+            instances.emplace_back(std::move(instance));
+          }
+        }
+#endif
       } else {
         for (const auto& creator : creators_) {
           if (!creator.is_available()) continue;

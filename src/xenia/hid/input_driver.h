@@ -28,6 +28,8 @@ namespace hid {
 
 class InputSystem;
 
+enum InputType { None, Controller = 1, Keyboard = 2, Other = 4 };
+
 class InputDriver {
  public:
   virtual ~InputDriver() = default;
@@ -41,6 +43,8 @@ class InputDriver {
                             X_INPUT_VIBRATION* vibration) = 0;
   virtual X_RESULT GetKeystroke(uint32_t user_index, uint32_t flags,
                                 X_INPUT_KEYSTROKE* out_keystroke) = 0;
+
+  virtual InputType GetInputType() const = 0;
 
   void set_is_active_callback(std::function<bool()> is_active_callback) {
     is_active_callback_ = is_active_callback;
