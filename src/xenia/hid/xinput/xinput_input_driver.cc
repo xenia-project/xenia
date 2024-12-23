@@ -110,7 +110,9 @@ X_RESULT XInputInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
   }
   XINPUT_CAPABILITIES native_caps;
   auto xigc = (decltype(&XInputGetCapabilities))XInputGetCapabilities_;
-  DWORD result = xigc(user_index, flags, &native_caps);
+  DWORD result =
+      xigc(user_index, flags & ~X_INPUT_DEVTYPE::XINPUT_DEVTYPE_KEYBOARD,
+           &native_caps);
   if (result) {
     if (result == ERROR_DEVICE_NOT_CONNECTED) {
       set_skip(user_index);
