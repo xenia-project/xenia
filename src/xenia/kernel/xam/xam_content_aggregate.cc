@@ -115,8 +115,9 @@ dword_result_t XamContentAggregateCreateEnumerator_entry(qword_t xuid,
     for (auto& title_id : title_ids) {
       // Get all content data.
       auto content_datas = kernel_state()->content_manager()->ListContent(
-          static_cast<uint32_t>(DummyDeviceId::HDD), xuid == -1 ? 0 : xuid,
-          title_id, content_type_enum);
+          static_cast<uint32_t>(DummyDeviceId::HDD),
+          xuid == -1 ? 0 : static_cast<uint64_t>(xuid), title_id,
+          content_type_enum);
       for (const auto& content_data : content_datas) {
         auto item = e->AppendItem();
         assert_not_null(item);

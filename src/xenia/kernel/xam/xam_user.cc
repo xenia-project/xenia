@@ -620,7 +620,8 @@ dword_result_t XamUserCreateAchievementEnumerator_entry(
   }
 
   const util::XdbfGameData db = kernel_state()->title_xdbf();
-  uint32_t title_id_ = title_id ? title_id : kernel_state()->title_id();
+  uint32_t title_id_ =
+      title_id ? static_cast<uint32_t>(title_id) : kernel_state()->title_id();
 
   const auto user_title_achievements =
       kernel_state()->achievement_manager()->GetTitleAchievements(

@@ -99,10 +99,11 @@ void AppendLogLine(LogLevel log_level, const char prefix_char, size_t written);
 // might as well be noalias
 template <typename... Args>
 XE_NOALIAS XE_NOINLINE XE_COLD static void AppendLogLineFormat_Impl(
-    LogLevel log_level, const char prefix_char, const char* format,
-    const Args&... args) {
+    LogLevel log_level, const char prefix_char, std::string_view format,
+    const Args&... args) noexcept {
   auto target = internal::GetThreadBuffer();
-  auto result = fmt::format_to_n(target.first, target.second, format, args...);
+  auto result = fmt::format_to_n(target.first, target.second,
+                                 fmt::runtime(format), args...);
   internal::AppendLogLine(log_level, prefix_char, result.size);
 }
 
@@ -113,8 +114,8 @@ template <typename... Args>
 XE_FORCEINLINE static void AppendLogLineFormat(uint32_t log_src_mask,
                                                LogLevel log_level,
                                                const char prefix_char,
-                                               const char* format,
-                                               const Args&... args) {
+                                               std::string_view format,
+                                               const Args&... args) noexcept {
   if (!internal::ShouldLog(log_level, log_src_mask)) {
     return;
   }
@@ -143,7 +144,8 @@ struct LoggerBatch {
   LoggerBatch() { reset(); }
   template <size_t fmtlen, typename... Ts>
   void operator()(const char (&fmt)[fmtlen], Ts&&... args) {
-    auto tmpres = fmt::format_to_n(thrd_buf, thrd_buf_rem, fmt, args...);
+    auto tmpres =
+        fmt::format_to_n(thrd_buf, thrd_buf_rem, fmt::runtime(fmt), args...);
     thrd_buf_rem -= tmpres.size;
     thrd_buf = tmpres.out;
     total_size += tmpres.size;
@@ -164,55 +166,55 @@ struct LoggerBatch {
 #if XE_OPTION_ENABLE_LOGGING
 
 template <typename... Args>
-XE_COLD void XELOGE(const char* format, const Args&... args) {
+XE_COLD void XELOGE(std::string_view format, const Args&... args) {
   xe::logging::AppendLogLineFormat(xe::LogSrc::Uncategorized,
                                    xe::LogLevel::Error, '!', format, args...);
 }
 
 template <typename... Args>
-XE_COLD void XELOGW(const char* format, const Args&... args) {
+XE_COLD void XELOGW(std::string_view format, const Args&... args) {
   xe::logging::AppendLogLineFormat(xe::LogSrc::Uncategorized,
                                    xe::LogLevel::Warning, 'w', format, args...);
 }
 
 template <typename... Args>
-void XELOGI(const char* format, const Args&... args) {
+void XELOGI(std::string_view format, const Args&... args) {
   xe::logging::AppendLogLineFormat(xe::LogSrc::Uncategorized,
                                    xe::LogLevel::Info, 'i', format, args...);
 }
 
 template <typename... Args>
-void XELOGD(const char* format, const Args&... args) {
+void XELOGD(std::string_view format, const Args&... args) {
   xe::logging::AppendLogLineFormat(xe::LogSrc::Uncategorized,
                                    xe::LogLevel::Debug, 'd', format, args...);
 }
 
 template <typename... Args>
-void XELOGCPU(const char* format, const Args&... args) {
+void XELOGCPU(std::string_view format, const Args&... args) {
   xe::logging::AppendLogLineFormat(xe::LogSrc::Cpu, xe::LogLevel::Info, 'C',
                                    format, args...);
 }
 
 template <typename... Args>
-void XELOGAPU(const char* format, const Args&... args) {
+void XELOGAPU(std::string_view format, const Args&... args) {
   xe::logging::AppendLogLineFormat(xe::LogSrc::Apu, xe::LogLevel::Debug, 'A',
                                    format, args...);
 }
 
 template <typename... Args>
-void XELOGGPU(const char* format, const Args&... args) {
+void XELOGGPU(std::string_view format, const Args&... args) {
   xe::logging::AppendLogLineFormat(xe::LogSrc::Uncategorized,
                                    xe::LogLevel::Debug, 'G', format, args...);
 }
 
 template <typename... Args>
-void XELOGKERNEL(const char* format, const Args&... args) {
+void XELOGKERNEL(std::string_view format, const Args&... args) {
   xe::logging::AppendLogLineFormat(xe::LogSrc::Kernel, xe::LogLevel::Info, 'K',
                                    format, args...);
 }
 
 template <typename... Args>
-void XELOGFS(const char* format, const Args&... args) {
+void XELOGFS(std::string_view format, const Args&... args) {
   xe::logging::AppendLogLineFormat(xe::LogSrc::Uncategorized,
                                    xe::LogLevel::Info, 'F', format, args...);
 }

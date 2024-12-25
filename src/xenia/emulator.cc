@@ -718,7 +718,7 @@ X_STATUS Emulator::DataMigration(const uint64_t xuid) {
       const auto old_profile_data =
           xe::filesystem::ListDirectories(title.path / title.name / "profile");
 
-      xe::filesystem::FileInfo& entry_to_copy = xe::filesystem::FileInfo();
+      xe::filesystem::FileInfo entry_to_copy = xe::filesystem::FileInfo();
       if (old_profile_data.size() != 1) {
         for (const auto& entry : old_profile_data) {
           if (entry.name == "User") {

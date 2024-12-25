@@ -110,24 +110,24 @@ std::string EscapeBasicString(const std::string_view view) {
   for (auto it = begin; it != end; ++it) {
     auto c = *it;
     if (c == '\b') {
-      result += u8"\\b";
+      result += "\\b";
     } else if (c == '\t') {
-      result += u8"\\t";
+      result += "\\t";
     } else if (c == '\n') {
-      result += u8"\\n";
+      result += "\\n";
     } else if (c == '\f') {
-      result += u8"\\f";
+      result += "\\f";
     } else if (c == '\r') {
-      result += u8"\\r";
+      result += "\\r";
     } else if (c == '"') {
-      result += u8"\\\"";
+      result += "\\\"";
     } else if (c == '\\') {
-      result += u8"\\\\";
+      result += "\\\\";
     } else if (c < 0x20 || c == 0x7F) {
       if (c <= 0xFFFF) {
-        result += fmt::format(u8"\\u{:04X}", c);
+        result += fmt::format("\\u{:04X}", c);
       } else {
-        result += fmt::format(u8"\\u{:08X}", c);
+        result += fmt::format("\\u{:08X}", c);
       }
     } else {
       utfcpp::append(static_cast<char32_t>(c), result);
@@ -150,30 +150,30 @@ std::string EscapeMultilineBasicString(const std::string_view view) {
       }
       for (int i = 0; i < quote_run; ++i) {
         if ((i % 3) == 2) {
-          result += u8"\\";
+          result += "\\";
         }
-        result += u8"\"";
+        result += "\"";
       }
       quote_run = 0;
     }
     if (c == '\b') {
-      result += u8"\\b";
+      result += "\\b";
     } else if (c == '\t' || c == '\n') {
       result += c;
     } else if (c == '\f') {
-      result += u8"\\f";
+      result += "\\f";
     } else if (c == '\r') {
       // Silently drop \r.
       // result += c;
     } else if (c == '"') {
       quote_run = 1;
     } else if (c == '\\') {
-      result += u8"\\\\";
+      result += "\\\\";
     } else if (c < 0x20 || c == 0x7F) {
       if (c <= 0xFFFF) {
-        result += fmt::format(u8"\\u{:04X}", c);
+        result += fmt::format("\\u{:04X}", c);
       } else {
-        result += fmt::format(u8"\\u{:08X}", c);
+        result += fmt::format("\\u{:08X}", c);
       }
     } else {
       utfcpp::append(static_cast<char32_t>(c), result);
@@ -181,9 +181,9 @@ std::string EscapeMultilineBasicString(const std::string_view view) {
   }
   for (int i = 0; i < quote_run; ++i) {
     if ((i % 3) == 2) {
-      result += u8"\\";
+      result += "\\";
     }
-    result += u8"\"";
+    result += "\"";
   }
   return result;
 }
@@ -207,11 +207,11 @@ std::string EscapeString(const std::string_view view) {
   } else {
     // multi line
     if (xe::utf8::find_any_of(view, escape_chars) == std::string_view::npos &&
-        xe::utf8::find_first_of(view, u8"'''") == std::string_view::npos) {
+        xe::utf8::find_first_of(view, "'''") == std::string_view::npos) {
       return "'''\n" + std::string(view) + "'''";
     } else {
-      return u8"\"\"\"\n" + toml_internal::EscapeMultilineBasicString(view) +
-             u8"\"\"\"";
+      return "\"\"\"\n" + toml_internal::EscapeMultilineBasicString(view) +
+             "\"\"\"";
     }
   }
 }

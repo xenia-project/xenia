@@ -155,7 +155,7 @@ void PPCTranslator::DumpHIR(GuestFunction* function, PPCHIRBuilder* builder) {
       folder_path.append(&tmpbuf[0]);
     }
 
-    FILE* f = fopen(folder_path.generic_u8string().c_str(), "w");
+    FILE* f = fopen(folder_path.string().c_str(), "w");
     if (f) {
       fputs(buffer.buffer(), f);
       fclose(f);

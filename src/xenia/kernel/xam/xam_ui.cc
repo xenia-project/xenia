@@ -829,9 +829,11 @@ static dword_result_t XamShowMessageBoxUi(
     };
     const Emulator* emulator = kernel_state()->emulator();
     ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
+
+    auto text = xe::to_utf8(text_ptr.value());
     result = xeXamDispatchDialog<MessageBoxDialog>(
-        new MessageBoxDialog(imgui_drawer, title, xe::to_utf8(text_ptr.value()),
-                             buttons, active_button),
+        new MessageBoxDialog(imgui_drawer, title, text, buttons,
+                             static_cast<uint32_t>(active_button)),
         close, overlapped);
   }
   return result;
@@ -1012,12 +1014,15 @@ dword_result_t XamShowKeyboardUI_entry(
     };
     const Emulator* emulator = kernel_state()->emulator();
     ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
+
+    std::string title_str = title ? xe::to_utf8(title.value()) : "";
+    std::string desc_str = description ? xe::to_utf8(description.value()) : "";
+    std::string def_text_str =
+        default_text ? xe::to_utf8(default_text.value()) : "";
+
     result = xeXamDispatchDialogEx<KeyboardInputDialog>(
-        new KeyboardInputDialog(
-            imgui_drawer, title ? xe::to_utf8(title.value()) : "",
-            description ? xe::to_utf8(description.value()) : "",
-            default_text ? xe::to_utf8(default_text.value()) : "",
-            buffer_length),
+        new KeyboardInputDialog(imgui_drawer, title_str, desc_str, def_text_str,
+                                buffer_length),
         close, overlapped);
   }
   return result;

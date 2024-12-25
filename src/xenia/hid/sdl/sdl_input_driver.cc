@@ -155,7 +155,7 @@ void SDLInputDriver::LoadGameControllerDB() {
     std::string guid = row[0];
     std::string controller_name = row[1];
 
-    auto format = [](std::string& ss, std::string& s) {
+    auto format = [](std::string ss, const std::string& s) {
       return ss.empty() ? s : ss + "," + s;
     };
 

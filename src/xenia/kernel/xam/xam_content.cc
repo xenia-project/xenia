@@ -621,8 +621,8 @@ DECLARE_XAM_EXPORT1(XamLoaderGetMediaInfoEx, kContent, kStub);
 
 dword_result_t XamContentLaunchImageFromFileInternal_entry(
     lpstring_t image_location, lpstring_t xex_name, dword_t unk) {
-  const std::string image_path = image_location;
-  const std::string xex_name_ = xex_name;
+  const std::string image_path = static_cast<std::string>(image_location);
+  const std::string xex_name_ = static_cast<std::string>(xex_name);
 
   vfs::Entry* entry = kernel_state()->file_system()->ResolvePath(image_path);
 

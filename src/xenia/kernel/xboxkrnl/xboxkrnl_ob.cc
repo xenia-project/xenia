@@ -354,7 +354,7 @@ dword_result_t ObCreateSymbolicLink_entry(pointer_t<X_ANSI_STRING> path_ptr,
   auto target = xe::utf8::canonicalize_guest_path(
       util::TranslateAnsiString(kernel_memory(), target_ptr));
 
-  if (xe::utf8::starts_with(path, u8"\\??\\")) {
+  if (xe::utf8::starts_with(path, "\\??\\")) {
     path = path.substr(4);  // Strip the full qualifier
   }
 

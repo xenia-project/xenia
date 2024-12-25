@@ -193,7 +193,7 @@ std::unique_ptr<Socket> Socket::Connect(std::string hostname, uint16_t port) {
   InitializeWinsock();
 
   auto socket = std::make_unique<Win32Socket>();
-  if (!socket->Connect(std::move(hostname), port)) {
+  if (!socket->Connect(hostname, port)) {
     return nullptr;
   }
   return std::unique_ptr<Socket>(socket.release());

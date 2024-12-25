@@ -111,14 +111,14 @@ void XamModule::SaveLoaderData() {
   std::filesystem::path host_path = loader_data_.host_path;
   std::string launch_path = loader_data_.launch_path;
 
-  auto remove_prefix = [&launch_path](std::string& prefix) {
+  auto remove_prefix = [&launch_path](std::string_view prefix) {
     if (launch_path.compare(0, prefix.length(), prefix) == 0) {
       launch_path = launch_path.substr(prefix.length());
     }
   };
 
-  remove_prefix(std::string("game:\\"));
-  remove_prefix(std::string("d:\\"));
+  remove_prefix("game:\\");
+  remove_prefix("d:\\");
 
   if (host_path.extension() == ".xex") {
     host_path.remove_filename();

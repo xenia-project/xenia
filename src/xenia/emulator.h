@@ -245,9 +245,8 @@ class Emulator {
                                  ContentInstallationInfo& installation_info);
 
   // Extract content of zar package to desired directory.
-  X_STATUS Emulator::ExtractZarchivePackage(
-      const std::filesystem::path& path,
-      const std::filesystem::path& extract_dir);
+  X_STATUS ExtractZarchivePackage(const std::filesystem::path& path,
+                                  const std::filesystem::path& extract_dir);
 
   // Pack contents of a folder into a zar package.
   X_STATUS CreateZarchivePackage(const std::filesystem::path& inputDirectory,

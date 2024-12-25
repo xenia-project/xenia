@@ -37,121 +37,121 @@ namespace examples {
 
 const size_t kDanishCount = 1;
 const char* kDanishValues[kDanishCount] = {
-    u8"Quizdeltagerne spiste jordbær med fløde, mens cirkusklovnen Wolther "
-    u8"spillede på xylofon.",
+    "Quizdeltagerne spiste jordbær med fløde, mens cirkusklovnen Wolther "
+    "spillede på xylofon.",
 };
 #define TEST_LANGUAGE_EXAMPLES_Danish(func, results) \
   TEST_EXAMPLES_1(func, Danish, results)
 
 const size_t kGermanCount = 3;
 const char* kGermanValues[kGermanCount] = {
-    u8"Falsches Üben von Xylophonmusik quält jeden größeren Zwerg",
-    u8"Zwölf Boxkämpfer jagten Eva quer über den Sylter Deich",
-    u8"Heizölrückstoßabdämpfung",
+    "Falsches Üben von Xylophonmusik quält jeden größeren Zwerg",
+    "Zwölf Boxkämpfer jagten Eva quer über den Sylter Deich",
+    "Heizölrückstoßabdämpfung",
 };
 #define TEST_LANGUAGE_EXAMPLES_German(func, results) \
   TEST_EXAMPLES_2(func, German, results)
 
 const size_t kGreekCount = 2;
 const char* kGreekValues[kGreekCount] = {
-    u8"Γαζέες καὶ μυρτιὲς δὲν θὰ βρῶ πιὰ στὸ χρυσαφὶ ξέφωτο",
-    u8"Ξεσκεπάζω τὴν ψυχοφθόρα βδελυγμία",
+    "Γαζέες καὶ μυρτιὲς δὲν θὰ βρῶ πιὰ στὸ χρυσαφὶ ξέφωτο",
+    "Ξεσκεπάζω τὴν ψυχοφθόρα βδελυγμία",
 };
 #define TEST_LANGUAGE_EXAMPLES_Greek(func, results) \
   TEST_EXAMPLES_2(func, Greek, results)
 
 const size_t kEnglishCount = 1;
 const char* kEnglishValues[kEnglishCount] = {
-    u8"The quick brown fox jumps over the lazy dog",
+    "The quick brown fox jumps over the lazy dog",
 };
 #define TEST_LANGUAGE_EXAMPLES_English(func, results) \
   TEST_EXAMPLES_1(func, English, results)
 
 const size_t kSpanishCount = 1;
 const char* kSpanishValues[kSpanishCount] = {
-    u8"El pingüino Wenceslao hizo kilómetros bajo exhaustiva lluvia y frío, "
-    u8"añoraba a su querido cachorro.",
+    "El pingüino Wenceslao hizo kilómetros bajo exhaustiva lluvia y frío, "
+    "añoraba a su querido cachorro.",
 };
 #define TEST_LANGUAGE_EXAMPLES_Spanish(func, results) \
   TEST_EXAMPLES_1(func, Spanish, results)
 
 const size_t kFrenchCount = 3;
 const char* kFrenchValues[kFrenchCount] = {
-    u8"Portez ce vieux whisky au juge blond qui fume sur son île intérieure, à "
-    u8"côté de l'alcôve ovoïde, où les bûches se consument dans l'âtre, ce qui "
-    u8"lui permet de penser à la cænogenèse de l'être dont il est question "
-    u8"dans la cause ambiguë entendue à Moÿ, dans un capharnaüm qui, "
-    u8"pense-t-il, diminue çà et là la qualité de son œuvre.",
-    u8"l'île exiguë\n"
-    u8"Où l'obèse jury mûr\n"
-    u8"Fête l'haï volapük,\n"
-    u8"Âne ex aéquo au whist,\n"
-    u8"Ôtez ce vœu déçu.",
-    u8"Le cœur déçu mais l'âme plutôt naïve, Louÿs rêva de crapaüter en canoë "
-    u8"au delà des îles, près du mälström où brûlent les novæ.",
+    "Portez ce vieux whisky au juge blond qui fume sur son île intérieure, à "
+    "côté de l'alcôve ovoïde, où les bûches se consument dans l'âtre, ce qui "
+    "lui permet de penser à la cænogenèse de l'être dont il est question "
+    "dans la cause ambiguë entendue à Moÿ, dans un capharnaüm qui, "
+    "pense-t-il, diminue çà et là la qualité de son œuvre.",
+    "l'île exiguë\n"
+    "Où l'obèse jury mûr\n"
+    "Fête l'haï volapük,\n"
+    "Âne ex aéquo au whist,\n"
+    "Ôtez ce vœu déçu.",
+    "Le cœur déçu mais l'âme plutôt naïve, Louÿs rêva de crapaüter en canoë "
+    "au delà des îles, près du mälström où brûlent les novæ.",
 };
 #define TEST_LANGUAGE_EXAMPLES_French(func, results) \
   TEST_EXAMPLES_3(func, French, results)
 
 const size_t kIrishGaelicCount = 1;
 const char* kIrishGaelicValues[kIrishGaelicCount] = {
-    u8"D'fhuascail Íosa, Úrmhac na hÓighe Beannaithe, pór Éava agus Ádhaimh",
+    "D'fhuascail Íosa, Úrmhac na hÓighe Beannaithe, pór Éava agus Ádhaimh",
 };
 #define TEST_LANGUAGE_EXAMPLES_IrishGaelic(func, results) \
   TEST_EXAMPLES_1(func, IrishGaelic, results)
 
 const size_t kHungarianCount = 1;
 const char* kHungarianValues[kHungarianCount] = {
-    u8"Árvíztűrő tükörfúrógép",
+    "Árvíztűrő tükörfúrógép",
 };
 #define TEST_LANGUAGE_EXAMPLES_Hungarian(func, results) \
   TEST_EXAMPLES_1(func, Hungarian, results)
 
 const size_t kIcelandicCount = 2;
 const char* kIcelandicValues[kIcelandicCount] = {
-    u8"Kæmi ný öxi hér ykist þjófum nú bæði víl og ádrepa",
-    u8"Sævör grét áðan því úlpan var ónýt",
+    "Kæmi ný öxi hér ykist þjófum nú bæði víl og ádrepa",
+    "Sævör grét áðan því úlpan var ónýt",
 };
 #define TEST_LANGUAGE_EXAMPLES_Icelandic(func, results) \
   TEST_EXAMPLES_2(func, Icelandic, results)
 
 const size_t kJapaneseCount = 2;
 const char* kJapaneseValues[kJapaneseCount] = {
-    u8"いろはにほへとちりぬるを\n"
-    u8"わかよたれそつねならむ\n"
-    u8"うゐのおくやまけふこえて\n"
-    u8"あさきゆめみしゑひもせす\n",
-    u8"イロハニホヘト チリヌルヲ ワカヨタレソ ツネナラム\n"
-    u8"ウヰノオクヤマ ケフコエテ アサキユメミシ ヱヒモセスン",
+    "いろはにほへとちりぬるを\n"
+    "わかよたれそつねならむ\n"
+    "うゐのおくやまけふこえて\n"
+    "あさきゆめみしゑひもせす\n",
+    "イロハニホヘト チリヌルヲ ワカヨタレソ ツネナラム\n"
+    "ウヰノオクヤマ ケフコエテ アサキユメミシ ヱヒモセスン",
 };
 #define TEST_LANGUAGE_EXAMPLES_Japanese(func, results) \
   TEST_EXAMPLES_2(func, Japanese, results)
 
 const size_t kHebrewCount = 1;
 const char* kHebrewValues[kHebrewCount] = {
-    u8"? דג סקרן שט בים מאוכזב ולפתע מצא לו חברה איך הקליטה",
+    "? דג סקרן שט בים מאוכזב ולפתע מצא לו חברה איך הקליטה",
 };
 #define TEST_LANGUAGE_EXAMPLES_Hebrew(func, results) \
   TEST_EXAMPLES_1(func, Hebrew, results)
 
 const size_t kPolishCount = 1;
 const char* kPolishValues[kPolishCount] = {
-    u8"Pchnąć w tę łódź jeża lub ośm skrzyń fig",
+    "Pchnąć w tę łódź jeża lub ośm skrzyń fig",
 };
 #define TEST_LANGUAGE_EXAMPLES_Polish(func, results) \
   TEST_EXAMPLES_1(func, Polish, results)
 
 const size_t kRussianCount = 2;
 const char* kRussianValues[kRussianCount] = {
-    u8"В чащах юга жил бы цитрус? Да, но фальшивый экземпляр!",
-    u8"Съешь же ещё этих мягких французских булок да выпей чаю",
+    "В чащах юга жил бы цитрус? Да, но фальшивый экземпляр!",
+    "Съешь же ещё этих мягких французских булок да выпей чаю",
 };
 #define TEST_LANGUAGE_EXAMPLES_Russian(func, results) \
   TEST_EXAMPLES_2(func, Russian, results)
 
 const size_t kTurkishCount = 1;
 const char* kTurkishValues[kTurkishCount] = {
-    u8"Pijamalı hasta, yağız şoföre çabucak güvendi.",
+    "Pijamalı hasta, yağız şoföre çabucak güvendi.",
 };
 #define TEST_LANGUAGE_EXAMPLES_Turkish(func, results) \
   TEST_EXAMPLES_1(func, Turkish, results)
@@ -229,54 +229,54 @@ TEST_CASE("UTF-8 Split", "[utf8]") {
   std::vector<std::string_view> parts;
 
   // Danish
-  parts = utf8::split(examples::kDanishValues[0], u8"æcå");
+  parts = utf8::split(examples::kDanishValues[0], "æcå");
   REQUIRE(parts.size() == 4);
-  REQUIRE(parts[0] == u8"Quizdeltagerne spiste jordb");
-  REQUIRE(parts[1] == u8"r med fløde, mens ");
-  REQUIRE(parts[2] == u8"irkusklovnen Wolther spillede p");
-  REQUIRE(parts[3] == u8" xylofon.");
+  REQUIRE(parts[0] == "Quizdeltagerne spiste jordb");
+  REQUIRE(parts[1] == "r med fløde, mens ");
+  REQUIRE(parts[2] == "irkusklovnen Wolther spillede p");
+  REQUIRE(parts[3] == " xylofon.");
 
   // German
-  parts = utf8::split(examples::kGermanValues[0], u8"ßS");
+  parts = utf8::split(examples::kGermanValues[0], "ßS");
   REQUIRE(parts.size() == 2);
-  REQUIRE(parts[0] == u8"Falsches Üben von Xylophonmusik quält jeden grö");
-  REQUIRE(parts[1] == u8"eren Zwerg");
-  parts = utf8::split(examples::kGermanValues[1], u8"ßS");
+  REQUIRE(parts[0] == "Falsches Üben von Xylophonmusik quält jeden grö");
+  REQUIRE(parts[1] == "eren Zwerg");
+  parts = utf8::split(examples::kGermanValues[1], "ßS");
   REQUIRE(parts.size() == 2);
-  REQUIRE(parts[0] == u8"Zwölf Boxkämpfer jagten Eva quer über den ");
-  REQUIRE(parts[1] == u8"ylter Deich");
-  parts = utf8::split(examples::kGermanValues[2], u8"ßS");
+  REQUIRE(parts[0] == "Zwölf Boxkämpfer jagten Eva quer über den ");
+  REQUIRE(parts[1] == "ylter Deich");
+  parts = utf8::split(examples::kGermanValues[2], "ßS");
   REQUIRE(parts.size() == 2);
-  REQUIRE(parts[0] == u8"Heizölrücksto");
-  REQUIRE(parts[1] == u8"abdämpfung");
+  REQUIRE(parts[0] == "Heizölrücksto");
+  REQUIRE(parts[1] == "abdämpfung");
 
   // Greek
-  parts = utf8::split(examples::kGreekValues[0], u8"πφ");
+  parts = utf8::split(examples::kGreekValues[0], "πφ");
   REQUIRE(parts.size() == 4);
-  REQUIRE(parts[0] == u8"Γαζέες καὶ μυρτιὲς δὲν θὰ βρῶ ");
-  REQUIRE(parts[1] == u8"ιὰ στὸ χρυσα");
-  REQUIRE(parts[2] == u8"ὶ ξέ");
-  REQUIRE(parts[3] == u8"ωτο");
-  parts = utf8::split(examples::kGreekValues[1], u8"πφ");
+  REQUIRE(parts[0] == "Γαζέες καὶ μυρτιὲς δὲν θὰ βρῶ ");
+  REQUIRE(parts[1] == "ιὰ στὸ χρυσα");
+  REQUIRE(parts[2] == "ὶ ξέ");
+  REQUIRE(parts[3] == "ωτο");
+  parts = utf8::split(examples::kGreekValues[1], "πφ");
   REQUIRE(parts.size() == 3);
-  REQUIRE(parts[0] == u8"Ξεσκε");
-  REQUIRE(parts[1] == u8"άζω τὴν ψυχο");
-  REQUIRE(parts[2] == u8"θόρα βδελυγμία");
+  REQUIRE(parts[0] == "Ξεσκε");
+  REQUIRE(parts[1] == "άζω τὴν ψυχο");
+  REQUIRE(parts[2] == "θόρα βδελυγμία");
 
   // English
   parts = utf8::split(examples::kEnglishValues[0], "xy");
   REQUIRE(parts.size() == 3);
-  REQUIRE(parts[0] == u8"The quick brown fo");
-  REQUIRE(parts[1] == u8" jumps over the laz");
-  REQUIRE(parts[2] == u8" dog");
+  REQUIRE(parts[0] == "The quick brown fo");
+  REQUIRE(parts[1] == " jumps over the laz");
+  REQUIRE(parts[2] == " dog");
 
   // Spanish
-  parts = utf8::split(examples::kSpanishValues[0], u8"ójd");
+  parts = utf8::split(examples::kSpanishValues[0], "ójd");
   REQUIRE(parts.size() == 4);
-  REQUIRE(parts[0] == u8"El pingüino Wenceslao hizo kil");
-  REQUIRE(parts[1] == u8"metros ba");
-  REQUIRE(parts[2] == u8"o exhaustiva lluvia y frío, añoraba a su queri");
-  REQUIRE(parts[3] == u8"o cachorro.");
+  REQUIRE(parts[0] == "El pingüino Wenceslao hizo kil");
+  REQUIRE(parts[1] == "metros ba");
+  REQUIRE(parts[2] == "o exhaustiva lluvia y frío, añoraba a su queri");
+  REQUIRE(parts[3] == "o cachorro.");
 
   // TODO(gibbed): French
   // TODO(gibbed): Irish Gaelic
@@ -291,18 +291,18 @@ TEST_CASE("UTF-8 Split", "[utf8]") {
 }
 
 TEST_CASE("UTF-8 Equal Z", "[utf8]") {
-  REQUIRE(utf8::equal_z(u8"foo", u8"foo\0"));
-  REQUIRE_FALSE(utf8::equal_z(u8"bar", u8"baz\0"));
+  REQUIRE(utf8::equal_z("foo", "foo\0"));
+  REQUIRE_FALSE(utf8::equal_z("bar", "baz\0"));
 }
 
 TEST_CASE("UTF-8 Equal Case", "[utf8]") {
-  REQUIRE(utf8::equal_case(u8"foo", u8"foo\0"));
-  REQUIRE_FALSE(utf8::equal_case(u8"bar", u8"baz\0"));
+  REQUIRE(utf8::equal_case("foo", "foo\0"));
+  REQUIRE_FALSE(utf8::equal_case("bar", "baz\0"));
 }
 
 TEST_CASE("UTF-8 Equal Case Z", "[utf8]") {
-  REQUIRE(utf8::equal_case_z(u8"foo", u8"foo\0"));
-  REQUIRE_FALSE(utf8::equal_case_z(u8"bar", u8"baz\0"));
+  REQUIRE(utf8::equal_case_z("foo", "foo\0"));
+  REQUIRE_FALSE(utf8::equal_case_z("bar", "baz\0"));
 }
 
 // TODO(gibbed): find_any_of
@@ -346,11 +346,11 @@ TEST_CASE("UTF-8 Equal Case Z", "[utf8]") {
   } while (0)
 
 TEST_CASE("UTF-8 Join Paths", "[utf8]") {
-  TEST_PATHS(utf8::join_paths, u8"");
-  TEST_PATHS(utf8::join_paths, u8"foo", u8"foo");
-  TEST_PATHS(utf8::join_paths, u8"foo/bar", u8"foo", u8"bar");
-  TEST_PATHS(utf8::join_paths, "X:/foo/bar/baz/qux", u8"X:", u8"foo", u8"bar",
-             u8"baz", u8"qux");
+  TEST_PATHS(utf8::join_paths, "");
+  TEST_PATHS(utf8::join_paths, "foo", "foo");
+  TEST_PATHS(utf8::join_paths, "foo/bar", "foo", "bar");
+  TEST_PATHS(utf8::join_paths, "X:/foo/bar/baz/qux", "X:", "foo", "bar", "baz",
+             "qux");
 }
 
 // TODO(gibbed): join_guest_paths

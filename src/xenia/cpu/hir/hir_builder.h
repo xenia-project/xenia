@@ -99,7 +99,8 @@ class HIRBuilder {
   void CommentFormat(const std::string_view format, const Args&... args) {
     static const uint32_t kMaxCommentSize = 1024;
     char* p = reinterpret_cast<char*>(arena_->Alloc(kMaxCommentSize, 1));
-    auto result = fmt::format_to_n(p, kMaxCommentSize - 1, format, args...);
+    auto result =
+        fmt::format_to_n(p, kMaxCommentSize - 1, fmt::runtime(format), args...);
     p[result.size] = '\0';
     size_t rewind = kMaxCommentSize - 1 - result.size;
     arena_->Rewind(rewind);

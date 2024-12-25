@@ -64,7 +64,7 @@ TraceViewer::TraceViewer(xe::ui::WindowedAppContext& app_context,
 TraceViewer::~TraceViewer() = default;
 
 bool TraceViewer::OnInitialize() {
-  std::string path = cvars::target_trace_file.u8string();
+  std::string path = cvars::target_trace_file.string();
 
   // If no path passed, ask the user.
   // On Android, however, there's no synchronous file picker, and the trace file

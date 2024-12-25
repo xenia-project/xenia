@@ -383,7 +383,7 @@ struct GetViewportInfoArgs {
     depth_format = regs.Get<reg::RB_DEPTH_INFO>().depth_format;
   }
   XE_FORCEINLINE
-  bool operator==(const GetViewportInfoArgs& prev) {
+  bool operator==(const GetViewportInfoArgs& prev) const {
 #if XE_ARCH_AMD64 == 0
     bool result = true;
 

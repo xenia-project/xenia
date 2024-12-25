@@ -94,9 +94,9 @@ void TextureDump(const TextureInfo& src, void* buffer, size_t length) {
 
   static int dump_counter = 0;
   std::filesystem::path path = "texture_dumps";
-  path /= fmt::format("{:05d}_{:08X}_{:08X}_{:08X}.dds", dump_counter++,
-                      src.memory.base_address, src.memory.mip_address,
-                      src.format_name());
+  path /= fmt::format(fmt::runtime("{:05d}_{:08X}_{:08X}_{:08X}.dds"),
+                      dump_counter++, src.memory.base_address,
+                      src.memory.mip_address, src.format_name());
 
   FILE* handle = filesystem::OpenFile(path, "wb");
   if (handle) {

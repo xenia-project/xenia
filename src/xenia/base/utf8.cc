@@ -469,7 +469,7 @@ bool ends_with_case(const std::string_view haystack,
 }
 
 std::vector<std::string_view> split_path(const std::string_view path) {
-  return split(path, u8"\\/", true);
+  return split(path, "\\/", true);
 }
 
 std::string join_paths(const std::string_view left_path,
