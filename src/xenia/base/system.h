@@ -29,6 +29,9 @@ void LaunchFileExplorer(const std::filesystem::path& path);
 
 bool SetProcessPriorityClass(const uint32_t priority_class);
 
+// Determine if the Xbox Gamebar is enabled via the Windows registry
+bool IsUseNexusForGameBarEnabled();
+
 enum class SimpleMessageBoxType {
   Help,
   Warning,

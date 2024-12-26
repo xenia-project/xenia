@@ -1870,24 +1870,6 @@ void EmulatorWindow::ToggleGPUSetting(gpu_cvar value) {
   }
 }
 
-// Determine if the Xbox Gamebar is enabled via the Windows registry
-bool EmulatorWindow::IsUseNexusForGameBarEnabled() {
-#ifdef _WIN32
-  const LPCWSTR reg_path = L"SOFTWARE\\Microsoft\\GameBar";
-  const LPCWSTR key = L"UseNexusForGameBarEnabled";
-
-  DWORD value = 0;
-  DWORD dataSize = sizeof(value);
-
-  RegGetValue(HKEY_CURRENT_USER, reg_path, key, RRF_RT_DWORD, nullptr, &value,
-              &dataSize);
-
-  return (bool)value;
-#else
-  return false;
-#endif
-}
-
 void EmulatorWindow::DisplayHotKeysConfig() {
   std::string msg = "";
   std::string msg_passthru = "";
