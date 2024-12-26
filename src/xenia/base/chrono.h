@@ -92,6 +92,14 @@ struct NtSystemClock {
   }
 
   template <Domain domain_fresh_ = domain_>
+  static constexpr std::enable_if_t<
+      domain_fresh_ == Domain::Host,
+      std::chrono::local_time<std::chrono::system_clock::duration>>
+  to_local(const time_point& tp) {
+    return std::chrono::current_zone()->to_local(to_sys(tp));
+  }
+
+  template <Domain domain_fresh_ = domain_>
   static constexpr std::enable_if_t<domain_fresh_ == Domain::Host, time_point>
   from_sys(const std::chrono::system_clock::time_point& tp) {
     auto ctp = std::chrono::time_point_cast<duration>(tp);

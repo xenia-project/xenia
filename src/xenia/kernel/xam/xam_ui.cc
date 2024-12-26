@@ -394,7 +394,7 @@ struct AchievementInfo {
   uint32_t gamerscore;
   uint32_t image_id;
   uint32_t flags;
-  std::chrono::system_clock::time_point unlock_time;
+  std::chrono::local_time<std::chrono::system_clock::duration> unlock_time;
 
   bool IsUnlocked() const {
     return (flags & static_cast<uint32_t>(AchievementFlags::kAchieved)) ||
@@ -462,7 +462,7 @@ class GameAchievementsDialog final : public XamDialog {
 
       if (entry.IsUnlocked()) {
         info.unlock_time =
-            chrono::WinSystemClock::to_sys(entry.unlock_time.to_time_point());
+            chrono::WinSystemClock::to_local(entry.unlock_time.to_time_point());
       }
 
       achievements_info_.insert({info.id, info});
