@@ -784,12 +784,8 @@ static dword_result_t XamShowMessageBoxUi(
     dword_t user_index, lpu16string_t title_ptr, lpu16string_t text_ptr,
     dword_t button_count, lpdword_t button_ptrs, dword_t active_button,
     dword_t flags, lpdword_t result_ptr, pointer_t<XAM_OVERLAPPED> overlapped) {
-  std::string title;
-  if (title_ptr) {
-    title = xe::to_utf8(title_ptr.value());
-  } else {
-    title = "";  // TODO(gibbed): default title based on flags?
-  }
+  std::string title = title_ptr ? xe::to_utf8(title_ptr.value()) : "";
+  std::string text = text_ptr ? xe::to_utf8(text_ptr.value()) : "";
 
   std::vector<std::string> buttons;
   for (uint32_t i = 0; i < button_count; ++i) {
@@ -830,7 +826,6 @@ static dword_result_t XamShowMessageBoxUi(
     const Emulator* emulator = kernel_state()->emulator();
     ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
 
-    auto text = xe::to_utf8(text_ptr.value());
     result = xeXamDispatchDialog<MessageBoxDialog>(
         new MessageBoxDialog(imgui_drawer, title, text, buttons,
                              static_cast<uint32_t>(active_button)),
