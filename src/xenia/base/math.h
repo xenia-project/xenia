@@ -11,6 +11,7 @@
 #define XENIA_BASE_MATH_H_
 
 #include <algorithm>
+#include <climits>
 #include <cmath>
 #include <cstdint>
 #include <cstring>

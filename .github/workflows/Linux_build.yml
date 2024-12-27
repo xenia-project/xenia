@@ -1,0 +1,82 @@
+name: Linux build
+
+on:
+  push:
+    paths-ignore:
+      - '.clang-format'
+      - '.drone.star'
+      - '.gitattributes'
+      - '.gitignore'
+      - '.gdbinit'
+      - '.github/*'
+      - '.github/workflows/Windows_build.yml'
+      - '.github/*_TEMPLATE/**'
+      - '*.md'
+      - '*.yml'
+      - '*.txt'
+      - 'docs/**'
+      - 'src/**/*_windows.*'
+      - 'src/**/*_android.*'
+      - 'src/**/*_mac.*'
+      - 'LICENSE'
+  pull_request:
+    paths-ignore:
+      - '.clang-format'
+      - '.drone.star'
+      - '.gitattributes'
+      - '.gitignore'
+      - '.gdbinit'
+      - '.github/*'
+      - '.github/workflows/Windows_build.yml'
+      - '.github/*_TEMPLATE/**'
+      - '*.md'
+      - '*.yml'
+      - '*.txt'
+      - 'docs/**'
+      - 'src/**/*_windows.*'
+      - 'src/**/*_android.*'
+      - 'src/**/*_mac.*'
+      - 'LICENSE'
+  workflow_dispatch:
+
+jobs:
+#  lint:
+#    name: Lint
+#    runs-on: ubuntu-24.04
+#    steps:
+#      - uses: actions/checkout@main
+#      - name: Check Clang-Format Version
+#        run: clang-format --version
+#      - name: Lint
+#        run: ./xb lint --all
+
+  build-linux:
+    name: Build (Linux, ${{ matrix.configuration }}, LLVM ${{ matrix.llvm_version }}) #  runner.os can't be used here
+#    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Release, Debug]
+        llvm_version: [15] #[15, 16, 17, 18, 19]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@main
+        with:
+          fetch-depth: 0
+      - name: Set environment variables
+        run: |
+          LLVM_VERSION=${{ matrix.llvm_version }}
+          echo "LLVM_VERSION=$LLVM_VERSION" >> $GITHUB_ENV
+          echo "UBUNTU_BASE=jammy" >> $GITHUB_ENV
+          echo "CC=clang-${LLVM_VERSION}" >> $GITHUB_ENV
+          echo "CXX=clang++-${LLVM_VERSION}" >> $GITHUB_ENV
+          echo "AR=llvm-ar-${LLVM_VERSION}" >> $GITHUB_ENV
+      - name: Setup
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          sudo apt-add-repository "deb http://apt.llvm.org/${UBUNTU_BASE}/ llvm-toolchain-${UBUNTU_BASE}-$LLVM_VERSION main"
+          sudo apt-get -y update
+          sudo apt-get -y install mesa-vulkan-drivers valgrind libc++-dev libc++abi-dev libgtk-3-dev libsdl2-dev libvulkan-dev libx11-dev libx11-xcb-dev clang-$LLVM_VERSION clang-format-$LLVM_VERSION llvm-$LLVM_VERSION
+          ./xb setup
+      - name: Build
+        run: ./xb build --config=${{ matrix.configuration }}
