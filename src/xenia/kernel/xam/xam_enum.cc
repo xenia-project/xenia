@@ -167,6 +167,18 @@ dword_result_t XamProfileEnumerate_entry(dword_t handle, dword_t flags,
 }
 DECLARE_XAM_EXPORT1(XamProfileEnumerate, kNone, kImplemented);
 
+dword_result_t EnumerateMediaObjects_entry() { return X_E_NOT_IMPLEMENTED; }
+DECLARE_XAM_EXPORT1(EnumerateMediaObjects, kNone, kStub);
+
+dword_result_t EnumerateMediaObjects__entry() { return X_E_NOT_IMPLEMENTED; }
+DECLARE_XAM_EXPORT1(EnumerateMediaObjects_, kNone, kStub);
+
+dword_result_t EnumerateMediaObjects_0_entry() { return X_E_NOT_IMPLEMENTED; }
+DECLARE_XAM_EXPORT1(EnumerateMediaObjects_0, kNone, kStub);
+
+dword_result_t EnumerateMediaObjects_1_entry() { return X_E_NOT_IMPLEMENTED; }
+DECLARE_XAM_EXPORT1(EnumerateMediaObjects_1, kNone, kStub);
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
