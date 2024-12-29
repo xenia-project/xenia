@@ -320,6 +320,119 @@ class MessageBoxDialog : public XamDialog {
   uint32_t chosen_button_ = 0;
 };
 
+class ProfilePasscodeDialog : public XamDialog {
+ public:
+  const char* labelled_keys_[11] = {"None", "X",  "Y",    "RB",   "LB",   "LT",
+                                    "RT",   "Up", "Down", "Left", "Right"};
+
+  const std::map<std::string, uint16_t> keys_map_ = {
+      {"None", 0},
+      {"X", X_BUTTON_PASSCODE},
+      {"Y", Y_BUTTON_PASSCODE},
+      {"RB", RIGHT_BUMPER_PASSCODE},
+      {"LB", LEFT_BUMPER_PASSCODE},
+      {"LT", LEFT_TRIGGER_PASSCODE},
+      {"RT", RIGHT_TRIGGER_PASSCODE},
+      {"Up", DPAD_UP_PASSCODE},
+      {"Down", DPAD_DOWN_PASSCODE},
+      {"Left", DPAD_LEFT_PASSCODE},
+      {"Right", DPAD_RIGHT_PASSCODE}};
+
+  ProfilePasscodeDialog(xe::ui::ImGuiDrawer* imgui_drawer, std::string& title,
+                        std::string& description, MESSAGEBOX_RESULT* result_ptr)
+      : XamDialog(imgui_drawer),
+        title_(title),
+        description_(description),
+        result_ptr_(result_ptr) {
+    std::memset(result_ptr, 0, sizeof(MESSAGEBOX_RESULT));
+
+    if (title_.empty()) {
+      title_ = "Enter Pass Code";
+    }
+
+    if (description_.empty()) {
+      description_ = "Enter your Xbox LIVE pass code.";
+    }
+  }
+
+  void DrawPasscodeField(uint8_t key_id) {
+    const std::string label = fmt::format("##Key {}", key_id);
+
+    if (ImGui::BeginCombo(label.c_str(),
+                          labelled_keys_[key_indexes_[key_id]])) {
+      for (uint8_t key_index = 0; key_index < keys_map_.size(); key_index++) {
+        bool is_selected = key_id == key_index;
+
+        if (ImGui::Selectable(labelled_keys_[key_index], is_selected)) {
+          key_indexes_[key_id] = key_index;
+        }
+
+        if (is_selected) {
+          ImGui::SetItemDefaultFocus();
+        }
+      }
+
+      ImGui::EndCombo();
+    }
+  }
+
+  void OnDraw(ImGuiIO& io) override {
+    if (!has_opened_) {
+      ImGui::OpenPopup(title_.c_str());
+      has_opened_ = true;
+    }
+
+    if (ImGui::BeginPopupModal(title_.c_str(), nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize)) {
+      if (description_.size()) {
+        ImGui::Text(description_.c_str());
+      }
+
+      for (uint8_t i = 0; i < passcode_length; i++) {
+        DrawPasscodeField(i);
+        // result_ptr_->Passcode[i] =
+        // keys_map_.at(labelled_keys_[key_indexes_[i]]);
+      }
+
+      ImGui::NewLine();
+
+      // We write each key on close to prevent simultaneous dialogs.
+      if (ImGui::Button("Sign In")) {
+        for (uint8_t i = 0; i < passcode_length; i++) {
+          result_ptr_->Passcode[i] =
+              keys_map_.at(labelled_keys_[key_indexes_[i]]);
+        }
+
+        selected_signed_in_ = true;
+
+        Close();
+      }
+
+      ImGui::SameLine();
+
+      if (ImGui::Button("Cancel")) {
+        Close();
+      }
+    }
+
+    ImGui::EndPopup();
+  }
+
+  virtual ~ProfilePasscodeDialog() {}
+
+  bool SelectedSignedIn() const { return selected_signed_in_; }
+
+ private:
+  bool has_opened_ = false;
+  bool selected_signed_in_ = false;
+  std::string title_;
+  std::string description_;
+
+  static const uint8_t passcode_length = sizeof(X_XAMACCOUNTINFO::passcode);
+  int key_indexes_[passcode_length] = {0, 0, 0, 0};
+  MESSAGEBOX_RESULT* result_ptr_;
+};
+
 class GamertagModifyDialog final : public ui::ImGuiDialog {
  public:
   GamertagModifyDialog(ui::ImGuiDrawer* imgui_drawer,
@@ -783,7 +896,8 @@ class GamesInfoDialog final : public ui::ImGuiDialog {
 static dword_result_t XamShowMessageBoxUi(
     dword_t user_index, lpu16string_t title_ptr, lpu16string_t text_ptr,
     dword_t button_count, lpdword_t button_ptrs, dword_t active_button,
-    dword_t flags, lpdword_t result_ptr, pointer_t<XAM_OVERLAPPED> overlapped) {
+    dword_t flags, pointer_t<MESSAGEBOX_RESULT> result_ptr,
+    pointer_t<XAM_OVERLAPPED> overlapped) {
   std::string title = title_ptr ? xe::to_utf8(title_ptr.value()) : "";
   std::string text = text_ptr ? xe::to_utf8(text_ptr.value()) : "";
 
@@ -799,38 +913,53 @@ static dword_result_t XamShowMessageBoxUi(
   if (cvars::headless) {
     // Auto-pick the focused button.
     auto run = [result_ptr, active_button]() -> X_RESULT {
-      *result_ptr = static_cast<uint32_t>(active_button);
+      result_ptr->ButtonPressed = static_cast<uint32_t>(active_button);
       return X_ERROR_SUCCESS;
     };
+
     result = xeXamDispatchHeadless(run, overlapped);
   } else {
-    // TODO(benvanik): setup icon states.
     switch (flags & 0xF) {
-      case 0:
-        // config.pszMainIcon = nullptr;
-        break;
-      case 1:
-        // config.pszMainIcon = TD_ERROR_ICON;
-        break;
-      case 2:
-        // config.pszMainIcon = TD_WARNING_ICON;
-        break;
-      case 3:
-        // config.pszMainIcon = TD_INFORMATION_ICON;
-        break;
+      case XMBox_NOICON: {
+      } break;
+      case XMBox_ERRORICON: {
+      } break;
+      case XMBox_WARNINGICON: {
+      } break;
+      case XMBox_ALERTICON: {
+      } break;
     }
-    auto close = [result_ptr](MessageBoxDialog* dialog) -> X_RESULT {
-      *result_ptr = dialog->chosen_button();
-      return X_ERROR_SUCCESS;
-    };
+
     const Emulator* emulator = kernel_state()->emulator();
     ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
 
-    result = xeXamDispatchDialog<MessageBoxDialog>(
-        new MessageBoxDialog(imgui_drawer, title, text, buttons,
-                             static_cast<uint32_t>(active_button)),
-        close, overlapped);
+    if (flags & XMBox_PASSCODEMODE || flags & XMBox_VERIFYPASSCODEMODE) {
+      auto close = [result_ptr,
+                    active_button](ProfilePasscodeDialog* dialog) -> X_RESULT {
+        if (dialog->SelectedSignedIn()) {
+          // Logged in
+          return X_ERROR_SUCCESS;
+        } else {
+          return X_ERROR_FUNCTION_FAILED;
+        }
+      };
+
+      result = xeXamDispatchDialog<ProfilePasscodeDialog>(
+          new ProfilePasscodeDialog(imgui_drawer, title, text, result_ptr),
+          close, overlapped);
+    } else {
+      auto close = [result_ptr](MessageBoxDialog* dialog) -> X_RESULT {
+        result_ptr->ButtonPressed = dialog->chosen_button();
+        return X_ERROR_SUCCESS;
+      };
+
+      result = xeXamDispatchDialog<MessageBoxDialog>(
+          new MessageBoxDialog(imgui_drawer, title, text, buttons,
+                               static_cast<uint32_t>(active_button)),
+          close, overlapped);
+    }
   }
+
   return result;
 }
 
@@ -838,7 +967,8 @@ static dword_result_t XamShowMessageBoxUi(
 dword_result_t XamShowMessageBoxUI_entry(
     dword_t user_index, lpu16string_t title_ptr, lpu16string_t text_ptr,
     dword_t button_count, lpdword_t button_ptrs, dword_t active_button,
-    dword_t flags, lpdword_t result_ptr, pointer_t<XAM_OVERLAPPED> overlapped) {
+    dword_t flags, pointer_t<MESSAGEBOX_RESULT> result_ptr,
+    pointer_t<XAM_OVERLAPPED> overlapped) {
   return XamShowMessageBoxUi(user_index, title_ptr, text_ptr, button_count,
                              button_ptrs, active_button, flags, result_ptr,
                              overlapped);
@@ -848,7 +978,8 @@ DECLARE_XAM_EXPORT1(XamShowMessageBoxUI, kUI, kImplemented);
 dword_result_t XamShowMessageBoxUIEx_entry(
     dword_t user_index, lpu16string_t title_ptr, lpu16string_t text_ptr,
     dword_t button_count, lpdword_t button_ptrs, dword_t active_button,
-    dword_t flags, dword_t unknown_unused, lpdword_t result_ptr,
+    dword_t flags, dword_t unknown_unused,
+    pointer_t<MESSAGEBOX_RESULT> result_ptr,
     pointer_t<XAM_OVERLAPPED> overlapped) {
   return XamShowMessageBoxUi(user_index, title_ptr, text_ptr, button_count,
                              button_ptrs, active_button, flags, result_ptr,

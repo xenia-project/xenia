@@ -180,6 +180,10 @@ class UserProfile {
   uint32_t GetSubscriptionTier() const {
     return account_info_.GetSubscriptionTier();
   }
+  void GetPasscode(uint16_t* passcode) const {
+    std::memcpy(passcode, account_info_.passcode,
+                sizeof(account_info_.passcode));
+  };
 
   void AddSetting(std::unique_ptr<UserSetting> setting);
   UserSetting* GetSetting(uint32_t setting_id);

@@ -664,8 +664,43 @@ struct X_PROFILEENUMRESULT {
 };
 static_assert_size(X_PROFILEENUMRESULT, 0x188);
 
-}  // namespace xe
+struct MESSAGEBOX_RESULT {
+  union {
+    xe::be<uint32_t> ButtonPressed;
+    xe::be<uint16_t> Passcode[4];
+  };
+};
+
+// clang-format off
+
+#define XMBox_NOICON                0x00000000
+#define XMBox_ERRORICON             0x00000001
+#define XMBox_WARNINGICON           0x00000002
+#define XMBox_ALERTICON             0x00000003
+
+#define XMBox_PASSCODEMODE          0x00010000
+#define XMBox_VERIFYPASSCODEMODE    0x00020000
+
+#define XMBox_WAITANIMATION         0x00001000
+#define XMBox_LIVEPASSCODEMODE      0x00030000
+#define XMBox_MODEMASK              0x00030000
+
+#define XMBox_OK                    1
+#define XMBox_CANCEL                2
+
+#define X_BUTTON_PASSCODE           0x00005802
+#define Y_BUTTON_PASSCODE           0x00005803
+#define RIGHT_BUMPER_PASSCODE       0x00005804
+#define LEFT_BUMPER_PASSCODE        0x00005805
+#define LEFT_TRIGGER_PASSCODE       0x00005806
+#define RIGHT_TRIGGER_PASSCODE      0x00005807
+#define DPAD_UP_PASSCODE            0x00005810
+#define DPAD_DOWN_PASSCODE          0x00005811
+#define DPAD_LEFT_PASSCODE          0x00005812
+#define DPAD_RIGHT_PASSCODE         0x00005813
 
 // clang-format on
+
+}  // namespace xe
 
 #endif  // XENIA_XBOX_H_
