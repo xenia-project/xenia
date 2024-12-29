@@ -171,6 +171,88 @@ dword_result_t DmGetSystemInfo_entry(pointer_t<XBDM_SYSTEM_INFO> info) {
 }
 DECLARE_XBDM_EXPORT1(DmGetSystemInfo, kDebug, kStub);
 
+dword_result_t DmSetMemory_entry(lpvoid_t dest_ptr, dword_t buf_size,
+                                 lpvoid_t src_ptr, lpdword_t bytes_written) {
+  if (!dest_ptr || !src_ptr || !buf_size) {
+    return XBDM_UNSUCCESSFUL;
+  }
+
+  if (bytes_written) {
+    *bytes_written = 0;
+  }
+
+  const uint32_t dest_guest_address = dest_ptr.guest_address();
+  const uint32_t dest_guest_high_address = dest_guest_address + buf_size;
+
+  memory::PageAccess access = memory::PageAccess::kNoAccess;
+  BaseHeap* dest_heap_ptr =
+      kernel_state()->memory()->LookupHeap(dest_guest_address);
+
+  if (!dest_heap_ptr) {
+    return XBDM_UNSUCCESSFUL;
+  }
+
+  access = dest_heap_ptr->QueryRangeAccess(dest_guest_address,
+                                           dest_guest_high_address);
+
+  if (access == memory::PageAccess::kReadWrite) {
+    memcpy(dest_ptr, src_ptr, buf_size);
+
+    if (bytes_written) {
+      *bytes_written = static_cast<uint32_t>(buf_size);
+    }
+  } else {
+    XELOGE("DmSetMemory failed with page access {}",
+           static_cast<uint32_t>(access));
+
+    return XBDM_UNSUCCESSFUL;
+  }
+
+  return XBDM_SUCCESSFUL;
+}
+DECLARE_XBDM_EXPORT1(DmSetMemory, kDebug, kImplemented);
+
+dword_result_t DmGetMemory_entry(lpvoid_t src_ptr, dword_t buf_size,
+                                 lpvoid_t dest_ptr, lpdword_t bytes_written) {
+  if (!dest_ptr || !src_ptr || !buf_size) {
+    return XBDM_UNSUCCESSFUL;
+  }
+
+  if (bytes_written) {
+    *bytes_written = 0;
+  }
+
+  const uint32_t dest_guest_address = dest_ptr.guest_address();
+  const uint32_t dest_guest_high_address = dest_guest_address + buf_size;
+
+  memory::PageAccess access = memory::PageAccess::kNoAccess;
+  BaseHeap* dest_heap_ptr =
+      kernel_state()->memory()->LookupHeap(dest_guest_address);
+
+  if (!dest_heap_ptr) {
+    return XBDM_UNSUCCESSFUL;
+  }
+
+  access = dest_heap_ptr->QueryRangeAccess(dest_guest_address,
+                                           dest_guest_high_address);
+
+  if (access == memory::PageAccess::kReadWrite) {
+    memcpy(dest_ptr, src_ptr, buf_size);
+
+    if (bytes_written) {
+      *bytes_written = static_cast<uint32_t>(buf_size);
+    }
+  } else {
+    XELOGE("DmGetMemory failed with page access {}",
+           static_cast<uint32_t>(access));
+
+    return XBDM_UNSUCCESSFUL;
+  }
+
+  return XBDM_SUCCESSFUL;
+}
+DECLARE_XBDM_EXPORT1(DmGetMemory, kDebug, kImplemented);
+
 dword_result_t DmIsFastCAPEnabled_entry() { return XBDM_UNSUCCESSFUL; }
 DECLARE_XBDM_EXPORT1(DmIsFastCAPEnabled, kDebug, kStub);
 
