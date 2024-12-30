@@ -139,28 +139,30 @@ X_HRESULT_result_t XamUserGetSigninInfo_entry(
 }
 DECLARE_XAM_EXPORT1(XamUserGetSigninInfo, kUserProfiles, kImplemented);
 
-dword_result_t XamUserGetName_entry(dword_t user_index, lpstring_t buffer,
+dword_result_t XamUserGetName_entry(dword_t user_index, dword_t buffer,
                                     dword_t buffer_len) {
   if (user_index >= XUserMaxUserCount) {
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  if (kernel_state()->xam_state()->IsUserSignedIn(user_index)) {
-    const auto& user_profile =
-        kernel_state()->xam_state()->GetUserProfile(user_index);
-    const auto& user_name = user_profile->name();
-    xe::string_util::copy_truncating(
-        buffer, user_name, std::min(buffer_len.value(), uint32_t(16)));
-  } else {
-    *buffer = 0;
+  char* str_buffer = kernel_memory()->TranslateVirtual<char*>(buffer);
+
+  if (!kernel_state()->xam_state()->IsUserSignedIn(user_index)) {
+    *str_buffer = 0;
     return X_ERROR_NO_SUCH_USER;
   }
+
+  const auto& user_profile =
+      kernel_state()->xam_state()->GetUserProfile(user_index);
+
+  const auto& user_name = user_profile->name();
+  xe::string_util::copy_truncating(str_buffer, user_name,
+                                   std::min(buffer_len.value(), uint32_t(16)));
   return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamUserGetName, kUserProfiles, kImplemented);
 
-dword_result_t XamUserGetGamerTag_entry(dword_t user_index,
-                                        lpu16string_t buffer,
+dword_result_t XamUserGetGamerTag_entry(dword_t user_index, dword_t buffer,
                                         dword_t buffer_len) {
   if (!buffer || buffer_len < 16) {
     return X_E_INVALIDARG;
@@ -177,8 +179,11 @@ dword_result_t XamUserGetGamerTag_entry(dword_t user_index,
   const auto& user_profile =
       kernel_state()->xam_state()->GetUserProfile(user_index);
   auto user_name = xe::to_utf16(user_profile->name());
+
+  char16_t* str_buffer = kernel_memory()->TranslateVirtual<char16_t*>(buffer);
+
   xe::string_util::copy_and_swap_truncating(
-      buffer, user_name, std::min(buffer_len.value(), uint32_t(16)));
+      str_buffer, user_name, std::min(buffer_len.value(), uint32_t(16)));
   return X_E_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamUserGetGamerTag, kUserProfiles, kImplemented);
