@@ -176,35 +176,49 @@ class EmulatorApp final : public xe::ui::WindowedApp {
     std::vector<std::unique_ptr<T>> CreateAll(const std::string_view name,
                                               Args... args) {
       std::vector<std::unique_ptr<T>> instances;
-      if (!name.empty() && name != "any") {
-        auto it = std::find_if(
-            creators_.cbegin(), creators_.cend(),
-            [&name](const auto& f) { return name.compare(f.name) == 0; });
-        if (it != creators_.cend() && (*it).is_available()) {
-          auto instance = (*it).instantiate(std::forward<Args>(args)...);
-          if (instance) {
-            instances.emplace_back(std::move(instance));
-          }
-        }
-#if XE_PLATFORM_WIN32
-        // Always add winkey for passthrough
-        it = std::find_if(
-            creators_.cbegin(), creators_.cend(),
-            [&name](const auto& f) { return f.name.compare("winkey") == 0; });
-        if (it != creators_.cend() && (*it).is_available()) {
-          auto instance = (*it).instantiate(std::forward<Args>(args)...);
-          if (instance) {
-            instances.emplace_back(std::move(instance));
-          }
-        }
-#endif
-      } else {
+
+      // "Any" path
+      if (name.empty() || name == "any") {
         for (const auto& creator : creators_) {
-          if (!creator.is_available()) continue;
+          if (!creator.is_available()) {
+            continue;
+          }
+
+          // Skip xinput for "any" and use SDL
+          if (creator.name.compare("xinput") == 0) {
+            continue;
+          }
+
           auto instance = creator.instantiate(std::forward<Args>(args)...);
           if (instance) {
             instances.emplace_back(std::move(instance));
           }
+        }
+        return instances;
+      }
+
+      // "Specified" path. Winkey is always added on windows.
+      if (name != "winkey") {
+        auto it = std::find_if(
+            creators_.cbegin(), creators_.cend(),
+            [&name](const auto& f) { return name.compare(f.name) == 0; });
+
+        if (it != creators_.cend() && (*it).is_available()) {
+          auto instance = (*it).instantiate(std::forward<Args>(args)...);
+          if (instance) {
+            instances.emplace_back(std::move(instance));
+          }
+        }
+      }
+
+      // Always add winkey for passthrough.
+      auto it = std::find_if(
+          creators_.cbegin(), creators_.cend(),
+          [&name](const auto& f) { return f.name.compare("winkey") == 0; });
+      if (it != creators_.cend() && (*it).is_available()) {
+        auto instance = (*it).instantiate(std::forward<Args>(args)...);
+        if (instance) {
+          instances.emplace_back(std::move(instance));
         }
       }
       return instances;
