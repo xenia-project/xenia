@@ -38,7 +38,12 @@ using WaitItem = TimerQueueWaitItem;
    condition_variable::wait_until) but now builds
 
 */
-using WaitStrat = dp::blocking_wait_strategy;
+
+/*
+    edit2: (30.12.2024) After uplifting version of MSVC compiler Xenia cannot be
+   correctly initialized if you're using proton.
+*/
+using WaitStrat = dp::spin_wait_strategy;
 
 class TimerQueue {
  public:
