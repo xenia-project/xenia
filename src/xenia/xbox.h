@@ -271,60 +271,81 @@ constexpr uint8_t XUserIndexAny = 0xFF;
 // https://github.com/ThirteenAG/Ultimate-ASI-Loader/blob/master/source/xlive/xliveless.h
 typedef uint32_t XNotificationID;
 enum : XNotificationID {
+  /* Notes:
+      - kXNotificationSystemUnknown, kXNotificationLiveUnknown,
+     kXNotificationCustomGamercard, kXNotificationDvdDriveUnknown,
+     kXNotificationXmpUnknown, kXNotificationFriendsUnknown, and
+     kXNotificationMsgrUnknown are all called together by XNotifyBroadcast
+  */
+
   // Notification Areas
   kXNotifySystem = 0x00000001,
   kXNotifyLive = 0x00000002,
   kXNotifyFriends = 0x00000004,
   kXNotifyCustom = 0x00000008,
+  kXNotifyDvdDrive = 0x00000010,  // ?
   kXNotifyXmp = 0x00000020,
   kXNotifyMsgr = 0x00000040,
   kXNotifyParty = 0x00000080,
   kXNotifyAll = 0x000000EF,
 
-  // XNotification System
-  kXNotificationIDSystemUI = 0x00000009,
-  kXNotificationIDSystemSignInChanged = 0x0000000A,
-  kXNotificationIDSystemStorageDevicesChanged = 0x0000000B,
-  kXNotificationIDSystemProfileSettingChanged = 0x0000000E,
-  kXNotificationIDSystemMuteListChanged = 0x00000011,
-  kXNotificationIDSystemInputDevicesChanged = 0x00000012,
-  kXNotificationIDSystemInputDeviceConfigChanged = 0x00000013,
-  kXNotificationIDSystemPlayerTimerNotice = 0x00000015,
-  kXNotificationIDSystemAvatarChanged = 0x00000017,
-  kXNotificationIDSystemNUIHardwareStatusChanged = 0x00000019,
-  kXNotificationIDSystemNUIPause = 0x0000001A,
-  kXNotificationIDSystemNUIUIApproach = 0x0000001B,
-  kXNotificationIDSystemDeviceRemap = 0x0000001C,
-  kXNotificationIDSystemNUIBindingChanged = 0x0000001D,
-  kXNotificationIDSystemAudioLatencyChanged = 0x0000001E,
-  kXNotificationIDSystemNUIChatBindingChanged = 0x0000001F,
-  kXNotificationIDSystemInputActivityChanged = 0x00000020,
+  // XNotification System (35 total)
+  kXNotificationSystemUI = 0x00000009,
+  kXNotificationSystemSignInChanged = 0x0000000A,
+  kXNotificationSystemStorageDevicesChanged = 0x0000000B,
+  kXNotificationSystemProfileSettingChanged = 0x0000000E,
+  kXNotificationSystemMuteListChanged = 0x00000011,
+  kXNotificationSystemInputDevicesChanged = 0x00000012,
+  kXNotificationSystemInputDeviceConfigChanged = 0x00000013,
+  kXNotificationSystemPlayerTimerNotice = 0x00000015,
+  kXNotificationSystemPXLiveSystemUpdate = 0x00000016,
+  kXNotificationSystemAvatarChanged = 0x00000017,
+  kXNotificationSystemUnknown = 0x00000018,
+  kXNotificationSystemNUIHardwareStatusChanged = 0x00000019,
+  kXNotificationSystemNUIPause = 0x0000001A,
+  kXNotificationSystemNUIUIApproach = 0x0000001B,
+  kXNotificationSystemDeviceRemap = 0x0000001C,
+  kXNotificationSystemNUIBindingChanged = 0x0000001D,
+  kXNotificationSystemAudioLatencyChanged = 0x0000001E,
+  kXNotificationSystemNUIChatBindingChanged = 0x0000001F,
+  kXNotificationSystemInputActivityChanged = 0x00000020,
 
-  // XNotification Live
-  kXNotificationIDLiveConnectionChanged = 0x02000001,
-  kXNotificationIDLiveInviteAccepted = 0x02000002,
-  kXNotificationIDLiveLinkStateChanged = 0x02000003,
-  kXNotificationIDLiveContentInstalled = 0x02000007,
-  kXNotificationIDLiveMembershipPurchased = 0x02000008,
-  kXNotificationIDLiveVoicechatAway = 0x02000009,
-  kXNotificationIDLivePresenceChanged = 0x0200000A,
+  // XNotification Live (20 total)
+  kXNotificationLiveConnectionChanged = 0x02000001,
+  kXNotificationLiveInviteAccepted = 0x02000002,
+  kXNotificationLiveLinkStateChanged = 0x02000003,
+  kXNotificationLiveContentInstalled = 0x02000007,
+  kXNotificationLiveMembershipPurchased = 0x02000008,
+  kXNotificationLiveVoicechatAway = 0x02000009,
+  kXNotificationLivePresenceChanged = 0x0200000A,
+  kXNotificationLiveUnknown = 0x02000012,
 
-  // XNotification Friends
-  kXNotificationIDFriendsPresenceChanged = 0x04000001,
-  kXNotificationIDFriendsFriendAdded = 0x04000002,
-  kXNotificationIDFriendsFriendRemoved = 0x04000003,
+  // XNotification Friends (9 total)
+  kXNotificationFriendsPresenceChanged = 0x04000001,
+  kXNotificationFriendsFriendAdded = 0x04000002,
+  kXNotificationFriendsFriendRemoved = 0x04000003,
+  kXNotificationFriendsUnknown = 0x04000008,
 
-  // XNotification Custom
-  kXNotificationIDCustomActionPressed = 0x06000003,
-  kXNotificationIDCustomGamercard = 0x06000004,
+  // XNotification Custom (5 total)
+  kXNotificationCustomActionPressed = 0x06000003,
+  kXNotificationCustomGamercard = 0x06000004,
 
-  // XNotification XMP
-  kNotificationXmpStateChanged = 0x0A000001,
-  kNotificationXmpPlaybackBehaviorChanged = 0x0A000002,
-  kNotificationXmpPlaybackControllerChanged = 0x0A000003,
+  // XNotification Dvd ?
+  kXNotificationDvdDriveUnknown = 0x80000003,
+  kXNotificationDvdDriveTrayStateChanged = 0x8000000D,
 
-  // XNotification Party
-  kXNotificationIDPartyMembersChanged = 0x0E000002,
+  // XNotification XMP (13 total)
+  kXNotificationXmpStateChanged = 0x0A000001,
+  kXNotificationXmpPlaybackBehaviorChanged = 0x0A000002,
+  kXNotificationXmpPlaybackControllerChanged = 0x0A000003,
+  kXNotificationXmpUnknown = 0x0A00000C,
+
+  // XNotification Party (6 total)
+  kXNotificationPartyMembersChanged = 0x0E000002,
+  kXNotificationFriendUnknown = 0x0E000005,
+
+  // XNotification Msgr
+  kXNotificationMsgrUnknown = 0x0C00000E,
 };
 
 // https://github.com/CodeAsm/ffplay360/blob/master/Common/XTLOnPC.h

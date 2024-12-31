@@ -85,7 +85,7 @@ X_RESULT xeXamDispatchDialog(T* dialog,
                              std::function<X_RESULT(T*)> close_callback,
                              uint32_t overlapped) {
   auto pre = []() {
-    kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, true);
+    kernel_state()->BroadcastNotification(kXNotificationSystemUI, true);
   };
   auto run = [dialog, close_callback]() -> X_RESULT {
     X_RESULT result;
@@ -108,7 +108,7 @@ X_RESULT xeXamDispatchDialog(T* dialog,
   };
   auto post = []() {
     xe::threading::Sleep(std::chrono::milliseconds(100));
-    kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, false);
+    kernel_state()->BroadcastNotification(kXNotificationSystemUI, false);
   };
   if (!overlapped) {
     pre();
@@ -126,7 +126,7 @@ X_RESULT xeXamDispatchDialogEx(
     T* dialog, std::function<X_RESULT(T*, uint32_t&, uint32_t&)> close_callback,
     uint32_t overlapped) {
   auto pre = []() {
-    kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, true);
+    kernel_state()->BroadcastNotification(kXNotificationSystemUI, true);
   };
   auto run = [dialog, close_callback](uint32_t& extended_error,
                                       uint32_t& length) -> X_RESULT {
@@ -150,7 +150,7 @@ X_RESULT xeXamDispatchDialogEx(
   };
   auto post = []() {
     xe::threading::Sleep(std::chrono::milliseconds(100));
-    kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, false);
+    kernel_state()->BroadcastNotification(kXNotificationSystemUI, false);
   };
   if (!overlapped) {
     pre();
@@ -168,11 +168,11 @@ X_RESULT xeXamDispatchDialogEx(
 X_RESULT xeXamDispatchHeadless(std::function<X_RESULT()> run_callback,
                                uint32_t overlapped) {
   auto pre = []() {
-    kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, true);
+    kernel_state()->BroadcastNotification(kXNotificationSystemUI, true);
   };
   auto post = []() {
     xe::threading::Sleep(std::chrono::milliseconds(100));
-    kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, false);
+    kernel_state()->BroadcastNotification(kXNotificationSystemUI, false);
   };
   if (!overlapped) {
     pre();
@@ -190,11 +190,11 @@ X_RESULT xeXamDispatchHeadlessEx(
     std::function<X_RESULT(uint32_t&, uint32_t&)> run_callback,
     uint32_t overlapped) {
   auto pre = []() {
-    kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, true);
+    kernel_state()->BroadcastNotification(kXNotificationSystemUI, true);
   };
   auto post = []() {
     xe::threading::Sleep(std::chrono::milliseconds(100));
-    kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, false);
+    kernel_state()->BroadcastNotification(kXNotificationSystemUI, false);
   };
   if (!overlapped) {
     pre();
@@ -213,7 +213,7 @@ X_RESULT xeXamDispatchHeadlessEx(
 template <typename T>
 X_RESULT xeXamDispatchDialogAsync(T* dialog,
                                   std::function<void(T*)> close_callback) {
-  kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, true);
+  kernel_state()->BroadcastNotification(kXNotificationSystemUI, true);
   ++xam_dialogs_shown_;
 
   // Important to pass captured vars by value here since we return from this
@@ -226,7 +226,7 @@ X_RESULT xeXamDispatchDialogAsync(T* dialog,
 
     auto run = []() -> void {
       xe::threading::Sleep(std::chrono::milliseconds(100));
-      kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, false);
+      kernel_state()->BroadcastNotification(kXNotificationSystemUI, false);
     };
 
     std::thread thread(run);
@@ -237,7 +237,7 @@ X_RESULT xeXamDispatchDialogAsync(T* dialog,
 }
 
 X_RESULT xeXamDispatchHeadlessAsync(std::function<void()> run_callback) {
-  kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, true);
+  kernel_state()->BroadcastNotification(kXNotificationSystemUI, true);
   ++xam_dialogs_shown_;
 
   auto display_window = kernel_state()->emulator()->display_window();
@@ -248,7 +248,7 @@ X_RESULT xeXamDispatchHeadlessAsync(std::function<void()> run_callback) {
 
     auto run = []() -> void {
       xe::threading::Sleep(std::chrono::milliseconds(100));
-      kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, false);
+      kernel_state()->BroadcastNotification(kXNotificationSystemUI, false);
     };
 
     std::thread thread(run);
@@ -1295,7 +1295,7 @@ X_HRESULT xeXShowMarketplaceUIEx(dword_t user_index, dword_t ui_type,
         cvars::license_mask = 1;
 
         kernel_state()->BroadcastNotification(
-            kXNotificationIDLiveContentInstalled, 0);
+            kXNotificationLiveContentInstalled, 0);
       }
     }
   };

@@ -1405,15 +1405,13 @@ void EmulatorWindow::ToggleDisplayConfigDialog() {
 void EmulatorWindow::ToggleProfilesConfigDialog() {
   if (!profile_config_dialog_) {
     disable_hotkeys_ = true;
-    emulator_->kernel_state()->BroadcastNotification(kXNotificationIDSystemUI,
-                                                     1);
+    emulator_->kernel_state()->BroadcastNotification(kXNotificationSystemUI, 1);
     profile_config_dialog_ =
         std::make_unique<ProfileConfigDialog>(imgui_drawer_.get(), this);
     kernel::xam::xam_dialogs_shown_++;
   } else {
     disable_hotkeys_ = false;
-    emulator_->kernel_state()->BroadcastNotification(kXNotificationIDSystemUI,
-                                                     0);
+    emulator_->kernel_state()->BroadcastNotification(kXNotificationSystemUI, 0);
     profile_config_dialog_.reset();
     kernel::xam::xam_dialogs_shown_--;
   }

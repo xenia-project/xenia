@@ -867,11 +867,11 @@ void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
   if (!has_notified_startup_ && listener->mask() & kXNotifySystem) {
     has_notified_startup_ = true;
     // XN_SYS_UI (on, off)
-    listener->EnqueueNotification(kXNotificationIDSystemUI, 1);
-    listener->EnqueueNotification(kXNotificationIDSystemUI, 0);
+    listener->EnqueueNotification(kXNotificationSystemUI, 1);
+    listener->EnqueueNotification(kXNotificationSystemUI, 0);
     // XN_SYS_SIGNINCHANGED x2
-    listener->EnqueueNotification(kXNotificationIDSystemSignInChanged, 1);
-    listener->EnqueueNotification(kXNotificationIDSystemSignInChanged, 1);
+    listener->EnqueueNotification(kXNotificationSystemSignInChanged, 1);
+    listener->EnqueueNotification(kXNotificationSystemSignInChanged, 1);
   }
 }
 

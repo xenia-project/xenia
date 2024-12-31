@@ -835,8 +835,7 @@ X_STATUS Emulator::InstallContentPackage(
     return error_code;
   }
 
-  kernel_state()->BroadcastNotification(kXNotificationIDLiveContentInstalled,
-                                        0);
+  kernel_state()->BroadcastNotification(kXNotificationLiveContentInstalled, 0);
 
   return error_code;
 }

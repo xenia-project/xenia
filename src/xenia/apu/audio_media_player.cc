@@ -483,7 +483,7 @@ void AudioMediaPlayer::SetCaptureCallback(uint32_t callback, uint32_t context,
 }
 
 void AudioMediaPlayer::OnStateChanged() {
-  kernel_state_->BroadcastNotification(kNotificationXmpStateChanged,
+  kernel_state_->BroadcastNotification(kXNotificationXmpStateChanged,
                                        static_cast<uint32_t>(state_));
 }
 

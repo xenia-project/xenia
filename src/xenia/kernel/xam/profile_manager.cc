@@ -324,7 +324,7 @@ void ProfileManager::Login(const uint64_t xuid, const uint8_t user_index,
   }
 
   if (notify) {
-    kernel_state_->BroadcastNotification(kXNotificationIDSystemSignInChanged,
+    kernel_state_->BroadcastNotification(kXNotificationSystemSignInChanged,
                                          GetUsedUserSlots().to_ulong());
   }
   UpdateConfig(xuid, assigned_user_slot);
@@ -338,7 +338,7 @@ void ProfileManager::Logout(const uint8_t user_index, bool notify) {
   DismountProfile(profile->second->xuid());
   logged_profiles_.erase(profile);
   if (notify) {
-    kernel_state_->BroadcastNotification(kXNotificationIDSystemSignInChanged,
+    kernel_state_->BroadcastNotification(kXNotificationSystemSignInChanged,
                                          GetUsedUserSlots().to_ulong());
   }
   UpdateConfig(0, user_index);
@@ -352,7 +352,7 @@ void ProfileManager::LoginMultiple(
     slots_mask |= (1 << slot);
   }
 
-  kernel_state_->BroadcastNotification(kXNotificationIDSystemSignInChanged,
+  kernel_state_->BroadcastNotification(kXNotificationSystemSignInChanged,
                                        slots_mask);
 }
 

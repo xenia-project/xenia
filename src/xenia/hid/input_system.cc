@@ -59,7 +59,7 @@ void InputSystem::UpdateUsedSlot(InputDriver* driver, uint8_t slot,
   connected_slots.flip(slot);
   if (kernel::kernel_state()) {
     kernel::kernel_state()->BroadcastNotification(
-        kXNotificationIDSystemInputDevicesChanged, 0);
+        kXNotificationSystemInputDevicesChanged, 0);
   }
 
   if (driver) {
