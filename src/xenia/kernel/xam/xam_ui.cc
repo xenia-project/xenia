@@ -1935,6 +1935,75 @@ class SigninDialog : public XamDialog {
   char gamertag_[16] = "";
 };
 
+class CreateProfileDialog final : public XamDialog {
+ public:
+  CreateProfileDialog(ui::ImGuiDrawer* imgui_drawer, Emulator* emulator)
+      : XamDialog(imgui_drawer), emulator_(emulator) {
+    memset(gamertag_, 0, sizeof(gamertag_));
+  }
+
+ protected:
+  void OnDraw(ImGuiIO& io) override;
+
+  bool has_opened_ = false;
+  char gamertag_[16] = "";
+  Emulator* emulator_;
+};
+
+void CreateProfileDialog::OnDraw(ImGuiIO& io) {
+  if (!has_opened_) {
+    ImGui::OpenPopup("Create Profile");
+    has_opened_ = true;
+  }
+
+  auto profile_manager =
+      emulator_->kernel_state()->xam_state()->profile_manager();
+
+  bool dialog_open = true;
+  if (!ImGui::BeginPopupModal("Create Profile", &dialog_open,
+                              ImGuiWindowFlags_NoCollapse |
+                                  ImGuiWindowFlags_AlwaysAutoResize |
+                                  ImGuiWindowFlags_HorizontalScrollbar)) {
+    Close();
+    return;
+  }
+
+  if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
+      !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0)) {
+    ImGui::SetKeyboardFocusHere(0);
+  }
+
+  ImGui::TextUnformatted("Gamertag:");
+  ImGui::InputText("##Gamertag", gamertag_, sizeof(gamertag_));
+
+  const std::string gamertag_string = std::string(gamertag_);
+  bool valid = profile_manager->IsGamertagValid(gamertag_string);
+
+  ImGui::BeginDisabled(!valid);
+  if (ImGui::Button("Create")) {
+    if (!profile_manager->CreateProfile(gamertag_string, false)) {
+      XELOGE("Failed to create profile: {}", gamertag_string);
+    }
+    std::fill(std::begin(gamertag_), std::end(gamertag_), '\0');
+    dialog_open = false;
+  }
+  ImGui::EndDisabled();
+  ImGui::SameLine();
+
+  if (ImGui::Button("Cancel")) {
+    std::fill(std::begin(gamertag_), std::end(gamertag_), '\0');
+    dialog_open = false;
+  }
+
+  if (!dialog_open) {
+    ImGui::CloseCurrentPopup();
+    Close();
+    ImGui::EndPopup();
+    return;
+  }
+  ImGui::EndPopup();
+}
+
 X_RESULT xeXamShowSigninUI(uint32_t user_index, uint32_t users_needed,
                            uint32_t flags) {
   // Mask values vary. Probably matching user types? Local/remote?
@@ -1967,6 +2036,21 @@ X_RESULT xeXamShowSigninUI(uint32_t user_index, uint32_t users_needed,
       new SigninDialog(imgui_drawer, users_needed), close);
 }
 
+X_RESULT xeXamShowCreateProfileUIEx(uint32_t user_index, dword_t unkn,
+                                    char* unkn2_ptr) {
+  Emulator* emulator = kernel_state()->emulator();
+  ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
+
+  if (cvars::headless) {
+    return X_ERROR_SUCCESS;
+  }
+
+  auto close = [](CreateProfileDialog* dialog) -> void {};
+
+  return xeXamDispatchDialogAsync<CreateProfileDialog>(
+      new CreateProfileDialog(imgui_drawer, emulator), close);
+}
+
 dword_result_t XamShowSigninUI_entry(dword_t users_needed, dword_t flags) {
   return xeXamShowSigninUI(XUserIndexAny, users_needed, flags);
 }
@@ -1977,6 +2061,17 @@ dword_result_t XamShowSigninUIp_entry(dword_t user_index, dword_t users_needed,
   return xeXamShowSigninUI(user_index, users_needed, flags);
 }
 DECLARE_XAM_EXPORT1(XamShowSigninUIp, kUserProfiles, kImplemented);
+
+dword_result_t XamShowCreateProfileUIEx_entry(dword_t user_index, dword_t unkn,
+                                              lpstring_t unkn2_ptr) {
+  return xeXamShowCreateProfileUIEx(user_index, unkn, unkn2_ptr);
+}
+DECLARE_XAM_EXPORT1(XamShowCreateProfileUIEx, kUserProfiles, kImplemented);
+
+dword_result_t XamShowCreateProfileUI_entry(dword_t user_index, dword_t unkn) {
+  return xeXamShowCreateProfileUIEx(user_index, unkn, 0);
+}
+DECLARE_XAM_EXPORT1(XamShowCreateProfileUI, kUserProfiles, kImplemented);
 
 dword_result_t XamShowAchievementsUI_entry(dword_t user_index,
                                            dword_t unk_mask) {
