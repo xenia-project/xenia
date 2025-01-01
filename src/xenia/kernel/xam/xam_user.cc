@@ -145,23 +145,25 @@ dword_result_t XamUserGetName_entry(dword_t user_index, dword_t buffer,
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  kernel_memory()->Zero(buffer, buffer_len);
-
   if (!kernel_state()->xam_state()->IsUserSignedIn(user_index)) {
+    // Based on XAM only first byte is cleared in case of lack of user.
+    kernel_memory()->Zero(buffer, 1);
     return X_ERROR_NO_SUCH_USER;
   }
 
   const auto& user_profile =
       kernel_state()->xam_state()->GetUserProfile(user_index);
 
-  // Because name is always limited to 16 characters we can assume length will
+  // Because name is always limited to 15 characters we can assume length will
   // never exceed that limit.
   const auto& user_name = user_profile->name();
 
+  // buffer_len includes null-terminator. user_name does not.
+  const uint32_t bytes_to_copy = std::min(
+      buffer_len.value(), static_cast<uint32_t>(user_name.length()) + 1);
+
   char* str_buffer = kernel_memory()->TranslateVirtual<char*>(buffer);
-  xe::string_util::copy_truncating(
-      str_buffer, user_name,
-      std::min(buffer_len.value(), static_cast<uint32_t>(user_name.length())));
+  xe::string_util::copy_truncating(str_buffer, user_name, bytes_to_copy);
   return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamUserGetName, kUserProfiles, kImplemented);
