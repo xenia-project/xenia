@@ -272,13 +272,6 @@ constexpr uint8_t XUserIndexAny = 0xFF;
 // https://github.com/ThirteenAG/Ultimate-ASI-Loader/blob/master/source/xlive/xliveless.h
 typedef uint32_t XNotificationID;
 enum : XNotificationID {
-  /* Notes:
-      - kXNotificationSystemUnknown, kXNotificationLiveUnknown,
-     kXNotificationCustomGamercard, kXNotificationDvdDriveUnknown,
-     kXNotificationXmpUnknown, kXNotificationFriendsUnknown, and
-     kXNotificationMsgrUnknown are all called together by XNotifyBroadcast
-  */
-
   // Notification Areas
   kXNotifySystem = 0x00000001,
   kXNotifyLive = 0x00000002,
@@ -333,6 +326,7 @@ enum : XNotificationID {
 
   // XNotification Dvd ?
   kXNotificationDvdDriveUnknown = 0x80000003,
+  kXNotificationDvdDriveUnknownDashContext = 0x8000000C,
   kXNotificationDvdDriveTrayStateChanged = 0x8000000D,
 
   // XNotification XMP (13 total)

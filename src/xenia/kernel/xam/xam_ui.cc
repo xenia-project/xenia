@@ -1255,6 +1255,8 @@ DECLARE_XAM_EXPORT1(XamShowCommunitySessionsUI, kNone, kStub);
 dword_result_t XamSetDashContext_entry(dword_t value,
                                        const ppc_context_t& ctx) {
   ctx->kernel_state->dash_context_ = value;
+  kernel_state()->BroadcastNotification(
+      kXNotificationDvdDriveUnknownDashContext, 0);
   return 0;
 }
 

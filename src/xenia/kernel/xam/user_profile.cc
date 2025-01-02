@@ -170,7 +170,8 @@ void UserProfile::LoadSetting(UserSetting* setting) {
   } else {
     // Unsupported for now.  Other settings aren't per-game and need to be
     // stored some other way.
-    XELOGW("Attempting to load unsupported profile setting from disk");
+    XELOGW("Attempting to load unsupported profile setting 0x{:08X} from disk",
+           setting->GetSettingId());
   }
 }
 
@@ -204,7 +205,8 @@ void UserProfile::SaveSetting(UserSetting* setting) {
   } else {
     // Unsupported for now.  Other settings aren't per-game and need to be
     // stored some other way.
-    XELOGW("Attempting to save unsupported profile setting to disk");
+    XELOGW("Attempting to save unsupported profile setting 0x{:08X} from disk",
+           setting->GetSettingId());
   }
 }
 

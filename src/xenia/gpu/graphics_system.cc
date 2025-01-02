@@ -35,7 +35,7 @@ DEFINE_uint32(internal_display_resolution, 8,
               "Allow games that support different resolutions to render "
               "in a specific resolution.\n"
               "This is not guaranteed to work with all games or improve "
-              "performance."
+              "performance.\n"
               "   0=640x480\n"
               "   1=640x576\n"
               "   2=720x480\n"
