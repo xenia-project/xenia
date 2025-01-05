@@ -65,7 +65,13 @@ class XContentContainerDevice : public Device {
 
   kernel::xam::XCONTENT_AGGREGATE_DATA content_header() const;
   uint32_t license_mask() const {
-    return header_->content_header.licenses[0].license_bits;
+    uint32_t final_license = 0;
+    for (uint8_t i = 0; i < license_count; i++) {
+      if (header_->content_header.licenses[i].license_flags) {
+        final_license |= header_->content_header.licenses[i].license_bits;
+      }
+    }
+    return final_license;
   }
 
  protected:

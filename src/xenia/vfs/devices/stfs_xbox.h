@@ -468,10 +468,12 @@ struct XContentMetadata {
 };
 static_assert_size(XContentMetadata, 0x93D6);
 
+static constexpr uint8_t license_count = 0x10;
+
 struct XContentHeader {
   be<XContentPackageType> magic;
   uint8_t signature[0x228];
-  XContentLicense licenses[0x10];
+  XContentLicense licenses[license_count];
   uint8_t content_id[0x14];
   be<uint32_t> header_size;
 
