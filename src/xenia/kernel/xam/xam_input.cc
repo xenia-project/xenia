@@ -118,7 +118,9 @@ dword_result_t XamInputGetState_entry(dword_t user_index, dword_t flags,
 
   auto input_system = kernel_state()->emulator()->input_system();
   auto lock = input_system->lock();
-  return input_system->GetState(user_index, flags, input_state);
+  return input_system->GetState(
+      user_index, !flags ? X_INPUT_FLAG::X_INPUT_FLAG_GAMEPAD : flags,
+      input_state);
 }
 DECLARE_XAM_EXPORT2(XamInputGetState, kInput, kImplemented, kHighFrequency);
 
@@ -205,9 +207,10 @@ dword_result_t XamInputGetKeystrokeEx_entry(
 }
 DECLARE_XAM_EXPORT1(XamInputGetKeystrokeEx, kInput, kImplemented);
 
-X_HRESULT_result_t XamUserGetDeviceContext_entry(dword_t user_index,
-                                                 dword_t unk,
-                                                 lpdword_t out_ptr) {
+X_HRESULT_result_t XamUserGetDeviceContext_entry(
+    dword_t user_index,
+    dword_t unk,  // It's set to 3 for a big button
+    lpdword_t out_ptr) {
   // Games check the result - usually with some masking.
   // If this function fails they assume zero, so let's fail AND
   // set zero just to be safe.
