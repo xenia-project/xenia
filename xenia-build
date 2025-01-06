@@ -423,6 +423,8 @@ def git_submodule_update():
         'submodule',
         'update',
         '--init',
+        '-j', str(os.cpu_count()),
+        #'--depth 1', # This doesn't work for some reason
         ])
 
 
@@ -433,14 +435,20 @@ def get_clang_format_binary():
       A path to the clang-format executable.
     """
     attempts = [
-        'C:\\Program Files\\LLVM\\bin\\clang-format.exe',
-        'C:\\Program Files (x86)\\LLVM\\bin\\clang-format.exe',
+        'clang-format-19',
+        'clang-format-18',
+        'clang-format-17',
+        'clang-format-16',
+        'clang-format-15',
         'clang-format-14',
         'clang-format-13',
         'clang-format',
         ]
-    if 'VCINSTALLDIR' in os.environ:
-        attempts.append(os.path.join(os.environ['VCINSTALLDIR'], 'Tools', 'Llvm', 'bin', 'clang-format.exe'))
+    if sys.platform == 'win32':
+        attempts.append(os.path.join(os.environ['ProgramFiles'], 'LLVM', 'bin', 'clang-format.exe'))
+        attempts.append(os.path.join(os.environ['ProgramFiles(x86)'], 'LLVM', 'bin', 'clang-format.exe'))
+        if 'VCINSTALLDIR' in os.environ:
+            attempts.append(os.path.join(os.environ['VCINSTALLDIR'], 'Tools', 'Llvm', 'bin', 'clang-format.exe'))
     for binary in attempts:
         if has_bin(binary):
             return binary
@@ -698,7 +706,7 @@ class PullCommand(Command):
             *args, **kwargs)
         self.parser.add_argument(
             '--merge', action='store_true',
-             help='Merges on master instead of rebasing.')
+             help='Merges on canary-experimental instead of rebasing.')
         self.parser.add_argument(
             '--target_os', default=None,
             help='Target OS passed to premake, for cross-compilation')
@@ -707,11 +715,11 @@ class PullCommand(Command):
         print('Pulling...')
         print('')
 
-        print('- switching to master...')
+        print('- switching to canary-experimental...')
         shell_call([
             'git',
             'checkout',
-            'master',
+            'canary-experimental',
             ])
         print('')
 
@@ -791,7 +799,7 @@ class BaseBuildCommand(Command):
             '--no_premake', action='store_true',
             help='Skips running premake before building.')
         self.parser.add_argument(
-            '-j', default=4, type=int, help='Number of parallel threads')
+            '-j', default=os.cpu_count(), type=int, help='Number of parallel threads')
 
     def execute(self, args, pass_args, cwd):
         if not args['no_premake']:
@@ -1327,7 +1335,7 @@ class GpuTestCommand(BaseBuildCommand):
             help='Create reference files for new traces.')
 
     def execute(self, args, pass_args, cwd):
-        print('Testinging...')
+        print('Testing...')
         print('')
 
         # The test executables that will be built and run.
@@ -1431,12 +1439,12 @@ class NukeCommand(Command):
             shutil.rmtree('build/')
         print('')
 
-        print('- git reset to master...')
+        print('- git reset to canary-experimental...')
         shell_call([
             'git',
             'reset',
             '--hard',
-            'master',
+            'canary-experimental',
             ])
         print('')
 
