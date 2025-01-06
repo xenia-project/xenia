@@ -51,12 +51,11 @@ jobs:
 #        run: ./xb lint --all
 
   build-linux:
-    name: Build (Linux, ${{ matrix.configuration }}, LLVM ${{ matrix.llvm_version }}) #  runner.os can't be used here
+    name: Build (Linux, LLVM ${{ matrix.llvm_version }}) #  runner.os can't be used here
 #    needs: lint
     strategy:
       fail-fast: false
       matrix:
-        configuration: [Release, Debug]
         llvm_version: [15] #[15, 16, 17, 18, 19]
     runs-on: ubuntu-24.04
     steps:
@@ -79,4 +78,4 @@ jobs:
           sudo apt-get -y install mesa-vulkan-drivers valgrind libc++-dev libc++abi-dev libgtk-3-dev libsdl2-dev libvulkan-dev libx11-dev libx11-xcb-dev clang-$LLVM_VERSION clang-format-$LLVM_VERSION llvm-$LLVM_VERSION
           ./xb setup
       - name: Build
-        run: ./xb build --config=${{ matrix.configuration }}
+        run: ./xb build --config=Release
