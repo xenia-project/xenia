@@ -21,7 +21,7 @@ Discussing illegal activities will get you banned.
 Buildbot | Status | Releases
 -------- | ------ | --------
 Windows | [![CI](https://github.com/xenia-canary/xenia-canary/actions/workflows/Windows_build.yml/badge.svg?branch=canary_experimental)](https://github.com/xenia-canary/xenia-canary/actions/workflows/Windows_build.yml) [![Codacy Badge](https://app.codacy.com/project/badge/Grade/cd506034fd8148309a45034925648499)](https://app.codacy.com/gh/xenia-canary/xenia-canary/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade) | [Latest](https://github.com/xenia-canary/xenia-canary/releases/latest) ◦ [All](https://github.com/xenia-canary/xenia-canary/releases)
-Linux | Curently unsupported
+Linux | [![CI](https://github.com/xenia-canary/xenia-canary/actions/workflows/Linux_build.yml/badge.svg?branch=canary_experimental)](https://github.com/xenia-canary/xenia-canary/actions/workflows/Linux_build.yml)
 Netplay Build | | [Latest](https://github.com/AdrianCassar/xenia-canary/releases/latest)
 
 ## Quickstart
@@ -36,7 +36,7 @@ See the [frequently asked questions](https://github.com/xenia-canary/xenia-canar
 
 See the [Game compatibility list](https://github.com/xenia-canary/game-compatibility/issues)
 for currently tracked games, and feel free to contribute your own updates,
-screenshots, and information there following the [existing conventions](https://github.com/xenia-canary/game-compatibility/blob/master/README.md).
+screenshots, and information there following the [existing conventions](https://github.com/xenia-canary/game-compatibility/blob/canary/README.md).
 
 ## Building
 
