@@ -74,9 +74,9 @@ DECLARE_XAM_EXPORT2(XamContentGetLicenseMask, kContent, kStub, kHighFrequency);
 
 dword_result_t XamContentResolve_entry(dword_t user_index,
                                        lpvoid_t content_data_ptr,
-                                       lpunknown_t buffer_ptr,
-                                       dword_t buffer_size, dword_t unk1,
-                                       dword_t unk2, dword_t unk3) {
+                                       lpvoid_t buffer_ptr, dword_t buffer_size,
+                                       dword_t unk1, dword_t unk2,
+                                       dword_t unk3) {
   auto content_data = content_data_ptr.as<XCONTENT_DATA*>();
 
   // Result of buffer_ptr is sent to RtlInitAnsiString.
@@ -351,7 +351,7 @@ dword_result_t XamContentOpenFile_entry(dword_t user_index,
 DECLARE_XAM_EXPORT1(XamContentOpenFile, kContent, kStub);
 
 dword_result_t XamContentFlush_entry(lpstring_t root_name,
-                                     lpunknown_t overlapped_ptr) {
+                                     lpvoid_t overlapped_ptr) {
   X_RESULT result = X_ERROR_SUCCESS;
   if (overlapped_ptr) {
     kernel_state()->CompleteOverlappedImmediate(overlapped_ptr, result);
@@ -363,7 +363,7 @@ dword_result_t XamContentFlush_entry(lpstring_t root_name,
 DECLARE_XAM_EXPORT1(XamContentFlush, kContent, kStub);
 
 dword_result_t XamContentClose_entry(lpstring_t root_name,
-                                     lpunknown_t overlapped_ptr) {
+                                     lpvoid_t overlapped_ptr) {
   // Closes a previously opened root from XamContentCreate*.
   auto result =
       kernel_state()->content_manager()->CloseContent(root_name.value());
@@ -381,7 +381,7 @@ dword_result_t XamContentGetCreator_entry(dword_t user_index,
                                           lpvoid_t content_data_ptr,
                                           lpdword_t is_creator_ptr,
                                           lpqword_t creator_xuid_ptr,
-                                          lpunknown_t overlapped_ptr) {
+                                          lpvoid_t overlapped_ptr) {
   if (!is_creator_ptr) {
     return X_ERROR_INVALID_PARAMETER;
   }
@@ -449,7 +449,7 @@ dword_result_t XamContentGetThumbnail_entry(dword_t user_index,
                                             lpvoid_t content_data_ptr,
                                             lpvoid_t buffer_ptr,
                                             lpdword_t buffer_size_ptr,
-                                            lpunknown_t overlapped_ptr) {
+                                            lpvoid_t overlapped_ptr) {
   const auto& user = kernel_state()->xam_state()->GetUserProfile(user_index);
 
   if (!user) {
@@ -494,7 +494,7 @@ dword_result_t XamContentSetThumbnail_entry(dword_t user_index,
                                             lpvoid_t content_data_ptr,
                                             lpvoid_t buffer_ptr,
                                             dword_t buffer_size,
-                                            lpunknown_t overlapped_ptr) {
+                                            lpvoid_t overlapped_ptr) {
   const auto& user = kernel_state()->xam_state()->GetUserProfile(user_index);
 
   if (!user) {
@@ -518,10 +518,15 @@ dword_result_t XamContentSetThumbnail_entry(dword_t user_index,
 }
 DECLARE_XAM_EXPORT1(XamContentSetThumbnail, kContent, kImplemented);
 
-dword_result_t XamContentDelete_entry(dword_t user_index,
-                                      lpvoid_t content_data_ptr,
-                                      lpunknown_t overlapped_ptr) {
+dword_result_t xeXamContentDelete(dword_t user_index, lpvoid_t content_data_ptr,
+                                  dword_t content_data_size,
+                                  lpvoid_t overlapped_ptr) {
   uint64_t xuid = 0;
+  XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
+  if (content_data_size == sizeof(XCONTENT_AGGREGATE_DATA)) {
+    content_data = *content_data_ptr.as<XCONTENT_AGGREGATE_DATA*>();
+  }
+
   if (user_index != XUserIndexNone) {
     const auto& user = kernel_state()->xam_state()->GetUserProfile(user_index);
 
@@ -531,8 +536,6 @@ dword_result_t XamContentDelete_entry(dword_t user_index,
 
     xuid = user->xuid();
   }
-
-  XCONTENT_AGGREGATE_DATA content_data = *content_data_ptr.as<XCONTENT_DATA*>();
 
   auto result =
       kernel_state()->content_manager()->DeleteContent(xuid, content_data);
@@ -544,14 +547,22 @@ dword_result_t XamContentDelete_entry(dword_t user_index,
     return result;
   }
 }
+
+dword_result_t XamContentDelete_entry(dword_t user_index,
+                                      lpvoid_t content_data_ptr,
+                                      lpvoid_t overlapped_ptr) {
+  return xeXamContentDelete(user_index, content_data_ptr, sizeof(XCONTENT_DATA),
+                            overlapped_ptr);
+}
 DECLARE_XAM_EXPORT1(XamContentDelete, kContent, kImplemented);
 
 dword_result_t XamContentDeleteInternal_entry(lpvoid_t content_data_ptr,
-                                              lpunknown_t overlapped_ptr) {
+                                              lpvoid_t overlapped_ptr) {
   // INFO: Analysis of xam.xex shows that "internal" functions are wrappers with
-  // 0xFE as user_index
-  return XamContentDelete_entry(XUserIndexNone, content_data_ptr,
-                                overlapped_ptr);
+  // 0xFE as user_index.
+  // In XAM content size is set to 0x200.
+  return xeXamContentDelete(XUserIndexNone, content_data_ptr,
+                            sizeof(XCONTENT_AGGREGATE_DATA), overlapped_ptr);
 }
 DECLARE_XAM_EXPORT1(XamContentDeleteInternal, kContent, kImplemented);
 
