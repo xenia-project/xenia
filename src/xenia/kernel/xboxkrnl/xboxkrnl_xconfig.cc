@@ -166,6 +166,36 @@ dword_result_t ExGetXConfigSetting_entry(word_t category, word_t setting,
 }
 DECLARE_XBOXKRNL_EXPORT1(ExGetXConfigSetting, kModules, kImplemented);
 
+dword_result_t ExSetXConfigSetting_entry(word_t category, word_t setting,
+                                         lpvoid_t buffer_ptr,
+                                         dword_t buffer_size) {
+  /* Notes:
+      Handles settings the only have a single flag/value like
+     XCONFIG_USER_VIDEO_FLAGS to swap
+  */
+  XELOGI("ExSetXConfigSetting: category: 0X{:04x}, setting: 0X{:04x}",
+         static_cast<uint16_t>(category), static_cast<uint16_t>(setting));
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(ExSetXConfigSetting, kModules, kStub);
+
+dword_result_t ExReadModifyWriteXConfigSettingUlong_entry(word_t category,
+                                                          word_t setting,
+                                                          dword_t bit_affected,
+                                                          dword_t flag) {
+  /* Notes:
+      Handles settings with multiple flags like XCONFIG_USER_RETAIL_FLAGS and
+     XCONFIG_CONSOLE_RETAIL_EX_FLAGS
+  */
+  XELOGI(
+      "ExReadModifyWriteXConfigSettingUlong: category: 0x{:04x}, setting: "
+      "{:04x}, changed bits: 0X{:08x}, setting flag 0X{:08x}",
+      static_cast<uint16_t>(category), static_cast<uint16_t>(setting),
+      static_cast<uint32_t>(bit_affected), static_cast<uint32_t>(flag));
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(ExReadModifyWriteXConfigSettingUlong, kModules, kStub);
+
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe
