@@ -570,7 +570,7 @@ struct MAX_V128 : Sequence<MAX_V128, I<OPCODE_MAX, V128Op, V128Op, V128Op>> {
     auto src2 = GetInputRegOrConstant(e, i.src2, e.xmm1);
     e.vmaxps(e.xmm2, src1, src2);
     e.vmaxps(e.xmm3, src2, src1);
-    e.vandps(i.dest, e.xmm2, e.xmm3);
+    e.vorps(i.dest, e.xmm2, e.xmm3);
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_MAX, MAX_F32, MAX_F64, MAX_V128);
