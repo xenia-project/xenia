@@ -433,17 +433,14 @@ typedef struct alignas(64) PPCContext_s {
   template <typename T = uint8_t*>
   inline T TranslateVirtual(uint32_t guest_address) XE_RESTRICT const {
     static_assert(std::is_pointer_v<T>);
-#if XE_PLATFORM_WIN32 == 1
     uint8_t* host_address = virtual_membase + guest_address;
+#if XE_PLATFORM_WIN32 == 1
     if (guest_address >=
         static_cast<uint32_t>(reinterpret_cast<uintptr_t>(this))) {
       host_address += 0x1000;
     }
-    return reinterpret_cast<T>(host_address);
-#else
-    return processor->memory()->TranslateVirtual<T>(guest_address);
-
 #endif
+    return reinterpret_cast<T>(host_address);
   }
   template <typename T>
   inline xe::be<T>* TranslateVirtualBE(uint32_t guest_address)
@@ -464,17 +461,14 @@ typedef struct alignas(64) PPCContext_s {
   }
   template <typename T>
   inline uint32_t HostToGuestVirtual(T* host_ptr) XE_RESTRICT const {
-#if XE_PLATFORM_WIN32 == 1
     uint32_t guest_tmp = static_cast<uint32_t>(
         reinterpret_cast<const uint8_t*>(host_ptr) - virtual_membase);
+#if XE_PLATFORM_WIN32 == 1
     if (guest_tmp >= static_cast<uint32_t>(reinterpret_cast<uintptr_t>(this))) {
       guest_tmp -= 0x1000;
     }
-    return guest_tmp;
-#else
-    return processor->memory()->HostToGuestVirtual(
-        reinterpret_cast<void*>(host_ptr));
 #endif
+    return guest_tmp;
   }
   static std::string GetRegisterName(PPCRegister reg);
   std::string GetStringFromValue(PPCRegister reg) const;

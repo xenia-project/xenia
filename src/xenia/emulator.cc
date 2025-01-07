@@ -451,7 +451,7 @@ Emulator::FileSignatureType Emulator::GetFileSignature(
   }
 
   char file_magic[header_size];
-  fread_s(file_magic, sizeof(file_magic), 1, header_size, file);
+  fread(file_magic, sizeof(file_magic), 1, file);
 
   fourcc_t magic_value =
       make_fourcc(file_magic[0], file_magic[1], file_magic[2], file_magic[3]);
@@ -485,7 +485,7 @@ Emulator::FileSignatureType Emulator::GetFileSignature(
 
   file = xe::filesystem::OpenFile(path, "rb");
   xe::filesystem::Seek(file, -header_size, SEEK_END);
-  fread_s(file_magic, sizeof(file_magic), 1, header_size, file);
+  fread(file_magic, 1, header_size, file);
   fclose(file);
 
   magic_value =
@@ -937,8 +937,7 @@ X_STATUS Emulator::CreateZarchivePackage(
       uint64_t total_bytes_read = 0;
 
       while (total_bytes_read < file_size) {
-        uint64_t bytes_read =
-            fread_s(buffer.data(), buffer.size(), 1, buffer.size(), file);
+        uint64_t bytes_read = fread(buffer.data(), 1, buffer.size(), file);
 
         total_bytes_read += bytes_read;
 

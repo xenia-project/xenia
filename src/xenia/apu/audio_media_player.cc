@@ -451,7 +451,7 @@ void AudioMediaPlayer::RemovePlaylist(uint32_t handle) {
 X_STATUS AudioMediaPlayer::SetVolume(float volume) {
   volume_ = std::min(volume, 1.0f);
 
-  std::unique_lock<xe::xe_fast_mutex> guard(driver_mutex_);
+  std::unique_lock<xe_mutex> guard(driver_mutex_);
   if (!driver_) {
     return X_STATUS_UNSUCCESSFUL;
   }
@@ -517,7 +517,7 @@ void AudioMediaPlayer::ProcessAudioBuffer(std::vector<float>* buffer) {
 bool AudioMediaPlayer::SetupDriver(uint32_t sample_rate, uint32_t channels) {
   DeleteDriver();
 
-  std::unique_lock<xe::xe_fast_mutex> guard(driver_mutex_);
+  std::unique_lock<xe_mutex> guard(driver_mutex_);
   driver_semaphore_ = xe::threading::Semaphore::Create(
       AudioSystem::kMaximumQueuedFrames, AudioSystem::kMaximumQueuedFrames);
 
@@ -543,7 +543,7 @@ bool AudioMediaPlayer::SetupDriver(uint32_t sample_rate, uint32_t channels) {
 }
 
 void AudioMediaPlayer::DeleteDriver() {
-  std::unique_lock<xe::xe_fast_mutex> guard(driver_mutex_);
+  std::unique_lock<xe_mutex> guard(driver_mutex_);
   if (driver_) {
     if (driver_semaphore_) {
       driver_semaphore_.reset();

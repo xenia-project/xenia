@@ -68,7 +68,8 @@ void HostNotificationWindow::OnDraw(ImGuiIO& io) {
   const ImVec2 notification_position = CalculateNotificationScreenPosition(
       screen_size, notification_size, GetPositionId());
 
-  if (isnan(notification_position.x) || isnan(notification_position.y)) {
+  if (std::isnan(notification_position.x) ||
+      std::isnan(notification_position.y)) {
     return;
   }
 

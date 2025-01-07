@@ -130,7 +130,7 @@ class AudioMediaPlayer {
   // really compatible with it.
   std::unique_ptr<AudioDriver> driver_ = nullptr;
   std::unique_ptr<xe::threading::Semaphore> driver_semaphore_ = {};
-  xe::xe_fast_mutex driver_mutex_ = {};
+  xe_mutex driver_mutex_ = {};
 
   bool SetupDriver(uint32_t sample_rate, uint32_t channels);
   void DeleteDriver();

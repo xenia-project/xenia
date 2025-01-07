@@ -407,7 +407,7 @@ TEST_CASE("Wait on Multiple Events", "[event]") {
   std::array<char, 8> order = {0};
   std::atomic_uint index(0);
   auto sign_in = [&order, &index](uint32_t id) {
-    auto i = index.fetch_add(1, std::memory_order::memory_order_relaxed);
+    auto i = index.fetch_add(1, std::memory_order_relaxed);
     order[i] = static_cast<char>('0' + id);
   };
 
@@ -1071,8 +1071,8 @@ TEST_CASE("Test Thread QueueUserCallback", "[thread]") {
   int is_modified;
   int has_finished;
   auto callback = [&is_modified, &order] {
-    is_modified = std::atomic_fetch_add_explicit(
-        &order, 1, std::memory_order::memory_order_relaxed);
+    is_modified =
+        std::atomic_fetch_add_explicit(&order, 1, std::memory_order_relaxed);
   };
 
   // Without alertable
@@ -1084,8 +1084,8 @@ TEST_CASE("Test Thread QueueUserCallback", "[thread]") {
     order++;  // 1
     Sleep(90ms);
     order++;  // 2
-    has_finished = std::atomic_fetch_add_explicit(
-        &order, 1, std::memory_order::memory_order_relaxed);
+    has_finished =
+        std::atomic_fetch_add_explicit(&order, 1, std::memory_order_relaxed);
   });
   REQUIRE(!spin_wait_for(50ms, [&] { return order == 2; }));
   REQUIRE(is_modified == -1);
@@ -1104,8 +1104,8 @@ TEST_CASE("Test Thread QueueUserCallback", "[thread]") {
     order++;  // 1
     AlertableSleep(90ms);
     order++;  // 3
-    has_finished = std::atomic_fetch_add_explicit(
-        &order, 1, std::memory_order::memory_order_relaxed);
+    has_finished =
+        std::atomic_fetch_add_explicit(&order, 1, std::memory_order_relaxed);
   });
   REQUIRE(!spin_wait_for(50ms, [&] { return order == 2; }));
   REQUIRE(is_modified == -1);
@@ -1120,8 +1120,8 @@ TEST_CASE("Test Thread QueueUserCallback", "[thread]") {
   is_modified = -1;
   has_finished = -1;
   thread = Thread::Create(params, [&is_modified, &has_finished, &order] {
-    is_modified = std::atomic_fetch_add_explicit(
-        &order, 1, std::memory_order::memory_order_relaxed);
+    is_modified =
+        std::atomic_fetch_add_explicit(&order, 1, std::memory_order_relaxed);
     // Using Alertable so callback is registered
     order++;  // 2
     AlertableSleep(1s);
