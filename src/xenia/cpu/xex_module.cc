@@ -1397,6 +1397,10 @@ void XexInfoCache::Init(XexModule* xexmod) {
   };
 
   bool did_exist = try_open();
+  if (!GetHeader()) {
+    return;
+  }
+
   if (!did_exist) {
     GetHeader()->version = CURRENT_INFOCACHE_VERSION;
 
