@@ -57,7 +57,7 @@ class ImGuiGuestNotification : public ImGuiNotification {
   const ImVec2 CalculateNotificationSize(ImVec2 text_size,
                                          float scale) override;
 
-  virtual void OnDraw(ImGuiIO& io) {}
+  virtual void OnDraw(ImGuiIO& io) override {}
 
   float notification_draw_progress_;
 

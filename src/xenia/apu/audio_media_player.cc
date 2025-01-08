@@ -13,8 +13,6 @@
 #include "xenia/apu/xma_context.h"
 #include "xenia/base/logging.h"
 
-#include <XAudio2.h>
-
 extern "C" {
 #if XE_COMPILER_MSVC
 #pragma warning(push)

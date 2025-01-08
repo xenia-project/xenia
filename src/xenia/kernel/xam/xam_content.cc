@@ -707,7 +707,7 @@ dword_result_t XamContentLaunchImageInternal_entry(lpvoid_t content_data_ptr,
 
   auto& loader_data = xam->loader_data();
   loader_data.host_path = xe::path_to_utf8(host_path);
-  loader_data.launch_path = xex_path;
+  loader_data.launch_path = xex_path.value();
 
   xam->SaveLoaderData();
 

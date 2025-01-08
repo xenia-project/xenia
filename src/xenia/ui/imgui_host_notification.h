@@ -32,7 +32,7 @@ class ImGuiHostNotification : public ImGuiNotification {
   const ImVec2 CalculateNotificationSize(ImVec2 text_size,
                                          float scale) override;
 
-  virtual void OnDraw(ImGuiIO& io) {}
+  virtual void OnDraw(ImGuiIO& io) override {}
 };
 
 class HostNotificationWindow final : ImGuiHostNotification {

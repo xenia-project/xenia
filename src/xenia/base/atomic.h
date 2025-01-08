@@ -74,6 +74,15 @@ inline int32_t atomic_inc(volatile int32_t* value) {
 inline int32_t atomic_dec(volatile int32_t* value) {
   return __sync_sub_and_fetch(value, 1);
 }
+inline int32_t atomic_or(volatile int32_t* value, int32_t nv) {
+  return __sync_or_and_fetch(value, nv);
+}
+inline int32_t atomic_and(volatile int32_t* value, int32_t nv) {
+  return __sync_and_and_fetch(value, nv);
+}
+inline int32_t atomic_xor(volatile int32_t* value, int32_t nv) {
+  return __sync_xor_and_fetch(value, nv);
+}
 
 inline int32_t atomic_exchange(int32_t new_value, volatile int32_t* value) {
   return __sync_val_compare_and_swap(value, *value, new_value);

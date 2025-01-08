@@ -52,7 +52,7 @@ class NativeList {
 };
 template <typename VirtualTranslator>
 static X_LIST_ENTRY* XeHostList(uint32_t ptr, VirtualTranslator context) {
-  return context->TranslateVirtual<X_LIST_ENTRY*>(ptr);
+  return context->template TranslateVirtual<X_LIST_ENTRY*>(ptr);
 }
 template <typename VirtualTranslator>
 static uint32_t XeGuestList(X_LIST_ENTRY* ptr, VirtualTranslator context) {
@@ -193,7 +193,8 @@ struct X_TYPED_LIST : public X_LIST_ENTRY {
 
     inline ForwardIterator& operator++() {
       current_entry =
-          vt->TranslateVirtual<X_LIST_ENTRY*>(current_entry)->flink_ptr;
+          vt->template TranslateVirtual<X_LIST_ENTRY*>(current_entry)
+              ->flink_ptr;
       return *this;
     }
     inline bool operator!=(uint32_t other_ptr) const {
@@ -202,7 +203,7 @@ struct X_TYPED_LIST : public X_LIST_ENTRY {
 
     inline TObject& operator*() {
       return *ListEntryObject(
-          vt->TranslateVirtual<X_LIST_ENTRY*>(current_entry));
+          vt->template TranslateVirtual<X_LIST_ENTRY*>(current_entry));
     }
   };
   template <typename VirtualTranslator>
@@ -236,15 +237,17 @@ struct X_TYPED_LIST : public X_LIST_ENTRY {
   }
   template <typename VirtualTranslator>
   bool empty(VirtualTranslator vt) const {
-    return vt->TranslateVirtual<X_LIST_ENTRY*>(flink_ptr) == this;
+    return vt->template TranslateVirtual<X_LIST_ENTRY*>(flink_ptr) == this;
   }
   template <typename VirtualTranslator>
   TObject* HeadObject(VirtualTranslator vt) {
-    return ListEntryObject(vt->TranslateVirtual<X_LIST_ENTRY*>(flink_ptr));
+    return ListEntryObject(
+        vt->template TranslateVirtual<X_LIST_ENTRY*>(flink_ptr));
   }
   template <typename VirtualTranslator>
   TObject* TailObject(VirtualTranslator vt) {
-    return ListEntryObject(vt->TranslateVirtual<X_LIST_ENTRY*>(blink_ptr));
+    return ListEntryObject(
+        vt->template TranslateVirtual<X_LIST_ENTRY*>(blink_ptr));
   }
 };
 }  // namespace util

@@ -44,7 +44,7 @@ DEFINE_double(kernel_display_gamma_power, 2.22222233,
               "Display gamma to use with kernel_display_gamma_type 3.",
               "Kernel");
 
-inline constexpr static uint32_t GetVideoStandard() {
+inline const static uint32_t GetVideoStandard() {
   if (cvars::video_standard < 1 || cvars::video_standard > 3) {
     return 1;
   }
@@ -52,11 +52,11 @@ inline constexpr static uint32_t GetVideoStandard() {
   return cvars::video_standard;
 }
 
-inline constexpr static float GetVideoRefreshRate() {
+inline const static float GetVideoRefreshRate() {
   return cvars::use_50Hz_mode ? 50.0f : 60.0f;
 }
 
-inline constexpr static std::pair<uint16_t, uint16_t> GetDisplayAspectRatio() {
+inline const static std::pair<uint16_t, uint16_t> GetDisplayAspectRatio() {
   if (cvars::widescreen) {
     return {16, 9};
   }

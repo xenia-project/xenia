@@ -113,12 +113,18 @@ filter("platforms:Linux")
     "rt",
   })
 
+filter({"platforms:Linux"})
+  vectorextensions("AVX2")
+
 filter({"platforms:Linux", "kind:*App"})
   linkgroups("On")
 
 filter({"platforms:Linux", "language:C++", "toolset:gcc"})
   disablewarnings({
-    "unused-result"
+    "unused-result",
+    "deprecated-volatile",
+    "switch",
+    "deprecated-enum-enum-conversion",
   })
 
 filter({"platforms:Linux", "toolset:gcc"})
@@ -135,7 +141,10 @@ filter({"platforms:Linux", "toolset:gcc"})
 
 filter({"platforms:Linux", "language:C++", "toolset:clang"})
   disablewarnings({
-    "deprecated-register"
+    "deprecated-register",
+    "deprecated-volatile",
+    "switch",
+    "deprecated-enum-enum-conversion",
   })
 filter({"platforms:Linux", "language:C++", "toolset:clang", "files:*.cc or *.cpp"})
   buildoptions({

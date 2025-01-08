@@ -447,7 +447,7 @@ bool Processor::Restore(ByteStream* stream) {
   std::vector<uint32_t> to_delete;
   for (auto& it : thread_debug_infos_) {
     if (it.second->state == ThreadDebugInfo::State::kZombie) {
-      it.second->thread_handle = NULL;
+      it.second->thread_handle = 0;
       to_delete.push_back(it.first);
     }
   }
@@ -502,7 +502,7 @@ void Processor::OnThreadDestroyed(uint32_t thread_id) {
   auto global_lock = global_critical_region_.Acquire();
   auto it = thread_debug_infos_.find(thread_id);
   assert_true(it != thread_debug_infos_.end());
-  it->second->thread_handle = NULL;
+  it->second->thread_handle = 0;
   thread_debug_infos_.erase(it);
 }
 

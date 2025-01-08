@@ -170,7 +170,7 @@ void AchievementNotificationWindow::OnDraw(ImGuiIO& io) {
 
     ImGui::SameLine();
     if (notification_draw_progress_ > 0.5f) {
-      ImGui::TextColored(white_color, GetNotificationText().c_str());
+      ImGui::TextColored(white_color, "%s", GetNotificationText().c_str());
     }
   }
   // Restore previous style
@@ -248,7 +248,7 @@ void XNotifyWindow::OnDraw(ImGuiIO& io) {
 
     ImGui::SameLine();
     if (notification_draw_progress_ > 0.5f) {
-      ImGui::TextColored(white_color, GetDescription().c_str());
+      ImGui::TextColored(white_color, "%s", GetDescription().c_str());
     }
   }
   // Restore previous style

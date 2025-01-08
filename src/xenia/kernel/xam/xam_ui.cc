@@ -385,7 +385,7 @@ class ProfilePasscodeDialog : public XamDialog {
     if (ImGui::BeginPopupModal(title_.c_str(), nullptr,
                                ImGuiWindowFlags_AlwaysAutoResize)) {
       if (description_.size()) {
-        ImGui::Text(description_.c_str());
+        ImGui::Text("%s", description_.c_str());
       }
 
       for (uint8_t i = 0; i < passcode_length; i++) {
@@ -642,14 +642,12 @@ class GameAchievementsDialog final : public XamDialog {
 
     ImGui::PushFont(imgui_drawer()->GetTitleFont());
     const auto primary_line_height = ImGui::GetTextLineHeight();
-    ImGui::TextUnformatted(
-        fmt::format("{}", GetAchievementTitle(achievement_entry)).c_str());
+    ImGui::Text("%s", GetAchievementTitle(achievement_entry).c_str());
     ImGui::PopFont();
 
     ImGui::PushTextWrapPos(ImGui::GetMainViewport()->Size.x * 0.5f);
-    ImGui::TextWrapped(
-        fmt::format("{}", GetAchievementDescription(achievement_entry))
-            .c_str());
+    ImGui::TextWrapped("%s",
+                       GetAchievementDescription(achievement_entry).c_str());
     ImGui::PopTextWrapPos();
 
     ImGui::SetCursorPosY(start_drawing_pos.y + default_image_icon_size.x -
@@ -872,7 +870,7 @@ class GamesInfoDialog final : public ui::ImGuiDialog {
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + textOffsetX);
       }
 
-      ImGui::Text(no_entries_message.c_str());
+      ImGui::Text("%s", no_entries_message.c_str());
       ImGui::PopFont();
     }
 

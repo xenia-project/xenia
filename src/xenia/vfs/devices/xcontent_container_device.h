@@ -37,7 +37,7 @@ class XContentContainerDevice : public Device {
 
   ~XContentContainerDevice() override;
 
-  bool Initialize();
+  bool Initialize() override;
 
   const std::string& name() const override { return name_; }
   uint32_t attributes() const override { return 0; }
@@ -93,9 +93,9 @@ class XContentContainerDevice : public Device {
   // Initialize any container specific fields.
   virtual void SetupContainer() {};
 
-  Entry* ResolvePath(const std::string_view path);
+  Entry* ResolvePath(const std::string_view path) override;
   void CloseFiles();
-  void Dump(StringBuffer* string_buffer);
+  void Dump(StringBuffer* string_buffer) override;
   Result ReadHeaderAndVerify(FILE* header_file);
 
   void SetName(std::string name) { name_ = name; }

@@ -77,4 +77,4 @@ class AttributeStringFormatter {
 }  // namespace kernel
 }  // namespace xe
 
-#endif XENIA_KERNEL_UTIL_PRESENCE_STRING_BUILDER_H_
+#endif  // XENIA_KERNEL_UTIL_PRESENCE_STRING_BUILDER_H_

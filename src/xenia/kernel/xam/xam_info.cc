@@ -459,20 +459,19 @@ DECLARE_XAM_EXPORT1(XamQueryLiveHiveW, kNone, kStub);
 // http://www.noxa.org/blog/2011/02/28/building-an-xbox-360-emulator-part-3-feasibilityos/
 // http://www.noxa.org/blog/2011/08/13/building-an-xbox-360-emulator-part-5-xex-files/
 dword_result_t RtlSleep_entry(dword_t dwMilliseconds, dword_t bAlertable) {
-  LARGE_INTEGER delay{};
+  uint64_t delay{};
 
   // Convert the delay time to 100-nanosecond intervals
-  delay.QuadPart = dwMilliseconds == -1
-                       ? LLONG_MAX
-                       : static_cast<LONGLONG>(-10000) * dwMilliseconds;
+  delay = dwMilliseconds == -1 ? LLONG_MAX
+                               : static_cast<int64_t>(-10000) * dwMilliseconds;
 
-  X_STATUS result = xboxkrnl::KeDelayExecutionThread(
-      MODE::UserMode, bAlertable, (uint64_t*)&delay, nullptr);
+  X_STATUS result = xboxkrnl::KeDelayExecutionThread(MODE::UserMode, bAlertable,
+                                                     &delay, nullptr);
 
   // If the delay was interrupted by an APC, keep delaying the thread
   while (bAlertable && result == X_STATUS_ALERTED) {
     result = xboxkrnl::KeDelayExecutionThread(MODE::UserMode, bAlertable,
-                                              (uint64_t*)&delay, nullptr);
+                                              &delay, nullptr);
   }
 
   return result == X_STATUS_SUCCESS ? X_STATUS_SUCCESS : X_STATUS_USER_APC;
@@ -486,7 +485,7 @@ DECLARE_XAM_EXPORT1(SleepEx, kNone, kImplemented);
 
 // https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-sleep
 void Sleep_entry(dword_t dwMilliseconds) {
-  RtlSleep_entry(dwMilliseconds, FALSE);
+  RtlSleep_entry(dwMilliseconds, false);
 }
 DECLARE_XAM_EXPORT1(Sleep, kNone, kImplemented);
 
@@ -601,28 +600,29 @@ DECLARE_XAM_EXPORT1(GetCurrentThreadId, kNone, kImplemented);
 
 qword_result_t XapiFormatTimeOut_entry(lpqword_t result,
                                        dword_t dwMilliseconds) {
-  LARGE_INTEGER delay{};
+  if (dwMilliseconds == -1) {
+    return 0;
+  }
 
-  // Convert the delay time to 100-nanosecond intervals
-  delay.QuadPart =
-      dwMilliseconds == -1 ? 0 : static_cast<LONGLONG>(-10000) * dwMilliseconds;
-
-  return (uint64_t)&delay;
+  *result = static_cast<int64_t>(-10000) * dwMilliseconds;
+  return result.host_address();
 }
 DECLARE_XAM_EXPORT1(XapiFormatTimeOut, kNone, kImplemented);
 
 dword_result_t WaitForSingleObjectEx_entry(dword_t hHandle,
                                            dword_t dwMilliseconds,
                                            dword_t bAlertable) {
-  uint64_t* timeout = nullptr;
-  uint64_t timeout_ptr = XapiFormatTimeOut_entry(timeout, dwMilliseconds);
+  // TODO(Gliniak): Figure it out to be less janky.
+  uint64_t timeout;
+  uint64_t* timeout_ptr = reinterpret_cast<uint64_t*>(
+      static_cast<uint64_t>(XapiFormatTimeOut_entry(&timeout, dwMilliseconds)));
 
-  X_STATUS result = xe::kernel::xboxkrnl::NtWaitForSingleObjectEx(
-      hHandle, 1, bAlertable, &timeout_ptr);
+  X_STATUS result =
+      xboxkrnl::NtWaitForSingleObjectEx(hHandle, 1, bAlertable, timeout_ptr);
 
   while (bAlertable && result == X_STATUS_ALERTED) {
-    result = xe::kernel::xboxkrnl::NtWaitForSingleObjectEx(
-        hHandle, 1, bAlertable, &timeout_ptr);
+    result =
+        xboxkrnl::NtWaitForSingleObjectEx(hHandle, 1, bAlertable, timeout_ptr);
   }
 
   RtlSetLastNTError_entry(result);

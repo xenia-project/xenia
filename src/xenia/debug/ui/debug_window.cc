@@ -309,7 +309,7 @@ void DebugWindow::DrawToolbar() {
       case cpu::ThreadDebugInfo::State::kAlive:
       case cpu::ThreadDebugInfo::State::kExited:
       case cpu::ThreadDebugInfo::State::kWaiting:
-        if (thread_info->thread_handle == NULL || thread_info->thread == NULL) {
+        if (!thread_info->thread_handle || thread_info->thread == nullptr) {
           thread_combo.Append("(invalid)");
         } else {
           thread_combo.Append(thread_info->thread->thread_name());

@@ -108,7 +108,7 @@ class XSocket : public XObject {
   X_STATUS Close();
 
   X_STATUS GetOption(uint32_t level, uint32_t optname, void* optval_ptr,
-                     int* optlen);
+                     uint32_t* optlen);
   X_STATUS SetOption(uint32_t level, uint32_t optname, void* optval_ptr,
                      uint32_t optlen);
   X_STATUS IOControl(uint32_t cmd, uint8_t* arg_ptr);

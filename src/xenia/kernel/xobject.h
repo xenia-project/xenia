@@ -135,6 +135,8 @@ class XObject {
       case Type::Thread:
       case Type::Timer:
         return true;
+      default:
+        return false;
     }
     return false;
   }

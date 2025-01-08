@@ -79,9 +79,9 @@ void HostNotificationWindow::OnDraw(ImGuiIO& io) {
   {
     ImGui::SetWindowFontScale(window_scale);
 
-    ImGui::Text(GetTitle().c_str());
+    ImGui::Text("%s", GetTitle().c_str());
     ImGui::Separator();
-    ImGui::Text(GetDescription().c_str());
+    ImGui::Text("%s", GetDescription().c_str());
   }
   ImGui::End();
 }

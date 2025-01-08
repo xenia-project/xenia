@@ -89,7 +89,7 @@ void TracePlayer::PlayTrace(const uint8_t* trace_data, size_t trace_size,
                             TracePlaybackMode playback_mode,
                             bool clear_caches) {
   playing_trace_ = true;
-  graphics_system_->command_processor()->CallInThread([=]() {
+  graphics_system_->command_processor()->CallInThread([=, this]() {
     PlayTraceOnThread(trace_data, trace_size, playback_mode, clear_caches);
   });
 }
