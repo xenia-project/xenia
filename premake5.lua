@@ -140,6 +140,7 @@ filter({"platforms:Linux", "language:C++", "toolset:clang"})
 filter({"platforms:Linux", "language:C++", "toolset:clang", "files:*.cc or *.cpp"})
   buildoptions({
     "-stdlib=libstdc++",
+    "-std=c++20", -- clang doesn't respect cppdialect(?)
   })
 
 filter("platforms:Android-*")
