@@ -86,7 +86,7 @@ class ProfileManager {
 
   void ModifyGamertag(const uint64_t xuid, std::string gamertag);
 
-  bool MountProfile(const uint64_t xuid);
+  bool MountProfile(const uint64_t xuid, std::string mount_path = "");
   bool DismountProfile(const uint64_t xuid);
 
   void Login(const uint64_t xuid, const uint8_t user_index = XUserIndexAny,
