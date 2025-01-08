@@ -12,7 +12,7 @@
 	url = https://github.com/catchorg/Catch2.git
 [submodule "third_party/premake-core"]
 	path = third_party/premake-core
-	url = https://github.com/xenia-project/premake-core.git
+	url = https://github.com/premake/premake-core.git
 [submodule "third_party/snappy"]
 	path = third_party/snappy
 	url = https://github.com/xenia-project/snappy.git
