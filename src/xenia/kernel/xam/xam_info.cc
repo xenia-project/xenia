@@ -27,10 +27,6 @@
 #include "xenia/ui/windowed_app_context.h"
 #include "xenia/xbox.h"
 
-#if XE_PLATFORM_WIN32
-#include "xenia/base/platform_win.h"
-#endif
-
 #include "third_party/fmt/include/fmt/format.h"
 #include "third_party/fmt/include/fmt/xchar.h"
 
@@ -91,51 +87,37 @@ dword_result_t XamGetOnlineSchema_entry() {
 }
 DECLARE_XAM_EXPORT1(XamGetOnlineSchema, kNone, kImplemented);
 
-#if XE_PLATFORM_WIN32
-static SYSTEMTIME xeGetLocalSystemTime(uint64_t filetime) {
-  FILETIME t;
-  t.dwHighDateTime = filetime >> 32;
-  t.dwLowDateTime = (uint32_t)filetime;
-
-  SYSTEMTIME st;
-  SYSTEMTIME local_st;
-  FileTimeToSystemTime(&t, &st);
-  SystemTimeToTzSpecificLocalTime(NULL, &st, &local_st);
-  return local_st;
-}
-#endif
-
-void XamFormatDateString_entry(dword_t unk, qword_t filetime,
+void XamFormatDateString_entry(dword_t locale_format, qword_t filetime,
                                lpvoid_t output_buffer, dword_t output_count) {
-  std::memset(output_buffer, 0, output_count * sizeof(char16_t));
+  output_buffer.Zero(output_count * sizeof(char16_t));
 
-// TODO: implement this for other platforms
-#if XE_PLATFORM_WIN32
-  auto st = xeGetLocalSystemTime(filetime);
-  // TODO: format this depending on users locale?
-  auto str = fmt::format(u"{:02d}/{:02d}/{}", st.wMonth, st.wDay, st.wYear);
+  auto tp = xe::chrono::WinSystemClock::to_sys(
+      xe::chrono::WinSystemClock::from_file_time(filetime));
+  auto dp = date::floor<date::days>(tp);
+  auto year_month_day = date::year_month_day{dp};
+
+  auto str = fmt::format(u"{:02d}/{:02d}/{}",
+                         static_cast<unsigned>(year_month_day.month()),
+                         static_cast<unsigned>(year_month_day.day()),
+                         static_cast<int>(year_month_day.year()));
   xe::string_util::copy_and_swap_truncating(output_buffer.as<char16_t*>(), str,
                                             output_count);
-#else
-  assert_always();
-#endif
 }
 DECLARE_XAM_EXPORT1(XamFormatDateString, kNone, kImplemented);
 
 void XamFormatTimeString_entry(dword_t unk, qword_t filetime,
                                lpvoid_t output_buffer, dword_t output_count) {
-  std::memset(output_buffer, 0, output_count * sizeof(char16_t));
+  output_buffer.Zero(output_count * sizeof(char16_t));
 
-// TODO: implement this for other platforms
-#if XE_PLATFORM_WIN32
-  auto st = xeGetLocalSystemTime(filetime);
-  // TODO: format this depending on users locale?
-  auto str = fmt::format(u"{:02d}:{:02d}", st.wHour, st.wMinute);
+  auto tp = xe::chrono::WinSystemClock::to_sys(
+      xe::chrono::WinSystemClock::from_file_time(filetime));
+  auto dp = date::floor<date::days>(tp);
+  auto time = date::hh_mm_ss{date::floor<std::chrono::milliseconds>(tp - dp)};
+
+  auto str = fmt::format(u"{:02d}:{:02d}", time.hours().count(),
+                         time.minutes().count());
   xe::string_util::copy_and_swap_truncating(output_buffer.as<char16_t*>(), str,
                                             output_count);
-#else
-  assert_always();
-#endif
 }
 DECLARE_XAM_EXPORT1(XamFormatTimeString, kNone, kImplemented);
 
