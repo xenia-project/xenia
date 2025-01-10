@@ -698,6 +698,9 @@ dword_result_t RtlRandom_entry(lpdword_t seed_out) {
 
 DECLARE_XAM_EXPORT1(RtlRandom, kNone, kImplemented);
 
+dword_result_t Refresh_entry() { return X_ERROR_SUCCESS; }
+DECLARE_XAM_EXPORT1(Refresh, kNone, kStub);
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
