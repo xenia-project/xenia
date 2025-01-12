@@ -37,6 +37,23 @@ DEFINE_int32(user_country, 103,
              " 102=UA 103=US 104=UY 105=UZ 106=VE 107=VN 108=YE 109=ZA\n",
              "XConfig");
 
+DEFINE_uint32(
+    audio_flag, 0x00010001,
+    "Audio Mode Analog.\n"
+    " 0x00000001 = Dolby Pro Logic\n"
+    " 0x00000002 = Analog Mono\n"
+    "Audio Mode Digital.\n"
+    " 0x00000000 = Digital Stereo (choose one of the above by itself)\n"
+    " 0x00010000 = Dolby Digital\n"
+    " 0x00030000 = Dolby Digital with WMA PRO\n"
+    "Special Flags.\n"
+    " 0x00000003 = Stereo Bypass\n"
+    " 0x80000000 = Low Latency\n"
+    " This Config requires you to pair an analog and digitial flag together\n"
+    " while digital stereo only requires an analog flag. Bonus flags are\n"
+    " optional. Ex) 0x00010001\n",
+    "XConfig");
+
 DECLARE_bool(widescreen);
 DECLARE_bool(use_50Hz_mode);
 DECLARE_int32(video_standard);
@@ -108,6 +125,10 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
           // 0x00050000 widescreen
           xe::store_and_swap<uint32_t>(
               value, cvars::widescreen ? 0x00050000 : 0x00040000);
+          break;
+        case 0x000B:  // XCONFIG_USER_AUDIO_FLAGS
+          setting_size = 4;
+          xe::store_and_swap<uint32_t>(value, cvars::audio_flag);
           break;
         case 0x000C:  // XCONFIG_USER_RETAIL_FLAGS
           setting_size = 4;

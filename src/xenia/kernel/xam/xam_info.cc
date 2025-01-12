@@ -44,6 +44,7 @@ DEFINE_int32(avpack, 8,
              "Video");
 DECLARE_int32(user_country);
 DECLARE_int32(user_language);
+DECLARE_uint32(audio_flag);
 
 DEFINE_bool(staging_mode, 0,
             "Enables preview mode in dashboards to render debug information.",
@@ -648,7 +649,7 @@ dword_result_t lstrlenW_entry(lpu16string_t string) {
 }
 DECLARE_XAM_EXPORT1(lstrlenW, kNone, kImplemented);
 
-dword_result_t XGetAudioFlags_entry() { return 65537; }
+dword_result_t XGetAudioFlags_entry() { return cvars::audio_flag; }
 DECLARE_XAM_EXPORT1(XGetAudioFlags, kNone, kStub);
 
 /*
