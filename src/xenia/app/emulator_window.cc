@@ -1662,11 +1662,16 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
       xe::threading::Sleep(delay);
       break;
     case ButtonFunctions::RunTitle: {
-      if (selected_title_index == -1) selected_title_index++;
+      if (selected_title_index == -1) {
+        selected_title_index++;
+      }
 
-      app_context().CallInUIThread([this]() {
-        RunTitle(recently_launched_titles_[selected_title_index].path_to_file);
-      });
+      if (selected_title_index < recently_launched_titles_.size()) {
+        app_context().CallInUIThread([this]() {
+          RunTitle(
+              recently_launched_titles_[selected_title_index].path_to_file);
+        });
+      }
     } break;
     case ButtonFunctions::ClearMemoryPageState:
       ToggleGPUSetting(gpu_cvar::ClearMemoryPageState);
@@ -1759,8 +1764,9 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
   if ((button_combination.function == ButtonFunctions::IncTitleSelect ||
        button_combination.function == ButtonFunctions::DecTitleSelect) &&
       recently_launched_titles_.size() > 0) {
-    selected_title_index = std::clamp(
-        selected_title_index, 0, (int)recently_launched_titles_.size() - 1);
+    selected_title_index =
+        std::clamp(selected_title_index, 0,
+                   static_cast<int32_t>(recently_launched_titles_.size() - 1));
 
     // Must clear dialogs to prevent stacking
     ClearDialogs();
