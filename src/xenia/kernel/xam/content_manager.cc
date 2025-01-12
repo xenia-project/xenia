@@ -106,6 +106,12 @@ std::filesystem::path ContentManager::ResolvePackagePath(
     uint64_t used_xuid =
         (data.xuid != -1 && data.xuid != 0) ? data.xuid.get() : xuid;
 
+    // All DLCs are stored in common directory, so we need to override xuid for
+    // them and probably some other types.
+    if (data.content_type == XContentType::kMarketplaceContent) {
+      used_xuid = 0;
+    }
+
     auto package_root =
         ResolvePackageRoot(used_xuid, title_id, data.content_type);
     std::string final_name = xe::string_util::trim(data.file_name());
