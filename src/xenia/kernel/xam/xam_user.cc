@@ -844,35 +844,6 @@ dword_result_t XamUserCreateStatsEnumerator_entry(
 }
 DECLARE_XAM_EXPORT1(XamUserCreateStatsEnumerator, kUserProfiles, kSketchy);
 
-dword_result_t XamProfileFindAccount_entry(
-    qword_t offline_xuid, pointer_t<X_XAMACCOUNTINFO> account_ptr,
-    lpdword_t device_id) {
-  if (!account_ptr) {
-    return X_ERROR_INVALID_PARAMETER;
-  }
-
-  account_ptr.Zero();
-
-  const auto& account =
-      kernel_state()->xam_state()->profile_manager()->GetAccount(offline_xuid);
-
-  if (!account) {
-    return X_ERROR_NO_SUCH_USER;
-  }
-
-  std::memcpy(account_ptr, &account, sizeof(X_XAMACCOUNTINFO));
-
-  xe::string_util::copy_and_swap_truncating(
-      account_ptr->gamertag, account->gamertag, sizeof(account->gamertag));
-
-  if (device_id) {
-    *device_id = 1;
-  }
-
-  return X_ERROR_SUCCESS;
-}
-DECLARE_XAM_EXPORT1(XamProfileFindAccount, kUserProfiles, kImplemented);
-
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
