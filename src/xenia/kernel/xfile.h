@@ -98,9 +98,9 @@ static bool IsValidPath(const std::string_view s, bool is_pattern) {
       case '+':
       case ',':
       // case ':':
-      case ';':
+      // case ';':
       case '<':
-      case '=':
+      // case '=':
       case '>':
       // case '?':
       case '|': {
