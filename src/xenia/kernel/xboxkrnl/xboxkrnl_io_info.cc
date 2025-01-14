@@ -234,7 +234,7 @@ dword_result_t NtSetInformationFile_entry(
       auto info = info_ptr.as<X_FILE_RENAME_INFORMATION*>();
       // Compute path, possibly attrs relative.
       std::filesystem::path target_path =
-          util::TranslateAnsiString(kernel_memory(), &info->ansi_string);
+          util::TranslateAnsiPath(kernel_memory(), &info->ansi_string);
 
       // Place IsValidPath in path from where it can be accessed everywhere
       if (!IsValidPath(target_path.string(), false)) {

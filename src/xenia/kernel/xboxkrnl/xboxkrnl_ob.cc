@@ -350,9 +350,9 @@ DECLARE_XBOXKRNL_EXPORT1(ObReferenceObject, kNone, kImplemented);
 dword_result_t ObCreateSymbolicLink_entry(pointer_t<X_ANSI_STRING> path_ptr,
                                           pointer_t<X_ANSI_STRING> target_ptr) {
   auto path = xe::utf8::canonicalize_guest_path(
-      util::TranslateAnsiString(kernel_memory(), path_ptr));
+      util::TranslateAnsiPath(kernel_memory(), path_ptr));
   auto target = xe::utf8::canonicalize_guest_path(
-      util::TranslateAnsiString(kernel_memory(), target_ptr));
+      util::TranslateAnsiPath(kernel_memory(), target_ptr));
 
   if (xe::utf8::starts_with(path, "\\??\\")) {
     path = path.substr(4);  // Strip the full qualifier
@@ -367,7 +367,7 @@ dword_result_t ObCreateSymbolicLink_entry(pointer_t<X_ANSI_STRING> path_ptr,
 DECLARE_XBOXKRNL_EXPORT1(ObCreateSymbolicLink, kNone, kImplemented);
 
 dword_result_t ObDeleteSymbolicLink_entry(pointer_t<X_ANSI_STRING> path_ptr) {
-  auto path = util::TranslateAnsiString(kernel_memory(), path_ptr);
+  auto path = util::TranslateAnsiPath(kernel_memory(), path_ptr);
   if (!kernel_state()->file_system()->UnregisterSymbolicLink(path)) {
     return X_STATUS_UNSUCCESSFUL;
   }

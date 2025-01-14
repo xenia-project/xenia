@@ -93,6 +93,12 @@ inline std::string_view TranslateAnsiString(const Memory* memory,
       ansi_string->length);
 }
 
+inline std::string TranslateAnsiPath(const Memory* memory,
+                                     const X_ANSI_STRING* ansi_string) {
+  return string_util::trim(
+      std::string(TranslateAnsiString(memory, ansi_string)));
+}
+
 inline std::string_view TranslateAnsiStringAddress(const Memory* memory,
                                                    uint32_t guest_address) {
   if (!guest_address) {

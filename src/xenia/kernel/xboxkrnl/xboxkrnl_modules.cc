@@ -263,7 +263,7 @@ dword_result_t XexLoadImageHeaders_entry(pointer_t<X_ANSI_STRING> path,
     return X_STATUS_BUFFER_TOO_SMALL;
   }
   auto current_kernel = ctx->kernel_state;
-  auto target_path = util::TranslateAnsiString(current_kernel->memory(), path);
+  auto target_path = util::TranslateAnsiPath(current_kernel->memory(), path);
 
   vfs::File* vfs_file = nullptr;
   vfs::FileAction file_action;
