@@ -27,6 +27,8 @@
 #include <ctime>
 #include <memory>
 
+#include "logging.h"
+
 #if XE_PLATFORM_ANDROID
 #include <dlfcn.h>
 
@@ -660,8 +662,18 @@ class PosixCondition<Thread> : public PosixConditionBase {
     WaitStarted();
     sched_param param{};
     param.sched_priority = new_priority;
-    if (pthread_setschedparam(thread_, SCHED_FIFO, &param) != 0)
-      assert_always();
+    int res = pthread_setschedparam(thread_, SCHED_FIFO, &param);
+    if (res != 0) {
+      switch (res) {
+        case EPERM:
+          XELOGW("Permission denied while setting priority");
+          break;
+        case EINVAL:
+          assert_always();
+        default:
+          XELOGW("Unknown error while setting priority");
+      }
+    }
   }
 
   void QueueUserCallback(std::function<void()> callback) {

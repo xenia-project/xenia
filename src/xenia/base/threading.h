@@ -402,6 +402,7 @@ class Timer : public WaitHandle {
   virtual bool Cancel() = 0;
 };
 
+#if XE_PLATFORM_WINDOWS
 struct ThreadPriority {
   static const int32_t kLowest = -2;
   static const int32_t kBelowNormal = -1;
@@ -409,6 +410,15 @@ struct ThreadPriority {
   static const int32_t kAboveNormal = 1;
   static const int32_t kHighest = 2;
 };
+#else
+struct ThreadPriority {
+  static const int32_t kLowest = 1;
+  static const int32_t kBelowNormal = 8;
+  static const int32_t kNormal = 16;
+  static const int32_t kAboveNormal = 24;
+  static const int32_t kHighest = 32;
+};
+#endif
 
 // Models a Win32-like thread object.
 // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682453(v=vs.85).aspx
