@@ -799,6 +799,18 @@ dword_result_t XamUserGetUserFlagsFromXUID_entry(qword_t xuid) {
 }
 DECLARE_XAM_EXPORT1(XamUserGetUserFlagsFromXUID, kUserProfiles, kImplemented);
 
+dword_result_t XamUserGetOnlineLanguageFromXUID_entry(qword_t xuid) {
+  /* Notes:
+     - Calls XamUserGetUserFlagsFromXUID and returns (ulonglong)(cached_flag <<
+     0x20) >> 0x39 & 0x1f;
+     - XamUserGetMembershipTierFromXUID and XamUserGetOnlineCountryFromXUID also
+     call it
+     - Removed in metro
+  */
+  return cvars::user_language;
+}
+DECLARE_XAM_EXPORT1(XamUserGetOnlineLanguageFromXUID, kUserProfiles, kStub);
+
 constexpr uint8_t kStatsMaxAmount = 64;
 
 struct X_STATS_DETAILS {
