@@ -48,8 +48,8 @@ void PluginLoader::LoadConfigs() {
       xe::filesystem::FilterByName(dir_files, std::regex("[A-Fa-f0-9]{8}"));
 
   for (const auto& entry : dir_files) {
-    const uint32_t title_id =
-        std::stoi(entry.name.filename().string(), nullptr, 16);
+    const uint32_t title_id = string_util::from_string<uint32_t>(
+        entry.name.filename().string(), true);
 
     LoadTitleConfig(title_id);
   }
