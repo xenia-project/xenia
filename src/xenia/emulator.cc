@@ -1372,6 +1372,12 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
     return X_STATUS_NOT_FOUND;
   }
 
+  if (!module->is_executable()) {
+    kernel_state_->UnloadUserModule(module, false);
+    XELOGE("Failed to load user module {}", path);
+    return X_STATUS_NOT_SUPPORTED;
+  }
+
   X_RESULT result = kernel_state_->ApplyTitleUpdate(module);
   if (XFAILED(result)) {
     XELOGE("Failed to apply title update! Cannot run module {}", path);
