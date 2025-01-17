@@ -402,7 +402,7 @@ class Timer : public WaitHandle {
   virtual bool Cancel() = 0;
 };
 
-#if XE_PLATFORM_WINDOWS
+#if XE_PLATFORM_WIN32
 struct ThreadPriority {
   static const int32_t kLowest = -2;
   static const int32_t kBelowNormal = -1;
