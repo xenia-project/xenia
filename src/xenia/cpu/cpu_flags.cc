@@ -33,8 +33,15 @@ DEFINE_bool(trace_function_data, false,
 DEFINE_bool(validate_hir, false,
             "Perform validation checks on the HIR during compilation.", "CPU");
 
+// https://github.com/bitsh1ft3r/Xenon/blob/091e8cd4dc4a7c697b4979eb200be7c9dee3590b/Xenon/Core/XCPU/PPU/PowerPC.h#L370
 DEFINE_uint64(
     pvr, 0x710700,
+    "Known PVR's.\n"
+    " 0x710200 = Used by Zephyr \n"
+    " 0x710300 = Used by Zephyr\n"
+    " 0x710500 = Used by Jasper\n"
+    " 0x710700 = Default\n"
+    " 0x710800 = Used by Corona V1 & V2\n"
     "Processor version and revision number.\nBits 0 to 15 are the version "
     "number.\nBits 16 to 31 are the revision number.\nNote: Some XEXs (such as "
     "mfgbootlauncher.xex) may check for a value that's less than 0x710700.",
