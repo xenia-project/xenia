@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2025 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -17,6 +17,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/filesystem.h"
+#include "xenia/base/logging.h"
 #include "xenia/base/platform_linux.h"
 #include "xenia/base/string.h"
 #include "xenia/ui/window_gtk.h"
@@ -43,22 +44,35 @@ GtkFilePicker::GtkFilePicker() = default;
 GtkFilePicker::~GtkFilePicker() = default;
 
 bool GtkFilePicker::Show(Window* parent_window) {
-  // TODO(benvanik): FileSaveDialog.
-  assert_true(mode() == Mode::kOpen);
-  // TODO(benvanik): folder dialogs.
-  assert_true(type() == Type::kFile);
-  GtkWidget* dialog;
-  gint res;
-
-  dialog = gtk_file_chooser_dialog_new(
-      "Open File",
+  std::string title;
+  GtkFileChooserAction action;
+  std::string confirm_button;
+  switch (mode()) {
+    case Mode::kOpen:
+      title = type() == Type::kFile ? "Open File" : "Open Directory";
+      action = type() == Type::kFile ? GTK_FILE_CHOOSER_ACTION_OPEN
+                                     : GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER;
+      confirm_button = "_Open";
+      break;
+    case Mode::kSave:
+      title = "Save File";
+      action = GTK_FILE_CHOOSER_ACTION_SAVE;
+      confirm_button = "_Save";
+      break;
+    default:
+      XELOGE("GtkFilePicker::Show: Unhandled mode: {}, Type: {}",
+             static_cast<int>(mode()), static_cast<int>(type()));
+      assert_always();
+  }
+  GtkWidget* dialog = gtk_file_chooser_dialog_new(
+      title.c_str(),
       parent_window
-          ? GTK_WINDOW(static_cast<const GTKWindow*>(parent_window)->window())
+          ? GTK_WINDOW(dynamic_cast<const GTKWindow*>(parent_window)->window())
           : nullptr,
-      GTK_FILE_CHOOSER_ACTION_OPEN, "_Cancel", GTK_RESPONSE_CANCEL, "_Open",
+      action, "_Cancel", GTK_RESPONSE_CANCEL, confirm_button.c_str(),
       GTK_RESPONSE_ACCEPT, NULL);
 
-  res = gtk_dialog_run(GTK_DIALOG(dialog));
+  gint res = gtk_dialog_run(GTK_DIALOG(dialog));
   char* filename;
   if (res == GTK_RESPONSE_ACCEPT) {
     GtkFileChooser* chooser = GTK_FILE_CHOOSER(dialog);
