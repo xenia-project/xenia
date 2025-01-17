@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Copyright 2025 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -64,7 +64,7 @@ bool GTKWindow::OpenImpl() {
 
   // Add the main menu (even if fullscreen was requested, for the initial layout
   // calculation).
-  const GTKMenuItem* main_menu = static_cast<const GTKMenuItem*>(GetMainMenu());
+  const auto* main_menu = dynamic_cast<const GTKMenuItem*>(GetMainMenu());
   GtkWidget* main_menu_widget = main_menu ? main_menu->handle() : nullptr;
   if (main_menu_widget) {
     gtk_box_pack_start(GTK_BOX(box_), main_menu_widget, FALSE, FALSE, 0);
@@ -151,7 +151,7 @@ void GTKWindow::ApplyNewFullscreen() {
   // fullscreen being toggled from inside this function.
   WindowDestructionReceiver destruction_receiver(this);
 
-  const GTKMenuItem* main_menu = static_cast<const GTKMenuItem*>(GetMainMenu());
+  const auto* main_menu = dynamic_cast<const GTKMenuItem*>(GetMainMenu());
   GtkWidget* main_menu_widget = main_menu ? main_menu->handle() : nullptr;
 
   // Changing the menu and the fullscreen state may change the size of the
@@ -233,7 +233,7 @@ void GTKWindow::ApplyNewMainMenu(MenuItem* old_main_menu) {
 
   if (old_main_menu) {
     const GTKMenuItem& old_gtk_main_menu =
-        *static_cast<const GTKMenuItem*>(old_main_menu);
+        *dynamic_cast<const GTKMenuItem*>(old_main_menu);
     gtk_container_remove(GTK_CONTAINER(box_), old_gtk_main_menu.handle());
     if (destruction_receiver.IsWindowDestroyedOrClosed() || IsFullscreen()) {
       if (!destruction_receiver.IsWindowDestroyed()) {
@@ -243,8 +243,8 @@ void GTKWindow::ApplyNewMainMenu(MenuItem* old_main_menu) {
     }
   }
 
-  const GTKMenuItem* new_main_menu =
-      static_cast<const GTKMenuItem*>(GetMainMenu());
+  const auto* new_main_menu =
+      dynamic_cast<const GTKMenuItem*>(GetMainMenu());
   if (!new_main_menu) {
     EndBatchedSizeUpdate(destruction_receiver);
     return;
@@ -350,6 +350,148 @@ void GTKWindow::EndBatchedSizeUpdate(
   }
 }
 
+VirtualKey GTKWindow::TranslateVirtualKey(guint keyval) {
+  switch (keyval) {
+    case GDK_KEY_a:
+    case GDK_KEY_A:
+      return VirtualKey::kA;
+    case GDK_KEY_b:
+    case GDK_KEY_B:
+      return VirtualKey::kB;
+    case GDK_KEY_c:
+    case GDK_KEY_C:
+      return VirtualKey::kC;
+    case GDK_KEY_d:
+    case GDK_KEY_D:
+      return VirtualKey::kD;
+    case GDK_KEY_e:
+    case GDK_KEY_E:
+      return VirtualKey::kE;
+    case GDK_KEY_f:
+    case GDK_KEY_F:
+      return VirtualKey::kF;
+    case GDK_KEY_g:
+    case GDK_KEY_G:
+      return VirtualKey::kG;
+    case GDK_KEY_h:
+    case GDK_KEY_H:
+      return VirtualKey::kH;
+    case GDK_KEY_i:
+    case GDK_KEY_I:
+      return VirtualKey::kI;
+    case GDK_KEY_j:
+    case GDK_KEY_J:
+      return VirtualKey::kJ;
+    case GDK_KEY_k:
+    case GDK_KEY_K:
+      return VirtualKey::kK;
+    case GDK_KEY_l:
+    case GDK_KEY_L:
+      return VirtualKey::kL;
+    case GDK_KEY_m:
+    case GDK_KEY_M:
+      return VirtualKey::kM;
+    case GDK_KEY_n:
+    case GDK_KEY_N:
+      return VirtualKey::kN;
+    case GDK_KEY_o:
+    case GDK_KEY_O:
+      return VirtualKey::kO;
+    case GDK_KEY_p:
+    case GDK_KEY_P:
+      return VirtualKey::kP;
+    case GDK_KEY_q:
+    case GDK_KEY_Q:
+      return VirtualKey::kQ;
+    case GDK_KEY_r:
+    case GDK_KEY_R:
+      return VirtualKey::kR;
+    case GDK_KEY_s:
+    case GDK_KEY_S:
+      return VirtualKey::kS;
+    case GDK_KEY_t:
+    case GDK_KEY_T:
+      return VirtualKey::kT;
+    case GDK_KEY_u:
+    case GDK_KEY_U:
+      return VirtualKey::kU;
+    case GDK_KEY_v:
+    case GDK_KEY_V:
+      return VirtualKey::kV;
+    case GDK_KEY_w:
+    case GDK_KEY_W:
+      return VirtualKey::kW;
+    case GDK_KEY_x:
+    case GDK_KEY_X:
+      return VirtualKey::kX;
+    case GDK_KEY_y:
+    case GDK_KEY_Y:
+      return VirtualKey::kY;
+    case GDK_KEY_z:
+    case GDK_KEY_Z:
+      return VirtualKey::kZ;
+    case GDK_KEY_0:
+      return VirtualKey::k0;
+    case GDK_KEY_1:
+      return VirtualKey::k1;
+    case GDK_KEY_2:
+      return VirtualKey::k2;
+    case GDK_KEY_3:
+      return VirtualKey::k3;
+    case GDK_KEY_4:
+      return VirtualKey::k4;
+    case GDK_KEY_5:
+      return VirtualKey::k5;
+    case GDK_KEY_6:
+      return VirtualKey::k6;
+    case GDK_KEY_7:
+      return VirtualKey::k7;
+    case GDK_KEY_8:
+      return VirtualKey::k8;
+    case GDK_KEY_9:
+      return VirtualKey::k9;
+    case GDK_KEY_semicolon:
+      return VirtualKey::kOem1;
+    case GDK_KEY_apostrophe:
+      return VirtualKey::kOem7;
+    case GDK_KEY_comma:
+      return VirtualKey::kOemComma;
+    case GDK_KEY_period:
+      return VirtualKey::kOemPeriod;
+    case GDK_KEY_Up:
+      return VirtualKey::kUp;
+    case GDK_KEY_Down:
+      return VirtualKey::kDown;
+    case GDK_KEY_Left:
+      return VirtualKey::kLeft;
+    case GDK_KEY_Right:
+      return VirtualKey::kRight;
+    case GDK_KEY_BackSpace:
+      return VirtualKey::kBack;
+    case GDK_KEY_Tab:
+      return VirtualKey::kTab;
+    case GDK_KEY_Return:
+      return VirtualKey::kReturn;
+    case GDK_KEY_Control_L:
+      return VirtualKey::kLControl;
+    case GDK_KEY_Control_R:
+      return VirtualKey::kRControl;
+    case GDK_KEY_Alt_L:
+      return VirtualKey::kLMenu;
+    case GDK_KEY_Alt_R:
+      return VirtualKey::kRMenu;
+    case GDK_KEY_Shift_L:
+      return VirtualKey::kLShift;
+    case GDK_KEY_Shift_R:
+      return VirtualKey::kRShift;
+    case GDK_KEY_space:
+      return VirtualKey::kSpace;
+    default:
+      XELOGW("Unhandled key code: {}", keyval);
+      return VirtualKey(keyval);
+  }
+}
+
 bool GTKWindow::HandleMouse(GdkEvent* event,
                             WindowDestructionReceiver& destruction_receiver) {
   MouseEvent::Button button = MouseEvent::Button::kNone;
@@ -432,8 +574,7 @@ bool GTKWindow::HandleKeyboard(
   bool alt_pressed = modifiers & GDK_META_MASK;
   bool super_pressed = modifiers & GDK_SUPER_MASK;
   uint32_t key_char = gdk_keyval_to_unicode(event->keyval);
-  // TODO(Triang3l): event->hardware_keycode to VirtualKey translation.
-  KeyEvent e(this, VirtualKey(event->hardware_keycode), 1,
+  KeyEvent e(this, TranslateVirtualKey(event->keyval), 1,
              event->type == GDK_KEY_RELEASE, shift_pressed, ctrl_pressed,
              alt_pressed, super_pressed);
   switch (event->type) {
@@ -512,7 +653,7 @@ gboolean GTKWindow::WindowEventHandler(GdkEvent* event) {
 
 gboolean GTKWindow::WindowEventHandlerThunk(GtkWidget* widget, GdkEvent* event,
                                             gpointer user_data) {
-  GTKWindow* window = reinterpret_cast<GTKWindow*>(user_data);
+  auto* window = static_cast<GTKWindow*>(user_data);
   if (!window || widget != window->window_ ||
       reinterpret_cast<const GdkEventAny*>(event)->window !=
           gtk_widget_get_window(window->window_)) {
@@ -558,7 +699,7 @@ gboolean GTKWindow::DrawingAreaEventHandler(GdkEvent* event) {
 gboolean GTKWindow::DrawingAreaEventHandlerThunk(GtkWidget* widget,
                                                  GdkEvent* event,
                                                  gpointer user_data) {
-  GTKWindow* window = reinterpret_cast<GTKWindow*>(user_data);
+  auto* window = static_cast<GTKWindow*>(user_data);
   if (!window || widget != window->drawing_area_ ||
       reinterpret_cast<const GdkEventAny*>(event)->window !=
           gtk_widget_get_window(window->drawing_area_)) {
@@ -569,7 +710,7 @@ gboolean GTKWindow::DrawingAreaEventHandlerThunk(GtkWidget* widget,
 
 gboolean GTKWindow::DrawHandler(GtkWidget* widget, cairo_t* cr,
                                 gpointer user_data) {
-  GTKWindow* window = reinterpret_cast<GTKWindow*>(user_data);
+  auto* window = static_cast<GTKWindow*>(user_data);
   if (!window || widget != window->drawing_area_) {
     return FALSE;
   }
@@ -602,7 +743,7 @@ GTKMenuItem::GTKMenuItem(Type type, const std::string& text,
   // TODO(dougvj) Would we ever need to escape underscores?
   // Replace & with _ for gtk to see the memonic
   std::replace(label.begin(), label.end(), '&', '_');
-  const gchar* gtk_label = reinterpret_cast<const gchar*>(label.c_str());
+  const auto* gtk_label = label.c_str();
   switch (type) {
     case MenuItem::Type::kNormal:
     default:
@@ -628,7 +769,7 @@ GTKMenuItem::GTKMenuItem(Type type, const std::string& text,
     g_object_ref_sink(menu_);
     if (GTK_IS_MENU_ITEM(menu_)) {
       g_signal_connect(menu_, "activate", G_CALLBACK(ActivateHandler),
-                       reinterpret_cast<gpointer>(this));
+                       this);
     }
   }
 }
@@ -640,13 +781,13 @@ GTKMenuItem::~GTKMenuItem() {
 }
 
 void GTKMenuItem::OnChildAdded(MenuItem* generic_child_item) {
-  auto child_item = static_cast<GTKMenuItem*>(generic_child_item);
+  auto child_item = dynamic_cast<GTKMenuItem*>(generic_child_item);
   GtkWidget* submenu = nullptr;
   switch (child_item->type()) {
-    case MenuItem::Type::kNormal:
+    case Type::kNormal:
       // Nothing special.
       break;
-    case MenuItem::Type::kPopup:
+    case Type::kPopup:
       if (GTK_IS_MENU_ITEM(menu_)) {
         submenu = gtk_menu_item_get_submenu(GTK_MENU_ITEM(menu_));
         // Get sub menu and if it doesn't exist create it
@@ -659,8 +800,8 @@ void GTKMenuItem::OnChildAdded(MenuItem* generic_child_item) {
         gtk_menu_shell_append(GTK_MENU_SHELL(menu_), child_item->handle());
       }
       break;
-    case MenuItem::Type::kSeparator:
-    case MenuItem::Type::kString:
+    case Type::kSeparator:
+    case Type::kString:
       assert(GTK_IS_MENU_ITEM(menu_));
       // Get sub menu and if it doesn't exist create it
       submenu = gtk_menu_item_get_submenu(GTK_MENU_ITEM(menu_));
@@ -673,9 +814,7 @@ void GTKMenuItem::OnChildAdded(MenuItem* generic_child_item) {
   }
 }
 
-// TODO(dougvj)
 void GTKMenuItem::OnChildRemoved(MenuItem* generic_child_item) {
-  assert_always();
 }
 
 }  // namespace ui
