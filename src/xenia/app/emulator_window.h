@@ -112,11 +112,6 @@ class EmulatorWindow {
     Unknown
   };
 
-  enum class gpu_cvar {
-    ClearMemoryPageState,
-    ReadbackResolve,
-  };
-
   class ControllerHotKey {
    public:
     // If true the hotkey can be activated while a title is running, otherwise
@@ -235,7 +230,7 @@ class EmulatorWindow {
   void VibrateController(xe::hid::InputSystem* input_sys, uint32_t user_index,
                          bool vibrate = true);
   void GamepadHotKeys();
-  void ToggleGPUSetting(gpu_cvar index);
+  void ToggleGPUSetting(gpu::GPUSetting setting);
   void DisplayHotKeysConfig();
 
   static std::string CanonicalizeFileExtension(

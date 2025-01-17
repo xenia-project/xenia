@@ -32,19 +32,7 @@ DEFINE_bool(d3d12_bindless, true,
             "Use bindless resources where available - may improve performance, "
             "but may make debugging more complicated.",
             "D3D12");
-DEFINE_bool(d3d12_readback_memexport, false,
-            "Read data written by memory export in shaders on the CPU. This "
-            "may be needed in some games (but many only access exported data "
-            "on the GPU, and this flag isn't needed to handle such behavior), "
-            "but causes mid-frame synchronization, so it has a huge "
-            "performance impact.",
-            "D3D12");
-DEFINE_bool(d3d12_readback_resolve, false,
-            "Read render-to-texture results on the CPU. This may be needed in "
-            "some games, for instance, for screenshots in saved games, but "
-            "causes mid-frame synchronization, so it has a huge performance "
-            "impact.",
-            "D3D12");
+
 DEFINE_bool(d3d12_submit_on_primary_buffer_end, true,
             "Submit the command list when a PM4 primary buffer ends if it's "
             "possible to submit immediately to try to reduce frame latency.",
@@ -54,15 +42,6 @@ DECLARE_bool(clear_memory_page_state);
 
 namespace xe {
 namespace gpu {
-
-void D3D12SaveGPUSetting(D3D12GPUSetting setting, uint64_t value) {
-  switch (setting) {
-    case D3D12GPUSetting::ReadbackResolve:
-      OVERRIDE_bool(d3d12_readback_resolve, (bool)value);
-      break;
-  }
-}
-
 namespace d3d12 {
 
 // Generated with `xb buildshaders`.
@@ -3011,7 +2990,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
           memexport_range.base_address_dwords << 2, memexport_range.size_bytes,
           false);
     }
-    if (cvars::d3d12_readback_memexport) {
+    if (GetGPUSetting(GPUSetting::ReadbackResolve)) {
       // Read the exported data on the CPU.
       uint32_t memexport_total_size = 0;
       for (const draw_util::MemExportRange& memexport_range :
@@ -3091,7 +3070,7 @@ bool D3D12CommandProcessor::IssueCopy() {
   if (!BeginSubmission(true)) {
     return false;
   }
-  if (!cvars::d3d12_readback_resolve) {
+  if (!GetGPUSetting(GPUSetting::ReadbackResolve)) {
     uint32_t written_address, written_length;
     return render_target_cache_->Resolve(*memory_, *shared_memory_,
                                          *texture_cache_, written_address,

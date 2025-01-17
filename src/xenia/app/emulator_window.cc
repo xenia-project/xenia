@@ -31,7 +31,6 @@
 #include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
 #include "xenia/gpu/command_processor.h"
-#include "xenia/gpu/d3d12/d3d12_command_processor.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/hid/input_system.h"
 #include "xenia/kernel/xam/profile_manager.h"
@@ -58,7 +57,9 @@ DECLARE_bool(guide_button);
 
 DECLARE_bool(clear_memory_page_state);
 
-DECLARE_bool(d3d12_readback_resolve);
+DECLARE_bool(readback_resolve);
+
+DECLARE_bool(readback_memexport);
 
 DEFINE_bool(fullscreen, false, "Whether to launch the emulator in fullscreen.",
             "Display");
@@ -1674,7 +1675,7 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
       }
     } break;
     case ButtonFunctions::ClearMemoryPageState:
-      ToggleGPUSetting(gpu_cvar::ClearMemoryPageState);
+      ToggleGPUSetting(GPUSetting::ClearMemoryPageState);
 
       // Assume the user wants ClearCaches as well
       if (cvars::clear_memory_page_state) {
@@ -1689,10 +1690,10 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
       xe::threading::Sleep(delay);
       break;
     case ButtonFunctions::ReadbackResolve:
-      ToggleGPUSetting(gpu_cvar::ReadbackResolve);
+      ToggleGPUSetting(GPUSetting::ReadbackResolve);
 
       notificationTitle = "Toggle Readback Resolve";
-      notificationDesc = cvars::d3d12_readback_resolve ? "Enabled" : "Disabled";
+      notificationDesc = cvars::readback_resolve ? "Enabled" : "Disabled";
 
       // Extra Sleep
       xe::threading::Sleep(delay);
@@ -1862,15 +1863,17 @@ void EmulatorWindow::GamepadHotKeys() {
   }
 }
 
-void EmulatorWindow::ToggleGPUSetting(gpu_cvar value) {
-  switch (value) {
-    case gpu_cvar::ClearMemoryPageState:
-      CommonSaveGPUSetting(CommonGPUSetting::ClearMemoryPageState,
-                           !cvars::clear_memory_page_state);
+void EmulatorWindow::ToggleGPUSetting(gpu::GPUSetting setting) {
+  switch (setting) {
+    case GPUSetting::ClearMemoryPageState:
+      SaveGPUSetting(GPUSetting::ClearMemoryPageState,
+                     !cvars::clear_memory_page_state);
       break;
-    case gpu_cvar::ReadbackResolve:
-      D3D12SaveGPUSetting(D3D12GPUSetting::ReadbackResolve,
-                          !cvars::d3d12_readback_resolve);
+    case GPUSetting::ReadbackResolve:
+      SaveGPUSetting(GPUSetting::ReadbackResolve, !cvars::readback_resolve);
+      break;
+    case GPUSetting::ReadbackMemexport:
+      SaveGPUSetting(GPUSetting::ReadbackMemexport, !cvars::readback_memexport);
       break;
   }
 }
@@ -1915,7 +1918,7 @@ void EmulatorWindow::DisplayHotKeysConfig() {
   msg += "\n";
 
   msg += "Readback Resolve: " +
-         xe::string_util::BoolToString(cvars::d3d12_readback_resolve);
+         xe::string_util::BoolToString(cvars::readback_resolve);
   msg += "\n";
 
   msg += "Clear Memory Page State: " +

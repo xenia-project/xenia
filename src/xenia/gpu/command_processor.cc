@@ -50,15 +50,50 @@ DEFINE_bool(clear_memory_page_state, false,
             "for 'Team Ninja' Games to fix missing character models)",
             "GPU");
 
+DEFINE_bool(
+    readback_resolve, false,
+    "[D3D12 Only] Read render-to-texture results on the CPU. This may be "
+    "needed in some games, for instance, for screenshots in saved games, but "
+    "causes mid-frame synchronization, so it has a huge performance impact.",
+    "GPU");
+
+DEFINE_bool(
+    readback_memexport, false,
+    "[D3D12 Only] Read data written by memory export in shaders on the CPU. "
+    "This may be needed in some games (but many only access exported data on "
+    "the GPU, and this flag isn't needed to handle such behavior), but causes "
+    "mid-frame synchronization, so it has a huge performance impact.",
+    "GPU");
+
 namespace xe {
 namespace gpu {
 
-void CommonSaveGPUSetting(CommonGPUSetting setting, uint64_t value) {
+// This should be written completely differently with support for different
+// types.
+void SaveGPUSetting(GPUSetting setting, uint64_t value) {
   switch (setting) {
-    case CommonGPUSetting::ClearMemoryPageState:
-      OVERRIDE_bool(clear_memory_page_state, (bool)value);
+    case GPUSetting::ClearMemoryPageState:
+      OVERRIDE_bool(clear_memory_page_state, static_cast<bool>(value));
+      break;
+    case GPUSetting::ReadbackResolve:
+      OVERRIDE_bool(readback_resolve, static_cast<bool>(value));
+      break;
+    case GPUSetting::ReadbackMemexport:
+      OVERRIDE_bool(readback_memexport, static_cast<bool>(value));
       break;
   }
+}
+
+bool GetGPUSetting(GPUSetting setting) {
+  switch (setting) {
+    case GPUSetting::ClearMemoryPageState:
+      return cvars::clear_memory_page_state;
+    case GPUSetting::ReadbackResolve:
+      return cvars::readback_resolve;
+    case GPUSetting::ReadbackMemexport:
+      return cvars::readback_memexport;
+  }
+  return false;
 }
 
 using namespace xe::gpu::xenos;

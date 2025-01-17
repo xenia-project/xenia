@@ -33,11 +33,14 @@ class ByteStream;
 
 namespace gpu {
 
-enum class CommonGPUSetting {
+enum class GPUSetting {
   ClearMemoryPageState,
+  ReadbackResolve,
+  ReadbackMemexport
 };
 
-void CommonSaveGPUSetting(CommonGPUSetting setting, uint64_t value);
+void SaveGPUSetting(GPUSetting setting, uint64_t value);
+bool GetGPUSetting(GPUSetting setting);
 
 class GraphicsSystem;
 class Shader;
