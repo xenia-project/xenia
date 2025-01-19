@@ -75,6 +75,8 @@ function project_zstd(dir, compression, decompression, deprecated, dictbuilder, 
 
 		defines {
 			'XXH_NAMESPACE=ZSTD_',
+			-- See here on why: https://gitlab.kitware.com/cmake/cmake/-/issues/25744
+			'ZSTD_DISABLE_ASM=1',
 			'ZSTD_LEGACY_SUPPORT=' .. legacy
 		}
 end

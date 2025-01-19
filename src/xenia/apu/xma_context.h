@@ -160,23 +160,23 @@ static_assert_size(Xma2ExtraData, 34);
 
 class XmaContext {
  public:
-  static const uint32_t kBytesPerPacket = 2048;
-  static const uint32_t kBitsPerPacket = kBytesPerPacket * 8;
-  static const uint32_t kBitsPerHeader = 32;
+  static constexpr uint32_t kBytesPerPacket = 2048;
+  static constexpr uint32_t kBitsPerPacket = kBytesPerPacket * 8;
+  static constexpr uint32_t kBitsPerHeader = 32;
 
-  static const uint32_t kBytesPerSample = 2;
-  static const uint32_t kSamplesPerFrame = 512;
-  static const uint32_t kSamplesPerSubframe = 128;
-  static const uint32_t kBytesPerFrameChannel =
+  static constexpr uint32_t kBytesPerSample = 2;
+  static constexpr uint32_t kSamplesPerFrame = 512;
+  static constexpr uint32_t kSamplesPerSubframe = 128;
+  static constexpr uint32_t kBytesPerFrameChannel =
       kSamplesPerFrame * kBytesPerSample;
-  static const uint32_t kBytesPerSubframeChannel =
+  static constexpr uint32_t kBytesPerSubframeChannel =
       kSamplesPerSubframe * kBytesPerSample;
 
   // static const uint32_t kOutputBytesPerBlock = 256;
   // static const uint32_t kOutputMaxSizeBytes = 31 * kOutputBytesPerBlock;
 
   explicit XmaContext();
-  ~XmaContext();
+  virtual ~XmaContext();
 
   virtual int Setup(uint32_t id, Memory* memory, uint32_t guest_ptr) {
     return 0;

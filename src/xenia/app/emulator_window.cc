@@ -1889,8 +1889,7 @@ void EmulatorWindow::DisplayHotKeysConfig() {
 
     if (!guide_enabled) {
       pretty_text = std::regex_replace(
-          pretty_text,
-          std::regex("Guide", std::regex_constants::syntax_option_type::icase),
+          pretty_text, std::regex("Guide", std::regex_constants::icase),
           "Back");
     }
 

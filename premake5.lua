@@ -145,6 +145,10 @@ filter({"platforms:Linux", "language:C++", "toolset:clang"})
     "deprecated-volatile",
     "switch",
     "deprecated-enum-enum-conversion",
+    "attributes",
+  })
+  removeflags({
+    "FatalWarnings"
   })
 filter({"platforms:Linux", "language:C++", "toolset:clang", "files:*.cc or *.cpp"})
   buildoptions({

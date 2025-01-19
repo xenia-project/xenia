@@ -45,28 +45,28 @@ static constexpr int kIdToSampleRate[4] = {24000, 32000, 44100, 48000};
 
 class XmaContextNew : public XmaContext {
  public:
-  static const uint32_t kBytesPerPacket = 2048;
-  static const uint32_t kBytesPerPacketHeader = 4;
-  static const uint32_t kBytesPerPacketData =
+  static constexpr uint32_t kBytesPerPacket = 2048;
+  static constexpr uint32_t kBytesPerPacketHeader = 4;
+  static constexpr uint32_t kBytesPerPacketData =
       kBytesPerPacket - kBytesPerPacketHeader;
 
-  static const uint32_t kBitsPerPacket = kBytesPerPacket * 8;
-  static const uint32_t kBitsPerPacketHeader = 32;
-  static const uint32_t kBitsPerFrameHeader = 15;
+  static constexpr uint32_t kBitsPerPacket = kBytesPerPacket * 8;
+  static constexpr uint32_t kBitsPerPacketHeader = 32;
+  static constexpr uint32_t kBitsPerFrameHeader = 15;
 
-  static const uint32_t kBytesPerSample = 2;
-  static const uint32_t kSamplesPerFrame = 512;
-  static const uint32_t kSamplesPerSubframe = 128;
-  static const uint32_t kBytesPerFrameChannel =
+  static constexpr uint32_t kBytesPerSample = 2;
+  static constexpr uint32_t kSamplesPerFrame = 512;
+  static constexpr uint32_t kSamplesPerSubframe = 128;
+  static constexpr uint32_t kBytesPerFrameChannel =
       kSamplesPerFrame * kBytesPerSample;
-  static const uint32_t kBytesPerSubframeChannel =
+  static constexpr uint32_t kBytesPerSubframeChannel =
       kSamplesPerSubframe * kBytesPerSample;
 
-  static const uint32_t kOutputBytesPerBlock = 256;
-  static const uint32_t kOutputMaxSizeBytes = 31 * kOutputBytesPerBlock;
+  static constexpr uint32_t kOutputBytesPerBlock = 256;
+  static constexpr uint32_t kOutputMaxSizeBytes = 31 * kOutputBytesPerBlock;
 
-  static const uint32_t kLastFrameMarker = 0x7FFF;
-  static const uint32_t kMaxFrameSizeinBits = 0x4000 - kBitsPerPacketHeader;
+  static constexpr uint32_t kLastFrameMarker = 0x7FFF;
+  static constexpr uint32_t kMaxFrameSizeinBits = 0x4000 - kBitsPerPacketHeader;
 
   explicit XmaContextNew();
   ~XmaContextNew();

@@ -533,6 +533,10 @@ class PosixCondition<Thread> : public PosixConditionBase {
   }
 
   virtual ~PosixCondition() {
+    // FIXME(RodoMa92): This causes random crashes.
+    //  The proper way to handle them according to the webs is properly shutdown
+    //  instead on relying on killing them using pthread_cancel.
+    /*
     if (thread_ && !signaled_) {
 #if XE_PLATFORM_ANDROID
       if (pthread_kill(thread_,
@@ -548,6 +552,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
         assert_always();
       }
     }
+    */
   }
 
   bool Signal() override { return true; }

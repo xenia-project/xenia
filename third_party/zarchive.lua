@@ -4,6 +4,7 @@ project("zarchive")
   kind("StaticLib")
   language("C++")
   links({
+    "zstd",
   })
   defines({
     "_LIB",
