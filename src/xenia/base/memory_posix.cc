@@ -13,6 +13,9 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <cstddef>
+#include <fstream>
+#include <mutex>
+#include <sstream>
 
 #include "xenia/base/math.h"
 #include "xenia/base/platform.h"
@@ -79,19 +82,50 @@ uint32_t ToPosixProtectFlags(PageAccess access) {
   }
 }
 
+PageAccess ToXeniaProtectFlags(const char* protection) {
+  if (protection[0] == 'r' && protection[1] == 'w' && protection[2] == 'x') {
+    return PageAccess::kExecuteReadWrite;
+  }
+  if (protection[0] == 'r' && protection[1] == '-' && protection[2] == 'x') {
+    return PageAccess::kExecuteReadOnly;
+  }
+  if (protection[0] == 'r' && protection[1] == 'w' && protection[2] == '-') {
+    return PageAccess::kReadWrite;
+  }
+  if (protection[0] == 'r' && protection[1] == '-' && protection[2] == '-') {
+    return PageAccess::kReadOnly;
+  }
+  return PageAccess::kNoAccess;
+}
+
 bool IsWritableExecutableMemorySupported() { return true; }
+
+struct MappedFileRange {
+  uintptr_t region_begin;
+  uintptr_t region_end;
+};
+
+std::vector<MappedFileRange> mapped_file_ranges;
+std::mutex g_mapped_file_ranges_mutex;
 
 void* AllocFixed(void* base_address, size_t length,
                  AllocationType allocation_type, PageAccess access) {
   // mmap does not support reserve / commit, so ignore allocation_type.
   uint32_t prot = ToPosixProtectFlags(access);
-  int flags = 0;
+  int flags = MAP_PRIVATE | MAP_ANONYMOUS;
+
   if (base_address != nullptr) {
-    flags = MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS;
-  } else {
-    flags = MAP_PRIVATE | MAP_ANONYMOUS;
+    if (allocation_type == AllocationType::kCommit) {
+      if (Protect(base_address, length, access)) {
+        return base_address;
+      }
+      return nullptr;
+    }
+    flags |= MAP_FIXED_NOREPLACE;
   }
+
   void* result = mmap(base_address, length, prot, flags, -1, 0);
+
   if (result != MAP_FAILED) {
     return result;
   }
@@ -100,19 +134,90 @@ void* AllocFixed(void* base_address, size_t length,
 
 bool DeallocFixed(void* base_address, size_t length,
                   DeallocationType deallocation_type) {
-  return munmap(base_address, length) == 0;
+  const auto region_begin = reinterpret_cast<uintptr_t>(base_address);
+  const uintptr_t region_end =
+      reinterpret_cast<uintptr_t>(base_address) + length;
+
+  std::lock_guard guard(g_mapped_file_ranges_mutex);
+  for (const auto& mapped_range : mapped_file_ranges) {
+    if (region_begin >= mapped_range.region_begin &&
+        region_end <= mapped_range.region_end) {
+      switch (deallocation_type) {
+        case DeallocationType::kDecommit:
+          return Protect(base_address, length, PageAccess::kNoAccess);
+        case DeallocationType::kRelease:
+          assert_always("Error: Tried to release mapped memory!");
+        default:
+          assert_unhandled_case(deallocation_type);
+      }
+    }
+  }
+
+  switch (deallocation_type) {
+    case DeallocationType::kDecommit:
+      return Protect(base_address, length, PageAccess::kNoAccess);
+    case DeallocationType::kRelease:
+      return munmap(base_address, length) == 0;
+    default:
+      assert_unhandled_case(deallocation_type);
+  }
 }
 
 bool Protect(void* base_address, size_t length, PageAccess access,
              PageAccess* out_old_access) {
-  // Linux does not have a syscall to query memory permissions.
-  assert_null(out_old_access);
+  if (out_old_access) {
+    size_t length_copy = length;
+    QueryProtect(base_address, length_copy, *out_old_access);
+  }
 
   uint32_t prot = ToPosixProtectFlags(access);
   return mprotect(base_address, length, prot) == 0;
 }
 
 bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
+  // No generic POSIX solution exists. The Linux solution should work on all
+  // Linux kernel based OS, including Android.
+  std::ifstream memory_maps;
+  memory_maps.open("/proc/self/maps", std::ios_base::in);
+  std::string maps_entry_string;
+
+  while (std::getline(memory_maps, maps_entry_string)) {
+    std::stringstream entry_stream(maps_entry_string);
+    uintptr_t map_region_begin, map_region_end;
+    char separator, protection[4];
+
+    entry_stream >> std::hex >> map_region_begin >> separator >>
+        map_region_end >> protection;
+
+    if (map_region_begin <= reinterpret_cast<uintptr_t>(base_address) &&
+        map_region_end > reinterpret_cast<uintptr_t>(base_address)) {
+      length = map_region_end - reinterpret_cast<uintptr_t>(base_address);
+
+      access_out = ToXeniaProtectFlags(protection);
+
+      // Look at the next consecutive mappings
+      while (std::getline(memory_maps, maps_entry_string)) {
+        std::stringstream next_entry_stream(maps_entry_string);
+        uintptr_t next_map_region_begin, next_map_region_end;
+        char next_protection[4];
+
+        next_entry_stream >> std::hex >> next_map_region_begin >> separator >>
+            next_map_region_end >> next_protection;
+        if (map_region_end == next_map_region_begin &&
+            access_out == ToXeniaProtectFlags(next_protection)) {
+          length =
+              next_map_region_end - reinterpret_cast<uintptr_t>(base_address);
+          continue;
+        }
+        break;
+      }
+
+      memory_maps.close();
+      return true;
+    }
+  }
+
+  memory_maps.close();
   return false;
 }
 
@@ -182,12 +287,41 @@ void CloseFileMappingHandle(FileMappingHandle handle,
 void* MapFileView(FileMappingHandle handle, void* base_address, size_t length,
                   PageAccess access, size_t file_offset) {
   uint32_t prot = ToPosixProtectFlags(access);
-  return mmap64(base_address, length, prot, MAP_PRIVATE | MAP_ANONYMOUS, handle,
-                file_offset);
+
+  int flags = MAP_SHARED;
+  if (base_address != nullptr) {
+    flags |= MAP_FIXED_NOREPLACE;
+  }
+
+  void* result = mmap(base_address, length, prot, flags, handle, file_offset);
+
+  if (result != MAP_FAILED) {
+    std::lock_guard guard(g_mapped_file_ranges_mutex);
+    mapped_file_ranges.push_back(
+        {reinterpret_cast<uintptr_t>(result),
+         reinterpret_cast<uintptr_t>(result) + length});
+    return result;
+  }
+
+  return nullptr;
 }
 
 bool UnmapFileView(FileMappingHandle handle, void* base_address,
                    size_t length) {
+  std::lock_guard guard(g_mapped_file_ranges_mutex);
+  for (auto mapped_range = mapped_file_ranges.begin();
+       mapped_range != mapped_file_ranges.end();) {
+    if (mapped_range->region_begin ==
+            reinterpret_cast<uintptr_t>(base_address) &&
+        mapped_range->region_end ==
+            reinterpret_cast<uintptr_t>(base_address) + length) {
+      mapped_file_ranges.erase(mapped_range);
+      return munmap(base_address, length) == 0;
+    }
+    ++mapped_range;
+  }
+  // TODO: Implement partial file unmapping.
+  assert_always("Error: Partial unmapping of files not yet supported.");
   return munmap(base_address, length) == 0;
 }
 
