@@ -21,6 +21,17 @@ namespace xam {
 
 std::atomic<int> xam_dialogs_shown_ = {0};
 
+// FixMe(RodoMa92): Same hack as main_init_posix.cc:40
+//  Force initialization before constructor calling, mimicking
+//  Windows.
+//  Ref:
+//  https://reviews.llvm.org/D12689#243295
+#ifdef XE_PLATFORM_LINUX
+__attribute__((init_priority(101)))
+#endif
+static std::vector<xe::cpu::Export*>
+    xam_exports(4096);
+
 bool xeXamIsUIActive() { return xam_dialogs_shown_ > 0; }
 
 XamModule::XamModule(Emulator* emulator, KernelState* kernel_state)
@@ -33,8 +44,6 @@ XamModule::XamModule(Emulator* emulator, KernelState* kernel_state)
 #include "xam_module_export_groups.inc"
 #undef XE_MODULE_EXPORT_GROUP
 }
-
-std::vector<xe::cpu::Export*> xam_exports(4096);
 
 xe::cpu::Export* RegisterExport_xam(xe::cpu::Export* export_entry) {
   assert_true(export_entry->ordinal < xam_exports.size());
