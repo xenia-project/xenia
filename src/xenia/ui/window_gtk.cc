@@ -243,8 +243,7 @@ void GTKWindow::ApplyNewMainMenu(MenuItem* old_main_menu) {
     }
   }
 
-  const auto* new_main_menu =
-      dynamic_cast<const GTKMenuItem*>(GetMainMenu());
+  const auto* new_main_menu = dynamic_cast<const GTKMenuItem*>(GetMainMenu());
   if (!new_main_menu) {
     EndBatchedSizeUpdate(destruction_receiver);
     return;
@@ -768,8 +767,7 @@ GTKMenuItem::GTKMenuItem(Type type, const std::string& text,
     // Window.
     g_object_ref_sink(menu_);
     if (GTK_IS_MENU_ITEM(menu_)) {
-      g_signal_connect(menu_, "activate", G_CALLBACK(ActivateHandler),
-                       this);
+      g_signal_connect(menu_, "activate", G_CALLBACK(ActivateHandler), this);
     }
   }
 }
@@ -814,8 +812,7 @@ void GTKMenuItem::OnChildAdded(MenuItem* generic_child_item) {
   }
 }
 
-void GTKMenuItem::OnChildRemoved(MenuItem* generic_child_item) {
-}
+void GTKMenuItem::OnChildRemoved(MenuItem* generic_child_item) {}
 
 }  // namespace ui
 

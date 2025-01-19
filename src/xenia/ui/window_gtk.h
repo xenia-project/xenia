@@ -59,7 +59,6 @@ class GTKWindow : public Window {
   void BeginBatchedSizeUpdate();
   void EndBatchedSizeUpdate(WindowDestructionReceiver& destruction_receiver);
 
-
   // Translates a gtk virtual key to xenia ui::VirtualKey
   static VirtualKey TranslateVirtualKey(guint keyval);
 
