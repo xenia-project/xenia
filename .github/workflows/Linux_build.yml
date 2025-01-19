@@ -40,19 +40,19 @@ on:
   workflow_dispatch:
 
 jobs:
-#  lint:
-#    name: Lint
-#    runs-on: ubuntu-24.04
-#    steps:
-#      - uses: actions/checkout@main
-#      - name: Check Clang-Format Version
-#        run: clang-format --version
-#      - name: Lint
-#        run: ./xb lint --all
+  lint:
+    name: Lint
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@main
+      - name: Check Clang-Format Version
+        run: clang-format --version
+      - name: Lint
+        run: ./xb lint --all
 
   build-linux:
     name: Build (Linux) #  runner.os can't be used here
-#    needs: lint
+    needs: lint
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@main
