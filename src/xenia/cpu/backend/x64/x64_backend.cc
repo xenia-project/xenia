@@ -2,15 +2,15 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2019 Ben Vanik. All rights reserved.                             *
+ * Copyright 2025 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
 #include "xenia/cpu/backend/x64/x64_backend.h"
 
-#include <stddef.h>
 #include <algorithm>
+#include <cstddef>
 #include "third_party/capstone/include/capstone/capstone.h"
 #include "third_party/capstone/include/capstone/x86.h"
 
@@ -629,6 +629,7 @@ void* X64HelperEmitter::EmitCurrentForOffsets(const _code_offsets& code_offsets,
   return fn;
 }
 HostToGuestThunk X64HelperEmitter::EmitHostToGuestThunk() {
+#ifdef XE_PLATFORM_WIN32
   // rcx = target
   // rdx = arg0 (context)
   // r8 = arg1 (guest return address)
@@ -666,6 +667,53 @@ HostToGuestThunk X64HelperEmitter::EmitHostToGuestThunk() {
   mov(rdx, qword[rsp + 8 * 2]);
   mov(r8, qword[rsp + 8 * 3]);
   ret();
+#elif XE_PLATFORM_LINUX || XE_PLATFORM_MAC
+  // System-V ABI args:
+  // rdi = target
+  // rsi = arg0 (context)
+  // rdx = arg1 (guest return address)
+
+  struct _code_offsets {
+    size_t prolog;
+    size_t prolog_stack_alloc;
+    size_t body;
+    size_t epilog;
+    size_t tail;
+  } code_offsets = {};
+
+  const size_t stack_size = StackLayout::THUNK_STACK_SIZE;
+
+  code_offsets.prolog = getSize();
+  // rsp + 0 = return address
+  mov(qword[rsp + 8 * 3], rdx);
+  mov(qword[rsp + 8 * 2], rsi);
+  mov(qword[rsp + 8 * 1], rdi);
+  sub(rsp, stack_size);
+
+  code_offsets.prolog_stack_alloc = getSize();
+  code_offsets.body = getSize();
+
+  // Save nonvolatile registers.
+  EmitSaveNonvolatileRegs();
+
+  mov(rax, rdi);
+  // mov(rsi, rsi);   // context
+  mov(rdi, ptr[rsi + offsetof(ppc::PPCContext, virtual_membase)]);  // membase
+  mov(rcx, rdx);  // return address
+  call(rax);
+
+  EmitLoadNonvolatileRegs();
+
+  code_offsets.epilog = getSize();
+
+  add(rsp, stack_size);
+  mov(rdi, qword[rsp + 8 * 1]);
+  mov(rsi, qword[rsp + 8 * 2]);
+  mov(rdx, qword[rsp + 8 * 3]);
+  ret();
+#else
+  assert_always("Unknown platform ABI in host to guest thunk!");
+#endif
 
   code_offsets.tail = getSize();
 
@@ -685,6 +733,7 @@ HostToGuestThunk X64HelperEmitter::EmitHostToGuestThunk() {
 }
 
 GuestToHostThunk X64HelperEmitter::EmitGuestToHostThunk() {
+#if XE_PLATFORM_WIN32
   // rcx = target function
   // rdx = arg0
   // r8  = arg1
@@ -716,6 +765,57 @@ GuestToHostThunk X64HelperEmitter::EmitGuestToHostThunk() {
 
   add(rsp, stack_size);
   ret();
+#elif XE_PLATFORM_LINUX || XE_PLATFORM_MAC
+  // This function is being called using the Microsoft ABI from CallNative
+  // rcx = target function
+  // rdx = arg0
+  // r8  = arg1
+  // r9  = arg2
+
+  // Must be translated to System-V ABI:
+  // rdi = target function
+  // rsi = arg0
+  // rdx = arg1
+  // rcx = arg2
+  // r8, r9 - unused argument registers
+
+  struct _code_offsets {
+    size_t prolog;
+    size_t prolog_stack_alloc;
+    size_t body;
+    size_t epilog;
+    size_t tail;
+  } code_offsets = {};
+
+  const size_t stack_size = StackLayout::THUNK_STACK_SIZE;
+
+  code_offsets.prolog = getSize();
+
+  // rsp + 0 = return address
+  sub(rsp, stack_size);
+
+  code_offsets.prolog_stack_alloc = getSize();
+  code_offsets.body = getSize();
+
+  // Save off volatile registers.
+  EmitSaveVolatileRegs();
+
+  mov(rax, rcx);              // function
+  mov(rdi, GetContextReg());  // context
+  mov(rsi, rdx);              // arg0
+  mov(rdx, r8);               // arg1
+  mov(rcx, r9);               // arg2
+  call(rax);
+
+  EmitLoadVolatileRegs();
+
+  code_offsets.epilog = getSize();
+
+  add(rsp, stack_size);
+  ret();
+#else
+  assert_always("Unknown platform ABI in guest to host thunk!")
+#endif
 
   code_offsets.tail = getSize();
 
@@ -738,6 +838,7 @@ GuestToHostThunk X64HelperEmitter::EmitGuestToHostThunk() {
 uint64_t ResolveFunction(void* raw_context, uint64_t target_address);
 
 ResolveFunctionThunk X64HelperEmitter::EmitResolveFunctionThunk() {
+#if XE_PLATFORM_WIN32
   // ebx = target PPC address
   // rcx = context
 
@@ -767,6 +868,48 @@ ResolveFunctionThunk X64HelperEmitter::EmitResolveFunctionThunk() {
 
   add(rsp, stack_size);
   jmp(rax);
+#elif XE_PLATFORM_LINUX || XE_PLATFORM_MAC
+  // Function is called with the following params:
+  // ebx = target PPC address
+  // rsi = context
+
+  // System-V ABI args:
+  // rdi = context
+  // rsi = target PPC address
+
+  struct _code_offsets {
+    size_t prolog;
+    size_t prolog_stack_alloc;
+    size_t body;
+    size_t epilog;
+    size_t tail;
+  } code_offsets = {};
+  const size_t stack_size = StackLayout::THUNK_STACK_SIZE;
+
+  code_offsets.prolog = getSize();
+
+  // rsp + 0 = return address
+  sub(rsp, stack_size);
+
+  code_offsets.prolog_stack_alloc = getSize();
+  code_offsets.body = getSize();
+
+  // Save volatile registers
+  EmitSaveVolatileRegs();
+  mov(rdi, rsi);  // context
+  mov(rsi, rbx);  // target PPC address
+  mov(rax, reinterpret_cast<uint64_t>(&ResolveFunction));
+  call(rax);
+
+  EmitLoadVolatileRegs();
+
+  code_offsets.epilog = getSize();
+
+  add(rsp, stack_size);
+  jmp(rax);
+#else
+  assert_always("Unknown platform ABI in resolve function!");
+#endif
 
   code_offsets.tail = getSize();
 

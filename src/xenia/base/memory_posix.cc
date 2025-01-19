@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2020 Ben Vanik. All rights reserved.                             *
+ * Copyright 2025 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -91,13 +91,11 @@ void* AllocFixed(void* base_address, size_t length,
   } else {
     flags = MAP_PRIVATE | MAP_ANONYMOUS;
   }
-  void* result = mmap(base_address, length, prot,
-                      MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, -1, 0);
-  if (result == MAP_FAILED) {
-    return nullptr;
-  } else {
+  void* result = mmap(base_address, length, prot, flags, -1, 0);
+  if (result != MAP_FAILED) {
     return result;
   }
+  return nullptr;
 }
 
 bool DeallocFixed(void* base_address, size_t length,
