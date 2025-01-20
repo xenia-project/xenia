@@ -192,20 +192,26 @@ std::unique_ptr<FileHandle> FileHandle::OpenExisting(
   return std::make_unique<PosixFileHandle>(path, handle);
 }
 
-bool GetInfo(const std::filesystem::path& path, FileInfo* out_info) {
+std::optional<FileInfo> GetInfo(const std::filesystem::path& path) {
+  FileInfo info{};
   struct stat st;
   if (stat(path.c_str(), &st) == 0) {
     if (S_ISDIR(st.st_mode)) {
-      out_info->type = FileInfo::Type::kDirectory;
+      info.type = FileInfo::Type::kDirectory;
+      // On Linux st.st_size can have non-zero size (generally 4096) so make 0
+      info.total_size = 0;
     } else {
-      out_info->type = FileInfo::Type::kFile;
+      info.type = FileInfo::Type::kFile;
+      info.total_size = st.st_size;
     }
-    out_info->create_timestamp = convertUnixtimeToWinFiletime(st.st_ctime);
-    out_info->access_timestamp = convertUnixtimeToWinFiletime(st.st_atime);
-    out_info->write_timestamp = convertUnixtimeToWinFiletime(st.st_mtime);
-    return true;
+    info.path = path.parent_path();
+    info.name = path.filename();
+    info.create_timestamp = convertUnixtimeToWinFiletime(st.st_ctime);
+    info.access_timestamp = convertUnixtimeToWinFiletime(st.st_atime);
+    info.write_timestamp = convertUnixtimeToWinFiletime(st.st_mtime);
+    return std::move(info);
   }
-  return false;
+  return {};
 }
 
 std::vector<FileInfo> ListFiles(const std::filesystem::path& path) {
@@ -240,7 +246,7 @@ std::vector<FileInfo> ListFiles(const std::filesystem::path& path) {
     result.push_back(info);
   }
   closedir(dir);
-  return result;
+  return std::move(result);
 }
 
 bool SetAttributes(const std::filesystem::path& path, uint64_t attributes) {
