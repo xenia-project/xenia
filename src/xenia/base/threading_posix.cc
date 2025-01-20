@@ -82,8 +82,7 @@ void AndroidShutdown() {
 #endif
 
 template <typename _Rep, typename _Period>
-inline timespec DurationToTimeSpec(
-    std::chrono::duration<_Rep, _Period> duration) {
+timespec DurationToTimeSpec(std::chrono::duration<_Rep, _Period> duration) {
   auto nanoseconds =
       std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
   auto div = ldiv(nanoseconds.count(), 1000000000L);
@@ -161,6 +160,8 @@ void Sleep(std::chrono::microseconds duration) {
   } while (ret == -1 && errno == EINTR);
 }
 
+void NanoSleep(int64_t duration) { Sleep(std::chrono::nanoseconds(duration)); }
+
 // TODO(bwrsandman) Implement by allowing alert interrupts from IO operations
 thread_local bool alertable_state_ = false;
 SleepResult AlertableSleep(std::chrono::microseconds duration) {
@@ -178,28 +179,25 @@ TlsHandle AllocateTlsHandle() {
   return static_cast<TlsHandle>(key);
 }
 
-bool FreeTlsHandle(TlsHandle handle) {
-  return pthread_key_delete(static_cast<pthread_key_t>(handle)) == 0;
-}
+bool FreeTlsHandle(TlsHandle handle) { return pthread_key_delete(handle) == 0; }
 
 uintptr_t GetTlsValue(TlsHandle handle) {
-  return reinterpret_cast<uintptr_t>(
-      pthread_getspecific(static_cast<pthread_key_t>(handle)));
+  return reinterpret_cast<uintptr_t>(pthread_getspecific(handle));
 }
 
 bool SetTlsValue(TlsHandle handle, uintptr_t value) {
-  return pthread_setspecific(static_cast<pthread_key_t>(handle),
-                             reinterpret_cast<void*>(value)) == 0;
+  return pthread_setspecific(handle, reinterpret_cast<void*>(value)) == 0;
 }
 
 class PosixConditionBase {
  public:
+  virtual ~PosixConditionBase() = default;
   virtual bool Signal() = 0;
 
   WaitResult Wait(std::chrono::milliseconds timeout) {
     bool executed;
     auto predicate = [this] { return this->signaled(); };
-    auto lock = std::unique_lock<std::mutex>(mutex_);
+    auto lock = std::unique_lock(mutex_);
     if (predicate()) {
       executed = true;
     } else {
@@ -213,15 +211,14 @@ class PosixConditionBase {
     if (executed) {
       post_execution();
       return WaitResult::kSuccess;
-    } else {
-      return WaitResult::kTimeout;
     }
+    return WaitResult::kTimeout;
   }
 
   static std::pair<WaitResult, size_t> WaitMultiple(
       std::vector<PosixConditionBase*>&& handles, bool wait_all,
       std::chrono::milliseconds timeout) {
-    assert_true(handles.size() > 0);
+    assert_true(!handles.empty());
 
     // Construct a condition for all or any depending on wait_all
     std::function<bool()> predicate;
@@ -239,17 +236,16 @@ class PosixConditionBase {
     // TODO(bwrsandman, Triang3l) This is controversial, see issue #1677
     // This will probably cause a deadlock on the next thread doing any waiting
     // if the thread is suspended between locking and waiting
-    std::unique_lock<std::mutex> lock(PosixConditionBase::mutex_);
+    std::unique_lock lock(mutex_);
 
     bool wait_success = true;
     // If the timeout is infinite, wait without timeout.
     // The predicate will be checked before beginning the wait
     if (timeout == std::chrono::milliseconds::max()) {
-      PosixConditionBase::cond_.wait(lock, predicate);
+      cond_.wait(lock, predicate);
     } else {
       // Wait with timeout.
-      wait_success =
-          PosixConditionBase::cond_.wait_for(lock, timeout, predicate);
+      wait_success = cond_.wait_for(lock, timeout, predicate);
     }
     if (wait_success) {
       auto first_signaled = std::numeric_limits<size_t>::max();
@@ -264,15 +260,16 @@ class PosixConditionBase {
       }
       assert_true(std::numeric_limits<size_t>::max() != first_signaled);
       return std::make_pair(WaitResult::kSuccess, first_signaled);
-    } else {
-      return std::make_pair<WaitResult, size_t>(WaitResult::kTimeout, 0);
     }
+    return std::make_pair<WaitResult, size_t>(WaitResult::kTimeout, 0);
   }
 
-  virtual void* native_handle() const { return cond_.native_handle(); }
+  [[nodiscard]] virtual void* native_handle() const {
+    return cond_.native_handle();
+  }
 
  protected:
-  inline virtual bool signaled() const = 0;
+  [[nodiscard]] inline virtual bool signaled() const = 0;
   inline virtual void post_execution() = 0;
   static std::condition_variable cond_;
   static std::mutex mutex_;
@@ -293,23 +290,23 @@ class PosixCondition<Event> : public PosixConditionBase {
  public:
   PosixCondition(bool manual_reset, bool initial_state)
       : signal_(initial_state), manual_reset_(manual_reset) {}
-  virtual ~PosixCondition() = default;
+  ~PosixCondition() override = default;
 
   bool Signal() override {
-    auto lock = std::unique_lock<std::mutex>(mutex_);
+    auto lock = std::unique_lock(mutex_);
     signal_ = true;
     cond_.notify_all();
     return true;
   }
 
   void Reset() {
-    auto lock = std::unique_lock<std::mutex>(mutex_);
+    auto lock = std::unique_lock(mutex_);
     signal_ = false;
   }
 
  private:
-  inline bool signaled() const override { return signal_; }
-  inline void post_execution() override {
+  [[nodiscard]] bool signaled() const override { return signal_; }
+  void post_execution() override {
     if (!manual_reset_) {
       signal_ = false;
     }
@@ -319,7 +316,7 @@ class PosixCondition<Event> : public PosixConditionBase {
 };
 
 template <>
-class PosixCondition<Semaphore> : public PosixConditionBase {
+class PosixCondition<Semaphore> final : public PosixConditionBase {
  public:
   PosixCondition(uint32_t initial_count, uint32_t maximum_count)
       : count_(initial_count), maximum_count_(maximum_count) {}
@@ -328,7 +325,7 @@ class PosixCondition<Semaphore> : public PosixConditionBase {
 
   bool Release(uint32_t release_count, int* out_previous_count) {
     if (maximum_count_ - count_ >= release_count) {
-      auto lock = std::unique_lock<std::mutex>(mutex_);
+      auto lock = std::unique_lock(mutex_);
       if (out_previous_count) *out_previous_count = count_;
       count_ += release_count;
       cond_.notify_all();
@@ -338,8 +335,8 @@ class PosixCondition<Semaphore> : public PosixConditionBase {
   }
 
  private:
-  inline bool signaled() const override { return count_ > 0; }
-  inline void post_execution() override {
+  [[nodiscard]] bool signaled() const override { return count_ > 0; }
+  void post_execution() override {
     count_--;
     cond_.notify_all();
   }
@@ -348,7 +345,7 @@ class PosixCondition<Semaphore> : public PosixConditionBase {
 };
 
 template <>
-class PosixCondition<Mutant> : public PosixConditionBase {
+class PosixCondition<Mutant> final : public PosixConditionBase {
  public:
   explicit PosixCondition(bool initial_owner) : count_(0) {
     if (initial_owner) {
@@ -361,7 +358,7 @@ class PosixCondition<Mutant> : public PosixConditionBase {
 
   bool Release() {
     if (owner_ == std::this_thread::get_id() && count_ > 0) {
-      auto lock = std::unique_lock<std::mutex>(mutex_);
+      auto lock = std::unique_lock(mutex_);
       --count_;
       // Free to be acquired by another thread
       if (count_ == 0) {
@@ -372,13 +369,15 @@ class PosixCondition<Mutant> : public PosixConditionBase {
     return false;
   }
 
-  void* native_handle() const override { return mutex_.native_handle(); }
+  [[nodiscard]] void* native_handle() const override {
+    return mutex_.native_handle();
+  }
 
  private:
-  inline bool signaled() const override {
+  [[nodiscard]] bool signaled() const override {
     return count_ == 0 || owner_ == std::this_thread::get_id();
   }
-  inline void post_execution() override {
+  void post_execution() override {
     count_++;
     owner_ = std::this_thread::get_id();
   }
@@ -387,15 +386,15 @@ class PosixCondition<Mutant> : public PosixConditionBase {
 };
 
 template <>
-class PosixCondition<Timer> : public PosixConditionBase {
+class PosixCondition<Timer> final : public PosixConditionBase {
  public:
   explicit PosixCondition(bool manual_reset)
       : callback_(nullptr), signal_(false), manual_reset_(manual_reset) {}
 
-  virtual ~PosixCondition() { Cancel(); }
+  ~PosixCondition() override { Cancel(); }
 
   bool Signal() override {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard lock(mutex_);
     signal_ = true;
     cond_.notify_all();
     return true;
@@ -405,7 +404,7 @@ class PosixCondition<Timer> : public PosixConditionBase {
                std::function<void()> opt_callback) {
     Cancel();
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard lock(mutex_);
 
     callback_ = std::move(opt_callback);
     signal_ = false;
@@ -417,7 +416,7 @@ class PosixCondition<Timer> : public PosixConditionBase {
                     std::function<void()> opt_callback) {
     Cancel();
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard lock(mutex_);
 
     callback_ = std::move(opt_callback);
     signal_ = false;
@@ -425,13 +424,13 @@ class PosixCondition<Timer> : public PosixConditionBase {
         QueueTimerRecurring(&CompletionRoutine, this, due_time, period);
   }
 
-  void Cancel() {
+  void Cancel() const {
     if (auto wait_item = wait_item_.lock()) {
       wait_item->Disarm();
     }
   }
 
-  void* native_handle() const override {
+  [[nodiscard]] void* native_handle() const override {
     assert_always();
     return nullptr;
   }
@@ -439,12 +438,12 @@ class PosixCondition<Timer> : public PosixConditionBase {
  private:
   static void CompletionRoutine(void* userdata) {
     assert_not_null(userdata);
-    auto timer = reinterpret_cast<PosixCondition<Timer>*>(userdata);
+    auto timer = static_cast<PosixCondition*>(userdata);
     timer->Signal();
     // As the callback may reset the timer, store local.
     std::function<void()> callback;
     {
-      std::lock_guard<std::mutex> lock(timer->mutex_);
+      std::lock_guard lock(timer->mutex_);
       callback = timer->callback_;
     }
     if (callback) {
@@ -452,9 +451,8 @@ class PosixCondition<Timer> : public PosixConditionBase {
     }
   }
 
- private:
-  inline bool signaled() const override { return signal_; }
-  inline void post_execution() override {
+  [[nodiscard]] bool signaled() const override { return signal_; }
+  void post_execution() override {
     if (!manual_reset_) {
       signal_ = false;
     }
@@ -472,7 +470,7 @@ struct ThreadStartData {
 };
 
 template <>
-class PosixCondition<Thread> : public PosixConditionBase {
+class PosixCondition<Thread> final : public PosixConditionBase {
   enum class State {
     kUninitialized,
     kRunning,
@@ -526,13 +524,14 @@ class PosixCondition<Thread> : public PosixConditionBase {
       : thread_(thread),
         signaled_(false),
         exit_code_(0),
-        state_(State::kRunning) {
+        state_(State::kRunning),
+        suspend_count_(0) {
 #if XE_PLATFORM_ANDROID
     android_pre_api_26_name_[0] = '\0';
 #endif
   }
 
-  virtual ~PosixCondition() {
+  ~PosixCondition() override {
     // FIXME(RodoMa92): This causes random crashes.
     //  The proper way to handle them according to the webs is properly shutdown
     //  instead on relying on killing them using pthread_cancel.
@@ -560,7 +559,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
   std::string name() const {
     WaitStarted();
     auto result = std::array<char, 17>{'\0'};
-    std::unique_lock<std::mutex> lock(state_mutex_);
+    std::unique_lock lock(state_mutex_);
     if (state_ != State::kUninitialized && state_ != State::kFinished) {
 #if XE_PLATFORM_ANDROID
       // pthread_getname_np was added in API 26 - below that, store the name in
@@ -584,7 +583,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     return std::string(result.data());
   }
 
-  void set_name(const std::string& name) {
+  void set_name(const std::string& name) const {
     WaitStarted();
     std::unique_lock<std::mutex> lock(state_mutex_);
     if (state_ != State::kUninitialized && state_ != State::kFinished) {
@@ -608,7 +607,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
 
   uint32_t system_id() const { return static_cast<uint32_t>(thread_); }
 
-  uint64_t affinity_mask() {
+  uint64_t affinity_mask() const {
     WaitStarted();
     cpu_set_t cpu_set;
 #if XE_PLATFORM_ANDROID
@@ -630,7 +629,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     return result;
   }
 
-  void set_affinity_mask(uint64_t mask) {
+  void set_affinity_mask(uint64_t mask) const {
     WaitStarted();
     cpu_set_t cpu_set;
     CPU_ZERO(&cpu_set);
@@ -651,7 +650,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
 #endif
   }
 
-  int priority() {
+  int priority() const {
     WaitStarted();
     int policy;
     sched_param param{};
@@ -663,7 +662,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     return param.sched_priority;
   }
 
-  void set_priority(int new_priority) {
+  void set_priority(int new_priority) const {
     WaitStarted();
     sched_param param{};
     param.sched_priority = new_priority;
@@ -683,7 +682,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
 
   void QueueUserCallback(std::function<void()> callback) {
     WaitStarted();
-    std::unique_lock<std::mutex> lock(callback_mutex_);
+    std::unique_lock lock(callback_mutex_);
     user_callback_ = std::move(callback);
     sigval value{};
     value.sival_ptr = this;
@@ -696,8 +695,8 @@ class PosixCondition<Thread> : public PosixConditionBase {
 #endif
   }
 
-  void CallUserCallback() {
-    std::unique_lock<std::mutex> lock(callback_mutex_);
+  void CallUserCallback() const {
+    std::unique_lock lock(callback_mutex_);
     user_callback_();
   }
 
@@ -706,7 +705,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
       *out_previous_suspend_count = 0;
     }
     WaitStarted();
-    std::unique_lock<std::mutex> lock(state_mutex_);
+    std::unique_lock lock(state_mutex_);
     if (state_ != State::kSuspended) return false;
     if (out_previous_suspend_count) {
       *out_previous_suspend_count = suspend_count_;
@@ -736,7 +735,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
   void Terminate(int exit_code) {
     bool is_current_thread = pthread_self() == thread_;
     {
-      std::unique_lock<std::mutex> lock(state_mutex_);
+      std::unique_lock lock(state_mutex_);
       if (state_ == State::kFinished) {
         if (is_current_thread) {
           // This is really bad. Some thread must have called Terminate() on us
@@ -752,7 +751,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
     }
 
     {
-      std::lock_guard<std::mutex> lock(mutex_);
+      std::lock_guard lock(mutex_);
 
       exit_code_ = exit_code;
       signaled_ = true;
@@ -760,29 +759,28 @@ class PosixCondition<Thread> : public PosixConditionBase {
     }
     if (is_current_thread) {
       pthread_exit(reinterpret_cast<void*>(exit_code));
-    } else {
-#ifdef XE_PLATFORM_ANDROID
-      if (pthread_kill(thread_,
-                       GetSystemSignal(SignalType::kThreadTerminate)) != 0) {
-        assert_always();
-      }
-#else
-      if (pthread_cancel(thread_) != 0) {
-        assert_always();
-      }
-#endif
     }
+#ifdef XE_PLATFORM_ANDROID
+    if (pthread_kill(thread_, GetSystemSignal(SignalType::kThreadTerminate)) !=
+        0) {
+      assert_always();
+    }
+#else
+    if (pthread_cancel(thread_) != 0) {
+      assert_always();
+    }
+#endif
   }
 
   void WaitStarted() const {
-    std::unique_lock<std::mutex> lock(state_mutex_);
+    std::unique_lock lock(state_mutex_);
     state_signal_.wait(lock,
                        [this] { return state_ != State::kUninitialized; });
   }
 
   /// Set state to suspended and wait until it reset by another thread
   void WaitSuspended() {
-    std::unique_lock<std::mutex> lock(state_mutex_);
+    std::unique_lock lock(state_mutex_);
     state_signal_.wait(lock, [this] { return suspend_count_ == 0; });
     state_ = State::kRunning;
   }
@@ -793,8 +791,8 @@ class PosixCondition<Thread> : public PosixConditionBase {
 
  private:
   static void* ThreadStartRoutine(void* parameter);
-  inline bool signaled() const override { return signaled_; }
-  inline void post_execution() override {
+  bool signaled() const override { return signaled_; }
+  void post_execution() override {
     if (thread_) {
       pthread_join(thread_, nullptr);
     }
@@ -818,6 +816,7 @@ class PosixCondition<Thread> : public PosixConditionBase {
 
 class PosixWaitHandle {
  public:
+  virtual ~PosixWaitHandle() = default;
   virtual PosixConditionBase& condition() = 0;
 };
 
@@ -834,7 +833,9 @@ class PosixConditionHandle : public T, public PosixWaitHandle {
   ~PosixConditionHandle() override = default;
 
   PosixCondition<T>& condition() override { return handle_; }
-  void* native_handle() const override { return handle_.native_handle(); }
+  [[nodiscard]] void* native_handle() const override {
+    return handle_.native_handle();
+  }
 
  protected:
   PosixCondition<T> handle_;
@@ -915,7 +916,7 @@ std::pair<WaitResult, size_t> WaitMultiple(WaitHandle* wait_handles[],
   return result;
 }
 
-class PosixEvent : public PosixConditionHandle<Event> {
+class PosixEvent final : public PosixConditionHandle<Event> {
  public:
   PosixEvent(bool manual_reset, bool initial_state)
       : PosixConditionHandle(manual_reset, initial_state) {}
@@ -944,7 +945,7 @@ std::unique_ptr<Event> Event::CreateAutoResetEvent(bool initial_state) {
   return std::make_unique<PosixEvent>(false, initial_state);
 }
 
-class PosixSemaphore : public PosixConditionHandle<Semaphore> {
+class PosixSemaphore final : public PosixConditionHandle<Semaphore> {
  public:
   PosixSemaphore(int initial_count, int maximum_count)
       : PosixConditionHandle(static_cast<uint32_t>(initial_count),
@@ -968,7 +969,7 @@ std::unique_ptr<Semaphore> Semaphore::Create(int initial_count,
   return std::make_unique<PosixSemaphore>(initial_count, maximum_count);
 }
 
-class PosixMutant : public PosixConditionHandle<Mutant> {
+class PosixMutant final : public PosixConditionHandle<Mutant> {
  public:
   explicit PosixMutant(bool initial_owner)
       : PosixConditionHandle(initial_owner) {}
@@ -980,9 +981,9 @@ std::unique_ptr<Mutant> Mutant::Create(bool initial_owner) {
   return std::make_unique<PosixMutant>(initial_owner);
 }
 
-class PosixTimer : public PosixConditionHandle<Timer> {
-  using WClock_ = Timer::WClock_;
-  using GClock_ = Timer::GClock_;
+class PosixTimer final : public PosixConditionHandle<Timer> {
+  using WClock_ = WClock_;
+  using GClock_ = GClock_;
 
  public:
   explicit PosixTimer(bool manual_reset) : PosixConditionHandle(manual_reset) {}
@@ -1035,7 +1036,7 @@ std::unique_ptr<Timer> Timer::CreateSynchronizationTimer() {
   return std::make_unique<PosixTimer>(false);
 }
 
-class PosixThread : public PosixConditionHandle<Thread> {
+class PosixThread final : public PosixConditionHandle<Thread> {
  public:
   PosixThread() = default;
   explicit PosixThread(pthread_t thread) : PosixConditionHandle(thread) {}
@@ -1107,14 +1108,14 @@ void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
 
   current_thread_ = thread;
   {
-    std::unique_lock<std::mutex> lock(thread->handle_.state_mutex_);
+    std::unique_lock lock(thread->handle_.state_mutex_);
     thread->handle_.state_ =
         create_suspended ? State::kSuspended : State::kRunning;
     thread->handle_.state_signal_.notify_all();
   }
 
   if (create_suspended) {
-    std::unique_lock<std::mutex> lock(thread->handle_.state_mutex_);
+    std::unique_lock lock(thread->handle_.state_mutex_);
     thread->handle_.suspend_count_ = 1;
     thread->handle_.state_signal_.wait(
         lock, [thread] { return thread->handle_.suspend_count_ == 0; });
@@ -1123,11 +1124,11 @@ void* PosixCondition<Thread>::ThreadStartRoutine(void* parameter) {
   start_routine();
 
   {
-    std::unique_lock<std::mutex> lock(thread->handle_.state_mutex_);
+    std::unique_lock lock(thread->handle_.state_mutex_);
     thread->handle_.state_ = State::kFinished;
   }
 
-  std::unique_lock<std::mutex> lock(mutex_);
+  std::unique_lock lock(mutex_);
   thread->handle_.exit_code_ = 0;
   thread->handle_.signaled_ = true;
   cond_.notify_all();
