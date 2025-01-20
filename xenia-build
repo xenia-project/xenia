@@ -533,7 +533,7 @@ def run_platform_premake(target_os_override=None, cc='clang', devenv=None):
         elif target_os == 'android':
             devenv = 'androidndk'
         else:
-            devenv = 'gmake2'
+            devenv = 'cmake'
     if target_os != 'linux':
         cc = None
     return run_premake(target_os=target_os, action=devenv, cc=cc)
@@ -850,15 +850,26 @@ class BaseBuildCommand(Command):
             ] + scheme_args + pass_args, shell=False, env=dict(os.environ))
         else:
             result = subprocess.call([
-                'make',
-                '-j' if threads == 0 else '-j%d' % threads,
-                '-Cbuild/',
-                'config=%s_linux' % (args['config']),
-            ] + pass_args + args['target'], shell=False, env=dict(os.environ))
-        print('')
-        if result != 0:
-            print('ERROR: build failed with one or more errors.')
-            return result
+                'cmake',
+                '-S build/',
+                '-B build/build_%s' % (args['config']),
+                '-DCMAKE_BUILD_TYPE=%s' % (args['config'].title()),
+                '-DCMAKE_C_COMPILER=clang',
+                '-DCMAKE_CXX_COMPILER=clang++',
+                '-G Ninja'
+            ] + pass_args, shell=False, env=dict(os.environ))
+            print('')
+            if result != 0:
+                print('ERROR: cmake failed with one or more errors.')
+                return result
+            result = subprocess.call([
+                    'ninja',
+                    '-C./build/build_%s' % (args['config']),
+                    '-j' if threads == 0 else '-j%d' % threads,
+                ] + pass_args, shell=False, env=dict(os.environ))
+            if result != 0:
+                print('ERROR: ninja failed with one or more errors.')
+                return result
         return 0
 
 

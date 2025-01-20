@@ -71,7 +71,7 @@ jobs:
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
           sudo apt-add-repository "deb http://apt.llvm.org/${UBUNTU_BASE}/ llvm-toolchain-${UBUNTU_BASE}-$LLVM_VERSION main"
           sudo apt-get -y update
-          sudo apt-get -y install mesa-vulkan-drivers valgrind libc++-dev libc++abi-dev libgtk-3-dev libsdl2-dev libvulkan-dev libx11-dev libx11-xcb-dev clang-$LLVM_VERSION clang-format-$LLVM_VERSION llvm-$LLVM_VERSION
+          sudo apt-get -y install mesa-vulkan-drivers valgrind libc++-dev libc++abi-dev libgtk-3-dev libsdl2-dev libvulkan-dev libx11-dev libx11-xcb-dev clang-$LLVM_VERSION clang-format-$LLVM_VERSION llvm-$LLVM_VERSION ninja-build cmake
           ./xb setup
       - name: Build
         run: ./xb build --config=Release
