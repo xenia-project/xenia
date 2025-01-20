@@ -28,3 +28,10 @@ project("xenia-ui")
       "dxgi",
       "winmm",
     })
+
+  filter("platforms:Linux")
+    links({
+      "xcb",
+      "X11",
+      "X11-xcb"
+    })
