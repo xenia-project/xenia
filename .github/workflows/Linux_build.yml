@@ -75,3 +75,16 @@ jobs:
           ./xb setup
       - name: Build
         run: ./xb build --config=Release
+      - name: Prepare artifacts
+        id: prepare_artifacts
+        run: |
+          mkdir artifacts
+          cp build/bin/Linux/Release/xenia_canary artifacts/xenia_canary
+      - name: Upload xenia canary artifacts
+        if: steps.prepare_artifacts.outcome == 'success'
+        id: upload_artifacts
+        uses: actions/upload-artifact@main
+        with:
+          name: xenia_canary_linux
+          path: artifacts/
+          if-no-files-found: error
