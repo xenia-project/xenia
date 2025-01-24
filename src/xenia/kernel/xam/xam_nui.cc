@@ -41,10 +41,18 @@ void XamNuiGetDeviceStatus_entry(pointer_t<X_NUI_DEVICE_STATUS> status_ptr) {
 }
 DECLARE_XAM_EXPORT1(XamNuiGetDeviceStatus, kNone, kStub);
 
+// UI
 dword_result_t XamShowNuiTroubleshooterUI_entry(unknown_t unk1, unknown_t unk2,
-                                                unknown_t unk3) {
-  // unk1 is 0xFF - possibly user index?
-  // unk2, unk3 appear to always be zero.
+                                                dword_t flag) {
+  /* Notes:
+     - unk1 is 0xFF - possibly user index?
+     - unk2 appear to always be zero.
+     - First calls XamPackageManagerGetExperienceMode and checks if the return
+     is less than zero
+     - If less than zero then returns error message below
+     - else it checks if flag = 0x800000 if it does then call
+     XamNuiGetDeviceStatus. if not return error
+  */
 
   if (cvars::headless) {
     return 0;
@@ -70,6 +78,15 @@ dword_result_t XamShowNuiTroubleshooterUI_entry(unknown_t unk1, unknown_t unk2,
   return 0;
 }
 DECLARE_XAM_EXPORT1(XamShowNuiTroubleshooterUI, kNone, kStub);
+
+dword_result_t XamShowNuiHardwareRequiredUI_entry(unknown_t unk1) {
+  if (unk1 != 0) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  return XamShowNuiTroubleshooterUI_entry(0xff, 0, 0x400000);
+}
+DECLARE_XAM_EXPORT1(XamShowNuiHardwareRequiredUI, kNone, kImplemented);
 
 }  // namespace xam
 }  // namespace kernel
