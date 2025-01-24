@@ -435,14 +435,10 @@ def get_clang_format_binary():
     Returns:
       A path to the clang-format executable.
     """
+    clang_format_minimum_ver='18'
     attempts = [
         'clang-format-19',
-        'clang-format-18',
-        'clang-format-17',
-        'clang-format-16',
-        'clang-format-15',
-        'clang-format-14',
-        'clang-format-13',
+        'clang-format-' + clang_format_minimum_ver,
         'clang-format',
         ]
     if sys.platform == 'win32':
@@ -452,10 +448,14 @@ def get_clang_format_binary():
             attempts.append(os.path.join(os.environ['VCINSTALLDIR'], 'Tools', 'Llvm', 'bin', 'clang-format.exe'))
     for binary in attempts:
         if has_bin(binary):
+            shell_call([
+                binary,
+                '--version',
+                ])
             return binary
     print('ERROR: clang-format is not on PATH')
     print('LLVM is available from https://llvm.org/releases/download.html')
-    print('At least version 13 is required.')
+    print('At least version ' + clang_format_minimum_ver + ' is required.')
     print('See docs/style_guide.md for instructions on how to get it.')
     sys.exit(1)
 
@@ -851,12 +851,12 @@ class BaseBuildCommand(Command):
         else:
             result = subprocess.call([
                 'cmake',
-                '-S build/',
-                '-B build/build_%s' % (args['config']),
+                '-Sbuild',
+                '-Bbuild/build_%s' % (args['config']),
                 '-DCMAKE_BUILD_TYPE=%s' % (args['config'].title()),
                 '-DCMAKE_C_COMPILER=clang',
                 '-DCMAKE_CXX_COMPILER=clang++',
-                '-G Ninja'
+                '-GNinja'
             ] + pass_args, shell=False, env=dict(os.environ))
             print('')
             if result != 0:

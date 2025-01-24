@@ -45,8 +45,6 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@main
-      - name: Check Clang-Format Version
-        run: clang-format --version
       - name: Lint
         run: ./xb lint --all
 
