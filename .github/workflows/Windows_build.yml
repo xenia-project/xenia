@@ -51,19 +51,17 @@ jobs:
   lint:
     name: Lint
     runs-on: windows-latest
+    env:
+      POWERSHELL_TELEMETRY_OPTOUT: 1
     steps:
       - uses: actions/checkout@main
       - name: Lint
         run: .\xb lint --all
 
-  build-windows:
-    name: Build (Windows, VS${{ matrix.vsver }}) #  runner.os can't be used here
+  build:
+    name: Build
     needs: lint
-    strategy:
-      fail-fast: false
-      matrix:
-        vsver: [2022]
-    runs-on: windows-${{ matrix.vsver }}
+    runs-on: windows-2025
     env:
       POWERSHELL_TELEMETRY_OPTOUT: 1
     steps:
@@ -85,7 +83,7 @@ jobs:
         id: upload_artifacts
         uses: actions/upload-artifact@main
         with:
-          name: xenia_canary_vs${{ matrix.vsver }}
+          name: xenia_canary_windows
           path: artifacts\xenia_canary
           if-no-files-found: error
       - name: Create release

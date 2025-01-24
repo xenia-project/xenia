@@ -854,8 +854,8 @@ class BaseBuildCommand(Command):
                 '-Sbuild',
                 '-Bbuild/build_%s' % (args['config']),
                 '-DCMAKE_BUILD_TYPE=%s' % (args['config'].title()),
-                '-DCMAKE_C_COMPILER=clang',
-                '-DCMAKE_CXX_COMPILER=clang++',
+                '-DCMAKE_C_COMPILER=' + os.environ.get('CC', 'clang'),
+                '-DCMAKE_CXX_COMPILER=' + os.environ.get('CXX', 'clang++'),
                 '-GNinja'
             ] + pass_args, shell=False, env=dict(os.environ))
             print('')
