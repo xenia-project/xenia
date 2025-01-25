@@ -1794,7 +1794,7 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
   }
 
   if (!notificationTitle.empty()) {
-    app_context_.CallInUIThread([&]() {
+    app_context_.CallInUIThread([=]() {
       new xe::ui::HostNotificationWindow(imgui_drawer(), notificationTitle,
                                          notificationDesc, 0);
     });
