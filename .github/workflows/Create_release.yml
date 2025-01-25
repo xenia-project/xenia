@@ -1,0 +1,59 @@
+name: Create release
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+    secrets:
+      RELEASE_TOKEN:
+        required: true
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@main
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_REPO: ${{ github.repository_owner }}/xenia-canary-releases
+          notes: ${{ github.event.head_commit.message }}
+        run: |
+          rm -rf **/*.pdb
+          case ${{ inputs.os }} in
+            windows)
+              asset=xenia_canary_windows.zip
+              7z a $asset './xenia_canary_windows/*'
+              ;;
+            linux)
+              asset=xenia_canary_linux.tar.gz
+              cd xenia_canary_linux
+              chmod +x xenia_canary
+              tar -cvpf ../$asset *
+              cd -
+              ;;
+          esac
+          if [ ! -f $asset ]; then
+            echo "::error::$asset doesn't exist!"
+            exit 1
+          fi
+          if [ $(stat -c%s $asset) -lt 100000 ]; then
+            echo "::error::$asset is too small!"
+            exit 1
+          fi
+          create_or_edit_release() {
+            local tag=$1
+            local title=$2
+            if gh release view $tag; then
+              gh release edit $tag -n "$notes"
+              gh release upload $tag $asset --clobber
+            else
+              gh release create $tag $asset --target 925ed98d5dce604b651027c36fb522dc1ff0fa55 -t $title -n "$notes"
+            fi
+          }
+          tag=${GITHUB_SHA::7}
+          create_or_edit_release $tag ${tag}_$GITHUB_REF_NAME
+          create_or_edit_release $GITHUB_REF_NAME $tag

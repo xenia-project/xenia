@@ -89,9 +89,21 @@ jobs:
           cp -r build/bin/Linux/Release/xenia_canary LICENSE artifacts
       - name: Upload xenia canary artifacts
         if: steps.prepare_artifacts.outcome == 'success'
-        id: upload_artifacts
         uses: actions/upload-artifact@main
         with:
           name: xenia_canary_linux
           path: artifacts
           if-no-files-found: error
+
+  create-release:
+    name: Create release
+    needs: [lint, build]
+    if: |
+      github.repository == 'xenia-canary/xenia-canary' &&
+      github.event.action != 'pull_request' &&
+      github.ref == 'refs/heads/canary_experimental'
+    uses: ./.github/workflows/Create_release.yml
+    with:
+      os: linux
+    secrets:
+      RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
