@@ -7,6 +7,7 @@
  ******************************************************************************
  */
 
+#include "xenia/kernel/xboxkrnl/xboxkrnl_xconfig.h"
 #include "xenia/base/logging.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/kernel/kernel_state.h"
@@ -79,14 +80,15 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
           setting_size = 4;
           switch (cvars::video_standard) {
             case 1:  // NTSCM
-              xe::store_and_swap<uint32_t>(value, 0x00400100);
+              xe::store_and_swap<uint32_t>(value, X_AV_REGION::NTSCM);
               break;
             case 2:  // NTSCJ
-              xe::store_and_swap<uint32_t>(value, 0x00400200);
+              xe::store_and_swap<uint32_t>(value, X_AV_REGION::NTSCJ);
               break;
             case 3:  // PAL
-              xe::store_and_swap<uint32_t>(
-                  value, cvars::use_50Hz_mode ? 0x00800300 : 0x00400400);
+              xe::store_and_swap<uint32_t>(value, cvars::use_50Hz_mode
+                                                      ? X_AV_REGION::PAL_50
+                                                      : X_AV_REGION::PAL);
               break;
             default:
               xe::store_and_swap<uint32_t>(value, 0);
@@ -121,10 +123,9 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
           break;
         case 0x000A:  // XCONFIG_USER_VIDEO_FLAGS
           setting_size = 4;
-          // 0x00040000 normal
-          // 0x00050000 widescreen
           xe::store_and_swap<uint32_t>(
-              value, cvars::widescreen ? 0x00050000 : 0x00040000);
+              value, cvars::widescreen ? X_VIDEO_ASPECT_RATIO::Widescreen
+                                       : X_VIDEO_ASPECT_RATIO::RatioNormal);
           break;
         case 0x000B:  // XCONFIG_USER_AUDIO_FLAGS
           setting_size = 4;
@@ -139,9 +140,50 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
           setting_size = 1;
           value[0] = static_cast<uint8_t>(cvars::user_country);
           break;
+        case 0x000F:  // XCONFIG_USER_PC_FLAGS
+          setting_size = 1;
+          xe::store_and_swap<uint8_t>(value, 0);
+          break;
+        case 0x001B:  // XCONFIG_USER_PC_HINT
+          setting_size = 1;
+          xe::store_and_swap<uint8_t>(value, 0);
+          break;
+        case 0x0029:  // XCONFIG_USER_VIDEO_OUTPUT_BLACK_LEVELS
+          setting_size = 4;
+          xe::store_and_swap<uint32_t>(value, X_BLACK_LEVEL::LevelNormal);
+          break;
         default:
           XELOGW("An unimplemented setting 0x{:04X} in XCONFIG USER CATEGORY",
                  static_cast<uint16_t>(setting));
+          assert_unhandled_case(setting);
+          return X_STATUS_INVALID_PARAMETER_2;
+      }
+      break;
+    case 0x0007:
+      // XCONFIG_CONSOLE_SETTINGS
+      switch (setting) {
+        case 0x0001:  // XCONFIG_CONSOLE_SCREENSAVER
+          setting_size = 2;
+          xe::store_and_swap<int16_t>(value, X_SCREENSAVER::ScreensaverOff);
+          break;
+        case 0x0002:  // XCONFIG_CONSOLE_AUTO_SHUTDOWN
+          setting_size = 2;
+          xe::store_and_swap<int16_t>(value, X_AUTO_SHUTDOWN::AutoShutdownOff);
+          break;
+        case 0x0004:  // XCONFIG_CONSOLE_CAMERA_SETTINGS
+          // Camera Flags are added together and last byte is always 0x1
+          setting_size = 4;
+          xe::store_and_swap<uint32_t>(value, X_CAMERA_FLAGS::AutoAll);
+          break;
+        case 0x0007:  // XCONFIG_CONSOLE_KEYBOARD_LAYOUT
+          setting_size = 2;
+          xe::store_and_swap<int16_t>(value,
+                                      X_KEYBOARD_LAYOUT::KeyboardDefault);
+          break;
+        default:
+          XELOGW(
+              "An unimplemented setting 0x{:04X} in XCONFIG CONSOLE CATEGORY",
+              static_cast<uint16_t>(setting));
           assert_unhandled_case(setting);
           return X_STATUS_INVALID_PARAMETER_2;
       }
