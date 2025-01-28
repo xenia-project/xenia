@@ -424,8 +424,8 @@ def git_submodule_update():
         'submodule',
         'update',
         '--init',
-        '-j', str(os.cpu_count()),
-        #'--depth 1', # This doesn't work for some reason
+        #'-j', args['j'], # These would be faster if they worked
+        #'--depth 1',
         ])
 
 
