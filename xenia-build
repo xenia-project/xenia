@@ -417,16 +417,26 @@ def git_is_repository():
 def git_submodule_update():
     """Runs a git submodule init and update.
     """
-    shell_call([
+    ret = shell_call([
         'git',
         '-c',
         'fetch.recurseSubmodules=on-demand',
         'submodule',
         'update',
         '--init',
-        #'-j', args['j'], # These would be faster if they worked
-        #'--depth 1',
-        ])
+        '--depth=1',
+        '-j', str(os.cpu_count()),
+        ], throw_on_error=False)
+    if ret != 0:
+        print('Shallow submodule update failed, falling back to normal...')
+        shell_call([
+          'git',
+          '-c',
+          'fetch.recurseSubmodules=on-demand',
+          'submodule',
+          'update',
+          '--init',
+          ])
 
 
 def get_clang_format_binary():
