@@ -48,7 +48,7 @@ jobs:
             local tag=$1
             local title=$2
             if gh release view $tag; then
-              gh release edit $tag -n "$notes"
+              gh release edit $tag -t $title -n "$notes"
               gh release upload $tag $asset --clobber
             else
               gh release create $tag $asset --target 925ed98d5dce604b651027c36fb522dc1ff0fa55 -t $title -n "$notes"
