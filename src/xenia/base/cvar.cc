@@ -9,7 +9,7 @@
 
 #include "xenia/base/cvar.h"
 #include <iostream>
-#define UTF_CPP_CPLUSPLUS 201703L
+#define UTF_CPP_CPLUSPLUS 202002L
 #include "third_party/utfcpp/source/utf8.h"
 
 #include "xenia/base/console.h"
@@ -125,9 +125,9 @@ std::string EscapeBasicString(const std::string_view view) {
       result += "\\\\";
     } else if (c < 0x20 || c == 0x7F) {
       if (c <= 0xFFFF) {
-        result += fmt::format("\\u{:04X}", c);
+        result += fmt::format("\\u{:04X}", static_cast<uint32_t>(c));
       } else {
-        result += fmt::format("\\u{:08X}", c);
+        result += fmt::format("\\u{:08X}", static_cast<uint32_t>(c));
       }
     } else {
       utfcpp::append(static_cast<char32_t>(c), result);
@@ -159,7 +159,7 @@ std::string EscapeMultilineBasicString(const std::string_view view) {
     if (c == '\b') {
       result += "\\b";
     } else if (c == '\t' || c == '\n') {
-      result += c;
+      result += static_cast<uint32_t>(c);
     } else if (c == '\f') {
       result += "\\f";
     } else if (c == '\r') {
@@ -171,9 +171,9 @@ std::string EscapeMultilineBasicString(const std::string_view view) {
       result += "\\\\";
     } else if (c < 0x20 || c == 0x7F) {
       if (c <= 0xFFFF) {
-        result += fmt::format("\\u{:04X}", c);
+        result += fmt::format("\\u{:04X}", static_cast<uint32_t>(c));
       } else {
-        result += fmt::format("\\u{:08X}", c);
+        result += fmt::format("\\u{:08X}", static_cast<uint32_t>(c));
       }
     } else {
       utfcpp::append(static_cast<char32_t>(c), result);

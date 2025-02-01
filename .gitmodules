@@ -42,7 +42,7 @@
 	url = https://github.com/libsdl-org/SDL.git
 [submodule "third_party/utfcpp"]
 	path = third_party/utfcpp
-	url = https://github.com/xenia-project/utfcpp.git
+	url = https://github.com/nemtrif/utfcpp.git
 [submodule "third_party/fmt"]
 	path = third_party/fmt
 	url = https://github.com/fmtlib/fmt.git
