@@ -50,6 +50,10 @@ filter("kind:StaticLib")
 
 filter("configurations:Checked")
   runtime("Debug")
+  sanitize("Address")
+  flags("NoIncrementalLink")
+  editandcontinue("Off")
+  staticruntime("Off")
   optimize("Off")
   defines({
     "DEBUG",
