@@ -234,6 +234,17 @@ bool Memory::Initialize() {
   heaps_.vA0000000.Alloc(0x340000, 64 * 1024, kMemoryAllocationReserve,
                          kMemoryProtectNoAccess, true, &unk_phys_alloc);
 
+  uint32_t unknown_xex_range;  // Probably hypervisor?
+  heaps_.v80000000.Alloc(0x40000, 4 * 1024, kMemoryAllocationCommit,
+                         kMemoryProtectRead | kMemoryProtectWrite, false,
+                         &unknown_xex_range);
+
+  // Value taken from 544307D5. Title explicitly access this address and this is
+  // a value underneath it (It's constant between multiple runs)
+  uint32_t value_to_write = xe::byte_swap(0x2a6e3f38);
+  memcpy(TranslateVirtual(0x80000000 + 0x1C), &value_to_write,
+         sizeof(uint32_t));
+
   return true;
 }
 
