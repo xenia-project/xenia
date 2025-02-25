@@ -503,7 +503,7 @@ void ImGuiDrawer::Draw(UIDrawContext& ui_draw_context) {
   }
   dialog_loop_next_index_ = SIZE_MAX;
 
-  if (!notifications_.empty()) {
+  if (!notifications_.empty() && are_notifications_enabled_) {
     std::vector<ui::ImGuiNotification*> guest_notifications = {};
     std::vector<ui::ImGuiNotification*> host_notifications = {};
 

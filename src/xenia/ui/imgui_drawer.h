@@ -61,6 +61,7 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
   void Draw(UIDrawContext& ui_draw_context) override;
 
   void ClearDialogs();
+  void EnableNotifications(bool enable) { are_notifications_enabled_ = enable; }
 
   std::map<uint32_t, std::unique_ptr<ImmediateTexture>> LoadIcons(
       IconsData data);
@@ -155,6 +156,8 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
 
   double frame_time_tick_frequency_;
   uint64_t last_frame_time_ticks_;
+
+  bool are_notifications_enabled_ = true;
 };
 
 }  // namespace ui

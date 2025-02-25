@@ -935,11 +935,16 @@ void EmulatorWindow::OnMouseUp(const ui::MouseEvent& e) {
 
 void EmulatorWindow::TakeScreenshot() {
   xe::ui::RawImage image;
+
+  imgui_drawer_->EnableNotifications(false);
+
   if (!GetGraphicsSystemPresenter()->CaptureGuestOutput(image) ||
       GetGraphicsSystemPresenter() == nullptr) {
     XELOGE("Failed to capture guest output for screenshot");
     return;
   }
+
+  imgui_drawer_->EnableNotifications(true);
   ExportScreenshot(image);
 }
 
