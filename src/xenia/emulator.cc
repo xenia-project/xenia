@@ -1526,7 +1526,8 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
   if (cvars::allow_plugins) {
     if (plugin_loader_->IsAnyPluginForTitleAvailable(title_id_.value(),
                                                      module->hash().value())) {
-      plugin_loader_->LoadTitlePlugins(title_id_.value());
+      plugin_loader_->LoadTitlePlugins(title_id_.value(),
+                                       module->hash().value());
     }
   }
 

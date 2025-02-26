@@ -31,7 +31,7 @@ class PluginLoader {
   PluginLoader(kernel::KernelState* kernel_state,
                const std::filesystem::path plugins_root);
 
-  void LoadTitlePlugins(const uint32_t title_id);
+  void LoadTitlePlugins(const uint32_t title_id, const uint64_t module_hash);
   bool IsAnyPluginForTitleAvailable(const uint32_t title_id,
                                     const uint64_t module_hash) const;
   bool IsAnyPluginLoaded() { return is_any_plugin_loaded_; }
