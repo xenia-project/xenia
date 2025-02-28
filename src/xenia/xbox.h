@@ -108,6 +108,7 @@ typedef uint32_t X_RESULT;
 #define X_ERROR_DEVICE_NOT_CONNECTED            X_RESULT_FROM_WIN32(0x0000048FL)
 #define X_ERROR_NOT_FOUND                       X_RESULT_FROM_WIN32(0x00000490L)
 #define X_ERROR_CANCELLED                       X_RESULT_FROM_WIN32(0x000004C7L)
+#define X_ERROR_ABORTED                         X_RESULT_FROM_WIN32(0x000004D3L)
 #define X_ERROR_NOT_LOGGED_ON                   X_RESULT_FROM_WIN32(0x000004DDL)
 #define X_ERROR_NO_SUCH_USER                    X_RESULT_FROM_WIN32(0x00000525L)
 #define X_ERROR_FUNCTION_FAILED                 X_RESULT_FROM_WIN32(0x0000065BL)
@@ -273,7 +274,7 @@ constexpr uint8_t XUserIndexAny = 0xFF;
 // https://github.com/ThirteenAG/Ultimate-ASI-Loader/blob/master/source/xlive/xliveless.h
 typedef uint32_t XNotificationID;
 enum : XNotificationID {
-  /* Notes:
+  /* XNotification Notes:
      - Notification Ids are split into three Sections: Area, Version, and
      Message Id.
      - Each Area has the potential to hold 65535 unique notifications as it
@@ -292,6 +293,12 @@ enum : XNotificationID {
   kXNotifyAll = 0x000000EF,
 
   // XNotification System
+  /* System Notes:
+     - for some functions if XamIsNuiUIActive returns false then
+     XNotifyBroadcast(kXNotificationSystemNUIPause, unk data) is called
+     - XNotifyBroadcast(kXNotificationSystemNUIHardwareStatusChanged,
+     device_state)
+  */
   kXNotificationSystemUI = 0x00000009,
   kXNotificationSystemSignInChanged = 0x0000000A,
   kXNotificationSystemStorageDevicesChanged = 0x0000000B,
@@ -310,7 +317,7 @@ enum : XNotificationID {
   kXNotificationSystemNUIBindingChanged = 0x0006001D,
   kXNotificationSystemAudioLatencyChanged = 0x0008001E,
   kXNotificationSystemNUIChatBindingChanged = 0x0008001F,
-  kXNotificationSystemInputActivityChanged = 0x00009020,
+  kXNotificationSystemInputActivityChanged = 0x00090020,
 
   // XNotification Live
   kXNotificationLiveConnectionChanged = 0x02000001,
@@ -331,9 +338,18 @@ enum : XNotificationID {
   kXNotificationCustomGamercard = 0x06010004,
 
   // XNotification Dvd ?
-  kXNotificationDvdDriveUnknown = 0x80000003,
+  /* Dvd Drive? Notes:
+     - after XamLoaderGetMediaInfoEx(media_type?, title_id?, unk) is used for
+     some funcs the first param is used with
+     XNotifyBroadcast(kXNotificationDvdDriveTrayStateChanged, media_type?)
+     - after XamLoaderGetMediaInfoEx(media_type?, title_id?, unk) is used for
+     some funcs the third param is used with
+     XNotifyBroadcast(kXNotificationDvdDriveUnknown2, unk)
+  */
+  kXNotificationDvdDriveUnknown1 = 0x80000003,
   kXNotificationDvdDriveUnknownDashContext = 0x8000000C,
   kXNotificationDvdDriveTrayStateChanged = 0x8000000D,
+  kXNotificationDvdDriveUnknown2 = 0x80010014,
 
   // XNotification XMP
   kXNotificationXmpStateChanged = 0x0A000001,

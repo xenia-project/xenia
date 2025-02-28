@@ -20,6 +20,7 @@ namespace kernel {
 namespace xam {
 
 std::atomic<int> xam_dialogs_shown_ = {0};
+std::atomic<int> xam_nui_dialogs_shown_ = {0};
 
 // FixMe(RodoMa92): Same hack as main_init_posix.cc:40
 //  Force initialization before constructor calling, mimicking
@@ -33,6 +34,7 @@ static std::vector<xe::cpu::Export*>
     xam_exports(4096);
 
 bool xeXamIsUIActive() { return xam_dialogs_shown_ > 0; }
+bool xeXamIsNuiUIActive() { return xam_nui_dialogs_shown_ > 0; }
 
 XamModule::XamModule(Emulator* emulator, KernelState* kernel_state)
     : KernelModule(kernel_state, "xe:\\xam.xex"), loader_data_() {

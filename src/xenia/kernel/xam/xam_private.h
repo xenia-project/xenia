@@ -19,6 +19,7 @@ namespace kernel {
 namespace xam {
 
 bool xeXamIsUIActive();
+bool xeXamIsNuiUIActive();
 
 xe::cpu::Export* RegisterExport_xam(xe::cpu::Export* export_entry);
 

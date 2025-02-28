@@ -15,10 +15,14 @@
 #include "xenia/kernel/xam/xam_content_device.h"
 #include "xenia/kernel/xenumerator.h"
 
-// Notes:
-//  - Messages ids that start with 0x00021xxx are UI calls
-//  - Messages ids that start with 0x00023xxx are used for the user profile
-//  - Messages ids that start with 0x0002Bxxx are used for the Kinect
+/* Notes:
+   - Messages ids that start with 0x00021xxx are UI calls
+   - Messages ids that start with 0x00023xxx are used for the user profile
+   - Messages ids that start with 0x0002Bxxx are used by the Kinect device
+   usually for camera related functions
+   - Messages ids that start with 0x0002Cxxx are used by the XamNuiIdentity
+   functions
+*/
 
 namespace xe {
 namespace kernel {

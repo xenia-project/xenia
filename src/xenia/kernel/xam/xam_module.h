@@ -22,6 +22,7 @@ namespace kernel {
 namespace xam {
 
 bool xeXamIsUIActive();
+bool xeXamIsNuiUIActive();
 
 static constexpr std::string_view kXamModuleLoaderDataFileName =
     "launch_data.bin";
