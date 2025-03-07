@@ -61,6 +61,9 @@ bool XamState::IsUserSignedIn(uint64_t xuid) const {
 }
 
 void XamState::LoadSpaInfo(const SpaInfo* info) {
+  if (!info) {
+    return;
+  }
   // Check if we have loaded SpaInfo already. If yes then check currently loaded
   // version.
   if (spa_info_) {
