@@ -730,8 +730,9 @@ void SDLInputDriver::UpdateXCapabilities(ControllerState& state) {
   }
 
   auto& c = state.caps;
-  c.type = 0x01;      // XINPUT_DEVTYPE_GAMEPAD
-  c.sub_type = 0x01;  // XINPUT_DEVSUBTYPE_GAMEPAD
+  c.type = 0x01;  // XINPUT_DEVTYPE_GAMEPAD
+  c.sub_type = static_cast<uint8_t>(SDL_JoystickGetType(
+      SDL_GameControllerGetJoystick(state.sdl)));  // XINPUT_DEVSUBTYPE_GAMEPAD
   c.flags = cap_flags;
   c.gamepad.buttons =
       0xF3FF | (cvars::guide_button ? X_INPUT_GAMEPAD_GUIDE : 0x0);
