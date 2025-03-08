@@ -215,12 +215,15 @@ X_STATUS Emulator::Setup(
   // logical processors.
   xe::threading::EnableAffinityConfiguration();
 
+  XELOGI("{}: Initializing Memory...", __func__);
   // Create memory system first, as it is required for other systems.
   memory_ = std::make_unique<Memory>();
   if (!memory_->Initialize()) {
-    return false;
+    XELOGE("{}: Cannot initalize memory!", __func__);
+    return result;
   }
 
+  XELOGI("{}: Initializing Exports...", __func__);
   // Shared export resolver used to attach and query for HLE exports.
   export_resolver_ = std::make_unique<xe::cpu::ExportResolver>();
 
@@ -241,30 +244,38 @@ X_STATUS Emulator::Setup(
     backend.reset(new xe::cpu::backend::NullBackend());
   }
 
+  XELOGI("{}: Initializing Processor...", __func__);
   // Initialize the CPU.
   processor_ = std::make_unique<xe::cpu::Processor>(memory_.get(),
                                                     export_resolver_.get());
   if (!processor_->Setup(std::move(backend))) {
+    XELOGE("{}: Cannot initalize processor!", __func__);
     return X_STATUS_UNSUCCESSFUL;
   }
 
+  XELOGI("{}: Initializing Audio...", __func__);
   // Initialize the APU.
   if (audio_system_factory) {
     audio_system_ = audio_system_factory(processor_.get());
     if (!audio_system_) {
+      XELOGE("{}: Cannot initalize audio_system!", __func__);
       return X_STATUS_NOT_IMPLEMENTED;
     }
   }
 
+  XELOGI("{}: Initializing Graphics...", __func__);
   // Initialize the GPU.
   graphics_system_ = graphics_system_factory();
   if (!graphics_system_) {
+    XELOGE("{}: Cannot initalize graphics_system!", __func__);
     return X_STATUS_NOT_IMPLEMENTED;
   }
 
+  XELOGI("{}: Initializing HID...", __func__);
   // Initialize the HID.
   input_system_ = std::make_unique<xe::hid::InputSystem>(display_window_);
   if (!input_system_) {
+    XELOGE("{}: Cannot initalize input_system!", __func__);
     return X_STATUS_NOT_IMPLEMENTED;
   }
   if (input_driver_factory) {
@@ -282,11 +293,13 @@ X_STATUS Emulator::Setup(
     return result;
   }
 
+  XELOGI("{}: Initializing VFS...", __func__);
   // Bring up the virtual filesystem used by the kernel.
   file_system_ = std::make_unique<xe::vfs::VirtualFileSystem>();
 
   patcher_ = std::make_unique<xe::patcher::Patcher>(storage_root_);
 
+  XELOGI("{}: Initializing Kernel...", __func__);
   // Shared kernel state.
   kernel_state_ = std::make_unique<xe::kernel::KernelState>(this);
 #define LOAD_KERNEL_MODULE(t) \
@@ -299,18 +312,22 @@ X_STATUS Emulator::Setup(
   plugin_loader_ = std::make_unique<xe::patcher::PluginLoader>(
       kernel_state_.get(), storage_root() / "plugins");
 
+  XELOGI("{}: Starting graphics_system...", __func__);
   // Setup the core components.
   result = graphics_system_->Setup(
       processor_.get(), kernel_state_.get(),
       display_window_ ? &display_window_->app_context() : nullptr,
       display_window_ != nullptr);
   if (result) {
+    XELOGE("{}: Failed to setup graphics_system!", __func__);
     return result;
   }
 
   if (audio_system_) {
+    XELOGI("{}: Starting audio_system...", __func__);
     result = audio_system_->Setup(kernel_state_.get());
     if (result) {
+      XELOGE("{}: Failed to setup audio_system!", __func__);
       return result;
     }
     audio_media_player_ = std::make_unique<apu::AudioMediaPlayer>(
