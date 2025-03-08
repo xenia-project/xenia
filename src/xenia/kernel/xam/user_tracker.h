@@ -62,12 +62,14 @@ class UserTracker {
   // Context
   void UpdateContext(uint64_t xuid, uint32_t id, uint32_t value);
   std::optional<uint32_t> GetUserContext(uint64_t xuid, uint32_t id) const;
+  std::vector<AttributeKey> GetUserContextIds(uint64_t xuid) const;
 
   // Property
   void AddProperty(const uint64_t xuid, const Property* property);
   X_STATUS GetProperty(const uint64_t xuid, uint32_t* property_size,
                        XUSER_PROPERTY* property);
   const Property* GetProperty(const uint64_t xuid, const uint32_t id) const;
+  std::vector<AttributeKey> GetUserPropertyIds(uint64_t xuid) const;
 
   // Settings
   void UpsertSetting(uint64_t xuid, uint32_t title_id,

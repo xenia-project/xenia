@@ -641,6 +641,50 @@ std::optional<uint32_t> UserTracker::GetUserContext(uint64_t xuid,
   return entry->get_data()->data.u32;
 }
 
+std::vector<AttributeKey> UserTracker::GetUserContextIds(uint64_t xuid) const {
+  if (!IsUserTracked(xuid)) {
+    return {};
+  }
+
+  auto user = kernel_state()->xam_state()->GetUserProfile(xuid);
+  if (!user) {
+    return {};
+  }
+
+  std::vector<AttributeKey> entries;
+
+  for (const auto& property : user->properties_) {
+    if (!property.IsContext()) {
+      continue;
+    }
+
+    entries.push_back(property.GetPropertyId());
+  }
+  return entries;
+}
+
+std::vector<AttributeKey> UserTracker::GetUserPropertyIds(uint64_t xuid) const {
+  if (!IsUserTracked(xuid)) {
+    return {};
+  }
+
+  auto user = kernel_state()->xam_state()->GetUserProfile(xuid);
+  if (!user) {
+    return {};
+  }
+
+  std::vector<AttributeKey> entries;
+
+  for (const auto& property : user->properties_) {
+    if (property.IsContext()) {
+      continue;
+    }
+
+    entries.push_back(property.GetPropertyId());
+  }
+  return entries;
+}
+
 void UserTracker::UpdateSettingValue(uint64_t xuid, uint32_t title_id,
                                      UserSettingId setting_id,
                                      int32_t difference) {
