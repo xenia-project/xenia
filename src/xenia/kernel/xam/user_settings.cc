@@ -91,6 +91,10 @@ void UserSetting::WriteToGuest(X_USER_PROFILE_SETTING* setting_ptr,
   if (requires_additional_data()) {
     const auto extended_data = get_extended_data();
 
+    if (extended_data.empty()) {
+      return;
+    }
+
     setting_ptr->data.data.binary.size =
         static_cast<uint32_t>(extended_data_.size());
     setting_ptr->data.data.binary.ptr = extended_data_address;
