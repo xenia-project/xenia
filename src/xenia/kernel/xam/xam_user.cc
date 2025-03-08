@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2022 Ben Vanik. All rights reserved.                             *
+ * Copyright 2025 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -600,17 +600,43 @@ dword_result_t XamUserCreateTitlesPlayedEnumerator_entry(
       !handle_ptr) {
     return X_ERROR_INVALID_PARAMETER;
   }
-  if (!kernel_state()->xam_state()->IsUserSignedIn(user_index)) {
+
+  const uint32_t kEntrySize = sizeof(XTitleEnumerator::XTITLE_PLAYED);
+  if (buffer_size_ptr) {
+    *buffer_size_ptr = kEntrySize * game_count;
+  }
+
+  const auto user = kernel_state()->xam_state()->GetUserProfile(user_index);
+  if (!user) {
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  // auto e = new XStaticEnumerator<X_XDBF_GPD_TITLEPLAYED>(kernel_state(),
-  // game_count); auto result = e->Initialize(user_index, 0xFB, 0xB0050,
-  // 0xB000B, 0x20, game_count, 0);
+  auto e = object_ref<XTitleEnumerator>(
+      new XTitleEnumerator(kernel_state(), game_count));
+  auto result =
+      e->Initialize(user_index, 0xFB, 0xB0050, 0xB000B, 0x20, game_count, 0);
+  if (XFAILED(result)) {
+    return result;
+  }
 
-  XELOGD("XamUserCreateTitlesPlayedEnumerator: Stubbed");
+  const auto user_titles =
+      kernel_state()->xam_state()->user_tracker()->GetPlayedTitles(
+          user->xuid());
 
-  return X_ERROR_FUNCTION_FAILED;
+  if (!user_titles.empty()) {
+    for (const auto& title : user_titles) {
+      if (title.id == kDashboardID) {
+        continue;
+      }
+      if (!title.achievements_count || !title.gamerscore_amount) {
+        continue;
+      }
+      e->AppendItem(title);
+    }
+  }
+
+  *handle_ptr = e->handle();
+  return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamUserCreateTitlesPlayedEnumerator, kUserProfiles, kStub);
 

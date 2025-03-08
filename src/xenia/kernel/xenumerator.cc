@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2025 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -109,6 +109,50 @@ uint32_t XAchievementEnumerator::WriteItems(uint32_t buffer_ptr,
     details[i].unlock_time.high_part = item.unlock_time.high_part;
     details[i].unlock_time.low_part = item.unlock_time.low_part;
     details[i].flags = item.flags;
+  }
+
+  if (written_count) {
+    *written_count = static_cast<uint32_t>(count);
+  }
+
+  return X_ERROR_SUCCESS;
+}
+
+uint32_t XTitleEnumerator::WriteItems(uint32_t buffer_ptr, uint8_t* buffer_data,
+                                      uint32_t* written_count) {
+  size_t count = std::min(items_.size() - current_item_, items_per_enumerate());
+  if (!count) {
+    return X_ERROR_NO_MORE_FILES;
+  }
+
+  size_t size = count * item_size();
+  auto details = reinterpret_cast<XTITLE_PLAYED*>(buffer_data);
+
+  for (size_t i = 0, o = current_item_; i < count; ++i, ++current_item_) {
+    const auto& item = items_[current_item_];
+    details[i].base.title_id = item.id;
+    details[i].base.achievements_count = item.achievements_count;
+    details[i].base.achievements_unlocked = item.unlocked_achievements_count;
+    details[i].base.gamerscore_total = item.gamerscore_amount;
+    details[i].base.gamerscore_earned = item.title_earned_gamerscore;
+    details[i].base.online_achievement_count =
+        item.online_unlocked_achievements;
+    details[i].base.all_avatar_awards.earned = item.all_avatar_awards.earned;
+    details[i].base.all_avatar_awards.possible =
+        item.all_avatar_awards.possible;
+    details[i].base.male_avatar_awards.earned = item.male_avatar_awards.earned;
+    details[i].base.male_avatar_awards.possible =
+        item.male_avatar_awards.possible;
+    details[i].base.female_avatar_awards.earned =
+        item.female_avatar_awards.earned;
+    details[i].base.female_avatar_awards.possible =
+        item.female_avatar_awards.possible;
+    details[i].base.flags = item.flags;
+
+    // On console if title is played offline this field is set to 0.
+    details[i].base.last_played = X_FILETIME((uint64_t)0);
+    string_util::copy_and_swap_truncating((char16_t*)&details[i].title_name,
+                                          item.title_name, 128);
   }
 
   if (written_count) {

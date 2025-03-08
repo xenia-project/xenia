@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2021 Ben Vanik. All rights reserved.                             *
+ * Copyright 2025 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "xenia/kernel/xam/achievement_manager.h"
+#include "xenia/kernel/xam/user_tracker.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
 
@@ -158,6 +159,26 @@ class XAchievementEnumerator : public XEnumerator {
  private:
   uint32_t flags_;
   std::vector<xam::AchievementDetails> items_;
+  size_t current_item_ = 0;
+};
+
+class XTitleEnumerator : public XEnumerator {
+ public:
+  struct XTITLE_PLAYED {
+    xam::X_XDBF_GPD_TITLE_PLAYED base;
+    xe::be<char16_t> title_name[64];
+  };
+
+  XTitleEnumerator(KernelState* kernel_state, size_t items_per_enumerate)
+      : XEnumerator(kernel_state, items_per_enumerate, sizeof(XTITLE_PLAYED)) {}
+
+  void AppendItem(const xam::TitleInfo& item) { items_.push_back(item); }
+
+  uint32_t WriteItems(uint32_t buffer_ptr, uint8_t* buffer_data,
+                      uint32_t* written_count) override;
+
+ private:
+  std::vector<xam::TitleInfo> items_;
   size_t current_item_ = 0;
 };
 
