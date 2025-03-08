@@ -109,6 +109,9 @@ X_RESULT InputSystem::GetState(uint32_t user_index, uint32_t flags,
   SCOPE_profile_cpu_f("hid");
 
   std::vector<InputDriver*> filtered_drivers = FilterDrivers(flags);
+  if (filtered_drivers.empty()) {
+    return X_ERROR_DEVICE_NOT_CONNECTED;
+  }
 
   for (auto& driver : filtered_drivers) {
     X_RESULT result = driver->GetState(user_index, out_state);
