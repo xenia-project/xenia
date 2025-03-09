@@ -256,95 +256,81 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
     return X_ERROR_INSUFFICIENT_BUFFER;
   }
 
-  auto run = [=](uint32_t& extended_error, uint32_t& length) {
-    auto user_profile = kernel_state()->xam_state()->GetUserProfile(user_index);
+  auto user_profile = kernel_state()->xam_state()->GetUserProfile(user_index);
 
-    if (!user_profile && !xuids) {
-      return X_ERROR_NO_SUCH_USER;
-    }
-
-    if (xuids) {
-      uint64_t user_xuid = static_cast<uint64_t>(xuids[0]);
-      if (!kernel_state()->xam_state()->IsUserSignedIn(user_xuid)) {
-        extended_error = X_HRESULT_FROM_WIN32(X_ERROR_NO_SUCH_USER);
-        length = 0;
-        return X_ERROR_NO_SUCH_USER;
-      }
-      user_profile = kernel_state()->xam_state()->GetUserProfile(user_xuid);
-    }
-
-    if (!user_profile) {
-      extended_error = X_HRESULT_FROM_WIN32(X_ERROR_NO_SUCH_USER);
-      length = 0;
-      return X_ERROR_NO_SUCH_USER;
-    }
-
-    // First call asks for size (fill buffer_size_ptr).
-    // Second call asks for buffer contents with that size.
-
-    bool any_missing = false;
-    for (uint32_t i = 0; i < setting_count; ++i) {
-      auto setting_id = static_cast<uint32_t>(setting_ids[i]);
-      if (!UserSetting::is_setting_valid(setting_id)) {
-        XELOGE(
-            "xeXamUserReadProfileSettingsEx requested unimplemented "
-            "setting "
-            "{:08X}",
-            setting_id);
-        any_missing = true;
-      }
-    }
-    if (any_missing) {
-      extended_error = X_HRESULT_FROM_WIN32(X_ERROR_INVALID_PARAMETER);
-      length = 0;
-      return X_ERROR_INVALID_PARAMETER;
-      // TODO(benvanik): don't fail? most games don't even check!
-    }
-
-    auto out_header = reinterpret_cast<X_USER_READ_PROFILE_SETTINGS*>(buffer);
-    auto out_setting =
-        reinterpret_cast<X_USER_PROFILE_SETTING*>(&out_header[1]);
-    out_header->setting_count = static_cast<uint32_t>(setting_count);
-    out_header->settings_ptr =
-        kernel_state()->memory()->HostToGuestVirtual(out_setting);
-
-    uint32_t additional_data_buffer_ptr =
-        out_header->settings_ptr +
-        (setting_count * sizeof(X_USER_PROFILE_SETTING));
-
-    std::fill_n(out_setting, setting_count, X_USER_PROFILE_SETTING{});
-
-    for (uint32_t n = 0; n < setting_count; ++n) {
-      uint32_t setting_id = setting_ids[n];
-
-      const bool is_valid =
-          kernel_state()->xam_state()->user_tracker()->GetUserSetting(
-              user_profile->xuid(),
-              title_id ? title_id : kernel_state()->title_id(), setting_id,
-              out_setting, additional_data_buffer_ptr);
-
-      if (is_valid) {
-        if (xuids) {
-          out_setting->xuid = user_profile->xuid();
-        } else {
-          out_setting->user_index = user_index;
-        }
-      }
-      ++out_setting;
-    }
-
-    extended_error = X_HRESULT_FROM_WIN32(X_STATUS_SUCCESS);
-    length = 0;
-    return X_STATUS_SUCCESS;
-  };
-
-  if (!overlapped_ptr) {
-    uint32_t extended_error, length;
-    return run(extended_error, length);
+  if (!user_profile && !xuids) {
+    return X_ERROR_NO_SUCH_USER;
   }
 
-  kernel_state()->CompleteOverlappedDeferredEx(run, overlapped_ptr);
-  return X_ERROR_IO_PENDING;
+  if (xuids) {
+    uint64_t user_xuid = static_cast<uint64_t>(xuids[0]);
+    if (!kernel_state()->xam_state()->IsUserSignedIn(user_xuid)) {
+      return X_ERROR_NO_SUCH_USER;
+    }
+    user_profile = kernel_state()->xam_state()->GetUserProfile(user_xuid);
+  }
+
+  if (!user_profile) {
+    return X_ERROR_NO_SUCH_USER;
+  }
+
+  // First call asks for size (fill buffer_size_ptr).
+  // Second call asks for buffer contents with that size.
+
+  bool any_missing = false;
+  for (uint32_t i = 0; i < setting_count; ++i) {
+    auto setting_id = static_cast<uint32_t>(setting_ids[i]);
+    if (!UserSetting::is_setting_valid(setting_id)) {
+      XELOGE(
+          "xeXamUserReadProfileSettingsEx requested unimplemented "
+          "setting "
+          "{:08X}",
+          setting_id);
+      any_missing = true;
+    }
+  }
+  if (any_missing) {
+    return X_ERROR_INVALID_PARAMETER;
+    // TODO(benvanik): don't fail? most games don't even check!
+  }
+
+  auto out_header = reinterpret_cast<X_USER_READ_PROFILE_SETTINGS*>(buffer);
+  auto out_setting = reinterpret_cast<X_USER_PROFILE_SETTING*>(&out_header[1]);
+  out_header->setting_count = static_cast<uint32_t>(setting_count);
+  out_header->settings_ptr =
+      kernel_state()->memory()->HostToGuestVirtual(out_setting);
+
+  uint32_t additional_data_buffer_ptr =
+      out_header->settings_ptr +
+      (setting_count * sizeof(X_USER_PROFILE_SETTING));
+
+  std::fill_n(out_setting, setting_count, X_USER_PROFILE_SETTING{});
+
+  for (uint32_t n = 0; n < setting_count; ++n) {
+    uint32_t setting_id = setting_ids[n];
+
+    const bool is_valid =
+        kernel_state()->xam_state()->user_tracker()->GetUserSetting(
+            user_profile->xuid(),
+            title_id ? title_id : kernel_state()->title_id(), setting_id,
+            out_setting, additional_data_buffer_ptr);
+
+    if (is_valid) {
+      if (xuids) {
+        out_setting->xuid = user_profile->xuid();
+      } else {
+        out_setting->user_index = user_index;
+      }
+    }
+    ++out_setting;
+  }
+
+  if (overlapped_ptr) {
+    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr.value(),
+                                                X_STATUS_SUCCESS);
+    return X_ERROR_IO_PENDING;
+  }
+  return X_STATUS_SUCCESS;
 }
 
 dword_result_t XamUserReadProfileSettings_entry(
@@ -640,11 +626,14 @@ dword_result_t XamUserCreateTitlesPlayedEnumerator_entry(
 }
 DECLARE_XAM_EXPORT1(XamUserCreateTitlesPlayedEnumerator, kUserProfiles, kStub);
 
-dword_result_t XamParseGamerTileKey_entry(lpdword_t key_ptr, lpdword_t out1_ptr,
-                                          lpdword_t out2_ptr,
+dword_result_t XamParseGamerTileKey_entry(lpdword_t key_ptr,
+                                          lpdword_t title_id_ptr,
+                                          lpdword_t tile_id_ptr,
                                           lpdword_t out3_ptr) {
-  *out1_ptr = 0xC0DE0001;
-  *out2_ptr = 0xC0DE0002;
+  if (title_id_ptr) {
+    *title_id_ptr = kernel_state()->title_id();
+  }
+  *tile_id_ptr = 0xC0DE0002;
   *out3_ptr = 0xC0DE0003;
   return X_ERROR_SUCCESS;
 }
@@ -711,8 +700,9 @@ dword_result_t XamReadTileToTexture_entry(dword_t tile_type, dword_t title_id,
 }
 DECLARE_XAM_EXPORT1(XamReadTileToTexture, kUserProfiles, kStub);
 
-dword_result_t XamWriteGamerTile_entry(dword_t arg1, dword_t arg2, dword_t arg3,
-                                       dword_t arg4, dword_t arg5,
+dword_result_t XamWriteGamerTile_entry(dword_t arg1, dword_t arg2,
+                                       dword_t small_tile_id,
+                                       dword_t big_tile_id, dword_t arg5,
                                        dword_t overlapped_ptr) {
   if (overlapped_ptr) {
     kernel_state()->CompleteOverlappedImmediate(overlapped_ptr,
