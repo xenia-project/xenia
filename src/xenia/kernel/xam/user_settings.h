@@ -397,6 +397,7 @@ enum PREFERRED_COLOR_OPTIONS : uint32_t {
 class UserSetting : public UserData {
  public:
   UserSetting(UserSetting& setting);
+  UserSetting(const UserSetting& setting);
   // Ctor for writing from host
   UserSetting(UserSettingId setting_id, UserDataTypes setting_data);
   // Ctor for writing to GPD

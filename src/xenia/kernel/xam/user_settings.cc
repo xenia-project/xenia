@@ -18,7 +18,20 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
+const static std::array<UserSetting, 2> default_setting_values = {
+    UserSetting(
+        UserSettingId::XPROFILE_GAMER_TIER,
+        X_XAMACCOUNTINFO::AccountSubscriptionTier::kSubscriptionTierGold),
+    UserSetting(
+        UserSettingId::XPROFILE_GAMERCARD_PICTURE_KEY,
+        xe::string_util::read_u16string_and_swap(u"gamercard_picture_key"))};
+
 UserSetting::UserSetting(UserSetting& setting) : UserData(setting) {
+  setting_id_ = setting.setting_id_;
+  setting_source_ = setting.setting_source_;
+}
+
+UserSetting::UserSetting(const UserSetting& setting) : UserData(setting) {
   setting_id_ = setting.setting_id_;
   setting_source_ = setting.setting_source_;
 }
@@ -46,6 +59,12 @@ UserSetting::UserSetting(const X_XDBF_GPD_SETTING_HEADER* profile_setting,
 
 std::optional<UserSetting> UserSetting::GetDefaultSetting(
     const UserProfile* user, uint32_t setting_id) {
+  for (const auto& setting : default_setting_values) {
+    if (setting.get_setting_id() == setting_id) {
+      return std::make_optional<UserSetting>(setting);
+    }
+  }
+
   const auto type = UserData::get_type(setting_id);
 
   switch (type) {
