@@ -626,18 +626,64 @@ dword_result_t XamUserCreateTitlesPlayedEnumerator_entry(
 }
 DECLARE_XAM_EXPORT1(XamUserCreateTitlesPlayedEnumerator, kUserProfiles, kStub);
 
-dword_result_t XamParseGamerTileKey_entry(lpdword_t key_ptr,
+dword_result_t XamParseGamerTileKey_entry(pointer_t<X_USER_DATA> key_ptr,
                                           lpdword_t title_id_ptr,
-                                          lpdword_t tile_id_ptr,
-                                          lpdword_t out3_ptr) {
-  if (title_id_ptr) {
-    *title_id_ptr = kernel_state()->title_id();
+                                          lpdword_t big_tile_id_ptr,
+                                          lpdword_t small_tile_id_ptr) {
+  if (!key_ptr) {
+    return X_ERROR_INVALID_PARAMETER;
   }
-  *tile_id_ptr = 0xC0DE0002;
-  *out3_ptr = 0xC0DE0003;
+
+  if (key_ptr->type != X_USER_DATA_TYPE::WSTRING) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  if (key_ptr->data.unicode.size > 0x64) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  if (!key_ptr->data.unicode.ptr) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  std::string tile_key = xe::to_utf8(string_util::read_u16string_and_swap(
+      kernel_memory()->TranslateVirtual<const char16_t*>(
+          key_ptr->data.unicode.ptr)));
+
+  // Default key size is 24 bytes, but we need to include null terminator
+  if (tile_key.empty() || tile_key.size() != 25) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  const bool is_valid_hex_string =
+      std::all_of(tile_key.begin(), --tile_key.end(),
+                  [](unsigned char c) { return std::isxdigit(c); });
+
+  if (!is_valid_hex_string) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+  // Simple parser for key. Key (lower case) contains: title_id (8 chars),
+  // big_tile_id (8 chars), small_tile_id (8 chars)
+  std::string title_id = tile_key.substr(0, 8);
+  std::string big_tile_id = tile_key.substr(8, 8);
+  std::string small_tile_id = tile_key.substr(16, 8);
+
+  if (title_id_ptr) {
+    *title_id_ptr = string_util::from_string<uint32_t>(title_id, true);
+  }
+
+  if (big_tile_id_ptr) {
+    *big_tile_id_ptr = string_util::from_string<uint32_t>(big_tile_id, true);
+  }
+
+  if (small_tile_id_ptr) {
+    *small_tile_id_ptr =
+        string_util::from_string<uint32_t>(small_tile_id, true);
+  }
+
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamParseGamerTileKey, kUserProfiles, kStub);
+DECLARE_XAM_EXPORT1(XamParseGamerTileKey, kUserProfiles, kImplemented);
 
 dword_result_t XamReadTileToTexture_entry(dword_t tile_type, dword_t title_id,
                                           qword_t tile_id, dword_t user_index,
