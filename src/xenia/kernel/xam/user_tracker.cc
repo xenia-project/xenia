@@ -520,30 +520,22 @@ const Property* UserTracker::GetProperty(const uint64_t xuid,
 
 std::optional<UserSetting> UserTracker::GetGpdSetting(
     UserProfile* user, uint32_t title_id, uint32_t setting_id) const {
-  if (!spa_data_) {
-    // There is no data about current title. Use dashboard info.
-    auto setting = user->dashboard_gpd_.GetSetting(setting_id);
-    if (!setting) {
-      return std::nullopt;
+  auto game_gpd = user->games_gpd_.find(title_id);
+  if (game_gpd != user->games_gpd_.cend()) {
+    auto setting = game_gpd->second.GetSetting(setting_id);
+    if (setting) {
+      return std::make_optional<UserSetting>(
+          setting, game_gpd->second.GetSettingData(setting_id));
     }
+  }
 
+  auto setting = user->dashboard_gpd_.GetSetting(setting_id);
+  if (setting) {
     return std::make_optional<UserSetting>(
         setting, user->dashboard_gpd_.GetSettingData(setting_id));
   }
 
-  auto game_gpd = user->games_gpd_.find(title_id);
-  if (game_gpd == user->games_gpd_.cend()) {
-    return std::nullopt;
-  }
-
-  auto setting = game_gpd->second.GetSetting(setting_id);
-  if (!setting) {
-    // Refer to default values
-    return std::nullopt;
-  }
-
-  return std::make_optional<UserSetting>(
-      setting, game_gpd->second.GetSettingData(setting_id));
+  return std::nullopt;
 }
 
 std::optional<UserSetting> UserTracker::GetSetting(UserProfile* user,
