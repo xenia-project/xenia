@@ -77,6 +77,11 @@ UserData::UserData(const X_USER_DATA_TYPE data_type,
     }
 
     extended_data_.resize(data_.data.binary.size);
+
+    if (!user_data->data.binary.ptr) {
+      return;
+    }
+
     memcpy(
         extended_data_.data(),
         kernel_memory()->TranslateVirtual<uint8_t*>(user_data->data.binary.ptr),
