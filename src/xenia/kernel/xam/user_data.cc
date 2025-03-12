@@ -73,7 +73,7 @@ UserData::UserData(const X_USER_DATA_TYPE data_type,
         static_cast<uint32_t>(data_.data.binary.size), kMaxUserDataSize);
 
     if (!data_.data.binary.size) {
-      data_.data.binary.size = data_max_size;
+      return;
     }
 
     extended_data_.resize(data_.data.binary.size);

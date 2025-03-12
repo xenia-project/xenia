@@ -47,7 +47,7 @@ UserSetting::UserSetting(const X_USER_PROFILE_SETTING* profile_setting)
                &profile_setting->data),
       setting_id_(
           static_cast<UserSettingId>(profile_setting->setting_id.get())),
-      setting_source_(X_USER_PROFILE_SETTING_SOURCE::DEFAULT) {}
+      setting_source_(profile_setting->source) {}
 
 UserSetting::UserSetting(const X_XDBF_GPD_SETTING_HEADER* profile_setting,
                          std::span<const uint8_t> extended_data)
@@ -121,7 +121,8 @@ void UserSetting::WriteToGuest(X_USER_PROFILE_SETTING* setting_ptr,
     memcpy(kernel_memory()->TranslateVirtual(extended_data_address),
            extended_data_.data(), extended_data_.size());
 
-    extended_data_address += static_cast<uint32_t>(extended_data_.size());
+    extended_data_address +=
+        static_cast<uint32_t>(get_max_size(get_setting_id()));
   }
 }
 
