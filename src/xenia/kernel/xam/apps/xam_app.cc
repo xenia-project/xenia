@@ -93,6 +93,11 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
              (uint32_t)data->unk_48);
       return X_E_SUCCESS;
     }
+    case 0x00021012: {
+      uint32_t enabled = xe::load_and_swap<uint32_t>(buffer);
+      XELOGD("XEnableGuestSignin: {}", enabled ? "true" : "false");
+      return X_E_SUCCESS;
+    }
     case 0x00022005: {
       struct message_data {
         xe::be<uint32_t> deployment_type_ptr;
