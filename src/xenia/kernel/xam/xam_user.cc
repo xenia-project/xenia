@@ -319,6 +319,7 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
       if (xuids) {
         out_setting->xuid = user_profile->xuid();
       } else {
+        out_setting->xuid = -1;
         out_setting->user_index = user_index;
       }
     }
@@ -355,42 +356,46 @@ DECLARE_XAM_EXPORT1(XamUserReadProfileSettingsEx, kUserProfiles, kImplemented);
 
 dword_result_t XamUserWriteProfileSettings_entry(
     dword_t title_id, dword_t user_index, dword_t setting_count,
-    pointer_t<X_USER_PROFILE_SETTING> settings,
-    pointer_t<XAM_OVERLAPPED> overlapped) {
+    pointer_t<X_USER_PROFILE_SETTING> settings, lpvoid_t overlapped) {
   if (!setting_count || !settings) {
     return X_ERROR_INVALID_PARAMETER;
   }
-  // Update and save settings.
-  const auto& user_profile =
-      kernel_state()->xam_state()->GetUserProfile(user_index);
 
-  // Skip writing data about users with id != 0 they're not supported
-  if (!user_profile) {
-    if (overlapped) {
-      kernel_state()->CompleteOverlappedImmediate(
-          kernel_state()->memory()->HostToGuestVirtual(overlapped),
-          X_ERROR_NO_SUCH_USER);
-      return X_ERROR_IO_PENDING;
-    }
-    return X_ERROR_SUCCESS;
-  }
+  auto run = [=](uint32_t& extended_error, uint32_t& length) {
+    // Update and save settings.
+    const auto& user_profile =
+        kernel_state()->xam_state()->GetUserProfile(user_index);
 
-  for (uint32_t n = 0; n < setting_count; ++n) {
-    const UserSetting setting = UserSetting(&settings[n]);
-
-    if (!setting.is_valid_type()) {
-      continue;
+    // Skip writing data about users with id != 0 they're not supported
+    if (!user_profile) {
+      extended_error = X_HRESULT_FROM_WIN32(X_ERROR_NO_SUCH_USER);
+      length = 0;
+      return X_ERROR_NO_SUCH_USER;
     }
 
-    kernel_state()->xam_state()->user_tracker()->UpsertSetting(
-        user_profile->xuid(), title_id, &setting);
+    for (uint32_t n = 0; n < setting_count; ++n) {
+      const UserSetting setting = UserSetting(&settings[n]);
+
+      if (!setting.is_valid_type()) {
+        continue;
+      }
+
+      kernel_state()->xam_state()->user_tracker()->UpsertSetting(
+          user_profile->xuid(), title_id, &setting);
+    }
+
+    extended_error = X_HRESULT_FROM_WIN32(X_STATUS_SUCCESS);
+    length = 0;
+    return X_STATUS_SUCCESS;
+  };
+
+  if (!overlapped) {
+    uint32_t extended_error, length;
+    return run(extended_error, length);
   }
 
-  if (overlapped) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped, X_ERROR_SUCCESS);
-    return X_ERROR_IO_PENDING;
-  }
-  return X_ERROR_SUCCESS;
+  kernel_state()->CompleteOverlappedDeferredEx(run, overlapped);
+  return X_ERROR_IO_PENDING;
 }
 DECLARE_XAM_EXPORT1(XamUserWriteProfileSettings, kUserProfiles, kImplemented);
 
