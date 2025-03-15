@@ -42,6 +42,8 @@ constexpr uint32_t kDashboardID = 0xFFFE07D1;
 const static std::string kDashboardStringID =
     fmt::format("{:08X}", kDashboardID);
 
+constexpr std::string kDefaultMountFormat = "User_{:016X}";
+
 class ProfileManager {
  public:
   static bool DecryptAccountFile(const uint8_t* data, X_XAMACCOUNTINFO* output,

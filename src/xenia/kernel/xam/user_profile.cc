@@ -74,7 +74,7 @@ void UserProfile::LoadProfileIcon(XTileType tile_type) {
   }
 
   const std::string path =
-      fmt::format("{:016X}:\\{}", xuid_, kTileFileNames.at(tile_type));
+      fmt::format("User_{:016X}:\\{}", xuid_, kTileFileNames.at(tile_type));
 
   vfs::File* file = nullptr;
   vfs::FileAction action;
@@ -97,7 +97,7 @@ void UserProfile::LoadProfileIcon(XTileType tile_type) {
 
 std::vector<uint8_t> UserProfile::LoadGpd(const uint32_t title_id) {
   auto entry = kernel_state()->file_system()->ResolvePath(
-      fmt::format("{:016X}:\\{:08X}.gpd", xuid_, title_id));
+      fmt::format("User_{:016X}:\\{:08X}.gpd", xuid_, title_id));
 
   if (!entry) {
     XELOGW("User {} (XUID: {:016X}) doesn't have profile GPD!", name(), xuid());
@@ -139,7 +139,7 @@ bool UserProfile::WriteGpd(const uint32_t title_id) {
   vfs::FileAction action;
 
   const std::string mounted_path =
-      fmt::format("{:016X}:\\{:08X}.gpd", xuid_, title_id);
+      fmt::format("User_{:016X}:\\{:08X}.gpd", xuid_, title_id);
 
   const X_STATUS result = kernel_state()->file_system()->OpenFile(
       nullptr, mounted_path, vfs::FileDisposition::kOverwriteIf,
