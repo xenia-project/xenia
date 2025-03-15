@@ -395,7 +395,7 @@ void ImGuiDrawer::InitializeFonts(const float font_size) {
     is_font_loaded = LoadWindowsFont(io, font_config, font_size);
   }
 
-  if (io.Fonts->Fonts.empty()) {
+  if (!is_font_loaded) {
     io.Fonts->AddFontFromMemoryCompressedBase85TTF(
         kProggyTinyCompressedDataBase85, font_size, &font_config,
         io.Fonts->GetGlyphRangesDefault());
