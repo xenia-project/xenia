@@ -766,7 +766,7 @@ X_STATUS XThread::Delay(uint32_t processor_mode, uint32_t alertable,
     // TODO(Gliniak): Check how it works, but it seems outright wrong.
     // However some titles like to change priority then go to sleep with timeout
     // 0.
-    if (priority_ <= xe::threading::ThreadPriority::kNormal) {
+    if (priority_ <= xe::threading::ThreadPriority::kBelowNormal) {
       timeout_ms = 1;
     }
   }
