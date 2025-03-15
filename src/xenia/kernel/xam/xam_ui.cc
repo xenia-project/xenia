@@ -704,11 +704,11 @@ class GameAchievementsDialog final : public XamDialog {
   std::map<uint32_t, std::unique_ptr<ui::ImmediateTexture>> achievements_icons_;
 };
 
-class GamesInfoDialog final : public ui::ImGuiDialog {
+class GamesInfoDialog final : public XamDialog {
  public:
   GamesInfoDialog(ui::ImGuiDrawer* imgui_drawer, const ImVec2 drawing_position,
                   const UserProfile* profile)
-      : ui::ImGuiDialog(imgui_drawer),
+      : XamDialog(imgui_drawer),
         drawing_position_(drawing_position),
         profile_(profile),
         profile_manager_(kernel_state()->xam_state()->profile_manager()),
@@ -843,6 +843,7 @@ class GamesInfoDialog final : public ui::ImGuiDialog {
                       ImGuiWindowFlags_NoCollapse |
                           ImGuiWindowFlags_AlwaysAutoResize |
                           ImGuiWindowFlags_HorizontalScrollbar)) {
+      Close();
       ImGui::End();
       return;
     }
@@ -890,12 +891,13 @@ class GamesInfoDialog final : public ui::ImGuiDialog {
       ImGui::PopFont();
     }
 
-    ImGui::End();
-
     if (!dialog_open) {
-      delete this;
+      Close();
+      ImGui::End();
       return;
     }
+
+    ImGui::End();
   }
 
   static constexpr uint8_t title_name_filter_size = 15;

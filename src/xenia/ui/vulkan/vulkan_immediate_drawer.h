@@ -145,7 +145,7 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
   };
   std::deque<SubmittedTextureUploadBuffer> texture_upload_buffers_submitted_;
   // Resource and last usage submission pairs.
-  std::vector<std::pair<VulkanImmediateTexture::Resource, uint64_t>>
+  std::deque<std::pair<VulkanImmediateTexture::Resource, uint64_t>>
       textures_deleted_;
 
   std::unique_ptr<VulkanUploadBufferPool> vertex_buffer_pool_;
