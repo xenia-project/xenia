@@ -515,7 +515,7 @@ bool ProfileManager::CreateAccount(const uint64_t xuid,
 bool ProfileManager::UpdateAccount(const uint64_t xuid,
                                    X_XAMACCOUNTINFO* account) {
   const std::string guest_path =
-      xe::string_util::to_hex_string(xuid) + ":\\Account";
+      fmt::format(kDefaultMountFormat, xuid) + ":\\Account";
 
   xe::vfs::File* output_file;
   xe::vfs::FileAction action = {};
