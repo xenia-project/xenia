@@ -342,7 +342,8 @@ X_STATUS VirtualFileSystem::ExtractContentFile(Entry* entry,
 
   XELOGI("Extracting file: {}", entry->path());
 
-  auto dest_name = base_path / xe::to_path(entry->path());
+  auto dest_name =
+      base_path / xe::to_path(utf8::fix_path_separators(entry->path()));
 
   if (extract_to_root) {
     dest_name = base_path / xe::to_path(entry->name());
