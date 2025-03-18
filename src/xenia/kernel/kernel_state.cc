@@ -618,25 +618,25 @@ const object_ref<UserModule> KernelState::LoadTitleUpdate(
   X_RESULT open_status = content_manager()->OpenContent(
       "UPDATE", 0, *title_update, content_license, disc_number);
 
-  // Use the corresponding patch for the launch module
-  std::filesystem::path patch_xexp;
-
   std::string mount_path = "";
-  file_system()->FindSymbolicLink("game:", mount_path);
-
-  auto is_relative = std::filesystem::relative(module->path(), mount_path);
-
-  if (is_relative.empty()) {
+  if (!file_system()->FindSymbolicLink("game:", mount_path)) {
     return nullptr;
   }
 
-  patch_xexp =
-      is_relative.replace_extension(is_relative.extension().string() + "p");
+  if (!module->path().starts_with(mount_path)) {
+    return nullptr;
+  }
 
   std::string resolved_path = "";
-  file_system()->FindSymbolicLink("UPDATE:", resolved_path);
-  xe::vfs::Entry* patch_entry = kernel_state()->file_system()->ResolvePath(
-      resolved_path + patch_xexp.generic_string());
+  if (!file_system()->FindSymbolicLink("UPDATE:", resolved_path)) {
+    return nullptr;
+  }
+
+  const std::string relative_path =
+      module->path().substr(mount_path.size() + 1) + 'p';
+
+  xe::vfs::Entry* patch_entry =
+      kernel_state()->file_system()->ResolvePath(resolved_path + relative_path);
 
   if (!patch_entry) {
     return nullptr;
