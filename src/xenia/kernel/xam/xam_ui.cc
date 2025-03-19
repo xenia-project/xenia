@@ -607,7 +607,14 @@ class GameAchievementsDialog final : public XamDialog {
     const auto start_drawing_pos = ImGui::GetCursorPos();
 
     ImGui::TableSetColumnIndex(0);
-    ImGui::Image(GetIcon(achievement_entry), default_image_icon_size);
+
+    const auto icon = GetIcon(achievement_entry);
+    if (icon) {
+      ImGui::Image(reinterpret_cast<ImTextureID>(GetIcon(achievement_entry)),
+                   default_image_icon_size);
+    } else {
+      ImGui::Dummy(default_image_icon_size);
+    }
     ImGui::TableNextColumn();
 
     ImGui::PushFont(imgui_drawer()->GetTitleFont());
@@ -742,8 +749,13 @@ class GamesInfoDialog final : public XamDialog {
 
     // First Column
     ImGui::TableSetColumnIndex(0);
-    ImGui::Image(title_icon.count(entry.id) ? title_icon.at(entry.id).get() : 0,
-                 default_image_icon_size);
+
+    if (title_icon.count(entry.id)) {
+      ImGui::Image(reinterpret_cast<ImTextureID>(title_icon.at(entry.id).get()),
+                   default_image_icon_size);
+    } else {
+      ImGui::Dummy(default_image_icon_size);
+    }
 
     // Second Column
     ImGui::TableNextColumn();
@@ -1525,10 +1537,12 @@ bool xeDrawProfileContent(ui::ImGuiDrawer* imgui_drawer, const uint64_t xuid,
   ImVec2 current_drawing_position = ImGui::GetCursorPos();
 
   // In the future it can be replaced with profile icon.
-  ImGui::Image(user_index < XUserMaxUserCount
-                   ? imgui_drawer->GetNotificationIcon(user_index)
-                   : nullptr,
-               ImVec2(default_image_size, default_image_size));
+  const auto icon = imgui_drawer->GetNotificationIcon(user_index);
+  if (icon && user_index < XUserMaxUserCount) {
+    ImGui::Image(reinterpret_cast<ImTextureID>(icon), default_image_icon_size);
+  } else {
+    ImGui::Dummy(default_image_icon_size);
+  }
 
   ImGui::SameLine();
   current_drawing_position = ImGui::GetCursorPos();
