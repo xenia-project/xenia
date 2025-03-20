@@ -181,12 +181,12 @@
 namespace xe {
 
 #if XE_PLATFORM_WIN32
-const char kPathSeparator = '\\';
+constexpr char kPathSeparator = '\\';
 #else
-const char kPathSeparator = '/';
+constexpr char kPathSeparator = '/';
 #endif  // XE_PLATFORM_WIN32
 
-const char kGuestPathSeparator = '\\';
+constexpr char kGuestPathSeparator = '\\';
 
 }  // namespace xe
 #if XE_ARCH_AMD64 == 1

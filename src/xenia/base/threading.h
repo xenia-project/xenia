@@ -404,19 +404,19 @@ class Timer : public WaitHandle {
 
 #if XE_PLATFORM_WIN32
 struct ThreadPriority {
-  static const int32_t kLowest = -2;
-  static const int32_t kBelowNormal = -1;
-  static const int32_t kNormal = 0;
-  static const int32_t kAboveNormal = 1;
-  static const int32_t kHighest = 2;
+  static constexpr int32_t kLowest = -2;
+  static constexpr int32_t kBelowNormal = -1;
+  static constexpr int32_t kNormal = 0;
+  static constexpr int32_t kAboveNormal = 1;
+  static constexpr int32_t kHighest = 2;
 };
 #else
 struct ThreadPriority {
-  static const int32_t kLowest = 1;
-  static const int32_t kBelowNormal = 8;
-  static const int32_t kNormal = 16;
-  static const int32_t kAboveNormal = 24;
-  static const int32_t kHighest = 32;
+  static constexpr int32_t kLowest = 1;
+  static constexpr int32_t kBelowNormal = 8;
+  static constexpr int32_t kNormal = 16;
+  static constexpr int32_t kAboveNormal = 24;
+  static constexpr int32_t kHighest = 32;
 };
 #endif
 

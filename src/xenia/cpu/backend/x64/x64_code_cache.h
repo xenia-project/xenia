@@ -79,13 +79,13 @@ class X64CodeCache : public CodeCache {
  protected:
   // All executable code falls within 0x80000000 to 0x9FFFFFFF, so we can
   // only map enough for lookups within that range.
-  static const size_t kIndirectionTableSize = 0x1FFFFFFF;
-  static const uintptr_t kIndirectionTableBase = 0x80000000;
+  static constexpr size_t kIndirectionTableSize = 0x1FFFFFFF;
+  static constexpr uintptr_t kIndirectionTableBase = 0x80000000;
   // The code range is 512MB, but we know the total code games will have is
   // pretty small (dozens of mb at most) and our expansion is reasonablish
   // so 256MB should be more than enough.
-  static const size_t kGeneratedCodeSize = 0x0FFFFFFF;
-  static const uintptr_t kGeneratedCodeExecuteBase = 0xA0000000;
+  static constexpr size_t kGeneratedCodeSize = 0x0FFFFFFF;
+  static constexpr uintptr_t kGeneratedCodeExecuteBase = 0xA0000000;
   // Used for writing when PageAccess::kExecuteReadWrite is not supported.
   static const uintptr_t kGeneratedCodeWriteBase =
       kGeneratedCodeExecuteBase + kGeneratedCodeSize + 1;
@@ -95,7 +95,7 @@ class X64CodeCache : public CodeCache {
   // in analysis triggering.
   // chrispy: raised this, some games that were compiled with low optimization
   // levels can exceed this
-  static const size_t kMaximumFunctionCount = 1000000;
+  static constexpr size_t kMaximumFunctionCount = 1000000;
 
   struct UnwindReservation {
     size_t data_size = 0;

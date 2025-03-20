@@ -680,11 +680,11 @@ bool SDLInputDriver::TestSDLVersion() const {
 #if SDL_VERSION_ATLEAST(2, 0, 9)
   // SDL 2.0.9 or newer is required for simple rumble support and player
   // index.
-  const Uint8 min_patchlevel = 9;
+  constexpr Uint8 min_patchlevel = 9;
 #else
   // SDL 2.0.4 or newer is required to read game controller mappings from
   // file.
-  const Uint8 min_patchlevel = 4;
+  constexpr Uint8 min_patchlevel = 4;
 #endif
 
   SDL_version ver = {};

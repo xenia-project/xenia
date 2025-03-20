@@ -383,7 +383,7 @@ void HidDemoApp::DrawUserInputGetKeystroke(uint32_t user_index, bool poll,
           {ui::VirtualKey::kXInputPadRThumbDownLeft, "R Thumb down & left"},
       };
 
-  const size_t maxLog = 128;
+  constexpr size_t maxLog = 128;
   static std::array<std::forward_list<std::string>, MAX_USERS> event_logs;
   static std::array<uint64_t, MAX_USERS> last_event_times = {};
 

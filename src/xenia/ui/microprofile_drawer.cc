@@ -18,15 +18,15 @@
 namespace xe {
 namespace ui {
 
-const int kMaxVertices = 16 << 10;
+constexpr int kMaxVertices = 16 << 10;
 
-const int kFontTextureWidth = 1024;
-const int kFontTextureHeight = 9;
-const int kFontCharWidth = 5;
-const int kFontCharHeight = 8;
+constexpr int kFontTextureWidth = 1024;
+constexpr int kFontTextureHeight = 9;
+constexpr int kFontCharWidth = 5;
+constexpr int kFontCharHeight = 8;
 
 // The last texel is for solid color.
-const uint8_t kFontData[] = {
+constexpr uint8_t kFontData[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,

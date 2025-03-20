@@ -72,17 +72,17 @@ using xe::cpu::hir::HIRBuilder;
 using xe::cpu::hir::Instr;
 using namespace xe::literals;
 
-static const size_t kMaxCodeSize = 1_MiB;
+static constexpr size_t kMaxCodeSize = 1_MiB;
 
 // static const size_t kStashOffsetHigh = 32 + 32;
 
-const uint32_t X64Emitter::gpr_reg_map_[X64Emitter::GPR_COUNT] = {
+constexpr uint32_t X64Emitter::gpr_reg_map_[X64Emitter::GPR_COUNT] = {
     Xbyak::Operand::RBX, Xbyak::Operand::R10, Xbyak::Operand::R11,
     Xbyak::Operand::R12, Xbyak::Operand::R13, Xbyak::Operand::R14,
     Xbyak::Operand::R15,
 };
 
-const uint32_t X64Emitter::xmm_reg_map_[X64Emitter::XMM_COUNT] = {
+constexpr uint32_t X64Emitter::xmm_reg_map_[X64Emitter::XMM_COUNT] = {
     4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
 };
 
@@ -1242,11 +1242,11 @@ void* X64Emitter::FindQwordConstantOffset(uint64_t qwordvalue) {
   return nullptr;
 }
 // First location to try and place constants.
-static const uintptr_t kConstDataLocation = 0x20000000;
+static constexpr uintptr_t kConstDataLocation = 0x20000000;
 static const uintptr_t kConstDataSize = sizeof(xmm_consts);
 
 // Increment the location by this amount for every allocation failure.
-static const uintptr_t kConstDataIncrement = 0x00001000;
+static constexpr uintptr_t kConstDataIncrement = 0x00001000;
 
 // This function places constant data that is used by the emitter later on.
 // Only called once and used by multiple instances of the emitter.

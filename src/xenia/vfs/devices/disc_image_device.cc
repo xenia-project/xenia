@@ -19,7 +19,7 @@ namespace vfs {
 
 using namespace xe::literals;
 
-const size_t kXESectorSize = 2_KiB;
+constexpr size_t kXESectorSize = 2_KiB;
 
 DiscImageDevice::DiscImageDevice(const std::string_view mount_path,
                                  const std::filesystem::path& host_path)
@@ -70,7 +70,7 @@ Entry* DiscImageDevice::ResolvePath(const std::string_view path) {
 
 DiscImageDevice::Error DiscImageDevice::Verify(ParseState* state) {
   // Find sector 32 of the game partition - try at a few points.
-  static const size_t likely_offsets[] = {
+  static constexpr size_t likely_offsets[] = {
       0x00000000, 0x0000FB20, 0x00020600, 0x02080000, 0x0FD90000,
   };
   bool magic_found = false;

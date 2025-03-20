@@ -23,7 +23,7 @@ namespace xam {
 
 bool xeXamIsUIActive();
 
-static const std::string kXamModuleLoaderDataFileName = "launch_data.bin";
+static constexpr std::string kXamModuleLoaderDataFileName = "launch_data.bin";
 
 class XamModule : public KernelModule {
  public:

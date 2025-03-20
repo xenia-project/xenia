@@ -214,7 +214,7 @@ bool IsAndroidContentUri(const std::string_view source) {
   // still including // in the comparison to distinguish from a file with a name
   // starting from content: (as this is the main purpose of this code -
   // separating URIs from file paths) more clearly.
-  static const char kContentSchema[] = "content://";
+  static constexpr char kContentSchema[] = "content://";
   constexpr size_t kContentSchemaLength = xe::countof(kContentSchema) - 1;
   return source.size() >= kContentSchemaLength &&
          !xe_strncasecmp(source.data(), kContentSchema, kContentSchemaLength);

@@ -516,7 +516,7 @@ TEST_CASE("create_and_close_file_mapping", "Virtual Memory Mapping") {
 
 TEST_CASE("map_view", "[virtual_memory_mapping]") {
   auto path = fmt::format("xenia_test_{}", Clock::QueryHostTickCount());
-  const size_t length = 0x100;
+  constexpr size_t length = 0x100;
   auto memory = xe::memory::CreateFileMappingHandle(
       path, length, xe::memory::PageAccess::kReadWrite, true);
   REQUIRE(memory != xe::memory::kFileMappingHandleInvalid);
@@ -532,7 +532,7 @@ TEST_CASE("map_view", "[virtual_memory_mapping]") {
 }
 
 TEST_CASE("read_write_view", "[virtual_memory_mapping]") {
-  const size_t length = 0x100;
+  constexpr size_t length = 0x100;
   auto path = fmt::format("xenia_test_{}", Clock::QueryHostTickCount());
   auto memory = xe::memory::CreateFileMappingHandle(
       path, length, xe::memory::PageAccess::kReadWrite, true);

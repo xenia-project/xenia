@@ -52,9 +52,9 @@ struct XDPC {
 };
 
 struct XAPC {
-  static const uint32_t kSize = 40;
-  static const uint32_t kDummyKernelRoutine = 0xF00DFF00;
-  static const uint32_t kDummyRundownRoutine = 0xF00DFF01;
+  static constexpr uint32_t kSize = 40;
+  static constexpr uint32_t kDummyKernelRoutine = 0xF00DFF00;
+  static constexpr uint32_t kDummyRundownRoutine = 0xF00DFF01;
 
   // KAPC is 0x28(40) bytes? (what's passed to ExAllocatePoolWithTag)
   // This is 4b shorter than NT - looks like the reserved dword at +4 is gone.

@@ -77,8 +77,8 @@ reg::RB_DEPTHCONTROL GetNormalizedDepthControl(const RegisterFile& regs) {
 }
 
 // https://docs.microsoft.com/en-us/windows/win32/api/d3d11/ne-d3d11-d3d11_standard_multisample_quality_levels
-const int8_t kD3D10StandardSamplePositions2x[2][2] = {{4, 4}, {-4, -4}};
-const int8_t kD3D10StandardSamplePositions4x[4][2] = {
+constexpr int8_t kD3D10StandardSamplePositions2x[2][2] = {{4, 4}, {-4, -4}};
+constexpr int8_t kD3D10StandardSamplePositions4x[4][2] = {
     {-2, -6}, {6, -2}, {-6, 2}, {2, 6}};
 
 void GetPreferredFacePolygonOffset(const RegisterFile& regs,

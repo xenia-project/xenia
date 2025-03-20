@@ -2333,7 +2333,7 @@ size_t SpirvShaderTranslator::FindOrAddSamplerBinding(
   new_sampler_binding.mip_filter = mip_filter;
   new_sampler_binding.aniso_filter = aniso_filter;
   std::ostringstream name;
-  static const char kFilterSuffixes[] = {'p', 'l', 'b', 'f'};
+  static constexpr char kFilterSuffixes[] = {'p', 'l', 'b', 'f'};
   name << "xe_sampler" << fetch_constant << '_'
        << kFilterSuffixes[uint32_t(mag_filter)]
        << kFilterSuffixes[uint32_t(min_filter)]

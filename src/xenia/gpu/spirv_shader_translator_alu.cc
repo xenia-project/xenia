@@ -144,7 +144,7 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
   EnsureBuildPointAvailable();
 
   // Lookup table for variants of instructions with similar structure.
-  static const unsigned int kOps[] = {
+  static constexpr unsigned int kOps[] = {
       static_cast<unsigned int>(spv::OpNop),                   // kAdd
       static_cast<unsigned int>(spv::OpNop),                   // kMul
       static_cast<unsigned int>(spv::OpFOrdGreaterThanEqual),  // kMax
@@ -883,7 +883,7 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
   EnsureBuildPointAvailable();
 
   // Lookup table for variants of instructions with similar structure.
-  static const unsigned int kOps[] = {
+  static constexpr unsigned int kOps[] = {
       static_cast<unsigned int>(spv::OpFAdd),                  // kAdds
       static_cast<unsigned int>(spv::OpFAdd),                  // kAddsPrev
       static_cast<unsigned int>(spv::OpNop),                   // kMuls

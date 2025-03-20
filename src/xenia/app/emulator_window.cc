@@ -167,8 +167,8 @@ using xe::ui::UIEvent;
 using namespace xe::hid;
 using namespace xe::gpu;
 
-const std::string kRecentlyPlayedTitlesFilename = "recent.toml";
-const std::string kBaseTitle = "Xenia-canary";
+constexpr std::string kRecentlyPlayedTitlesFilename = "recent.toml";
+constexpr std::string kBaseTitle = "Xenia-canary";
 
 EmulatorWindow::EmulatorWindow(Emulator* emulator,
                                ui::WindowedAppContext& app_context,
@@ -1011,9 +1011,9 @@ void EmulatorWindow::ToggleFullscreenOnDoubleClick() {
   // this function tests if user has double clicked.
   // if double click was achieved the fullscreen gets toggled
   const auto now = steady_clock::now();  // current mouse event time
-  const int16_t mouse_down_max_threshold = 250;
-  const int16_t mouse_up_max_threshold = 250;
-  const int16_t mouse_up_down_max_delta = 100;
+  constexpr int16_t mouse_down_max_threshold = 250;
+  constexpr int16_t mouse_up_max_threshold = 250;
+  constexpr int16_t mouse_up_down_max_delta = 100;
   // max delta to prevent 'chaining' of double clicks with next mouse events
 
   const auto last_mouse_down_delta = diff_in_ms(now, last_mouse_down);

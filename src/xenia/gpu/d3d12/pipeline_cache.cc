@@ -3132,7 +3132,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
 
     // Render targets and blending.
     state_desc.BlendState.IndependentBlendEnable = TRUE;
-    static const D3D12_BLEND kBlendFactorMap[] = {
+    static constexpr D3D12_BLEND kBlendFactorMap[] = {
         D3D12_BLEND_ZERO,          D3D12_BLEND_ONE,
         D3D12_BLEND_SRC_COLOR,     D3D12_BLEND_INV_SRC_COLOR,
         D3D12_BLEND_SRC_ALPHA,     D3D12_BLEND_INV_SRC_ALPHA,
@@ -3142,7 +3142,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
         D3D12_BLEND_SRC_ALPHA_SAT,
     };
     // 8 entries for safety since 3 bits from the guest are passed directly.
-    static const D3D12_BLEND_OP kBlendOpMap[] = {
+    static constexpr D3D12_BLEND_OP kBlendOpMap[] = {
         D3D12_BLEND_OP_ADD, D3D12_BLEND_OP_SUBTRACT,     D3D12_BLEND_OP_MIN,
         D3D12_BLEND_OP_MAX, D3D12_BLEND_OP_REV_SUBTRACT, D3D12_BLEND_OP_ADD,
         D3D12_BLEND_OP_ADD, D3D12_BLEND_OP_ADD};

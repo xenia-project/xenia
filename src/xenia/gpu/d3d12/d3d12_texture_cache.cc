@@ -758,7 +758,7 @@ void D3D12TextureCache::WriteSampler(SamplerParameters parameters,
         D3D12_FILTER_REDUCTION_TYPE_STANDARD);
     desc.MaxAnisotropy = 1;
   }
-  static const D3D12_TEXTURE_ADDRESS_MODE kAddressModeMap[] = {
+  static constexpr D3D12_TEXTURE_ADDRESS_MODE kAddressModeMap[] = {
       /* kRepeat               */ D3D12_TEXTURE_ADDRESS_MODE_WRAP,
       /* kMirroredRepeat       */ D3D12_TEXTURE_ADDRESS_MODE_MIRROR,
       /* kClampToEdge          */ D3D12_TEXTURE_ADDRESS_MODE_CLAMP,

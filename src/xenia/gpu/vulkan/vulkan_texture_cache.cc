@@ -773,7 +773,7 @@ VkSampler VulkanTextureCache::UseSampler(SamplerParameters parameters,
   sampler_create_info.mipmapMode = parameters.mag_linear
                                        ? VK_SAMPLER_MIPMAP_MODE_LINEAR
                                        : VK_SAMPLER_MIPMAP_MODE_NEAREST;
-  static const VkSamplerAddressMode kAddressModeMap[] = {
+  static constexpr VkSamplerAddressMode kAddressModeMap[] = {
       // kRepeat
       VK_SAMPLER_ADDRESS_MODE_REPEAT,
       // kMirroredRepeat

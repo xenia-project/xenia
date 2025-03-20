@@ -585,7 +585,7 @@ uint32_t DxbcShaderTranslator::FindOrAddSamplerBinding(
     name << "xe_sampler" << fetch_constant;
     if (aniso_filter == xenos::AnisoFilter::kDisabled ||
         aniso_filter == xenos::AnisoFilter::kUseFetchConst) {
-      static const char kFilterSuffixes[] = {'p', 'l', 'b', 'f'};
+      static constexpr char kFilterSuffixes[] = {'p', 'l', 'b', 'f'};
       name << '_' << kFilterSuffixes[uint32_t(mag_filter)]
            << kFilterSuffixes[uint32_t(min_filter)]
            << kFilterSuffixes[uint32_t(mip_filter)];
@@ -762,7 +762,7 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
     // sampling apparently round differently, so `mul` gives a value that would
     // be floored as expected, but the left/upper pixel is still sampled
     // instead.
-    const float rounding_offset = 1.5f / 1024.0f;
+    constexpr float rounding_offset = 1.5f / 1024.0f;
     switch (instr.dimension) {
       case xenos::FetchOpDimension::k1D:
         offsets[0] = instr.attributes.offset_x + rounding_offset;

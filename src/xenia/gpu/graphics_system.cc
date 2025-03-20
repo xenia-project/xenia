@@ -173,7 +173,7 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
                     : 1.0;
             uint64_t last_frame_time = Clock::QueryGuestTickCount();
             // Sleep for 90% of the vblank duration, spin for 10%
-            const double duration_scalar = 0.90;
+            constexpr double duration_scalar = 0.90;
 
             while (frame_limiter_worker_running_) {
               register_file()->values[XE_GPU_REG_D1MODE_V_COUNTER] +=

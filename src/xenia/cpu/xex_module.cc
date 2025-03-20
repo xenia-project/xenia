@@ -50,10 +50,10 @@ DEFINE_bool(
 
 DECLARE_bool(allow_plugins);
 
-static const uint8_t xe_xex2_retail_key[16] = {
+static constexpr uint8_t xe_xex2_retail_key[16] = {
     0x20, 0xB1, 0x85, 0xA5, 0x9D, 0x28, 0xFD, 0xC3,
     0x40, 0x58, 0x3F, 0xBB, 0x08, 0x96, 0xBF, 0x91};
-static const uint8_t xe_xex2_devkit_key[16] = {
+static constexpr uint8_t xe_xex2_devkit_key[16] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
@@ -1631,7 +1631,7 @@ bool XexModule::FindSaveRest() {
   // special codegen.
   // __savegprlr_14 to __savegprlr_31
   // __restgprlr_14 to __restgprlr_31
-  static const uint32_t gprlr_code_values[] = {
+  static constexpr uint32_t gprlr_code_values[] = {
       0x68FFC1F9,  // __savegprlr_14
       0x70FFE1F9,  // __savegprlr_15
       0x78FF01FA,  // __savegprlr_16
@@ -1673,7 +1673,7 @@ bool XexModule::FindSaveRest() {
   };
   // __savefpr_14 to __savefpr_31
   // __restfpr_14 to __restfpr_31
-  static const uint32_t fpr_code_values[] = {
+  static constexpr uint32_t fpr_code_values[] = {
       0x70FFCCD9,  // __savefpr_14
       0x78FFECD9,  // __savefpr_15
       0x80FF0CDA,  // __savefpr_16
@@ -1717,7 +1717,7 @@ bool XexModule::FindSaveRest() {
   // __savevmx_64 to __savevmx_127
   // __restvmx_14 to __restvmx_31
   // __restvmx_64 to __restvmx_127
-  static const uint32_t vmx_code_values[] = {
+  static constexpr uint32_t vmx_code_values[] = {
       0xE0FE6039,  // __savevmx_14
       0xCE61CB7D, 0xF0FE6039, 0xCE61EB7D, 0x00FF6039, 0xCE610B7E, 0x10FF6039,
       0xCE612B7E, 0x20FF6039, 0xCE614B7E, 0x30FF6039, 0xCE616B7E, 0x40FF6039,

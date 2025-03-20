@@ -244,10 +244,10 @@ class Logger {
   }
 
  private:
-  static const size_t kBufferSize = 8_MiB;
+  static constexpr size_t kBufferSize = 8_MiB;
   uint8_t buffer_[kBufferSize];
 
-  static const size_t kBlockSize = 256;
+  static constexpr size_t kBlockSize = 256;
   static const size_t kBlockCount = kBufferSize / kBlockSize;
   static const size_t kBlockIndexMask = kBlockCount - 1;
 

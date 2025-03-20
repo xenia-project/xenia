@@ -1737,7 +1737,7 @@ void X64Backend::PrepareForReentry(void* ctx) {
   bctx->current_stackpoint_depth = 0;
 }
 
-const uint32_t mxcsr_table[8] = {
+constexpr uint32_t mxcsr_table[8] = {
     0x1F80, 0x7F80, 0x5F80, 0x3F80, 0x9F80, 0xFF80, 0xDF80, 0xBF80,
 };
 

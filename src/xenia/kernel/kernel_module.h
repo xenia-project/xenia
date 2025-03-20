@@ -44,7 +44,7 @@ class KernelModule : public XModule {
   std::string path_;
 
   // Guest trampoline for GetProcAddress
-  static const uint32_t kTrampolineSize = 400 * 8;
+  static constexpr uint32_t kTrampolineSize = 400 * 8;
   uint32_t guest_trampoline_ = 0;
   uint32_t guest_trampoline_next_ = 0;  // Next free entry to be generated.
   uint32_t guest_trampoline_size_ = 0;

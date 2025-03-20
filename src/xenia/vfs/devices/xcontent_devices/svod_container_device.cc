@@ -212,7 +212,7 @@ SvodContainerDevice::Result SvodContainerDevice::ReadEntry(
       size_t last_record = -1;
       size_t last_offset = -1;
       while (remaining_size) {
-        const size_t BLOCK_SIZE = 0x800;
+        constexpr size_t BLOCK_SIZE = 0x800;
 
         size_t offset, file_index;
         BlockToOffset(block_index, &offset, &file_index);
@@ -370,12 +370,12 @@ void SvodContainerDevice::BlockToOffset(size_t block, size_t* out_address,
   //    consisting of 0x14388 data blocks, 0xCB Level0 hash tables, and 0x1
   //    Level1 hash table.
 
-  const size_t BLOCK_SIZE = 0x800;
-  const size_t HASH_BLOCK_SIZE = 0x1000;
-  const size_t BLOCKS_PER_L0_HASH = 0x198;
-  const size_t HASHES_PER_L1_HASH = 0xA1C4;
-  const size_t BLOCKS_PER_FILE = 0x14388;
-  const size_t MAX_FILE_SIZE = 0xA290000;
+  constexpr size_t BLOCK_SIZE = 0x800;
+  constexpr size_t HASH_BLOCK_SIZE = 0x1000;
+  constexpr size_t BLOCKS_PER_L0_HASH = 0x198;
+  constexpr size_t HASHES_PER_L1_HASH = 0xA1C4;
+  constexpr size_t BLOCKS_PER_FILE = 0x14388;
+  constexpr size_t MAX_FILE_SIZE = 0xA290000;
   const size_t BLOCK_OFFSET =
       header_->content_metadata.volume_descriptor.svod.start_data_block();
 

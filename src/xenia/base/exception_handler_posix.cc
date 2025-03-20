@@ -168,7 +168,7 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
       mcontext.gregs[REG_EFL] = greg_t(thread_context.eflags);
       uint32_t modified_register_index;
       // The order must match the order in X64Register.
-      static const size_t kIntRegisterMap[] = {
+      static constexpr size_t kIntRegisterMap[] = {
           REG_RAX, REG_RCX, REG_RDX, REG_RBX, REG_RSP, REG_RBP,
           REG_RSI, REG_RDI, REG_R8,  REG_R9,  REG_R10, REG_R11,
           REG_R12, REG_R13, REG_R14, REG_R15,

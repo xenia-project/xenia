@@ -36,7 +36,7 @@ namespace xam {
 // Table lookups.
 
 uint8_t xeXamGetOnlineCountryFromLocale(uint8_t id) {
-  static uint8_t const table[] = {
+  static uint8_t constexpr table[] = {
       2,   6,  5,  8,  13,  16, 19,  20, 21,  23, 25, 32, 34, 24, 37,
       39,  42, 46, 44, 50,  53, 56,  71, 74,  76, 75, 82, 84, 91, 93,
       109, 31, 90, 18, 101, 35, 103, 88, 236, 99, 4,  89, 45, 1,
@@ -120,7 +120,7 @@ const char16_t* xeXamGetLocaleString(uint8_t id) {
 }
 
 uint8_t xeXamGetLocaleFromOnlineCountry(uint8_t id) {
-  static uint8_t const table[] = {
+  static uint8_t constexpr table[] = {
       0,  43, 0, 0, 40, 2,  1,  0,  3,  0, 0, 0, 0,  4,  0,  0,  5,  0,  33,
       6,  7,  8, 0, 9,  13, 10, 0,  0,  0, 0, 0, 31, 11, 0,  12, 35, 0,  14,
       0,  15, 0, 0, 16, 0,  18, 42, 17, 0, 0, 0, 19, 0,  0,  20, 0,  0,  21,
@@ -140,7 +140,7 @@ uint8_t xeXamGetLocaleFromOnlineCountry(uint8_t id) {
 }
 
 uint8_t xeXamGetLanguageFromOnlineLanguage(uint8_t id) {
-  static uint8_t const table[] = {
+  static uint8_t constexpr table[] = {
       0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 17, 11, 12, 1, 1, 15, 16, 13, 1, 1, 1,
       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  1,  1,  1, 1, 14, 1,  1,  1, 1, 1,
       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  1,  1,  1, 1, 1,  1,  1,  1,
@@ -164,7 +164,7 @@ const char16_t* xeXamGetOnlineLanguageString(uint8_t id) {
 }
 
 uint8_t xeXamGetCountryFromOnlineCountry(uint8_t id) {
-  static uint8_t const table[] = {
+  static uint8_t constexpr table[] = {
       0,  1,  2,  3,  4,   5,   6,   7,   8,   9,   10,  11,  12,  13,  14,  15,
       16, 0,  18, 19, 20,  21,  22,  23,  24,  25,  26,  27,  28,  29,  30,  31,
       32, 33, 34, 35, 36,  37,  38,  39,  40,  41,  42,  43,  44,  45,  46,  47,
@@ -186,7 +186,7 @@ uint8_t xeXamGetCountryFromOnlineCountry(uint8_t id) {
 }
 
 uint8_t xeXamGetLocaleFromCountry(uint8_t id) {
-  static uint8_t const table[] = {
+  static uint8_t constexpr table[] = {
       0,  43, 0, 0, 40, 2,  1,  0,  3,  0, 0, 0, 0,  4,  0,  0,  5,  0,  33,
       6,  7,  8, 0, 9,  13, 10, 0,  0,  0, 0, 0, 31, 11, 0,  12, 35, 0,  14,
       0,  15, 0, 0, 16, 0,  18, 42, 17, 0, 0, 0, 19, 0,  0,  20, 0,  0,  21,

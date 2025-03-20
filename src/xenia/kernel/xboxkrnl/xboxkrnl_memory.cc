@@ -703,7 +703,7 @@ DECLARE_XBOXKRNL_EXPORT1(ExAllocatePoolWithTag, kMemory, kImplemented);
 
 dword_result_t ExAllocatePool_entry(dword_t size,
                                     const ppc_context_t& context) {
-  const uint32_t none = 0x656E6F4E;  // 'None'
+  constexpr uint32_t none = 0x656E6F4E;  // 'None'
   return xeAllocatePoolTypeWithTag(context, size, none, 0);
 }
 DECLARE_XBOXKRNL_EXPORT1(ExAllocatePool, kMemory, kImplemented);

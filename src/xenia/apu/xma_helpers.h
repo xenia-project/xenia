@@ -18,7 +18,7 @@ namespace xe {
 namespace apu {
 namespace xma {
 
-static const uint32_t kMaxFrameLength = 0x7FFF;
+static constexpr uint32_t kMaxFrameLength = 0x7FFF;
 
 // Get number of frames that /begin/ in this packet. This is valid only for XMA2
 // packets

@@ -29,7 +29,7 @@ constexpr fourcc_t kPIRSSignature = make_fourcc("PIRS");
 
 class XContentContainerDevice : public Device {
  public:
-  const static uint32_t kBlockSize = 0x1000;
+  constexpr static uint32_t kBlockSize = 0x1000;
 
   static std::unique_ptr<Device> CreateContentDevice(
       const std::string_view mount_path,

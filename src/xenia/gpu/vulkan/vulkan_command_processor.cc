@@ -962,7 +962,7 @@ bool VulkanCommandProcessor::SetupContext() {
   swap_apply_gamma_pipeline_color_blend_state.pAttachments =
       &swap_apply_gamma_pipeline_color_blend_attachment_state;
 
-  static const VkDynamicState kSwapApplyGammaPipelineDynamicStates[] = {
+  static constexpr VkDynamicState kSwapApplyGammaPipelineDynamicStates[] = {
       VK_DYNAMIC_STATE_VIEWPORT,
       VK_DYNAMIC_STATE_SCISSOR,
   };

@@ -68,7 +68,7 @@ bool Win32WindowedAppContext::Initialize() {
   // Create the message-only window for executing pending functions - using a
   // window instead of executing them between iterations so non-main message
   // loops, such as Windows modals, can execute pending functions too.
-  static const WCHAR kPendingFunctionsWindowClassName[] =
+  static constexpr WCHAR kPendingFunctionsWindowClassName[] =
       L"XeniaPendingFunctionsWindowClass";
   if (!pending_functions_window_class_registered_) {
     WNDCLASSEXW pending_functions_window_class = {};

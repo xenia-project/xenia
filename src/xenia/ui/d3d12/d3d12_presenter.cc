@@ -484,7 +484,7 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(
   bool back_buffer_acquired = false;
   bool back_buffer_bound = false;
   bool back_buffer_clear_needed = true;
-  const float kBackBufferClearColor[] = {0.0f, 0.0f, 0.0f, 1.0f};
+  constexpr float kBackBufferClearColor[] = {0.0f, 0.0f, 0.0f, 1.0f};
 
   // Draw the guest output.
 

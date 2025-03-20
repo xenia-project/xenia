@@ -1935,7 +1935,7 @@ bool PhysicalHeap::TriggerCallbacks(
         std::max(unwatch_last, physical_address_start + physical_length - 1);
     // Don't unprotect too much if not caring much about the region (limit to
     // 4 MB - somewhat random, but max 1024 iterations of the page loop).
-    const uint32_t kMaxUnwatchExcess = 4 * 1024 * 1024;
+    constexpr uint32_t kMaxUnwatchExcess = 4 * 1024 * 1024;
     unwatch_first = std::max(unwatch_first,
                              physical_address_start & ~(kMaxUnwatchExcess - 1));
     unwatch_last =

@@ -65,14 +65,14 @@ bool TruncateStdioFile(FILE* file, uint64_t length);
 
 struct FileAccess {
   // Implies kFileReadData.
-  static const uint32_t kGenericRead = 0x80000000;
+  static constexpr uint32_t kGenericRead = 0x80000000;
   // Implies kFileWriteData.
-  static const uint32_t kGenericWrite = 0x40000000;
-  static const uint32_t kGenericExecute = 0x20000000;
-  static const uint32_t kGenericAll = 0x10000000;
-  static const uint32_t kFileReadData = 0x00000001;
-  static const uint32_t kFileWriteData = 0x00000002;
-  static const uint32_t kFileAppendData = 0x00000004;
+  static constexpr uint32_t kGenericWrite = 0x40000000;
+  static constexpr uint32_t kGenericExecute = 0x20000000;
+  static constexpr uint32_t kGenericAll = 0x10000000;
+  static constexpr uint32_t kFileReadData = 0x00000001;
+  static constexpr uint32_t kFileWriteData = 0x00000002;
+  static constexpr uint32_t kFileAppendData = 0x00000004;
 };
 
 class FileHandle {

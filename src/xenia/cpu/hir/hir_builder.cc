@@ -2100,7 +2100,7 @@ Value* HIRBuilder::CountLeadingZeros(Value* value) {
   ASSERT_INTEGER_TYPE(value);
 
   if (value->IsConstantZero()) {
-    static const uint8_t zeros[] = {
+    static constexpr uint8_t zeros[] = {
         8,
         16,
         32,

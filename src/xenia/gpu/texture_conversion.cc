@@ -60,7 +60,7 @@ void ConvertTexelCTX1ToR8G8(xenos::Endian endian, void* output,
   } block;
   static_assert(sizeof(block) == 8, "CTX1 block mismatch");
 
-  const uint32_t bytes_per_block = 8;
+  constexpr uint32_t bytes_per_block = 8;
   CopySwapBlock(endian, block.data, input, bytes_per_block);
 
   uint8_t cr[4] = {
@@ -84,7 +84,7 @@ void ConvertTexelCTX1ToR8G8(xenos::Endian endian, void* output,
 
 void ConvertTexelDXT3AToDXT3(xenos::Endian endian, void* output,
                              const void* input, size_t length) {
-  const uint32_t bytes_per_block = 16;
+  constexpr uint32_t bytes_per_block = 16;
   auto output_bytes = static_cast<uint8_t*>(output);
   CopySwapBlock(endian, &output_bytes[0], input, 8);
   std::memset(&output_bytes[8], 0, 8);

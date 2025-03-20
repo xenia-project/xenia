@@ -278,12 +278,12 @@ static_assert_size(XContentAttributes, 1);
 
 #pragma pack(push, 1)
 struct XContentMetadata {
-  static const uint32_t kThumbLengthV1 = 0x4000;
-  static const uint32_t kThumbLengthV2 = 0x3D00;
+  static constexpr uint32_t kThumbLengthV1 = 0x4000;
+  static constexpr uint32_t kThumbLengthV2 = 0x3D00;
 
-  static const uint32_t kNumLanguagesV1 = 9;
+  static constexpr uint32_t kNumLanguagesV1 = 9;
   // metadata_version 2 adds 3 languages inside thumbnail/title_thumbnail space
-  static const uint32_t kNumLanguagesV2 = 12;
+  static constexpr uint32_t kNumLanguagesV2 = 12;
 
   be<XContentType> content_type;
   be<uint32_t> metadata_version;

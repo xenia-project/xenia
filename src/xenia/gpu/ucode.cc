@@ -13,7 +13,7 @@ namespace xe {
 namespace gpu {
 namespace ucode {
 
-const AluScalarOpcodeInfo kAluScalarOpcodeInfos[64] = {
+constexpr AluScalarOpcodeInfo kAluScalarOpcodeInfos[64] = {
     {"adds", 1, true, kAluOpChangedStateNone},
     {"adds_prev", 1, false, kAluOpChangedStateNone},
     {"muls", 1, true, kAluOpChangedStateNone},
@@ -80,7 +80,7 @@ const AluScalarOpcodeInfo kAluScalarOpcodeInfos[64] = {
     {"opcode_63", 0, false, kAluOpChangedStateNone},
 };
 
-const AluVectorOpcodeInfo kAluVectorOpcodeInfos[32] = {
+constexpr AluVectorOpcodeInfo kAluVectorOpcodeInfos[32] = {
     {"add", {0b1111, 0b1111}, kAluOpChangedStateNone},
     {"mul", {0b1111, 0b1111}, kAluOpChangedStateNone},
     {"max", {0b1111, 0b1111}, kAluOpChangedStateNone},

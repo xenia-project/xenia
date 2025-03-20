@@ -120,7 +120,7 @@ constexpr unsigned int DEFAULT_FPU_MXCSR = 0x1F80;
 extern const uint32_t mxcsr_table[8];
 class X64Backend : public Backend {
  public:
-  static const uint32_t kForceReturnAddress = 0x9FFF0000u;
+  static constexpr uint32_t kForceReturnAddress = 0x9FFF0000u;
 
   explicit X64Backend();
   ~X64Backend() override;

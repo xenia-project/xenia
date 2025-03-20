@@ -2148,7 +2148,7 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
     uint32_t color_rts_used =
         description.render_pass_key.depth_and_color_used >> 1;
     {
-      static const VkBlendFactor kBlendFactorMap[] = {
+      static constexpr VkBlendFactor kBlendFactorMap[] = {
           VK_BLEND_FACTOR_ZERO,
           VK_BLEND_FACTOR_ONE,
           VK_BLEND_FACTOR_SRC_COLOR,
@@ -2166,14 +2166,14 @@ bool VulkanPipelineCache::EnsurePipelineCreated(
           VK_BLEND_FACTOR_SRC_ALPHA_SATURATE,
       };
       // 8 entries for safety since 3 bits from the guest are passed directly.
-      static const VkBlendOp kBlendOpMap[] = {VK_BLEND_OP_ADD,
-                                              VK_BLEND_OP_SUBTRACT,
-                                              VK_BLEND_OP_MIN,
-                                              VK_BLEND_OP_MAX,
-                                              VK_BLEND_OP_REVERSE_SUBTRACT,
-                                              VK_BLEND_OP_ADD,
-                                              VK_BLEND_OP_ADD,
-                                              VK_BLEND_OP_ADD};
+      static constexpr VkBlendOp kBlendOpMap[] = {VK_BLEND_OP_ADD,
+                                                  VK_BLEND_OP_SUBTRACT,
+                                                  VK_BLEND_OP_MIN,
+                                                  VK_BLEND_OP_MAX,
+                                                  VK_BLEND_OP_REVERSE_SUBTRACT,
+                                                  VK_BLEND_OP_ADD,
+                                                  VK_BLEND_OP_ADD,
+                                                  VK_BLEND_OP_ADD};
       uint32_t color_rts_remaining = color_rts_used;
       uint32_t color_rt_index;
       while (xe::bit_scan_forward(color_rts_remaining, &color_rt_index)) {

@@ -556,7 +556,7 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
       Shutdown();
       return false;
     }
-    const std::pair<const uint32_t*, size_t> host_depth_store_shaders[] = {
+    constexpr std::pair<const uint32_t*, size_t> host_depth_store_shaders[] = {
         {shaders::host_depth_store_1xmsaa_cs,
          sizeof(shaders::host_depth_store_1xmsaa_cs)},
         {shaders::host_depth_store_2xmsaa_cs,

@@ -165,7 +165,7 @@ bool XAudio2AudioDriver::InitializeObjects(Objects& objects) {
 
   waveformat.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
   waveformat.Samples.wValidBitsPerSample = waveformat.Format.wBitsPerSample;
-  static const DWORD kChannelMasks[] = {
+  static constexpr DWORD kChannelMasks[] = {
       0,
       0,
       SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT,

@@ -467,7 +467,7 @@ bool D3D12RenderTargetCache::Initialize() {
     // instead.
     if (cvars::native_2x_msaa) {
       msaa_2x_supported_ = true;
-      static const DXGI_FORMAT kRenderTargetDXGIFormats[] = {
+      static constexpr DXGI_FORMAT kRenderTargetDXGIFormats[] = {
           DXGI_FORMAT_R16G16B16A16_FLOAT,
           DXGI_FORMAT_R16G16B16A16_SNORM,
           DXGI_FORMAT_R32G32_FLOAT,

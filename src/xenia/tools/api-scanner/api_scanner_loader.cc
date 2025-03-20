@@ -61,7 +61,7 @@ bool apiscanner_loader::LoadTitleImports(const std::wstring& target) {
 
 bool apiscanner_loader::ReadTarget() {
   // XXX Do a wildcard search for all xex files?
-  const char path[] = "game:\\default.xex";
+  constexpr char path[] = "game:\\default.xex";
 
   kernel::XFile* file(nullptr);
   bool read_result(false);

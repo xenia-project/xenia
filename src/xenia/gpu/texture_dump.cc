@@ -100,7 +100,7 @@ void TextureDump(const TextureInfo& src, void* buffer, size_t length) {
 
   FILE* handle = filesystem::OpenFile(path, "wb");
   if (handle) {
-    const char signature[4] = {'D', 'D', 'S', ' '};
+    constexpr char signature[4] = {'D', 'D', 'S', ' '};
     fwrite(&signature, sizeof(signature), 1, handle);
     fwrite(&dds_header, sizeof(dds_header), 1, handle);
     fwrite(buffer, 1, length, handle);

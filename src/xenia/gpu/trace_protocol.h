@@ -16,7 +16,7 @@ namespace xe {
 namespace gpu {
 
 // Trace file extension.
-static const char kTraceExtension[] = "xtr";
+static constexpr char kTraceExtension[] = "xtr";
 
 // Any byte changes to the files should bump this version.
 // Only builds with matching versions will work.

@@ -20,8 +20,8 @@ namespace cpu {
 namespace ppc {
 
 constexpr size_t kNamePad = 11;
-const uint8_t kSpaces[kNamePad] = {0x20, 0x20, 0x20, 0x20, 0x20,
-                                   0x20, 0x20, 0x20, 0x20, 0x20};
+constexpr uint8_t kSpaces[kNamePad] = {0x20, 0x20, 0x20, 0x20, 0x20,
+                                       0x20, 0x20, 0x20, 0x20, 0x20};
 void PadStringBuffer(StringBuffer* str, size_t base, size_t pad);
 
 void PrintDisasm_bcx(const PPCDecodeData& d, StringBuffer* str);

@@ -47,11 +47,11 @@ namespace gpu {
 
 using namespace xe::gpu::xenos;
 
-static const ImVec4 kColorError =
+static constexpr ImVec4 kColorError =
     ImVec4(255 / 255.0f, 0 / 255.0f, 0 / 255.0f, 255 / 255.0f);
-static const ImVec4 kColorComment =
+static constexpr ImVec4 kColorComment =
     ImVec4(42 / 255.0f, 179 / 255.0f, 0 / 255.0f, 255 / 255.0f);
-static const ImVec4 kColorIgnored =
+static constexpr ImVec4 kColorIgnored =
     ImVec4(100 / 255.0f, 100 / 255.0f, 100 / 255.0f, 255 / 255.0f);
 
 TraceViewer::TraceViewer(xe::ui::WindowedAppContext& app_context,
