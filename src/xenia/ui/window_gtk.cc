@@ -67,14 +67,14 @@ bool GTKWindow::OpenImpl() {
   const auto* main_menu = dynamic_cast<const GTKMenuItem*>(GetMainMenu());
   GtkWidget* main_menu_widget = main_menu ? main_menu->handle() : nullptr;
   if (main_menu_widget) {
-    gtk_box_pack_start(GTK_BOX(box_), main_menu_widget, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(box_), main_menu_widget, false, false, 0);
   }
 
   // Create the drawing area for creating the surface for, which will be the
   // client area of the window occupying all the window space not taken by the
   // main menu.
   drawing_area_ = gtk_drawing_area_new();
-  gtk_box_pack_end(GTK_BOX(box_), drawing_area_, TRUE, TRUE, 0);
+  gtk_box_pack_end(GTK_BOX(box_), drawing_area_, true, true, 0);
   // The desired size is the client (drawing) area size. Let GTK auto-size the
   // entire window around it (as well as the width of the menu actually if it
   // happens to be bigger - the desired size in the Window will be updated later
@@ -186,7 +186,7 @@ void GTKWindow::ApplyNewFullscreen() {
       return;
     }
     if (main_menu_widget) {
-      gtk_box_pack_start(GTK_BOX(box_), main_menu_widget, FALSE, FALSE, 0);
+      gtk_box_pack_start(GTK_BOX(box_), main_menu_widget, false, false, 0);
       if (destruction_receiver.IsWindowDestroyedOrClosed()) {
         if (!destruction_receiver.IsWindowDestroyed()) {
           EndBatchedSizeUpdate(destruction_receiver);
@@ -249,7 +249,7 @@ void GTKWindow::ApplyNewMainMenu(MenuItem* old_main_menu) {
     return;
   }
   GtkWidget* new_main_menu_widget = new_main_menu->handle();
-  gtk_box_pack_start(GTK_BOX(box_), new_main_menu_widget, FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(box_), new_main_menu_widget, false, false, 0);
   if (destruction_receiver.IsWindowDestroyedOrClosed() || IsFullscreen()) {
     if (!destruction_receiver.IsWindowDestroyed()) {
       EndBatchedSizeUpdate(destruction_receiver);
@@ -711,14 +711,14 @@ gboolean GTKWindow::DrawHandler(GtkWidget* widget, cairo_t* cr,
                                 gpointer user_data) {
   auto* window = static_cast<GTKWindow*>(user_data);
   if (!window || widget != window->drawing_area_) {
-    return FALSE;
+    return false;
   }
   if (window->batched_size_update_depth_) {
     window->batched_size_update_contained_draw_ = true;
   } else {
     window->OnPaint();
   }
-  return TRUE;
+  return true;
 }
 
 std::unique_ptr<ui::MenuItem> MenuItem::Create(Type type,

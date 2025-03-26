@@ -137,10 +137,10 @@ bool XAudio2AudioDriver::InitializeObjects(Objects& objects) {
   api::XAUDIO2_DEBUG_CONFIGURATION config;
   config.TraceMask = api::XE_XAUDIO2_LOG_ERRORS | api::XE_XAUDIO2_LOG_WARNINGS;
   config.BreakMask = 0;
-  config.LogThreadID = FALSE;
-  config.LogTiming = TRUE;
-  config.LogFunctionName = TRUE;
-  config.LogFileline = TRUE;
+  config.LogThreadID = false;
+  config.LogTiming = true;
+  config.LogFunctionName = true;
+  config.LogFileline = true;
   objects.audio->SetDebugConfiguration(&config);
 
   hr = objects.audio->CreateMasteringVoice(&objects.mastering_voice);

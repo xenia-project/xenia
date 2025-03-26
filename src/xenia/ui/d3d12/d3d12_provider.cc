@@ -118,7 +118,7 @@ bool D3D12Provider::EnableIncreaseBasePriorityPrivilege() {
   if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &token)) {
     return false;
   }
-  bool enabled = AdjustTokenPrivileges(token, FALSE, &privileges,
+  bool enabled = AdjustTokenPrivileges(token, false, &privileges,
                                        sizeof(privileges), nullptr, nullptr) &&
                  GetLastError() != ERROR_NOT_ALL_ASSIGNED;
   CloseHandle(token);
@@ -217,13 +217,13 @@ bool D3D12Provider::Initialize() {
             0, IID_PPV_ARGS(&dxgi_info_queue)))) {
       if (cvars::d3d12_break_on_error) {
         dxgi_info_queue->SetBreakOnSeverity(
-            DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, TRUE);
+            DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, true);
         dxgi_info_queue->SetBreakOnSeverity(
-            DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, TRUE);
+            DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, true);
       }
       if (cvars::d3d12_break_on_warning) {
         dxgi_info_queue->SetBreakOnSeverity(
-            DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_WARNING, TRUE);
+            DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_WARNING, true);
       }
       dxgi_info_queue->Release();
     }
@@ -352,12 +352,12 @@ bool D3D12Provider::Initialize() {
     d3d12_info_queue->PushStorageFilter(&d3d12_info_queue_filter);
     if (cvars::d3d12_break_on_error) {
       d3d12_info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION,
-                                           TRUE);
-      d3d12_info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
+                                           true);
+      d3d12_info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, true);
     }
     if (cvars::d3d12_break_on_warning) {
       d3d12_info_queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING,
-                                           TRUE);
+                                           true);
     }
     d3d12_info_queue->Release();
   }

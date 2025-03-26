@@ -810,7 +810,7 @@ bool D3D12CommandProcessor::SetupContext() {
   ID3D12Device* device = provider.GetDevice();
   ID3D12CommandQueue* direct_queue = provider.GetDirectQueue();
 
-  fence_completion_event_ = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+  fence_completion_event_ = CreateEvent(nullptr, false, false, nullptr);
   if (fence_completion_event_ == nullptr) {
     XELOGE("Failed to create the fence completion event");
     return false;

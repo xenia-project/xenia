@@ -48,7 +48,7 @@ bool ControlFlowSimplificationPass::Run(HIRBuilder* builder) {
   block = builder->last_block();
   while (block) {
     auto prev_block = block->prev;
-    const uint32_t expected = Edge::DOMINATES | Edge::UNCONDITIONAL;
+    constexpr uint32_t expected = Edge::DOMINATES | Edge::UNCONDITIONAL;
     if (block->incoming_edge_head &&
         (block->incoming_edge_head->flags & expected) == expected) {
       // Dominated by the incoming block.

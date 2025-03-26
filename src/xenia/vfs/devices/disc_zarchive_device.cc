@@ -34,7 +34,7 @@ bool DiscZarchiveDevice::Initialize() {
     return false;
   }
 
-  const std::string root_path = std::string("/");
+  constexpr std::string_view root_path = "/";
   const ZArchiveNodeHandle handle = reader_->LookUp(root_path);
   auto root_entry = new DiscZarchiveEntry(this, nullptr, root_path);
   root_entry->attributes_ = kFileAttributeDirectory;

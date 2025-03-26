@@ -394,7 +394,7 @@ bool D3D12SharedMemory::AllocateSparseHostGpuMemoryRange(
   region_start_coordinates.Subresource = 0;
   D3D12_TILE_REGION_SIZE region_size;
   region_size.NumTiles = length_bytes / D3D12_TILED_RESOURCE_TILE_SIZE_IN_BYTES;
-  region_size.UseBox = FALSE;
+  region_size.UseBox = false;
   D3D12_TILE_RANGE_FLAGS range_flags = D3D12_TILE_RANGE_FLAG_NONE;
   UINT heap_range_start_offset = 0;
   direct_queue->UpdateTileMappings(

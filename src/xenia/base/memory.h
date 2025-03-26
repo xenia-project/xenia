@@ -813,12 +813,12 @@ template <unsigned Size>
 static void smallset_const(void* destination, unsigned char fill_value) {
 #if XE_ARCH_AMD64 == 1 && XE_COMPILER_MSVC == 1
   if constexpr ((Size & 7) == 0) {
-    unsigned long long fill =
+    static unsigned long long fill =
         static_cast<unsigned long long>(fill_value) * 0x0101010101010101ULL;
 
     __stosq((unsigned long long*)destination, fill, Size / 8);
   } else if constexpr ((Size & 3) == 0) {
-    static constexpr unsigned long fill =
+    static unsigned long fill =
         static_cast<unsigned long>(fill_value) * 0x01010101U;
     __stosd((unsigned long*)destination, fill, Size / 4);
     // dont even bother with movsw, i think the operand size override prefix

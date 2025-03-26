@@ -3029,7 +3029,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
       break;
   }
   state_desc.RasterizerState.FrontCounterClockwise =
-      description.front_counter_clockwise ? TRUE : FALSE;
+      description.front_counter_clockwise ? true : false;
   state_desc.RasterizerState.DepthBias = description.depth_bias;
   state_desc.RasterizerState.DepthBiasClamp = 0.0f;
   // With non-square resolution scaling, make sure the worst-case impact is
@@ -3041,7 +3041,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
       float(std::max(render_target_cache_.draw_resolution_scale_x(),
                      render_target_cache_.draw_resolution_scale_y()));
   state_desc.RasterizerState.DepthClipEnable =
-      description.depth_clip ? TRUE : FALSE;
+      description.depth_clip ? true : false;
   uint32_t msaa_sample_count = uint32_t(1)
                                << uint32_t(description.host_msaa_samples);
   if (edram_rov_used) {
@@ -3082,7 +3082,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
     // Depth/stencil.
     if (description.depth_func != xenos::CompareFunction::kAlways ||
         description.depth_write) {
-      state_desc.DepthStencilState.DepthEnable = TRUE;
+      state_desc.DepthStencilState.DepthEnable = true;
       state_desc.DepthStencilState.DepthWriteMask =
           description.depth_write ? D3D12_DEPTH_WRITE_MASK_ALL
                                   : D3D12_DEPTH_WRITE_MASK_ZERO;
@@ -3093,7 +3093,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
                                 uint32_t(description.depth_func));
     }
     if (description.stencil_enable) {
-      state_desc.DepthStencilState.StencilEnable = TRUE;
+      state_desc.DepthStencilState.StencilEnable = true;
       state_desc.DepthStencilState.StencilReadMask =
           description.stencil_read_mask;
       state_desc.DepthStencilState.StencilWriteMask =
@@ -3131,7 +3131,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
     }
 
     // Render targets and blending.
-    state_desc.BlendState.IndependentBlendEnable = TRUE;
+    state_desc.BlendState.IndependentBlendEnable = true;
     static constexpr D3D12_BLEND kBlendFactorMap[] = {
         D3D12_BLEND_ZERO,          D3D12_BLEND_ONE,
         D3D12_BLEND_SRC_COLOR,     D3D12_BLEND_INV_SRC_COLOR,
@@ -3169,7 +3169,7 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
           rt.src_blend_alpha != PipelineBlendFactor::kOne ||
           rt.dest_blend_alpha != PipelineBlendFactor::kZero ||
           rt.blend_op_alpha != xenos::BlendOp::kAdd) {
-        blend_desc.BlendEnable = TRUE;
+        blend_desc.BlendEnable = true;
         blend_desc.SrcBlend = kBlendFactorMap[uint32_t(rt.src_blend)];
         blend_desc.DestBlend = kBlendFactorMap[uint32_t(rt.dest_blend)];
         blend_desc.BlendOp = kBlendOpMap[uint32_t(rt.blend_op)];
@@ -3196,8 +3196,8 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
   if (description.cull_mode == PipelineCullMode::kDisableRasterization) {
     state_desc.PS.pShaderBytecode = nullptr;
     state_desc.PS.BytecodeLength = 0;
-    state_desc.DepthStencilState.DepthEnable = FALSE;
-    state_desc.DepthStencilState.StencilEnable = FALSE;
+    state_desc.DepthStencilState.DepthEnable = false;
+    state_desc.DepthStencilState.StencilEnable = false;
   }
 
   // Create the D3D12 pipeline state object.

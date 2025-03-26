@@ -1505,13 +1505,13 @@ std::vector<uint32_t> XexModule::PreanalyzeCode() {
     uint32_t* range_end = (uint32_t*)memory()->TranslateVirtual(
         high_8_aligned);  // align down to multiple of 8
 
-    const uint8_t mfspr_r12_lr[4] = {0x7D, 0x88, 0x02, 0xA6};
+    constexpr uint8_t mfspr_r12_lr[4] = {0x7D, 0x88, 0x02, 0xA6};
 
     // a blr instruction, with 4 zero bytes afterwards to pad the next address
     // to 8 byte alignment
     // if we see this prior to our address, we can assume we are a function
     // start
-    const uint8_t blr[4] = {0x4E, 0x80, 0x0, 0x20};
+    constexpr uint8_t blr[4] = {0x4E, 0x80, 0x0, 0x20};
 
     uint32_t blr32 = *reinterpret_cast<const uint32_t*>(&blr[0]);
 

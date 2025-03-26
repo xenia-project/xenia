@@ -170,7 +170,7 @@ void Sleep(std::chrono::microseconds duration) {
 }
 
 SleepResult AlertableSleep(std::chrono::microseconds duration) {
-  if (SleepEx(static_cast<DWORD>(duration.count() / 1000), TRUE) ==
+  if (SleepEx(static_cast<DWORD>(duration.count() / 1000), true) ==
       WAIT_IO_COMPLETION) {
     return SleepResult::kAlerted;
   }
@@ -211,7 +211,7 @@ WaitResult Wait(WaitHandle* wait_handle, bool is_alertable,
   HANDLE handle = wait_handle->native_handle();
   DWORD result;
   DWORD timeout_dw = DWORD(timeout.count());
-  BOOL bAlertable = is_alertable ? TRUE : FALSE;
+  BOOL bAlertable = is_alertable ? true : false;
   // todo: we might actually be able to use NtWaitForSingleObject even if its
   // alertable, just need to study whether
   // RtlDeactivateActivationContextUnsafeFast/RtlActivateActivationContext are
@@ -251,7 +251,7 @@ WaitResult SignalAndWait(WaitHandle* wait_handle_to_signal,
   HANDLE handle_to_wait_on = wait_handle_to_wait_on->native_handle();
   DWORD result =
       SignalObjectAndWait(handle_to_signal, handle_to_wait_on,
-                          DWORD(timeout.count()), is_alertable ? TRUE : FALSE);
+                          DWORD(timeout.count()), is_alertable ? true : false);
   switch (result) {
     case WAIT_OBJECT_0:
       return WaitResult::kSuccess;
@@ -278,8 +278,8 @@ std::pair<WaitResult, size_t> WaitMultiple(WaitHandle* wait_handles[],
     handles[i] = wait_handles[i]->native_handle();
   }
   DWORD result = WaitForMultipleObjectsEx(
-      static_cast<DWORD>(wait_handle_count), handles, wait_all ? TRUE : FALSE,
-      DWORD(timeout.count()), is_alertable ? TRUE : FALSE);
+      static_cast<DWORD>(wait_handle_count), handles, wait_all ? true : false,
+      DWORD(timeout.count()), is_alertable ? true : false);
   if (result >= WAIT_OBJECT_0 && result < WAIT_OBJECT_0 + wait_handle_count) {
     return std::pair<WaitResult, size_t>(WaitResult::kSuccess,
                                          result - WAIT_OBJECT_0);
@@ -339,7 +339,7 @@ class Win32Event : public Win32Handle<Event> {
 
 std::unique_ptr<Event> Event::CreateManualResetEvent(bool initial_state) {
   HANDLE handle =
-      CreateEvent(nullptr, TRUE, initial_state ? TRUE : FALSE, nullptr);
+      CreateEvent(nullptr, true, initial_state ? true : false, nullptr);
   if (handle) {
     return std::make_unique<Win32Event>(handle);
   } else {
@@ -351,7 +351,7 @@ std::unique_ptr<Event> Event::CreateManualResetEvent(bool initial_state) {
 
 std::unique_ptr<Event> Event::CreateAutoResetEvent(bool initial_state) {
   HANDLE handle =
-      CreateEvent(nullptr, FALSE, initial_state ? TRUE : FALSE, nullptr);
+      CreateEvent(nullptr, false, initial_state ? true : false, nullptr);
   if (handle) {
     return std::make_unique<Win32Event>(handle);
   } else {
@@ -397,7 +397,7 @@ class Win32Mutant : public Win32Handle<Mutant> {
 };
 
 std::unique_ptr<Mutant> Mutant::Create(bool initial_owner) {
-  HANDLE handle = CreateMutex(nullptr, initial_owner ? TRUE : FALSE, nullptr);
+  HANDLE handle = CreateMutex(nullptr, initial_owner ? true : false, nullptr);
   if (handle) {
     return std::make_unique<Win32Mutant>(handle);
   } else {
@@ -433,7 +433,7 @@ class Win32Timer : public Win32Handle<Timer> {
         callback_ ? reinterpret_cast<PTIMERAPCROUTINE>(CompletionRoutine)
                   : NULL;
     return SetWaitableTimer(handle_, &due_time_li, 0, completion_routine, this,
-                            FALSE)
+                            false)
                ? true
                : false;
   }
@@ -461,7 +461,7 @@ class Win32Timer : public Win32Handle<Timer> {
         callback_ ? reinterpret_cast<PTIMERAPCROUTINE>(CompletionRoutine)
                   : NULL;
     return SetWaitableTimer(handle_, &due_time_li, int32_t(period.count()),
-                            completion_routine, this, FALSE)
+                            completion_routine, this, false)
                ? true
                : false;
   }
@@ -490,7 +490,7 @@ class Win32Timer : public Win32Handle<Timer> {
 };
 
 std::unique_ptr<Timer> Timer::CreateManualResetTimer() {
-  HANDLE handle = CreateWaitableTimer(NULL, TRUE, NULL);
+  HANDLE handle = CreateWaitableTimer(NULL, true, NULL);
   if (handle) {
     return std::make_unique<Win32Timer>(handle);
   } else {
@@ -500,7 +500,7 @@ std::unique_ptr<Timer> Timer::CreateManualResetTimer() {
 }
 
 std::unique_ptr<Timer> Timer::CreateSynchronizationTimer() {
-  HANDLE handle = CreateWaitableTimer(NULL, FALSE, NULL);
+  HANDLE handle = CreateWaitableTimer(NULL, false, NULL);
   if (handle) {
     return std::make_unique<Win32Timer>(handle);
   } else {

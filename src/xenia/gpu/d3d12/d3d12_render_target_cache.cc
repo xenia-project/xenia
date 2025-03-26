@@ -969,7 +969,7 @@ bool D3D12RenderTargetCache::Initialize() {
         D3D12_FILL_MODE_SOLID;
     uint32_rtv_clear_pipeline_desc.RasterizerState.CullMode =
         D3D12_CULL_MODE_NONE;
-    uint32_rtv_clear_pipeline_desc.RasterizerState.DepthClipEnable = TRUE;
+    uint32_rtv_clear_pipeline_desc.RasterizerState.DepthClipEnable = true;
     uint32_rtv_clear_pipeline_desc.PrimitiveTopologyType =
         D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     uint32_rtv_clear_pipeline_desc.NumRenderTargets = 1;
@@ -4327,12 +4327,12 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
   }
   pipeline_desc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
   pipeline_desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-  pipeline_desc.RasterizerState.DepthClipEnable = TRUE;
+  pipeline_desc.RasterizerState.DepthClipEnable = true;
   pipeline_desc.InputLayout.pInputElementDescs = &pipeline_input_element_desc;
   pipeline_desc.InputLayout.NumElements = 1;
   pipeline_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
   if (dest_is_stencil_bit) {
-    pipeline_desc.DepthStencilState.StencilEnable = TRUE;
+    pipeline_desc.DepthStencilState.StencilEnable = true;
     pipeline_desc.DepthStencilState.FrontFace.StencilFailOp =
         D3D12_STENCIL_OP_KEEP;
     pipeline_desc.DepthStencilState.FrontFace.StencilDepthFailOp =
@@ -4375,14 +4375,14 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
       pipeline_desc.RTVFormats[0] =
           GetColorOwnershipTransferDXGIFormat(dest_color_format);
     } else {
-      pipeline_desc.DepthStencilState.DepthEnable = TRUE;
+      pipeline_desc.DepthStencilState.DepthEnable = true;
       pipeline_desc.DepthStencilState.DepthWriteMask =
           D3D12_DEPTH_WRITE_MASK_ALL;
       pipeline_desc.DepthStencilState.DepthFunc =
           cvars::depth_transfer_not_equal_test ? D3D12_COMPARISON_FUNC_NOT_EQUAL
                                                : D3D12_COMPARISON_FUNC_ALWAYS;
       if (use_stencil_reference_output_) {
-        pipeline_desc.DepthStencilState.StencilEnable = TRUE;
+        pipeline_desc.DepthStencilState.StencilEnable = true;
         pipeline_desc.DepthStencilState.StencilWriteMask = UINT8_MAX;
         pipeline_desc.DepthStencilState.FrontFace.StencilFailOp =
             D3D12_STENCIL_OP_KEEP;
@@ -4804,7 +4804,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
       are_current_command_list_render_targets_valid_ = false;
       if (dest_rt_key.is_depth) {
         auto handle = dest_d3d12_rt.descriptor_draw().GetHandle();
-        command_list.D3DOMSetRenderTargets(0, nullptr, FALSE, &handle);
+        command_list.D3DOMSetRenderTargets(0, nullptr, false, &handle);
         if (!use_stencil_reference_output_) {
           command_processor_.SetStencilReference(UINT8_MAX);
         }
@@ -4812,7 +4812,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
         auto handle = dest_d3d12_rt.descriptor_load_separate().IsValid()
                           ? dest_d3d12_rt.descriptor_load_separate().GetHandle()
                           : dest_d3d12_rt.descriptor_draw().GetHandle();
-        command_list.D3DOMSetRenderTargets(1, &handle, FALSE, nullptr);
+        command_list.D3DOMSetRenderTargets(1, &handle, false, nullptr);
       }
 
       uint32_t dest_pitch_tiles = dest_rt_key.GetPitchTiles();
@@ -5432,7 +5432,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
                    ? dest_d3d12_rt.descriptor_load_separate().GetHandle()
                    : dest_d3d12_rt.descriptor_draw().GetHandle());
 
-          command_list.D3DOMSetRenderTargets(1, &handle, FALSE, nullptr);
+          command_list.D3DOMSetRenderTargets(1, &handle, false, nullptr);
           are_current_command_list_render_targets_valid_ = true;
           D3D12_VIEWPORT clear_viewport;
           clear_viewport.TopLeftX = float(clear_rect.left);
@@ -5553,7 +5553,7 @@ void D3D12RenderTargetCache::SetCommandListRenderTargets(
               : d3d12_rt.descriptor_draw().GetHandle();
     }
     command_processor_.GetDeferredCommandList().D3DOMSetRenderTargets(
-        rtv_count, rtv_handles, FALSE,
+        rtv_count, rtv_handles, false,
         depth_and_color_render_targets[0] ? &dsv_handle : nullptr);
     are_current_command_list_render_targets_valid_ = true;
   }

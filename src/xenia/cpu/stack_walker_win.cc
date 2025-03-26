@@ -104,7 +104,7 @@ bool InitializeStackWalker() {
   options |= SYMOPT_LOAD_LINES;
   options |= SYMOPT_FAIL_CRITICAL_ERRORS;
   sym_set_options_(options);
-  if (!sym_initialize_(GetCurrentProcess(), nullptr, TRUE)) {
+  if (!sym_initialize_(GetCurrentProcess(), nullptr, true)) {
     XELOGE("Unable to initialize symbol services - already in use?");
     return false;
   }
@@ -192,7 +192,7 @@ class Win32StackWalker : public StackWalker {
     }
 
     // Setup the frame for walking.
-    STACKFRAME64 stack_frame = {0};
+    STACKFRAME64 stack_frame = {};
     stack_frame.AddrPC.Mode = AddrModeFlat;
     stack_frame.AddrPC.Offset = thread_context.Rip;
     stack_frame.AddrFrame.Mode = AddrModeFlat;

@@ -268,7 +268,7 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
     swap_chain_desc.Width = UINT(new_swap_chain_width);
     swap_chain_desc.Height = UINT(new_swap_chain_height);
     swap_chain_desc.Format = kSwapChainFormat;
-    swap_chain_desc.Stereo = FALSE;
+    swap_chain_desc.Stereo = false;
     swap_chain_desc.SampleDesc.Count = 1;
     swap_chain_desc.SampleDesc.Quality = 0;
     swap_chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
@@ -770,7 +770,7 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(
 
         if (is_final_effect) {
           if (!back_buffer_bound) {
-            command_list->OMSetRenderTargets(1, &back_buffer_rtv, TRUE,
+            command_list->OMSetRenderTargets(1, &back_buffer_rtv, true,
                                              nullptr);
             back_buffer_bound = true;
           }
@@ -780,7 +780,7 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(
                   rtv_heap_start,
                   uint32_t(PaintContext::kRTVIndexGuestOutputIntermediate0 +
                            i));
-          command_list->OMSetRenderTargets(1, &intermediate_rtv, TRUE, nullptr);
+          command_list->OMSetRenderTargets(1, &intermediate_rtv, true, nullptr);
           back_buffer_bound = false;
         }
         if (is_final_effect) {
@@ -1028,7 +1028,7 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(
   if (execute_ui_drawers) {
     // Draw the UI.
     if (!back_buffer_bound) {
-      command_list->OMSetRenderTargets(1, &back_buffer_rtv, TRUE, nullptr);
+      command_list->OMSetRenderTargets(1, &back_buffer_rtv, true, nullptr);
       back_buffer_bound = true;
     }
     D3D12UIDrawContext ui_draw_context(
@@ -1285,7 +1285,7 @@ bool D3D12Presenter::InitializeSurfaceIndependent() {
       D3D12_FILL_MODE_SOLID;
   guest_output_paint_pipeline_desc.RasterizerState.CullMode =
       D3D12_CULL_MODE_NONE;
-  guest_output_paint_pipeline_desc.RasterizerState.DepthClipEnable = TRUE;
+  guest_output_paint_pipeline_desc.RasterizerState.DepthClipEnable = true;
   guest_output_paint_pipeline_desc.PrimitiveTopologyType =
       D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
   guest_output_paint_pipeline_desc.NumRenderTargets = 1;

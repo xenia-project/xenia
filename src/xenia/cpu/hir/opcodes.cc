@@ -14,7 +14,7 @@ namespace cpu {
 namespace hir {
 
 #define DEFINE_OPCODE(num, name, sig, flags) \
-  const OpcodeInfo num##_info = {            \
+  constexpr OpcodeInfo num##_info = {        \
       num,                                   \
       flags,                                 \
       sig,                                   \

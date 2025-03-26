@@ -60,7 +60,7 @@ static void RequestWin32HighResolutionTimer() {
   ULONG minimum_resolution, maximum_resolution, current_resolution;
   nt_query_timer_resolution(&minimum_resolution, &maximum_resolution,
                             &current_resolution);
-  nt_set_timer_resolution(maximum_resolution, TRUE, &current_resolution);
+  nt_set_timer_resolution(maximum_resolution, true, &current_resolution);
 }
 
 static void RequestWin32MMCSS() {
@@ -74,7 +74,7 @@ static void RequestWin32MMCSS() {
   dwm_enable_mmcss = reinterpret_cast<decltype(dwm_enable_mmcss)>(
       GetProcAddress(dwmapi_module, "DwmEnableMMCSS"));
   if (dwm_enable_mmcss) {
-    dwm_enable_mmcss(TRUE);
+    dwm_enable_mmcss(true);
   }
   FreeLibrary(dwmapi_module);
 }

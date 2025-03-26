@@ -92,7 +92,7 @@ typedef struct _UNWIND_INFO {
 
 // Size of unwind info per function.
 // TODO(benvanik): move this to emitter.
-static const uint32_t kUnwindInfoSize =
+static constexpr uint32_t kUnwindInfoSize =
     sizeof(UNWIND_INFO) + (sizeof(UNWIND_CODE) * (6 - 1));
 
 class Win32X64CodeCache : public X64CodeCache {

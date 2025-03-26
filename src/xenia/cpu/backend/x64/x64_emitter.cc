@@ -1243,7 +1243,7 @@ void* X64Emitter::FindQwordConstantOffset(uint64_t qwordvalue) {
 }
 // First location to try and place constants.
 static constexpr uintptr_t kConstDataLocation = 0x20000000;
-static const uintptr_t kConstDataSize = sizeof(xmm_consts);
+static constexpr uintptr_t kConstDataSize = sizeof(xmm_consts);
 
 // Increment the location by this amount for every allocation failure.
 static constexpr uintptr_t kConstDataIncrement = 0x00001000;

@@ -134,7 +134,7 @@ bool D3D12ImmediateDrawer::Initialize() {
   pipeline_desc.PS.BytecodeLength = sizeof(shaders::immediate_ps);
   D3D12_RENDER_TARGET_BLEND_DESC& pipeline_blend_desc =
       pipeline_desc.BlendState.RenderTarget[0];
-  pipeline_blend_desc.BlendEnable = TRUE;
+  pipeline_blend_desc.BlendEnable = true;
   pipeline_blend_desc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
   pipeline_blend_desc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
   pipeline_blend_desc.BlendOp = D3D12_BLEND_OP_ADD;
@@ -145,8 +145,8 @@ bool D3D12ImmediateDrawer::Initialize() {
   pipeline_desc.SampleMask = UINT_MAX;
   pipeline_desc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
   pipeline_desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-  pipeline_desc.RasterizerState.FrontCounterClockwise = FALSE;
-  pipeline_desc.RasterizerState.DepthClipEnable = TRUE;
+  pipeline_desc.RasterizerState.FrontCounterClockwise = false;
+  pipeline_desc.RasterizerState.DepthClipEnable = true;
   D3D12_INPUT_ELEMENT_DESC pipeline_input_elements[3] = {};
   pipeline_input_elements[0].SemanticName = "POSITION";
   pipeline_input_elements[0].Format = DXGI_FORMAT_R32G32_FLOAT;

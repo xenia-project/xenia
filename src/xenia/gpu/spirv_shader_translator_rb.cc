@@ -566,7 +566,7 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
       spv::Id alpha_test_result_non_not_equal;
       {
         // Function other than "not equal".
-        static const spv::Op kAlphaTestOps[] = {
+        static constexpr spv::Op kAlphaTestOps[] = {
             spv::OpFOrdLessThan, spv::OpFOrdEqual, spv::OpFOrdGreaterThan};
         for (uint32_t i = 0; i < 3; ++i) {
           spv::Id alpha_test_comparison_result = builder_->createBinOp(

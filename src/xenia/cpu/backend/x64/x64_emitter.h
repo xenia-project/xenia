@@ -227,8 +227,8 @@ class X64Emitter : public Xbyak::CodeGenerator {
   //            xmm0-2
   // Available: rbx, r10-r15
   //            xmm4-xmm15 (save to get xmm3)
-  static const int GPR_COUNT = 7;
-  static const int XMM_COUNT = 12;
+  static constexpr int GPR_COUNT = 7;
+  static constexpr int XMM_COUNT = 12;
   static constexpr size_t kStashOffset = 32;
   static void SetupReg(const hir::Value* v, Xbyak::Reg8& r) {
     auto idx = gpr_reg_map_[v->reg.index];

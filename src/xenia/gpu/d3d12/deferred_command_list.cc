@@ -144,7 +144,7 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
             *reinterpret_cast<const D3DOMSetRenderTargetsArguments*>(stream);
         command_list->OMSetRenderTargets(
             args.num_render_target_descriptors, args.render_target_descriptors,
-            args.rts_single_handle_to_descriptor_range ? TRUE : FALSE,
+            args.rts_single_handle_to_descriptor_range ? true : false,
             args.depth_stencil ? &args.depth_stencil_descriptor : nullptr);
       } break;
       case Command::kD3DOMSetStencilRef: {

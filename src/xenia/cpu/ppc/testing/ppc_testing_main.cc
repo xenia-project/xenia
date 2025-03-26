@@ -44,7 +44,7 @@ using namespace xe::literals;
 
 typedef std::vector<std::pair<std::string, std::string>> AnnotationList;
 
-const uint32_t START_ADDRESS = 0x80000000;
+constexpr uint32_t START_ADDRESS = 0x80000000;
 
 struct TestCase {
   TestCase(uint32_t address, std::string& name)

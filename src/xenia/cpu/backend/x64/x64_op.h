@@ -123,7 +123,7 @@ struct OpBase {};
 
 template <typename T, KeyType KEY_TYPE>
 struct Op : OpBase {
-  static const KeyType key_type = KEY_TYPE;
+  static constexpr KeyType key_type = KEY_TYPE;
 };
 
 struct VoidOp : Op<VoidOp, KEY_TYPE_X> {
