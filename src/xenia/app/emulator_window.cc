@@ -569,6 +569,93 @@ void EmulatorWindow::DisplayConfigDialog::OnDraw(ImGuiIO& io) {
   }
 }
 
+void EmulatorWindow::ContentInstallDialog::OnDraw(ImGuiIO& io) {
+  ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(20, 20), ImGuiCond_FirstUseEver);
+
+  bool dialog_open = true;
+  if (!ImGui::Begin(
+          fmt::format("Installation Progress###{}", window_id_).c_str(),
+          &dialog_open,
+          ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize |
+              ImGuiWindowFlags_HorizontalScrollbar)) {
+    Close();
+    ImGui::End();
+    return;
+  }
+
+  bool is_everything_installed = true;
+  for (const auto& entry : *installation_entries_) {
+    ImGui::BeginTable(fmt::format("table_{}", entry.name_).c_str(), 2);
+    ImGui::TableNextRow(0);
+    ImGui::TableSetColumnIndex(0);
+    if (entry.icon_) {
+      ImGui::Image(reinterpret_cast<ImTextureID>(entry.icon_.get()),
+                   ui::default_image_icon_size);
+    } else {
+      ImGui::Dummy(ui::default_image_icon_size);
+    }
+    ImGui::TableNextColumn();
+
+    ImGui::Text("Name: %s", entry.name_.c_str());
+    ImGui::Text("Installation Path:");
+    ImGui::SameLine();
+    if (ImGui::TextLink(
+            xe::path_to_utf8(entry.data_installation_path_).c_str())) {
+      LaunchFileExplorer(emulator_window_.emulator_->content_root() /
+                         entry.data_installation_path_);
+    }
+
+    if (entry.content_type_ != xe::XContentType::kInvalid) {
+      ImGui::Text("Content Type: %s",
+                  XContentTypeMap.at(entry.content_type_).c_str());
+    }
+
+    if (entry.installation_result_ != X_ERROR_SUCCESS) {
+      ImGui::Text("Status: %s (0x%08X)",
+                  entry.installation_error_message_.c_str(),
+                  entry.installation_result_);
+    } else if (entry.currently_installed_size_ == entry.content_size_ &&
+               entry.installation_result_ == X_ERROR_SUCCESS) {
+      ImGui::Text("Status: Success");
+    }
+    ImGui::EndTable();
+
+    if (entry.content_size_ > 0) {
+      ImGui::ProgressBar(static_cast<float>(entry.currently_installed_size_) /
+                         entry.content_size_);
+
+      if (entry.currently_installed_size_ != entry.content_size_ &&
+          entry.installation_result_ == X_ERROR_SUCCESS) {
+        is_everything_installed = false;
+      }
+    } else {
+      ImGui::ProgressBar(0.0f);
+    }
+
+    if (installation_entries_->size() > 1) {
+      ImGui::Separator();
+    }
+  }
+  ImGui::Spacing();
+
+  ImGui::BeginDisabled(!is_everything_installed);
+  if (ImGui::Button("Close")) {
+    ImGui::EndDisabled();
+    Close();
+    ImGui::End();
+    return;
+  }
+  ImGui::EndDisabled();
+
+  if (!dialog_open && is_everything_installed) {
+    Close();
+    ImGui::End();
+    return;
+  }
+  ImGui::End();
+}
+
 bool EmulatorWindow::Initialize() {
   window_->AddListener(&window_listener_);
   window_->AddInputListener(&window_listener_, kZOrderEmulatorWindowInput);
@@ -1088,62 +1175,27 @@ void EmulatorWindow::InstallContent() {
     return;
   }
 
-  using content_installation_data =
-      std::tuple<X_STATUS, std::string, std::string>;
-  std::map<XContentType, std::vector<content_installation_data>>
-      content_installation_details;
+  std::shared_ptr<std::vector<Emulator::ContentInstallEntry>>
+      content_installation_status =
+          std::make_shared<std::vector<Emulator::ContentInstallEntry>>();
 
   for (const auto& path : paths) {
-    // Normalize the path and make absolute.
-    auto abs_path = std::filesystem::absolute(path);
-
-    Emulator::ContentInstallationInfo installation_info;
-    auto result = emulator_->InstallContentPackage(abs_path, installation_info);
-
-    auto entry =
-        content_installation_details.find(installation_info.content_type);
-
-    // There is no entry with that specific type of XContent, so we must add it.
-    if (entry == content_installation_details.end()) {
-      content_installation_details.insert({installation_info.content_type, {}});
-      entry = content_installation_details.find(installation_info.content_type);
-    };
-
-    entry->second.push_back({result, installation_info.content_name,
-                             installation_info.installation_path});
+    content_installation_status->push_back({path});
   }
 
-  // Prepare installation process summary message
-  std::string summary = "Installation result: \n";
+  for (auto& entry : *content_installation_status) {
+    emulator_->ProcessContentPackageHeader(entry.path_, entry);
+  }
 
-  for (const auto& content_type : content_installation_details) {
-    if (XContentTypeMap.find(content_type.first) != XContentTypeMap.cend()) {
-      summary += XContentTypeMap.at(content_type.first) + ":\n";
-    } else {
-      summary += "Unknown:\n";
+  auto installationThread = std::thread([this, content_installation_status] {
+    for (auto& entry : *content_installation_status) {
+      emulator_->InstallContentPackage(entry.path_, entry);
     }
+  });
+  installationThread.detach();
 
-    for (const auto& content_installation_entry : content_type.second) {
-      const std::string status =
-          std::get<0>(content_installation_entry) == X_STATUS_SUCCESS
-              ? "Success"
-              : fmt::format("Failed (0x{:08X})",
-                            std::get<0>(content_installation_entry));
-
-      summary += fmt::format("\t{} - {} => {}\n", status,
-                             std::get<1>(content_installation_entry),
-                             std::get<2>(content_installation_entry));
-    }
-
-    summary += "\n";
-  }
-
-  if (content_installation_details.count(XContentType::kProfile)) {
-    emulator_->kernel_state()->xam_state()->profile_manager()->ReloadProfiles();
-  }
-
-  xe::ui::ImGuiDialog::ShowMessageBox(imgui_drawer_.get(),
-                                      "Content Installation Summary", summary);
+  new ContentInstallDialog(imgui_drawer_.get(), *this,
+                           content_installation_status);
 }
 
 void EmulatorWindow::ExtractZarchive() {

@@ -335,6 +335,7 @@ X_STATUS VirtualFileSystem::OpenFile(Entry* root_entry,
 
 X_STATUS VirtualFileSystem::ExtractContentFile(Entry* entry,
                                                std::filesystem::path base_path,
+                                               uint64_t& progress,
                                                bool extract_to_root) {
   // Allocate a buffer when needed.
   size_t buffer_size = 0;
@@ -369,27 +370,33 @@ X_STATUS VirtualFileSystem::ExtractContentFile(Entry* entry,
     in_file->Destroy();
     return 1;
   }
+  constexpr size_t write_buffer_size = 4_MiB;
 
   if (entry->can_map()) {
     auto map = entry->OpenMapped(xe::MappedMemory::Mode::kRead);
-    fwrite(map->data(), map->size(), 1, file);
+
+    auto remaining_size = map->size();
+    auto offset = 0;
+
+    while (remaining_size > 0) {
+      fwrite(map->data() + offset, write_buffer_size, 1, file);
+      offset += write_buffer_size;
+      remaining_size -= write_buffer_size;
+    }
     map->Close();
   } else {
-    // Can't map the file into memory. Read it into a temporary buffer.
-    if (!buffer || entry->size() > buffer_size) {
-      // Resize the buffer.
-      if (buffer) {
-        delete[] buffer;
-      }
+    auto remaining_size = entry->size();
+    size_t offset = 0;
+    buffer = new uint8_t[write_buffer_size];
 
-      // Allocate a buffer rounded up to the nearest 512MB.
-      buffer_size = xe::round_up(entry->size(), 512_MiB);
-      buffer = new uint8_t[buffer_size];
+    while (remaining_size > 0) {
+      size_t bytes_read = 0;
+      in_file->ReadSync(buffer, write_buffer_size, offset, &bytes_read);
+      fwrite(buffer, bytes_read, 1, file);
+      offset += bytes_read;
+      remaining_size -= bytes_read;
+      progress += bytes_read;
     }
-
-    size_t bytes_read = 0;
-    in_file->ReadSync(buffer, entry->size(), 0, &bytes_read);
-    fwrite(buffer, bytes_read, 1, file);
   }
 
   fclose(file);
@@ -401,8 +408,9 @@ X_STATUS VirtualFileSystem::ExtractContentFile(Entry* entry,
   return 0;
 }
 
-X_STATUS VirtualFileSystem::ExtractContentFiles(
-    Device* device, std::filesystem::path base_path) {
+X_STATUS VirtualFileSystem::ExtractContentFiles(Device* device,
+                                                std::filesystem::path base_path,
+                                                uint64_t& progress) {
   // Run through all the files, breadth-first style.
   std::queue<vfs::Entry*> queue;
   auto root = device->ResolvePath("/");
@@ -415,7 +423,7 @@ X_STATUS VirtualFileSystem::ExtractContentFiles(
       queue.push(entry.get());
     }
 
-    ExtractContentFile(entry, base_path);
+    ExtractContentFile(entry, base_path, progress);
   }
   return X_STATUS_SUCCESS;
 }

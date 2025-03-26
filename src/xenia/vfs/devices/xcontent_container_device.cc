@@ -15,7 +15,8 @@
 namespace xe {
 namespace vfs {
 
-std::unique_ptr<Device> XContentContainerDevice::CreateContentDevice(
+std::unique_ptr<XContentContainerDevice>
+XContentContainerDevice::CreateContentDevice(
     const std::string_view mount_path, const std::filesystem::path& host_path) {
   if (!std::filesystem::exists(host_path)) {
     XELOGE("Path to XContent container does not exist: {}", host_path);

@@ -67,6 +67,7 @@ typedef uint32_t X_STATUS;
 #define X_STATUS_THREAD_IS_TERMINATING                  ((X_STATUS)0xC000004BL)
 #define X_STATUS_PROCEDURE_NOT_FOUND                    ((X_STATUS)0xC000007AL)
 #define X_STATUS_INVALID_IMAGE_FORMAT                   ((X_STATUS)0xC000007BL)
+#define X_STATUS_DISK_FULL                              ((X_STATUS)0xC000007FL)
 #define X_STATUS_INSUFFICIENT_RESOURCES                 ((X_STATUS)0xC000009AL)
 #define X_STATUS_MEMORY_NOT_ALLOCATED                   ((X_STATUS)0xC00000A0L)
 #define X_STATUS_FILE_IS_A_DIRECTORY                    ((X_STATUS)0xC00000BAL)

@@ -45,6 +45,10 @@ std::filesystem::path GetUserFolder();
 // attempting to create it.
 bool CreateParentFolder(const std::filesystem::path& path);
 
+// Creates folder on specified path.
+// If folder already exists it returns success (no error).
+std::error_code CreateFolder(const std::filesystem::path& path);
+
 // Creates an empty file at the given path, overwriting if it exists.
 bool CreateEmptyFile(const std::filesystem::path& path);
 

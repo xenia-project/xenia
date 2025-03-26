@@ -37,6 +37,8 @@ class Window;
 
 using IconsData = std::map<uint32_t, std::span<const uint8_t>>;
 
+constexpr ImVec2 default_image_icon_size = ImVec2(75.f, 75.f);
+
 class ImGuiDrawer : public WindowInputListener, public UIDrawer {
  public:
   ImGuiDrawer(Window* window, size_t z_order);
@@ -64,6 +66,8 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
   void ClearDialogs();
   void EnableNotifications(bool enable) { are_notifications_enabled_ = enable; }
 
+  std::unique_ptr<ImmediateTexture> LoadImGuiIcon(
+      std::span<const uint8_t> data);
   std::map<uint32_t, std::unique_ptr<ImmediateTexture>> LoadIcons(
       IconsData data);
 

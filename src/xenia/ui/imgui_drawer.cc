@@ -234,6 +234,25 @@ std::optional<ImGuiKey> ImGuiDrawer::VirtualKeyToImGuiKey(VirtualKey vkey) {
   }
 }
 
+std::unique_ptr<ImmediateTexture> ImGuiDrawer::LoadImGuiIcon(
+    std::span<const uint8_t> data) {
+  if (!immediate_drawer_) {
+    return {};
+  }
+
+  int width, height, channels;
+  unsigned char* image_data =
+      stbi_load_from_memory(data.data(), static_cast<int>(data.size()), &width,
+                            &height, &channels, STBI_rgb_alpha);
+  if (!image_data) {
+    return {};
+  }
+
+  return immediate_drawer_->CreateTexture(
+      width, height, ImmediateTextureFilter::kLinear, true,
+      reinterpret_cast<uint8_t*>(image_data));
+}
+
 std::map<uint32_t, std::unique_ptr<ImmediateTexture>> ImGuiDrawer::LoadIcons(
     IconsData data) {
   std::map<uint32_t, std::unique_ptr<ImmediateTexture>> icons_;
@@ -242,21 +261,9 @@ std::map<uint32_t, std::unique_ptr<ImmediateTexture>> ImGuiDrawer::LoadIcons(
     return icons_;
   }
 
-  int width, height, channels;
-
   for (const auto& icon : data) {
-    unsigned char* image_data = stbi_load_from_memory(
-        icon.second.data(), static_cast<int>(icon.second.size()), &width,
-        &height, &channels, STBI_rgb_alpha);
-
-    if (!image_data) {
-      continue;
-    }
-    icons_[icon.first] = (immediate_drawer_->CreateTexture(
-        width, height, ImmediateTextureFilter::kLinear, true,
-        reinterpret_cast<uint8_t*>(image_data)));
+    icons_[icon.first] = LoadImGuiIcon(icon.second);
   }
-
   return icons_;
 }
 

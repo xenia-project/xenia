@@ -31,7 +31,7 @@ class XContentContainerDevice : public Device {
  public:
   constexpr static uint32_t kBlockSize = 0x1000;
 
-  static std::unique_ptr<Device> CreateContentDevice(
+  static std::unique_ptr<XContentContainerDevice> CreateContentDevice(
       const std::string_view mount_path,
       const std::filesystem::path& host_path);
 
@@ -74,6 +74,10 @@ class XContentContainerDevice : public Device {
     return final_license;
   }
 
+  const XContentContainerHeader* GetContainerHeader() const {
+    return header_.get();
+  }
+
  protected:
   XContentContainerDevice(const std::string_view mount_path,
                           const std::filesystem::path& host_path);
@@ -105,10 +109,6 @@ class XContentContainerDevice : public Device {
   const uint64_t GetFilesSize() const { return files_total_size_; }
 
   const std::filesystem::path& GetHostPath() const { return host_path_; }
-
-  const XContentContainerHeader* GetContainerHeader() const {
-    return header_.get();
-  }
 
   std::string name_;
   std::filesystem::path host_path_;

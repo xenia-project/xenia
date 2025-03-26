@@ -26,6 +26,7 @@
 #include "xenia/memory.h"
 #include "xenia/patcher/patcher.h"
 #include "xenia/patcher/plugin_loader.h"
+#include "xenia/ui/immediate_drawer.h"
 #include "xenia/vfs/device.h"
 #include "xenia/vfs/virtual_file_system.h"
 #include "xenia/xbox.h"
@@ -234,18 +235,32 @@ class Emulator {
 
   X_STATUS LaunchDefaultModule(const std::filesystem::path& path);
 
-  struct ContentInstallationInfo {
-    XContentType content_type;
-    std::string installation_path;
-    std::string content_name;
+  struct ContentInstallEntry {
+    ContentInstallEntry(std::filesystem::path path) : path_(path) {};
+
+    std::string name_{};
+    std::filesystem::path path_;
+    std::filesystem::path data_installation_path_;
+    std::filesystem::path header_installation_path_;
+
+    uint64_t content_size_ = 0;
+    uint64_t currently_installed_size_ = 0;
+    X_STATUS installation_result_{};
+    std::string installation_error_message_{};
+    XContentType content_type_{};
+
+    std::unique_ptr<ui::ImmediateTexture> icon_;
   };
 
   // Migrates data from content to content/xuid with respect to common data.
   X_STATUS DataMigration(const uint64_t xuid);
 
+  X_STATUS ProcessContentPackageHeader(const std::filesystem::path& path,
+                                       ContentInstallEntry& installation_info);
+
   // Extract content of package to content specific directory.
   X_STATUS InstallContentPackage(const std::filesystem::path& path,
-                                 ContentInstallationInfo& installation_info);
+                                 ContentInstallEntry& installation_info);
 
   // Extract content of zar package to desired directory.
   X_STATUS ExtractZarchivePackage(const std::filesystem::path& path,

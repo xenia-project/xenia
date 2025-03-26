@@ -167,6 +167,34 @@ class EmulatorWindow {
     EmulatorWindow& emulator_window_;
   };
 
+  class ContentInstallDialog final : public ui::ImGuiDialog {
+   public:
+    ContentInstallDialog(
+        ui::ImGuiDrawer* imgui_drawer, EmulatorWindow& emulator_window,
+        std::shared_ptr<std::vector<Emulator::ContentInstallEntry>> entries)
+        : ui::ImGuiDialog(imgui_drawer),
+          emulator_window_(emulator_window),
+          installation_entries_(entries) {
+      window_id_ = GetWindowId();
+    }
+
+    ~ContentInstallDialog() {
+      for (auto& entry : *installation_entries_) {
+        entry.icon_.release();
+      }
+    }
+
+   protected:
+    void OnDraw(ImGuiIO& io) override;
+
+   private:
+    uint64_t window_id_;
+
+    EmulatorWindow& emulator_window_;
+    std::shared_ptr<std::vector<Emulator::ContentInstallEntry>>
+        installation_entries_;
+  };
+
   class DisplayConfigDialog final : public ui::ImGuiDialog {
    public:
     DisplayConfigDialog(ui::ImGuiDrawer* imgui_drawer,

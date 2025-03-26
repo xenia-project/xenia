@@ -24,6 +24,19 @@ bool CreateParentFolder(const std::filesystem::path& path) {
   return true;
 }
 
+std::error_code CreateFolder(const std::filesystem::path& path) {
+  if (std::filesystem::exists(path)) {
+    return {};
+  }
+
+  std::error_code ec;
+  if (std::filesystem::create_directories(path, ec)) {
+    return {};
+  }
+
+  return ec;
+}
+
 std::vector<FileInfo> ListDirectories(const std::filesystem::path& path) {
   std::vector<FileInfo> files = ListFiles(path);
   std::vector<FileInfo> directories = {};

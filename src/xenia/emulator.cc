@@ -785,53 +785,85 @@ X_STATUS Emulator::DataMigration(const uint64_t xuid) {
   return X_STATUS_SUCCESS;
 }
 
-X_STATUS Emulator::InstallContentPackage(
-    const std::filesystem::path& path,
-    ContentInstallationInfo& installation_info) {
-  std::unique_ptr<vfs::Device> device =
+X_STATUS Emulator::ProcessContentPackageHeader(
+    const std::filesystem::path& path, ContentInstallEntry& installation_info) {
+  installation_info.name_ = "Invalid Content Package!";
+  installation_info.content_type_ = XContentType::kInvalid;
+  installation_info.data_installation_path_ = xe::path_to_utf8(path.filename());
+
+  std::unique_ptr<vfs::XContentContainerDevice> device =
       vfs::XContentContainerDevice::CreateContentDevice("", path);
 
-  installation_info.content_name = "Invalid Content Package!";
-  installation_info.content_type = static_cast<XContentType>(0);
-  installation_info.installation_path = xe::path_to_utf8(path.filename());
+  if (!device || !device->Initialize()) {
+    installation_info.installation_result_ = X_STATUS_INVALID_PARAMETER;
+    installation_info.installation_error_message_ = "Invalid Package Type!";
+    XELOGE("Failed to initialize device");
+    return X_STATUS_INVALID_PARAMETER;
+  }
+  // Always install savefiles to user signed to slot 0.
+  const auto profile =
+      kernel_state_->xam_state()->profile_manager()->GetProfile(
+          static_cast<uint8_t>(0));
+
+  uint64_t xuid = device->xuid();
+  if (device->content_type() ==
+          static_cast<uint32_t>(XContentType::kSavedGame) &&
+      profile) {
+    xuid = profile->xuid();
+  }
+
+  installation_info.data_installation_path_ =
+      fmt::format("{:016X}/{:08X}/{:08X}/{}", xuid, device->title_id(),
+                  device->content_type(), path.filename());
+
+  installation_info.header_installation_path_ =
+      fmt::format("{:016X}/{:08X}/Headers/{:08X}/{}", xuid, device->title_id(),
+                  device->content_type(), path.filename());
+
+  installation_info.name_ =
+      xe::to_utf8(device->content_header().display_name());
+  installation_info.content_type_ =
+      static_cast<XContentType>(device->content_type());
+  installation_info.content_size_ = device->data_size();
+
+  installation_info.icon_ =
+      imgui_drawer_->LoadImGuiIcon(std::span<const uint8_t>(
+          device->GetContainerHeader()->content_metadata.title_thumbnail,
+          device->GetContainerHeader()->content_metadata.title_thumbnail_size));
+  return X_STATUS_SUCCESS;
+}
+
+X_STATUS Emulator::InstallContentPackage(
+    const std::filesystem::path& path, ContentInstallEntry& installation_info) {
+  std::unique_ptr<vfs::XContentContainerDevice> device =
+      vfs::XContentContainerDevice::CreateContentDevice("", path);
 
   if (!device || !device->Initialize()) {
     XELOGE("Failed to initialize device");
     return X_STATUS_INVALID_PARAMETER;
   }
 
-  const vfs::XContentContainerDevice* dev =
-      (vfs::XContentContainerDevice*)device.get();
+  const std::filesystem::path installation_path =
+      content_root() / installation_info.data_installation_path_;
 
-  // Always install savefiles to user signed to slot 0.
-  const auto profile =
-      kernel_state_->xam_state()->profile_manager()->GetProfile(
-          static_cast<uint8_t>(0));
+  const std::filesystem::path header_path =
+      content_root() / installation_info.header_installation_path_;
 
-  uint64_t xuid = dev->xuid();
-  if (dev->content_type() == static_cast<uint32_t>(XContentType::kSavedGame) &&
-      profile) {
-    xuid = profile->xuid();
+  if (!std::filesystem::exists(content_root())) {
+    const std::error_code ec = xe::filesystem::CreateFolder(content_root());
+    if (ec) {
+      installation_info.installation_error_message_ = ec.message();
+      installation_info.installation_result_ = X_STATUS_ACCESS_DENIED;
+      return X_STATUS_ACCESS_DENIED;
+    }
   }
 
-  std::filesystem::path installation_path =
-      content_root() / fmt::format("{:016X}", xuid) /
-      fmt::format("{:08X}", dev->title_id()) /
-      fmt::format("{:08X}", dev->content_type()) / path.filename();
-
-  std::filesystem::path header_path =
-      content_root() / fmt::format("{:016X}", xuid) /
-      fmt::format("{:08X}", dev->title_id()) / "Headers" /
-      fmt::format("{:08X}", dev->content_type()) / path.filename();
-
-  installation_info.installation_path =
-      fmt::format("{:016X}/{:08X}/{:08X}/{}", xuid, dev->title_id(),
-                  dev->content_type(), path.filename());
-
-  installation_info.content_name =
-      xe::to_utf8(dev->content_header().display_name());
-  installation_info.content_type =
-      static_cast<XContentType>(dev->content_type());
+  const auto disk_space = std::filesystem::space(content_root());
+  if (disk_space.available < installation_info.content_size_ * 1.1f) {
+    installation_info.installation_error_message_ = "Insufficient disk space!";
+    installation_info.installation_result_ = X_STATUS_DISK_FULL;
+    return X_STATUS_DISK_FULL;
+  }
 
   if (std::filesystem::exists(installation_path)) {
     // TODO(Gliniak): Popup
@@ -840,7 +872,9 @@ X_STATUS Emulator::InstallContentPackage(
     std::error_code error_code;
     std::filesystem::create_directories(installation_path, error_code);
     if (error_code) {
-      installation_info.content_name = "Cannot Create Content Directory!";
+      installation_info.installation_error_message_ =
+          "Cannot Create Content Directory!";
+      installation_info.installation_result_ = error_code.value();
       return error_code.value();
     }
   }
@@ -848,12 +882,18 @@ X_STATUS Emulator::InstallContentPackage(
   vfs::VirtualFileSystem::ExtractContentHeader(device.get(), header_path);
 
   X_STATUS error_code = vfs::VirtualFileSystem::ExtractContentFiles(
-      device.get(), installation_path);
+      device.get(), installation_path,
+      installation_info.currently_installed_size_);
   if (error_code != X_ERROR_SUCCESS) {
     return error_code;
   }
 
+  installation_info.currently_installed_size_ = installation_info.content_size_;
   kernel_state()->BroadcastNotification(kXNotificationLiveContentInstalled, 0);
+
+  if (installation_info.content_type_ == XContentType::kProfile) {
+    kernel_state_->xam_state()->profile_manager()->ReloadProfiles();
+  }
 
   return error_code;
 }
@@ -879,7 +919,9 @@ X_STATUS Emulator::ExtractZarchivePackage(
     }
   }
 
-  return vfs::VirtualFileSystem::ExtractContentFiles(device.get(), extract_dir);
+  uint64_t progress = 0;
+  return vfs::VirtualFileSystem::ExtractContentFiles(device.get(), extract_dir,
+                                                     progress);
 }
 
 X_STATUS Emulator::CreateZarchivePackage(
