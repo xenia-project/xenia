@@ -13,6 +13,8 @@
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/xbox.h"
 
+DECLARE_int32(avpack);
+
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {
@@ -31,12 +33,8 @@ void HalReturnToFirmware_entry(dword_t routine) {
 }
 DECLARE_XBOXKRNL_EXPORT2(HalReturnToFirmware, kNone, kStub, kImportant);
 
-// this seems to be able to return a number of different values in the range 0
-// - 8. just returning four for now, because thats probably a better option than
-// returning whatever was in r3 to begin with
-dword_result_t HalGetCurrentAVPack_entry() { return 4; }
-
-DECLARE_XBOXKRNL_EXPORT1(HalGetCurrentAVPack, kNone, kStub);
+dword_result_t HalGetCurrentAVPack_entry() { return cvars::avpack; }
+DECLARE_XBOXKRNL_EXPORT1(HalGetCurrentAVPack, kNone, kImplemented);
 
 }  // namespace xboxkrnl
 }  // namespace kernel

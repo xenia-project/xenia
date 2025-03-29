@@ -26,9 +26,32 @@ enum X_AV_REGION : uint32_t {
 };
 
 // XCONFIG_USER_VIDEO_FLAGS
-enum X_VIDEO_ASPECT_RATIO : uint32_t {
-  RatioNormal = 0x00400100,
-  Widescreen = 0x00400200,
+enum X_VIDEO_FLAGS : uint32_t {
+  RatioNormal = 0x00000000,
+  Widescreen = 0x00010000,
+};
+
+// XCONFIG_USER_AV_COMPONENT_SCREENSZ
+const static std::map<uint32_t, int32_t> XHDTVResolution = {
+    {0, 0x028001E0},   // 480p
+    {8, 0x050002D0},   // 720p, always widescreen
+    {16, 0x07800438},  // 1080, interlaced added in 1888, always widescreen
+};
+
+// XCONFIG_USER_AV_COMPONENT_SCREENSZ
+const static std::map<uint32_t, int32_t> XVGAResolution = {
+    // Existed since 1888
+    {0, 0x028001E0},   // 680x480
+    {5, 0x035001E0},   // 848x480
+    {6, 0x04000300},   // 1024x768
+    {8, 0x050002D0},   // 1280x720
+    {9, 0x05000300},   // 1280x768
+    {12, 0x05500300},  // 1360x768
+    // added in later Versions
+    {11, 0x05000400},  // 1280x1024
+    {13, 0x05A00384},  // 1440x900
+    {14, 0x0690041A},  // 1680x1050
+    {16, 0x07800438},  // 1920x1080
 };
 
 // XCONFIG_USER_AUDIO_FLAGS
@@ -66,7 +89,7 @@ enum X_RETAIL_FLAGS : uint32_t {
 
   // Other
   DashboardInitialized = 0x00000040,
-  BackgroundDownloadOn = 0X00010000,
+  BackgroundDownloadOn = 0x00010000,
 };
 
 // XCONFIG_USER_PC_FLAGS
@@ -94,7 +117,7 @@ enum X_BLACK_LEVEL : uint32_t {
 // XCONFIG_CONSOLE_SCREENSAVER
 enum X_SCREENSAVER : uint32_t {
   ScreensaverOn = 0x000A,
-  ScreensaverOff = 0X1000,
+  ScreensaverOff = 0x1000,
 };
 
 // XCONFIG_CONSOLE_AUTO_SHUTDOWN
@@ -128,8 +151,6 @@ enum X_KEYBOARD_LAYOUT : uint16_t {
   KeyboardDefault = 0x0000,
   EnglishQWERTY = 0x0001,
 };
-
-// XCONFIG_CONSOLE_KEYBOARD_LAYOUT
 
 }  // namespace xboxkrnl
 }  // namespace kernel

@@ -212,7 +212,7 @@ void VdQueryVideoMode(X_VIDEO_MODE* video_mode) {
   video_mode->display_height = display_res.second;
   video_mode->is_interlaced = cvars::interlaced;
   video_mode->is_widescreen = cvars::widescreen;
-  video_mode->is_hi_def = video_mode->display_width >= 0x400;
+  video_mode->is_hi_def = video_mode->display_width >= 0x500;
   video_mode->refresh_rate = GetVideoRefreshRate();
   video_mode->video_standard = GetVideoStandard();
   video_mode->unknown_0x8a = 0x4A;
@@ -230,7 +230,7 @@ dword_result_t VdQueryVideoFlags_entry() {
 
   uint32_t flags = 0;
   flags |= mode.is_widescreen ? 1 : 0;
-  flags |= mode.display_width >= 1024 ? 2 : 0;
+  flags |= mode.display_width >= 1280 ? 2 : 0;
   flags |= mode.display_width >= 1920 ? 4 : 0;
 
   return flags;
@@ -256,7 +256,7 @@ dword_result_t VdSetDisplayMode_entry(dword_t flags) {
 }
 DECLARE_XBOXKRNL_EXPORT1(VdSetDisplayMode, kVideo, kStub);
 
-dword_result_t VdSetDisplayModeOverride_entry(unknown_t unk0, unknown_t unk1,
+dword_result_t VdSetDisplayModeOverride_entry(dword_t width, dword_t height,
                                               double_t refresh_rate,
                                               unknown_t unk3, unknown_t unk4) {
   // refresh_rate = 0, 50, 59.9, etc.

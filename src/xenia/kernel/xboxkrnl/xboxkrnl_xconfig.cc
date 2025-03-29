@@ -58,6 +58,7 @@ DEFINE_uint32(
 DECLARE_bool(widescreen);
 DECLARE_bool(use_50Hz_mode);
 DECLARE_int32(video_standard);
+DECLARE_uint32(internal_display_resolution);
 
 namespace xe {
 namespace kernel {
@@ -123,9 +124,9 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
           break;
         case 0x000A:  // XCONFIG_USER_VIDEO_FLAGS
           setting_size = 4;
-          xe::store_and_swap<uint32_t>(
-              value, cvars::widescreen ? X_VIDEO_ASPECT_RATIO::Widescreen
-                                       : X_VIDEO_ASPECT_RATIO::RatioNormal);
+          xe::store_and_swap<uint32_t>(value, cvars::widescreen
+                                                  ? X_VIDEO_FLAGS::Widescreen
+                                                  : X_VIDEO_FLAGS::RatioNormal);
           break;
         case 0x000B:  // XCONFIG_USER_AUDIO_FLAGS
           setting_size = 4;
@@ -142,11 +143,35 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
           break;
         case 0x000F:  // XCONFIG_USER_PC_FLAGS
           setting_size = 1;
-          xe::store_and_swap<uint8_t>(value, 0);
+          value[0] = static_cast<uint8_t>(0);
+          break;
+        case 0x0014:  // XCONFIG_USER_AV_COMPONENT_SCREENSZ
+          setting_size = 4;
+          // int16_t* value[2];
+          if (XHDTVResolution.find(cvars::internal_display_resolution) !=
+              XHDTVResolution.cend()) {
+            xe::store_and_swap<int32_t>(
+                value, XHDTVResolution.at(cvars::internal_display_resolution));
+          } else {
+            XELOGW("Resolution not supported for AV Component");
+            xe::store_and_swap<int32_t>(value, 0);
+          }
+          break;
+        case 0x0015:  // XCONFIG_USER_AV_VGA_SCREENSZ
+          setting_size = 4;
+          // int16_t* value[2];
+          if (XVGAResolution.find(cvars::internal_display_resolution) !=
+              XVGAResolution.cend()) {
+            xe::store_and_swap<int32_t>(
+                value, XVGAResolution.at(cvars::internal_display_resolution));
+          } else {
+            XELOGW("Resolution not supported for VGA");
+            xe::store_and_swap<int32_t>(value, 0);
+          }
           break;
         case 0x001B:  // XCONFIG_USER_PC_HINT
           setting_size = 1;
-          xe::store_and_swap<uint8_t>(value, 0);
+          value[0] = static_cast<uint8_t>(0);
           break;
         case 0x0029:  // XCONFIG_USER_VIDEO_OUTPUT_BLACK_LEVELS
           setting_size = 4;

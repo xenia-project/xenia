@@ -649,8 +649,18 @@ dword_result_t lstrlenW_entry(lpu16string_t string) {
 }
 DECLARE_XAM_EXPORT1(lstrlenW, kNone, kImplemented);
 
-dword_result_t XGetAudioFlags_entry() { return cvars::audio_flag; }
-DECLARE_XAM_EXPORT1(XGetAudioFlags, kNone, kStub);
+dword_result_t XGetAudioFlags_entry() {
+  if (cvars::avpack == 2) {
+    return 2;
+  }
+
+  if (!cvars::audio_flag) {
+    return 0x10000 | 0x1;
+  }
+
+  return cvars::audio_flag;
+}
+DECLARE_XAM_EXPORT1(XGetAudioFlags, kNone, kImplemented);
 
 /*
         todo: this table should instead be pointed to by a member of kernel
