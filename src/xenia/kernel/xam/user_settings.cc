@@ -18,7 +18,8 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-const static std::array<UserSetting, 2> default_setting_values = {
+const static std::array<UserSetting, 3> default_setting_values = {
+    UserSetting(UserSettingId::XPROFILE_OPTION_CONTROLLER_VIBRATION, 3),
     UserSetting(
         UserSettingId::XPROFILE_GAMER_TIER,
         X_XAMACCOUNTINFO::AccountSubscriptionTier::kSubscriptionTierGold),

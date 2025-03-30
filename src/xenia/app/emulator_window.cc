@@ -1429,6 +1429,12 @@ void EmulatorWindow::ToggleControllerVibration() {
     auto input_lock = input_sys->lock();
 
     input_sys->ToggleVibration();
+
+    if (emulator_->kernel_state()) {
+      emulator_->kernel_state()->BroadcastNotification(
+          kXNotificationSystemProfileSettingChanged,
+          static_cast<uint32_t>(input_sys->GetConnectedSlots().count()));
+    }
   }
 }
 
