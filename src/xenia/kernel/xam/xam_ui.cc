@@ -514,6 +514,11 @@ class GameAchievementsDialog final : public XamDialog {
   }
 
  private:
+  ~GameAchievementsDialog() {
+    for (auto& entry : achievements_icons_) {
+      entry.second.release();
+    }
+  }
   bool LoadAchievementsData() {
     xe::ui::IconsData data;
 
@@ -724,6 +729,11 @@ class GamesInfoDialog final : public XamDialog {
   }
 
  private:
+  ~GamesInfoDialog() {
+    for (auto& entry : title_icon) {
+      entry.second.release();
+    }
+  }
   void LoadProfileGameInfo(ui::ImGuiDrawer* imgui_drawer,
                            const UserProfile* profile) {
     info_.clear();
