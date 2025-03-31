@@ -31,4 +31,4 @@ class MessengerApp : public App {
 }  // namespace kernel
 }  // namespace xe
 
-#endif XENIA_KERNEL_XAM_APPS_MESSENGER_APP_H_
+#endif  // XENIA_KERNEL_XAM_APPS_MESSENGER_APP_H_
