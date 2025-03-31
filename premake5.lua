@@ -30,6 +30,8 @@ cppdialect("C++20")
 exceptionhandling("On")
 rtti("On")
 symbols("On")
+characterset("Unicode")
+fatalwarnings("All")
 
 -- TODO(DrChat): Find a way to disable this on other architectures.
 if ARCH ~= "ppc64" then
@@ -37,11 +39,6 @@ if ARCH ~= "ppc64" then
     vectorextensions("AVX")
   filter({})
 end
-
-characterset("Unicode")
-flags({
-  "FatalWarnings",        -- Treat warnings as errors.
-})
 
 filter("kind:StaticLib")
   defines({
@@ -58,18 +55,15 @@ filter("configurations:Checked")
   defines({
     "DEBUG",
   })
+
 filter({"configurations:Checked", "platforms:Windows"})
   buildoptions({
     "/RTCsu",           -- Full Run-Time Checks.
   })
+
 filter({"configurations:Checked", "platforms:Linux"})
   defines({
     "_GLIBCXX_DEBUG",   -- libstdc++ debug mode
-  })
-filter({"configurations:Release", "platforms:Windows"})
-  buildoptions({
-    "/Gw",
-    "/Ob3",
   })
 
 filter("configurations:Debug")
@@ -79,6 +73,7 @@ filter("configurations:Debug")
     "DEBUG",
     "_NO_DEBUG_HEAP=1",
   })
+
 filter({"configurations:Debug", "platforms:Linux"})
   defines({
     "_GLIBCXX_DEBUG",   -- make dbg symbols work on some distros
@@ -92,19 +87,28 @@ filter("configurations:Release")
   })
   optimize("Speed")
   inlining("Auto")
-  flags({
-    "LinkTimeOptimization",
-    "NoBufferSecurityCheck",
-  })
+  editandcontinue("Off")
   -- Not using floatingpoint("Fast") - NaN checks are used in some places
   -- (though rarely), overall preferable to avoid any functional differences
   -- between debug and release builds, and to have calculations involved in GPU
   -- (especially anything that may affect vertex position invariance) and CPU
   -- (such as constant propagation) emulation as predictable as possible,
   -- including handling of specials since games make assumptions about them.
+
+filter({"configurations:Release", "platforms:Windows"})
+  linktimeoptimization("On")
+  flags({
+    "NoBufferSecurityCheck"
+  })
+  buildoptions({
+    "/Gw",
+    "/Ob3",
+  })
+
 filter("platforms:Linux")
   system("linux")
   toolset("clang")
+  vectorextensions("AVX2")
   buildoptions({
     -- "-mlzcnt",  -- (don't) Assume lzcnt is supported.
   })
@@ -116,9 +120,6 @@ filter("platforms:Linux")
     "pthread",
     "rt",
   })
-
-filter({"platforms:Linux"})
-  vectorextensions("AVX2")
 
 filter({"platforms:Linux", "kind:*App"})
   linkgroups("On")
@@ -151,9 +152,6 @@ filter({"platforms:Linux", "language:C++", "toolset:clang"})
     "deprecated-enum-enum-conversion",
     "attributes",
   })
-  removeflags({
-    "FatalWarnings"
-  })
 filter({"platforms:Linux", "language:C++", "toolset:clang", "files:*.cc or *.cpp"})
   buildoptions({
     "-stdlib=libstdc++",
@@ -182,16 +180,8 @@ filter("platforms:Windows")
   toolset("msc")
   buildoptions({
     "/utf-8",   -- 'build correctly on systems with non-Latin codepages'.
-    -- Mark warnings as severe
-    "/w14839",  -- non-standard use of class 'type' as an argument to a variadic function
-    "/w14840",  -- non-portable use of class 'type' as an argument to a variadic function
     -- Disable warnings
-    "/wd4100",  -- Unreferenced parameters are ok.
     "/wd4201",  -- Nameless struct/unions are ok.
-    "/wd4512",  -- 'assignment operator was implicitly defined as deleted'.
-    "/wd4127",  -- 'conditional expression is constant'.
-    "/wd4324",  -- 'structure was padded due to alignment specifier'.
-    "/wd4189",  -- 'local variable is initialized but not referenced'.
   })
   flags({
     "MultiProcessorCompile",  -- Multiprocessor compilation.
@@ -300,9 +290,7 @@ workspace("xenia")
     removefiles({
       "src/xenia/base/app_win32.manifest"
     })
-    removeflags({
-      "FatalWarnings",
-    })
+    removefatalwarnings("All")
   end
 
   include("src/xenia")
