@@ -23,6 +23,7 @@
 #include "xenia/base/mutex.h"
 #include "xenia/cpu/backend/backend.h"
 #include "xenia/cpu/export_resolver.h"
+#include "xenia/kernel/smc.h"
 #include "xenia/kernel/util/kernel_fwd.h"
 #include "xenia/kernel/util/native_list.h"
 #include "xenia/kernel/util/object_table.h"
@@ -192,6 +193,8 @@ class KernelState {
 
   xam::XamState* xam_state() const { return xam_state_.get(); }
 
+  SystemManagementController* smc() const { return smc_.get(); }
+
   xam::AchievementManager* achievement_manager() const {
     return xam_state()->achievement_manager();
   }
@@ -349,6 +352,7 @@ class KernelState {
   cpu::Processor* processor_;
   vfs::VirtualFileSystem* file_system_;
   std::unique_ptr<xam::XamState> xam_state_;
+  std::unique_ptr<SystemManagementController> smc_;
 
   KernelVersion kernel_version_;
 

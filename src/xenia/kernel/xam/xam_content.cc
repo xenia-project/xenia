@@ -11,6 +11,7 @@
 #include "xenia/base/math.h"
 #include "xenia/base/string_util.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/smc.h"
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_content_device.h"
@@ -622,13 +623,29 @@ dword_result_t XamSwapDisc_entry(
 }
 DECLARE_XAM_EXPORT1(XamSwapDisc, kContent, kSketchy);
 
-dword_result_t XamLoaderGetMediaInfoEx_entry(dword_t unk1, dword_t unk2,
-                                             lpdword_t unk3) {
-  *unk3 = 0;
-  return 0;
+dword_result_t XamLoaderGetDvdTrayState_entry() {
+  return static_cast<uint8_t>(kernel_state()->smc()->GetTrayState());
 }
+DECLARE_XAM_EXPORT1(XamLoaderGetDvdTrayState, kNone, kImplemented);
 
-DECLARE_XAM_EXPORT1(XamLoaderGetMediaInfoEx, kContent, kStub);
+void XamLoaderGetMediaInfoEx_entry(lpdword_t media_type, lpdword_t unk2,
+                                   lpdword_t unk3) {
+  if (media_type) {
+    *media_type = X_DVD_DISC_STATE::XBOX_360_GAME_DISC;
+  }
+  if (unk2) {
+    *unk2 = 0;
+  }
+  if (unk3) {
+    *unk3 = 0;
+  }
+}
+DECLARE_XAM_EXPORT1(XamLoaderGetMediaInfoEx, kNone, kStub);
+
+void XamLoaderGetMediaInfo_entry(lpdword_t media_type, lpdword_t unk2) {
+  XamLoaderGetMediaInfoEx_entry(media_type, unk2, 0);
+}
+DECLARE_XAM_EXPORT1(XamLoaderGetMediaInfo, kNone, kStub);
 
 dword_result_t XamContentLaunchImageFromFileInternal_entry(
     lpstring_t image_location, lpstring_t xex_name, dword_t unk) {
