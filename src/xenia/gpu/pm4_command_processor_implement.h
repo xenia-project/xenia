@@ -902,7 +902,8 @@ bool COMMAND_PROCESSOR::ExecutePacketType3_EVENT_WRITE_SHD(
   data_value = GpuSwap(data_value, endianness);
   uint8_t* write_destination = memory_->TranslatePhysical(address);
   if (address > 0x1FFFFFFF) {
-    uint32_t writeback_base = register_file_->values[XE_GPU_REG_WRITEBACK_BASE];
+    uint32_t writeback_base =
+        register_file_->values[XE_GPU_REG_WRITEBACK_START];
     uint32_t writeback_size = register_file_->values[XE_GPU_REG_WRITEBACK_SIZE];
     uint32_t writeback_offset = address - writeback_base;
     // check whether the guest has written writeback base. if they haven't, skip
