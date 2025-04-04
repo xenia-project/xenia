@@ -550,11 +550,11 @@ DECLARE_XAM_EXPORT1(NetDll_XNetSetSystemLinkPort, kNetworking, kStub);
 
 // https://github.com/ILOVEPIE/Cxbx-Reloaded/blob/master/src/CxbxKrnl/EmuXOnline.h#L39
 struct XEthernetStatus {
-  static const uint32_t XNET_ETHERNET_LINK_ACTIVE = 0x01;
-  static const uint32_t XNET_ETHERNET_LINK_100MBPS = 0x02;
-  static const uint32_t XNET_ETHERNET_LINK_10MBPS = 0x04;
-  static const uint32_t XNET_ETHERNET_LINK_FULL_DUPLEX = 0x08;
-  static const uint32_t XNET_ETHERNET_LINK_HALF_DUPLEX = 0x10;
+  static constexpr uint32_t XNET_ETHERNET_LINK_ACTIVE = 0x01;
+  static constexpr uint32_t XNET_ETHERNET_LINK_100MBPS = 0x02;
+  static constexpr uint32_t XNET_ETHERNET_LINK_10MBPS = 0x04;
+  static constexpr uint32_t XNET_ETHERNET_LINK_FULL_DUPLEX = 0x08;
+  static constexpr uint32_t XNET_ETHERNET_LINK_HALF_DUPLEX = 0x10;
 };
 
 dword_result_t NetDll_XNetGetEthernetLinkStatus_entry(dword_t caller) {

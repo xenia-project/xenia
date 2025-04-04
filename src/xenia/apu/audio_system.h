@@ -32,7 +32,7 @@ class AudioSystem {
  public:
   // TODO(gibbed): respect XAUDIO2_MAX_QUEUED_BUFFERS somehow (ie min(64,
   // XAUDIO2_MAX_QUEUED_BUFFERS))
-  static const size_t kMaximumQueuedFrames = 64;
+  static constexpr size_t kMaximumQueuedFrames = 64;
 
   virtual ~AudioSystem();
 
@@ -81,7 +81,7 @@ class AudioSystem {
   kernel::object_ref<kernel::XHostThread> worker_thread_;
 
   xe::global_critical_region global_critical_region_;
-  static const size_t kMaximumClientCount = 8;
+  static constexpr size_t kMaximumClientCount = 8;
   struct {
     AudioDriver* driver;
     uint32_t callback;

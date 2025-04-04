@@ -54,18 +54,18 @@ namespace shaders {
 #include "xenia/gpu/shaders/bytecode/vulkan_spirv/fullscreen_cw_vs.h"
 }  // namespace shaders
 
-const VkDescriptorPoolSize
+constexpr VkDescriptorPoolSize
     VulkanCommandProcessor::kDescriptorPoolSizeUniformBuffer = {
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
         SpirvShaderTranslator::kConstantBufferCount*
             kLinkedTypeDescriptorPoolSetCount};
 
-const VkDescriptorPoolSize
+constexpr VkDescriptorPoolSize
     VulkanCommandProcessor::kDescriptorPoolSizeStorageBuffer = {
         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, kLinkedTypeDescriptorPoolSetCount};
 
 // 2x descriptors for texture images because of unsigned and signed bindings.
-const VkDescriptorPoolSize
+constexpr VkDescriptorPoolSize
     VulkanCommandProcessor::kDescriptorPoolSizeTextures[2] = {
         {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
          2 * kLinkedTypeDescriptorPoolSetCount},

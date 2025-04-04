@@ -46,8 +46,8 @@ class BitMap {
   std::vector<uint64_t>& data() { return data_; }
 
  private:
-  const static size_t kDataSize = 8;
-  const static size_t kDataSizeBits = kDataSize * 8;
+  constexpr static size_t kDataSize = 8;
+  constexpr static size_t kDataSizeBits = kDataSize * 8;
   std::vector<uint64_t> data_;
   inline size_t TryAcquireAt(size_t i);
 };

@@ -206,7 +206,7 @@ void SaveConfig() {
       line_count = xe::utf8::count(*last);
     }
 
-    const size_t value_alignment = 50;
+    constexpr size_t value_alignment = 50;
     const auto& description = config_var->description();
     if (!description.empty()) {
       if (line_count < value_alignment) {

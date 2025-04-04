@@ -4599,7 +4599,7 @@ static constexpr uint8_t locked_achievement_icon_data[] = {
     0x68, 0x68, 0x68, 0x68, 0x68, 0xec, 0x24, 0xfe, 0x07, 0x09, 0xfe, 0x9c,
     0xfd, 0xaa, 0x0b, 0xa9, 0xc4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e,
     0x44, 0xae, 0x42, 0x60, 0x82};
-static const uint32_t locked_achievement_icon_len = 3941;
+static constexpr uint32_t locked_achievement_icon_len = 3941;
 
 static const std::vector<std::pair<const uint8_t*, uint32_t>>
     notification_icons = {
@@ -4610,5 +4610,5 @@ static const std::vector<std::pair<const uint8_t*, uint32_t>>
         {player_any_notification_icon, player_any_notification_icon_len},
 };
 
-static const std::pair<const uint8_t*, uint32_t> locked_achievement_icon = {
+static constexpr std::pair<const uint8_t*, uint32_t> locked_achievement_icon = {
     locked_achievement_icon_data, locked_achievement_icon_len};

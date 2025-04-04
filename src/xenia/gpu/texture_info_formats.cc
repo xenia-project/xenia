@@ -19,7 +19,7 @@ using namespace xe::gpu::xenos;
 #define FORMAT_INFO(texture_format, format, block_width, block_height, bits_per_pixel) \
     {xenos::TextureFormat::texture_format,  FormatType::format, block_width, block_height, bits_per_pixel}
 const FormatInfo* FormatInfo::Get(uint32_t gpu_format) {
-  static const FormatInfo format_infos[64] = {
+  static constexpr FormatInfo format_infos[64] = {
       #include "texture_info_formats.inl"
   };
   return &format_infos[gpu_format];

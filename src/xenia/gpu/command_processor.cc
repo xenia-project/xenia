@@ -285,7 +285,7 @@ void CommandProcessor::WorkerThreadMain() {
       do {
         // If we spin around too much, revert to a "low-power" state.
         if (loop_count > 500) {
-          const int wait_time_ms = 2;
+          constexpr int wait_time_ms = 2;
           xe::threading::Wait(write_ptr_index_event_.get(), true,
                               std::chrono::milliseconds(wait_time_ms));
         } else {

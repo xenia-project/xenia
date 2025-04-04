@@ -1635,7 +1635,7 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
   }
 
   // Hotkey cool-down to prevent toggling too fast
-  const std::chrono::milliseconds delay(75);
+  constexpr std::chrono::milliseconds delay(75);
 
   // If the Xbox Gamebar is enabled or the Guide button is disabled then
   // replace the Guide button with the Back button without redeclaring the key
@@ -1820,7 +1820,7 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
 void EmulatorWindow::VibrateController(xe::hid::InputSystem* input_sys,
                                        uint32_t user_index,
                                        bool toggle_rumble) {
-  const std::chrono::milliseconds rumble_duration(100);
+  constexpr std::chrono::milliseconds rumble_duration(100);
 
   // Hold lock while sleeping this thread for the duration of the rumble,
   // otherwise the rumble may fail.
@@ -1842,7 +1842,7 @@ void EmulatorWindow::VibrateController(xe::hid::InputSystem* input_sys,
 void EmulatorWindow::GamepadHotKeys() {
   X_INPUT_STATE state;
 
-  const std::chrono::milliseconds thread_delay(75);
+  constexpr std::chrono::milliseconds thread_delay(75);
 
   auto input_sys = emulator_->input_system();
 

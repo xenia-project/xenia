@@ -30,7 +30,7 @@ std::pair<size_t, size_t> NextUnsetRange(const Block* bits, size_t first,
     return std::make_pair(size_t(first), size_t(0));
   }
   size_t last = first + length - 1;
-  const size_t block_bits = sizeof(Block) * CHAR_BIT;
+  constexpr size_t block_bits = sizeof(Block) * CHAR_BIT;
   size_t block_first = first / block_bits;
   size_t block_last = last / block_bits;
   size_t range_start = SIZE_MAX;
@@ -80,7 +80,7 @@ void SetRange(Block* bits, size_t first, size_t length) {
     return;
   }
   size_t last = first + length - 1;
-  const size_t block_bits = sizeof(Block) * CHAR_BIT;
+  constexpr size_t block_bits = sizeof(Block) * CHAR_BIT;
   size_t block_first = first / block_bits;
   size_t block_last = last / block_bits;
   Block set_first = ~((Block(1) << (first & (block_bits - 1))) - 1);

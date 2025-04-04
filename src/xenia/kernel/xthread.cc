@@ -307,7 +307,7 @@ X_STATUS XThread::Create() {
     module->GetOptHeader(XEX_HEADER_TLS_INFO, &tls_header);
   }
 
-  const uint32_t kDefaultTlsSlotCount = 1024;
+  constexpr uint32_t kDefaultTlsSlotCount = 1024;
   uint32_t tls_slots = kDefaultTlsSlotCount;
   uint32_t tls_extended_size = 0;
   if (tls_header && tls_header->slot_count) {

@@ -163,7 +163,7 @@ bool AndroidWindow::OnActivitySurfaceMotionEvent(jobject event) {
                                       event, jni_ids.motion_event_get_y, 0),
                                   0.0f, float(GetActualPhysicalHeight())) +
                   0.5f);
-      static const MouseEvent::Button kMouseEventButtons[] = {
+      static constexpr MouseEvent::Button kMouseEventButtons[] = {
           MouseEvent::Button::kLeft,   MouseEvent::Button::kRight,
           MouseEvent::Button::kMiddle, MouseEvent::Button::kX1,
           MouseEvent::Button::kX2,

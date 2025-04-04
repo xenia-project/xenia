@@ -298,7 +298,7 @@ struct I;
 template <hir::Opcode OPCODE, typename DEST>
 struct I<OPCODE, DEST> : DestField<DEST> {
   typedef DestField<DEST> BASE;
-  static const hir::Opcode opcode = OPCODE;
+  static constexpr hir::Opcode opcode = OPCODE;
   static const uint32_t key =
       InstrKey::Construct<OPCODE, DEST::key_type>::value;
   static const KeyType dest_type = DEST::key_type;
@@ -318,7 +318,7 @@ struct I<OPCODE, DEST> : DestField<DEST> {
 template <hir::Opcode OPCODE, typename DEST, typename SRC1>
 struct I<OPCODE, DEST, SRC1> : DestField<DEST> {
   typedef DestField<DEST> BASE;
-  static const hir::Opcode opcode = OPCODE;
+  static constexpr hir::Opcode opcode = OPCODE;
   static const uint32_t key =
       InstrKey::Construct<OPCODE, DEST::key_type, SRC1::key_type>::value;
   static const KeyType dest_type = DEST::key_type;
@@ -341,7 +341,7 @@ struct I<OPCODE, DEST, SRC1> : DestField<DEST> {
 template <hir::Opcode OPCODE, typename DEST, typename SRC1, typename SRC2>
 struct I<OPCODE, DEST, SRC1, SRC2> : DestField<DEST> {
   typedef DestField<DEST> BASE;
-  static const hir::Opcode opcode = OPCODE;
+  static constexpr hir::Opcode opcode = OPCODE;
   static const uint32_t key =
       InstrKey::Construct<OPCODE, DEST::key_type, SRC1::key_type,
                           SRC2::key_type>::value;
@@ -369,7 +369,7 @@ template <hir::Opcode OPCODE, typename DEST, typename SRC1, typename SRC2,
           typename SRC3>
 struct I<OPCODE, DEST, SRC1, SRC2, SRC3> : DestField<DEST> {
   typedef DestField<DEST> BASE;
-  static const hir::Opcode opcode = OPCODE;
+  static constexpr hir::Opcode opcode = OPCODE;
   static const uint32_t key =
       InstrKey::Construct<OPCODE, DEST::key_type, SRC1::key_type,
                           SRC2::key_type, SRC3::key_type>::value;

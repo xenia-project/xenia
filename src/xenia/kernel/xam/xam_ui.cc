@@ -1554,7 +1554,7 @@ bool xeDrawProfileContent(ui::ImGuiDrawer* imgui_drawer, const uint64_t xuid,
                           uint64_t* selected_xuid) {
   auto profile_manager = kernel_state()->xam_state()->profile_manager();
 
-  const float default_image_size = 75.0f;
+  constexpr float default_image_size = 75.0f;
   const ImVec2 next_window_position =
       ImVec2(ImGui::GetWindowPos().x + ImGui::GetWindowSize().x + 20.f,
              ImGui::GetWindowPos().y);

@@ -272,7 +272,7 @@ void PipelineCache::InitializeShaderStorage(
   }
   pipeline_storage_file_flush_needed_ = false;
   // 'XEPS'.
-  const uint32_t pipeline_storage_magic = 0x53504558;
+  constexpr uint32_t pipeline_storage_magic = 0x53504558;
   // 'DXRO' or 'DXRT'.
   const uint32_t pipeline_storage_magic_api =
       edram_rov_used ? 0x4F525844 : 0x54525844;
@@ -367,7 +367,7 @@ void PipelineCache::InitializeShaderStorage(
     uint32_t version_swapped;
   } shader_storage_file_header;
   // 'XESH'.
-  const uint32_t shader_storage_magic = 0x48534558;
+  constexpr uint32_t shader_storage_magic = 0x48534558;
   if (fread(&shader_storage_file_header, sizeof(shader_storage_file_header), 1,
             shader_storage_file_) &&
       shader_storage_file_header.magic == shader_storage_magic &&
@@ -1577,7 +1577,7 @@ bool PipelineCache::GetCurrentStateDescription(
 
     // Render targets and blending state. 32 because of 0x1F mask, for safety
     // (all unknown to zero).
-    static const PipelineBlendFactor kBlendFactorMap[32] = {
+    static constexpr PipelineBlendFactor kBlendFactorMap[32] = {
         /*  0 */ PipelineBlendFactor::kZero,
         /*  1 */ PipelineBlendFactor::kOne,
         /*  2 */ PipelineBlendFactor::kZero,  // ?
@@ -1603,7 +1603,7 @@ bool PipelineCache::GetCurrentStateDescription(
     // Like kBlendFactorMap, but with color modes changed to alpha. Some
     // pipelines aren't created in 545407E0 because a color mode is used for
     // alpha.
-    static const PipelineBlendFactor kBlendFactorAlphaMap[32] = {
+    static constexpr PipelineBlendFactor kBlendFactorAlphaMap[32] = {
         /*  0 */ PipelineBlendFactor::kZero,
         /*  1 */ PipelineBlendFactor::kOne,
         /*  2 */ PipelineBlendFactor::kZero,  // ?

@@ -907,7 +907,7 @@ void GetResolveEdramTileSpan(ResolveEdramInfo edram_info,
   rows_out = y1 - y0;
 }
 
-const ResolveCopyShaderInfo
+constexpr ResolveCopyShaderInfo
     resolve_copy_shader_info[size_t(ResolveCopyShaderIndex::kCount)] = {
         {"Resolve Copy Fast 32bpp 1x/2xMSAA", false, 4, 4, 6, 3},
         {"Resolve Copy Fast 32bpp 4xMSAA", false, 4, 4, 6, 3},

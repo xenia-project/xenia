@@ -106,7 +106,7 @@ class XAudio2AudioDriver : public AudioDriver {
   uint32_t frame_size_;
   bool need_format_conversion_;
 
-  static const uint32_t frame_count_ = api::XE_XAUDIO2_MAX_QUEUED_BUFFERS;
+  static constexpr uint32_t frame_count_ = api::XE_XAUDIO2_MAX_QUEUED_BUFFERS;
 
   float frames_[frame_count_][kFrameSamplesMax];
   uint32_t current_frame_ = 0;

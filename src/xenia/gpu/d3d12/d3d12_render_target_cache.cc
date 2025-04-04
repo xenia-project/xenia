@@ -109,7 +109,7 @@ namespace shaders {
 #include "xenia/gpu/shaders/bytecode/d3d12_5_1/resolve_full_8bpp_scaled_cs.h"
 }  // namespace shaders
 
-const D3D12RenderTargetCache::ResolveCopyShaderCode
+constexpr D3D12RenderTargetCache::ResolveCopyShaderCode
     D3D12RenderTargetCache::kResolveCopyShaders[size_t(
         draw_util::ResolveCopyShaderIndex::kCount)] = {
         {shaders::resolve_fast_32bpp_1x2xmsaa_cs,
@@ -146,7 +146,7 @@ const D3D12RenderTargetCache::ResolveCopyShaderCode
          sizeof(shaders::resolve_full_128bpp_scaled_cs)},
 };
 
-const uint32_t D3D12RenderTargetCache::kTransferUsedRootParameters[size_t(
+constexpr uint32_t D3D12RenderTargetCache::kTransferUsedRootParameters[size_t(
     TransferRootSignatureIndex::kCount)] = {
     // kColor
     kTransferUsedRootParameterColorSRVBit |
@@ -184,7 +184,7 @@ const uint32_t D3D12RenderTargetCache::kTransferUsedRootParameters[size_t(
         kTransferUsedRootParameterHostDepthAddressConstantBit,
 };
 
-const D3D12RenderTargetCache::TransferModeInfo
+constexpr D3D12RenderTargetCache::TransferModeInfo
     D3D12RenderTargetCache::kTransferModes[size_t(TransferMode::kCount)] = {
         // kColorToDepth
         {TransferOutput::kDepth, TransferRootSignatureIndex::kColor,

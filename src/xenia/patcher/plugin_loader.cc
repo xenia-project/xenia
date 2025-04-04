@@ -235,7 +235,7 @@ void PluginLoader::LoadTitlePlugin(const PluginInfoEntry& entry) {
 }
 
 void PluginLoader::CreatePluginDevice(const uint32_t title_id) {
-  const std::string mount_plugins = "\\Device\\Plugins";
+  constexpr std::string_view mount_plugins = "\\Device\\Plugins";
 
   const std::filesystem::path plugins_host_path =
       plugins_root_ / fmt::format("{:08X}", title_id);

@@ -221,7 +221,7 @@ bool HidDemoApp::OnInitialize() {
 void HidDemoApp::HidDemoDialog::OnDraw(ImGuiIO& io) { app_.Draw(io); }
 
 void HidDemoApp::Draw(ImGuiIO& io) {
-  const ImGuiWindowFlags wflags =
+  constexpr ImGuiWindowFlags wflags =
       ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
       ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
       ImGuiWindowFlags_NoScrollbar;

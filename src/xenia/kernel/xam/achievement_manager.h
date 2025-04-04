@@ -51,7 +51,7 @@ struct X_ACHIEVEMENT_DETAILS {
   X_FILETIME unlock_time;
   xe::be<uint32_t> flags;
 
-  static const size_t kStringBufferSize = 464;
+  static constexpr size_t kStringBufferSize = 464;
 };
 static_assert_size(X_ACHIEVEMENT_DETAILS, 36);
 

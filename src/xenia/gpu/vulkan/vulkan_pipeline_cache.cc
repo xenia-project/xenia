@@ -442,7 +442,7 @@ void VulkanPipelineCache::WritePipelineRenderTargetDescription(
   if (write_mask) {
     assert_zero(write_mask & ~uint32_t(0b1111));
     // 32 because of 0x1F mask, for safety (all unknown to zero).
-    static const PipelineBlendFactor kBlendFactorMap[32] = {
+    static constexpr PipelineBlendFactor kBlendFactorMap[32] = {
         /*  0 */ PipelineBlendFactor::kZero,
         /*  1 */ PipelineBlendFactor::kOne,
         /*  2 */ PipelineBlendFactor::kZero,  // ?

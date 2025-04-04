@@ -137,8 +137,8 @@ class DebugWindow : public cpu::DebugListener {
   // The current state of the UI. Use this to synchronize multiple parts of the
   // UI.
   struct ImState {
-    static const int kRightPaneThreads = 0;
-    static const int kRightPaneMemory = 1;
+    static constexpr int kRightPaneThreads = 0;
+    static constexpr int kRightPaneMemory = 1;
     int right_pane_tab = kRightPaneThreads;
 
     cpu::ThreadDebugInfo* thread_info = nullptr;

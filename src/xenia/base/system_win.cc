@@ -65,8 +65,8 @@ bool SetProcessPriorityClass(const uint32_t priority_class) {
 }
 
 bool IsUseNexusForGameBarEnabled() {
-  const LPCWSTR reg_path = L"SOFTWARE\\Microsoft\\GameBar";
-  const LPCWSTR key = L"UseNexusForGameBarEnabled";
+  constexpr LPCWSTR reg_path = L"SOFTWARE\\Microsoft\\GameBar";
+  constexpr LPCWSTR key = L"UseNexusForGameBarEnabled";
 
   DWORD value = 0;
   DWORD dataSize = sizeof(value);

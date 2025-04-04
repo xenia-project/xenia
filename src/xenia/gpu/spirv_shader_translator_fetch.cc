@@ -763,7 +763,7 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
       // multiplication in texture sampling apparently round differently, so
       // `mul` gives a value that would be floored as expected, but the
       // left/upper pixel is still sampled instead.
-      const float kRoundingOffset = 1.5f / 1024.0f;
+      constexpr float kRoundingOffset = 1.5f / 1024.0f;
       switch (instr.dimension) {
         case xenos::FetchOpDimension::k1D:
           offset_values[0] = instr.attributes.offset_x + kRoundingOffset;

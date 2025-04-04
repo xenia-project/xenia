@@ -95,7 +95,7 @@ class StackLayout {
   });
   static_assert(sizeof(Thunk) % 16 == 0,
                 "sizeof(Thunk) must be a multiple of 16!");
-  static const size_t THUNK_STACK_SIZE = sizeof(Thunk) + 8;
+  static constexpr size_t THUNK_STACK_SIZE = sizeof(Thunk) + 8;
 
   /**
    *
@@ -121,16 +121,16 @@ class StackLayout {
    *  +------------------+
    *
    */
-  static const size_t GUEST_STACK_SIZE = 104;
+  static constexpr size_t GUEST_STACK_SIZE = 104;
   // was GUEST_CTX_HOME, can't remove because that'd throw stack alignment off.
   // instead, can be used as a temporary in sequences
-  static const size_t GUEST_SCRATCH = 0;
+  static constexpr size_t GUEST_SCRATCH = 0;
 
   // when profiling is on, this stores the nanosecond time at the start of the
   // function
-  static const size_t GUEST_PROFILER_START = 80;
-  static const size_t GUEST_RET_ADDR = 88;
-  static const size_t GUEST_CALL_RET_ADDR = 96;
+  static constexpr size_t GUEST_PROFILER_START = 80;
+  static constexpr size_t GUEST_RET_ADDR = 88;
+  static constexpr size_t GUEST_CALL_RET_ADDR = 96;
 };
 
 }  // namespace x64

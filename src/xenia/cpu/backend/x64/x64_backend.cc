@@ -636,7 +636,7 @@ HostToGuestThunk X64HelperEmitter::EmitHostToGuestThunk() {
 
   _code_offsets code_offsets = {};
 
-  const size_t stack_size = StackLayout::THUNK_STACK_SIZE;
+  constexpr size_t stack_size = StackLayout::THUNK_STACK_SIZE;
 
   code_offsets.prolog = getSize();
 
@@ -681,7 +681,7 @@ HostToGuestThunk X64HelperEmitter::EmitHostToGuestThunk() {
     size_t tail;
   } code_offsets = {};
 
-  const size_t stack_size = StackLayout::THUNK_STACK_SIZE;
+  constexpr size_t stack_size = StackLayout::THUNK_STACK_SIZE;
 
   code_offsets.prolog = getSize();
   // rsp + 0 = return address
@@ -735,7 +735,7 @@ GuestToHostThunk X64HelperEmitter::EmitGuestToHostThunk() {
 
   _code_offsets code_offsets = {};
 
-  const size_t stack_size = StackLayout::THUNK_STACK_SIZE;
+  constexpr size_t stack_size = StackLayout::THUNK_STACK_SIZE;
 
   code_offsets.prolog = getSize();
 
@@ -781,7 +781,7 @@ GuestToHostThunk X64HelperEmitter::EmitGuestToHostThunk() {
     size_t tail;
   } code_offsets = {};
 
-  const size_t stack_size = StackLayout::THUNK_STACK_SIZE;
+  constexpr size_t stack_size = StackLayout::THUNK_STACK_SIZE;
 
   code_offsets.prolog = getSize();
 
@@ -838,7 +838,7 @@ ResolveFunctionThunk X64HelperEmitter::EmitResolveFunctionThunk() {
 
   _code_offsets code_offsets = {};
 
-  const size_t stack_size = StackLayout::THUNK_STACK_SIZE;
+  constexpr size_t stack_size = StackLayout::THUNK_STACK_SIZE;
 
   code_offsets.prolog = getSize();
 
@@ -878,7 +878,7 @@ ResolveFunctionThunk X64HelperEmitter::EmitResolveFunctionThunk() {
     size_t epilog;
     size_t tail;
   } code_offsets = {};
-  const size_t stack_size = StackLayout::THUNK_STACK_SIZE;
+  constexpr size_t stack_size = StackLayout::THUNK_STACK_SIZE;
 
   code_offsets.prolog = getSize();
 

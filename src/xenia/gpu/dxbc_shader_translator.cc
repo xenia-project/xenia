@@ -2051,7 +2051,7 @@ void DxbcShaderTranslator::ProcessAllocInstruction(
   }
 }
 
-const DxbcShaderTranslator::ShaderRdefType
+constexpr DxbcShaderTranslator::ShaderRdefType
     DxbcShaderTranslator::rdef_types_[size_t(
         DxbcShaderTranslator::ShaderRdefTypeIndex::kCount)] = {
         // kFloat
@@ -2104,7 +2104,7 @@ const DxbcShaderTranslator::ShaderRdefType
          dxbc::RdefVariableType::kUInt, 1, 4, 0, ShaderRdefTypeIndex::kUint4},
 };
 
-const DxbcShaderTranslator::SystemConstantRdef
+constexpr DxbcShaderTranslator::SystemConstantRdef
     DxbcShaderTranslator::system_constant_rdef_[size_t(
         DxbcShaderTranslator::SystemConstants::Index::kCount)] = {
         {"xe_flags", ShaderRdefTypeIndex::kUint, sizeof(uint32_t)},

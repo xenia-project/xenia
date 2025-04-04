@@ -269,7 +269,7 @@ class DeferredCommandList {
       return;
     }
     static_assert(alignof(D3D12_RESOURCE_BARRIER) <= alignof(uintmax_t));
-    const size_t header_size =
+    constexpr size_t header_size =
         xe::align(sizeof(UINT), alignof(D3D12_RESOURCE_BARRIER));
     uint8_t* args = reinterpret_cast<uint8_t*>(WriteCommand(
         Command::kD3DResourceBarrier,

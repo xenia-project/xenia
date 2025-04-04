@@ -32,13 +32,13 @@ namespace xam {
 // will not be recognized properly.
 #define ONE_GB (1024ull * 1024ull * 1024ull)
 
-static const DummyDeviceInfo dummy_hdd_device_info_ = {
+static constexpr DummyDeviceInfo dummy_hdd_device_info_ = {
     DummyDeviceId::HDD, DeviceType::HDD,
     20ull * ONE_GB,  // 20GB
     3ull * ONE_GB,   // 3GB, so it looks a little used.
     u"Dummy HDD",
 };
-static const DummyDeviceInfo dummy_odd_device_info_ = {
+static constexpr DummyDeviceInfo dummy_odd_device_info_ = {
     DummyDeviceId::ODD, DeviceType::ODD,
     7ull * ONE_GB,  // 7GB (rough maximum)
     0ull * ONE_GB,  // read-only FS, so no free space

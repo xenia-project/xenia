@@ -1027,12 +1027,12 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
   }
 #if XE_PLATFORM_ANDROID
   // Android uses R8G8B8A8.
-  static const VkFormat kFormat8888Primary = VK_FORMAT_R8G8B8A8_UNORM;
-  static const VkFormat kFormat8888Secondary = VK_FORMAT_B8G8R8A8_UNORM;
+  static constexpr VkFormat kFormat8888Primary = VK_FORMAT_R8G8B8A8_UNORM;
+  static constexpr VkFormat kFormat8888Secondary = VK_FORMAT_B8G8R8A8_UNORM;
 #else
   // GNU/Linux X11 and Windows DWM use B8G8R8A8.
-  static const VkFormat kFormat8888Primary = VK_FORMAT_B8G8R8A8_UNORM;
-  static const VkFormat kFormat8888Secondary = VK_FORMAT_R8G8B8A8_UNORM;
+  static constexpr VkFormat kFormat8888Primary = VK_FORMAT_B8G8R8A8_UNORM;
+  static constexpr VkFormat kFormat8888Secondary = VK_FORMAT_R8G8B8A8_UNORM;
 #endif
   VkSurfaceFormatKHR image_format;
   if (surface_formats.empty() ||
@@ -2504,7 +2504,7 @@ VkPipeline VulkanPresenter::CreateGuestOutputPaintPipeline(
   color_blend_state.attachmentCount = 1;
   color_blend_state.pAttachments = &color_blend_attachment_state;
 
-  static const VkDynamicState kPipelineDynamicStates[] = {
+  static constexpr VkDynamicState kPipelineDynamicStates[] = {
       VK_DYNAMIC_STATE_VIEWPORT,
       VK_DYNAMIC_STATE_SCISSOR,
   };

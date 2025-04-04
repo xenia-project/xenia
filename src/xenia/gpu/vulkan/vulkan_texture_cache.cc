@@ -88,7 +88,7 @@ namespace shaders {
 static_assert(VK_FORMAT_UNDEFINED == VkFormat(0),
               "Assuming that skipping a VkFormat in an initializer results in "
               "VK_FORMAT_UNDEFINED");
-const VulkanTextureCache::HostFormatPair
+constexpr VulkanTextureCache::HostFormatPair
     VulkanTextureCache::kBestHostFormats[64] = {
         // k_1_REVERSE
         {{kLoadShaderIndexUnknown},
@@ -408,14 +408,14 @@ const VulkanTextureCache::HostFormatPair
 // Always decompressing them to RGBA8, which is required to be linear-filterable
 // as UNORM and SNORM.
 
-const VulkanTextureCache::HostFormatPair
+constexpr VulkanTextureCache::HostFormatPair
     VulkanTextureCache::kHostFormatGBGRUnaligned = {
         {kLoadShaderIndexGBGR8ToRGB8, VK_FORMAT_R8G8B8A8_UNORM, false, true},
         {kLoadShaderIndexGBGR8ToRGB8, VK_FORMAT_R8G8B8A8_SNORM, false, true},
         xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB,
         true};
 
-const VulkanTextureCache::HostFormatPair
+constexpr VulkanTextureCache::HostFormatPair
     VulkanTextureCache::kHostFormatBGRGUnaligned = {
         {kLoadShaderIndexBGRG8ToRGB8, VK_FORMAT_R8G8B8A8_UNORM, false, true},
         {kLoadShaderIndexBGRG8ToRGB8, VK_FORMAT_R8G8B8A8_SNORM, false, true},

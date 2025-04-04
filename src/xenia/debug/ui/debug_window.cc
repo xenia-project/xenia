@@ -55,7 +55,7 @@ void DebugWindow::DebugDialog::OnDraw(ImGuiIO& io) {
   debug_window_.DrawFrame(io);
 }
 
-static const std::string kBaseTitle = "Xenia Debugger";
+static constexpr std::string_view kBaseTitle = "Xenia Debugger";
 
 DebugWindow::DebugWindow(Emulator* emulator,
                          xe::ui::WindowedAppContext& app_context)
@@ -1460,7 +1460,7 @@ void DebugWindow::UpdateCache() {
   auto object_table = kernel_state->object_table();
 
   app_context_.CallInUIThread([this]() {
-    std::string title = kBaseTitle;
+    std::string title = std::string(kBaseTitle);
     switch (processor_->execution_state()) {
       case cpu::ExecutionState::kEnded:
         title += " (ended)";

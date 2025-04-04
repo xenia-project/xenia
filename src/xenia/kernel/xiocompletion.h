@@ -39,7 +39,7 @@ class XIOCompletion : public XObject {
   bool WaitForNotification(uint64_t wait_ticks, IONotification* notify);
 
  private:
-  static const uint32_t kMaxNotifications = 1024;
+  static constexpr uint32_t kMaxNotifications = 1024;
 
   std::mutex notification_lock_;
   std::queue<IONotification> notifications_;

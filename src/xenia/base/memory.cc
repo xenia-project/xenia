@@ -473,7 +473,7 @@ void copy_and_swap_16_unaligned(void* dst_ptr, const void* src_ptr,
   auto dst = reinterpret_cast<uint8_t*>(dst_ptr);
   auto src = reinterpret_cast<const uint8_t*>(src_ptr);
 
-  const uint8x16_t tbl_idx =
+  constexpr uint8x16_t tbl_idx =
       vcombine_u8(vcreate_u8(UINT64_C(0x0607040502030001)),
                   vcreate_u8(UINT64_C(0x0E0F0C0D0A0B0809)));
 
@@ -507,7 +507,7 @@ void copy_and_swap_32_unaligned(void* dst_ptr, const void* src_ptr,
   auto dst = reinterpret_cast<uint8_t*>(dst_ptr);
   auto src = reinterpret_cast<const uint8_t*>(src_ptr);
 
-  const uint8x16_t tbl_idx =
+  constexpr uint8x16_t tbl_idx =
       vcombine_u8(vcreate_u8(UINT64_C(0x405060700010203)),
                   vcreate_u8(UINT64_C(0x0C0D0E0F08090A0B)));
 
@@ -539,7 +539,7 @@ void copy_and_swap_64_unaligned(void* dst_ptr, const void* src_ptr,
   auto dst = reinterpret_cast<uint8_t*>(dst_ptr);
   auto src = reinterpret_cast<const uint8_t*>(src_ptr);
 
-  const uint8x16_t tbl_idx =
+  constexpr uint8x16_t tbl_idx =
       vcombine_u8(vcreate_u8(UINT64_C(0x0001020304050607)),
                   vcreate_u8(UINT64_C(0x08090A0B0C0D0E0F)));
 
