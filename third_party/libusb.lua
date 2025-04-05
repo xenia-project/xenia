@@ -1,0 +1,46 @@
+group("third_party")
+project("libusb")
+  uuid("5f8b5485-fde5-4a42-8a13-8545fcf6d25b")
+  kind("StaticLib")
+  language("C")
+  defines({
+    "_LIB",
+  })
+  includedirs({"libusb/libusb/"})
+
+  files({
+    "libusb/libusb/core.c",
+    "libusb/libusb/descriptor.c",
+    "libusb/libusb/hotplug.c",
+    "libusb/libusb/io.c",
+    "libusb/libusb/strerror.c",
+    "libusb/libusb/sync.c",
+  })
+
+  filter({"platforms:Windows"})
+    includedirs({"libusb/msvc/"})
+    files({
+      "libusb/libusb/os/events_windows.c",
+      "libusb/libusb/os/events_windows.h",
+      "libusb/libusb/os/threads_windows.c",
+      "libusb/libusb/os/threads_windows.h",
+      "libusb/libusb/os/windows_common.c",
+      "libusb/libusb/os/windows_common.h",
+      "libusb/libusb/os/windows_usbdk.c",
+      "libusb/libusb/os/windows_usbdk.h",
+      "libusb/libusb/os/windows_winusb.c",
+      "libusb/libusb/os/windows_winusb.h"
+    })
+
+  filter({"platforms:Linux"})
+    files({
+      "libusb/libusb/config.h",
+      "libusb/libusb/os/events_posix.c",
+      "libusb/libusb/os/events_posix.h",
+      "libusb/libusb/os/threads_posix.c",
+      "libusb/libusb/os/threads_posix.h",
+      "libusb/libusb/os/linux_netlink.c",
+      "libusb/libusb/os/linux_udev.c",
+      "libusb/libusb/os/linux_usbfs.c",
+      "libusb/libusb/os/linux_usbfs.h"
+    })
