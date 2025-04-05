@@ -33,13 +33,21 @@ Property::Property(uint32_t property_id, uint32_t value_size,
 }
 
 Property::Property(const uint8_t* serialized_data, size_t data_size)
-    : UserData(X_USER_DATA_TYPE::CONTEXT, std::span<const uint8_t>({})) {}
+    : UserData(std::span<const uint8_t>(serialized_data, data_size)) {
+  property_id_.value = *reinterpret_cast<const uint32_t*>(serialized_data);
+}
+
+Property::Property(std::span<const uint8_t> serialized_data)
+    : UserData(serialized_data) {
+  property_id_.value =
+      *reinterpret_cast<const uint32_t*>(serialized_data.data());
+}
 
 Property::~Property() {};
 
 std::vector<uint8_t> Property::Serialize() const {
-  std::vector<uint8_t> serialized_property(sizeof(XUSER_PROPERTY) +
-                                           extended_data_.size());
+  std::vector<uint8_t> serialized_property(
+      sizeof(AttributeKey) + sizeof(X_USER_DATA) + extended_data_.size());
 
   memcpy(serialized_property.data(), &property_id_, sizeof(AttributeKey));
   memcpy(serialized_property.data() + sizeof(AttributeKey), &data_,
@@ -57,6 +65,8 @@ void Property::WriteToGuest(XUSER_PROPERTY* property) const {
   if (!property) {
     return;
   }
+
+  property->property_id = property_id_.value;
 
   if (requires_additional_data()) {
     property->data.type = data_.type;

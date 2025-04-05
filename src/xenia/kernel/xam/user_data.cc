@@ -35,7 +35,7 @@ UserData::UserData(X_USER_DATA_TYPE data_type, UserDataTypes user_data) {
     case X_USER_DATA_TYPE::WSTRING: {
       std::u16string str = std::get<std::u16string>(user_data);
       data_.data.unicode.size =
-          static_cast<uint16_t>(string_util::size_in_bytes(str));
+          static_cast<uint16_t>(string_util::size_in_bytes(str, false));
 
       extended_data_.resize(data_.data.unicode.size);
       memcpy(extended_data_.data(), reinterpret_cast<uint8_t*>(str.data()),
@@ -64,7 +64,7 @@ UserData::UserData(X_USER_DATA_TYPE data_type, UserDataTypes user_data) {
 }
 
 UserData::UserData(const X_USER_DATA_TYPE data_type,
-                   const uint32_t data_max_size, const X_USER_DATA* user_data) {
+                   const X_USER_DATA* user_data) {
   memcpy(&data_, user_data, sizeof(X_USER_DATA));
   data_.type = data_type;
 
@@ -101,6 +101,19 @@ UserData::UserData(X_USER_DATA_TYPE data_type, std::span<const uint8_t> data) {
 
   data_.data.binary.size = static_cast<uint32_t>(data.size());
   extended_data_.insert(extended_data_.begin(), data.begin(), data.end());
+}
+
+UserData::UserData(std::span<const uint8_t> data) {
+  data_ =
+      *reinterpret_cast<const X_USER_DATA*>(data.data() + sizeof(AttributeKey));
+
+  if (requires_additional_data()) {
+    std::span<const uint8_t> extended_data = data.subspan(
+        sizeof(AttributeKey) + sizeof(X_USER_DATA), data_.data.binary.size);
+
+    extended_data_.insert(extended_data_.begin(), extended_data.begin(),
+                          extended_data.end());
+  }
 }
 
 UserData::UserData(const X_USER_DATA_TYPE data_type,

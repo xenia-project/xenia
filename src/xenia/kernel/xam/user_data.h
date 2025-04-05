@@ -141,6 +141,7 @@ class UserData {
     return sizeof(X_USER_DATA) + extended_data_.size();
   }
 
+  // Settings specific
   static size_t get_data_size(uint32_t id, const X_USER_DATA* user_data) {
     if (requires_additional_data(id)) {
       return std::min(get_max_size(id),
@@ -159,17 +160,17 @@ class UserData {
   // From host
   UserData(X_USER_DATA_TYPE data_type, UserDataTypes user_data);
   // From guest
-  UserData(const X_USER_DATA_TYPE data_type, const uint32_t data_max_size,
-           const X_USER_DATA* user_data);
+  UserData(const X_USER_DATA_TYPE data_type, const X_USER_DATA* user_data);
 
   // From guest - Property specific ctor. Property transfer raw data directly.
   UserData(X_USER_DATA_TYPE data_type, std::span<const uint8_t> data);
+  UserData(std::span<const uint8_t> data);
 
   // For data from GPD
   UserData(const X_USER_DATA_TYPE data_type, const X_USER_DATA_UNION* user_data,
            std::span<const uint8_t> extended_data);
 
-  X_USER_DATA data_;
+  X_USER_DATA data_ = {};
   std::vector<uint8_t> extended_data_ = {};
 };
 

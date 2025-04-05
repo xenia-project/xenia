@@ -44,7 +44,6 @@ UserSetting::UserSetting(UserSettingId setting_id, UserDataTypes setting_data)
 
 UserSetting::UserSetting(const X_USER_PROFILE_SETTING* profile_setting)
     : UserData(UserSetting::get_type(profile_setting->setting_id),
-               UserSetting::get_max_size(profile_setting->setting_id),
                &profile_setting->data),
       setting_id_(
           static_cast<UserSettingId>(profile_setting->setting_id.get())),

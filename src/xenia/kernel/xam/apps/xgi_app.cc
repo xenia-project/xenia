@@ -134,9 +134,8 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       if (user) {
         Property property(
             xgi_property->property_id,
-            UserSetting::get_valid_data_size(xgi_property->property_id,
-                                             xgi_property->data_size),
-
+            Property::get_valid_data_size(xgi_property->property_id,
+                                          xgi_property->data_size),
             memory_->TranslateVirtual<uint8_t*>(xgi_property->data_address));
 
         kernel_state_->xam_state()->user_tracker()->AddProperty(user->xuid(),
