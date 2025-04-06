@@ -1099,8 +1099,23 @@ class KeyboardInputDialog : public XamDialog {
       if (first_draw) {
         ImGui::SetKeyboardFocusHere();
       }
-      if (ImGui::InputText("##body", text_buffer_.data(), text_buffer_.size(),
-                           ImGuiInputTextFlags_EnterReturnsTrue)) {
+      ImGui::PushID("input_text");
+      bool input_submitted =
+          ImGui::InputText("##body", text_buffer_.data(), text_buffer_.size(),
+                           ImGuiInputTextFlags_EnterReturnsTrue);
+      // Context menu for paste functionality
+      if (ImGui::BeginPopupContextItem("input_context_menu")) {
+        if (ImGui::MenuItem("Paste")) {
+          if (ImGui::GetClipboardText() != nullptr) {
+            std::string clipboard_text = ImGui::GetClipboardText();
+            xe::string_util::copy_truncating(
+                text_buffer_.data(), clipboard_text, text_buffer_.size());
+          }
+        }
+        ImGui::EndPopup();
+      }
+      ImGui::PopID();
+      if (input_submitted) {
         text_ = std::string(text_buffer_.data(), text_buffer_.size());
         cancelled_ = false;
         ImGui::CloseCurrentPopup();
