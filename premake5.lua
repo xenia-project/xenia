@@ -265,7 +265,6 @@ workspace("xenia")
   include("third_party/fmt.lua")
   include("third_party/glslang-spirv.lua")
   include("third_party/imgui.lua")
-  include("third_party/libusb.lua")
   include("third_party/mspack.lua")
   include("third_party/snappy.lua")
   include("third_party/xxhash.lua")
@@ -273,6 +272,10 @@ workspace("xenia")
   include("third_party/zstd.lua")
   include("third_party/zlib.lua")
   include("third_party/pugixml.lua")
+
+  if os.istarget("windows") then
+    include("third_party/libusb.lua")
+  end
 
   if not os.istarget("android") then
     -- SDL2 requires sdl2-config, and as of November 2020 isn't high-quality on
@@ -308,6 +311,7 @@ workspace("xenia")
   include("src/xenia/gpu/vulkan")
   include("src/xenia/hid")
   include("src/xenia/hid/nop")
+  include("src/xenia/hid/skylander")
   include("src/xenia/kernel")
   include("src/xenia/patcher")
   include("src/xenia/ui")

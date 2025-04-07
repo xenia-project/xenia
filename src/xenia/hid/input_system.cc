@@ -16,6 +16,11 @@
 #include "xenia/hid/input_driver.h"
 #include "xenia/kernel/util/shim_utils.h"
 
+#include "xenia/hid/skylander/skylander_emulated.h"
+#ifdef XE_PLATFORM_WIN32
+#include "xenia/hid/skylander/skylander_hardware.h"
+#endif  // XE_PLATFORM_WIN32
+
 namespace xe {
 namespace hid {
 
@@ -28,7 +33,13 @@ DEFINE_double(
     right_stick_deadzone_percentage, 0.0,
     "Defines deadzone level for right stick. Allowed range [0.0-1.0].", "HID");
 
-InputSystem::InputSystem(xe::ui::Window* window) : window_(window) {}
+InputSystem::InputSystem(xe::ui::Window* window) : window_(window) {
+  skylander_portal_ = std::make_unique<SkylanderPortalEmulated>();
+
+#ifdef XE_PLATFORM_WIN32
+  skylander_portal_ = std::make_unique<SkylanderPortalLibusb>();
+#endif  // XE_PLATFORM_WIN32
+}
 
 InputSystem::~InputSystem() = default;
 

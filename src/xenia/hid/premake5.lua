@@ -8,6 +8,7 @@ project("xenia-hid")
   language("C++")
   links({
     "xenia-base",
+    "xenia-hid-skylander",
   })
   defines({
   })
