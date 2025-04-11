@@ -37,6 +37,9 @@
 #include "third_party/crypto/TinySHA1.hpp"
 
 DEFINE_bool(apply_title_update, true, "Apply title updates.", "Kernel");
+DEFINE_bool(allow_incompatible_title_update, true,
+            "Allow title updates with mismatched signatures to be applied.",
+            "Kernel");
 
 DEFINE_uint32(kernel_build_version, 1888, "Define current kernel version",
               "Kernel");
@@ -581,6 +584,13 @@ X_RESULT KernelState::ApplyTitleUpdate(
   }
 
   if (!IsPatchSignatureProper(title_module, patch_module)) {
+    if (!cvars::allow_incompatible_title_update) {
+      XELOGW(
+          "Skipping incompatible title update for {} due to signature mismatch",
+          title_module->name());
+      return X_STATUS_SUCCESS;
+    }
+
     // First module that is loaded is always main executable. That way we can
     // prevent random message spam in case of loading/unloading.
     if (!GetExecutableModule()) {
