@@ -54,11 +54,13 @@ project("xenia-app")
     -- Unified library containing all apps as StaticLibs, not just the main
     -- emulator windowed app.
     kind("SharedLib")
-    links({
-      "xenia-gpu-vulkan-trace-viewer",
-      "xenia-hid-demo",
-      "xenia-ui-window-vulkan-demo",
-    })
+  if enableMiscSubprojects then
+      links({
+        "xenia-gpu-vulkan-trace-viewer",
+        "xenia-hid-demo",
+        "xenia-ui-window-vulkan-demo",
+      })
+  end
   filter(NOT_SINGLE_LIBRARY_FILTER)
     kind("WindowedApp")
 
@@ -114,15 +116,13 @@ project("xenia-app")
       "xenia-ui-d3d12",
     })
 
-  filter({"platforms:Windows", SINGLE_LIBRARY_FILTER})
-    links({
-      "xenia-gpu-d3d12-trace-viewer",
-      "xenia-ui-window-d3d12-demo",
-    })
---  filter({"configurations:Release", "platforms:Windows"})
---    buildoptions({
---      "/O1",
---    })
+  if enableMiscSubprojects then
+    filter({"platforms:Windows", SINGLE_LIBRARY_FILTER})
+      links({
+        "xenia-gpu-d3d12-trace-viewer",
+        "xenia-ui-window-d3d12-demo",
+      })
+  end
 
   filter("platforms:Windows")
     -- Only create the .user file if it doesn't already exist.

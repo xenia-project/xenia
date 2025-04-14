@@ -17,4 +17,6 @@ project("xenia-base")
     "debug_visualizers.natvis",
   })
 
-include("testing")
+if enableTests then
+  include("testing")
+end

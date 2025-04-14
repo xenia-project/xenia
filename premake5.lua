@@ -7,6 +7,11 @@ location(build_root)
 targetdir(build_bin)
 objdir(build_obj)
 
+-- Define variables for enabling specific submodules
+-- Todo: Add changing from xb command
+enableTests = false
+enableMiscSubprojects = false
+
 -- Define an ARCH variable
 -- Only use this to enable architecture-specific functionality.
 if os.istarget("linux") then
