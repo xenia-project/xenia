@@ -375,10 +375,10 @@ struct xex2_opt_file_format_info {
 union xex2_version {
   uint32_t value;
   struct {
-    uint32_t major : 4;
-    uint32_t minor : 4;
-    uint32_t build : 16;
     uint32_t qfe : 8;
+    uint32_t build : 16;
+    uint32_t minor : 4;
+    uint32_t major : 4;
   };
 };
 

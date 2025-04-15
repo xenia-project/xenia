@@ -1333,19 +1333,9 @@ std::string Emulator::FindLaunchModule() {
 }
 
 static std::string format_version(xex2_version version) {
-  // fmt::format doesn't like bit fields
-  uint32_t major, minor, build, qfe;
-  major = version.major;
-  minor = version.minor;
-  build = version.build;
-  qfe = version.qfe;
-  if (qfe) {
-    return fmt::format("{}.{}.{}.{}", major, minor, build, qfe);
-  }
-  if (build) {
-    return fmt::format("{}.{}.{}", major, minor, build);
-  }
-  return fmt::format("{}.{}", major, minor);
+  // fmt::format doesn't like bit fields we use + to bypass it
+  return fmt::format("{}.{}.{}.{}", +version.major, +version.minor,
+                     +version.build, +version.qfe);
 }
 
 X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
