@@ -35,6 +35,12 @@ class XContentContainerDevice : public Device {
       const std::string_view mount_path,
       const std::filesystem::path& host_path);
 
+  static std::unique_ptr<XContentContainerHeader> ReadContainerHeader(
+      const std::filesystem::path& file_path);
+
+  static std::unique_ptr<XContentContainerHeader> ReadContainerHeader(
+      FILE* host_file);
+
   ~XContentContainerDevice() override;
 
   bool Initialize() override;
@@ -117,9 +123,6 @@ class XContentContainerDevice : public Device {
   size_t files_total_size_;
   std::unique_ptr<Entry> root_entry_;
   std::unique_ptr<XContentContainerHeader> header_;
-
- private:
-  static XContentContainerHeader* ReadContainerHeader(FILE* host_file);
 };
 
 }  // namespace vfs

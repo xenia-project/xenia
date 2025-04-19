@@ -791,45 +791,47 @@ X_STATUS Emulator::ProcessContentPackageHeader(
   installation_info.content_type_ = XContentType::kInvalid;
   installation_info.data_installation_path_ = xe::path_to_utf8(path.filename());
 
-  std::unique_ptr<vfs::XContentContainerDevice> device =
-      vfs::XContentContainerDevice::CreateContentDevice("", path);
+  const auto header = vfs::XContentContainerDevice::ReadContainerHeader(path);
 
-  if (!device || !device->Initialize()) {
+  if (!header || !header->content_header.is_magic_valid()) {
     installation_info.installation_result_ = X_STATUS_INVALID_PARAMETER;
     installation_info.installation_error_message_ = "Invalid Package Type!";
     XELOGE("Failed to initialize device");
     return X_STATUS_INVALID_PARAMETER;
   }
+
   // Always install savefiles to user signed to slot 0.
   const auto profile =
       kernel_state_->xam_state()->profile_manager()->GetProfile(
           static_cast<uint8_t>(0));
 
-  uint64_t xuid = device->xuid();
-  if (device->content_type() ==
-          static_cast<uint32_t>(XContentType::kSavedGame) &&
+  uint64_t xuid = header->content_metadata.profile_id;
+  if (header->content_metadata.content_type == XContentType::kSavedGame &&
       profile) {
     xuid = profile->xuid();
   }
 
-  installation_info.data_installation_path_ =
-      fmt::format("{:016X}/{:08X}/{:08X}/{}", xuid, device->title_id(),
-                  device->content_type(), path.filename());
+  installation_info.data_installation_path_ = fmt::format(
+      "{:016X}/{:08X}/{:08X}/{}", xuid,
+      header->content_metadata.execution_info.title_id.get(),
+      static_cast<uint32_t>(header->content_metadata.content_type.get()),
+      path.filename());
 
-  installation_info.header_installation_path_ =
-      fmt::format("{:016X}/{:08X}/Headers/{:08X}/{}", xuid, device->title_id(),
-                  device->content_type(), path.filename());
+  installation_info.header_installation_path_ = fmt::format(
+      "{:016X}/{:08X}/Headers/{:08X}/{}", xuid,
+      header->content_metadata.execution_info.title_id.get(),
+      static_cast<uint32_t>(header->content_metadata.content_type.get()),
+      path.filename());
 
   installation_info.name_ =
-      xe::to_utf8(device->content_header().display_name());
+      xe::to_utf8(header->content_metadata.display_name(XLanguage::kEnglish));
   installation_info.content_type_ =
-      static_cast<XContentType>(device->content_type());
-  installation_info.content_size_ = device->data_size();
+      static_cast<XContentType>(header->content_metadata.content_type);
+  installation_info.content_size_ = header->content_metadata.content_size;
 
-  installation_info.icon_ =
-      imgui_drawer_->LoadImGuiIcon(std::span<const uint8_t>(
-          device->GetContainerHeader()->content_metadata.title_thumbnail,
-          device->GetContainerHeader()->content_metadata.title_thumbnail_size));
+  installation_info.icon_ = imgui_drawer_->LoadImGuiIcon(
+      std::span<const uint8_t>(header->content_metadata.title_thumbnail,
+                               header->content_metadata.title_thumbnail_size));
   return X_STATUS_SUCCESS;
 }
 
@@ -878,6 +880,8 @@ X_STATUS Emulator::InstallContentPackage(
       return error_code.value();
     }
   }
+
+  installation_info.content_size_ = device->data_size();
 
   vfs::VirtualFileSystem::ExtractContentHeader(device.get(), header_path);
 

@@ -108,11 +108,32 @@ bool XContentContainerDevice::Initialize() {
   return Read() == Result::kSuccess;
 }
 
-XContentContainerHeader* XContentContainerDevice::ReadContainerHeader(
-    FILE* host_file) {
-  XContentContainerHeader* header = new XContentContainerHeader();
+std::unique_ptr<XContentContainerHeader>
+XContentContainerDevice::ReadContainerHeader(
+    const std::filesystem::path& file_path) {
+  if (!std::filesystem::exists(file_path)) {
+    return {};
+  }
+
+  if (std::filesystem::file_size(file_path) < sizeof(XContentContainerHeader)) {
+    return {};
+  }
+
+  auto header_file = xe::filesystem::OpenFile(file_path, "rb");
+  if (!header_file) {
+    return {};
+  }
+
+  return ReadContainerHeader(header_file);
+}
+
+std::unique_ptr<XContentContainerHeader>
+XContentContainerDevice::ReadContainerHeader(FILE* host_file) {
+  std::unique_ptr<XContentContainerHeader> header =
+      std::make_unique<XContentContainerHeader>();
+
   // Read header & check signature
-  if (fread(header, sizeof(XContentContainerHeader), 1, host_file) != 1) {
+  if (fread(header.get(), sizeof(XContentContainerHeader), 1, host_file) != 1) {
     return nullptr;
   }
   return header;
@@ -173,18 +194,17 @@ XContentContainerDevice::Result XContentContainerDevice::ReadHeaderAndVerify(
     return Result::kTooSmall;
   }
 
-  const XContentContainerHeader* header = ReadContainerHeader(header_file);
+  auto header = ReadContainerHeader(header_file);
   if (header == nullptr) {
     return Result::kReadError;
   }
 
-  std::memcpy(header_.get(), header, sizeof(XContentContainerHeader));
-
-  if (!header_->content_header.is_magic_valid()) {
+  if (!header->content_header.is_magic_valid()) {
     // Unexpected format.
     return Result::kFileMismatch;
   }
 
+  header_ = std::move(header);
   return Result::kSuccess;
 }
 
