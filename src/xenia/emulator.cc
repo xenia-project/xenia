@@ -794,6 +794,7 @@ X_STATUS Emulator::ProcessContentPackageHeader(
   const auto header = vfs::XContentContainerDevice::ReadContainerHeader(path);
 
   if (!header || !header->content_header.is_magic_valid()) {
+    installation_info.installation_state_ = InstallState::failed;
     installation_info.installation_result_ = X_STATUS_INVALID_PARAMETER;
     installation_info.installation_error_message_ = "Invalid Package Type!";
     XELOGE("Failed to initialize device");
@@ -828,6 +829,7 @@ X_STATUS Emulator::ProcessContentPackageHeader(
   installation_info.content_type_ =
       static_cast<XContentType>(header->content_metadata.content_type);
   installation_info.content_size_ = header->content_metadata.content_size;
+  installation_info.installation_state_ = InstallState::pending;
 
   installation_info.icon_ = imgui_drawer_->LoadImGuiIcon(
       std::span<const uint8_t>(header->content_metadata.title_thumbnail,
@@ -837,6 +839,8 @@ X_STATUS Emulator::ProcessContentPackageHeader(
 
 X_STATUS Emulator::InstallContentPackage(
     const std::filesystem::path& path, ContentInstallEntry& installation_info) {
+  installation_info.installation_state_ = InstallState::preparing;
+
   std::unique_ptr<vfs::XContentContainerDevice> device =
       vfs::XContentContainerDevice::CreateContentDevice("", path);
 
@@ -854,6 +858,7 @@ X_STATUS Emulator::InstallContentPackage(
   if (!std::filesystem::exists(content_root())) {
     const std::error_code ec = xe::filesystem::CreateFolder(content_root());
     if (ec) {
+      installation_info.installation_state_ = InstallState::failed;
       installation_info.installation_error_message_ = ec.message();
       installation_info.installation_result_ = X_STATUS_ACCESS_DENIED;
       return X_STATUS_ACCESS_DENIED;
@@ -862,6 +867,7 @@ X_STATUS Emulator::InstallContentPackage(
 
   const auto disk_space = std::filesystem::space(content_root());
   if (disk_space.available < installation_info.content_size_ * 1.1f) {
+    installation_info.installation_state_ = InstallState::failed;
     installation_info.installation_error_message_ = "Insufficient disk space!";
     installation_info.installation_result_ = X_STATUS_DISK_FULL;
     return X_STATUS_DISK_FULL;
@@ -874,6 +880,7 @@ X_STATUS Emulator::InstallContentPackage(
     std::error_code error_code;
     std::filesystem::create_directories(installation_path, error_code);
     if (error_code) {
+      installation_info.installation_state_ = InstallState::failed;
       installation_info.installation_error_message_ =
           "Cannot Create Content Directory!";
       installation_info.installation_result_ = error_code.value();
@@ -882,6 +889,7 @@ X_STATUS Emulator::InstallContentPackage(
   }
 
   installation_info.content_size_ = device->data_size();
+  installation_info.installation_state_ = InstallState::installing;
 
   vfs::VirtualFileSystem::ExtractContentHeader(device.get(), header_path);
 
@@ -889,9 +897,11 @@ X_STATUS Emulator::InstallContentPackage(
       device.get(), installation_path,
       installation_info.currently_installed_size_);
   if (error_code != X_ERROR_SUCCESS) {
+    installation_info.installation_state_ = InstallState::failed;
     return error_code;
   }
 
+  installation_info.installation_state_ = InstallState::installed;
   installation_info.currently_installed_size_ = installation_info.content_size_;
   kernel_state()->BroadcastNotification(kXNotificationLiveContentInstalled, 0);
 

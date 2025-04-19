@@ -611,14 +611,17 @@ void EmulatorWindow::ContentInstallDialog::OnDraw(ImGuiIO& io) {
                   XContentTypeMap.at(entry.content_type_).c_str());
     }
 
-    if (entry.installation_result_ != X_ERROR_SUCCESS) {
-      ImGui::Text("Status: %s (0x%08X)",
-                  entry.installation_error_message_.c_str(),
-                  entry.installation_result_);
-    } else if (entry.currently_installed_size_ == entry.content_size_ &&
-               entry.installation_result_ == X_ERROR_SUCCESS) {
-      ImGui::Text("Status: Success");
+    std::string result = fmt::format(
+        "Status: {}", xe::Emulator::installStateStringName[static_cast<uint8_t>(
+                          entry.installation_state_)]);
+
+    if (entry.installation_state_ == xe::Emulator::InstallState::failed) {
+      result += fmt::format(" - {} ({:08X})",
+                            entry.installation_error_message_.c_str(),
+                            entry.installation_result_);
     }
+
+    ImGui::Text("%s", result.c_str());
     ImGui::EndTable();
 
     if (entry.content_size_ > 0) {

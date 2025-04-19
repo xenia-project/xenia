@@ -235,6 +235,17 @@ class Emulator {
 
   X_STATUS LaunchDefaultModule(const std::filesystem::path& path);
 
+  enum class InstallState : uint8_t {
+    preparing,
+    pending,
+    installing,
+    installed,
+    failed
+  };
+
+  constexpr static std::string_view installStateStringName[5] = {
+      "Preparing", "Pending", "Installing", "Success", "Failed"};
+
   struct ContentInstallEntry {
     ContentInstallEntry(std::filesystem::path path) : path_(path) {};
 
@@ -245,9 +256,11 @@ class Emulator {
 
     uint64_t content_size_ = 0;
     uint64_t currently_installed_size_ = 0;
+    XContentType content_type_{};
+
+    InstallState installation_state_{};
     X_STATUS installation_result_{};
     std::string installation_error_message_{};
-    XContentType content_type_{};
 
     std::unique_ptr<ui::ImmediateTexture> icon_;
   };
