@@ -10,6 +10,7 @@
 #ifndef XENIA_KERNEL_XAM_XDBF_GPD_INFO_PROFILE_H_
 #define XENIA_KERNEL_XAM_XDBF_GPD_INFO_PROFILE_H_
 
+#include "xenia/kernel/title_id_utils.h"
 #include "xenia/kernel/xam/xdbf/gpd_info.h"
 #include "xenia/kernel/xam/xdbf/spa_info.h"
 
@@ -24,9 +25,9 @@ namespace xam {
 
 class GpdInfoProfile : public GpdInfo {
  public:
-  GpdInfoProfile() : GpdInfo(0xFFFE07D1) {};
+  GpdInfoProfile() : GpdInfo(kDashboardID) {};
   GpdInfoProfile(const std::vector<uint8_t> buffer)
-      : GpdInfo(0xFFFE07D1, buffer) {};
+      : GpdInfo(kDashboardID, buffer) {};
 
   ~GpdInfoProfile() {};
 

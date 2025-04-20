@@ -17,6 +17,7 @@
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/string.h"
+#include "xenia/kernel/title_id_utils.h"
 #include "xenia/kernel/xam/user_profile.h"
 #include "xenia/xbox.h"
 
@@ -38,7 +39,6 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-constexpr uint32_t kDashboardID = 0xFFFE07D1;
 const static std::string kDashboardStringID =
     fmt::format("{:08X}", kDashboardID);
 

@@ -40,6 +40,7 @@
 #include "xenia/hid/input_driver.h"
 #include "xenia/hid/input_system.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/title_id_utils.h"
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/xam/achievement_manager.h"
 #include "xenia/kernel/xam/xam_module.h"
@@ -574,7 +575,8 @@ X_STATUS Emulator::LaunchXexFile(const std::filesystem::path& path) {
 
   if (XSUCCEEDED(result)) {
     kernel_state_->deployment_type_ = XDeploymentType::kHardDrive;
-    if (!kernel_state_->is_title_system_type(title_id())) {
+    auto title_id = kernel_state_->title_id();
+    if (!kernel::IsSystemTitle(title_id)) {
       // Assumption that any loaded game is loaded as a disc.
       kernel_state_->deployment_type_ = XDeploymentType::kOpticalDisc;
     }
@@ -622,7 +624,8 @@ X_STATUS Emulator::LaunchDefaultModule(const std::filesystem::path& path) {
 
   if (XSUCCEEDED(result)) {
     kernel_state_->deployment_type_ = XDeploymentType::kHardDrive;
-    if (!kernel_state_->is_title_system_type(title_id())) {
+    auto title_id = kernel_state_->title_id();
+    if (!kernel::IsSystemTitle(title_id)) {
       // Assumption that any loaded game is loaded as a disc.
       kernel_state_->deployment_type_ = XDeploymentType::kOpticalDisc;
     }

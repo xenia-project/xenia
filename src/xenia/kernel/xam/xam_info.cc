@@ -13,6 +13,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/string_util.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/title_id_utils.h"
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_module.h"
@@ -281,7 +282,7 @@ dword_result_t XamGetCurrentTitleId_entry() {
 DECLARE_XAM_EXPORT1(XamGetCurrentTitleId, kNone, kImplemented);
 
 dword_result_t XamIsCurrentTitleDash_entry(const ppc_context_t& ctx) {
-  return ctx->kernel_state->title_id() == 0xFFFE07D1;
+  return ctx->kernel_state->title_id() == kDashboardID;
 }
 DECLARE_XAM_EXPORT1(XamIsCurrentTitleDash, kNone, kImplemented);
 
@@ -711,6 +712,21 @@ DECLARE_XAM_EXPORT1(RtlRandom, kNone, kImplemented);
 
 dword_result_t Refresh_entry() { return X_ERROR_SUCCESS; }
 DECLARE_XAM_EXPORT1(Refresh, kNone, kStub);
+
+dword_result_t XamIsSystemExperienceTitleId_entry(dword_t title_id) {
+  return IsSystemExperienceTitle(title_id);
+}
+DECLARE_XAM_EXPORT1(XamIsSystemExperienceTitleId, kNone, kImplemented);
+
+dword_result_t XamIsSystemTitleId_entry(dword_t title_id) {
+  return IsSystemTitle(title_id);
+}
+DECLARE_XAM_EXPORT1(XamIsSystemTitleId, kNone, kImplemented);
+
+dword_result_t XamIsXbox1TitleId_entry(dword_t title_id) {
+  return IsOriginalXboxTitle(title_id);
+}
+DECLARE_XAM_EXPORT1(XamIsXbox1TitleId, kNone, kImplemented);
 
 }  // namespace xam
 }  // namespace kernel
