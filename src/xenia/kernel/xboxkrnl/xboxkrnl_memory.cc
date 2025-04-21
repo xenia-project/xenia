@@ -387,6 +387,28 @@ dword_result_t NtAllocateEncryptedMemory_entry(dword_t unk, dword_t region_size,
 }
 DECLARE_XBOXKRNL_EXPORT1(NtAllocateEncryptedMemory, kMemory, kImplemented);
 
+dword_result_t NtFreeEncryptedMemory_entry(dword_t region_type,
+                                           lpdword_t base_address_ptr) {
+  if (!base_address_ptr) {
+    return X_STATUS_INVALID_PARAMETER;
+  }
+
+  auto heap = kernel_state()->memory()->LookupHeap(0x80000000);
+  const uint32_t encrypt_address =
+      heap->heap_base() + heap->page_size() * (*base_address_ptr);
+
+  auto encrypt_heap = kernel_state()->memory()->LookupHeap(encrypt_address);
+
+  if (encrypt_heap->heap_type() != HeapType::kGuestXex) {
+    return X_STATUS_INVALID_PARAMETER;
+  }
+
+  kernel_state()->memory()->SystemHeapFree(encrypt_address);
+
+  return X_STATUS_SUCCESS;
+}
+DECLARE_XBOXKRNL_EXPORT1(NtFreeEncryptedMemory, kMemory, kImplemented);
+
 uint32_t xeMmAllocatePhysicalMemoryEx(uint32_t flags, uint32_t region_size,
                                       uint32_t protect_bits,
                                       uint32_t min_addr_range,
