@@ -1199,7 +1199,7 @@ bool D3D12CommandProcessor::SetupContext() {
   ui::d3d12::util::FillBufferResourceDesc(
       gamma_ramp_buffer_desc, (256 + 128 * 3) * 4, D3D12_RESOURCE_FLAG_NONE);
   // The first action will be uploading.
-  gamma_ramp_buffer_state_ = D3D12_RESOURCE_STATE_COPY_DEST;
+  gamma_ramp_buffer_state_ = D3D12_RESOURCE_STATE_COMMON;
   if (FAILED(device->CreateCommittedResource(
           &ui::d3d12::util::kHeapPropertiesDefault, heap_flag_create_not_zeroed,
           &gamma_ramp_buffer_desc, gamma_ramp_buffer_state_, nullptr,
