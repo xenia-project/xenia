@@ -3170,13 +3170,21 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
           rt.dest_blend_alpha != PipelineBlendFactor::kZero ||
           rt.blend_op_alpha != xenos::BlendOp::kAdd) {
         blend_desc.BlendEnable = true;
-        blend_desc.SrcBlend = kBlendFactorMap[uint32_t(rt.src_blend)];
-        blend_desc.DestBlend = kBlendFactorMap[uint32_t(rt.dest_blend)];
         blend_desc.BlendOp = kBlendOpMap[uint32_t(rt.blend_op)];
-        blend_desc.SrcBlendAlpha =
-            kBlendFactorMap[uint32_t(rt.src_blend_alpha)];
-        blend_desc.DestBlendAlpha =
-            kBlendFactorMap[uint32_t(rt.dest_blend_alpha)];
+        if (blend_desc.BlendOp == D3D12_BLEND_OP_MIN ||
+            blend_desc.BlendOp == D3D12_BLEND_OP_MAX) {
+          blend_desc.SrcBlend = D3D12_BLEND_ONE;
+          blend_desc.DestBlend = D3D12_BLEND_ONE;
+          blend_desc.SrcBlendAlpha = D3D12_BLEND_ONE;
+          blend_desc.DestBlendAlpha = D3D12_BLEND_ONE;
+        } else {
+          blend_desc.SrcBlend = kBlendFactorMap[uint32_t(rt.src_blend)];
+          blend_desc.DestBlend = kBlendFactorMap[uint32_t(rt.dest_blend)];
+          blend_desc.SrcBlendAlpha =
+              kBlendFactorMap[uint32_t(rt.src_blend_alpha)];
+          blend_desc.DestBlendAlpha =
+              kBlendFactorMap[uint32_t(rt.dest_blend_alpha)];
+        }
         blend_desc.BlendOpAlpha = kBlendOpMap[uint32_t(rt.blend_op_alpha)];
       }
       blend_desc.RenderTargetWriteMask = rt.write_mask;
