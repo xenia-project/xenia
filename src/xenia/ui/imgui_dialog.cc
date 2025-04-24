@@ -16,7 +16,7 @@
 namespace xe {
 namespace ui {
 
-uint64_t ImGuiDialog::next_window_id_ = 0;
+std::atomic<uint64_t> ImGuiDialog::next_window_id_ = 0;
 
 ImGuiDialog::ImGuiDialog(ImGuiDrawer* imgui_drawer)
     : imgui_drawer_(imgui_drawer) {

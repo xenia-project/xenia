@@ -49,7 +49,7 @@ class ImGuiDialog {
   virtual void OnDraw(ImGuiIO& io) {}
 
  private:
-  static uint64_t next_window_id_;
+  static std::atomic<uint64_t> next_window_id_;
 
   ImGuiDrawer* imgui_drawer_ = nullptr;
   bool has_close_pending_ = false;
