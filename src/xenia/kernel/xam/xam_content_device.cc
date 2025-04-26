@@ -35,7 +35,7 @@ namespace xam {
 static constexpr DummyDeviceInfo dummy_hdd_device_info_ = {
     DummyDeviceId::HDD, DeviceType::HDD,
     20ull * ONE_GB,  // 20GB
-    3ull * ONE_GB,   // 3GB, so it looks a little used.
+    10ull * ONE_GB,  // 10GB.
     u"Dummy HDD",
 };
 static constexpr DummyDeviceInfo dummy_odd_device_info_ = {
