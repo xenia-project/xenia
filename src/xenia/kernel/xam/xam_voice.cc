@@ -45,6 +45,12 @@ dword_result_t XamVoiceSubmitPacket_entry(lpdword_t unk1, dword_t unk2,
 }
 DECLARE_XAM_EXPORT1(XamVoiceSubmitPacket, kNone, kStub);
 
+dword_result_t XamVoiceGetMicArrayStatus_entry() {
+  // Returning 0 here tells caller mic is not connected
+  return 0;
+}
+DECLARE_XAM_EXPORT1(XamVoiceGetMicArrayStatus, kNone, kStub);
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
