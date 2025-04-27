@@ -15,6 +15,7 @@
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/filesystem.h"
+#include "xenia/base/logging.h"
 #include "xenia/base/string.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
@@ -39,7 +40,9 @@ ContentPackage::ContentPackage(KernelState* kernel_state,
                                const std::string_view root_name,
                                const XCONTENT_AGGREGATE_DATA& data,
                                const std::filesystem::path& package_path)
-    : kernel_state_(kernel_state), root_name_(root_name) {
+    : kernel_state_(kernel_state),
+      root_name_(root_name),
+      license_(cvars::license_mask) {
   device_path_ = fmt::format("\\Device\\Content\\{0}\\", ++content_device_id_);
   content_data_ = data;
 
@@ -59,8 +62,6 @@ ContentPackage::~ContentPackage() {
 
 void ContentPackage::LoadPackageLicenseMask(
     const std::filesystem::path header_path) {
-  license_ = cvars::license_mask;
-
   if (!std::filesystem::exists(header_path)) {
     return;
   }
@@ -538,6 +539,28 @@ void ContentManager::CloseOpenedFilesFromContent(
       file->ReleaseHandle();
     }
   }
+}
+
+uint64_t ContentManager::GetContentTotalSpace() const {
+  std::error_code ec;
+  const auto drive_stats = std::filesystem::space(root_path_, ec);
+  if (ec) {
+    XELOGW("{}: {} (:08X)", __func__, ec.message(), ec.value());
+    return 0;
+  }
+
+  return drive_stats.capacity;
+}
+
+uint64_t ContentManager::GetContentFreeSpace() const {
+  std::error_code ec;
+  const auto drive_stats = std::filesystem::space(root_path_, ec);
+  if (ec) {
+    XELOGW("{}: {} (:08X)", __func__, ec.message(), ec.value());
+    return 0;
+  }
+
+  return drive_stats.free;
 }
 
 }  // namespace xam

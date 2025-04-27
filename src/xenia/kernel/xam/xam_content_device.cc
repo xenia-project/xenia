@@ -137,8 +137,14 @@ dword_result_t XamContentGetDeviceData_entry(
   device_data.Zero();
   device_data->device_id = static_cast<uint32_t>(device_info->device_id);
   device_data->device_type = static_cast<uint32_t>(device_info->device_type);
-  device_data->total_bytes = device_info->total_bytes;
-  device_data->free_bytes = device_info->free_bytes;
+  device_data->total_bytes =
+      device_info->device_type == DeviceType::HDD
+          ? kernel_state()->content_manager()->GetContentTotalSpace()
+          : device_info->total_bytes;
+  device_data->free_bytes =
+      device_info->device_type == DeviceType::HDD
+          ? kernel_state()->content_manager()->GetContentFreeSpace()
+          : device_info->free_bytes;
   xe::string_util::copy_and_swap_truncating(
       device_data->name_chars, device_info->name,
       xe::countof(device_data->name_chars));
@@ -172,8 +178,14 @@ dword_result_t XamContentCreateDeviceEnumerator_entry(dword_t content_type,
       device_data->device_id = static_cast<uint32_t>(device_info->device_id);
       device_data->device_type =
           static_cast<uint32_t>(device_info->device_type);
-      device_data->total_bytes = device_info->total_bytes;
-      device_data->free_bytes = device_info->free_bytes;
+      device_data->total_bytes =
+          device_info->device_type == DeviceType::HDD
+              ? kernel_state()->content_manager()->GetContentTotalSpace()
+              : device_info->total_bytes;
+      device_data->free_bytes =
+          device_info->device_type == DeviceType::HDD
+              ? kernel_state()->content_manager()->GetContentFreeSpace()
+              : device_info->free_bytes;
       xe::string_util::copy_and_swap_truncating(
           device_data->name_chars, device_info->name,
           xe::countof(device_data->name_chars));

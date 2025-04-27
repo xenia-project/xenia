@@ -185,6 +185,9 @@ class ContentManager {
   bool IsContentOpen(const XCONTENT_AGGREGATE_DATA& data) const;
   void CloseOpenedFilesFromContent(const std::string_view root_name);
 
+  uint64_t GetContentTotalSpace() const;
+  uint64_t GetContentFreeSpace() const;
+
  private:
   std::filesystem::path ResolvePackageRoot(
       const uint64_t xuid, const uint32_t title_id,
