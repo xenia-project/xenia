@@ -594,14 +594,18 @@ class GameAchievementsDialog final : public XamDialog {
       const auto unlock_time = chrono::WinSystemClock::to_local(
           achievement_entry.unlock_time.to_time_point());
 
-      return fmt::format("Unlocked: {:%Y-%m-%d %H:%M}", unlock_time);
+      return fmt::format("Unlocked: {:%Y-%m-%d %H:%M}",
+                         std::chrono::system_clock::time_point(
+                             unlock_time.time_since_epoch()));
     }
 
     if (achievement_entry.unlock_time.is_valid()) {
       const auto unlock_time = chrono::WinSystemClock::to_local(
           achievement_entry.unlock_time.to_time_point());
 
-      return fmt::format("Unlocked: Offline ({:%Y-%m-%d %H:%M})", unlock_time);
+      return fmt::format("Unlocked: Offline ({:%Y-%m-%d %H:%M})",
+                         std::chrono::system_clock::time_point(
+                             unlock_time.time_since_epoch()));
     }
     return fmt::format("Unlocked: Offline");
   }
@@ -789,7 +793,9 @@ class GamesInfoDialog final : public XamDialog {
 
     if (entry.WasTitlePlayed()) {
       ImGui::TextUnformatted(
-          fmt::format("Last played: {:%Y-%m-%d %H:%M}", entry.last_played)
+          fmt::format("Last played: {:%Y-%m-%d %H:%M}",
+                      std::chrono::system_clock::time_point(
+                          entry.last_played.time_since_epoch()))
               .c_str());
     } else {
       ImGui::TextUnformatted("Last played: Unknown");

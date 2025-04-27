@@ -91,6 +91,7 @@ filter("configurations:Release")
     "_NO_DEBUG_HEAP=1",
   })
   optimize("Speed")
+  symbols("Off")
   inlining("Auto")
   editandcontinue("Off")
   -- Not using floatingpoint("Fast") - NaN checks are used in some places
@@ -102,6 +103,7 @@ filter("configurations:Release")
 
 filter({"configurations:Release", "platforms:Windows"})
   linktimeoptimization("On")
+  symbols("On")
   flags({
     "NoBufferSecurityCheck"
   })
