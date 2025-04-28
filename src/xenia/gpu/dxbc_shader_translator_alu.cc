@@ -867,7 +867,7 @@ void DxbcShaderTranslator::ProcessScalarAluOperation(
       }
       a_.OpMax(dxbc::Dest::R(system_temp_ps_pc_p0_a0_, 0b1000),
                dxbc::Src::R(system_temp_ps_pc_p0_a0_, dxbc::Src::kWWWW),
-               dxbc::Src::LF(-256.0f));
+               dxbc::Src::LF(0.0f));
       a_.OpMin(dxbc::Dest::R(system_temp_ps_pc_p0_a0_, 0b1000),
                dxbc::Src::R(system_temp_ps_pc_p0_a0_, dxbc::Src::kWWWW),
                dxbc::Src::LF(255.0f));
