@@ -728,6 +728,25 @@ dword_result_t XamIsXbox1TitleId_entry(dword_t title_id) {
 }
 DECLARE_XAM_EXPORT1(XamIsXbox1TitleId, kNone, kImplemented);
 
+void XamSetActiveDashAppInfo_entry(pointer_t<X_DASH_APP_INFO> dash_app) {
+  if (!dash_app) {
+    kernel_state()->dash_app_info_ = {};
+    return;
+  }
+  std::memcpy(&kernel_state()->dash_app_info_, dash_app,
+              sizeof(X_DASH_APP_INFO));
+}
+DECLARE_XAM_EXPORT1(XamSetActiveDashAppInfo, kNone, kImplemented);
+
+void XamGetActiveDashAppInfo_entry(pointer_t<X_DASH_APP_INFO> dash_app) {
+  if (!dash_app) {
+    return;
+  }
+  std::memcpy(dash_app, &kernel_state()->dash_app_info_,
+              sizeof(X_DASH_APP_INFO));
+}
+DECLARE_XAM_EXPORT1(XamGetActiveDashAppInfo, kNone, kImplemented);
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe

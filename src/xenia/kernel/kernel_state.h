@@ -388,6 +388,7 @@ class KernelState {
 
  public:
   uint32_t dash_context_ = 0;
+  X_DASH_APP_INFO dash_app_info_ = {};
   std::unordered_map<XObject::Type, uint32_t>
       host_object_type_enum_to_guest_object_type_ptr_;
   uint32_t GetKernelGuestGlobals() const { return kernel_guest_globals_; }

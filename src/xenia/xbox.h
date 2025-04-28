@@ -779,6 +779,14 @@ struct MESSAGEBOX_RESULT {
 #define DPAD_LEFT_PASSCODE          0x00005812
 #define DPAD_RIGHT_PASSCODE         0x00005813
 
+#pragma pack(push, 4)
+struct X_DASH_APP_INFO {
+  uint64_t unk1;
+  uint32_t unk2;
+};
+static_assert_size(X_DASH_APP_INFO, 0xC);
+#pragma pack(pop)
+
 // clang-format on
 
 }  // namespace xe
