@@ -31,6 +31,9 @@ X_HRESULT XmpApp::XMPGetStatus(uint32_t state_ptr) {
     xe::threading::Sleep(std::chrono::milliseconds(1));
   }
 
+  if (!state_ptr) {
+    return X_E_INVALIDARG;
+  }
   const uint32_t state = static_cast<uint32_t>(
       kernel_state_->emulator()->audio_media_player()->GetState());
 
