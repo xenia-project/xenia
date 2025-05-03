@@ -117,6 +117,11 @@ std::unique_ptr<XContentContainerEntry> StfsContainerDevice::ReadEntry(
   std::string ansi_name(reinterpret_cast<const char*>(dir_entry->name),
                         dir_entry->flags.name_length & 0x3F);
   std::string name = xe::win1252_to_utf8(ansi_name);
+  // Fallback to normal name if for whatever reason conversion from 1252 code
+  // page failed.
+  if (name.empty()) {
+    name = ansi_name;
+  }
 
   auto entry = XContentContainerEntry::Create(this, parent, name, &files_);
 

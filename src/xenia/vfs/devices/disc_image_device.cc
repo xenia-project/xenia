@@ -144,6 +144,11 @@ bool DiscImageDevice::ReadEntry(ParseState* state, const uint8_t* buffer,
   // Filename is stored as Windows-1252, convert it to UTF-8.
   auto ansi_name = std::string(name_buffer, name_length);
   auto name = xe::win1252_to_utf8(ansi_name);
+  // Fallback to normal name if for whatever reason conversion from 1252 code
+  // page failed.
+  if (name.empty()) {
+    name = ansi_name;
+  }
 
   auto entry = DiscImageEntry::Create(this, parent, name, mmap_.get());
   entry->attributes_ = attributes | kFileAttributeReadOnly;

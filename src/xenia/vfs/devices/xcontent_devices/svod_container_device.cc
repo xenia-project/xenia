@@ -126,7 +126,11 @@ SvodContainerDevice::Result SvodContainerDevice::ReadEntry(
 
   // Read directory entry
   auto& file = files_.at(entry_file);
-  xe::filesystem::Seek(file, entry_address, SEEK_SET);
+  if (!xe::filesystem::Seek(file, entry_address, SEEK_SET)) {
+    XELOGE("{} Failed: Cannot seek file {} with offset: {} ordinal: {}",
+           __func__, entry_file, entry_address, ordinal);
+    return Result::kReadError;
+  }
 
 #pragma pack(push, 1)
   struct {
@@ -141,7 +145,7 @@ SvodContainerDevice::Result SvodContainerDevice::ReadEntry(
 #pragma pack(pop)
 
   if (fread(&dir_entry, sizeof(dir_entry), 1, file) != 1) {
-    XELOGE("ReadEntrySVOD failed to read directory entry at 0x{X}",
+    XELOGE("ReadEntrySVOD failed to read directory entry at {:016X}",
            entry_address);
     return Result::kReadError;
   }
@@ -149,7 +153,7 @@ SvodContainerDevice::Result SvodContainerDevice::ReadEntry(
   auto name_buffer = std::make_unique<char[]>(dir_entry.name_length);
   if (fread(name_buffer.get(), 1, dir_entry.name_length, file) !=
       dir_entry.name_length) {
-    XELOGE("ReadEntrySVOD failed to read directory entry name at 0x{X}",
+    XELOGE("ReadEntrySVOD failed to read directory entry name at {:016X}",
            entry_address);
     return Result::kReadError;
   }
@@ -157,6 +161,12 @@ SvodContainerDevice::Result SvodContainerDevice::ReadEntry(
   // Filename is stored as Windows-1252, convert it to UTF-8.
   auto ansi_name = std::string(name_buffer.get(), dir_entry.name_length);
   auto name = xe::win1252_to_utf8(ansi_name);
+
+  // Fallback to normal name if for whatever reason conversion from 1252 code
+  // page failed.
+  if (name.empty()) {
+    name = ansi_name;
+  }
 
   // Read the left node
   if (dir_entry.node_l) {
