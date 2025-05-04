@@ -22,6 +22,7 @@
 #include "xenia/kernel/xenumerator.h"
 #include "xenia/ui/imgui_dialog.h"
 #include "xenia/ui/imgui_drawer.h"
+#include "xenia/vfs/devices/stfs_xbox.h"
 #include "xenia/xbox.h"
 
 DEFINE_int32(
@@ -126,7 +127,6 @@ dword_result_t XamContentResolve_entry(dword_t user_index,
 DECLARE_XAM_EXPORT1(XamContentResolve, kContent, kSketchy);
 
 // https://github.com/MrColdbird/gameservice/blob/master/ContentManager.cpp
-// https://github.com/LestaD/SourceEngine2007/blob/master/se2007/engine/xboxsystem.cpp#L499
 dword_result_t XamContentCreateEnumerator_entry(
     dword_t user_index, dword_t device_id, dword_t content_type,
     dword_t content_flags, dword_t items_per_enumerate,
@@ -168,7 +168,16 @@ dword_result_t XamContentCreateEnumerator_entry(
   std::vector<XCONTENT_AGGREGATE_DATA> enumerated_content = {};
 
   if (!device_info || device_info->device_id == DummyDeviceId::HDD) {
+    std::vector<uint64_t> xuids_to_enumerate = {};
     if (xuid) {
+      xuids_to_enumerate.push_back(xuid);
+    }
+
+    if (!xuid || !(content_flags & vfs::XContentFlag::kExcludeCommon)) {
+      xuids_to_enumerate.push_back(0);  // Common content
+    }
+
+    for (const auto& xuid : xuids_to_enumerate) {
       auto user_enumerated_data =
           kernel_state()->content_manager()->ListContent(
               static_cast<uint32_t>(DummyDeviceId::HDD), xuid,
@@ -178,18 +187,6 @@ dword_result_t XamContentCreateEnumerator_entry(
       enumerated_content.insert(enumerated_content.end(),
                                 user_enumerated_data.cbegin(),
                                 user_enumerated_data.cend());
-    }
-
-    if (!(content_flags & 0x00001000)) {
-      auto common_enumerated_data =
-          kernel_state()->content_manager()->ListContent(
-              static_cast<uint32_t>(DummyDeviceId::HDD), 0,
-              kernel_state()->title_id(),
-              static_cast<XContentType>(content_type.value()));
-
-      enumerated_content.insert(enumerated_content.end(),
-                                common_enumerated_data.cbegin(),
-                                common_enumerated_data.cend());
     }
 
     // Remove duplicates
@@ -270,39 +267,39 @@ dword_result_t xeXamContentCreate(dword_t user_index, lpstring_t root_name,
     X_RESULT result = X_ERROR_INVALID_PARAMETER;
     kDispositionState disposition = kDispositionState::Unknown;
     switch (flags & 0xF) {
-      case 1:  // CREATE_NEW
-               // Fail if exists.
+      case vfs::XContentFlag::kCreateNew:
+        // Fail if exists.
         if (content_manager->ContentExists(xuid, content_data)) {
           result = X_ERROR_ALREADY_EXISTS;
         } else {
           disposition = kDispositionState::Create;
         }
         break;
-      case 2:  // CREATE_ALWAYS
-               // Overwrite existing, if any.
+      case vfs::XContentFlag::kCreateAlways:
+        // Overwrite existing, if any.
         if (content_manager->ContentExists(xuid, content_data)) {
           content_manager->DeleteContent(xuid, content_data);
         }
         disposition = kDispositionState::Create;
         break;
-      case 3:  // OPEN_EXISTING
-               // Open only if exists.
+      case vfs::XContentFlag::kOpenExisting:
+        // Open only if exists.
         if (!content_manager->ContentExists(xuid, content_data)) {
           result = X_ERROR_PATH_NOT_FOUND;
         } else {
           disposition = kDispositionState::Open;
         }
         break;
-      case 4:  // OPEN_ALWAYS
-               // Create if needed.
+      case vfs::XContentFlag::kOpenAlways:
+        // Create if needed.
         if (!content_manager->ContentExists(xuid, content_data)) {
           disposition = kDispositionState::Create;
         } else {
           disposition = kDispositionState::Open;
         }
         break;
-      case 5:  // TRUNCATE_EXISTING
-               // Fail if doesn't exist, if does exist delete and recreate.
+      case vfs::XContentFlag::kTruncateExisting:
+        // Fail if doesn't exist, if does exist delete and recreate.
         if (!content_manager->ContentExists(xuid, content_data)) {
           result = X_ERROR_PATH_NOT_FOUND;
         } else {

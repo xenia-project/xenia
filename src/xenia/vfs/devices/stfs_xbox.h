@@ -69,6 +69,29 @@ enum class XContentVolumeType : uint32_t {
   kSvod = 1,
 };
 
+enum XContentFlag : uint32_t {
+  // Creation flags
+  kCreateNew = 1,
+  kCreateAlways = 2,
+  kOpenExisting = 3,
+  kOpenAlways = 4,
+  kTruncateExisting = 5,
+
+  // Attirbutes
+  kNoProfileTransfer = 0x10,
+  kNoDeviceTransfer = 0x20,
+  kStronglySigned = 0x40,
+  kAllowProfileTransfer = 0x80,
+  kMoveOnly = 0x800,
+
+  // Device selector?
+  kManageStorage = 0x100,
+  kForceUI = 0x200,
+
+  // Enumeration
+  kExcludeCommon = 0x1000
+};
+
 /* STFS structures */
 #pragma pack(push, 1)
 struct StfsVolumeDescriptor {
