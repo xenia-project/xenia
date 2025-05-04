@@ -100,7 +100,7 @@ bool D3D12PrimitiveProcessor::InitializeBuiltinIndexBuffer(
   if (FAILED(device->CreateCommittedResource(
           &ui::d3d12::util::kHeapPropertiesDefault,
           provider.GetHeapFlagCreateNotZeroed(), &resource_desc,
-          D3D12_RESOURCE_STATE_COMMON, nullptr,
+          D3D12_RESOURCE_STATE_COPY_DEST, nullptr,
           IID_PPV_ARGS(&draw_resource)))) {
     XELOGE(
         "D3D12 primitive processor: Failed to create the built-in index "

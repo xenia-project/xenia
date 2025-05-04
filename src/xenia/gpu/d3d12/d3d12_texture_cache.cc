@@ -1490,7 +1490,8 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
         level_host_slice_size;
     copy_buffer_size += level_host_slice_size * array_size;
   }
-  D3D12_RESOURCE_STATES copy_buffer_state = D3D12_RESOURCE_STATE_COMMON;
+  D3D12_RESOURCE_STATES copy_buffer_state =
+      D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
   ID3D12Resource* copy_buffer = command_processor_.RequestScratchGPUBuffer(
       uint32_t(copy_buffer_size), copy_buffer_state);
   if (copy_buffer == nullptr) {
@@ -1686,7 +1687,7 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
       }
       std::memcpy(cbuffer_mapping, &load_constants, sizeof(load_constants));
       command_list.D3DSetComputeRootConstantBufferView(0, cbuffer_gpu_address);
-      assert_true(copy_buffer_state == D3D12_RESOURCE_STATE_COMMON);
+      assert_true(copy_buffer_state == D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
       command_processor_.SubmitBarriers();
       command_list.D3DDispatch(group_count_x, group_count_y,
                                load_constants.size_blocks[2]);

@@ -263,7 +263,7 @@ bool D3D12RenderTargetCache::Initialize() {
       D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
   // The first operation will likely be depth self-comparison with host render
   // targets or drawing with ROV.
-  edram_buffer_state_ = D3D12_RESOURCE_STATE_COMMON;
+  edram_buffer_state_ = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
   // Creating zeroed for stable initial value with ROV (though on a real
   // console it has to be cleared anyway probably) and not to leak irrelevant
   // data to trace dumps when not covered by host render targets entirely.
