@@ -79,7 +79,7 @@ void AddODDContentTest(object_ref<XStaticEnumerator<XCONTENT_AGGREGATE_DATA>> e,
 dword_result_t XamContentAggregateCreateEnumerator_entry(qword_t xuid,
                                                          dword_t device_id,
                                                          dword_t content_type,
-                                                         unknown_t unk3,
+                                                         dword_t title_id,
                                                          lpdword_t handle_out) {
   assert_not_null(handle_out);
 
@@ -99,12 +99,14 @@ dword_result_t XamContentAggregateCreateEnumerator_entry(qword_t xuid,
   extra->magic = kXObjSignature;
   extra->handle = e->handle();
 
-  auto content_type_enum = XContentType(uint32_t(content_type));
+  const XContentType content_type_enum =
+      static_cast<XContentType>(content_type.value());
 
   if (!device_info || device_info->device_type == DeviceType::HDD) {
     // Fetch any alternate title IDs defined in the XEX header
     // (used by games to load saves from other titles, etc)
-    std::vector<uint32_t> title_ids{kCurrentlyRunningTitleId};
+    std::vector<uint32_t> title_ids{title_id ? title_id.value()
+                                             : kCurrentlyRunningTitleId};
     auto exe_module = kernel_state()->GetExecutableModule();
     if (exe_module && exe_module->xex_module()) {
       const auto& alt_ids = exe_module->xex_module()->opt_alternate_title_ids();
@@ -112,7 +114,7 @@ dword_result_t XamContentAggregateCreateEnumerator_entry(qword_t xuid,
                 std::back_inserter(title_ids));
     }
 
-    for (auto& title_id : title_ids) {
+    for (const auto& title_id : title_ids) {
       // Get all content data.
       auto content_datas = kernel_state()->content_manager()->ListContent(
           static_cast<uint32_t>(DummyDeviceId::HDD),

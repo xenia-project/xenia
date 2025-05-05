@@ -631,6 +631,57 @@ dword_result_t XamUserCreateTitlesPlayedEnumerator_entry(
 }
 DECLARE_XAM_EXPORT1(XamUserCreateTitlesPlayedEnumerator, kUserProfiles, kStub);
 
+dword_result_t XamReadTile_entry(dword_t tile_type, dword_t title_id,
+                                 qword_t item_id, dword_t user_index,
+                                 lpdword_t output_ptr,
+                                 lpdword_t buffer_size_ptr,
+                                 dword_t overlapped_ptr) {
+  auto user = kernel_state()->xam_state()->GetUserProfile(user_index);
+  if (!user) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  if (!buffer_size_ptr) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  std::span<const uint8_t> tile =
+      kernel_state()->xam_state()->user_tracker()->GetIcon(
+          user->xuid(), title_id, static_cast<XTileType>(tile_type.value()),
+          item_id);
+
+  if (tile.empty()) {
+    return X_ERROR_FILE_NOT_FOUND;
+  }
+
+  *buffer_size_ptr = static_cast<uint32_t>(tile.size());
+
+  auto result = X_ERROR_SUCCESS;
+
+  if (output_ptr) {
+    memcpy(output_ptr, tile.data(), tile.size());
+  } else {
+    result = X_ERROR_INSUFFICIENT_BUFFER;
+  }
+
+  if (overlapped_ptr) {
+    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr, result);
+    return X_ERROR_IO_PENDING;
+  }
+  return result;
+}
+DECLARE_XAM_EXPORT1(XamReadTile, kUserProfiles, kSketchy);
+
+dword_result_t XamReadTileEx_entry(dword_t tile_type, dword_t game_id,
+                                   qword_t item_id, dword_t offset,
+                                   dword_t unk1, dword_t unk2,
+                                   lpdword_t output_ptr,
+                                   lpdword_t buffer_size_ptr) {
+  return XamReadTile_entry(tile_type, game_id, item_id, offset, output_ptr,
+                           buffer_size_ptr, 0);
+}
+DECLARE_XAM_EXPORT1(XamReadTileEx, kUserProfiles, kSketchy);
+
 dword_result_t XamParseGamerTileKey_entry(pointer_t<X_USER_DATA> key_ptr,
                                           lpdword_t title_id_ptr,
                                           lpdword_t big_tile_id_ptr,
