@@ -309,7 +309,7 @@ class KernelState {
   bool Restore(ByteStream* stream);
 
   uint32_t notification_position_ = 2;
-  XDeploymentType deployment_type_ = XDeploymentType::kUnknown;
+  XDeploymentType deployment_type_ = XDeploymentType::kOther;
 
   uint32_t GetKeTimestampBundle();
 

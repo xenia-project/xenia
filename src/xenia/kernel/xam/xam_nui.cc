@@ -327,11 +327,10 @@ void XamNuiHudGetVersions_entry(lpqword_t unk1, lpqword_t unk2) {
 DECLARE_XAM_EXPORT1(XamNuiHudGetVersions, kNone, kImplemented);
 
 // UI
-dword_result_t XamShowNuiTroubleshooterUI_entry(unknown_t unk1, unknown_t unk2,
-                                                dword_t flag) {
+dword_result_t XamShowNuiTroubleshooterUI_entry(dword_t user_index,
+                                                dword_t tracking_id,
+                                                dword_t flags) {
   /* Notes:
-     - unk1 is 0xFF - possibly user index?
-     - unk2 appear to always be zero.
      - calls XamPackageManagerGetExperienceMode(&var) with var = 1
      - If returns less than zero or (var & 1) == 0 then get error message:
        - if XamPackageManagerGetExperienceMode = 0 then call XamShowMessageBoxUI
@@ -339,8 +338,8 @@ dword_result_t XamShowNuiTroubleshooterUI_entry(unknown_t unk1, unknown_t unk2,
      returns 0
        - else XamShowNuiTroubleshooterUI returns 0x65b and call another func
      - else:
-       - call XamNuiHudSetEngagedTrackingID(unk2) and doesn't care aboot return
-     and set var2 = 2
+       - call XamNuiHudSetEngagedTrackingID(tracking_id) and doesn't care aboot
+     return and set var2 = 2
        - checks if (flag & 0x800000) == 0
          - if true call XamNuiGetDeviceStatus.
            - if XamNuiGetDeviceStatus != 0 set var2 = 3

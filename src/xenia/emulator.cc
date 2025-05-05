@@ -574,7 +574,7 @@ X_STATUS Emulator::LaunchXexFile(const std::filesystem::path& path) {
   X_STATUS result = CompleteLaunch(path, fs_path);
 
   if (XSUCCEEDED(result)) {
-    kernel_state_->deployment_type_ = XDeploymentType::kHardDrive;
+    kernel_state_->deployment_type_ = XDeploymentType::kInstalledToHDD;
     auto title_id = kernel_state_->title_id();
     if (!kernel::IsSystemTitle(title_id)) {
       // Assumption that any loaded game is loaded as a disc.
@@ -613,7 +613,7 @@ X_STATUS Emulator::LaunchStfsContainer(const std::filesystem::path& path) {
   if (result == X_STATUS_NOT_FOUND && !cvars::launch_module.empty()) {
     return LaunchDefaultModule(path);
   }
-  kernel_state_->deployment_type_ = XDeploymentType::kGoD;
+  kernel_state_->deployment_type_ = XDeploymentType::kDownload;
   return result;
 }
 
@@ -623,7 +623,7 @@ X_STATUS Emulator::LaunchDefaultModule(const std::filesystem::path& path) {
   X_STATUS result = CompleteLaunch(path, module_path);
 
   if (XSUCCEEDED(result)) {
-    kernel_state_->deployment_type_ = XDeploymentType::kHardDrive;
+    kernel_state_->deployment_type_ = XDeploymentType::kInstalledToHDD;
     auto title_id = kernel_state_->title_id();
     if (!kernel::IsSystemTitle(title_id)) {
       // Assumption that any loaded game is loaded as a disc.

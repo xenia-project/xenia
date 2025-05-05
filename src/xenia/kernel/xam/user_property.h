@@ -25,11 +25,13 @@ struct XUSER_CONTEXT {
   xe::be<uint32_t> context_id;
   xe::be<uint32_t> value;
 };
+static_assert_size(XUSER_CONTEXT, 0x8);
 
 struct XUSER_PROPERTY {
   xe::be<uint32_t> property_id;
   X_USER_DATA data;
 };
+static_assert_size(XUSER_PROPERTY, 0x18);
 
 class Property : public UserData {
  public:

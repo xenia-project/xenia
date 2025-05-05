@@ -97,8 +97,8 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
               static_cast<uint32_t>(data->device_type_ptr.get()));
 
       switch (kernel_state_->deployment_type_) {
-        case XDeploymentType::kGoD:
-        case XDeploymentType::kHardDrive: {
+        case XDeploymentType::kDownload:
+        case XDeploymentType::kInstalledToHDD: {
           *device_type_ptr = DeviceType::HDD;
         } break;
         case XDeploymentType::kOpticalDisc: {
@@ -123,11 +123,12 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       return X_E_SUCCESS;
     }
     case 0x00022005: {
-      struct message_data {
+      struct XTITLE_GET_DEPLOYMENT_TYPE {
         xe::be<uint32_t> deployment_type_ptr;
         xe::be<uint32_t> overlapped_ptr;
-      }* data = reinterpret_cast<message_data*>(buffer);
-      assert_true(buffer_length == sizeof(message_data));
+      }* data = reinterpret_cast<XTITLE_GET_DEPLOYMENT_TYPE*>(buffer);
+      assert_true(!buffer_length ||
+                  buffer_length == sizeof(XTITLE_GET_DEPLOYMENT_TYPE));
       auto deployment_type =
           memory_->TranslateVirtual<uint32_t*>(data->deployment_type_ptr);
       *deployment_type = static_cast<uint32_t>(kernel_state_->deployment_type_);

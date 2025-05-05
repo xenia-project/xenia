@@ -31,6 +31,7 @@ struct XSOCKADDR {
   xe::be<uint16_t> address_family;
   char sa_data[14];
 };
+static_assert_size(XSOCKADDR, 0x10);
 
 struct N_XSOCKADDR {
   N_XSOCKADDR() {}
@@ -54,6 +55,7 @@ struct XSOCKADDR_IN {
   // sin_zero is defined as __pad on Android, so prefixed here.
   char x_sin_zero[8];
 };
+static_assert_size(XSOCKADDR_IN, 0x10);
 
 // Xenia native sockaddr_in
 struct N_XSOCKADDR_IN {

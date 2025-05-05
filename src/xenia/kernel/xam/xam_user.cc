@@ -107,10 +107,10 @@ DECLARE_XAM_EXPORT2(XamUserGetSigninState, kUserProfiles, kImplemented,
 
 typedef struct {
   xe::be<uint64_t> xuid;
-  xe::be<uint32_t> unk08;  // maybe zero?
+  xe::be<uint32_t> flags;
   xe::be<uint32_t> signin_state;
-  xe::be<uint32_t> unk10;  // ?
-  xe::be<uint32_t> unk14;  // ?
+  xe::be<uint32_t> guest_num;
+  xe::be<uint32_t> sponsor_user_index;
   char name[16];
 } X_USER_SIGNIN_INFO;
 static_assert_size(X_USER_SIGNIN_INFO, 40);

@@ -198,6 +198,7 @@ struct XAM_OVERLAPPED {
   xe::be<uint32_t> completion_context;  // 0x14
   xe::be<uint32_t> extended_error;      // 0x18
 };
+static_assert_size(XAM_OVERLAPPED, 0x1C);
 
 inline uint32_t XOverlappedGetResult(void* ptr) {
   auto p = reinterpret_cast<uint32_t*>(ptr);
@@ -411,7 +412,7 @@ struct X_IO_STATUS_BLOCK {
 struct X_EX_TITLE_TERMINATE_REGISTRATION {
   xe::be<uint32_t> notification_routine;  // 0x0
   xe::be<uint32_t> priority;              // 0x4
-  X_LIST_ENTRY list_entry;                // 0x8 ??
+  X_LIST_ENTRY list_entry;                // 0x8
 };
 static_assert_size(X_EX_TITLE_TERMINATE_REGISTRATION, 16);
 
@@ -636,9 +637,9 @@ enum X_MARKETPLACE_ENTRYPOINT : uint32_t {
 
 enum class XDeploymentType : uint32_t {
   kOpticalDisc = 0,
-  kHardDrive = 1,  // Like extracted?
-  kGoD = 2,
-  kUnknown = 0xFF,
+  kInstalledToHDD = 1,  // Like extracted?
+  kDownload = 2,
+  kOther = 3,
 };
 
 inline bool IsOfflineXUID(uint64_t xuid) { return ((xuid >> 60) & 0xF) == 0xE; }
@@ -750,6 +751,7 @@ struct MESSAGEBOX_RESULT {
     xe::be<uint16_t> Passcode[4];
   };
 };
+static_assert_size(MESSAGEBOX_RESULT, 0x8);
 
 // clang-format off
 

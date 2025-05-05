@@ -57,13 +57,14 @@ typedef struct {
   uint8_t abOnline[20];          // Online identification
 } XNADDR;
 
-typedef struct {
+struct XNDNS {
   xe::be<int32_t> status;
   xe::be<uint32_t> cina;
   in_addr aina[8];
-} XNDNS;
+};
+static_assert_size(XNDNS, 0x28);
 
-typedef struct {
+struct XNQOSINFO {
   uint8_t flags;
   uint8_t reserved;
   xe::be<uint16_t> probes_xmit;
@@ -74,18 +75,20 @@ typedef struct {
   xe::be<uint16_t> rtt_med_in_msecs;
   xe::be<uint32_t> up_bits_per_sec;
   xe::be<uint32_t> down_bits_per_sec;
-} XNQOSINFO;
+};
+static_assert_size(XNQOSINFO, 0x18);
 
-typedef struct {
+struct XNQOS {
   xe::be<uint32_t> count;
   xe::be<uint32_t> count_pending;
   XNQOSINFO info[1];
-} XNQOS;
+};
 
 struct Xsockaddr_t {
   xe::be<uint16_t> sa_family;
   char sa_data[14];
 };
+static_assert_size(XNQOS, 0x20);
 
 struct X_WSADATA {
   xe::be<uint16_t> version;
@@ -96,6 +99,7 @@ struct X_WSADATA {
   xe::be<uint16_t> max_udpdg;
   xe::be<uint32_t> vendor_info_ptr;
 };
+static_assert_size(X_WSADATA, 0x190);
 
 struct XWSABUF {
   xe::be<uint32_t> len;
@@ -166,6 +170,7 @@ struct XNetStartupParams {
   uint8_t cfgQosSrvMaxSimultaneousResponses;
   uint8_t cfgQosPairWaitTimeInSeconds;
 };
+static_assert_size(XNetStartupParams, 0xD);
 
 XNetStartupParams xnet_startup_params = {0};
 

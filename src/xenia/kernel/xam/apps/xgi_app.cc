@@ -25,9 +25,10 @@ namespace apps {
  */
 
 struct XGI_XUSER_ACHIEVEMENT {
-  xe::be<uint32_t> user_idx;
+  xe::be<uint32_t> user_index;
   xe::be<uint32_t> achievement_id;
 };
+static_assert_size(XGI_XUSER_ACHIEVEMENT, 0x8);
 
 struct XGI_XUSER_GET_PROPERTY {
   xe::be<uint32_t> user_index;
@@ -39,6 +40,7 @@ struct XGI_XUSER_GET_PROPERTY {
   xe::be<uint32_t> context_address;
   xe::be<uint32_t> property_address;
 };
+static_assert_size(XGI_XUSER_GET_PROPERTY, 0x20);
 
 struct XGI_XUSER_SET_CONTEXT {
   xe::be<uint32_t> user_index;
@@ -46,6 +48,7 @@ struct XGI_XUSER_SET_CONTEXT {
   xe::be<uint64_t> xuid;
   XUSER_CONTEXT context;
 };
+static_assert_size(XGI_XUSER_SET_CONTEXT, 0x18);
 
 struct XGI_XUSER_SET_PROPERTY {
   xe::be<uint32_t> user_index;
@@ -55,6 +58,7 @@ struct XGI_XUSER_SET_PROPERTY {
   xe::be<uint32_t> data_size;
   xe::be<uint32_t> data_address;
 };
+static_assert_size(XGI_XUSER_SET_PROPERTY, 0x20);
 
 struct XUSER_STATS_VIEW {
   xe::be<uint32_t> ViewId;
@@ -116,6 +120,8 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       return X_E_SUCCESS;
     }
     case 0x000B0007: {
+      assert_true(!buffer_length ||
+                  buffer_length == sizeof(XGI_XUSER_SET_PROPERTY));
       const XGI_XUSER_SET_PROPERTY* xgi_property =
           reinterpret_cast<const XGI_XUSER_SET_PROPERTY*>(buffer);
 
@@ -144,7 +150,8 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       return X_E_SUCCESS;
     }
     case 0x000B0008: {
-      assert_true(!buffer_length || buffer_length == 8);
+      assert_true(!buffer_length ||
+                  buffer_length == sizeof(XGI_XUSER_ACHIEVEMENT));
       uint32_t achievement_count = xe::load_and_swap<uint32_t>(buffer + 0);
       uint32_t achievements_ptr = xe::load_and_swap<uint32_t>(buffer + 4);
       XELOGD("XGIUserWriteAchievements({:08X}, {:08X})", achievement_count,
@@ -154,7 +161,7 @@ X_HRESULT XgiApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
           memory_->TranslateVirtual<XGI_XUSER_ACHIEVEMENT*>(achievements_ptr);
       for (uint32_t i = 0; i < achievement_count; i++, achievement++) {
         kernel_state_->achievement_manager()->EarnAchievement(
-            achievement->user_idx, kernel_state_->title_id(),
+            achievement->user_index, kernel_state_->title_id(),
             achievement->achievement_id);
       }
       return X_E_SUCCESS;
