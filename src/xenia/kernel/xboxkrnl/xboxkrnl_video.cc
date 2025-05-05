@@ -215,8 +215,8 @@ void VdQueryVideoMode(X_VIDEO_MODE* video_mode) {
   video_mode->is_hi_def = video_mode->display_width >= 0x500;
   video_mode->refresh_rate = GetVideoRefreshRate();
   video_mode->video_standard = GetVideoStandard();
-  video_mode->unknown_0x8a = 0x4A;
-  video_mode->unknown_0x01 = 0x01;
+  video_mode->pixel_rate = 0x8A;
+  video_mode->widescreen_flag = cvars::widescreen ? 0x01 : 0x03;
 }
 
 void VdQueryVideoMode_entry(pointer_t<X_VIDEO_MODE> video_mode) {

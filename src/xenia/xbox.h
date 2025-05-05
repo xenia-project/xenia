@@ -374,8 +374,8 @@ struct X_VIDEO_MODE {
   be<uint32_t> is_hi_def;
   be<float> refresh_rate;
   be<uint32_t> video_standard;
-  be<uint32_t> unknown_0x8a;
-  be<uint32_t> unknown_0x01;
+  be<uint32_t> pixel_rate;
+  be<uint32_t> widescreen_flag;
   be<uint32_t> reserved[3];
 };
 static_assert_size(X_VIDEO_MODE, 48);

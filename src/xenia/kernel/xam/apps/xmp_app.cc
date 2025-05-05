@@ -304,7 +304,7 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       auto info = memory_->TranslateVirtual<XMP_SONGINFO*>(args->info_ptr);
       assert_true(args->xmp_client == 0x00000002);
       assert_zero(args->unk_ptr);
-      XELOGE("XMPGetCurrentSong({:08X}, {:08X})", uint32_t(args->unk_ptr),
+      XELOGD("XMPGetCurrentSong({:08X}, {:08X})", uint32_t(args->unk_ptr),
              uint32_t(args->info_ptr));
 
       Song* current_song =

@@ -384,12 +384,12 @@ std::vector<uint64_t> ProfileManager::FindProfiles() const {
       continue;
     }
 
-    XELOGE("{}: Adding profile {} to profile list", __func__, profile_xuid);
+    XELOGI("{}: Adding profile {} to profile list", __func__, profile_xuid);
     profiles_xuids.push_back(
         xe::string_util::from_string<uint64_t>(profile_xuid, true));
   }
 
-  XELOGE("ProfileManager: Found {} Profiles", profiles_xuids.size());
+  XELOGI("ProfileManager: Found {} Profiles", profiles_xuids.size());
   return profiles_xuids;
 }
 
