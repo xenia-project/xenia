@@ -44,6 +44,4 @@
             android:exported="true"
             android:label="@string/activity_label_window_demo"
             android:theme="@android:style/Theme.Material.Light.NoActionBar" />
-
-    </application>
 </manifest>
