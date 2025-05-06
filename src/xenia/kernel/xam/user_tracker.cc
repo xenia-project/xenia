@@ -770,6 +770,8 @@ std::span<const uint8_t> UserTracker::GetIcon(uint64_t xuid, uint32_t title_id,
     }
     case XTileType::kGamerTile:
     case XTileType::kGamerTileSmall:
+    case XTileType::kLocalGamerTile:
+    case XTileType::kLocalGamerTileSmall:
     case XTileType::kPersonalGamerTile:
     case XTileType::kPersonalGamerTileSmall:
       return user->GetProfileIcon(tile_type);

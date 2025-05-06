@@ -15,6 +15,7 @@
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_private.h"
 #include "xenia/kernel/xenumerator.h"
+#include "xenia/vfs/devices/stfs_xbox.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -171,6 +172,11 @@ dword_result_t XamContentCreateDeviceEnumerator_entry(dword_t content_type,
   }
 
   for (const auto& device_info : dummy_device_infos_) {
+    if (device_info->device_type == DeviceType::ODD &&
+        (content_flags & vfs::XContentFlag::kExcludeReadOnlyDevices)) {
+      continue;
+    }
+
     // Copy our dummy device into the enumerator
     auto device_data = e->AppendItem();
     assert_not_null(device_data);

@@ -489,6 +489,23 @@ bool ProfileManager::CreateProfile(const std::string gamertag, bool autologin,
   return is_account_created;
 }
 
+bool ProfileManager::CreateProfile(const X_XAMACCOUNTINFO* account_info,
+                                   uint64_t xuid) {
+  if (!xuid) {
+    xuid = GenerateXuid();
+  }
+
+  if (!std::filesystem::create_directories(GetProfilePath(xuid))) {
+    return false;
+  }
+
+  if (!MountProfile(xuid)) {
+    return false;
+  }
+
+  return CreateAccount(xuid, account_info);
+}
+
 const X_XAMACCOUNTINFO* ProfileManager::GetAccount(const uint64_t xuid) {
   if (!accounts_.count(xuid)) {
     return nullptr;
@@ -505,15 +522,26 @@ bool ProfileManager::CreateAccount(const uint64_t xuid,
   string_util::copy_truncating(account.gamertag, gamertag_u16,
                                sizeof(account.gamertag));
 
-  UpdateAccount(xuid, &account);
+  const bool result = UpdateAccount(xuid, &account);
   DismountProfile(xuid);
 
-  accounts_.insert({xuid, account});
-  return true;
+  if (result) {
+    accounts_.insert({xuid, account});
+  }
+  return result;
+}
+
+bool ProfileManager::CreateAccount(const uint64_t xuid,
+                                   const X_XAMACCOUNTINFO* account) {
+  const bool result = UpdateAccount(xuid, account);
+  if (result) {
+    accounts_.insert({xuid, *account});
+  }
+  return result;
 }
 
 bool ProfileManager::UpdateAccount(const uint64_t xuid,
-                                   X_XAMACCOUNTINFO* account) {
+                                   const X_XAMACCOUNTINFO* account) {
   const std::string guest_path =
       fmt::format(kDefaultMountFormat, xuid) + ":\\Account";
 

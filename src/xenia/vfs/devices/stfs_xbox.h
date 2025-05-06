@@ -89,7 +89,13 @@ enum XContentFlag : uint32_t {
   kForceUI = 0x200,
 
   // Enumeration
-  kExcludeCommon = 0x1000
+  kExcludeCommon = 0x1000,
+
+  // Other
+  kEnumerateAllProfiles = 0x10000000,
+
+  // Device enumerator?
+  kExcludeReadOnlyDevices = 0x80000000,
 };
 
 /* STFS structures */

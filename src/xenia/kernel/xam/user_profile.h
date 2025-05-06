@@ -91,11 +91,13 @@ class UserProfile {
 
   std::span<const uint8_t> GetProfileIcon(XTileType icon_type) {
     // Overwrite same types?
-    if (icon_type == XTileType::kPersonalGamerTile) {
+    if (icon_type == XTileType::kPersonalGamerTile ||
+        icon_type == XTileType::kLocalGamerTile) {
       icon_type = XTileType::kGamerTile;
     }
 
-    if (icon_type == XTileType::kPersonalGamerTileSmall) {
+    if (icon_type == XTileType::kPersonalGamerTileSmall ||
+        icon_type == XTileType::kLocalGamerTileSmall) {
       icon_type = XTileType::kGamerTileSmall;
     }
 

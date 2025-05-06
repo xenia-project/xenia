@@ -2086,15 +2086,19 @@ dword_result_t XamShowCreateProfileUI_entry(dword_t user_index, dword_t unkn) {
 DECLARE_XAM_EXPORT1(XamShowCreateProfileUI, kUserProfiles, kImplemented);
 
 dword_result_t XamShowAchievementsUI_entry(dword_t user_index,
-                                           dword_t unk_mask) {
+                                           dword_t title_id) {
   auto user = kernel_state()->xam_state()->GetUserProfile(user_index);
   if (!user) {
     return X_ERROR_NO_SUCH_USER;
   }
 
+  uint32_t proper_title_id =
+      title_id ? title_id.value()
+               : kernel_state()->xam_state()->spa_info()->title_id();
+
   const auto info =
       kernel_state()->xam_state()->user_tracker()->GetUserTitleInfo(
-          user->xuid(), kernel_state()->xam_state()->spa_info()->title_id());
+          user->xuid(), proper_title_id);
 
   if (!info) {
     return X_ERROR_NO_SUCH_USER;

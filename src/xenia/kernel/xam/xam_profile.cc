@@ -62,11 +62,40 @@ dword_result_t XamProfileCreate_entry(dword_t flags, lpdword_t device_id,
                                       pointer_t<X_XAMACCOUNTINFO> account,
                                       dword_t unk1, dword_t unk2, dword_t unk3,
                                       dword_t unk4) {
-  // **unk4
+  if (device_id) {
+    *device_id = 0x1;
+  }
 
+  if (xuid != 0) {
+    assert_always();
+    return X_E_INVALIDARG;
+  }
+
+  X_XAMACCOUNTINFO account_info_data;
+  memcpy(&account_info_data, account, sizeof(X_XAMACCOUNTINFO));
+  xe::copy_and_swap<char16_t>(account_info_data.gamertag,
+                              account_info_data.gamertag, 16);
+
+  bool result = kernel_state()->xam_state()->profile_manager()->CreateProfile(
+      &account_info_data, xuid);
+
+  return result ? X_ERROR_SUCCESS : X_ERROR_INVALID_PARAMETER;
+}
+DECLARE_XAM_EXPORT1(XamProfileCreate, kNone, kSketchy);
+
+dword_result_t XamProfileClose_entry(lpstring_t mount_name) {
+  std::string guest_name = mount_name.value();
+  const bool result =
+      kernel_state()->file_system()->UnregisterDevice(guest_name + ':');
+
+  return result ? X_ERROR_SUCCESS : X_ERROR_FUNCTION_FAILED;
+}
+DECLARE_XAM_EXPORT1(XamProfileClose, kNone, kStub);
+
+dword_result_t XamProfileGetCreationStatus_entry(lpdword_t r3, lpdword_t r4) {
   return X_ERROR_SUCCESS;
 }
-DECLARE_XAM_EXPORT1(XamProfileCreate, kNone, kStub);
+DECLARE_XAM_EXPORT1(XamProfileGetCreationStatus, kNone, kStub);
 
 }  // namespace xam
 }  // namespace kernel

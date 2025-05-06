@@ -638,7 +638,10 @@ dword_result_t XamReadTile_entry(dword_t tile_type, dword_t title_id,
                                  dword_t overlapped_ptr) {
   auto user = kernel_state()->xam_state()->GetUserProfile(user_index);
   if (!user) {
-    return X_ERROR_INVALID_PARAMETER;
+    user = kernel_state()->xam_state()->GetUserProfile(item_id);
+    if (!user) {
+      return X_ERROR_INVALID_PARAMETER;
+    }
   }
 
   if (!buffer_size_ptr) {
@@ -802,7 +805,7 @@ dword_result_t XamReadTileToTexture_entry(dword_t tile_type, dword_t title_id,
 }
 DECLARE_XAM_EXPORT1(XamReadTileToTexture, kUserProfiles, kStub);
 
-dword_result_t XamWriteGamerTile_entry(dword_t arg1, dword_t arg2,
+dword_result_t XamWriteGamerTile_entry(dword_t user_index, dword_t title_id,
                                        dword_t small_tile_id,
                                        dword_t big_tile_id, dword_t arg5,
                                        dword_t overlapped_ptr) {
