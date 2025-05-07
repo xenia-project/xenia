@@ -640,7 +640,7 @@ dword_result_t XamReadTile_entry(dword_t tile_type, dword_t title_id,
                                  qword_t item_id, dword_t user_index,
                                  lpdword_t output_ptr,
                                  lpdword_t buffer_size_ptr,
-                                 dword_t overlapped_ptr) {
+                                 lpvoid_t overlapped_ptr) {
   auto user = kernel_state()->xam_state()->GetUserProfile(user_index);
   if (!user) {
     user = kernel_state()->xam_state()->GetUserProfile(item_id);
@@ -653,30 +653,38 @@ dword_result_t XamReadTile_entry(dword_t tile_type, dword_t title_id,
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  std::span<const uint8_t> tile =
-      kernel_state()->xam_state()->user_tracker()->GetIcon(
-          user->xuid(), title_id, static_cast<XTileType>(tile_type.value()),
-          item_id);
+  auto run = [=](uint32_t& extended_error, uint32_t& length) {
+    std::span<const uint8_t> tile =
+        kernel_state()->xam_state()->user_tracker()->GetIcon(
+            user->xuid(), title_id, static_cast<XTileType>(tile_type.value()),
+            item_id);
 
-  if (tile.empty()) {
-    return X_ERROR_FILE_NOT_FOUND;
+    auto result = X_ERROR_SUCCESS;
+
+    if (tile.empty()) {
+      result = X_ERROR_FILE_NOT_FOUND;
+    }
+
+    *buffer_size_ptr = static_cast<uint32_t>(tile.size());
+
+    if (output_ptr) {
+      memcpy(output_ptr, tile.data(), tile.size());
+    } else {
+      result = X_ERROR_INSUFFICIENT_BUFFER;
+    }
+
+    extended_error = X_HRESULT_FROM_WIN32(result);
+    length = 0;
+    return result;
+  };
+
+  if (!overlapped_ptr) {
+    uint32_t extended_error, length;
+    return run(extended_error, length);
   }
 
-  *buffer_size_ptr = static_cast<uint32_t>(tile.size());
-
-  auto result = X_ERROR_SUCCESS;
-
-  if (output_ptr) {
-    memcpy(output_ptr, tile.data(), tile.size());
-  } else {
-    result = X_ERROR_INSUFFICIENT_BUFFER;
-  }
-
-  if (overlapped_ptr) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr, result);
-    return X_ERROR_IO_PENDING;
-  }
-  return result;
+  kernel_state()->CompleteOverlappedDeferredEx(run, overlapped_ptr);
+  return X_ERROR_IO_PENDING;
 }
 DECLARE_XAM_EXPORT1(XamReadTile, kUserProfiles, kSketchy);
 
