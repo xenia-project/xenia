@@ -560,7 +560,7 @@ dword_result_t XamUserCreateAchievementEnumerator_entry(
     requester_xuid = xuid;
   }
 
-  uint32_t title_id_ =
+  const uint32_t title_id_ =
       title_id ? static_cast<uint32_t>(title_id) : kernel_state()->title_id();
 
   const auto user_title_achievements =
@@ -569,10 +569,15 @@ dword_result_t XamUserCreateAchievementEnumerator_entry(
 
   if (!user_title_achievements.empty()) {
     for (const auto& entry : user_title_achievements) {
+      auto unlock_time = X_FILETIME();
+      if (entry.IsUnlocked() && entry.unlock_time.is_valid()) {
+        unlock_time = entry.unlock_time;
+      }
+
       auto item = AchievementDetails(
           entry.achievement_id, entry.achievement_name.c_str(),
           entry.unlocked_description.c_str(), entry.locked_description.c_str(),
-          entry.image_id, entry.gamerscore, entry.unlock_time, entry.flags);
+          entry.image_id, entry.gamerscore, unlock_time, entry.flags);
 
       e->AppendItem(item);
     }

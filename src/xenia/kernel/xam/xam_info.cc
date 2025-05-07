@@ -747,6 +747,13 @@ void XamGetActiveDashAppInfo_entry(pointer_t<X_DASH_APP_INFO> dash_app) {
 }
 DECLARE_XAM_EXPORT1(XamGetActiveDashAppInfo, kNone, kImplemented);
 
+void XampWebInstrumentationSetProfileCounts_entry(dword_t live_profiles,
+                                                  dword_t local_profiles,
+                                                  dword_t adult_profiles,
+                                                  dword_t child_profiles) {}
+DECLARE_XAM_EXPORT1(XampWebInstrumentationSetProfileCounts, kUserProfiles,
+                    kStub);
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe

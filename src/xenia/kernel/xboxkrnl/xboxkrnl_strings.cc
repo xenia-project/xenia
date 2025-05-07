@@ -412,7 +412,7 @@ int32_t format_core(PPCContext* ppc_context, FormatData& data, ArgList& args,
             start[0] = '\0';
 
             while (precision-- > 0 || value != 0) {
-              auto digit = (int32_t)(value % radix);
+              const auto digit = static_cast<uint64_t>(value) % radix;
               value /= radix;
               assert_true(digit < strlen(digits));
               *--start = digits[digit];
