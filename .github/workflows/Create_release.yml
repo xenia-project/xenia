@@ -32,7 +32,7 @@ jobs:
               asset=xenia_canary_linux.tar.gz
               cd xenia_canary_linux
               chmod +x xenia_canary
-              tar -cvpf ../$asset *
+              tar -czvpf ../$asset *
               cd -
               ;;
           esac
