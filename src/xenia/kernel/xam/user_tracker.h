@@ -75,6 +75,9 @@ class UserTracker {
   void UpsertSetting(uint64_t xuid, uint32_t title_id,
                      const UserSetting* setting);
 
+  std::optional<UserSetting> GetSetting(UserProfile* user, uint32_t title_id,
+                                        uint32_t setting_id) const;
+
   bool GetUserSetting(uint64_t xuid, uint32_t title_id, uint32_t setting_id,
                       X_USER_PROFILE_SETTING* setting_ptr,
                       uint32_t& extended_data_address) const;
@@ -92,6 +95,8 @@ class UserTracker {
                                               uint32_t achievement_id) const;
 
   // Images
+  bool UpdateUserIcon(uint64_t xuid, std::span<const uint8_t> icon_data);
+
   std::span<const uint8_t> GetIcon(uint64_t xuid, uint32_t title_id,
                                    XTileType tile_type, uint64_t tile_id) const;
 
@@ -100,9 +105,6 @@ class UserTracker {
 
   void UpdateSettingValue(uint64_t xuid, uint32_t title_id,
                           UserSettingId setting_id, int32_t difference);
-
-  std::optional<UserSetting> GetSetting(UserProfile* user, uint32_t title_id,
-                                        uint32_t setting_id) const;
   std::optional<UserSetting> GetGpdSetting(UserProfile* user, uint32_t title_id,
                                            uint32_t setting_id) const;
 

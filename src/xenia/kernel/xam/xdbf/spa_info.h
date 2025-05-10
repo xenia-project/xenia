@@ -38,6 +38,8 @@ enum class TitleType : uint32_t {
   kFull = 1,
   kDemo = 2,
   kDownload = 3,
+  kUnknown = 4,
+  kApp = 5
 };
 
 enum class TitleFlags {

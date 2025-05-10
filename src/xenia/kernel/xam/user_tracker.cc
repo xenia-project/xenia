@@ -14,6 +14,7 @@
 #include <sstream>
 
 #include "third_party/fmt/include/fmt/format.h"
+#include "third_party/stb/stb_image.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/user_data.h"
@@ -155,6 +156,10 @@ void UserTracker::AddTitleToPlayedList(uint64_t xuid) {
   }
 
   if (!spa_data_) {
+    return;
+  }
+
+  if (!spa_data_->include_in_profile() || spa_data_->is_system_app()) {
     return;
   }
 
@@ -731,6 +736,35 @@ void UserTracker::UpsertSetting(uint64_t xuid, uint32_t title_id,
 
   info->UpsertSetting(setting);
   FlushUserData(xuid);
+}
+
+bool UserTracker::UpdateUserIcon(uint64_t xuid,
+                                 std::span<const uint8_t> icon_data) {
+  auto user = kernel_state()->xam_state()->GetUserProfile(xuid);
+  if (!user) {
+    return false;
+  }
+
+  int width, height, channels;
+  if (!stbi_info_from_memory(icon_data.data(),
+                             static_cast<int>(icon_data.size()), &width,
+                             &height, &channels)) {
+    return false;
+  }
+
+  XTileType icon_type = XTileType::kGameIcon;
+
+  if (std::pair<uint16_t, uint16_t>(width, height) == kProfileIconSize) {
+    icon_type = XTileType::kGamerTile;
+  } else if (std::pair<uint16_t, uint16_t>(width, height) ==
+             kProfileIconSizeSmall) {
+    icon_type = XTileType::kGamerTileSmall;
+  } else {
+    return false;
+  }
+
+  user->WriteProfileIcon(icon_type, icon_data);
+  return true;
 }
 
 std::span<const uint8_t> UserTracker::GetIcon(uint64_t xuid, uint32_t title_id,

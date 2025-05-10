@@ -93,7 +93,32 @@ void UserProfile::LoadProfileIcon(XTileType tile_type) {
                  &written_bytes);
   file->Destroy();
 
-  profile_images_.insert({tile_type, data});
+  profile_images_.insert_or_assign(tile_type, data);
+}
+
+void UserProfile::WriteProfileIcon(XTileType tile_type,
+                                   std::span<const uint8_t> icon_data) {
+  const std::string path =
+      fmt::format("User_{:016X}:\\{}", xuid_, kTileFileNames.at(tile_type));
+
+  vfs::File* file = nullptr;
+  vfs::FileAction action;
+
+  const X_STATUS result = kernel_state()->file_system()->OpenFile(
+      nullptr, path, vfs::FileDisposition::kOverwriteIf,
+      vfs::FileAccess::kGenericAll, false, true, &file, &action);
+
+  if (result != X_STATUS_SUCCESS) {
+    return;
+  }
+
+  size_t written_bytes = 0;
+
+  file->WriteSync({icon_data.data(), icon_data.size()}, 0, &written_bytes);
+  file->Destroy();
+
+  profile_images_.insert_or_assign(
+      tile_type, std::vector<uint8_t>(icon_data.begin(), icon_data.end()));
 }
 
 std::vector<uint8_t> UserProfile::LoadGpd(const uint32_t title_id) {

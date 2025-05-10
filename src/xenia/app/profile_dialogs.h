@@ -19,26 +19,6 @@ namespace app {
 
 class EmulatorWindow;
 
-class CreateProfileDialog final : public ui::ImGuiDialog {
- public:
-  CreateProfileDialog(ui::ImGuiDrawer* imgui_drawer,
-                      EmulatorWindow* emulator_window,
-                      bool with_migration = false)
-      : ui::ImGuiDialog(imgui_drawer),
-        emulator_window_(emulator_window),
-        migration_(with_migration) {
-    memset(gamertag_, 0, sizeof(gamertag_));
-  }
-
- protected:
-  void OnDraw(ImGuiIO& io) override;
-
-  bool has_opened_ = false;
-  bool migration_ = false;
-  char gamertag_[16] = "";
-  EmulatorWindow* emulator_window_;
-};
-
 class NoProfileDialog final : public ui::ImGuiDialog {
  public:
   NoProfileDialog(ui::ImGuiDrawer* imgui_drawer,
@@ -55,12 +35,19 @@ class ProfileConfigDialog final : public ui::ImGuiDialog {
  public:
   ProfileConfigDialog(ui::ImGuiDrawer* imgui_drawer,
                       EmulatorWindow* emulator_window)
-      : ui::ImGuiDialog(imgui_drawer), emulator_window_(emulator_window) {}
+      : ui::ImGuiDialog(imgui_drawer), emulator_window_(emulator_window) {
+    LoadProfileIcon();
+  }
 
  protected:
   void OnDraw(ImGuiIO& io) override;
 
  private:
+  void LoadProfileIcon();
+  void LoadProfileIcon(const uint64_t xuid);
+
+  std::map<uint64_t, std::unique_ptr<ui::ImmediateTexture>> profile_icon_;
+
   uint64_t selected_xuid_ = 0;
   EmulatorWindow* emulator_window_;
 };

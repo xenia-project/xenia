@@ -547,6 +547,117 @@ enum class XLanguage : uint32_t {
   kMaxLanguages = 13
 };
 
+enum class XOnlineCountry : uint32_t {
+  kUnitedArabEmirates = 1,
+  kAlbania = 2,
+  kArmenia = 3,
+  kArgentina = 4,
+  kAustria = 5,
+  kAustralia = 6,
+  kAzerbaijan = 7,
+  kBelgium = 8,
+  kBulgaria = 9,
+  kBahrain = 10,
+  kBruneiDarussalam = 11,
+  kBolivia = 12,
+  kBrazil = 13,
+  kBelarus = 14,
+  kBelize = 15,
+  kCanada = 16,
+  kSwitzerland = 18,
+  kChile = 19,
+  kChina = 20,
+  kColombia = 21,
+  kCostaRica = 22,
+  kCzechRepublic = 23,
+  kGermany = 24,
+  kDenmark = 25,
+  kDominicanRepublic = 26,
+  kAlgeria = 27,
+  kEcuador = 28,
+  kEstonia = 29,
+  kEgypt = 30,
+  kSpain = 31,
+  kFinland = 32,
+  kFaroeIslands = 33,
+  kFrance = 34,
+  kGreatBritain = 35,
+  kGeorgia = 36,
+  kGreece = 37,
+  kGuatemala = 38,
+  kHongKong = 39,
+  kHonduras = 40,
+  kCroatia = 41,
+  kHungary = 42,
+  kIndonesia = 43,
+  kIreland = 44,
+  kIsrael = 45,
+  kIndia = 46,
+  kIraq = 47,
+  kIran = 48,
+  kIceland = 49,
+  kItaly = 50,
+  kJamaica = 51,
+  kJordan = 52,
+  kJapan = 53,
+  kKenya = 54,
+  kKyrgyzstan = 55,
+  kKorea = 56,
+  kKuwait = 57,
+  kKazakhstan = 58,
+  kLebanon = 59,
+  kLiechtenstein = 60,
+  kLithuania = 61,
+  kLuxembourg = 62,
+  kLatvia = 63,
+  kLibya = 64,
+  kMorocco = 65,
+  kMonaco = 66,
+  kMacedonia = 67,
+  kMongolia = 68,
+  kMacau = 69,
+  kMaldives = 70,
+  kMexico = 71,
+  kMalaysia = 72,
+  kNicaragua = 73,
+  kNetherlands = 74,
+  kNorway = 75,
+  kNewZealand = 76,
+  kOman = 77,
+  kPanama = 78,
+  kPeru = 79,
+  kPhilippines = 80,
+  kPakistan = 81,
+  kPoland = 82,
+  kPuertoRico = 83,
+  kPortugal = 84,
+  kParaguay = 85,
+  kQatar = 86,
+  kRomania = 87,
+  kRussianFederation = 88,
+  kSaudiArabia = 89,
+  kSweden = 90,
+  kSingapore = 91,
+  kSlovenia = 92,
+  kSlovakRepublic = 93,
+  kElSalvador = 95,
+  kSyria = 96,
+  kThailand = 97,
+  kTunisia = 98,
+  kTurkey = 99,
+  kTrinidadAndTobago = 100,
+  kTaiwan = 101,
+  kUkraine = 102,
+  kUnitedStates = 103,
+  kUruguay = 104,
+  kUzbekistan = 105,
+  kVenezuela = 106,
+  kVietNam = 107,
+  kYemen = 108,
+  kSouthAfrica = 109,
+  kZimbabwe = 110
+};
+
 enum class XContentType : uint32_t {
   kInvalid = 0x00000000,
   kSavedGame = 0x00000001,
@@ -706,20 +817,26 @@ struct X_XAMACCOUNTINFO {
   char passport_password[0x20];
   char owner_passport_membername[0x72];
 
-  bool IsPasscodeEnabled() {
+  bool IsPasscodeEnabled() const {
     return static_cast<bool>(reserved_flags &
                              AccountReservedFlags::kPasswordProtected);
   }
 
-  bool IsLiveEnabled() {
+  bool IsLiveEnabled() const {
     return static_cast<bool>(reserved_flags &
                              AccountReservedFlags::kLiveEnabled);
   }
 
+  uint64_t GetOnlineXUID() const { return xuid_online; }
+
+  std::string_view GetOnlineDomain() const {
+    return std::string_view(online_domain);
+  }
+
   uint32_t GetCachedFlags() const { return cached_user_flags; };
 
-  uint32_t GetCountry() const {
-    return (cached_user_flags & kCountryMask) >> 8;
+  XOnlineCountry GetCountry() const {
+    return static_cast<XOnlineCountry>((cached_user_flags & kCountryMask) >> 8);
   }
 
   AccountSubscriptionTier GetSubscriptionTier() const {
@@ -733,6 +850,35 @@ struct X_XAMACCOUNTINFO {
 
   std::string GetGamertagString() const {
     return xe::to_utf8(std::u16string(gamertag));
+  }
+
+  void ToggleLiveFlag(bool is_live) {
+    reserved_flags = reserved_flags & ~AccountReservedFlags::kLiveEnabled;
+
+    if (is_live) {
+      reserved_flags = reserved_flags | AccountReservedFlags::kLiveEnabled;
+    }
+  }
+
+  void SetCountry(XOnlineCountry country) {
+    cached_user_flags = cached_user_flags & ~kCountryMask;
+    cached_user_flags = cached_user_flags |
+                        (static_cast<uint32_t>(country) << 8) & kCountryMask;
+  }
+
+  void SetLanguage(XLanguage language) {
+    cached_user_flags = cached_user_flags & ~kLanguageMask;
+
+    cached_user_flags = cached_user_flags |
+                        (static_cast<uint32_t>(language) << 25) & kLanguageMask;
+  }
+
+  void SetSubscriptionTier(AccountSubscriptionTier sub_tier) {
+    cached_user_flags = cached_user_flags & ~kSubscriptionTierMask;
+
+    cached_user_flags =
+        cached_user_flags |
+        (static_cast<uint32_t>(sub_tier) << 20) & kSubscriptionTierMask;
   }
 };
 static_assert_size(X_XAMACCOUNTINFO, 0x17C);

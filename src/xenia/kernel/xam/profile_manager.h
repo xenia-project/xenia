@@ -68,8 +68,6 @@ class ProfileManager {
 
   bool DeleteProfile(const uint64_t xuid);
 
-  void ModifyGamertag(const uint64_t xuid, std::string gamertag);
-
   bool MountProfile(const uint64_t xuid, std::string mount_path = "");
   bool DismountProfile(const uint64_t xuid);
 
@@ -82,6 +80,7 @@ class ProfileManager {
   void LoadAccounts(const std::vector<uint64_t> profiles_xuids);
 
   void ReloadProfiles();
+  void ReloadProfile(const uint64_t xuid);
 
   UserProfile* GetProfile(const uint64_t xuid) const;
   UserProfile* GetProfile(const uint8_t user_index) const;
@@ -101,13 +100,14 @@ class ProfileManager {
       const uint64_t xuid, const uint32_t title_id = -1,
       const XContentType content_type = XContentType::kInvalid) const;
 
+  bool UpdateAccount(const uint64_t xuid, const X_XAMACCOUNTINFO* account);
+
   static bool IsGamertagValid(const std::string gamertag);
 
  private:
   void UpdateConfig(const uint64_t xuid, const uint8_t slot);
   bool CreateAccount(const uint64_t xuid, const std::string gamertag);
   bool CreateAccount(const uint64_t xuid, const X_XAMACCOUNTINFO* account);
-  bool UpdateAccount(const uint64_t xuid, const X_XAMACCOUNTINFO* account);
 
   std::filesystem::path GetProfilePath(const uint64_t xuid) const;
   std::filesystem::path GetProfilePath(const std::string xuid) const;

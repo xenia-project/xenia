@@ -37,7 +37,7 @@ class Window;
 
 using IconsData = std::map<uint32_t, std::span<const uint8_t>>;
 
-constexpr ImVec2 default_image_icon_size = ImVec2(75.f, 75.f);
+constexpr ImVec2 default_image_icon_size = ImVec2(64.f, 64.f);
 
 class ImGuiDrawer : public WindowInputListener, public UIDrawer {
  public:

@@ -7,27 +7,26 @@
  ******************************************************************************
  */
 
-#include "third_party/imgui/imgui.h"
-#include "xenia/app/profile_dialogs.h"
-#include "xenia/base/logging.h"
-#include "xenia/base/string_util.h"
+#include "xenia/kernel/xam/xam_ui.h"
+#include "xenia/app/emulator_window.h"
+#include "xenia/base/png_utils.h"
 #include "xenia/base/system.h"
-#include "xenia/emulator.h"
 #include "xenia/hid/input_system.h"
-#include "xenia/kernel/kernel_flags.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
-#include "xenia/kernel/xam/user_tracker.h"
 #include "xenia/kernel/xam/xam_content_device.h"
 #include "xenia/kernel/xam/xam_private.h"
+#include "xenia/ui/file_picker.h"
 #include "xenia/ui/imgui_dialog.h"
 #include "xenia/ui/imgui_drawer.h"
 #include "xenia/ui/imgui_guest_notification.h"
-#include "xenia/ui/window.h"
-#include "xenia/ui/windowed_app_context.h"
-#include "xenia/xbox.h"
 
-#include "third_party/fmt/include/fmt/chrono.h"
+#include "xenia/kernel/xam/ui/create_profile_ui.h"
+#include "xenia/kernel/xam/ui/game_achievements_ui.h"
+#include "xenia/kernel/xam/ui/gamercard_ui.h"
+#include "xenia/kernel/xam/ui/passcode_ui.h"
+#include "xenia/kernel/xam/ui/signin_ui.h"
+#include "xenia/kernel/xam/ui/title_info_ui.h"
 
 DEFINE_bool(storage_selection_dialog, false,
             "Show storage device selection dialog when the game requests it.",
@@ -57,27 +56,6 @@ namespace xam {
 // to create a listener (if they're insane enough do this).
 
 extern std::atomic<int> xam_dialogs_shown_;
-
-class XamDialog : public xe::ui::ImGuiDialog {
- public:
-  void set_close_callback(std::function<void()> close_callback) {
-    close_callback_ = close_callback;
-  }
-
- protected:
-  XamDialog(xe::ui::ImGuiDrawer* imgui_drawer)
-      : xe::ui::ImGuiDialog(imgui_drawer) {}
-
-  virtual ~XamDialog() {}
-  void OnClose() override {
-    if (close_callback_) {
-      close_callback_();
-    }
-  }
-
- private:
-  std::function<void()> close_callback_ = nullptr;
-};
 
 template <typename T>
 X_RESULT xeXamDispatchDialog(T* dialog,
@@ -257,695 +235,93 @@ X_RESULT xeXamDispatchHeadlessAsync(std::function<void()> run_callback) {
   return X_ERROR_SUCCESS;
 }
 
-dword_result_t XamIsUIActive_entry() { return xeXamIsUIActive(); }
-DECLARE_XAM_EXPORT2(XamIsUIActive, kUI, kImplemented, kHighFrequency);
-
-class MessageBoxDialog : public XamDialog {
- public:
-  MessageBoxDialog(xe::ui::ImGuiDrawer* imgui_drawer, std::string& title,
-                   std::string& description, std::vector<std::string> buttons,
-                   uint32_t default_button)
-      : XamDialog(imgui_drawer),
-        title_(title),
-        description_(description),
-        buttons_(std::move(buttons)),
-        default_button_(default_button),
-        chosen_button_(default_button) {
-    if (!title_.size()) {
-      title_ = "Message Box";
-    }
+void MessageBoxDialog::OnDraw(ImGuiIO& io) {
+  bool first_draw = false;
+  if (!has_opened_) {
+    ImGui::OpenPopup(title_.c_str());
+    has_opened_ = true;
+    first_draw = true;
   }
-
-  uint32_t chosen_button() const { return chosen_button_; }
-
-  void OnDraw(ImGuiIO& io) override {
-    bool first_draw = false;
-    if (!has_opened_) {
-      ImGui::OpenPopup(title_.c_str());
-      has_opened_ = true;
-      first_draw = true;
+  if (ImGui::BeginPopupModal(title_.c_str(), nullptr,
+                             ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (description_.size()) {
+      ImGui::Text("%s", description_.c_str());
     }
-    if (ImGui::BeginPopupModal(title_.c_str(), nullptr,
-                               ImGuiWindowFlags_AlwaysAutoResize)) {
-      if (description_.size()) {
-        ImGui::Text("%s", description_.c_str());
-      }
-      if (first_draw) {
-        ImGui::SetKeyboardFocusHere();
-      }
-      for (size_t i = 0; i < buttons_.size(); ++i) {
-        if (ImGui::Button(buttons_[i].c_str())) {
-          chosen_button_ = static_cast<uint32_t>(i);
-          ImGui::CloseCurrentPopup();
-          Close();
-        }
-        ImGui::SameLine();
-      }
-      ImGui::Spacing();
-      ImGui::Spacing();
-      ImGui::EndPopup();
-    } else {
-      Close();
+    if (first_draw) {
+      ImGui::SetKeyboardFocusHere();
     }
-  }
-  virtual ~MessageBoxDialog() {}
-
- private:
-  bool has_opened_ = false;
-  std::string title_;
-  std::string description_;
-  std::vector<std::string> buttons_;
-  uint32_t default_button_ = 0;
-  uint32_t chosen_button_ = 0;
-};
-
-class ProfilePasscodeDialog : public XamDialog {
- public:
-  const char* labelled_keys_[11] = {"None", "X",  "Y",    "RB",   "LB",   "LT",
-                                    "RT",   "Up", "Down", "Left", "Right"};
-
-  const std::map<std::string, uint16_t> keys_map_ = {
-      {"None", 0},
-      {"X", X_BUTTON_PASSCODE},
-      {"Y", Y_BUTTON_PASSCODE},
-      {"RB", RIGHT_BUMPER_PASSCODE},
-      {"LB", LEFT_BUMPER_PASSCODE},
-      {"LT", LEFT_TRIGGER_PASSCODE},
-      {"RT", RIGHT_TRIGGER_PASSCODE},
-      {"Up", DPAD_UP_PASSCODE},
-      {"Down", DPAD_DOWN_PASSCODE},
-      {"Left", DPAD_LEFT_PASSCODE},
-      {"Right", DPAD_RIGHT_PASSCODE}};
-
-  ProfilePasscodeDialog(xe::ui::ImGuiDrawer* imgui_drawer, std::string& title,
-                        std::string& description, MESSAGEBOX_RESULT* result_ptr)
-      : XamDialog(imgui_drawer),
-        title_(title),
-        description_(description),
-        result_ptr_(result_ptr) {
-    std::memset(result_ptr, 0, sizeof(MESSAGEBOX_RESULT));
-
-    if (title_.empty()) {
-      title_ = "Enter Pass Code";
-    }
-
-    if (description_.empty()) {
-      description_ = "Enter your Xbox LIVE pass code.";
-    }
-  }
-
-  void DrawPasscodeField(uint8_t key_id) {
-    const std::string label = fmt::format("##Key {}", key_id);
-
-    if (ImGui::BeginCombo(label.c_str(),
-                          labelled_keys_[key_indexes_[key_id]])) {
-      for (uint8_t key_index = 0; key_index < keys_map_.size(); key_index++) {
-        bool is_selected = key_id == key_index;
-
-        if (ImGui::Selectable(labelled_keys_[key_index], is_selected)) {
-          key_indexes_[key_id] = key_index;
-        }
-
-        if (is_selected) {
-          ImGui::SetItemDefaultFocus();
-        }
-      }
-
-      ImGui::EndCombo();
-    }
-  }
-
-  void OnDraw(ImGuiIO& io) override {
-    if (!has_opened_) {
-      ImGui::OpenPopup(title_.c_str());
-      has_opened_ = true;
-    }
-
-    if (ImGui::BeginPopupModal(title_.c_str(), nullptr,
-                               ImGuiWindowFlags_AlwaysAutoResize)) {
-      if (description_.size()) {
-        ImGui::Text("%s", description_.c_str());
-      }
-
-      for (uint8_t i = 0; i < passcode_length; i++) {
-        DrawPasscodeField(i);
-        // result_ptr_->Passcode[i] =
-        // keys_map_.at(labelled_keys_[key_indexes_[i]]);
-      }
-
-      ImGui::NewLine();
-
-      // We write each key on close to prevent simultaneous dialogs.
-      if (ImGui::Button("Sign In")) {
-        for (uint8_t i = 0; i < passcode_length; i++) {
-          result_ptr_->Passcode[i] =
-              keys_map_.at(labelled_keys_[key_indexes_[i]]);
-        }
-
-        selected_signed_in_ = true;
-
+    for (size_t i = 0; i < buttons_.size(); ++i) {
+      if (ImGui::Button(buttons_[i].c_str())) {
+        chosen_button_ = static_cast<uint32_t>(i);
+        ImGui::CloseCurrentPopup();
         Close();
       }
-
       ImGui::SameLine();
-
-      if (ImGui::Button("Cancel")) {
-        Close();
-      }
     }
-
+    ImGui::Spacing();
+    ImGui::Spacing();
     ImGui::EndPopup();
+  } else {
+    Close();
   }
+}
 
-  virtual ~ProfilePasscodeDialog() {}
-
-  bool SelectedSignedIn() const { return selected_signed_in_; }
-
- private:
-  bool has_opened_ = false;
-  bool selected_signed_in_ = false;
-  std::string title_;
-  std::string description_;
-
-  static const uint8_t passcode_length = sizeof(X_XAMACCOUNTINFO::passcode);
-  int key_indexes_[passcode_length] = {0, 0, 0, 0};
-  MESSAGEBOX_RESULT* result_ptr_;
-};
-
-class GamertagModifyDialog final : public ui::ImGuiDialog {
- public:
-  GamertagModifyDialog(ui::ImGuiDrawer* imgui_drawer,
-                       ProfileManager* profile_manager, uint64_t xuid)
-      : ui::ImGuiDialog(imgui_drawer),
-        profile_manager_(profile_manager),
-        xuid_(xuid) {
-    memset(gamertag_, 0, sizeof(gamertag_));
+void KeyboardInputDialog::OnDraw(ImGuiIO& io) {
+  bool first_draw = false;
+  if (!has_opened_) {
+    ImGui::OpenPopup(title_.c_str());
+    has_opened_ = true;
+    first_draw = true;
   }
-
- private:
-  void OnDraw(ImGuiIO& io) override {
-    if (!has_opened_) {
-      ImGui::OpenPopup("Modify Gamertag");
-      has_opened_ = true;
+  if (ImGui::BeginPopupModal(title_.c_str(), nullptr,
+                             ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (description_.size()) {
+      ImGui::TextWrapped("%s", description_.c_str());
     }
-
-    bool dialog_open = true;
-    if (!ImGui::BeginPopupModal("Modify Gamertag", &dialog_open,
-                                ImGuiWindowFlags_NoCollapse |
-                                    ImGuiWindowFlags_AlwaysAutoResize |
-                                    ImGuiWindowFlags_HorizontalScrollbar)) {
-      Close();
-      return;
+    if (first_draw) {
+      ImGui::SetKeyboardFocusHere();
     }
-
-    if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
-        !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0)) {
-      ImGui::SetKeyboardFocusHere(0);
+    ImGui::PushID("input_text");
+    bool input_submitted =
+        ImGui::InputText("##body", text_buffer_.data(), text_buffer_.size(),
+                         ImGuiInputTextFlags_EnterReturnsTrue);
+    // Context menu for paste functionality
+    if (ImGui::BeginPopupContextItem("input_context_menu")) {
+      if (ImGui::MenuItem("Paste")) {
+        if (ImGui::GetClipboardText() != nullptr) {
+          std::string clipboard_text = ImGui::GetClipboardText();
+          xe::string_util::copy_truncating(text_buffer_.data(), clipboard_text,
+                                           text_buffer_.size());
+        }
+      }
+      ImGui::EndPopup();
     }
-
-    ImGui::TextUnformatted("New gamertag:");
-    ImGui::InputText("##Gamertag", gamertag_, sizeof(gamertag_));
-
-    const std::string gamertag_string = std::string(gamertag_);
-    bool valid = profile_manager_->IsGamertagValid(gamertag_string);
-
-    ImGui::BeginDisabled(!valid);
-    if (ImGui::Button("Update")) {
-      profile_manager_->ModifyGamertag(xuid_, gamertag_string);
-      std::fill(std::begin(gamertag_), std::end(gamertag_), '\0');
-      dialog_open = false;
-    }
-    ImGui::EndDisabled();
-    ImGui::SameLine();
-
-    if (ImGui::Button("Cancel")) {
-      std::fill(std::begin(gamertag_), std::end(gamertag_), '\0');
-      dialog_open = false;
-    }
-
-    if (!dialog_open) {
+    ImGui::PopID();
+    if (input_submitted) {
+      text_ = std::string(text_buffer_.data(), text_buffer_.size());
+      cancelled_ = false;
       ImGui::CloseCurrentPopup();
       Close();
-      ImGui::EndPopup();
-      return;
     }
+    if (ImGui::Button("OK")) {
+      text_ = std::string(text_buffer_.data(), text_buffer_.size());
+      cancelled_ = false;
+      ImGui::CloseCurrentPopup();
+      Close();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel")) {
+      text_ = "";
+      cancelled_ = true;
+      ImGui::CloseCurrentPopup();
+      Close();
+    }
+    ImGui::Spacing();
     ImGui::EndPopup();
-  };
-
-  bool has_opened_ = false;
-  char gamertag_[16] = "";
-  const uint64_t xuid_;
-  ProfileManager* profile_manager_;
-};
-
-class GameAchievementsDialog final : public XamDialog {
- public:
-  GameAchievementsDialog(ui::ImGuiDrawer* imgui_drawer,
-                         const ImVec2 drawing_position,
-                         const TitleInfo* title_info,
-                         const UserProfile* profile)
-      : XamDialog(imgui_drawer),
-        drawing_position_(drawing_position),
-        title_info_(*title_info),
-        profile_(profile),
-        window_id_(GetWindowId()) {
-    LoadAchievementsData();
+  } else {
+    Close();
   }
-
- private:
-  ~GameAchievementsDialog() {
-    for (auto& entry : achievements_icons_) {
-      entry.second.release();
-    }
-  }
-  bool LoadAchievementsData() {
-    xe::ui::IconsData data;
-
-    achievements_info_ =
-        kernel_state()
-            ->xam_state()
-            ->achievement_manager()
-            ->GetTitleAchievements(profile_->xuid(), title_info_.id);
-
-    if (achievements_info_.empty()) {
-      return false;
-    }
-
-    for (const Achievement& entry : achievements_info_) {
-      const auto icon =
-          kernel_state()
-              ->xam_state()
-              ->achievement_manager()
-              ->GetAchievementIcon(profile_->xuid(), title_info_.id,
-                                   entry.achievement_id);
-
-      data.insert({entry.image_id, icon});
-    }
-
-    achievements_icons_ = imgui_drawer()->LoadIcons(data);
-    return true;
-  }
-
-  std::string GetAchievementTitle(const Achievement& achievement_entry) const {
-    std::string title = "Secret trophy";
-
-    if (achievement_entry.IsUnlocked() || show_locked_info_ ||
-        achievement_entry.flags &
-            static_cast<uint32_t>(AchievementFlags::kShowUnachieved)) {
-      title = xe::to_utf8(achievement_entry.achievement_name);
-    }
-
-    return title;
-  }
-
-  std::string GetAchievementDescription(
-      const Achievement& achievement_entry) const {
-    std::string description = "Hidden description";
-
-    if (achievement_entry.flags &
-        static_cast<uint32_t>(AchievementFlags::kShowUnachieved)) {
-      description = xe::to_utf8(achievement_entry.locked_description);
-    }
-
-    if (achievement_entry.IsUnlocked() || show_locked_info_) {
-      description = xe::to_utf8(achievement_entry.unlocked_description);
-    }
-
-    return description;
-  }
-
-  ui::ImmediateTexture* GetIcon(const Achievement& achievement_entry) const {
-    if (!achievement_entry.IsUnlocked() && !show_locked_info_) {
-      return imgui_drawer()->GetLockedAchievementIcon();
-    }
-
-    if (achievements_icons_.count(achievement_entry.image_id)) {
-      return achievements_icons_.at(achievement_entry.image_id).get();
-    }
-
-    if (achievement_entry.IsUnlocked()) {
-      return nullptr;
-    }
-    return imgui_drawer()->GetLockedAchievementIcon();
-  }
-
-  std::string GetUnlockedTime(const Achievement& achievement_entry) const {
-    if (achievement_entry.IsUnlockedOnline()) {
-      const auto unlock_time = chrono::WinSystemClock::to_local(
-          achievement_entry.unlock_time.to_time_point());
-
-      return fmt::format("Unlocked: {:%Y-%m-%d %H:%M}",
-                         std::chrono::system_clock::time_point(
-                             unlock_time.time_since_epoch()));
-    }
-
-    if (achievement_entry.unlock_time.is_valid()) {
-      const auto unlock_time = chrono::WinSystemClock::to_local(
-          achievement_entry.unlock_time.to_time_point());
-
-      return fmt::format("Unlocked: Offline ({:%Y-%m-%d %H:%M})",
-                         std::chrono::system_clock::time_point(
-                             unlock_time.time_since_epoch()));
-    }
-    return fmt::format("Unlocked: Offline");
-  }
-
-  void DrawTitleAchievementInfo(ImGuiIO& io,
-                                const Achievement& achievement_entry) const {
-    const auto start_drawing_pos = ImGui::GetCursorPos();
-
-    ImGui::TableSetColumnIndex(0);
-
-    const auto icon = GetIcon(achievement_entry);
-    if (icon) {
-      ImGui::Image(reinterpret_cast<ImTextureID>(GetIcon(achievement_entry)),
-                   ui::default_image_icon_size);
-    } else {
-      ImGui::Dummy(ui::default_image_icon_size);
-    }
-    ImGui::TableNextColumn();
-
-    ImGui::PushFont(imgui_drawer()->GetTitleFont());
-    const auto primary_line_height = ImGui::GetTextLineHeight();
-    ImGui::Text("%s", GetAchievementTitle(achievement_entry).c_str());
-    ImGui::PopFont();
-
-    ImGui::PushTextWrapPos(ImGui::GetMainViewport()->Size.x * 0.5f);
-    ImGui::TextWrapped("%s",
-                       GetAchievementDescription(achievement_entry).c_str());
-    ImGui::PopTextWrapPos();
-
-    ImGui::SetCursorPosY(start_drawing_pos.y + ui::default_image_icon_size.x -
-                         ImGui::GetTextLineHeight());
-
-    if (achievement_entry.IsUnlocked()) {
-      ImGui::Text("%s", GetUnlockedTime(achievement_entry).c_str());
-    }
-
-    ImGui::TableNextColumn();
-
-    // TODO(Gliniak): There is no easy way to align text to middle, so I have to
-    // do it manually.
-    const float achievement_row_middle_alignment =
-        ((ui::default_image_icon_size.x / 2.f) -
-         ImGui::GetTextLineHeight() / 2.f) *
-        0.85f;
-
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
-                         achievement_row_middle_alignment);
-    ImGui::PushFont(imgui_drawer()->GetTitleFont());
-    ImGui::TextUnformatted(
-        fmt::format("{} G", achievement_entry.gamerscore).c_str());
-    ImGui::PopFont();
-  }
-
-  void OnDraw(ImGuiIO& io) override {
-    ImGui::SetNextWindowPos(drawing_position_, ImGuiCond_FirstUseEver);
-
-    const auto xenia_window_size = ImGui::GetMainViewport()->Size;
-
-    ImGui::SetNextWindowSizeConstraints(
-        ImVec2(xenia_window_size.x * 0.2f, xenia_window_size.y * 0.3f),
-        ImVec2(xenia_window_size.x * 0.6f, xenia_window_size.y * 0.8f));
-    ImGui::SetNextWindowBgAlpha(0.8f);
-
-    bool dialog_open = true;
-
-    std::string title_name = xe::to_utf8(title_info_.title_name);
-    title_name.erase(std::remove(title_name.begin(), title_name.end(), '\0'),
-                     title_name.end());
-
-    const std::string window_name =
-        fmt::format("{} Achievements###{}", title_name, window_id_);
-    if (!ImGui::Begin(window_name.c_str(), &dialog_open,
-                      ImGuiWindowFlags_NoCollapse |
-                          ImGuiWindowFlags_AlwaysAutoResize |
-                          ImGuiWindowFlags_HorizontalScrollbar)) {
-      Close();
-      ImGui::End();
-      return;
-    }
-
-    ImGui::Checkbox("Show locked achievements information", &show_locked_info_);
-    ImGui::Separator();
-
-    if (achievements_info_.empty()) {
-      ImGui::TextUnformatted(fmt::format("No achievements data!").c_str());
-    } else {
-      if (ImGui::BeginTable("", 3,
-                            ImGuiTableFlags_::ImGuiTableFlags_BordersInnerH)) {
-        for (const auto& entry : achievements_info_) {
-          ImGui::TableNextRow(0, ui::default_image_icon_size.y);
-          DrawTitleAchievementInfo(io, entry);
-        }
-
-        ImGui::EndTable();
-      }
-    }
-
-    if (!dialog_open) {
-      Close();
-      ImGui::End();
-      return;
-    }
-
-    ImGui::End();
-  };
-
-  bool show_locked_info_ = false;
-
-  uint64_t window_id_;
-  const ImVec2 drawing_position_ = {};
-
-  const TitleInfo title_info_;
-  const UserProfile* profile_;
-
-  std::vector<Achievement> achievements_info_;
-  std::map<uint32_t, std::unique_ptr<ui::ImmediateTexture>> achievements_icons_;
-};
-
-class GamesInfoDialog final : public XamDialog {
- public:
-  GamesInfoDialog(ui::ImGuiDrawer* imgui_drawer, const ImVec2 drawing_position,
-                  const UserProfile* profile)
-      : XamDialog(imgui_drawer),
-        drawing_position_(drawing_position),
-        profile_(profile),
-        profile_manager_(kernel_state()->xam_state()->profile_manager()),
-        dialog_name_(fmt::format("{}'s Games List###{}", profile->name(),
-                                 GetWindowId())) {
-    LoadProfileGameInfo(imgui_drawer, profile);
-  }
-
- private:
-  ~GamesInfoDialog() {
-    for (auto& entry : title_icon) {
-      entry.second.release();
-    }
-  }
-  void LoadProfileGameInfo(ui::ImGuiDrawer* imgui_drawer,
-                           const UserProfile* profile) {
-    info_.clear();
-
-    xe::ui::IconsData data;
-
-    info_ = kernel_state()->xam_state()->user_tracker()->GetPlayedTitles(
-        profile->xuid());
-    for (const auto& title_info : info_) {
-      if (!title_info.icon.empty()) {
-        data[title_info.id] = title_info.icon;
-      }
-    }
-
-    title_icon = imgui_drawer->LoadIcons(data);
-  }
-
-  void DrawTitleEntry(ImGuiIO& io, TitleInfo& entry) {
-    const auto start_position = ImGui::GetCursorPos();
-    const ImVec2 next_window_position =
-        ImVec2(ImGui::GetWindowPos().x + ImGui::GetWindowSize().x + 20.f,
-               ImGui::GetWindowPos().y);
-
-    // First Column
-    ImGui::TableSetColumnIndex(0);
-
-    if (title_icon.count(entry.id)) {
-      ImGui::Image(reinterpret_cast<ImTextureID>(title_icon.at(entry.id).get()),
-                   ui::default_image_icon_size);
-    } else {
-      ImGui::Dummy(ui::default_image_icon_size);
-    }
-
-    // Second Column
-    ImGui::TableNextColumn();
-    ImGui::PushFont(imgui_drawer()->GetTitleFont());
-    ImGui::TextUnformatted(xe::to_utf8(entry.title_name).c_str());
-    ImGui::PopFont();
-
-    ImGui::TextUnformatted(
-        fmt::format("{}/{} Achievements unlocked ({} Gamerscore)",
-                    entry.unlocked_achievements_count, entry.achievements_count,
-                    entry.title_earned_gamerscore)
-            .c_str());
-
-    ImGui::SetCursorPosY(start_position.y + ui::default_image_icon_size.y -
-                         ImGui::GetTextLineHeight());
-
-    if (entry.WasTitlePlayed()) {
-      ImGui::TextUnformatted(
-          fmt::format("Last played: {:%Y-%m-%d %H:%M}",
-                      std::chrono::system_clock::time_point(
-                          entry.last_played.time_since_epoch()))
-              .c_str());
-    } else {
-      ImGui::TextUnformatted("Last played: Unknown");
-    }
-    ImGui::TableNextColumn();
-
-    const ImVec2 end_draw_position =
-        ImVec2(ImGui::GetCursorPos().x - start_position.x,
-               ImGui::GetCursorPos().y - start_position.y);
-
-    ImGui::SetCursorPos(start_position);
-
-    if (ImGui::Selectable(fmt::format("##{:08X}Selectable", entry.id).c_str(),
-                          selected_title_ == entry.id,
-                          ImGuiSelectableFlags_SpanAllColumns,
-                          end_draw_position)) {
-      selected_title_ = entry.id;
-      new GameAchievementsDialog(imgui_drawer(), next_window_position, &entry,
-                                 profile_);
-    }
-
-    if (ImGui::BeginPopupContextItem(
-            fmt::format("Title Menu {:08X}", entry.id).c_str())) {
-      selected_title_ = entry.id;
-      if (ImGui::MenuItem("Refresh title stats", nullptr, nullptr, true)) {
-        kernel_state()->xam_state()->user_tracker()->RefreshTitleSummary(
-            profile_->xuid(), entry.id);
-
-        const auto title_info =
-            kernel_state()->xam_state()->user_tracker()->GetUserTitleInfo(
-                profile_->xuid(), entry.id);
-
-        if (title_info) {
-          entry = title_info.value();
-        }
-      }
-
-      const auto savefile_path = profile_manager_->GetProfileContentPath(
-          profile_->xuid(), entry.id, XContentType::kSavedGame);
-
-      const auto dlc_path = profile_manager_->GetProfileContentPath(
-          0, entry.id, XContentType::kMarketplaceContent);
-
-      const auto tu_path = profile_manager_->GetProfileContentPath(
-          0, entry.id, XContentType::kInstaller);
-
-      if (ImGui::MenuItem("Open savefile directory", nullptr, nullptr,
-                          std::filesystem::exists(savefile_path))) {
-        std::thread path_open(LaunchFileExplorer, savefile_path);
-        path_open.detach();
-      }
-      if (ImGui::MenuItem("Open DLC directory", nullptr, nullptr,
-                          std::filesystem::exists(dlc_path))) {
-        std::thread path_open(LaunchFileExplorer, dlc_path);
-        path_open.detach();
-      }
-      if (ImGui::MenuItem("Open Title Update directory", nullptr, nullptr,
-                          std::filesystem::exists(tu_path))) {
-        std::thread path_open(LaunchFileExplorer, tu_path);
-        path_open.detach();
-      }
-
-      ImGui::EndPopup();
-    }
-  }
-
-  void OnDraw(ImGuiIO& io) override {
-    ImGui::SetNextWindowPos(drawing_position_, ImGuiCond_FirstUseEver);
-    const auto xenia_window_size = ImGui::GetMainViewport()->Size;
-
-    ImGui::SetNextWindowSizeConstraints(
-        ImVec2(xenia_window_size.x * 0.05f, xenia_window_size.y * 0.05f),
-        ImVec2(xenia_window_size.x * 0.4f, xenia_window_size.y * 0.5f));
-    ImGui::SetNextWindowBgAlpha(0.8f);
-
-    bool dialog_open = true;
-    if (!ImGui::Begin(dialog_name_.c_str(), &dialog_open,
-                      ImGuiWindowFlags_NoCollapse |
-                          ImGuiWindowFlags_AlwaysAutoResize |
-                          ImGuiWindowFlags_HorizontalScrollbar)) {
-      Close();
-      ImGui::End();
-      return;
-    }
-
-    if (!info_.empty()) {
-      if (info_.size() > 10) {
-        ImGui::Text("Search: ");
-        ImGui::SameLine();
-        ImGui::InputText("##Search", title_name_filter_,
-                         title_name_filter_size);
-        ImGui::Separator();
-      }
-
-      if (ImGui::BeginTable("", 2,
-                            ImGuiTableFlags_::ImGuiTableFlags_BordersInnerH)) {
-        ImGui::TableNextRow(0, ui::default_image_icon_size.y);
-        for (auto& entry : info_) {
-          std::string filter(title_name_filter_);
-          if (!filter.empty()) {
-            bool contains_filter =
-                utf8::lower_ascii(xe::to_utf8(entry.title_name))
-                    .find(utf8::lower_ascii(filter)) != std::string::npos;
-
-            if (!contains_filter) {
-              continue;
-            }
-          }
-          DrawTitleEntry(io, entry);
-        }
-        ImGui::EndTable();
-      }
-    } else {
-      // Align text to the center
-      std::string no_entries_message = "There are no titles, so far.";
-
-      ImGui::PushFont(imgui_drawer()->GetTitleFont());
-      float windowWidth = ImGui::GetContentRegionAvail().x;
-      ImVec2 textSize = ImGui::CalcTextSize(no_entries_message.c_str());
-      float textOffsetX = (windowWidth - textSize.x) * 0.5f;
-      if (textOffsetX > 0.0f) {
-        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + textOffsetX);
-      }
-
-      ImGui::Text("%s", no_entries_message.c_str());
-      ImGui::PopFont();
-    }
-
-    if (!dialog_open) {
-      Close();
-      ImGui::End();
-      return;
-    }
-
-    ImGui::End();
-  }
-
-  static constexpr uint8_t title_name_filter_size = 15;
-
-  std::string dialog_name_ = "";
-  char title_name_filter_[title_name_filter_size] = "";
-  uint32_t selected_title_ = 0;
-  const ImVec2 drawing_position_ = {};
-
-  const UserProfile* profile_;
-  const ProfileManager* profile_manager_;
-
-  std::map<uint32_t, std::unique_ptr<ui::ImmediateTexture>> title_icon;
-  std::vector<TitleInfo> info_;
-};
+}
 
 static dword_result_t XamShowMessageBoxUi(
     dword_t user_index, lpu16string_t title_ptr, lpu16string_t text_ptr,
@@ -985,11 +361,11 @@ static dword_result_t XamShowMessageBoxUi(
     }
 
     const Emulator* emulator = kernel_state()->emulator();
-    ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
+    xe::ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
 
     if (flags & XMBox_PASSCODEMODE || flags & XMBox_VERIFYPASSCODEMODE) {
       auto close = [result_ptr,
-                    active_button](ProfilePasscodeDialog* dialog) -> X_RESULT {
+                    active_button](ui::ProfilePasscodeUI* dialog) -> X_RESULT {
         if (dialog->SelectedSignedIn()) {
           // Logged in
           return X_ERROR_SUCCESS;
@@ -998,8 +374,8 @@ static dword_result_t XamShowMessageBoxUi(
         }
       };
 
-      result = xeXamDispatchDialog<ProfilePasscodeDialog>(
-          new ProfilePasscodeDialog(imgui_drawer, title, text, result_ptr),
+      result = xeXamDispatchDialog<ui::ProfilePasscodeUI>(
+          new ui::ProfilePasscodeUI(imgui_drawer, title, text, result_ptr),
           close, overlapped);
     } else {
       auto close = [result_ptr](MessageBoxDialog* dialog) -> X_RESULT {
@@ -1016,6 +392,9 @@ static dword_result_t XamShowMessageBoxUi(
 
   return result;
 }
+
+dword_result_t XamIsUIActive_entry() { return xeXamIsUIActive(); }
+DECLARE_XAM_EXPORT2(XamIsUIActive, kUI, kImplemented, kHighFrequency);
 
 // https://www.se7ensins.com/forums/threads/working-xshowmessageboxui.844116/
 dword_result_t XamShowMessageBoxUI_entry(
@@ -1055,7 +434,7 @@ dword_result_t XNotifyQueueUI_entry(dword_t exnq, dword_t dwUserIndex,
   XELOGI("XNotifyQueueUI: {}", displayText);
 
   const Emulator* emulator = kernel_state()->emulator();
-  ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
+  xe::ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
 
   new xe::ui::XNotifyWindow(imgui_drawer, "", displayText, dwUserIndex,
                             position_id);
@@ -1065,103 +444,6 @@ dword_result_t XNotifyQueueUI_entry(dword_t exnq, dword_t dwUserIndex,
   return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XNotifyQueueUI, kUI, kSketchy);
-
-class KeyboardInputDialog : public XamDialog {
- public:
-  KeyboardInputDialog(xe::ui::ImGuiDrawer* imgui_drawer, std::string& title,
-                      std::string& description, std::string& default_text,
-                      size_t max_length)
-      : XamDialog(imgui_drawer),
-        title_(title),
-        description_(description),
-        default_text_(default_text),
-        max_length_(max_length),
-        text_buffer_() {
-    if (!title_.size()) {
-      if (!description_.size()) {
-        title_ = "Keyboard Input";
-      } else {
-        title_ = description_;
-        description_ = "";
-      }
-    }
-    text_ = default_text;
-    text_buffer_.resize(max_length);
-    xe::string_util::copy_truncating(text_buffer_.data(), default_text_,
-                                     text_buffer_.size());
-  }
-  virtual ~KeyboardInputDialog() {}
-
-  const std::string& text() const { return text_; }
-  bool cancelled() const { return cancelled_; }
-
-  void OnDraw(ImGuiIO& io) override {
-    bool first_draw = false;
-    if (!has_opened_) {
-      ImGui::OpenPopup(title_.c_str());
-      has_opened_ = true;
-      first_draw = true;
-    }
-    if (ImGui::BeginPopupModal(title_.c_str(), nullptr,
-                               ImGuiWindowFlags_AlwaysAutoResize)) {
-      if (description_.size()) {
-        ImGui::TextWrapped("%s", description_.c_str());
-      }
-      if (first_draw) {
-        ImGui::SetKeyboardFocusHere();
-      }
-      ImGui::PushID("input_text");
-      bool input_submitted =
-          ImGui::InputText("##body", text_buffer_.data(), text_buffer_.size(),
-                           ImGuiInputTextFlags_EnterReturnsTrue);
-      // Context menu for paste functionality
-      if (ImGui::BeginPopupContextItem("input_context_menu")) {
-        if (ImGui::MenuItem("Paste")) {
-          if (ImGui::GetClipboardText() != nullptr) {
-            std::string clipboard_text = ImGui::GetClipboardText();
-            xe::string_util::copy_truncating(
-                text_buffer_.data(), clipboard_text, text_buffer_.size());
-          }
-        }
-        ImGui::EndPopup();
-      }
-      ImGui::PopID();
-      if (input_submitted) {
-        text_ = std::string(text_buffer_.data(), text_buffer_.size());
-        cancelled_ = false;
-        ImGui::CloseCurrentPopup();
-        Close();
-      }
-      if (ImGui::Button("OK")) {
-        text_ = std::string(text_buffer_.data(), text_buffer_.size());
-        cancelled_ = false;
-        ImGui::CloseCurrentPopup();
-        Close();
-      }
-      ImGui::SameLine();
-      if (ImGui::Button("Cancel")) {
-        text_ = "";
-        cancelled_ = true;
-        ImGui::CloseCurrentPopup();
-        Close();
-      }
-      ImGui::Spacing();
-      ImGui::EndPopup();
-    } else {
-      Close();
-    }
-  }
-
- private:
-  bool has_opened_ = false;
-  std::string title_;
-  std::string description_;
-  std::string default_text_;
-  size_t max_length_ = 0;
-  std::vector<char> text_buffer_;
-  std::string text_ = "";
-  bool cancelled_ = true;
-};
 
 // https://www.se7ensins.com/forums/threads/release-how-to-use-xshowkeyboardui-release.906568/
 dword_result_t XamShowKeyboardUI_entry(
@@ -1208,7 +490,7 @@ dword_result_t XamShowKeyboardUI_entry(
       }
     };
     const Emulator* emulator = kernel_state()->emulator();
-    ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
+    xe::ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
 
     std::string title_str = title ? xe::to_utf8(title.value()) : "";
     std::string desc_str = description ? xe::to_utf8(description.value()) : "";
@@ -1279,7 +561,7 @@ dword_result_t XamShowDeviceSelectorUI_entry(
   buttons.push_back("Cancel");
 
   const Emulator* emulator = kernel_state()->emulator();
-  ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
+  xe::ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
   return xeXamDispatchDialog<MessageBoxDialog>(
       new MessageBoxDialog(imgui_drawer, title, desc, buttons, 0), close,
       overlapped);
@@ -1299,7 +581,7 @@ void XamShowDirtyDiscErrorUI_entry(dword_t user_index) {
       "likely caused by bad or unimplemented file IO calls.";
 
   const Emulator* emulator = kernel_state()->emulator();
-  ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
+  xe::ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
   xeXamDispatchDialog<MessageBoxDialog>(
       new MessageBoxDialog(imgui_drawer, title, desc, {"OK"}, 0),
       [](MessageBoxDialog*) -> X_RESULT { return X_ERROR_SUCCESS; }, 0);
@@ -1456,7 +738,7 @@ X_HRESULT xeXShowMarketplaceUIEx(dword_t user_index, dword_t ui_type,
   }
 
   const Emulator* emulator = kernel_state()->emulator();
-  ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
+  xe::ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
   return xeXamDispatchDialogAsync<MessageBoxDialog>(
       new MessageBoxDialog(imgui_drawer, title, desc, buttons, 0), close);
 }
@@ -1546,7 +828,7 @@ dword_result_t XamShowMarketplaceDownloadItemsUI_entry(
       "be installed manually using File -> Install Content.";
 
   const Emulator* emulator = kernel_state()->emulator();
-  ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
+  xe::ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
   return xeXamDispatchDialog<MessageBoxDialog>(
       new MessageBoxDialog(imgui_drawer, title, desc, buttons, 0), close,
       overlapped);
@@ -1559,461 +841,66 @@ dword_result_t XamShowForcedNameChangeUI_entry(dword_t user_index) {
 }
 DECLARE_XAM_EXPORT1(XamShowForcedNameChangeUI, kUI, kImplemented);
 
-bool xeDrawProfileContent(ui::ImGuiDrawer* imgui_drawer, const uint64_t xuid,
-                          const uint8_t user_index,
+bool xeDrawProfileContent(xe::ui::ImGuiDrawer* imgui_drawer,
+                          const uint64_t xuid, const uint8_t user_index,
                           const X_XAMACCOUNTINFO* account,
+                          const xe::ui::ImmediateTexture* profile_icon,
+                          std::function<bool()> context_menu,
+                          std::function<void()> on_profile_change,
                           uint64_t* selected_xuid) {
-  auto profile_manager = kernel_state()->xam_state()->profile_manager();
+  const ImVec2 start_position = ImGui::GetCursorPos();
 
-  constexpr float default_image_size = 75.0f;
-  const ImVec2 next_window_position =
-      ImVec2(ImGui::GetWindowPos().x + ImGui::GetWindowSize().x + 20.f,
-             ImGui::GetWindowPos().y);
-  const ImVec2 drawing_start_position = ImGui::GetCursorPos();
-  ImVec2 current_drawing_position = ImGui::GetCursorPos();
+  ImGui::BeginGroup();
+  {
+    if (profile_icon) {
+      ImGui::Image(reinterpret_cast<ImTextureID>(profile_icon),
+                   xe::ui::default_image_icon_size);
+    } else {
+      if (user_index < XUserMaxUserCount) {
+        const auto icon = imgui_drawer->GetNotificationIcon(user_index);
+        ImGui::Image(reinterpret_cast<ImTextureID>(icon),
+                     xe::ui::default_image_icon_size);
+      } else {
+        ImGui::Dummy(xe::ui::default_image_icon_size);
+      }
+    }
 
-  // In the future it can be replaced with profile icon.
-  const auto icon = imgui_drawer->GetNotificationIcon(user_index);
-  if (icon && user_index < XUserMaxUserCount) {
-    ImGui::Image(reinterpret_cast<ImTextureID>(icon),
-                 ui::default_image_icon_size);
-  } else {
-    ImGui::Dummy(ui::default_image_icon_size);
+    ImGui::SameLine();
+
+    ImGui::BeginGroup();
+    {
+      ImGui::TextUnformatted(
+          fmt::format("User: {}\n", account->GetGamertagString()).c_str());
+      ImGui::TextUnformatted(fmt::format("XUID: {:016X}  \n", xuid).c_str());
+      if (user_index != XUserIndexAny) {
+        ImGui::TextUnformatted(
+            fmt::format("Assigned to slot: {}\n", user_index + 1).c_str());
+      } else {
+        ImGui::TextUnformatted(fmt::format("Profile is not signed in").c_str());
+      }
+    }
+    ImGui::EndGroup();
   }
-
-  ImGui::SameLine();
-  current_drawing_position = ImGui::GetCursorPos();
-  ImGui::TextUnformatted(
-      fmt::format("User: {}\n", account->GetGamertagString()).c_str());
-
-  ImGui::SameLine();
-  ImGui::SetCursorPos(current_drawing_position);
-  ImGui::SetCursorPosY(current_drawing_position.y + ImGui::GetTextLineHeight());
-  ImGui::TextUnformatted(fmt::format("XUID: {:016X}  \n", xuid).c_str());
-
-  ImGui::SameLine();
-  ImGui::SetCursorPos(current_drawing_position);
-  ImGui::SetCursorPosY(current_drawing_position.y +
-                       2 * ImGui::GetTextLineHeight());
-
-  if (user_index != XUserIndexAny) {
-    ImGui::TextUnformatted(
-        fmt::format("Assigned to slot: {}\n", user_index + 1).c_str());
-  } else {
-    ImGui::TextUnformatted(fmt::format("Profile is not signed in").c_str());
-  }
-
-  const ImVec2 drawing_end_position = ImGui::GetCursorPos();
+  ImGui::EndGroup();
 
   if (xuid && selected_xuid) {
-    ImGui::SetCursorPos(drawing_start_position);
+    const ImVec2 end_draw_position =
+        ImVec2(ImGui::GetCursorPos().x - start_position.x,
+               ImGui::GetCursorPos().y - start_position.y);
 
-    if (ImGui::Selectable(
-            "##Selectable", *selected_xuid == xuid,
-            ImGuiSelectableFlags_SpanAllColumns,
-            ImVec2(drawing_end_position.x - drawing_start_position.x,
-                   drawing_end_position.y - drawing_start_position.y))) {
+    ImGui::SetCursorPos(start_position);
+    if (ImGui::Selectable("##Selectable", *selected_xuid == xuid,
+                          ImGuiSelectableFlags_SpanAllColumns,
+                          end_draw_position)) {
       *selected_xuid = xuid;
     }
 
-    if (ImGui::BeginPopupContextItem("Profile Menu")) {
-      *selected_xuid = xuid;
-      if (user_index == XUserIndexAny) {
-        if (ImGui::MenuItem("Login")) {
-          profile_manager->Login(xuid);
-        }
-
-        if (ImGui::BeginMenu("Login to slot:")) {
-          for (uint8_t i = 1; i <= XUserMaxUserCount; i++) {
-            if (ImGui::MenuItem(fmt::format("slot {}", i).c_str())) {
-              profile_manager->Login(xuid, i - 1);
-            }
-          }
-          ImGui::EndMenu();
-        }
-      } else {
-        if (ImGui::MenuItem("Logout")) {
-          profile_manager->Logout(user_index);
-        }
-      }
-
-      ImGui::BeginDisabled(kernel_state()->emulator()->is_title_open());
-      if (ImGui::BeginMenu("Modify")) {
-        if (ImGui::MenuItem("Gamertag")) {
-          new GamertagModifyDialog(imgui_drawer, profile_manager, xuid);
-        }
-
-        ImGui::MenuItem("Profile Icon (Unsupported)");
-        ImGui::EndMenu();
-      }
-      ImGui::EndDisabled();
-
-      const bool is_signedin = profile_manager->GetProfile(xuid) != nullptr;
-      ImGui::BeginDisabled(!is_signedin);
-      if (ImGui::MenuItem("Show Played Titles")) {
-        new GamesInfoDialog(imgui_drawer, next_window_position,
-                            profile_manager->GetProfile(user_index));
-      }
-      ImGui::EndDisabled();
-
-      if (ImGui::MenuItem("Show Content Directory")) {
-        const auto path = profile_manager->GetProfileContentPath(
-            xuid, kernel_state()->title_id());
-
-        if (!std::filesystem::exists(path)) {
-          std::filesystem::create_directories(path);
-        }
-
-        std::thread path_open(LaunchFileExplorer, path);
-        path_open.detach();
-      }
-
-      if (!kernel_state()->emulator()->is_title_open()) {
-        ImGui::Separator();
-        if (ImGui::BeginMenu("Delete Profile")) {
-          ImGui::BeginTooltip();
-          ImGui::TextUnformatted(
-              fmt::format("You're about to delete profile: {} (XUID: {:016X}). "
-                          "This will remove all data assigned to this profile "
-                          "including savefiles. Are you sure?",
-                          account->GetGamertagString(), xuid)
-                  .c_str());
-          ImGui::EndTooltip();
-
-          if (ImGui::MenuItem("Yes, delete it!")) {
-            profile_manager->DeleteProfile(xuid);
-            ImGui::EndMenu();
-            ImGui::EndPopup();
-            return false;
-          }
-
-          ImGui::EndMenu();
-        }
-      }
-      ImGui::EndPopup();
+    if (context_menu) {
+      return context_menu();
     }
   }
 
   return true;
-}
-
-class SigninDialog : public XamDialog {
- public:
-  SigninDialog(xe::ui::ImGuiDrawer* imgui_drawer, uint32_t users_needed)
-      : XamDialog(imgui_drawer),
-        users_needed_(users_needed),
-        title_("Sign In") {
-    last_user_ = kernel_state()->emulator()->input_system()->GetLastUsedSlot();
-
-    for (uint8_t slot = 0; slot < XUserMaxUserCount; slot++) {
-      std::string name = fmt::format("Slot {:d}", slot + 1);
-      slot_data_.push_back({slot, name});
-    }
-  }
-
-  virtual ~SigninDialog() {}
-
-  void OnDraw(ImGuiIO& io) override {
-    bool first_draw = false;
-    if (!has_opened_) {
-      ImGui::OpenPopup(title_.c_str());
-      has_opened_ = true;
-      first_draw = true;
-      ReloadProfiles(true);
-    }
-    if (ImGui::BeginPopupModal(title_.c_str(), nullptr,
-                               ImGuiWindowFlags_AlwaysAutoResize)) {
-      auto profile_manager = kernel_state()->xam_state()->profile_manager();
-
-      for (uint32_t i = 0; i < users_needed_; i++) {
-        ImGui::BeginGroup();
-
-        std::vector<const char*> combo_items;
-        int items_count = 0;
-        int current_item = 0;
-
-        // Fill slot list.
-        std::vector<uint8_t> slots;
-        slots.push_back(0xFF);
-        combo_items.push_back("---");
-        for (auto& elem : slot_data_) {
-          // Select the slot or skip it if it's already used.
-          bool already_taken = false;
-          for (uint32_t j = 0; j < users_needed_; j++) {
-            if (chosen_slots_[j] == elem.first) {
-              if (i == j) {
-                current_item = static_cast<int>(combo_items.size());
-              } else {
-                already_taken = true;
-              }
-              break;
-            }
-          }
-
-          if (already_taken) {
-            continue;
-          }
-
-          slots.push_back(elem.first);
-          combo_items.push_back(elem.second.c_str());
-        }
-        items_count = static_cast<int>(combo_items.size());
-
-        ImGui::BeginDisabled(users_needed_ == 1);
-        ImGui::Combo(fmt::format("##Slot{:d}", i).c_str(), &current_item,
-                     combo_items.data(), items_count);
-        chosen_slots_[i] = slots[current_item];
-        ImGui::EndDisabled();
-        ImGui::Spacing();
-
-        combo_items.clear();
-        current_item = 0;
-
-        // Fill profile list.
-        std::vector<uint64_t> xuids;
-        xuids.push_back(0);
-        combo_items.push_back("---");
-        if (chosen_slots_[i] != 0xFF) {
-          for (auto& elem : profile_data_) {
-            // Select the profile or skip it if it's already used.
-            bool already_taken = false;
-            for (uint32_t j = 0; j < users_needed_; j++) {
-              if (chosen_xuids_[j] == elem.first) {
-                if (i == j) {
-                  current_item = static_cast<int>(combo_items.size());
-                } else {
-                  already_taken = true;
-                }
-                break;
-              }
-            }
-
-            if (already_taken) {
-              continue;
-            }
-
-            xuids.push_back(elem.first);
-            combo_items.push_back(elem.second.c_str());
-          }
-        }
-        items_count = static_cast<int>(combo_items.size());
-
-        ImGui::BeginDisabled(chosen_slots_[i] == 0xFF);
-        ImGui::Combo(fmt::format("##Profile{:d}", i).c_str(), &current_item,
-                     combo_items.data(), items_count);
-        chosen_xuids_[i] = xuids[current_item];
-        ImGui::EndDisabled();
-        ImGui::Spacing();
-
-        // Draw profile badge.
-        uint8_t slot = chosen_slots_[i];
-        uint64_t xuid = chosen_xuids_[i];
-        const auto account = profile_manager->GetAccount(xuid);
-
-        if (slot == 0xFF || xuid == 0 || !account) {
-          float ypos = ImGui::GetCursorPosY();
-          ImGui::SetCursorPosY(ypos + ImGui::GetTextLineHeight() * 5);
-        } else {
-          xeDrawProfileContent(imgui_drawer(), xuid, slot, account, nullptr);
-        }
-
-        ImGui::EndGroup();
-        if (i != (users_needed_ - 1) && (i == 0 || i == 2)) {
-          ImGui::SameLine();
-        }
-      }
-
-      ImGui::Spacing();
-
-      if (ImGui::Button("Create Profile")) {
-        creating_profile_ = true;
-        ImGui::OpenPopup("Create Profile");
-        first_draw = true;
-      }
-      ImGui::Spacing();
-
-      if (creating_profile_) {
-        if (ImGui::BeginPopupModal("Create Profile", nullptr,
-                                   ImGuiWindowFlags_NoCollapse |
-                                       ImGuiWindowFlags_AlwaysAutoResize |
-                                       ImGuiWindowFlags_HorizontalScrollbar)) {
-          if (first_draw) {
-            ImGui::SetKeyboardFocusHere();
-          }
-
-          ImGui::TextUnformatted("Gamertag:");
-          ImGui::InputText("##Gamertag", gamertag_, sizeof(gamertag_));
-
-          const std::string gamertag_string = gamertag_;
-          bool valid = profile_manager->IsGamertagValid(gamertag_string);
-
-          ImGui::BeginDisabled(!valid);
-          if (ImGui::Button("Create")) {
-            profile_manager->CreateProfile(gamertag_string, false);
-            std::fill(std::begin(gamertag_), std::end(gamertag_), '\0');
-            ImGui::CloseCurrentPopup();
-            creating_profile_ = false;
-            ReloadProfiles(false);
-          }
-          ImGui::EndDisabled();
-          ImGui::SameLine();
-
-          if (ImGui::Button("Cancel")) {
-            std::fill(std::begin(gamertag_), std::end(gamertag_), '\0');
-            ImGui::CloseCurrentPopup();
-            creating_profile_ = false;
-          }
-
-          ImGui::EndPopup();
-        } else {
-          creating_profile_ = false;
-        }
-      }
-
-      if (ImGui::Button("OK")) {
-        std::map<uint8_t, uint64_t> profile_map;
-        for (uint32_t i = 0; i < users_needed_; i++) {
-          uint8_t slot = chosen_slots_[i];
-          uint64_t xuid = chosen_xuids_[i];
-          if (slot != 0xFF && xuid != 0) {
-            profile_map[slot] = xuid;
-          }
-        }
-        profile_manager->LoginMultiple(profile_map);
-
-        ImGui::CloseCurrentPopup();
-        Close();
-      }
-      ImGui::SameLine();
-
-      if (ImGui::Button("Cancel")) {
-        ImGui::CloseCurrentPopup();
-        Close();
-      }
-
-      ImGui::Spacing();
-      ImGui::Spacing();
-      ImGui::EndPopup();
-    } else {
-      Close();
-    }
-  }
-
-  void ReloadProfiles(bool first_draw) {
-    auto profile_manager = kernel_state()->xam_state()->profile_manager();
-    auto profiles = profile_manager->GetAccounts();
-
-    profile_data_.clear();
-    for (auto& [xuid, account] : *profiles) {
-      profile_data_.push_back({xuid, account.GetGamertagString()});
-    }
-
-    if (first_draw) {
-      // If only one user is requested, request last used controller to sign in.
-      if (users_needed_ == 1) {
-        chosen_slots_[0] = last_user_;
-      } else {
-        for (uint32_t i = 0; i < users_needed_; i++) {
-          // TODO: Not sure about this, needs testing on real hardware.
-          chosen_slots_[i] = i;
-        }
-      }
-
-      // Default profile selection to profile that is already signed in.
-      for (auto& elem : profile_data_) {
-        uint64_t xuid = elem.first;
-        uint8_t slot = profile_manager->GetUserIndexAssignedToProfile(xuid);
-        for (uint32_t j = 0; j < users_needed_; j++) {
-          if (chosen_slots_[j] != XUserIndexAny && slot == chosen_slots_[j]) {
-            chosen_xuids_[j] = xuid;
-          }
-        }
-      }
-    }
-  }
-
- private:
-  bool has_opened_ = false;
-  std::string title_;
-  uint32_t users_needed_ = 1;
-  uint32_t last_user_ = 0;
-
-  std::vector<std::pair<uint8_t, std::string>> slot_data_;
-  std::vector<std::pair<uint64_t, std::string>> profile_data_;
-  uint8_t chosen_slots_[XUserMaxUserCount] = {};
-  uint64_t chosen_xuids_[XUserMaxUserCount] = {};
-
-  bool creating_profile_ = false;
-  char gamertag_[16] = "";
-};
-
-class CreateProfileDialog final : public XamDialog {
- public:
-  CreateProfileDialog(ui::ImGuiDrawer* imgui_drawer, Emulator* emulator)
-      : XamDialog(imgui_drawer), emulator_(emulator) {
-    memset(gamertag_, 0, sizeof(gamertag_));
-  }
-
- protected:
-  void OnDraw(ImGuiIO& io) override;
-
-  bool has_opened_ = false;
-  char gamertag_[16] = "";
-  Emulator* emulator_;
-};
-
-void CreateProfileDialog::OnDraw(ImGuiIO& io) {
-  if (!has_opened_) {
-    ImGui::OpenPopup("Create Profile");
-    has_opened_ = true;
-  }
-
-  auto profile_manager =
-      emulator_->kernel_state()->xam_state()->profile_manager();
-
-  bool dialog_open = true;
-  if (!ImGui::BeginPopupModal("Create Profile", &dialog_open,
-                              ImGuiWindowFlags_NoCollapse |
-                                  ImGuiWindowFlags_AlwaysAutoResize |
-                                  ImGuiWindowFlags_HorizontalScrollbar)) {
-    Close();
-    return;
-  }
-
-  if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
-      !ImGui::IsAnyItemActive() && !ImGui::IsMouseClicked(0)) {
-    ImGui::SetKeyboardFocusHere(0);
-  }
-
-  ImGui::TextUnformatted("Gamertag:");
-  ImGui::InputText("##Gamertag", gamertag_, sizeof(gamertag_));
-
-  const std::string gamertag_string = std::string(gamertag_);
-  bool valid = profile_manager->IsGamertagValid(gamertag_string);
-
-  ImGui::BeginDisabled(!valid);
-  if (ImGui::Button("Create")) {
-    if (!profile_manager->CreateProfile(gamertag_string, false)) {
-      XELOGE("Failed to create profile: {}", gamertag_string);
-    }
-    std::fill(std::begin(gamertag_), std::end(gamertag_), '\0');
-    dialog_open = false;
-  }
-  ImGui::EndDisabled();
-  ImGui::SameLine();
-
-  if (ImGui::Button("Cancel")) {
-    std::fill(std::begin(gamertag_), std::end(gamertag_), '\0');
-    dialog_open = false;
-  }
-
-  if (!dialog_open) {
-    ImGui::CloseCurrentPopup();
-    Close();
-    ImGui::EndPopup();
-    return;
-  }
-  ImGui::EndPopup();
 }
 
 X_RESULT xeXamShowSigninUI(uint32_t user_index, uint32_t users_needed,
@@ -2040,27 +927,30 @@ X_RESULT xeXamShowSigninUI(uint32_t user_index, uint32_t users_needed,
     });
   }
 
-  auto close = [](SigninDialog* dialog) -> void {};
+  auto close = [](ui::SigninUI* dialog) -> void {};
 
   const Emulator* emulator = kernel_state()->emulator();
-  ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
-  return xeXamDispatchDialogAsync<SigninDialog>(
-      new SigninDialog(imgui_drawer, users_needed), close);
+  xe::ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
+  return xeXamDispatchDialogAsync<ui::SigninUI>(
+      new ui::SigninUI(
+          imgui_drawer, kernel_state()->xam_state()->profile_manager(),
+          emulator->input_system()->GetLastUsedSlot(), users_needed),
+      close);
 }
 
 X_RESULT xeXamShowCreateProfileUIEx(uint32_t user_index, dword_t unkn,
                                     char* unkn2_ptr) {
   Emulator* emulator = kernel_state()->emulator();
-  ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
+  xe::ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
 
   if (cvars::headless) {
     return X_ERROR_SUCCESS;
   }
 
-  auto close = [](CreateProfileDialog* dialog) -> void {};
+  auto close = [](ui::CreateProfileUI* dialog) -> void {};
 
-  return xeXamDispatchDialogAsync<CreateProfileDialog>(
-      new CreateProfileDialog(imgui_drawer, emulator), close);
+  return xeXamDispatchDialogAsync<ui::CreateProfileUI>(
+      new ui::CreateProfileUI(imgui_drawer, emulator), close);
 }
 
 dword_result_t XamShowSigninUI_entry(dword_t users_needed, dword_t flags) {
@@ -2104,15 +994,50 @@ dword_result_t XamShowAchievementsUI_entry(dword_t user_index,
     return X_ERROR_NO_SUCH_USER;
   }
 
-  ui::ImGuiDrawer* imgui_drawer = kernel_state()->emulator()->imgui_drawer();
+  xe::ui::ImGuiDrawer* imgui_drawer =
+      kernel_state()->emulator()->imgui_drawer();
 
-  auto close = [](GameAchievementsDialog* dialog) -> void {};
-  return xeXamDispatchDialogAsync<GameAchievementsDialog>(
-      new GameAchievementsDialog(imgui_drawer, ImVec2(100.f, 100.f),
+  auto close = [](ui::GameAchievementsUI* dialog) -> void {};
+  return xeXamDispatchDialogAsync<ui::GameAchievementsUI>(
+      new ui::GameAchievementsUI(imgui_drawer, ImVec2(100.f, 100.f),
                                  &info.value(), user),
       close);
 }
 DECLARE_XAM_EXPORT1(XamShowAchievementsUI, kUserProfiles, kStub);
+
+dword_result_t XamShowGamerCardUI_entry(dword_t user_index) {
+  auto user = kernel_state()->xam_state()->GetUserProfile(user_index);
+  if (!user) {
+    return X_ERROR_ACCESS_DENIED;
+  }
+
+  xe::ui::ImGuiDrawer* imgui_drawer =
+      kernel_state()->emulator()->imgui_drawer();
+
+  auto close = [](ui::GamercardUI* dialog) -> void {};
+  return xeXamDispatchDialogAsync<ui::GamercardUI>(
+      new ui::GamercardUI(kernel_state()->emulator()->display_window(),
+                          imgui_drawer, kernel_state(), user->xuid()),
+      close);
+}
+DECLARE_XAM_EXPORT1(XamShowGamerCardUI, kUserProfiles, kImplemented);
+
+dword_result_t XamShowEditProfileUI_entry(dword_t user_index) {
+  auto user = kernel_state()->xam_state()->GetUserProfile(user_index);
+  if (!user) {
+    return X_ERROR_ACCESS_DENIED;
+  }
+
+  xe::ui::ImGuiDrawer* imgui_drawer =
+      kernel_state()->emulator()->imgui_drawer();
+
+  auto close = [](ui::GamercardUI* dialog) -> void {};
+  return xeXamDispatchDialogAsync<ui::GamercardUI>(
+      new ui::GamercardUI(kernel_state()->emulator()->display_window(),
+                          imgui_drawer, kernel_state(), user->xuid()),
+      close);
+}
+DECLARE_XAM_EXPORT1(XamShowEditProfileUI, kUserProfiles, kImplemented);
 
 }  // namespace xam
 }  // namespace kernel

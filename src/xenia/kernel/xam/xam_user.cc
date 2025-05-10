@@ -461,8 +461,21 @@ dword_result_t XamUserContentRestrictionCheckAccess_entry(
 }
 DECLARE_XAM_EXPORT1(XamUserContentRestrictionCheckAccess, kUserProfiles, kStub);
 
-dword_result_t XamUserIsOnlineEnabled_entry(dword_t user_index) { return 1; }
-DECLARE_XAM_EXPORT1(XamUserIsOnlineEnabled, kUserProfiles, kStub);
+dword_result_t XamUserIsOnlineEnabled_entry(dword_t user_index) {
+  if (user_index >= XUserMaxUserCount) {
+    return 0;
+  }
+
+  if (!kernel_state()->xam_state()->IsUserSignedIn(user_index)) {
+    return 0;
+  }
+
+  return kernel_state()
+      ->xam_state()
+      ->GetUserProfile(user_index)
+      ->IsLiveEnabled();
+}
+DECLARE_XAM_EXPORT1(XamUserIsOnlineEnabled, kUserProfiles, kImplemented);
 
 dword_result_t XamUserGetMembershipTier_entry(dword_t user_index) {
   if (user_index >= XUserMaxUserCount) {
@@ -473,9 +486,23 @@ dword_result_t XamUserGetMembershipTier_entry(dword_t user_index) {
     return X_ERROR_NO_SUCH_USER;
   }
 
-  return X_XAMACCOUNTINFO::AccountSubscriptionTier::kSubscriptionTierGold;
+  return kernel_state()
+      ->xam_state()
+      ->GetUserProfile(user_index)
+      ->GetSubscriptionTier();
 }
-DECLARE_XAM_EXPORT1(XamUserGetMembershipTier, kUserProfiles, kStub);
+DECLARE_XAM_EXPORT1(XamUserGetMembershipTier, kUserProfiles, kImplemented);
+
+dword_result_t XamUserGetMembershipTierFromXUID_entry(qword_t xuid) {
+  const auto profile = kernel_state()->xam_state()->GetUserProfile(xuid);
+  if (!profile) {
+    return 0;
+  }
+
+  return profile->GetSubscriptionTier();
+}
+DECLARE_XAM_EXPORT1(XamUserGetMembershipTierFromXUID, kUserProfiles,
+                    kImplemented);
 
 dword_result_t XamUserAreUsersFriends_entry(dword_t user_index, dword_t unk1,
                                             dword_t unk2, lpdword_t out_value,
@@ -868,14 +895,24 @@ dword_result_t XamUserIsUnsafeProgrammingAllowed_entry(dword_t user_index,
 DECLARE_XAM_EXPORT1(XamUserIsUnsafeProgrammingAllowed, kUserProfiles, kStub);
 
 dword_result_t XamUserGetSubscriptionType_entry(dword_t user_index,
-                                                dword_t unk2, dword_t unk3) {
+                                                lpdword_t subscription_ptr,
+                                                lpdword_t r5,
+                                                dword_t overlapped_ptr) {
   if (user_index >= XUserMaxUserCount) {
     return X_ERROR_INVALID_PARAMETER;
   }
 
-  if (!unk2 || !unk3) {
+  if (!subscription_ptr || !r5) {
     return X_E_INVALIDARG;
   }
+
+  auto user = kernel_state()->xam_state()->GetUserProfile(user_index);
+  if (!user) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  *subscription_ptr = user->GetSubscriptionTier();
+  *r5 = 0x0;
 
   return X_ERROR_SUCCESS;
 }
@@ -894,11 +931,10 @@ dword_result_t XamUserGetUserFlags_entry(dword_t user_index) {
 DECLARE_XAM_EXPORT1(XamUserGetUserFlags, kUserProfiles, kImplemented);
 
 dword_result_t XamUserGetUserFlagsFromXUID_entry(qword_t xuid) {
-  if (!kernel_state()->xam_state()->IsUserSignedIn(xuid)) {
+  const auto& user_profile = kernel_state()->xam_state()->GetUserProfile(xuid);
+  if (!user_profile) {
     return 0;
   }
-
-  const auto& user_profile = kernel_state()->xam_state()->GetUserProfile(xuid);
 
   return user_profile->GetCachedFlags();
 }
@@ -960,6 +996,45 @@ dword_result_t XamUserCreateStatsEnumerator_entry(
   return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamUserCreateStatsEnumerator, kUserProfiles, kSketchy);
+
+dword_result_t XamUserGetUserTenure_entry(dword_t user_index,
+                                          lpdword_t tenure_level_ptr,
+                                          lpdword_t milestone_ptr,
+                                          lpqword_t milestone_date_ptr,
+                                          dword_t overlap_ptr) {
+  if (!kernel_state()->xam_state()->IsUserSignedIn(user_index)) {
+    return X_E_INVALIDARG;
+  }
+
+  const auto& user_profile =
+      kernel_state()->xam_state()->GetUserProfile(user_index);
+
+  if (const auto setting =
+          kernel_state()->xam_state()->user_tracker()->GetSetting(
+              user_profile, kDashboardID,
+              static_cast<uint32_t>(UserSettingId::XPROFILE_TENURE_LEVEL))) {
+    *tenure_level_ptr = std::get<int32_t>(setting->get_host_data());
+  }
+
+  if (const auto setting =
+          kernel_state()->xam_state()->user_tracker()->GetSetting(
+              user_profile, kDashboardID,
+              static_cast<uint32_t>(
+                  UserSettingId::XPROFILE_TENURE_MILESTONE))) {
+    *milestone_ptr = std::get<int32_t>(setting->get_host_data());
+  }
+
+  if (const auto setting =
+          kernel_state()->xam_state()->user_tracker()->GetSetting(
+              user_profile, kDashboardID,
+              static_cast<uint32_t>(
+                  UserSettingId::XPROFILE_TENURE_NEXT_MILESTONE_DATE))) {
+    *milestone_date_ptr = std::get<int64_t>(setting->get_host_data());
+  }
+
+  return X_ERROR_SUCCESS;
+}
+DECLARE_XAM_EXPORT1(XamUserGetUserTenure, kUserProfiles, kImplemented);
 
 }  // namespace xam
 }  // namespace kernel

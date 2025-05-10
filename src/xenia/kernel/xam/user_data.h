@@ -84,6 +84,29 @@ class UserData {
     return {extended_data_.data(), extended_data_.size()};
   }
 
+  UserDataTypes get_host_data() const {
+    if (data_.type == X_USER_DATA_TYPE::INT32) {
+      return data_.data.s32;
+    }
+
+    if (data_.type == X_USER_DATA_TYPE::DATETIME) {
+      return data_.data.s64;
+    }
+
+    if (data_.type == X_USER_DATA_TYPE::WSTRING) {
+      if (get_extended_data().empty()) {
+        return std::u16string();
+      }
+
+      const char16_t* str_begin =
+          reinterpret_cast<const char16_t*>(get_extended_data().data());
+
+      return string_util::read_u16string_and_swap(str_begin);
+    }
+
+    return 0;
+  }
+
   bool is_valid_type() const {
     return data_.type >= X_USER_DATA_TYPE::CONTEXT &&
            data_.type <= X_USER_DATA_TYPE::DATETIME;
