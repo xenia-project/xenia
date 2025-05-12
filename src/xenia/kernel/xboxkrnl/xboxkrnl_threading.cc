@@ -1782,6 +1782,36 @@ pointer_result_t InterlockedFlushSList_entry(
 }
 DECLARE_XBOXKRNL_EXPORT1(InterlockedFlushSList, kThreading, kImplemented);
 
+dword_result_t KeSetPriorityThread_entry(pointer_t<X_KTHREAD> thread_ptr,
+                                         dword_t new_priority,
+                                         const ppc_context_t& context) {
+  if (!thread_ptr) {
+    XELOGE("{}: Invalid thread_ptr.", __func__);
+    return 0;
+  }
+
+  if (thread_ptr->header.type != 6) {
+    XELOGW("{}: Invalid object type: {}", __func__, thread_ptr->header.type);
+  }
+
+  X_KPRCB* prcb = context->TranslateVirtual(thread_ptr->a_prcb_ptr);
+  const uint32_t old_irql = xeKeKfAcquireSpinLock(context, &prcb->spin_lock);
+  const uint8_t old_priority = thread_ptr->priority;
+
+  auto thread_ref =
+      XObject::GetNativeObject<XThread>(kernel_state(), thread_ptr);
+
+  if (!thread_ref) {
+    XELOGW("{}: Missing native thread: {}", __func__, thread_ptr->header.type);
+  } else {
+    thread_ref->SetPriority(new_priority);
+  }
+
+  xeKeKfReleaseSpinLock(context, &prcb->spin_lock, old_irql);
+  return old_priority;
+}
+DECLARE_XBOXKRNL_EXPORT1(KeSetPriorityThread, kThreading, kImplemented);
+
 }  // namespace xboxkrnl
 }  // namespace kernel
 }  // namespace xe

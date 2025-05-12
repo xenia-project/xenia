@@ -107,7 +107,7 @@ struct X_KPRCB {
   xe::be<uint32_t> dpc_lock;           // 0x44
   X_LIST_ENTRY queued_dpcs_list_head;  // 0x48
   xe::be<uint32_t> dpc_active;         // 0x50
-  xe::be<uint32_t> unk_54;             // 0x54
+  X_KSPINLOCK spin_lock;               // 0x54
   xe::be<uint32_t> unk_58;             // 0x58
   // definitely scheduler related
   X_SINGLE_LIST_ENTRY unk_5C;  // 0x5C
