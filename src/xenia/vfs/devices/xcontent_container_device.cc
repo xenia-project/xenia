@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2023 Ben Vanik. All rights reserved.                             *
+ * Copyright 2025 Xenia Canary. All rights reserved.                          *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -100,7 +100,7 @@ bool XContentContainerDevice::Initialize() {
 
   SetupContainer();
 
-  if (LoadHostFiles(header_file) != Result::kSuccess) {
+  if (LoadHostFiles() != Result::kSuccess) {
     XELOGE("Error loading XContent host files.");
     return false;
   }
@@ -150,14 +150,6 @@ Entry* XContentContainerDevice::ResolvePath(const std::string_view path) {
 void XContentContainerDevice::Dump(StringBuffer* string_buffer) {
   auto global_lock = global_critical_region_.Acquire();
   root_entry_->Dump(string_buffer, 0);
-}
-
-void XContentContainerDevice::CloseFiles() {
-  for (auto& file : files_) {
-    fclose(file.second);
-  }
-  files_.clear();
-  files_total_size_ = 0;
 }
 
 kernel::xam::XCONTENT_AGGREGATE_DATA XContentContainerDevice::content_header()

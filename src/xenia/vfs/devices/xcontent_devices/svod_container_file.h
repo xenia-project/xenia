@@ -7,27 +7,23 @@
  ******************************************************************************
  */
 
-#ifndef XENIA_VFS_DEVICES_XCONTENT_CONTAINER_FILE_H_
-#define XENIA_VFS_DEVICES_XCONTENT_CONTAINER_FILE_H_
+#ifndef XENIA_VFS_DEVICES_XCONTENT_SVOD_CONTAINER_FILE_H_
+#define XENIA_VFS_DEVICES_XCONTENT_SVOD_CONTAINER_FILE_H_
 
-#include "xenia/vfs/file.h"
-
-#include "xenia/xbox.h"
+#include "xenia/vfs/devices/xcontent_container_file.h"
 
 namespace xe {
 namespace vfs {
 
-class XContentContainerEntry;
+class SvodContainerEntry;
 
-class XContentContainerFile : public File {
+class SvodContainerFile : public XContentContainerFile {
  public:
-  XContentContainerFile(uint32_t file_access, XContentContainerEntry* entry);
-  ~XContentContainerFile() override;
+  SvodContainerFile(uint32_t file_access, SvodContainerEntry* entry);
+  ~SvodContainerFile() override;
 
   void Destroy() override;
 
-  X_STATUS ReadSync(std::span<uint8_t> buffer, size_t byte_offset,
-                    size_t* out_bytes_read) override;
   X_STATUS WriteSync(std::span<const uint8_t> buffer, size_t byte_offset,
                      size_t* out_bytes_written) override {
     return X_STATUS_ACCESS_DENIED;
@@ -35,13 +31,13 @@ class XContentContainerFile : public File {
   X_STATUS SetLength(size_t length) override { return X_STATUS_ACCESS_DENIED; }
 
  private:
-  virtual size_t Read(std::span<uint8_t> buffer, size_t offset,
-                      size_t record_file) = 0;
+  size_t Read(std::span<uint8_t> buffer, size_t offset,
+              size_t record_file) override;
 
-  XContentContainerEntry* entry_;
+  SvodContainerEntry* entry_;
 };
 
 }  // namespace vfs
 }  // namespace xe
 
-#endif  // XENIA_VFS_DEVICES_XCONTENT_CONTAINER_FILE_H_
+#endif  // XENIA_VFS_DEVICES_XCONTENT_SVOD_CONTAINER_FILE_H_

@@ -412,8 +412,9 @@ bool AudioMediaPlayer::LoadSongToMemory(std::vector<uint8_t>* buffer) {
 
   buffer->resize(vfs_file->entry()->size());
   size_t bytes_read = 0;
-  result = vfs_file->ReadSync(buffer->data(), vfs_file->entry()->size(), 0,
-                              &bytes_read);
+  result = vfs_file->ReadSync(
+      std::span<uint8_t>(buffer->data(), vfs_file->entry()->size()), 0,
+      &bytes_read);
 
   return !result;
 }

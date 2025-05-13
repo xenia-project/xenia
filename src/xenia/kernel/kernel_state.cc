@@ -157,8 +157,8 @@ bool KernelState::UpdateSpaData(vfs::Entry* spa_file_update) {
   std::vector<uint8_t> data(spa_file_update->size());
 
   size_t read_bytes = 0;
-  if (file->ReadSync(data.data(), spa_file_update->size(), 0, &read_bytes) !=
-      X_STATUS_SUCCESS) {
+  if (file->ReadSync(std::span<uint8_t>(data.data(), spa_file_update->size()),
+                     0, &read_bytes) != X_STATUS_SUCCESS) {
     return false;
   }
 

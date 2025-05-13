@@ -11,6 +11,7 @@
 #define XENIA_VFS_FILE_H_
 
 #include <cstdint>
+#include <span>
 
 #include "xenia/xbox.h"
 
@@ -27,20 +28,20 @@ class File {
 
   virtual void Destroy() = 0;
 
-  virtual X_STATUS ReadSync(void* buffer, size_t buffer_length,
-                            size_t byte_offset, size_t* out_bytes_read) = 0;
-  virtual X_STATUS WriteSync(const void* buffer, size_t buffer_length,
+  virtual X_STATUS ReadSync(std::span<uint8_t> buffer, size_t byte_offset,
+                            size_t* out_bytes_read) = 0;
+  virtual X_STATUS WriteSync(std::span<const uint8_t> buffer,
                              size_t byte_offset, size_t* out_bytes_written) = 0;
 
   // TODO: Parameters
-  virtual X_STATUS ReadAsync(void* buffer, size_t buffer_length,
-                             size_t byte_offset, size_t* out_bytes_read) {
+  virtual X_STATUS ReadAsync(std::span<uint8_t> buffer, size_t byte_offset,
+                             size_t* out_bytes_read) {
     return X_STATUS_NOT_IMPLEMENTED;
   }
 
   // TODO: Parameters
-  virtual X_STATUS WriteAsync(const void* buffer, size_t buffer_length,
-                              size_t byte_offset, size_t* out_bytes_written) {
+  virtual X_STATUS WriteAsync(std::span<uint8_t> buffer, size_t byte_offset,
+                              size_t* out_bytes_written) {
     return X_STATUS_NOT_IMPLEMENTED;
   }
 

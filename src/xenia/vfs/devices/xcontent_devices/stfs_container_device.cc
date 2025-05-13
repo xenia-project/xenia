@@ -7,13 +7,10 @@
  ******************************************************************************
  */
 
-#include <algorithm>
-#include <vector>
-
+#include "xenia/vfs/devices/xcontent_devices/stfs_container_device.h"
 #include "xenia/base/logging.h"
 #include "xenia/kernel/xam/content_manager.h"
-#include "xenia/vfs/devices/xcontent_container_entry.h"
-#include "xenia/vfs/devices/xcontent_devices/stfs_container_device.h"
+#include "xenia/vfs/devices/xcontent_devices/stfs_container_entry.h"
 
 namespace xe {
 namespace vfs {
@@ -26,7 +23,7 @@ StfsContainerDevice::StfsContainerDevice(const std::string_view mount_path,
   SetName("STFS");
 }
 
-StfsContainerDevice::~StfsContainerDevice() { CloseFiles(); }
+StfsContainerDevice::~StfsContainerDevice() {}
 
 void StfsContainerDevice::SetupContainer() {
   // Additional part specific to STFS container.
@@ -38,26 +35,27 @@ void StfsContainerDevice::SetupContainer() {
                    ((kBlocksPerHashLevel[0] + 1) * blocks_per_hash_table_);
 }
 
-XContentContainerDevice::Result StfsContainerDevice::LoadHostFiles(
-    FILE* header_file) {
+XContentContainerDevice::Result StfsContainerDevice::LoadHostFiles() {
   const XContentContainerHeader* header = GetContainerHeader();
 
   if (header->content_metadata.data_file_count > 0) {
     XELOGW("STFS container is not a single file. Loading might fail!");
   }
 
-  files_.emplace(std::make_pair(0, header_file));
+  data_ = MappedMemory::Open(host_path_, MappedMemory::Mode::kRead);
+  if (!data_) {
+    return Result::kOutOfMemory;
+  }
+
   return Result::kSuccess;
 }
 
 StfsContainerDevice::Result StfsContainerDevice::Read() {
-  auto& file = files_.at(0);
-
-  auto root_entry = new XContentContainerEntry(this, nullptr, "", &files_);
+  auto root_entry = new StfsContainerEntry(this, nullptr, "", data_.get());
   root_entry->attributes_ = kFileAttributeDirectory;
   root_entry_ = std::unique_ptr<Entry>(root_entry);
 
-  std::vector<XContentContainerEntry*> all_entries;
+  std::vector<StfsContainerEntry*> all_entries;
 
   // Load all listings.
   StfsDirectoryBlock directory;
@@ -68,12 +66,7 @@ StfsContainerDevice::Result StfsContainerDevice::Read() {
   size_t n = 0;
   for (n = 0; n < descriptor.file_table_block_count; n++) {
     const size_t offset = BlockToOffset(table_block_index);
-    xe::filesystem::Seek(file, offset, SEEK_SET);
-
-    if (fread(&directory, sizeof(StfsDirectoryBlock), 1, file) != 1) {
-      XELOGE("ReadSTFS failed to read directory block at 0x{X}", offset);
-      return Result::kReadError;
-    }
+    directory = *reinterpret_cast<StfsDirectoryBlock*>(data_->data() + offset);
 
     for (size_t m = 0; m < kEntriesPerDirectoryBlock; m++) {
       const StfsDirectoryEntry& dir_entry = directory.entries[m];
@@ -83,13 +76,13 @@ StfsContainerDevice::Result StfsContainerDevice::Read() {
         break;
       }
 
-      XContentContainerEntry* parent_entry =
+      StfsContainerEntry* parent_entry =
           dir_entry.directory_index == 0xFFFF
               ? root_entry
               : all_entries[dir_entry.directory_index];
 
-      std::unique_ptr<XContentContainerEntry> entry =
-          ReadEntry(parent_entry, &files_, &dir_entry);
+      std::unique_ptr<StfsContainerEntry> entry =
+          ReadEntry(parent_entry, &dir_entry);
       all_entries.push_back(entry.get());
       parent_entry->children_.emplace_back(std::move(entry));
     }
@@ -110,9 +103,8 @@ StfsContainerDevice::Result StfsContainerDevice::Read() {
   return Result::kSuccess;
 }
 
-std::unique_ptr<XContentContainerEntry> StfsContainerDevice::ReadEntry(
-    Entry* parent, MultiFileHandles* files,
-    const StfsDirectoryEntry* dir_entry) {
+std::unique_ptr<StfsContainerEntry> StfsContainerDevice::ReadEntry(
+    Entry* parent, const StfsDirectoryEntry* dir_entry) {
   // Filename is stored as Windows-1252, convert it to UTF-8.
   std::string ansi_name(reinterpret_cast<const char*>(dir_entry->name),
                         dir_entry->flags.name_length & 0x3F);
@@ -123,7 +115,7 @@ std::unique_ptr<XContentContainerEntry> StfsContainerDevice::ReadEntry(
     name = ansi_name;
   }
 
-  auto entry = XContentContainerEntry::Create(this, parent, name, &files_);
+  auto entry = StfsContainerEntry::Create(this, parent, name, data_.get());
 
   if (dir_entry->flags.directory) {
     entry->attributes_ = kFileAttributeDirectory;
@@ -253,15 +245,8 @@ void StfsContainerDevice::UpdateCachedHashTable(
   const size_t hash_offset = BlockToHashBlockOffset(block_index, hash_level);
   // Do nothing. It's already there.
   if (!cached_hash_tables_.count(hash_offset)) {
-    auto& file = files_.at(0);
-    xe::filesystem::Seek(file, hash_offset + secondary_table_offset, SEEK_SET);
-    StfsHashTable table;
-    if (fread(&table, sizeof(StfsHashTable), 1, file) != 1) {
-      XELOGE("GetBlockHash failed to read level{} hash table at 0x{:08X}",
-             hash_level, hash_offset + secondary_table_offset);
-      return;
-    }
-    cached_hash_tables_[hash_offset] = table;
+    cached_hash_tables_[hash_offset] = *reinterpret_cast<StfsHashTable*>(
+        data_->data() + hash_offset + secondary_table_offset);
   }
 
   uint32_t record = block_index % kBlocksPerHashLevel[0];
@@ -283,8 +268,6 @@ void StfsContainerDevice::UpdateCachedHashTables(
 }
 
 const StfsHashEntry* StfsContainerDevice::GetBlockHash(uint32_t block_index) {
-  auto& file = files_.at(0);
-
   const StfsVolumeDescriptor& descriptor =
       header_->content_metadata.volume_descriptor.stfs;
 

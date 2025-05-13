@@ -11,6 +11,7 @@
 #define XENIA_KERNEL_UTIL_XEX2_INFO_H_
 
 #include <cstdint>
+#include <string>
 #include <unordered_map>
 
 #include "xenia/base/byte_order.h"

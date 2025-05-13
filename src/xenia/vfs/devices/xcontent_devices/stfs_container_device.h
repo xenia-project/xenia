@@ -10,15 +10,12 @@
 #ifndef XENIA_VFS_DEVICES_XCONTENT_DEVICES_STFS_CONTAINER_DEVICE_H_
 #define XENIA_VFS_DEVICES_XCONTENT_DEVICES_STFS_CONTAINER_DEVICE_H_
 
-#include <string>
 #include <unordered_map>
 
-#include "xenia/base/string_util.h"
 #include "xenia/kernel/util/xex2_info.h"
-#include "xenia/vfs/device.h"
 #include "xenia/vfs/devices/stfs_xbox.h"
 #include "xenia/vfs/devices/xcontent_container_device.h"
-#include "xenia/vfs/devices/xcontent_container_entry.h"
+#include "xenia/vfs/devices/xcontent_devices/stfs_container_entry.h"
 
 namespace xe {
 namespace vfs {
@@ -61,12 +58,11 @@ class StfsContainerDevice : public XContentContainerDevice {
       kBlockSize / sizeof(StfsDirectoryEntry);
 
   void SetupContainer() override;
-  Result LoadHostFiles(FILE* header_file) override;
+  Result LoadHostFiles() override;
 
   Result Read() override;
-  std::unique_ptr<XContentContainerEntry> ReadEntry(
-      Entry* parent, MultiFileHandles* files,
-      const StfsDirectoryEntry* dir_entry);
+  std::unique_ptr<StfsContainerEntry> ReadEntry(
+      Entry* parent, const StfsDirectoryEntry* dir_entry);
 
   size_t BlockToOffset(uint64_t block_index) const;
   uint32_t BlockToHashBlockNumber(uint32_t block_index,
@@ -87,6 +83,7 @@ class StfsContainerDevice : public XContentContainerDevice {
   uint32_t block_step_[2];
 
   std::unordered_map<size_t, StfsHashTable> cached_hash_tables_;
+  std::unique_ptr<MappedMemory> data_;
 };
 
 }  // namespace vfs

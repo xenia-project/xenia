@@ -202,8 +202,9 @@ bool ProfileManager::LoadAccount(const uint64_t xuid) {
   file_data.resize(output_file->entry()->size());
 
   size_t bytes_read = 0;
-  output_file->ReadSync(file_data.data(), output_file->entry()->size(), 0,
-                        &bytes_read);
+  output_file->ReadSync(
+      std::span<uint8_t>(file_data.data(), output_file->entry()->size()), 0,
+      &bytes_read);
   output_file->Destroy();
 
   if (bytes_read < sizeof(X_XAMACCOUNTINFO)) {
@@ -562,8 +563,9 @@ bool ProfileManager::UpdateAccount(const uint64_t xuid,
   EncryptAccountFile(account, encrypted_data.data());
 
   size_t written_bytes = 0;
-  output_file->WriteSync(encrypted_data.data(), encrypted_data.size(), 0,
-                         &written_bytes);
+  output_file->WriteSync(
+      std::span<uint8_t>(encrypted_data.data(), encrypted_data.size()), 0,
+      &written_bytes);
   output_file->Destroy();
   return true;
 }

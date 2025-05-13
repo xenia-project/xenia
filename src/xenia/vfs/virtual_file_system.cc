@@ -391,7 +391,8 @@ X_STATUS VirtualFileSystem::ExtractContentFile(Entry* entry,
 
     while (remaining_size > 0) {
       size_t bytes_read = 0;
-      in_file->ReadSync(buffer, write_buffer_size, offset, &bytes_read);
+      in_file->ReadSync(std::span<uint8_t>(buffer, write_buffer_size), offset,
+                        &bytes_read);
       fwrite(buffer, bytes_read, 1, file);
       offset += bytes_read;
       remaining_size -= bytes_read;

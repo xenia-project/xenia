@@ -28,21 +28,22 @@ void HostPathFile::Destroy() {
   delete this;
 }
 
-X_STATUS HostPathFile::ReadSync(void* buffer, size_t buffer_length,
-                                size_t byte_offset, size_t* out_bytes_read) {
+X_STATUS HostPathFile::ReadSync(std::span<uint8_t> buffer, size_t byte_offset,
+                                size_t* out_bytes_read) {
   if (!(file_access_ &
         (FileAccess::kGenericRead | FileAccess::kFileReadData))) {
     return X_STATUS_ACCESS_DENIED;
   }
 
-  if (file_handle_->Read(byte_offset, buffer, buffer_length, out_bytes_read)) {
+  if (file_handle_->Read(byte_offset, buffer.data(), buffer.size(),
+                         out_bytes_read)) {
     return X_STATUS_SUCCESS;
   } else {
     return X_STATUS_END_OF_FILE;
   }
 }
 
-X_STATUS HostPathFile::WriteSync(const void* buffer, size_t buffer_length,
+X_STATUS HostPathFile::WriteSync(std::span<const uint8_t> buffer,
                                  size_t byte_offset,
                                  size_t* out_bytes_written) {
   if (!(file_access_ & (FileAccess::kGenericWrite | FileAccess::kFileWriteData |
@@ -50,7 +51,7 @@ X_STATUS HostPathFile::WriteSync(const void* buffer, size_t buffer_length,
     return X_STATUS_ACCESS_DENIED;
   }
 
-  if (file_handle_->Write(byte_offset, buffer, buffer_length,
+  if (file_handle_->Write(byte_offset, buffer.data(), buffer.size(),
                           out_bytes_written)) {
     return X_STATUS_SUCCESS;
   } else {

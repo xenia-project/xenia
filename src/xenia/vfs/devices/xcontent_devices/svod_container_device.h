@@ -11,19 +11,14 @@
 #define XENIA_VFS_DEVICES_XCONTENT_DEVICES_SVOD_CONTAINER_DEVICE_H_
 
 #include <map>
-#include <memory>
-#include <string>
-#include <unordered_map>
 
-#include "xenia/base/string_util.h"
-#include "xenia/kernel/util/xex2_info.h"
-#include "xenia/vfs/device.h"
 #include "xenia/vfs/devices/stfs_xbox.h"
 #include "xenia/vfs/devices/xcontent_container_device.h"
-#include "xenia/vfs/devices/xcontent_container_entry.h"
+#include "xenia/vfs/devices/xcontent_devices/svod_container_entry.h"
 
 namespace xe {
 namespace vfs {
+
 class SvodContainerDevice : public XContentContainerDevice {
  public:
   SvodContainerDevice(const std::string_view mount_path,
@@ -49,11 +44,11 @@ class SvodContainerDevice : public XContentContainerDevice {
   };
   const char* MEDIA_MAGIC = "MICROSOFT*XBOX*MEDIA";
 
-  Result LoadHostFiles(FILE* header_file) override;
+  Result LoadHostFiles() override;
 
   Result Read() override;
   Result ReadEntry(uint32_t sector, uint32_t ordinal,
-                   XContentContainerEntry* parent);
+                   SvodContainerEntry* parent);
   void BlockToOffset(size_t sector, size_t* address, size_t* file_index) const;
 
   Result SetLayout(FILE* header, size_t& magic_offset);
@@ -69,6 +64,7 @@ class SvodContainerDevice : public XContentContainerDevice {
 
   size_t svod_base_offset_;
   SvodLayoutType svod_layout_;
+  MultiFileHandles files_;
 };
 
 }  // namespace vfs

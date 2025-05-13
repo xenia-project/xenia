@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2023 Ben Vanik. All rights reserved.                             *
+ * Copyright 2025 Xenia Canary. All rights reserved.                          *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -14,8 +14,6 @@
 #include <map>
 #include <string_view>
 
-#include "xenia/base/math.h"
-#include "xenia/kernel/util/xex2_info.h"
 #include "xenia/kernel/xam/content_manager.h"
 #include "xenia/vfs/device.h"
 #include "xenia/vfs/devices/stfs_xbox.h"
@@ -66,7 +64,7 @@ class XContentContainerDevice : public Device {
   }
 
   uint32_t content_type() const {
-    return (uint32_t)header_->content_metadata.content_type.get();
+    return static_cast<uint32_t>(header_->content_metadata.content_type.get());
   }
 
   kernel::xam::XCONTENT_AGGREGATE_DATA content_header() const;
@@ -99,12 +97,11 @@ class XContentContainerDevice : public Device {
   virtual Result Read() = 0;
   // Load all host files. Usually STFS is only 1 file, meanwhile SVOD is usually
   // multiple file.
-  virtual Result LoadHostFiles(FILE* header_file) = 0;
-  // Initialize any container specific fields.
+  virtual Result LoadHostFiles() = 0;
+  // Initialize container specific fields.
   virtual void SetupContainer() {};
 
   Entry* ResolvePath(const std::string_view path) override;
-  void CloseFiles();
   void Dump(StringBuffer* string_buffer) override;
   Result ReadHeaderAndVerify(FILE* header_file);
 
@@ -119,7 +116,6 @@ class XContentContainerDevice : public Device {
   std::string name_;
   std::filesystem::path host_path_;
 
-  std::map<size_t, FILE*> files_;
   size_t files_total_size_;
   std::unique_ptr<Entry> root_entry_;
   std::unique_ptr<XContentContainerHeader> header_;

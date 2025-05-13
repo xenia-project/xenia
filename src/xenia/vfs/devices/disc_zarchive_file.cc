@@ -25,19 +25,23 @@ DiscZarchiveFile::~DiscZarchiveFile() = default;
 
 void DiscZarchiveFile::Destroy() { delete this; }
 
-X_STATUS DiscZarchiveFile::ReadSync(void* buffer, size_t buffer_length,
+X_STATUS DiscZarchiveFile::ReadSync(std::span<uint8_t> buffer,
                                     size_t byte_offset,
                                     size_t* out_bytes_read) {
   if (byte_offset >= entry_->size()) {
     return X_STATUS_END_OF_FILE;
   }
-  const uint64_t bytes_read =
-      ((DiscZarchiveDevice*)entry_->device_)
-          ->reader()
-          ->ReadFromFile(entry_->handle_, byte_offset, buffer_length, buffer);
-  const size_t real_length =
-      std::min(buffer_length, entry_->data_size() - byte_offset);
-  *out_bytes_read = real_length;
+
+  DiscZarchiveDevice* zArchDev =
+      dynamic_cast<DiscZarchiveDevice*>(entry_->device_);
+
+  if (!zArchDev) {
+    return X_STATUS_UNSUCCESSFUL;
+  }
+
+  const uint64_t bytes_read = zArchDev->reader()->ReadFromFile(
+      entry_->handle_, byte_offset, buffer.size(), buffer.data());
+  *out_bytes_read = bytes_read;
   return X_STATUS_SUCCESS;
 }
 

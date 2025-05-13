@@ -2,17 +2,13 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2023 Ben Vanik. All rights reserved.                             *
+ * Copyright 2025 Xenia Canary. All rights reserved.                          *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#include <algorithm>
-#include <cmath>
-
-#include "xenia/base/math.h"
-#include "xenia/vfs/devices/xcontent_container_entry.h"
 #include "xenia/vfs/devices/xcontent_container_file.h"
+#include "xenia/vfs/devices/xcontent_container_entry.h"
 
 namespace xe {
 namespace vfs {
@@ -25,7 +21,7 @@ XContentContainerFile::~XContentContainerFile() = default;
 
 void XContentContainerFile::Destroy() { delete this; }
 
-X_STATUS XContentContainerFile::ReadSync(void* buffer, size_t buffer_length,
+X_STATUS XContentContainerFile::ReadSync(std::span<uint8_t> buffer,
                                          size_t byte_offset,
                                          size_t* out_bytes_read) {
   if (byte_offset >= entry_->size()) {
@@ -33,9 +29,9 @@ X_STATUS XContentContainerFile::ReadSync(void* buffer, size_t buffer_length,
   }
 
   size_t src_offset = 0;
-  uint8_t* p = reinterpret_cast<uint8_t*>(buffer);
+  uint8_t* p = buffer.data();
   size_t remaining_length =
-      std::min(buffer_length, entry_->size() - byte_offset);
+      std::min(buffer.size(), entry_->size() - byte_offset);
 
   *out_bytes_read = 0;
   for (size_t i = 0; i < entry_->block_list().size(); i++) {
@@ -51,9 +47,8 @@ X_STATUS XContentContainerFile::ReadSync(void* buffer, size_t buffer_length,
     size_t read_length =
         std::min(record.length - read_offset, remaining_length);
 
-    auto& file = entry_->files()->at(record.file);
-    xe::filesystem::Seek(file, record.offset + read_offset, SEEK_SET);
-    auto num_read = fread(p, 1, read_length, file);
+    auto num_read = Read(std::span<uint8_t>(p, read_length),
+                         record.offset + read_offset, record.file);
 
     *out_bytes_read += num_read;
     p += num_read;
