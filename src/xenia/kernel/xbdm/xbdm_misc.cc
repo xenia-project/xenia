@@ -18,6 +18,8 @@
 // chrispy: no idea what a real valid value is for this
 static constexpr const char DmXboxName[] = "Xbox360Name";
 
+DECLARE_bool(debug);
+
 namespace xe {
 namespace kernel {
 namespace xbdm {
@@ -66,7 +68,9 @@ dword_result_t DmGetXboxName_entry(const ppc_context_t& ctx) {
 }
 DECLARE_XBDM_EXPORT1(DmGetXboxName, kDebug, kImplemented)
 
-dword_result_t DmIsDebuggerPresent_entry() { return 0; }
+dword_result_t DmIsDebuggerPresent_entry() {
+  return static_cast<uint32_t>(cvars::debug);
+}
 DECLARE_XBDM_EXPORT1(DmIsDebuggerPresent, kDebug, kStub);
 
 void DmSendNotificationString_entry(lpdword_t unk0_ptr) {}
