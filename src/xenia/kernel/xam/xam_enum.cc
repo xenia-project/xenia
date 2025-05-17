@@ -26,7 +26,6 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-// https://github.com/LestaD/SourceEngine2007/blob/master/se2007/engine/xboxsystem.cpp#L518
 uint32_t xeXamEnumerate(uint32_t handle, uint32_t flags, lpvoid_t buffer_ptr,
                         uint32_t buffer_size, uint32_t* items_returned,
                         uint32_t overlapped_ptr) {
