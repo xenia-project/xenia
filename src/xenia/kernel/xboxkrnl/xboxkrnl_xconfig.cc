@@ -135,7 +135,7 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
         case 0x000C:  // XCONFIG_USER_RETAIL_FLAGS
           setting_size = 4;
           // TODO(benvanik): get this value.
-          xe::store_and_swap<uint32_t>(value, 0);
+          xe::store_and_swap<uint32_t>(value, 0x40);
           break;
         case 0x000E:  // XCONFIG_USER_COUNTRY
           setting_size = 1;

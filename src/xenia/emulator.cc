@@ -579,6 +579,14 @@ X_STATUS Emulator::LaunchXexFile(const std::filesystem::path& path) {
     if (!kernel::IsSystemTitle(title_id)) {
       // Assumption that any loaded game is loaded as a disc.
       kernel_state_->deployment_type_ = XDeploymentType::kOpticalDisc;
+    } else {
+      const std::string mount_path = xe::path_to_utf8(
+          std::filesystem::path(kernel_state_->GetExecutableModule()->path())
+              .parent_path());
+
+      // System related symlinks
+      file_system_->RegisterSymbolicLink("media:", mount_path);
+      file_system_->RegisterSymbolicLink("font:", mount_path);
     }
   }
   return result;

@@ -73,11 +73,11 @@ static constexpr bool IsSystemTitle(const uint32_t title_id) {
   }
 
   if (!IsXboxTitle(title_id)) {
-    return IsValidGameId(title_id);
+    return !IsValidGameId(title_id);
   }
 
   if (IsXblaTitle(title_id)) {
-    return IsValidGameId(title_id);
+    return !IsValidGameId(title_id);
   }
 
   return true;
