@@ -754,6 +754,12 @@ void XampWebInstrumentationSetProfileCounts_entry(dword_t live_profiles,
 DECLARE_XAM_EXPORT1(XampWebInstrumentationSetProfileCounts, kUserProfiles,
                     kStub);
 
+dword_result_t XamDoesOmniNeedConfiguration_entry() { return 0; }
+DECLARE_XAM_EXPORT1(XamDoesOmniNeedConfiguration, kNone, kStub);
+
+dword_result_t XamFirstRunExperienceShouldRun_entry() { return 0; }
+DECLARE_XAM_EXPORT1(XamFirstRunExperienceShouldRun, kNone, kStub);
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe
