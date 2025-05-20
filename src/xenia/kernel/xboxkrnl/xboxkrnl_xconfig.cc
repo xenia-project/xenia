@@ -64,7 +64,7 @@ namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 
-X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
+X_STATUS xeExGetXConfigSetting(X_CONFIG_CATEGORY category, uint16_t setting,
                                void* buffer, uint16_t buffer_size,
                                uint16_t* required_size) {
   uint16_t setting_size = 0;
@@ -74,8 +74,7 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
   // https://free60project.github.io/wiki/XConfig.html
   // https://github.com/oukiar/freestyledash/blob/master/Freestyle/Tools/Generic/ExConfig.h
   switch (category) {
-    case 0x0002:
-      // XCONFIG_SECURED_CATEGORY
+    case XCONFIG_SECURED_CATEGORY:
       switch (setting) {
         case 0x0002:  // XCONFIG_SECURED_AV_REGION
           setting_size = 4;
@@ -104,8 +103,7 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
           return X_STATUS_INVALID_PARAMETER_2;
       }
       break;
-    case 0x0003:
-      // XCONFIG_USER_CATEGORY
+    case XCONFIG_USER_CATEGORY:
       switch (setting) {
         case 0x0001:  // XCONFIG_USER_TIME_ZONE_BIAS
         case 0x0002:  // XCONFIG_USER_TIME_ZONE_STD_NAME
@@ -184,8 +182,7 @@ X_STATUS xeExGetXConfigSetting(uint16_t category, uint16_t setting,
           return X_STATUS_INVALID_PARAMETER_2;
       }
       break;
-    case 0x0007:
-      // XCONFIG_CONSOLE_SETTINGS
+    case XCONFIG_CONSOLE_CATEGORY:
       switch (setting) {
         case 0x0001:  // XCONFIG_CONSOLE_SCREENSAVER
           setting_size = 2;
@@ -243,8 +240,9 @@ dword_result_t ExGetXConfigSetting_entry(word_t category, word_t setting,
                                          word_t buffer_size,
                                          lpword_t required_size_ptr) {
   uint16_t required_size = 0;
-  X_STATUS result = xeExGetXConfigSetting(category, setting, buffer_ptr,
-                                          buffer_size, &required_size);
+  X_STATUS result =
+      xeExGetXConfigSetting(static_cast<X_CONFIG_CATEGORY>(category.value()),
+                            setting, buffer_ptr, buffer_size, &required_size);
 
   if (required_size_ptr) {
     *required_size_ptr = required_size;
