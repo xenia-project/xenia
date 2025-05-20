@@ -50,6 +50,9 @@ DEFINE_bool(
 
 DECLARE_bool(allow_plugins);
 
+static constexpr uint8_t xe_xex1_retail_key[16] = {
+    0xA2, 0x6C, 0x10, 0xF7, 0x1F, 0xD9, 0x35, 0xE9,
+    0x8B, 0x99, 0x92, 0x2C, 0xE9, 0x32, 0x15, 0x72};
 static constexpr uint8_t xe_xex2_retail_key[16] = {
     0x20, 0xB1, 0x85, 0xA5, 0x9D, 0x28, 0xFD, 0xC3,
     0x40, 0x58, 0x3F, 0xBB, 0x08, 0x96, 0xBF, 0x91};
@@ -506,12 +509,12 @@ int XexModule::ApplyPatch(XexModule* module) {
 }
 
 int XexModule::ReadImage(const void* xex_addr, size_t xex_length,
-                         bool use_dev_key) {
+                         const uint8_t* key) {
   if (!opt_file_format_info()) {
     return 1;
   }
 
-  is_dev_kit_ = use_dev_key;
+  is_dev_kit_ = key[0] == 0x00;
 
   if (is_patch()) {
     // Make a copy of patch data for other XEX's to use with ApplyPatch()
@@ -526,8 +529,7 @@ int XexModule::ReadImage(const void* xex_addr, size_t xex_length,
   memory()->LookupHeap(base_address_)->Reset();
 
   aes_decrypt_buffer(
-      use_dev_key ? xe_xex2_devkit_key : xe_xex2_retail_key,
-      reinterpret_cast<const uint8_t*>(xex_security_info()->aes_key), 16,
+      key, reinterpret_cast<const uint8_t*>(xex_security_info()->aes_key), 16,
       session_key_, 16);
 
   int result_code = 0;
@@ -971,16 +973,21 @@ bool XexModule::Load(const std::string_view name, const std::string_view path,
 
   // Load in the XEX basefile
   // We'll try using both XEX2 keys to see if any give a valid PE
-  int result_code = ReadImage(xex_addr, xex_length, false);
+  int result_code = ReadImage(xex_addr, xex_length, xe_xex2_retail_key);
   if (result_code) {
     XELOGW("XEX load failed with code {}, trying with devkit encryption key...",
            result_code);
 
-    result_code = ReadImage(xex_addr, xex_length, true);
+    result_code = ReadImage(xex_addr, xex_length, xe_xex2_devkit_key);
     if (result_code) {
-      XELOGE("XEX load failed with code {}, tried both encryption keys",
+      XELOGE("XEX load failed with code {}, trying with xex1 encryption key...",
              result_code);
-      return false;
+
+      result_code = ReadImage(xex_addr, xex_length, xe_xex1_retail_key);
+      if (result_code) {
+        XELOGE("XEX load failed with code {}", result_code);
+        return false;
+      }
     }
   }
 

@@ -163,8 +163,10 @@ dword_result_t XamBuildGamercardResourceLocator_entry(lpu16string_t filename,
 
   // If you're running an app that'll need them, make sure to extract xam.xex
   // resources with xextool ("xextool -d . xam.xex") and add a .xzp extension.
+  const auto xam_module = kernel_state()->GetModule("xam", true);
 
-  return keXamBuildResourceLocator(0, u"gamercrd", filename.value(), buffer_ptr,
+  return keXamBuildResourceLocator(xam_module ? xam_module->hmodule_ptr() : 0,
+                                   u"gamercrd", filename.value(), buffer_ptr,
                                    buffer_count);
 }
 DECLARE_XAM_EXPORT1(XamBuildGamercardResourceLocator, kNone, kImplemented);
@@ -172,8 +174,11 @@ DECLARE_XAM_EXPORT1(XamBuildGamercardResourceLocator, kNone, kImplemented);
 dword_result_t XamBuildSharedSystemResourceLocator_entry(lpu16string_t filename,
                                                          lpvoid_t buffer_ptr,
                                                          dword_t buffer_count) {
+  const auto xam_module = kernel_state()->GetModule("xam", true);
+
   // see notes inside XamBuildGamercardResourceLocator above
-  return keXamBuildResourceLocator(0, u"shrdres", filename.value(), buffer_ptr,
+  return keXamBuildResourceLocator(xam_module ? xam_module->hmodule_ptr() : 0,
+                                   u"shrdres", filename.value(), buffer_ptr,
                                    buffer_count);
 }
 DECLARE_XAM_EXPORT1(XamBuildSharedSystemResourceLocator, kNone, kImplemented);

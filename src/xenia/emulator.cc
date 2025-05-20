@@ -587,6 +587,12 @@ X_STATUS Emulator::LaunchXexFile(const std::filesystem::path& path) {
       // System related symlinks
       file_system_->RegisterSymbolicLink("media:", mount_path);
       file_system_->RegisterSymbolicLink("font:", mount_path);
+
+      auto module = kernel_state_->LoadUserModule("xam.xex");
+
+      if (module) {
+        result = kernel_state_->FinishLoadingUserModule(module, false);
+      }
     }
   }
   return result;

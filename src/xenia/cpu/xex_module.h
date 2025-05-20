@@ -244,7 +244,7 @@ class XexModule : public xe::cpu::Module {
   friend struct XexInfoCache;
   void ReadSecurityInfo();
 
-  int ReadImage(const void* xex_addr, size_t xex_length, bool use_dev_key);
+  int ReadImage(const void* xex_addr, size_t xex_length, const uint8_t* key);
   int ReadImageUncompressed(const void* xex_addr, size_t xex_length);
   int ReadImageBasicCompressed(const void* xex_addr, size_t xex_length);
   int ReadImageCompressed(const void* xex_addr, size_t xex_length);
