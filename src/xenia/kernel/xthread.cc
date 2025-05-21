@@ -764,13 +764,8 @@ X_STATUS XThread::Delay(uint32_t processor_mode, uint32_t alertable,
     timeout_ms = uint32_t(-timeout_ticks / 10000);  // Ticks -> MS
   } else {
     timeout_ms = 0;
-    // TODO(Gliniak): Check how it works, but it seems outright wrong.
-    // However some titles like to change priority then go to sleep with timeout
-    // 0.
-    if (priority_ <= xe::threading::ThreadPriority::kBelowNormal) {
-      timeout_ms = 1;
-    }
   }
+
   timeout_ms = Clock::ScaleGuestDurationMillis(timeout_ms);
   if (alertable) {
     auto result =
@@ -783,9 +778,18 @@ X_STATUS XThread::Delay(uint32_t processor_mode, uint32_t alertable,
         return X_STATUS_USER_APC;
     }
   } else {
-    xe::threading::Sleep(std::chrono::milliseconds(timeout_ms));
-    return X_STATUS_SUCCESS;
+    if (timeout_ms == 0) {
+      if (priority_ <= xe::threading::ThreadPriority::kBelowNormal) {
+        xe::threading::NanoSleep(100);
+      } else {
+        xe::threading::MaybeYield();
+      }
+    } else {
+      xe::threading::Sleep(std::chrono::milliseconds(timeout_ms));
+    }
   }
+
+  return X_STATUS_SUCCESS;
 }
 
 struct ThreadSavedState {
