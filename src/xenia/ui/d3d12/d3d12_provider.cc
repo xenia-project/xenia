@@ -292,6 +292,8 @@ bool D3D12Provider::Initialize() {
     return false;
   }
   adapter_vendor_id_ = GpuVendorID(adapter_desc.VendorId);
+  adapter_device_id_ = adapter_desc.DeviceId;
+
   int adapter_name_mb_size = WideCharToMultiByte(
       CP_UTF8, 0, adapter_desc.Description, -1, nullptr, 0, nullptr, nullptr);
   if (adapter_name_mb_size != 0) {

@@ -228,10 +228,13 @@ bool D3D12RenderTargetCache::Initialize() {
     // TODO(Triang3l): Make ROV the default when it's optimized better (for
     // instance, using static shader modifications to pass render target
     // parameters).
-    path_ = provider.GetAdapterVendorID() ==
-                    ui::GraphicsProvider::GpuVendorID::kIntel
-                ? Path::kPixelShaderInterlock
-                : Path::kHostRenderTargets;
+
+    path_ = Path::kHostRenderTargets;
+    if (provider.GetAdapterVendorID() ==
+            ui::GraphicsProvider::GpuVendorID::kIntel &&
+        !provider.IsIntelArcGpu()) {
+      path_ = Path::kPixelShaderInterlock;
+    }
 #else
     // The AMD shader compiler crashes very often with Xenia's custom
     // output-merger code as of March 2021.
@@ -444,8 +447,7 @@ bool D3D12RenderTargetCache::Initialize() {
       cvars::native_stencil_value_output &&
       provider.IsPSSpecifiedStencilReferenceSupported() &&
       (cvars::native_stencil_value_output_d3d12_intel ||
-       provider.GetAdapterVendorID() !=
-           ui::GraphicsProvider::GpuVendorID::kIntel);
+       !provider.IsIntelArcGpu());
 
   if (path_ == Path::kHostRenderTargets) {
     // Host render targets.
