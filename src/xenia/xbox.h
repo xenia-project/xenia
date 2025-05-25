@@ -46,6 +46,7 @@ typedef uint32_t X_STATUS;
 #define X_STATUS_INVALID_HANDLE                         ((X_STATUS)0xC0000008L)
 #define X_STATUS_INVALID_PARAMETER                      ((X_STATUS)0xC000000DL)
 #define X_STATUS_NO_SUCH_FILE                           ((X_STATUS)0xC000000FL)
+#define X_STATUS_INVALID_DEVICE_REQUEST                 ((X_STATUS)0xC0000010L)
 #define X_STATUS_END_OF_FILE                            ((X_STATUS)0xC0000011L)
 #define X_STATUS_NO_MEMORY                              ((X_STATUS)0xC0000017L)
 #define X_STATUS_ALREADY_COMMITTED                      ((X_STATUS)0xC0000021L)
@@ -517,6 +518,17 @@ enum class XDeploymentType : uint32_t {
   kInstalledToHDD = 1,  // Like extracted?
   kDownload = 2,
   kOther = 3,
+};
+
+// https://www.se7ensins.com/forums/threads/xtt-file-research.966597/
+struct XTTFileHeader {
+  uint32_t xttTag;
+  uint8_t signature[0x100];  // XECRYPT_SIG
+  uint32_t signedBlockSize;
+  uint32_t fileSize;
+  uint32_t compressedTablesSize;
+  uint32_t uncompressedTablesSize;
+  uint32_t xttFileVersion;
 };
 
 }  // namespace xe

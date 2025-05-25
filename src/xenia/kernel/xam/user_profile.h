@@ -86,13 +86,21 @@ inline const std::map<XTileType, std::string> kTileFileNames = {
 static constexpr std::pair<uint16_t, uint16_t> kProfileIconSize = {64, 64};
 static constexpr std::pair<uint16_t, uint16_t> kProfileIconSizeSmall = {32, 32};
 
+enum class SignInState : uint32_t {
+  NotSignedIn,
+  SignedInLocally,  // Offline
+  SignedInToLive,   // Online
+};
+
 class UserProfile {
  public:
   UserProfile(const uint64_t xuid, const X_XAMACCOUNTINFO* account_info);
 
   uint64_t xuid() const { return xuid_; }
   std::string name() const { return account_info_.GetGamertagString(); }
-  uint32_t signin_state() const { return 1; }
+  uint32_t signin_state() const {
+    return static_cast<uint32_t>(SignInState::SignedInLocally);
+  };
   uint32_t type() const { return 1 | 2; /* local | online profile? */ }
 
   uint32_t GetReservedFlags() const {

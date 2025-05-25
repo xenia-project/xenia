@@ -938,7 +938,7 @@ X_RESULT xeXamShowSigninUI(uint32_t user_index, uint32_t users_needed,
       close);
 }
 
-X_RESULT xeXamShowCreateProfileUIEx(uint32_t user_index, dword_t unkn,
+X_RESULT xeXamShowCreateProfileUIEx(uint32_t user_index, dword_t flag,
                                     char* unkn2_ptr) {
   Emulator* emulator = kernel_state()->emulator();
   xe::ui::ImGuiDrawer* imgui_drawer = emulator->imgui_drawer();
@@ -958,20 +958,42 @@ dword_result_t XamShowSigninUI_entry(dword_t users_needed, dword_t flags) {
 }
 DECLARE_XAM_EXPORT1(XamShowSigninUI, kUserProfiles, kImplemented);
 
+dword_result_t XamShowSigninUIEx_entry(
+    dword_t users_needed, dword_t flags,
+    pointer_t<XAM_OVERLAPPED> overlapped_ptr) {
+  X_RESULT result = xeXamShowSigninUI(XUserIndexAny, users_needed, flags);
+  if (overlapped_ptr) {
+    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr, result);
+    return X_ERROR_IO_PENDING;
+  } else {
+    return result;
+  }
+}
+DECLARE_XAM_EXPORT1(XamShowSigninUIEx, kUserProfiles, kSketchy);
+
+dword_result_t XamShowNuiSigninUI_entry(dword_t unk, dword_t user_index,
+                                        dword_t flags) {
+  uint32_t users_needed = 1;
+  uint32_t sent_flags = flags | static_cast<uint32_t>(SigninUiFlags::NUI);
+  // xeXamNuiHudCheck(unk) = success then continue else return
+  return xeXamShowSigninUI(user_index, users_needed, sent_flags);
+}
+DECLARE_XAM_EXPORT1(XamShowNuiSigninUI, kUserProfiles, kSketchy);
+
 dword_result_t XamShowSigninUIp_entry(dword_t user_index, dword_t users_needed,
                                       dword_t flags) {
   return xeXamShowSigninUI(user_index, users_needed, flags);
 }
 DECLARE_XAM_EXPORT1(XamShowSigninUIp, kUserProfiles, kImplemented);
 
-dword_result_t XamShowCreateProfileUIEx_entry(dword_t user_index, dword_t unkn,
+dword_result_t XamShowCreateProfileUIEx_entry(dword_t user_index, dword_t flag,
                                               lpstring_t unkn2_ptr) {
-  return xeXamShowCreateProfileUIEx(user_index, unkn, unkn2_ptr);
+  return xeXamShowCreateProfileUIEx(user_index, flag, unkn2_ptr);
 }
 DECLARE_XAM_EXPORT1(XamShowCreateProfileUIEx, kUserProfiles, kImplemented);
 
-dword_result_t XamShowCreateProfileUI_entry(dword_t user_index, dword_t unkn) {
-  return xeXamShowCreateProfileUIEx(user_index, unkn, 0);
+dword_result_t XamShowCreateProfileUI_entry(dword_t user_index, dword_t flag) {
+  return xeXamShowCreateProfileUIEx(user_index, flag, 0);
 }
 DECLARE_XAM_EXPORT1(XamShowCreateProfileUI, kUserProfiles, kImplemented);
 

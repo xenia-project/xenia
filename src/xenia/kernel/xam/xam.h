@@ -242,6 +242,74 @@ static_assert_size(X_PASSPORT_SESSION_TOKEN, 0x1C);
 #define DPAD_RIGHT_PASSCODE         0x00005813
 // clang-format on
 
+enum class CreateProfileUiFlags : uint32_t {
+  CreateNewProfile = 0x00000000,
+  SignUpForLive = 0x00000001,   // Used in NXE and kinect profile page
+  RecoverProfile = 0x00000002,  // Used in NXE and kinect profile Select
+};
+
+enum class SigninUiFlags : uint32_t {
+  ALL = 0x00000000,  // show all profiles with option to create one or download
+  LocalSignInOnly = 0x00000001,
+  ShowOnlineEnabledOnly = 0x00000002,
+  AllowSignout = 0x00000004,
+  NUI = 0x00000008,  // always set by XamShowNuiSigninUI
+  DisallowPlayAs = 0x00000010,
+  AddUser = 0x00010000,
+  CompleteSignIn = 0x00020000,
+  ShowParentalControlledOnly = 0x00040000,
+  EnableGuest = 0x00080000,
+  DisallowReload = 0x00100000,
+  ConvertOfflineToGuest = 0x00400000,
+  Unk_1 = 0x00800000,  // used by XamShowSigninUIEx
+  DisallowGuest = 0x01000000,
+  Unk_2 = 0x02000000,  // used by XamShowSigninUIEx
+  Unk_3 = 0x04000000,  // used by XamShowSigninUIp
+  Unk_4 = 0x20000000,  // used by XamShowSigninUIp
+  /* Known examples:
+    - 0x04000001 // used by XamShowSigninUI
+    - 0x04030000 // used by XamShowSigninUIp to login to a specific account for
+    NXE and Kinect
+    - 0x24030000 // used by XamShowSigninUIp
+    - 0x02230002 // used by XamShowSigninUIEx
+    - 0x01000002 // used by XamShowSigninUIEx
+    - 0x01010002 // used by XamShowSigninUIEx
+    - xbox live controls in family settings
+  */
+};
+
+enum class UserLogonFlags : uint32_t {
+  OfflineOnly = 0x00000001,
+  ForceLiveLogOff = 0x00000002,
+  AddUser = 0x00000004,
+  RemoveUser = 0x00000008,
+  ForegroundPriority = 0x00000010,
+  NoPopupNotification = 0x00000020,
+  DontWaitForCompletion = 0x00000040,  // overlap related
+  AllowMachineAccountOnly = 0x00000080,
+  CheckOnlineTicketsOnly = 0x00000100,
+  AllowDefaultUser = 0x00000200,
+  AllowUsersWithRequiredMessage = 0x00000400,
+  RestrictPopupNotification = 0x00000800,
+  unknown_1 = 0x00002000,
+  InvalidFlag = 0x00004000,  // return X_E_INVALIDARG
+  /* Known examples:
+    - 0x00000008 blades 6717 log out
+    - 0x00000017 Blades 6717 log on
+    - 0x00000023
+    - 0x00000048 Blades
+    - 0x00000013 Testing Network
+    - 0x00000424
+    - 0x00000025 NXE
+    - 0x00000014 Blades OOBE profile creation
+  */
+};
+
+enum class UserContextDevice : uint32_t {
+  BigButton = 3,
+  Microphone = 4,
+};
+
 }  // namespace xam
 }  // namespace kernel
 }  // namespace xe

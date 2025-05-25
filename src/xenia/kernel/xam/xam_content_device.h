@@ -21,8 +21,9 @@ namespace xam {
 enum class DeviceType : uint32_t {
   Invalid = 0,
   HDD = 1,
-  MU = 2,
+  MU = 2,  // support removed in 9199
   ODD = 4,
+  USBMASS = 16,  // Added in 8955
 };
 
 enum class DummyDeviceId : uint32_t {
