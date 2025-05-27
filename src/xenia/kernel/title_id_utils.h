@@ -48,11 +48,14 @@ static constexpr bool IsXblaTitle(const uint32_t title_id) {
   return publisher.first == 'X' && publisher.second == 'A';
 }
 
+static_assert(IsXblaTitle(0x5841127D));   // XBLA Game
+static_assert(!IsXblaTitle(0x4D5309C9));  // Non-XBLA Game
+
 static constexpr bool IsAppTitle(const uint32_t title_id) {
   const auto publisher = GetTitlePublisher(title_id);
 
   return publisher.first == 'X' && publisher.second == 'H' ||
-         publisher.first == 'X' && publisher.second == 'H';
+         publisher.first == 'X' && publisher.second == 'J';
 }
 
 static constexpr bool IsXNTitle(const uint32_t title_id) {
@@ -83,17 +86,24 @@ static constexpr bool IsSystemTitle(const uint32_t title_id) {
   return true;
 };
 
+static_assert(IsSystemTitle(kDashboardID));  // Dashboard check
+static_assert(!IsSystemTitle(0x4D5308BC));   // Non-XBLA Game
+static_assert(!IsSystemTitle(0x5841089A));   // XBLA Game
+
 static constexpr bool IsOriginalXboxTitle(const uint32_t title_id) {
   if (!IsValidGameId(title_id)) {
     return true;
   }
 
-  if (!title_id || (title_id >> 24) == 0xFF) {
+  if (title_id >> 24 == 0xFF) {
     return false;
   }
 
-  return (title_id >> 17) < 0x7D0;
+  return (title_id & 0x7FFF) < 0x7D0;
 };
+
+static_assert(IsOriginalXboxTitle(0x41430006));   // OG-Xbox Game
+static_assert(!IsOriginalXboxTitle(0x4D5308BC));  // 360 Game
 
 }  // namespace kernel
 }  // namespace xe
