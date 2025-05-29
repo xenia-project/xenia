@@ -7,17 +7,8 @@
  ******************************************************************************
  */
 
-#include <cstring>
-#include <iomanip>
-#include <sstream>
-#include <string>
-
-#include "xenia/base/logging.h"
-#include "xenia/kernel/kernel_state.h"
-#include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
-#include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
 
 DEFINE_bool(log_string_format_kernel_calls, false,

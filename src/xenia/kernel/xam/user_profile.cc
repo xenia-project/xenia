@@ -10,7 +10,6 @@
 #include "xenia/kernel/xam/user_profile.h"
 
 #include <ranges>
-#include <sstream>
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/kernel/kernel_state.h"
@@ -21,7 +20,8 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-UserProfile::UserProfile(uint64_t xuid, X_XAMACCOUNTINFO* account_info)
+UserProfile::UserProfile(const uint64_t xuid,
+                         const X_XAMACCOUNTINFO* account_info)
     : xuid_(xuid), account_info_(*account_info), profile_images_() {
   // 58410A1F checks the user XUID against a mask of 0x00C0000000000000 (3<<54),
   // if non-zero, it prevents the user from playing the game.

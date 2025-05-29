@@ -12,7 +12,6 @@
 #include <vector>
 
 #include "xenia/base/byte_stream.h"
-#include "xenia/base/clock.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"

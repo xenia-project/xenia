@@ -17,9 +17,6 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-GpdAchievementBackend::GpdAchievementBackend() {}
-GpdAchievementBackend::~GpdAchievementBackend() {}
-
 void GpdAchievementBackend::EarnAchievement(const uint64_t xuid,
                                             const uint32_t title_id,
                                             const uint32_t achievement_id) {

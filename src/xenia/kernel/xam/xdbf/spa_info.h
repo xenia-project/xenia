@@ -130,6 +130,7 @@ static_assert_size(AchievementTableEntry, 0x24);
 class SpaInfo : public XdbfFile {
  public:
   SpaInfo(const std::span<uint8_t> buffer);
+  ~SpaInfo() = default;
 
   void Load();
 

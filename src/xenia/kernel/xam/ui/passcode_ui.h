@@ -22,12 +22,7 @@ class ProfilePasscodeUI final : public XamDialog {
   ProfilePasscodeUI(xe::ui::ImGuiDrawer* imgui_drawer, std::string_view title,
                     std::string_view description,
                     MESSAGEBOX_RESULT* result_ptr);
-
-  void DrawPasscodeField(uint8_t key_id);
-
-  void OnDraw(ImGuiIO& io) override;
-
-  virtual ~ProfilePasscodeUI() {}
+  ~ProfilePasscodeUI() = default;
 
   bool SelectedSignedIn() const { return selected_signed_in_; }
 
@@ -47,6 +42,10 @@ class ProfilePasscodeUI final : public XamDialog {
       {"Down", DPAD_DOWN_PASSCODE},
       {"Left", DPAD_LEFT_PASSCODE},
       {"Right", DPAD_RIGHT_PASSCODE}};
+
+  void OnDraw(ImGuiIO& io) override;
+
+  void DrawPasscodeField(uint8_t key_id);
 
   bool has_opened_ = false;
   bool selected_signed_in_ = false;

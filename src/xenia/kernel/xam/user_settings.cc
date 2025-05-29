@@ -27,11 +27,6 @@ const static std::array<UserSetting, 3> default_setting_values = {
         UserSettingId::XPROFILE_GAMERCARD_PICTURE_KEY,
         xe::string_util::read_u16string_and_swap(u"gamercard_picture_key"))};
 
-UserSetting::UserSetting(UserSetting& setting) : UserData(setting) {
-  setting_id_ = setting.setting_id_;
-  setting_source_ = setting.setting_source_;
-}
-
 UserSetting::UserSetting(const UserSetting& setting) : UserData(setting) {
   setting_id_ = setting.setting_id_;
   setting_source_ = setting.setting_source_;

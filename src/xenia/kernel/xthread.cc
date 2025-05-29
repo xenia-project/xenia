@@ -9,25 +9,16 @@
 
 #include "xenia/kernel/xthread.h"
 
-#include <cstring>
-
-#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/byte_stream.h"
-#include "xenia/base/clock.h"
-#include "xenia/base/literals.h"
 #include "xenia/base/logging.h"
-#include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
-#include "xenia/cpu/breakpoint.h"
-#include "xenia/cpu/ppc/ppc_decode_data.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_threading.h"
-#include "xenia/kernel/xevent.h"
-#include "xenia/kernel/xmutant.h"
+
 DEFINE_bool(ignore_thread_priorities, true,
             "Ignores game-specified thread priorities.", "Kernel");
 DEFINE_bool(ignore_thread_affinities, true,
@@ -39,14 +30,13 @@ DEFINE_int64(stack_size_multiplier_hack, 1,
 DEFINE_int64(main_xthread_stack_size_multiplier_hack, 1,
              "A hack for games with setjmp/longjmp issues.", "Kernel");
 #endif
+
 namespace xe {
 namespace kernel {
 
 const uint32_t XAPC::kSize;
 const uint32_t XAPC::kDummyKernelRoutine;
 const uint32_t XAPC::kDummyRundownRoutine;
-
-using xe::cpu::ppc::PPCOpcode;
 
 using namespace xe::literals;
 

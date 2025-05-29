@@ -2,16 +2,16 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2023 Xenia Canary. All rights reserved. * Released under the BSD
- *license - see LICENSE in the root for more details. *
+ * Copyright 2023 Xenia Canary. All rights reserved.                          *
+ * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
 #include "xenia/kernel/util/guest_object_table.h"
-#include "xenia/base/atomic.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_memory.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_threading.h"
+
 namespace xe {
 namespace kernel {
 namespace util {

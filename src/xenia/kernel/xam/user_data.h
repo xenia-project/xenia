@@ -14,6 +14,7 @@
 #include <variant>
 #include <vector>
 
+#include "xenia/base/string_util.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -175,9 +176,7 @@ class UserData {
   }
 
  protected:
-  ~UserData();
-
-  UserData();
+  UserData() = default;
   UserData(const UserData& user_data);
 
   // From host
@@ -192,6 +191,8 @@ class UserData {
   // For data from GPD
   UserData(const X_USER_DATA_TYPE data_type, const X_USER_DATA_UNION* user_data,
            std::span<const uint8_t> extended_data);
+
+  ~UserData() = default;
 
   X_USER_DATA data_ = {};
   std::vector<uint8_t> extended_data_ = {};

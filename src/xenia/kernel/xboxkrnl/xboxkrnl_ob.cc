@@ -8,19 +8,14 @@
  */
 
 #include "xenia/kernel/xboxkrnl/xboxkrnl_ob.h"
-#include "xenia/base/assert.h"
-#include "xenia/base/atomic.h"
 #include "xenia/base/logging.h"
-#include "xenia/base/utf8.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/kernel/kernel_state.h"
-#include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_threading.h"
-#include "xenia/kernel/xobject.h"
-#include "xenia/kernel/xsemaphore.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
+
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {

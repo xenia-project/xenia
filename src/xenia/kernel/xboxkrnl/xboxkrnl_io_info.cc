@@ -8,19 +8,12 @@
  */
 
 #include "xenia/base/logging.h"
-#include "xenia/base/memory.h"
-#include "xenia/base/mutex.h"
-#include "xenia/cpu/processor.h"
 #include "xenia/kernel/info/file.h"
 #include "xenia/kernel/info/volume.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
-#include "xenia/kernel/xevent.h"
 #include "xenia/kernel/xfile.h"
-#include "xenia/kernel/xiocompletion.h"
-#include "xenia/kernel/xsymboliclink.h"
-#include "xenia/kernel/xthread.h"
 #include "xenia/vfs/device.h"
 #include "xenia/xbox.h"
 

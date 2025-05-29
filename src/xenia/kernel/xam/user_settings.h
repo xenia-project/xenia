@@ -267,7 +267,7 @@ enum class UserSettingId : uint32_t {
                  0x4F),  // 0x7008004F, named "LastOnLIVE" in Velocity
 };
 
-constexpr static std::array<UserSettingId, 104> known_settings = {
+inline constexpr std::array<UserSettingId, 104> known_settings = {
     UserSettingId::XPROFILE_PERMISSIONS,
     UserSettingId::XPROFILE_GAMER_TYPE,
     UserSettingId::XPROFILE_GAMER_YAXIS_INVERSION,
@@ -374,7 +374,7 @@ constexpr static std::array<UserSettingId, 104> known_settings = {
     UserSettingId::XPROFILE_LAST_LIVE_SIGNIN,
 };
 
-const static std::set<UserSettingId> title_writable_settings = {
+inline const std::set<UserSettingId> title_writable_settings = {
     UserSettingId::XPROFILE_TITLE_SPECIFIC1,
     UserSettingId::XPROFILE_TITLE_SPECIFIC2,
     UserSettingId::XPROFILE_TITLE_SPECIFIC3};
@@ -447,7 +447,6 @@ enum ACCELERATOR_CONTROL_OPTIONS : uint8_t {
 
 class UserSetting : public UserData {
  public:
-  UserSetting(UserSetting& setting);
   UserSetting(const UserSetting& setting);
   // Ctor for writing from host
   UserSetting(UserSettingId setting_id, UserDataTypes setting_data);

@@ -22,6 +22,8 @@ class SigninUI final : public XamDialog {
   SigninUI(xe::ui::ImGuiDrawer* imgui_drawer, ProfileManager* profile_manager,
            uint32_t last_used_slot, uint32_t users_needed);
 
+  ~SigninUI() = default;
+
  private:
   void OnDraw(ImGuiIO& io) override;
 

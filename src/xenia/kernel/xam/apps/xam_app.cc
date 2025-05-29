@@ -10,7 +10,6 @@
 #include "xenia/kernel/xam/apps/xam_app.h"
 
 #include "xenia/base/logging.h"
-#include "xenia/base/threading.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xam/xam_content_device.h"
 #include "xenia/kernel/xenumerator.h"

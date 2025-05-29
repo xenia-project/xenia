@@ -9,9 +9,7 @@
 
 #include "xenia/kernel/xboxkrnl/xboxkrnl_xconfig.h"
 #include "xenia/base/logging.h"
-#include "xenia/cpu/processor.h"
 #include "xenia/kernel/kernel_state.h"
-#include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/xbox.h"

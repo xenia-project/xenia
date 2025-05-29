@@ -10,8 +10,6 @@
 #include "xenia/kernel/kernel_module.h"
 
 #include "xenia/base/logging.h"
-#include "xenia/base/mutex.h"
-#include "xenia/cpu/processor.h"
 #include "xenia/cpu/raw_module.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/xthread.h"

@@ -11,7 +11,6 @@
 #define XENIA_KERNEL_XAM_XAM_PRIVATE_H_
 
 #include "xenia/cpu/export_resolver.h"
-#include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xam/xam_ordinals.h"
 
 namespace xe {

@@ -15,7 +15,6 @@
 
 namespace xe {
 namespace kernel {
-
 namespace xboxkrnl {
 
 uint32_t xeMmAllocatePhysicalMemoryEx(uint32_t flags, uint32_t region_size,

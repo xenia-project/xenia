@@ -9,22 +9,12 @@
 
 #include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
 
-#include <vector>
-
-#include "third_party/fmt/include/fmt/format.h"
-#include "xenia/base/clock.h"
-#include "xenia/base/debugging.h"
 #include "xenia/base/logging.h"
-#include "xenia/base/math.h"
-#include "xenia/cpu/ppc/ppc_context.h"
-#include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
-#include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/xboxkrnl/cert_monitor.h"
 #include "xenia/kernel/xboxkrnl/debug_monitor.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
-#include "xenia/kernel/xthread.h"
 
 DEFINE_string(cl, "", "Specify additional command-line provided to guest.",
               "Kernel");

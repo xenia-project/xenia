@@ -39,7 +39,7 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-const static std::string kDashboardStringID =
+inline const std::string kDashboardStringID =
     fmt::format("{:08X}", kDashboardID);
 
 constexpr std::string_view kDefaultMountFormat = "User_{:016X}";
@@ -60,7 +60,7 @@ class ProfileManager {
   // Loading Account means load basic data
   ProfileManager(KernelState* kernel_state, UserTracker* user_tracker);
 
-  ~ProfileManager();
+  ~ProfileManager() = default;
 
   bool CreateProfile(const std::string gamertag, bool autologin,
                      bool default_xuid = false);
@@ -77,7 +77,6 @@ class ProfileManager {
   void LoginMultiple(const std::map<uint8_t, uint64_t>& profiles);
 
   bool LoadAccount(const uint64_t xuid);
-  void LoadAccounts(const std::vector<uint64_t> profiles_xuids);
 
   void ReloadProfiles();
   void ReloadProfile(const uint64_t xuid);

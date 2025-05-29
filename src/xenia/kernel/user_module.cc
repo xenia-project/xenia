@@ -15,11 +15,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/xxhash.h"
 #include "xenia/cpu/elf_module.h"
-#include "xenia/cpu/processor.h"
-#include "xenia/cpu/xex_module.h"
 #include "xenia/emulator.h"
-#include "xenia/kernel/xfile.h"
-#include "xenia/kernel/xthread.h"
 
 namespace xe {
 namespace kernel {

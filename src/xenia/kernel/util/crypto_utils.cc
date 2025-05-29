@@ -6,10 +6,10 @@
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
+
 #include <algorithm>
 
 #include "xenia/kernel/util/crypto_utils.h"
-#include "xenia/xbox.h"
 
 #include "third_party/crypto/TinySHA1.hpp"
 

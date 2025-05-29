@@ -15,10 +15,9 @@
 #include <string>
 #include <vector>
 
-#include "xenia/base/chrono.h"
+#include "xenia/kernel/util/xfiletime.h"
 #include "xenia/kernel/xam/xdbf/gpd_info.h"
 #include "xenia/kernel/xam/xdbf/spa_info.h"
-#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {

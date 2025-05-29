@@ -10,14 +10,14 @@
 #ifndef XENIA_KERNEL_XAM_XDBF_GPD_INFO_H_
 #define XENIA_KERNEL_XAM_XDBF_GPD_INFO_H_
 
-#include "xenia/kernel/xam/user_data.h"
-#include "xenia/kernel/xam/xdbf/xdbf_io.h"
-
 #include <span>
 #include <string>
 #include <vector>
 
-#include "xenia/xbox.h"
+#include "xenia/base/byte_order.h"
+#include "xenia/kernel/util/xfiletime.h"
+#include "xenia/kernel/xam/user_data.h"
+#include "xenia/kernel/xam/xdbf/xdbf_io.h"
 
 namespace xe {
 namespace kernel {
@@ -110,6 +110,8 @@ class GpdInfo : public XdbfFile {
   GpdInfo();
   GpdInfo(const uint32_t title_id);
   GpdInfo(const uint32_t title_id, const std::vector<uint8_t> buffer);
+
+  ~GpdInfo() = default;
 
   // Normally GPD ALWAYS contains one free entry that indicates EOF
   bool IsValid() const { return !free_entries_.empty(); }

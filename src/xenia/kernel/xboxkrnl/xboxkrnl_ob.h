@@ -10,11 +10,15 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XBOXKRNL_OB_H_
 #define XENIA_KERNEL_XBOXKRNL_XBOXKRNL_OB_H_
 
-#include "xenia/kernel/util/shim_utils.h"
+#include "xenia/cpu/ppc/ppc_context.h"
+#include "xenia/xbox.h"
+
+using PPCContext = xe::cpu::ppc::PPCContext;
 
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {
+
 void xeObDereferenceObject(PPCContext* context, uint32_t native_ptr);
 void xeObSplitName(X_ANSI_STRING input_string,
                    X_ANSI_STRING* leading_path_component,

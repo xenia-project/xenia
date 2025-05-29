@@ -46,6 +46,8 @@ class GamercardUI final : public XamDialog {
   GamercardUI(xe::ui::Window* window, xe::ui::ImGuiDrawer* imgui_drawer,
               KernelState* kernel_state, uint64_t xuid);
 
+  ~GamercardUI() = default;
+
  private:
   void OnDraw(ImGuiIO& io) override;
   void DrawBaseSettings(ImGuiIO& io);

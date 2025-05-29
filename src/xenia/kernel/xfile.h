@@ -12,9 +12,7 @@
 
 #include <string>
 
-#include "xenia/kernel/xevent.h"
 #include "xenia/kernel/xiocompletion.h"
-#include "xenia/kernel/xobject.h"
 #include "xenia/vfs/device.h"
 #include "xenia/vfs/entry.h"
 #include "xenia/vfs/file.h"

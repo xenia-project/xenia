@@ -16,10 +16,6 @@
 #include "xenia/kernel/xenumerator.h"
 #include "xenia/xbox.h"
 
-#if XE_PLATFORM_WIN32
-#include "xenia/base/platform_win.h"
-#endif
-
 #include "third_party/fmt/include/fmt/format.h"
 
 namespace xe {

@@ -10,11 +10,6 @@
 #ifndef XENIA_KERNEL_XSYMBOLICLINK_H_
 #define XENIA_KERNEL_XSYMBOLICLINK_H_
 
-#include <memory>
-#include <unordered_map>
-
-#include "xenia/base/mutex.h"
-#include "xenia/base/threading.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
 

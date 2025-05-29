@@ -27,6 +27,8 @@ class CreateProfileUI final : public XamDialog {
     memset(gamertag_, 0, sizeof(gamertag_));
   }
 
+  ~CreateProfileUI() = default;
+
  private:
   void OnDraw(ImGuiIO& io) override;
 

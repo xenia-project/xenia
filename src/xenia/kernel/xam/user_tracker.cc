@@ -28,8 +28,6 @@ DECLARE_int32(user_language);
 namespace xe {
 namespace kernel {
 namespace xam {
-UserTracker::UserTracker() : spa_data_(nullptr) {}
-UserTracker::~UserTracker() {}
 
 bool UserTracker::AddUser(uint64_t xuid) {
   if (IsUserTracked(xuid)) {

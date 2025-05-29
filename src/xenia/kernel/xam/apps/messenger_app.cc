@@ -10,7 +10,6 @@
 #include "xenia/kernel/xam/apps/messenger_app.h"
 
 #include "xenia/base/logging.h"
-#include "xenia/base/threading.h"
 
 namespace xe {
 namespace kernel {

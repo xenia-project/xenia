@@ -8,15 +8,12 @@
  */
 
 #include "xenia/base/logging.h"
-#include "xenia/base/math.h"
-#include "xenia/base/string_util.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/user_profile.h"
 #include "xenia/kernel/xam/user_settings.h"
 #include "xenia/kernel/xam/xam_private.h"
 #include "xenia/kernel/xenumerator.h"
-#include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
 
 #include "third_party/stb/stb_image.h"

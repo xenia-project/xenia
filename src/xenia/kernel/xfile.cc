@@ -11,12 +11,7 @@
 #include "xenia/vfs/virtual_file_system.h"
 
 #include "xenia/base/byte_stream.h"
-#include "xenia/base/logging.h"
-#include "xenia/base/math.h"
-#include "xenia/base/mutex.h"
 #include "xenia/kernel/kernel_state.h"
-#include "xenia/kernel/xevent.h"
-#include "xenia/memory.h"
 
 namespace xe {
 namespace kernel {
@@ -300,8 +295,8 @@ void XFile::RemoveIOCompletionPort(uint32_t key) {
 }
 
 bool XFile::Save(ByteStream* stream) {
-  XELOGD("XFile {:08X} ({})", handle(),
-         file_->entry()->absolute_path().c_str());
+  // XELOGD("XFile {:08X} ({})", handle(),
+  //        file_->entry()->absolute_path().c_str());
 
   if (!SaveObject(stream)) {
     return false;
@@ -332,7 +327,7 @@ object_ref<XFile> XFile::Restore(KernelState* kernel_state,
   auto is_directory = stream->Read<bool>();
   auto is_synchronous = stream->Read<bool>();
 
-  XELOGD("XFile {:08X} ({})", file->handle(), abs_path);
+  // XELOGD("XFile {:08X} ({})", file->handle(), abs_path);
 
   vfs::File* vfs_file = nullptr;
   vfs::FileAction action;
@@ -340,7 +335,7 @@ object_ref<XFile> XFile::Restore(KernelState* kernel_state,
       nullptr, abs_path, vfs::FileDisposition::kOpen, access, is_directory,
       false, &vfs_file, &action);
   if (XFAILED(res)) {
-    XELOGE("Failed to open XFile: error {:08X}", res);
+    // XELOGE("Failed to open XFile: error {:08X}", res);
     return object_ref<XFile>(file);
   }
 

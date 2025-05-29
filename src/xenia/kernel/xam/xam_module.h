@@ -15,7 +15,6 @@
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/kernel/kernel_module.h"
 #include "xenia/kernel/kernel_state.h"
-#include "xenia/kernel/xam/xam_ordinals.h"
 
 namespace xe {
 namespace kernel {

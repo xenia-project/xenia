@@ -8,21 +8,12 @@
  */
 
 #include "xenia/kernel/xboxkrnl/xboxkrnl_threading.h"
-#include <algorithm>
-#include <vector>
 #include "xenia/base/atomic.h"
 #include "xenia/base/clock.h"
-#include "xenia/base/logging.h"
-#include "xenia/base/mutex.h"
 #include "xenia/cpu/processor.h"
-#include "xenia/kernel/kernel_state.h"
-#include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
-#include "xenia/kernel/xevent.h"
-#include "xenia/kernel/xmutant.h"
 #include "xenia/kernel/xsemaphore.h"
-#include "xenia/kernel/xthread.h"
 #include "xenia/kernel/xtimer.h"
 #include "xenia/xbox.h"
 

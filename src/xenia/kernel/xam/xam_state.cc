@@ -33,12 +33,6 @@ XamState::XamState(Emulator* emulator, KernelState* kernel_state)
   AppManager::RegisterApps(kernel_state, app_manager_.get());
 }
 
-XamState::~XamState() {
-  app_manager_.reset();
-  achievement_manager_.reset();
-  content_manager_.reset();
-}
-
 UserProfile* XamState::GetUserProfile(uint32_t user_index) const {
   if (user_index >= XUserMaxUserCount && user_index < XUserIndexLatest) {
     return nullptr;

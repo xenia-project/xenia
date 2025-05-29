@@ -7,21 +7,11 @@
  ******************************************************************************
  */
 
-#include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
-
-#include <vector>
-
-#include "xenia/base/clock.h"
-#include "xenia/base/debugging.h"
 #include "xenia/base/logging.h"
-#include "xenia/base/math.h"
 #include "xenia/cpu/ppc/ppc_context.h"
-#include "xenia/cpu/processor.h"
-#include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
-#include "xenia/kernel/user_module.h"
+#include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
-#include "xenia/kernel/xthread.h"
 
 namespace xe {
 namespace kernel {

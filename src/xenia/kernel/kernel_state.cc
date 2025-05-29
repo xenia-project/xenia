@@ -9,20 +9,12 @@
 
 #include "xenia/kernel/kernel_state.h"
 
-#include <string>
-
-#include "third_party/fmt/include/fmt/format.h"
-#include "xenia/base/assert.h"
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/logging.h"
-#include "xenia/base/string.h"
-#include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
 #include "xenia/hid/input_system.h"
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
-#include "xenia/kernel/xam/xam_module.h"
-#include "xenia/kernel/xam/xdbf/xdbf_io.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_memory.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_module.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_ob.h"

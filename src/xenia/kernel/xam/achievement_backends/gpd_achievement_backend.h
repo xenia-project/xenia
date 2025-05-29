@@ -25,8 +25,8 @@ namespace xam {
 
 class GpdAchievementBackend : public AchievementBackendInterface {
  public:
-  GpdAchievementBackend();
-  ~GpdAchievementBackend();
+  GpdAchievementBackend() = default;
+  ~GpdAchievementBackend() = default;
 
   void EarnAchievement(const uint64_t xuid, const uint32_t title_id,
                        const uint32_t achievement_id) override;

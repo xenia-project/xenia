@@ -14,7 +14,6 @@
 #include <queue>
 
 #include "xenia/base/byte_order.h"
-#include "xenia/base/math.h"
 #include "xenia/kernel/xobject.h"
 
 namespace xe {

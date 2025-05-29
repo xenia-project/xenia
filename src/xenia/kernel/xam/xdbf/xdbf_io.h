@@ -163,8 +163,10 @@ struct Entry {
 // https://free60project.github.io/wiki/XDBF.html
 class XdbfFile {
  public:
-  XdbfFile() {};
+  XdbfFile() = default;
   XdbfFile(const std::span<const uint8_t> buffer);
+
+  ~XdbfFile() = default;
 
   const Entry* const GetEntry(uint16_t section, uint64_t id) const;
 

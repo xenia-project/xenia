@@ -9,9 +9,6 @@
 
 #include "xenia/kernel/util/object_table.h"
 
-#include <algorithm>
-#include <cstring>
-
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/logging.h"
 #include "xenia/kernel/xobject.h"

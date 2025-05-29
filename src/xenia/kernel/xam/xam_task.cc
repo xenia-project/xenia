@@ -8,19 +8,12 @@
  */
 
 #include "xenia/base/logging.h"
-#include "xenia/base/string_util.h"
-#include "xenia/cpu/processor.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
-#include "xenia/kernel/xam/xam_module.h"
 #include "xenia/kernel/xam/xam_private.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
-
-#if XE_PLATFORM_WIN32
-#include "xenia/base/platform_win.h"
-#endif
 
 #include "third_party/fmt/include/fmt/format.h"
 

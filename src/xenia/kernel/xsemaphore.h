@@ -14,6 +14,7 @@
 #include "xenia/kernel/xobject.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
+
 namespace xe {
 namespace kernel {
 

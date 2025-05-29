@@ -74,7 +74,7 @@ enum class XTileType {
 };
 
 // TODO: find filenames of other tile types that are stored in profile
-static const std::map<XTileType, std::string> kTileFileNames = {
+inline const std::map<XTileType, std::string> kTileFileNames = {
     {XTileType::kGamerTile, "tile_64.png"},
     {XTileType::kGamerTileSmall, "tile_32.png"},
     {XTileType::kPersonalGamerTile, "tile_64.png"},
@@ -88,7 +88,7 @@ static constexpr std::pair<uint16_t, uint16_t> kProfileIconSizeSmall = {32, 32};
 
 class UserProfile {
  public:
-  UserProfile(uint64_t xuid, X_XAMACCOUNTINFO* account_info);
+  UserProfile(const uint64_t xuid, const X_XAMACCOUNTINFO* account_info);
 
   uint64_t xuid() const { return xuid_; }
   std::string name() const { return account_info_.GetGamertagString(); }

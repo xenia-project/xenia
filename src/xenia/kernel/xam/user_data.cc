@@ -15,9 +15,6 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-UserData::UserData() {}
-UserData::~UserData() {}
-
 UserData::UserData(const UserData& user_data) {
   data_ = user_data.data_;
   extended_data_ = user_data.extended_data_;

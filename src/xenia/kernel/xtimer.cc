@@ -9,9 +9,7 @@
 
 #include "xenia/kernel/xtimer.h"
 
-#include "xenia/base/chrono.h"
 #include "xenia/base/logging.h"
-#include "xenia/cpu/processor.h"
 #include "xenia/kernel/xthread.h"
 
 namespace xe {

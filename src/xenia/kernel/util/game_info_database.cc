@@ -22,8 +22,6 @@ GameInfoDatabase::GameInfoDatabase(const xam::SpaInfo* data) {
   Init(data);
 }
 
-GameInfoDatabase::~GameInfoDatabase() {}
-
 void GameInfoDatabase::Init(const xam::SpaInfo* data) {
   spa_gamedata_ = std::make_unique<xam::SpaInfo>(*data);
   spa_gamedata_->Load();

@@ -32,7 +32,7 @@ enum class ProductInformationEntry {
   GenreTypeString
 };
 
-static const std::map<std::string, ProductInformationEntry>
+inline const std::map<std::string, ProductInformationEntry>
     product_information_entry_string_to_enum = {
         {"offlinePlayersMax", ProductInformationEntry::MaxOfflinePlayers},
         {"systemLinkPlayersMax", ProductInformationEntry::MaxSystemLinkPlayers},
@@ -43,7 +43,7 @@ static const std::map<std::string, ProductInformationEntry>
         {"genreTextStringId", ProductInformationEntry::GenreTypeString},
 };
 
-static const std::map<XLanguage, std::string> language_mapping = {
+inline const std::map<XLanguage, std::string> language_mapping = {
     {XLanguage::kEnglish, "en-US"},    {XLanguage::kJapanese, "ja-JP"},
     {XLanguage::kGerman, "de-DE"},     {XLanguage::kFrench, "fr-FR"},
     {XLanguage::kSpanish, "es-ES"},    {XLanguage::kItalian, "it-IT"},
@@ -67,10 +67,10 @@ class XLastMatchmakingQuery {
 
 class XLast {
  public:
-  XLast();
+  XLast() = default;
   XLast(const uint8_t* compressed_xml_data, const uint32_t compressed_data_size,
         const uint32_t decompressed_data_size);
-  ~XLast();
+  ~XLast() = default;
 
   std::u16string GetTitleName() const;
   std::map<ProductInformationEntry, uint32_t> GetProductInformationAttributes()

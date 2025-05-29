@@ -34,7 +34,7 @@ namespace xam {
 class XamState {
  public:
   XamState(Emulator* emulator, KernelState* kernel_state);
-  ~XamState();
+  ~XamState() = default;
 
   AppManager* app_manager() const { return app_manager_.get(); }
   ContentManager* content_manager() const { return content_manager_.get(); }

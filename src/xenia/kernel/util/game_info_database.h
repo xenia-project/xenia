@@ -88,7 +88,7 @@ class GameInfoDatabase {
   // Normally titles have at least XDBF file embedded into xex. There are
   // certain exceptions and that's why we need to check if it is even valid.
   GameInfoDatabase(const xam::SpaInfo* data);
-  ~GameInfoDatabase();
+  ~GameInfoDatabase() = default;
 
   bool IsValid() const { return is_valid_; }
 

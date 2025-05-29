@@ -14,7 +14,6 @@
 #include <string>
 #include <type_traits>
 
-#include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/byte_order.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"

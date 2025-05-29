@@ -10,13 +10,6 @@
 #ifndef XENIA_KERNEL_XAM_APPS_XMP_APP_H_
 #define XENIA_KERNEL_XAM_APPS_XMP_APP_H_
 
-#include <memory>
-#include <mutex>
-#include <string>
-#include <unordered_map>
-#include <vector>
-
-#include "xenia/base/mutex.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xam/app_manager.h"
 

@@ -9,22 +9,15 @@
 
 #include "xenia/kernel/xboxkrnl/xboxkrnl_rtl.h"
 
-#include <algorithm>
-#include <string>
-
 #include "xenia/base/atomic.h"
-#include "xenia/base/chrono.h"
-#include "xenia/base/logging.h"
 #include "xenia/base/pe_image.h"
-#include "xenia/base/string.h"
-#include "xenia/base/threading.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_private.h"
 #include "xenia/kernel/xboxkrnl/xboxkrnl_threading.h"
-#include "xenia/kernel/xevent.h"
 #include "xenia/kernel/xthread.h"
+
 namespace xe {
 namespace kernel {
 namespace xboxkrnl {

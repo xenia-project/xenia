@@ -30,7 +30,7 @@ enum class NotificationAlignment : uint8_t {
   kAlignUnknown = 0xFF
 };
 
-const static std::vector<ImVec2> notification_position_id_screen_offset = {
+inline const std::vector<ImVec2> notification_position_id_screen_offset = {
     {0.50f, 0.45f},  // CENTER-CENTER - 0
     {0.50f, 0.10f},  // CENTER-TOP - 1
     {0.50f, 0.80f},  // CENTER-BOTTOM - 2

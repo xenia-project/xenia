@@ -8,7 +8,7 @@
  */
 
 #include "xenia/kernel/util/presence_string_builder.h"
-#include "xenia/kernel/util/shim_utils.h"
+#include "third_party/fmt/include/fmt/format.h"
 
 namespace xe {
 namespace kernel {

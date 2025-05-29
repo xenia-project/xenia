@@ -45,8 +45,8 @@ struct TitleInfo {
 
 class UserTracker {
  public:
-  UserTracker();
-  ~UserTracker();
+  UserTracker() = default;
+  ~UserTracker() = default;
 
   // UserTracker specific methods
   bool AddUser(uint64_t xuid);
@@ -115,7 +115,7 @@ class UserTracker {
 
   void FlushUserData(const uint64_t xuid);
 
-  SpaInfo* spa_data_;
+  SpaInfo* spa_data_ = nullptr;
 
   std::set<uint64_t> tracked_xuids_;
 };

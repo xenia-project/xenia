@@ -16,19 +16,19 @@
 namespace xe {
 namespace kernel {
 
-static constexpr uint32_t kXN_2001 = 0x584E07D1;
-static constexpr uint32_t kXN_2002 = 0x584E07D2;
-static constexpr uint32_t kDashboardID = 0xFFFE07D1;
+inline constexpr uint32_t kXN_2001 = 0x584E07D1;
+inline constexpr uint32_t kXN_2002 = 0x584E07D2;
+inline constexpr uint32_t kDashboardID = 0xFFFE07D1;
 
-static constexpr uint16_t GetGameId(const uint32_t title_id) {
+inline constexpr uint16_t GetGameId(const uint32_t title_id) {
   return title_id >> 16;
 }
 
-static constexpr bool IsValidGameId(const uint32_t title_id) {
+inline constexpr bool IsValidGameId(const uint32_t title_id) {
   return (title_id >> 16) != 0xFFFE;
 }
 
-static constexpr std::pair<char, char> GetTitlePublisher(
+inline constexpr std::pair<char, char> GetTitlePublisher(
     const uint32_t title_id) {
   const char first_char = title_id >> 24;
   const char second_char = (title_id >> 16) & 0xFF;
@@ -36,13 +36,13 @@ static constexpr std::pair<char, char> GetTitlePublisher(
   return {first_char, second_char};
 }
 
-static constexpr bool IsXboxTitle(const uint32_t title_id) {
+inline constexpr bool IsXboxTitle(const uint32_t title_id) {
   const auto publisher = GetTitlePublisher(title_id);
 
   return publisher.first == 'X';
 }
 
-static constexpr bool IsXblaTitle(const uint32_t title_id) {
+inline constexpr bool IsXblaTitle(const uint32_t title_id) {
   const auto publisher = GetTitlePublisher(title_id);
 
   return publisher.first == 'X' && publisher.second == 'A';
@@ -51,18 +51,18 @@ static constexpr bool IsXblaTitle(const uint32_t title_id) {
 static_assert(IsXblaTitle(0x5841127D));   // XBLA Game
 static_assert(!IsXblaTitle(0x4D5309C9));  // Non-XBLA Game
 
-static constexpr bool IsAppTitle(const uint32_t title_id) {
+inline constexpr bool IsAppTitle(const uint32_t title_id) {
   const auto publisher = GetTitlePublisher(title_id);
 
   return publisher.first == 'X' && publisher.second == 'H' ||
          publisher.first == 'X' && publisher.second == 'J';
 }
 
-static constexpr bool IsXNTitle(const uint32_t title_id) {
+inline constexpr bool IsXNTitle(const uint32_t title_id) {
   return title_id == kXN_2001 || title_id == kXN_2002;
 }
 
-static constexpr bool IsSystemExperienceTitle(const uint32_t title_id) {
+inline constexpr bool IsSystemExperienceTitle(const uint32_t title_id) {
   if (IsAppTitle(title_id)) {
     return true;
   }
@@ -70,7 +70,7 @@ static constexpr bool IsSystemExperienceTitle(const uint32_t title_id) {
   return IsXNTitle(title_id);
 };
 
-static constexpr bool IsSystemTitle(const uint32_t title_id) {
+inline constexpr bool IsSystemTitle(const uint32_t title_id) {
   if (!title_id) {
     return true;
   }
@@ -90,7 +90,7 @@ static_assert(IsSystemTitle(kDashboardID));  // Dashboard check
 static_assert(!IsSystemTitle(0x4D5308BC));   // Non-XBLA Game
 static_assert(!IsSystemTitle(0x5841089A));   // XBLA Game
 
-static constexpr bool IsOriginalXboxTitle(const uint32_t title_id) {
+inline constexpr bool IsOriginalXboxTitle(const uint32_t title_id) {
   if (!IsValidGameId(title_id)) {
     return true;
   }

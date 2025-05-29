@@ -15,8 +15,6 @@ namespace xe {
 namespace kernel {
 namespace xam {
 
-Property::Property() : UserData() {};
-
 Property::Property(const Property& property)
     : UserData(property), property_id_(property.property_id_) {}
 
@@ -42,8 +40,6 @@ Property::Property(std::span<const uint8_t> serialized_data)
   property_id_.value =
       *reinterpret_cast<const uint32_t*>(serialized_data.data());
 }
-
-Property::~Property() {};
 
 std::vector<uint8_t> Property::Serialize() const {
   std::vector<uint8_t> serialized_property(

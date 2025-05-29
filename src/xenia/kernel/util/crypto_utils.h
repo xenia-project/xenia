@@ -7,7 +7,10 @@
  ******************************************************************************
  */
 
-#include "xenia/xbox.h"
+#ifndef XENIA_KERNEL_UTIL_CRYPTO_UTILS_H_
+#define XENIA_KERNEL_UTIL_CRYPTO_UTILS_H_
+
+#include <cstdint>
 
 namespace xe {
 namespace kernel {
@@ -26,3 +29,5 @@ void RC4(const uint8_t* key, uint32_t key_size_in, const uint8_t* data,
 }  // namespace util
 }  // namespace kernel
 }  // namespace xe
+
+#endif  // XENIA_KERNEL_UTIL_CRYPTO_UTILS_H_

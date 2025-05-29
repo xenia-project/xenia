@@ -10,9 +10,6 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XBOXKRNL_MODULE_H_
 #define XENIA_KERNEL_XBOXKRNL_XBOXKRNL_MODULE_H_
 
-#include <memory>
-
-#include "xenia/base/threading.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/kernel/kernel_module.h"
 #include "xenia/kernel/kernel_state.h"

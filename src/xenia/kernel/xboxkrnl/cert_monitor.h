@@ -10,11 +10,7 @@
 #ifndef XENIA_KERNEL_KERNEL_XBOXKRNL_CERT_MONITOR_H_
 #define XENIA_KERNEL_KERNEL_XBOXKRNL_CERT_MONITOR_H_
 
-#include <memory>
-
-#include "xenia/base/threading.h"
 #include "xenia/cpu/export_resolver.h"
-#include "xenia/kernel/kernel_module.h"
 #include "xenia/kernel/kernel_state.h"
 
 namespace xe {

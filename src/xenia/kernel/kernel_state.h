@@ -10,17 +10,13 @@
 #ifndef XENIA_KERNEL_KERNEL_STATE_H_
 #define XENIA_KERNEL_KERNEL_STATE_H_
 
-#include <atomic>
 #include <bitset>
 #include <condition_variable>
 #include <functional>
 #include <list>
-#include <memory>
 #include <vector>
 
 #include "xenia/base/bit_map.h"
-#include "xenia/base/cvar.h"
-#include "xenia/base/mutex.h"
 #include "xenia/cpu/backend/backend.h"
 #include "xenia/cpu/export_resolver.h"
 #include "xenia/kernel/smc.h"
@@ -33,9 +29,7 @@
 #include "xenia/kernel/xam/user_profile.h"
 #include "xenia/kernel/xam/xam_state.h"
 #include "xenia/kernel/xam/xdbf/spa_info.h"
-#include "xenia/kernel/xam/xdbf/xdbf_io.h"
 #include "xenia/kernel/xevent.h"
-#include "xenia/memory.h"
 #include "xenia/vfs/virtual_file_system.h"
 #include "xenia/xbox.h"
 

@@ -11,7 +11,6 @@
 #include "xenia/kernel/xthread.h"
 
 #include "xenia/base/logging.h"
-#include "xenia/base/threading.h"
 #include "xenia/emulator.h"
 #include "xenia/xbox.h"
 

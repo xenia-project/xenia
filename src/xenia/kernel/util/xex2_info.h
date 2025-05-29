@@ -639,7 +639,7 @@ struct X_IMAGE_EXPORT_DIRECTORY {
   uint32_t AddressOfNameOrdinals;  // RVA from base of image
 };
 
-const std::unordered_map<uint32_t, std::string> xex2_system_flags_map = {
+inline const std::unordered_map<uint32_t, std::string> xex2_system_flags_map = {
     {XEX_SYSTEM_NO_FORCED_REBOOT, "XEX_SYSTEM_NO_FORCED_REBOOT"},
     {XEX_SYSTEM_FOREGROUND_TASKS, "XEX_SYSTEM_FOREGROUND_TASKS"},
     {XEX_SYSTEM_NO_ODD_MAPPING, "XEX_SYSTEM_NO_ODD_MAPPING"},

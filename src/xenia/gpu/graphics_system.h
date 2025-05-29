@@ -34,7 +34,7 @@ class Emulator;
 namespace xe {
 namespace gpu {
 
-static const std::vector<std::pair<uint16_t, uint16_t>>
+inline const std::vector<std::pair<uint16_t, uint16_t>>
     internal_display_resolution_entries = {
         {640, 480},  {640, 576},   {720, 480},  {720, 576},  {800, 600},
         {848, 480},  {1024, 768},  {1152, 864}, {1280, 720}, {1280, 768},

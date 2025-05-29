@@ -108,7 +108,9 @@ ProfileManager::ProfileManager(KernelState* kernel_state,
   logged_profiles_.clear();
   accounts_.clear();
 
-  LoadAccounts(FindProfiles());
+  for (const auto account_xuid : FindProfiles()) {
+    LoadAccount(account_xuid);
+  }
 
   if (!cvars::logged_profile_slot_0_xuid.empty()) {
     Login(xe::string_util::from_string<uint64_t>(
@@ -135,8 +137,6 @@ ProfileManager::ProfileManager(KernelState* kernel_state,
   }
 }
 
-ProfileManager::~ProfileManager() {}
-
 void ProfileManager::ReloadProfile(const uint64_t xuid) {
   if (accounts_.contains(xuid)) {
     accounts_.erase(xuid);
@@ -145,7 +145,11 @@ void ProfileManager::ReloadProfile(const uint64_t xuid) {
   LoadAccount(xuid);
 }
 
-void ProfileManager::ReloadProfiles() { LoadAccounts(FindProfiles()); }
+void ProfileManager::ReloadProfiles() {
+  for (const auto account_xuid : FindProfiles()) {
+    LoadAccount(account_xuid);
+  }
+}
 
 UserProfile* ProfileManager::GetProfile(const uint64_t xuid) const {
   const uint8_t user_index = GetUserIndexAssignedToProfile(xuid);
@@ -234,12 +238,6 @@ bool ProfileManager::LoadAccount(const uint64_t xuid) {
 
   accounts_.insert_or_assign(xuid, tmp_acct);
   return true;
-}
-
-void ProfileManager::LoadAccounts(const std::vector<uint64_t> profiles_xuids) {
-  for (const auto& path : profiles_xuids) {
-    LoadAccount(path);
-  }
 }
 
 bool ProfileManager::MountProfile(const uint64_t xuid, std::string mount_path) {

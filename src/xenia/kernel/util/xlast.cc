@@ -39,8 +39,6 @@ std::vector<uint32_t> XLastMatchmakingQuery::GetFilters() const {
   return XLast::GetAllValuesFromNode(node_, "Filters", "left");
 }
 
-XLast::XLast() : parsed_xlast_(nullptr) {}
-
 XLast::XLast(const uint8_t* compressed_xml_data,
              const uint32_t compressed_data_size,
              const uint32_t decompressed_data_size) {
@@ -83,8 +81,6 @@ XLast::XLast(const uint8_t* compressed_xml_data,
   parse_result_ = parsed_xlast_->load_buffer(xlast_decompressed_xml_.data(),
                                              xlast_decompressed_xml_.size());
 }
-
-XLast::~XLast() {}
 
 std::u16string XLast::GetTitleName() const {
   std::string xpath = "/XboxLiveSubmissionProject/GameConfigProject";

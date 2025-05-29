@@ -10,8 +10,7 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XBOXKRNL_ERROR_H_
 #define XENIA_KERNEL_XBOXKRNL_XBOXKRNL_ERROR_H_
 
-#include "xenia/kernel/util/shim_utils.h"
-#include "xenia/xbox.h"
+#include <cstdint>
 
 namespace xe {
 namespace kernel {

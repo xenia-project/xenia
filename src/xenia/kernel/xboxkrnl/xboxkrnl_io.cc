@@ -8,9 +8,6 @@
  */
 
 #include "xenia/base/logging.h"
-#include "xenia/base/memory.h"
-#include "xenia/base/mutex.h"
-#include "xenia/cpu/processor.h"
 #include "xenia/kernel/info/file.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"

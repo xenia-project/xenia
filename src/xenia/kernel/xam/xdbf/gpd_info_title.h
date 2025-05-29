@@ -32,7 +32,7 @@ class GpdInfoTitle : public GpdInfo {
   GpdInfoTitle(const uint32_t title_id, const std::vector<uint8_t> buffer)
       : GpdInfo(title_id, buffer) {};
 
-  ~GpdInfoTitle() {};
+  ~GpdInfoTitle() = default;
 
   std::vector<uint32_t> GetAchievementsIds() const;
 
