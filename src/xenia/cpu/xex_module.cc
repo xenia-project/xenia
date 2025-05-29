@@ -18,6 +18,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
+#include "xenia/base/pe_image.h"
 
 #include "xenia/cpu/cpu_flags.h"
 #include "xenia/cpu/export_resolver.h"
@@ -30,7 +31,6 @@
 #include "third_party/crypto/TinySHA1.hpp"
 #include "third_party/crypto/rijndael-alg-fst.c"
 #include "third_party/crypto/rijndael-alg-fst.h"
-#include "third_party/pe/pe_image.h"
 #include "xenia/cpu/ppc/ppc_decode_data.h"
 #include "xenia/cpu/ppc/ppc_instr.h"
 DEFINE_bool(disable_instruction_infocache, false,
@@ -818,8 +818,8 @@ int XexModule::ReadPEHeaders() {
   const uint8_t* p = memory()->TranslateVirtual(base_address_);
 
   // Verify DOS signature (MZ).
-  auto doshdr = reinterpret_cast<const IMAGE_DOS_HEADER*>(p);
-  if (doshdr->e_magic != IMAGE_DOS_SIGNATURE) {
+  auto doshdr = reinterpret_cast<const XIMAGE_DOS_HEADER*>(p);
+  if (doshdr->e_magic != XIMAGE_DOS_SIGNATURE) {
     XELOGE("PE signature mismatch; likely bad decryption/decompression");
     return 1;
   }
@@ -828,59 +828,35 @@ int XexModule::ReadPEHeaders() {
   p += doshdr->e_lfanew;
 
   // Verify NT signature (PE\0\0).
-  auto nthdr = reinterpret_cast<const IMAGE_NT_HEADERS32*>(p);
-  if (nthdr->Signature != IMAGE_NT_SIGNATURE) {
+  auto nthdr = reinterpret_cast<const XIMAGE_NT_HEADERS32*>(p);
+  if (nthdr->Signature != XIMAGE_NT_SIGNATURE) {
     return 1;
   }
 
   // Verify matches an Xbox PE.
-  const IMAGE_FILE_HEADER* filehdr = &nthdr->FileHeader;
-  if ((filehdr->Machine != IMAGE_FILE_MACHINE_POWERPCBE) ||
-      !(filehdr->Characteristics & IMAGE_FILE_32BIT_MACHINE)) {
+  const XIMAGE_FILE_HEADER* filehdr = &nthdr->FileHeader;
+  if ((filehdr->Machine != XIMAGE_FILE_MACHINE_POWERPCBE) ||
+      !(filehdr->Characteristics & XIMAGE_FILE_32BIT_MACHINE)) {
     return 1;
   }
   // Verify the expected size.
-  if (filehdr->SizeOfOptionalHeader != IMAGE_SIZEOF_NT_OPTIONAL_HEADER) {
+  if (filehdr->SizeOfOptionalHeader != XIMAGE_SIZEOF_NT_OPTIONAL_HEADER) {
     return 1;
   }
 
   // Verify optional header is 32bit.
-  const IMAGE_OPTIONAL_HEADER32* opthdr = &nthdr->OptionalHeader;
-  if (opthdr->Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC) {
+  const XIMAGE_OPTIONAL_HEADER32* opthdr = &nthdr->OptionalHeader;
+  if (opthdr->Magic != XIMAGE_NT_OPTIONAL_HDR32_MAGIC) {
     return 1;
   }
   // Verify subsystem.
-  if (opthdr->Subsystem != IMAGE_SUBSYSTEM_XBOX) {
+  if (opthdr->Subsystem != XIMAGE_SUBSYSTEM_XBOX) {
     return 1;
   }
 
-// Linker version - likely 8+
-// Could be useful for recognizing certain patterns
-// opthdr->MajorLinkerVersion; opthdr->MinorLinkerVersion;
-
-// Data directories of interest:
-// EXPORT           IMAGE_EXPORT_DIRECTORY
-// IMPORT           IMAGE_IMPORT_DESCRIPTOR[]
-// EXCEPTION        IMAGE_CE_RUNTIME_FUNCTION_ENTRY[]
-// BASERELOC
-// DEBUG            IMAGE_DEBUG_DIRECTORY[]
-// ARCHITECTURE     /IMAGE_ARCHITECTURE_HEADER/ ----- import thunks!
-// TLS              IMAGE_TLS_DIRECTORY
-// IAT              Import Address Table ptr
-// opthdr->DataDirectory[IMAGE_DIRECTORY_ENTRY_X].VirtualAddress / .Size
-
-// The macros in pe_image.h don't work with clang, for some reason.
-// offsetof seems to be unable to find OptionalHeader.
-#define offsetof1(type, member) ((std::size_t) & (((type*)0)->member))
-#define IMAGE_FIRST_SECTION1(ntheader)                                   \
-  ((PIMAGE_SECTION_HEADER)((uint8_t*)ntheader +                          \
-                           offsetof1(IMAGE_NT_HEADERS, OptionalHeader) + \
-                           ((PIMAGE_NT_HEADERS)(ntheader))               \
-                               ->FileHeader.SizeOfOptionalHeader))
-
   // Quick scan to determine bounds of sections.
   size_t upper_address = 0;
-  const IMAGE_SECTION_HEADER* sechdr = IMAGE_FIRST_SECTION1(nthdr);
+  const XIMAGE_SECTION_HEADER* sechdr = XIMAGE_FIRST_SECTION(nthdr);
   for (size_t n = 0; n < filehdr->NumberOfSections; n++, sechdr++) {
     const size_t physical_address = opthdr->ImageBase + sechdr->VirtualAddress;
     upper_address =
@@ -888,7 +864,7 @@ int XexModule::ReadPEHeaders() {
   }
 
   // Setup/load sections.
-  sechdr = IMAGE_FIRST_SECTION1(nthdr);
+  sechdr = XIMAGE_FIRST_SECTION(nthdr);
   for (size_t n = 0; n < filehdr->NumberOfSections; n++, sechdr++) {
     PESection section;
     memcpy(section.name, sechdr->Name, sizeof(sechdr->Name));
