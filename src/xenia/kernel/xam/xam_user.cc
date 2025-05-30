@@ -274,26 +274,6 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
     return X_ERROR_NO_SUCH_USER;
   }
 
-  // First call asks for size (fill buffer_size_ptr).
-  // Second call asks for buffer contents with that size.
-
-  bool any_missing = false;
-  for (uint32_t i = 0; i < setting_count; ++i) {
-    auto setting_id = static_cast<uint32_t>(setting_ids[i]);
-    if (!UserSetting::is_setting_valid(setting_id)) {
-      XELOGE(
-          "xeXamUserReadProfileSettingsEx requested unimplemented "
-          "setting "
-          "{:08X}",
-          setting_id);
-      any_missing = true;
-    }
-  }
-  if (any_missing) {
-    return X_ERROR_INVALID_PARAMETER;
-    // TODO(benvanik): don't fail? most games don't even check!
-  }
-
   auto out_header = reinterpret_cast<X_USER_READ_PROFILE_SETTINGS*>(buffer);
   auto out_setting = reinterpret_cast<X_USER_PROFILE_SETTING*>(&out_header[1]);
   out_header->setting_count = static_cast<uint32_t>(setting_count);
@@ -307,7 +287,19 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
   std::fill_n(out_setting, setting_count, X_USER_PROFILE_SETTING{});
 
   for (uint32_t n = 0; n < setting_count; ++n) {
-    uint32_t setting_id = setting_ids[n];
+    const uint32_t setting_id = setting_ids[n];
+
+    if (!UserSetting::is_setting_valid(setting_id)) {
+      if (setting_id != 0) {
+        XELOGE(
+            "xeXamUserReadProfileSettingsEx requested unimplemented "
+            "setting "
+            "{:08X}",
+            setting_id);
+      }
+      --out_header->setting_count;
+      continue;
+    }
 
     const bool is_valid =
         kernel_state()->xam_state()->user_tracker()->GetUserSetting(
