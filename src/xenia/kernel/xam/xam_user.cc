@@ -256,74 +256,80 @@ uint32_t XamUserReadProfileSettingsEx(uint32_t title_id, uint32_t user_index,
     return X_ERROR_INSUFFICIENT_BUFFER;
   }
 
-  auto user_profile = kernel_state()->xam_state()->GetUserProfile(user_index);
+  auto run = [=](uint32_t& extended_error, uint32_t& length) {
+    auto user_profile = kernel_state()->xam_state()->GetUserProfile(user_index);
 
-  if (!user_profile && !xuids) {
-    return X_ERROR_NO_SUCH_USER;
-  }
-
-  if (xuids) {
-    uint64_t user_xuid = static_cast<uint64_t>(xuids[0]);
-    if (!kernel_state()->xam_state()->IsUserSignedIn(user_xuid)) {
+    if (!user_profile && !xuids) {
       return X_ERROR_NO_SUCH_USER;
     }
-    user_profile = kernel_state()->xam_state()->GetUserProfile(user_xuid);
-  }
 
-  if (!user_profile) {
-    return X_ERROR_NO_SUCH_USER;
-  }
-
-  auto out_header = reinterpret_cast<X_USER_READ_PROFILE_SETTINGS*>(buffer);
-  auto out_setting = reinterpret_cast<X_USER_PROFILE_SETTING*>(&out_header[1]);
-  out_header->setting_count = static_cast<uint32_t>(setting_count);
-  out_header->settings_ptr =
-      kernel_state()->memory()->HostToGuestVirtual(out_setting);
-
-  uint32_t additional_data_buffer_ptr =
-      out_header->settings_ptr +
-      (setting_count * sizeof(X_USER_PROFILE_SETTING));
-
-  std::fill_n(out_setting, setting_count, X_USER_PROFILE_SETTING{});
-
-  for (uint32_t n = 0; n < setting_count; ++n) {
-    const uint32_t setting_id = setting_ids[n];
-
-    if (!UserSetting::is_setting_valid(setting_id)) {
-      if (setting_id != 0) {
-        XELOGE(
-            "xeXamUserReadProfileSettingsEx requested unimplemented "
-            "setting "
-            "{:08X}",
-            setting_id);
+    if (xuids) {
+      uint64_t user_xuid = static_cast<uint64_t>(xuids[0]);
+      if (!kernel_state()->xam_state()->IsUserSignedIn(user_xuid)) {
+        return X_ERROR_NO_SUCH_USER;
       }
-      --out_header->setting_count;
-      continue;
+      user_profile = kernel_state()->xam_state()->GetUserProfile(user_xuid);
     }
 
-    const bool is_valid =
-        kernel_state()->xam_state()->user_tracker()->GetUserSetting(
-            user_profile->xuid(),
-            title_id ? title_id : kernel_state()->title_id(), setting_id,
-            out_setting, additional_data_buffer_ptr);
-
-    if (is_valid) {
-      if (xuids) {
-        out_setting->xuid = user_profile->xuid();
-      } else {
-        out_setting->xuid = -1;
-        out_setting->user_index = user_index;
-      }
+    if (!user_profile) {
+      return X_ERROR_NO_SUCH_USER;
     }
-    ++out_setting;
+
+    auto out_header = reinterpret_cast<X_USER_READ_PROFILE_SETTINGS*>(buffer);
+    auto out_setting =
+        reinterpret_cast<X_USER_PROFILE_SETTING*>(&out_header[1]);
+    out_header->setting_count = static_cast<uint32_t>(setting_count);
+    out_header->settings_ptr =
+        kernel_state()->memory()->HostToGuestVirtual(out_setting);
+
+    uint32_t additional_data_buffer_ptr =
+        out_header->settings_ptr +
+        (setting_count * sizeof(X_USER_PROFILE_SETTING));
+
+    std::fill_n(out_setting, setting_count, X_USER_PROFILE_SETTING{});
+
+    for (uint32_t n = 0; n < setting_count; ++n) {
+      const uint32_t setting_id = setting_ids[n];
+      if (!UserSetting::is_setting_valid(setting_id)) {
+        if (setting_id != 0) {
+          XELOGE(
+              "xeXamUserReadProfileSettingsEx requested unimplemented setting "
+              "{:08X}",
+              setting_id);
+        }
+        --out_header->setting_count;
+        continue;
+      }
+
+      const bool is_valid =
+          kernel_state()->xam_state()->user_tracker()->GetUserSetting(
+              user_profile->xuid(),
+              title_id ? title_id : kernel_state()->title_id(), setting_id,
+              out_setting, additional_data_buffer_ptr);
+
+      if (is_valid) {
+        if (xuids) {
+          out_setting->xuid = user_profile->xuid();
+        } else {
+          out_setting->xuid = -1;
+          out_setting->user_index = user_index;
+        }
+      }
+      ++out_setting;
+    }
+
+    extended_error = X_HRESULT_FROM_WIN32(X_STATUS_SUCCESS);
+    length = 0;
+    return X_STATUS_SUCCESS;
+  };
+
+  if (!overlapped_ptr) {
+    uint32_t extended_error, length;
+    return run(extended_error, length);
   }
 
-  if (overlapped_ptr) {
-    kernel_state()->CompleteOverlappedImmediate(overlapped_ptr.value(),
-                                                X_STATUS_SUCCESS);
-    return X_ERROR_IO_PENDING;
-  }
-  return X_STATUS_SUCCESS;
+  kernel_state()->CompleteOverlappedDeferredEx(run, overlapped_ptr);
+  return X_ERROR_IO_PENDING;
 }
 
 dword_result_t XamUserReadProfileSettings_entry(
