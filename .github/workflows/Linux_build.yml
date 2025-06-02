@@ -87,6 +87,9 @@ jobs:
       - name: Prepare artifacts
         id: prepare_artifacts
         run: |
+          if [ $(stat -c %s build/bin/Linux/Release/xenia_canary) -le 100000 ]; then
+            echo "::error::Binary is too small."
+          fi
           mkdir -p artifacts
           cp -r build/bin/Linux/Release/xenia_canary LICENSE artifacts
       - name: Upload xenia canary artifacts

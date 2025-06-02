@@ -75,6 +75,11 @@ jobs:
       - name: Prepare artifacts
         id: prepare_artifacts
         run: |
+          foreach ($file in 'build\bin\Windows\Release\xenia_canary.exe','build\bin\Windows\Release\xenia_canary.pdb') {
+            if ((get-item $file).Length -le 100000) {
+              echo "::error::$file is too small."
+            }
+          }
           robocopy . build\bin\Windows\Release                                                                LICENSE /r:0 /w:0
           robocopy   build\bin\Windows\Release artifacts\xenia_canary   xenia_canary.exe   xenia_canary.pdb   LICENSE /r:0 /w:0
           If ($LastExitCode -le 7) { echo "LastExitCode = $LastExitCode";$LastExitCode = 0 }
