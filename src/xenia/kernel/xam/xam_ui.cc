@@ -641,8 +641,12 @@ X_HRESULT xeXShowMarketplaceUIEx(dword_t user_index, dword_t ui_type,
     return xeXamDispatchHeadlessAsync([]() {});
   }
 
-  auto close = [ui_type](MessageBoxDialog* dialog) -> void {
-    if (ui_type == 1) {
+  bool is_xbla_unlock_offer =
+      (offer_id == ((uint64_t(kernel_state()->title_id()) << 32) | 1ull));
+
+  auto close = [ui_type,
+                is_xbla_unlock_offer](MessageBoxDialog* dialog) -> void {
+    if (ui_type == 1 && is_xbla_unlock_offer) {
       uint32_t button = dialog->chosen_button();
       if (button == 0) {
         cvars::license_mask = 1;
@@ -669,15 +673,14 @@ X_HRESULT xeXShowMarketplaceUIEx(dword_t user_index, dword_t ui_type,
           static_cast<uint64_t>(offer_id));
       break;
     case X_MARKETPLACE_ENTRYPOINT::MembershipList:
-      desc = fmt::format(
-          "Game requested to open marketplace page with all xbox live "
-          "memberships 0x{:016X}.",
-          static_cast<uint64_t>(offer_id));
+      desc =
+          "Game requested to open marketplace page with all Xbox Live "
+          "memberships.";
       break;
     case X_MARKETPLACE_ENTRYPOINT::MembershipItem:
       desc = fmt::format(
-          "Game requested to open marketplace page for an xbox live "
-          "memberships 0x{:016X}.",
+          "Game requested to open marketplace page for an Xbox Live "
+          "membership offer 0x{:016X}.",
           static_cast<uint64_t>(offer_id));
       break;
     case X_MARKETPLACE_ENTRYPOINT::ContentList_Background:
@@ -697,20 +700,21 @@ X_HRESULT xeXShowMarketplaceUIEx(dword_t user_index, dword_t ui_type,
       break;
     case X_MARKETPLACE_ENTRYPOINT::ForcedNameChangeV1:
       // Used by XamShowForcedNameChangeUI v1888
-      desc = fmt::format("Changing gamertag currently not implemented");
+      desc = fmt::format("Changing gamertag currently not implemented.");
       break;
     case X_MARKETPLACE_ENTRYPOINT::ForcedNameChangeV2:
       // Used by XamShowForcedNameChangeUI NXE and up
-      desc = fmt::format("Changing gamertag currently not implemented");
+      desc = fmt::format("Changing gamertag currently not implemented.");
       break;
     case X_MARKETPLACE_ENTRYPOINT::ProfileNameChange:
       // Used by dashboard when selecting change gamertag in profile menu
-      desc = fmt::format("Changing gamertag currently not implemented");
+      desc = fmt::format("Changing gamertag currently not implemented.");
       break;
     case X_MARKETPLACE_ENTRYPOINT::ActiveDownloads:
       // Used in profile tabs when clicking active downloads
       desc = fmt::format(
-          "There are no current plans to download files from xbox servers");
+          "There are no current plans to download files from Xbox "
+          "Marketplace.");
       break;
     default:
       desc = fmt::format("Unknown marketplace op {:d}",
@@ -728,12 +732,16 @@ X_HRESULT xeXShowMarketplaceUIEx(dword_t user_index, dword_t ui_type,
       buttons.push_back("OK");
       break;
     case X_MARKETPLACE_ENTRYPOINT::ContentItem:
-      desc +=
-          "\n\nTo start trial games in full mode, set license_mask to 1 in "
-          "Xenia config file.\n\nDo you wish to change license_mask to 1 for "
-          "*this session*?";
-      buttons.push_back("Yes");
-      buttons.push_back("No");
+      if (is_xbla_unlock_offer) {
+        desc +=
+            "\n\nTo start trial games in full mode, set license_mask to 1 in "
+            "Xenia config file.\n\nDo you wish to change license_mask to 1 for "
+            "*this session*?";
+        buttons.push_back("Yes");
+        buttons.push_back("No");
+      } else {
+        buttons.push_back("OK");
+      }
       break;
   }
 
