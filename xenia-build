@@ -717,7 +717,7 @@ class PullCommand(Command):
             *args, **kwargs)
         self.parser.add_argument(
             '--merge', action='store_true',
-             help='Merges on canary-experimental instead of rebasing.')
+             help='Merges on canary_experimental instead of rebasing.')
         self.parser.add_argument(
             '--target_os', default=None,
             help='Target OS passed to premake, for cross-compilation')
@@ -726,11 +726,11 @@ class PullCommand(Command):
         print('Pulling...')
         print('')
 
-        print('- switching to canary-experimental...')
+        print('- switching to canary_experimental...')
         shell_call([
             'git',
             'checkout',
-            'canary-experimental',
+            'canary_experimental',
             ])
         print('')
 
@@ -1474,12 +1474,12 @@ class NukeCommand(Command):
             shutil.rmtree('build/')
         print('')
 
-        print('- git reset to canary-experimental...')
+        print('- git reset to canary_experimental...')
         shell_call([
             'git',
             'reset',
             '--hard',
-            'canary-experimental',
+            'canary_experimental',
             ])
         print('')
 
