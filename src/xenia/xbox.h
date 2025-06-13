@@ -324,10 +324,16 @@ enum : XNotificationID {
   kXNotificationLiveConnectionChanged = 0x02000001,
   kXNotificationLiveInviteAccepted = 0x02000002,
   kXNotificationLiveLinkStateChanged = 0x02000003,
+  kXNotificationLiveInvitedRecieved = 0x02000004,
+  kXNotificationLiveInvitedAnswerRecieved = 0x02000005,
+  kXNotificationLiveMessageListChanged = 0x02000006,
   kXNotificationLiveContentInstalled = 0x02000007,
   kXNotificationLiveMembershipPurchased = 0x02000008,
   kXNotificationLiveVoicechatAway = 0x02000009,
   kXNotificationLivePresenceChanged = 0x0200000A,
+  kXNotificationLivePointsBalanceChanged = 0x0200000B,
+  kXNotificationLivePlayerListChanged = 0x0200000C,
+  kXNotificationLiveItemPurchased = 0x0200000D,
 
   // XNotification Friends
   kXNotificationFriendsPresenceChanged = 0x04000001,
@@ -690,6 +696,17 @@ inline const std::map<XContentType, std::string> XContentTypeMap = {
     {XContentType::kCommunityGame, "Community Game"},
 };
 
+enum class X_MARKETPLACE_OFFERING_TYPE : uint32_t {
+  Content = 0x00000002,
+  GameDemo = 0x00000020,
+  GameTrailer = 0x00000040,
+  Theme = 0x00000080,
+  Tile = 0x00000800,
+  Arcade = 0x00002000,
+  Video = 0x00004000,
+  Consumable = 0x00010000,
+};
+
 enum X_MARKETPLACE_ENTRYPOINT : uint32_t {
   ContentList = 0,
   ContentItem = 1,
@@ -701,6 +718,11 @@ enum X_MARKETPLACE_ENTRYPOINT : uint32_t {
   ForcedNameChangeV2 = 8,
   ProfileNameChange = 9,
   ActiveDownloads = 12
+};
+
+enum X_MARKETPLACE_DOWNLOAD_ITEMS_ENTRYPOINTS : uint32_t {
+  FREEITEMS = 1000,
+  PAIDITEMS,
 };
 
 enum class XDeploymentType : uint32_t {

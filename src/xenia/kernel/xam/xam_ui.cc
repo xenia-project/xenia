@@ -620,15 +620,19 @@ dword_result_t XamGetDashContext_entry(const ppc_context_t& ctx) {
 DECLARE_XAM_EXPORT1(XamGetDashContext, kNone, kImplemented);
 
 // https://gitlab.com/GlitchyScripts/xlivelessness/-/blob/master/xlivelessness/xlive/xdefs.hpp?ref_type=heads#L1235
-X_HRESULT xeXShowMarketplaceUIEx(dword_t user_index, dword_t ui_type,
-                                 qword_t offer_id, dword_t content_types,
-                                 unknown_t unk5, unknown_t unk6, unknown_t unk7,
-                                 unknown_t unk8) {
+dword_result_t XamShowMarketplaceUIEx_entry(dword_t user_index, dword_t ui_type,
+                                            qword_t offer_id,
+                                            dword_t offer_type,
+                                            dword_t content_category,
+                                            unknown_t unk6, unknown_t unk7,
+                                            dword_t title_id) {
   // ui_type:
   // 0 - view all content for the current title
   // 1 - view content specified by offer id
-  // content_types:
-  // game specific, usually just -1
+  // offer_types:
+  // filter for content list, usually just -1
+  // content_category:
+  // filter on item types for games (e.g. cars, maps, weapons, etc)
   if (user_index >= XUserMaxUserCount) {
     return X_ERROR_INVALID_PARAMETER;
   }
@@ -750,32 +754,20 @@ X_HRESULT xeXShowMarketplaceUIEx(dword_t user_index, dword_t ui_type,
   return xeXamDispatchDialogAsync<MessageBoxDialog>(
       new MessageBoxDialog(imgui_drawer, title, desc, buttons, 0), close);
 }
+DECLARE_XAM_EXPORT1(XamShowMarketplaceUIEx, kUI, kSketchy);
 
 dword_result_t XamShowMarketplaceUI_entry(dword_t user_index, dword_t ui_type,
-                                          qword_t offer_id,
-                                          dword_t content_types, unknown_t unk5,
-                                          unknown_t unk6) {
-  return xeXShowMarketplaceUIEx(user_index, ui_type, offer_id, content_types,
-                                unk5, 0, 0, unk6);
+                                          qword_t offer_id, dword_t offer_type,
+                                          dword_t content_category,
+                                          dword_t title_id) {
+  return XamShowMarketplaceUIEx_entry(user_index, ui_type, offer_id, offer_type,
+                                      content_category, 0, 0, title_id);
 }
 DECLARE_XAM_EXPORT1(XamShowMarketplaceUI, kUI, kSketchy);
-
-dword_result_t XamShowMarketplaceUIEx_entry(dword_t user_index, dword_t ui_type,
-                                            qword_t offer_id,
-                                            dword_t content_types,
-                                            unknown_t unk5, unknown_t unk6,
-                                            unknown_t unk7, unknown_t unk8) {
-  return xeXShowMarketplaceUIEx(user_index, ui_type, offer_id, content_types,
-                                unk5, unk6, unk7, unk8);
-}
-DECLARE_XAM_EXPORT1(XamShowMarketplaceUIEx, kUI, kSketchy);
 
 dword_result_t XamShowMarketplaceDownloadItemsUI_entry(
     dword_t user_index, dword_t ui_type, lpqword_t offers, dword_t num_offers,
     lpdword_t hresult_ptr, pointer_t<XAM_OVERLAPPED> overlapped) {
-  // ui_type:
-  // 1000 - free
-  // 1001 - paid
   if (user_index >= XUserMaxUserCount || !offers || num_offers > 6) {
     return X_ERROR_INVALID_PARAMETER;
   }
@@ -813,12 +805,12 @@ dword_result_t XamShowMarketplaceDownloadItemsUI_entry(
   cxxopts::OptionNames buttons = {"OK"};
 
   switch (ui_type) {
-    case 1000:
+    case X_MARKETPLACE_DOWNLOAD_ITEMS_ENTRYPOINTS::FREEITEMS:
       desc =
           "Game requested to open download page for the following free offer "
           "IDs:";
       break;
-    case 1001:
+    case X_MARKETPLACE_DOWNLOAD_ITEMS_ENTRYPOINTS::PAIDITEMS:
       desc =
           "Game requested to open download page for the following offer IDs:";
       break;
@@ -845,7 +837,7 @@ DECLARE_XAM_EXPORT1(XamShowMarketplaceDownloadItemsUI, kUI, kSketchy);
 
 dword_result_t XamShowForcedNameChangeUI_entry(dword_t user_index) {
   // Changes from 6 to 8 past NXE
-  return xeXShowMarketplaceUIEx(user_index, 6, 0, 0xffffffff, 0, 0, 0, 0);
+  return XamShowMarketplaceUIEx_entry(user_index, 6, 0, 0xffffffff, 0, 0, 0, 0);
 }
 DECLARE_XAM_EXPORT1(XamShowForcedNameChangeUI, kUI, kImplemented);
 
