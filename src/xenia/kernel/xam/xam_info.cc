@@ -733,6 +733,18 @@ dword_result_t XamIsXbox1TitleId_entry(dword_t title_id) {
 }
 DECLARE_XAM_EXPORT1(XamIsXbox1TitleId, kNone, kImplemented);
 
+dword_result_t XamIsChildAccountSignedIn_entry() {
+  for (uint32_t i = 0; i < XUserMaxUserCount; i++) {
+    const auto& profile = kernel_state()->xam_state()->GetUserProfile(i);
+    if (profile && profile->IsParentalControlled()) {
+      return true;
+    }
+  }
+
+  return false;
+}
+DECLARE_XAM_EXPORT1(XamIsChildAccountSignedIn, kNone, kImplemented);
+
 void XamSetActiveDashAppInfo_entry(pointer_t<X_DASH_APP_INFO> dash_app) {
   if (!dash_app) {
     kernel_state()->dash_app_info_ = {};

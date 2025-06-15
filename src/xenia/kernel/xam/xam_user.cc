@@ -19,6 +19,7 @@
 #include "third_party/stb/stb_image.h"
 
 DECLARE_int32(user_language);
+DECLARE_int32(user_country);
 
 namespace xe {
 namespace kernel {
@@ -913,6 +914,18 @@ dword_result_t XamUserGetSubscriptionType_entry(dword_t user_index,
 }
 DECLARE_XAM_EXPORT1(XamUserGetSubscriptionType, kUserProfiles, kStub);
 
+dword_result_t XamUserGetCachedUserFlags_entry(dword_t user_index) {
+  if (!kernel_state()->xam_state()->IsUserSignedIn(user_index)) {
+    return 0;
+  }
+
+  const auto& user_profile =
+      kernel_state()->xam_state()->GetUserProfile(user_index);
+
+  return user_profile->GetCachedFlags();
+}
+DECLARE_XAM_EXPORT1(XamUserGetCachedUserFlags, kUserProfiles, kImplemented);
+
 dword_result_t XamUserGetUserFlags_entry(dword_t user_index) {
   if (!kernel_state()->xam_state()->IsUserSignedIn(user_index)) {
     return 0;
@@ -936,16 +949,24 @@ dword_result_t XamUserGetUserFlagsFromXUID_entry(qword_t xuid) {
 DECLARE_XAM_EXPORT1(XamUserGetUserFlagsFromXUID, kUserProfiles, kImplemented);
 
 dword_result_t XamUserGetOnlineLanguageFromXUID_entry(qword_t xuid) {
-  /* Notes:
-     - Calls XamUserGetUserFlagsFromXUID and returns (ulonglong)(cached_flag <<
-     0x20) >> 0x39 & 0x1f;
-     - XamUserGetMembershipTierFromXUID and XamUserGetOnlineCountryFromXUID also
-     call it
-     - Removed in metro
-  */
-  return cvars::user_language;
+  const auto& user = kernel_state()->xam_state()->GetUserProfile(xuid);
+  if (!user) {
+    return cvars::user_language;
+  }
+  return user->GetLanguage();
 }
-DECLARE_XAM_EXPORT1(XamUserGetOnlineLanguageFromXUID, kUserProfiles, kStub);
+DECLARE_XAM_EXPORT1(XamUserGetOnlineLanguageFromXUID, kUserProfiles,
+                    kImplemented);
+
+dword_result_t XamUserGetOnlineCountryFromXUID_entry(qword_t xuid) {
+  const auto& user = kernel_state()->xam_state()->GetUserProfile(xuid);
+  if (!user) {
+    return cvars::user_country;
+  }
+  return user->GetCountry();
+}
+DECLARE_XAM_EXPORT1(XamUserGetOnlineCountryFromXUID, kUserProfiles,
+                    kImplemented);
 
 constexpr uint8_t kStatsMaxAmount = 64;
 

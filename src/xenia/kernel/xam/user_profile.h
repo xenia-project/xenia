@@ -95,10 +95,23 @@ class UserProfile {
   uint32_t signin_state() const { return 1; }
   uint32_t type() const { return 1 | 2; /* local | online profile? */ }
 
+  uint32_t GetReservedFlags() const {
+    return account_info_.GetReservedFlags();
+  };
   uint32_t GetCachedFlags() const { return account_info_.GetCachedFlags(); };
+  uint32_t GetCountry() const {
+    return static_cast<uint32_t>(account_info_.GetCountry());
+  };
   uint32_t GetSubscriptionTier() const {
     return account_info_.GetSubscriptionTier();
   }
+  uint32_t GetLanguage() const {
+    return static_cast<uint32_t>(account_info_.GetLanguage());
+  };
+
+  bool IsParentalControlled() const {
+    return account_info_.IsParentalControlled();
+  };
   bool IsLiveEnabled() const { return account_info_.IsLiveEnabled(); }
 
   std::span<const uint8_t> GetProfileIcon(XTileType icon_type) {

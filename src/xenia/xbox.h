@@ -812,6 +812,7 @@ struct X_XAMACCOUNTINFO {
     return std::string_view(online_domain);
   }
 
+  uint32_t GetReservedFlags() const { return reserved_flags; };
   uint32_t GetCachedFlags() const { return cached_user_flags; };
 
   XOnlineCountry GetCountry() const {
@@ -821,6 +822,10 @@ struct X_XAMACCOUNTINFO {
   AccountSubscriptionTier GetSubscriptionTier() const {
     return static_cast<AccountSubscriptionTier>(
         (cached_user_flags & kSubscriptionTierMask) >> 20);
+  }
+
+  bool IsParentalControlled() const {
+    return static_cast<bool>((cached_user_flags & kLanguageMask) >> 24);
   }
 
   XLanguage GetLanguage() const {
