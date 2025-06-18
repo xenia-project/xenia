@@ -26,15 +26,31 @@ X_RESULT MessengerApp::DispatchMessageSync(uint32_t message,
   auto buffer = memory_->TranslateVirtual(buffer_ptr);
   switch (message) {
     case 0x00200002: {
-      // Used on start in blades dashboard v5759 (marketplace update) and 6717
-      XELOGD("MessengerUnk200002({:08X}, {:08X}), unimplemented", buffer_ptr,
-             buffer_length);
+      // Used on blades dashboard v5759 - 6717 when requesting to sign out
+      assert_true(!buffer_length || buffer_length == 12);
+      struct {
+        xe::be<uint32_t> user_index;
+        xe::be<uint32_t> unk1;
+        xe::be<uint32_t> unk2;
+      }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
+      static_assert_size(decltype(*args), 12);
+
+      XELOGD("MessengerUnk200002({:08X}, {:08X}, {:08X}), unimplemented",
+             args->user_index.get(), args->unk1.get(), args->unk2.get());
       return X_E_FAIL;
     }
     case 0x00200018: {
-      // Used on logging out in blades 6717
-      XELOGD("MessengerUnk200018({:08X}, {:08X}), unimplemented", buffer_ptr,
-             buffer_length);
+      // Used after signing out in blades 6717
+      assert_true(!buffer_length || buffer_length == 12);
+      struct {
+        xe::be<uint32_t> user_index;
+        xe::be<uint32_t> unk1;
+        xe::be<uint32_t> unk2;
+      }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
+      static_assert_size(decltype(*args), 12);
+
+      XELOGD("MessengerUnk200018({:08X}, {:08X}, {:08X}), unimplemented",
+             args->user_index.get(), args->unk1.get(), args->unk2.get());
       return X_E_FAIL;
     }
   }

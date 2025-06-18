@@ -17,7 +17,7 @@ namespace xboxkrnl {
 
 dword_result_t XUsbcamCreate_entry(dword_t buffer,
                                    dword_t buffer_size,  // 0x4B000 640x480?
-                                   lpunknown_t unk3_ptr) {
+                                   lpdword_t handle_out) {
   // This function should return success.
   // It looks like it only allocates space for usbcam support.
   // returning error code might cause games to initialize incorrectly.
@@ -31,6 +31,8 @@ DECLARE_XBOXKRNL_EXPORT1(XUsbcamCreate, kNone, kStub);
 
 dword_result_t XUsbcamGetState_entry() {
   // 0 = not connected.
+  // 1 = initialized
+  // 2 = connected
   return 0;
 }
 DECLARE_XBOXKRNL_EXPORT1(XUsbcamGetState, kNone, kStub);

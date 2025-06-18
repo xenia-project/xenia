@@ -591,7 +591,7 @@ void XamShowDirtyDiscErrorUI_entry(dword_t user_index) {
 }
 DECLARE_XAM_EXPORT1(XamShowDirtyDiscErrorUI, kUI, kImplemented);
 
-dword_result_t XamShowPartyUI_entry(unknown_t r3, unknown_t r4) {
+dword_result_t XamShowPartyUI_entry(dword_t user_index) {
   return X_ERROR_FUNCTION_FAILED;
 }
 DECLARE_XAM_EXPORT1(XamShowPartyUI, kNone, kStub);

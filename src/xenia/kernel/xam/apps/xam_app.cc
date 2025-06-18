@@ -138,8 +138,15 @@ X_HRESULT XamApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     case 0x0002B003: {
       // Games used in:
       // 4D5309C9
-      XELOGD("XamUnk2B003({:08X}, {:08X}), unimplemented", buffer_ptr,
-             buffer_length);
+      // It only receives buffer
+      struct {
+        xe::be<uint64_t> unk1;
+        xe::be<uint64_t> unk2;
+        xe::be<uint64_t> unk3;
+      }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
+
+      XELOGD("XamUnk2B003({:016X}, {:016X}, {:016X}), unimplemented",
+             args->unk1.get(), args->unk2.get(), args->unk3.get());
       return X_E_SUCCESS;
     }
   }

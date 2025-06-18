@@ -21,8 +21,8 @@ dword_result_t XamVoiceIsActiveProcess_entry() {
 }
 DECLARE_XAM_EXPORT1(XamVoiceIsActiveProcess, kNone, kStub);
 
-dword_result_t XamVoiceCreate_entry(unknown_t unk1,  // 0
-                                    unknown_t unk2,  // 0xF
+dword_result_t XamVoiceCreate_entry(dword_t user_index,
+                                    dword_t max_attached_packets,  // 0xF
                                     lpdword_t out_voice_ptr) {
   // Null out the ptr.
   out_voice_ptr.Zero();

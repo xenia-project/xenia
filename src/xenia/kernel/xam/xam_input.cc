@@ -40,8 +40,9 @@ void XamResetInactivity_entry() {
 }
 DECLARE_XAM_EXPORT1(XamResetInactivity, kInput, kStub);
 
-dword_result_t XamEnableInactivityProcessing_entry(dword_t unk,
+dword_result_t XamEnableInactivityProcessing_entry(dword_t inactivity_index,
                                                    dword_t enable) {
+  // Enables/disables screen saver and auto shutoff
   return X_ERROR_SUCCESS;
 }
 DECLARE_XAM_EXPORT1(XamEnableInactivityProcessing, kInput, kStub);

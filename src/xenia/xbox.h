@@ -274,14 +274,16 @@ constexpr uint8_t XUserIndexAny = 0xFF;
 
 // https://github.com/ThirteenAG/Ultimate-ASI-Loader/blob/master/source/xlive/xliveless.h
 typedef uint32_t XNotificationID;
-enum : XNotificationID {
-  /* XNotification Notes:
-     - Notification Ids are split into three Sections: Area, Version, and
-     Message Id.
-     - Each Area has the potential to hold 65535 unique notifications as it
-     always starts at 1.
-  */
 
+struct X_NOTIFICATION_ID {
+  uint32_t reserved : 1;  // Always one
+  uint32_t area : 6;
+  uint32_t version : 9;
+  uint32_t message_id : 16;
+};
+static_assert_size(X_NOTIFICATION_ID, 4);
+
+enum : XNotificationID {
   // Notification Areas
   kXNotifySystem = 0x00000001,
   kXNotifyLive = 0x00000002,
@@ -878,6 +880,59 @@ struct X_XAMACCOUNTINFO {
   }
 };
 static_assert_size(X_XAMACCOUNTINFO, 0x17C);
+
+#define MAX_FIRSTNAME_SIZE 64
+#define MAX_LASTNAME_SIZE 64
+#define MAX_EMAIL_SIZE 129
+#define MAX_STREET_SIZE 128
+#define MAX_CITY_SIZE 64
+#define MAX_DISTRICT_SIZE 64
+#define MAX_STATE_SIZE 64
+#define MAX_POSTALCODE_SIZE 16
+#define MAX_PHONE_PREFIX_SIZE 12
+#define MAX_PHONE_NUMBER_SIZE 12
+#define MAX_PHONE_EXTENSION_SIZE 12
+#define MAX_CC_NAME_SIZE 64
+#define MAX_CC_NUMBER_SIZE 24
+#define MAX_DD_BANK_CODE_SIZE 64
+#define MAX_DD_BRANCH_CODE_SIZE 64
+#define MAX_DD_CHECK_DIGITS_SIZE 64
+#define MAX_VOUCHER_SIZE 26
+
+struct X_USER_PAYMENT_INFO {
+  char16_t FirstName[MAX_FIRSTNAME_SIZE];
+  char16_t LastName[MAX_LASTNAME_SIZE];
+  char16_t Street1[MAX_STREET_SIZE];
+  char16_t Street2[MAX_STREET_SIZE];
+  char16_t District[MAX_STREET_SIZE];
+  char16_t City[MAX_CITY_SIZE];
+  char16_t State[MAX_STATE_SIZE];
+  uint8_t CountryId;
+  uint16_t LanguageId;
+  char16_t PostalCode[MAX_POSTALCODE_SIZE];
+  char16_t PhonePrefix[MAX_PHONE_PREFIX_SIZE];
+  char16_t PhoneNumber[MAX_PHONE_NUMBER_SIZE];
+  char16_t PhoneExtension[MAX_PHONE_EXTENSION_SIZE];
+
+  uint8_t PaymentTypeId;
+  char16_t CardHolder[MAX_CC_NAME_SIZE];
+  uint8_t CardTypeId;
+  char16_t CardNumber[MAX_CC_NUMBER_SIZE];
+  be<uint64_t> ftCardExpiration;
+
+  char16_t Email[MAX_EMAIL_SIZE];
+  char16_t BankCode[MAX_DD_BANK_CODE_SIZE];
+  char16_t BranchCode[MAX_DD_BRANCH_CODE_SIZE];
+  char16_t CheckDigits[MAX_DD_CHECK_DIGITS_SIZE];
+
+  char16_t Voucher[MAX_VOUCHER_SIZE];
+
+  uint8_t MsftOptIn;
+  uint8_t PartnerOptIn;
+  uint64_t OfferId;
+  be<uint64_t> ftBirthdate;
+};
+static_assert_size(X_USER_PAYMENT_INFO, 0x8F0);
 #pragma pack(pop)
 
 struct X_PROFILEENUMRESULT {
@@ -930,6 +985,11 @@ struct X_DASH_APP_INFO {
 };
 static_assert_size(X_DASH_APP_INFO, 0xC);
 #pragma pack(pop)
+
+struct X_PASSPORT_SESSION_TOKEN {
+  uint8_t SessionToken[28];
+};
+static_assert_size(X_PASSPORT_SESSION_TOKEN, 0x1C);
 
 // clang-format on
 

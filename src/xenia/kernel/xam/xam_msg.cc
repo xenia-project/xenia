@@ -114,7 +114,7 @@ DECLARE_XAM_EXPORT2(XMsgCompleteIORequest, kNone, kImplemented, kSketchy);
 
 dword_result_t XamGetOverlappedResult_entry(
     pointer_t<XAM_OVERLAPPED> overlapped_ptr, lpdword_t length_ptr,
-    dword_t unknown) {
+    dword_t wait) {
   uint32_t result;
   if (overlapped_ptr->result != X_ERROR_IO_PENDING) {
     result = overlapped_ptr->result;
