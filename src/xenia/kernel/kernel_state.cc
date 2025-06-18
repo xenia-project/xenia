@@ -887,6 +887,11 @@ void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
     listener->EnqueueNotification(kXNotificationDvdDriveTrayStateChanged,
                                   X_DVD_DISC_STATE::XBOX_360_GAME_DISC);
   }
+  if (listener->mask() & kXNotifyLive) {
+    listener->EnqueueNotification(kXNotificationLiveConnectionChanged,
+                                  0x80151802L);
+    listener->EnqueueNotification(kXNotificationLiveLinkStateChanged, 0);
+  }
 }
 
 void KernelState::UnregisterNotifyListener(XNotifyListener* listener) {
