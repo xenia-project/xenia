@@ -629,7 +629,7 @@ static constexpr uint32_t PregenerateUint32Div(uint32_t _denom,
     int s;
   } magu{};
   magu.a = 0;
-  nc = -1 - ((uint32_t) - (int32_t)d) % d;
+  nc = -1 - ((uint32_t)-(int32_t)d) % d;
   p = 31;
   q1 = 0x80000000 / nc;
   r1 = 0x80000000 - q1 * nc;

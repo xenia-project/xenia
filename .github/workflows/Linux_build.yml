@@ -49,7 +49,7 @@ jobs:
       - uses: actions/checkout@main
       - name: Setup
         run: |
-          LLVM_VERSION=18 # Same as Windows
+          LLVM_VERSION=19 # Same as Windows
           UBUNTU_BASE=jammy
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
           sudo apt-add-repository "deb http://apt.llvm.org/${UBUNTU_BASE}/ llvm-toolchain-${UBUNTU_BASE}-$LLVM_VERSION main"

@@ -122,7 +122,7 @@ static void signal_handler(int signal, siginfo_t* info, void* context);
 
 void install_signal_handler(SignalType type) {
   if (signal_handler_installed[static_cast<size_t>(type)]) return;
-  struct sigaction action {};
+  struct sigaction action{};
   action.sa_flags = SA_SIGINFO;
   action.sa_sigaction = signal_handler;
   sigemptyset(&action.sa_mask);
