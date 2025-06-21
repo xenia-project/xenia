@@ -370,6 +370,18 @@ enum : XNotificationID {
   kXNotificationMsgrUnknown = 0x0C00000E,
 };
 
+enum FIRMWARE_REENTRY {
+  HalHaltRoutine = 0x0,
+  HalRebootRoutine = 0x1,
+  HalKdRebootRoutine = 0x2,
+  HalFatalErrorRebootRoutine = 0x3,
+  HalResetSMCRoutine = 0x4,
+  HalPowerDownRoutine = 0x5,
+  HalRebootQuiesceRoutine = 0x6,
+  HalForceShutdownRoutine = 0x7,
+  HalPowerCycleQuiesceRoutine = 0x8,
+};
+
 // https://github.com/CodeAsm/ffplay360/blob/master/Common/XTLOnPC.h
 struct X_VIDEO_MODE {
   be<uint32_t> display_width;

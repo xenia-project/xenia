@@ -17,16 +17,27 @@ namespace xe {
 namespace kernel {
 namespace xboxkrnl {
 
+constexpr std::array<std::string_view, 9> FirmwareReentryMessage = {
+    "hard poweroff",
+    "hard reset (video error)",
+    "hard reset (used for dumpwritedump/frozen processor)",
+    "hard reset",
+    "power off (hard)",
+    "power off (nice)",
+    "Shut off (Lost Settings)",
+    "Shut off (Frozen Console)",
+    "Shut off",
+};
+
 void HalReturnToFirmware_entry(dword_t routine) {
-  // void
-  // IN FIRMWARE_REENTRY  Routine
-
-  // Routine must be 1 'HalRebootRoutine'
-  assert_true(routine == 1);
-
   // TODO(benvank): diediedie much more gracefully
   // Not sure how to blast back up the stack in LLVM without exceptions, though.
-  XELOGE("Game requested shutdown via HalReturnToFirmware");
+  const std::string exitMessage = fmt::format(
+      "Game requested a {} via HalReturnToFirmware",
+      static_cast<size_t>(routine) < FirmwareReentryMessage.size()
+          ? FirmwareReentryMessage[routine]
+          : fmt::format("Reboot (Routine Code: {})", routine.value()));
+  XELOGE(exitMessage);
   exit(0);
 }
 DECLARE_XBOXKRNL_EXPORT2(HalReturnToFirmware, kNone, kStub, kImportant);
