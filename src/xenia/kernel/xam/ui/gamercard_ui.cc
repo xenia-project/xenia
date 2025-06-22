@@ -394,20 +394,21 @@ void GamercardUI::DrawBaseSettings(ImGuiIO& io) {
   ImGui::Text("Gamer Name:");
   ImGui::SameLine(leftSideTextObjectAlignment);
   ImGui::InputText("###GamerName", gamercardValues_.gamer_name,
-                   std::size(gamercardValues_.gamer_name),
+                   static_cast<int>(std::size(gamercardValues_.gamer_name)),
                    ImGuiInputTextFlags_ReadOnly);
 
   ImGui::Text("Gamer Motto:");
   ImGui::SameLine(leftSideTextObjectAlignment);
   ImGui::InputText("###GamerMotto", gamercardValues_.gamer_motto,
-                   std::size(gamercardValues_.gamer_motto),
+                   static_cast<int>(std::size(gamercardValues_.gamer_motto)),
                    ImGuiInputTextFlags_ReadOnly);
 
   ImGui::Text("Gamer Bio:");
   ImGui::SameLine(leftSideTextObjectAlignment);
-  ImGui::InputTextMultiline("###GamerBio", gamercardValues_.gamer_bio,
-                            std::size(gamercardValues_.gamer_bio), ImVec2(),
-                            ImGuiInputTextFlags_ReadOnly);
+  ImGui::InputTextMultiline(
+      "###GamerBio", gamercardValues_.gamer_bio,
+      static_cast<int>(std::size(gamercardValues_.gamer_bio)), ImVec2(),
+      ImGuiInputTextFlags_ReadOnly);
 
   ImGui::EndDisabled();
 
@@ -415,12 +416,12 @@ void GamercardUI::DrawBaseSettings(ImGuiIO& io) {
   ImGui::SameLine(leftSideTextObjectAlignment);
   ImGui::Combo("###Language",
                reinterpret_cast<int*>(&gamercardValues_.language),
-               XLanguageName, std::size(XLanguageName));
+               XLanguageName, static_cast<int>(std::size(XLanguageName)));
 
   ImGui::Text("Country:");
   ImGui::SameLine(leftSideTextObjectAlignment);
   ImGui::Combo("###Country", reinterpret_cast<int*>(&gamercardValues_.country),
-               XOnlineCountry, std::size(XOnlineCountry));
+               XOnlineCountry, static_cast<int>(std::size(XOnlineCountry)));
 }
 
 void GamercardUI::DrawOnlineSettings(ImGuiIO& io) {
@@ -443,16 +444,16 @@ void GamercardUI::DrawOnlineSettings(ImGuiIO& io) {
                    ImGuiInputTextFlags_ReadOnly);
 
   ImGui::BeginDisabled(!gamercardValues_.is_live_enabled);
-  DrawSettingComboBox(UserSettingId::XPROFILE_GAMERCARD_ZONE, "Gamer Zone",
-                      XGamerzoneName, std::size(XGamerzoneName),
-                      leftSideTextObjectAlignment);
+  DrawSettingComboBox(
+      UserSettingId::XPROFILE_GAMERCARD_ZONE, "Gamer Zone", XGamerzoneName,
+      static_cast<int>(std::size(XGamerzoneName)), leftSideTextObjectAlignment);
 
   ImGui::Text("Subscription Tier:");
   ImGui::SameLine(leftSideTextObjectAlignment);
   ImGui::Combo(
       "###Subscription",
       reinterpret_cast<int*>(&gamercardValues_.account_subscription_tier),
-      AccountSubscription, std::size(AccountSubscription));
+      AccountSubscription, static_cast<int>(std::size(AccountSubscription)));
 
   ImGui::EndDisabled();
 }
@@ -461,70 +462,72 @@ void GamercardUI::DrawGpdSettings(ImGuiIO& io) {
   ImGui::SeparatorText("Game Settings");
 
   DrawSettingComboBox(UserSettingId::XPROFILE_GAMER_DIFFICULTY, "Difficulty",
-                      GamerDifficultyOptions, std::size(GamerDifficultyOptions),
+                      GamerDifficultyOptions,
+                      static_cast<int>(std::size(GamerDifficultyOptions)),
                       rightSideTextObjectAlignment);
 
   DrawSettingComboBox(UserSettingId::XPROFILE_OPTION_CONTROLLER_VIBRATION,
                       "Controller Vibration", ControllerVibrationOptions,
-                      std::size(ControllerVibrationOptions),
+                      static_cast<int>(std::size(ControllerVibrationOptions)),
                       rightSideTextObjectAlignment);
 
   DrawSettingComboBox(UserSettingId::XPROFILE_GAMER_CONTROL_SENSITIVITY,
                       "Control Sensitivity", ControlSensitivityOptions,
-                      std::size(ControlSensitivityOptions),
+                      static_cast<int>(std::size(ControlSensitivityOptions)),
                       rightSideTextObjectAlignment);
 
   DrawSettingComboBox(UserSettingId::XPROFILE_GAMER_PREFERRED_COLOR_FIRST,
                       "Favorite Color (First)", PreferredColorOptions,
-                      std::size(PreferredColorOptions),
+                      static_cast<int>(std::size(PreferredColorOptions)),
                       rightSideTextObjectAlignment);
 
   DrawSettingComboBox(UserSettingId::XPROFILE_GAMER_PREFERRED_COLOR_SECOND,
                       "Favorite Color (Second)", PreferredColorOptions,
-                      std::size(PreferredColorOptions),
+                      static_cast<int>(std::size(PreferredColorOptions)),
                       rightSideTextObjectAlignment);
 
   ImGui::SeparatorText("Action Games Settings");
 
   DrawSettingComboBox(UserSettingId::XPROFILE_GAMER_YAXIS_INVERSION,
                       "Y-axis Inversion", YAxisInversionOptions,
-                      std::size(YAxisInversionOptions),
+                      static_cast<int>(std::size(YAxisInversionOptions)),
                       rightSideTextObjectAlignment);
 
   DrawSettingComboBox(UserSettingId::XPROFILE_GAMER_ACTION_AUTO_AIM, "Auto Aim",
-                      AutoAimOptions, std::size(AutoAimOptions),
+                      AutoAimOptions,
+                      static_cast<int>(std::size(AutoAimOptions)),
                       rightSideTextObjectAlignment);
 
   DrawSettingComboBox(UserSettingId::XPROFILE_GAMER_ACTION_AUTO_CENTER,
                       "Auto Center", AutoCenterOptions,
-                      std::size(AutoCenterOptions),
+                      static_cast<int>(std::size(AutoCenterOptions)),
                       rightSideTextObjectAlignment);
 
   DrawSettingComboBox(UserSettingId::XPROFILE_GAMER_ACTION_MOVEMENT_CONTROL,
                       "Movement Control", MovementControlOptions,
-                      std::size(MovementControlOptions),
+                      static_cast<int>(std::size(MovementControlOptions)),
                       rightSideTextObjectAlignment);
 
   ImGui::SeparatorText("Racing Games Settings");
 
   DrawSettingComboBox(UserSettingId::XPROFILE_GAMER_RACE_TRANSMISSION,
                       "Transmission", TransmissionOptions,
-                      std::size(TransmissionOptions),
+                      static_cast<int>(std::size(TransmissionOptions)),
                       rightSideTextObjectAlignment);
 
   DrawSettingComboBox(UserSettingId::XPROFILE_GAMER_RACE_CAMERA_LOCATION,
                       "Camera Location", CameraLocationOptions,
-                      std::size(CameraLocationOptions),
+                      static_cast<int>(std::size(CameraLocationOptions)),
                       rightSideTextObjectAlignment);
 
   DrawSettingComboBox(UserSettingId::XPROFILE_GAMER_RACE_BRAKE_CONTROL,
                       "Brake Control", BrakeControlOptions,
-                      std::size(BrakeControlOptions),
+                      static_cast<int>(std::size(BrakeControlOptions)),
                       rightSideTextObjectAlignment);
 
   DrawSettingComboBox(UserSettingId::XPROFILE_GAMER_RACE_ACCELERATOR_CONTROL,
                       "Accelerator Control", AcceleratorControlOptions,
-                      std::size(AcceleratorControlOptions),
+                      static_cast<int>(std::size(AcceleratorControlOptions)),
                       rightSideTextObjectAlignment);
 }
 
