@@ -24,6 +24,16 @@ __author__ = 'ben.vanik@gmail.com (Ben Vanik)'
 
 self_path = os.path.dirname(os.path.abspath(__file__))
 
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 # Detect if building on Android via Termux.
 host_linux_platform_is_android = False
@@ -880,7 +890,7 @@ class BaseBuildCommand(Command):
             if result != 0:
                 print('ERROR: ninja failed with one or more errors.')
                 return result
-        return 0
+        return result
 
 
 class BuildCommand(BaseBuildCommand):
@@ -898,8 +908,12 @@ class BuildCommand(BaseBuildCommand):
         print('')
 
         result = super(BuildCommand, self).execute(args, pass_args, cwd)
+
         if not result:
-            print('Success!')
+            print(f"{bcolors.OKCYAN}Success!{bcolors.ENDC}")
+        else:
+            print(f"{bcolors.FAIL}Failed!{bcolors.ENDC}")
+
         return result
 
 
