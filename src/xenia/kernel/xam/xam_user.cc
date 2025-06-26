@@ -500,11 +500,18 @@ dword_result_t XamUserGetMembershipTierFromXUID_entry(qword_t xuid) {
 DECLARE_XAM_EXPORT1(XamUserGetMembershipTierFromXUID, kUserProfiles,
                     kImplemented);
 
-dword_result_t XamUserAreUsersFriends_entry(dword_t user_index, dword_t unk1,
-                                            dword_t unk2, lpdword_t out_value,
-                                            dword_t overlapped_ptr) {
-  uint32_t are_friends = 0;
-  X_RESULT result;
+dword_result_t XamUserAreUsersFriends_entry(
+    dword_t user_index, lpqword_t xuids_ptr, dword_t xuids_count,
+    lpdword_t are_friends_ptr, pointer_t<XAM_OVERLAPPED> overlapped_ptr) {
+  X_RESULT result = X_ERROR_SUCCESS;
+  bool are_friends = false;
+
+  // 415607D2 provides are_friends_ptr and overlapped_ptr possibly a bug?
+  assert_true(!overlapped_ptr);
+
+  if (are_friends_ptr) {
+    *are_friends_ptr = 0;
+  }
 
   if (user_index >= XUserMaxUserCount) {
     result = X_ERROR_INVALID_PARAMETER;
@@ -512,38 +519,37 @@ dword_result_t XamUserAreUsersFriends_entry(dword_t user_index, dword_t unk1,
     if (kernel_state()->xam_state()->IsUserSignedIn(user_index)) {
       const auto& user_profile =
           kernel_state()->xam_state()->GetUserProfile(user_index);
-      if (user_profile->signin_state() == 0) {
+
+      // Check if we are signed into live
+      if (user_profile->signin_state() != 2) {
         result = X_ERROR_NOT_LOGGED_ON;
       } else {
         // No friends!
-        are_friends = 0;
+        are_friends = true;
         result = X_ERROR_SUCCESS;
       }
     } else {
-      // Only support user 0.
-      result =
-          X_ERROR_NO_SUCH_USER;  // if user is local -> X_ERROR_NOT_LOGGED_ON
+      result = X_ERROR_NO_SUCH_USER;
     }
   }
 
-  if (out_value) {
-    assert_true(!overlapped_ptr);
-    *out_value = result == X_ERROR_SUCCESS ? are_friends : 0;
-    return result;
-  } else if (overlapped_ptr) {
-    assert_true(!out_value);
+  if (overlapped_ptr) {
+    assert_true(!are_friends_ptr);
     kernel_state()->CompleteOverlappedImmediateEx(
         overlapped_ptr,
         result == X_ERROR_SUCCESS ? X_ERROR_SUCCESS : X_ERROR_FUNCTION_FAILED,
-        X_HRESULT_FROM_WIN32(result),
-        result == X_ERROR_SUCCESS ? are_friends : 0);
-    return X_ERROR_IO_PENDING;
-  } else {
-    assert_always();
-    return X_ERROR_INVALID_PARAMETER;
+        X_HRESULT_FROM_WIN32(result), are_friends);
+
+    return X_ERROR_SUCCESS;
   }
+
+  if (!overlapped_ptr && are_friends_ptr) {
+    *are_friends_ptr = are_friends;
+  }
+
+  return result;
 }
-DECLARE_XAM_EXPORT1(XamUserAreUsersFriends, kUserProfiles, kStub);
+DECLARE_XAM_EXPORT1(XamUserAreUsersFriends, kUserProfiles, kSketchy);
 
 dword_result_t XamUserCreateAchievementEnumerator_entry(
     dword_t title_id, dword_t user_index, qword_t xuid, dword_t flags,
