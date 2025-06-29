@@ -41,6 +41,8 @@ DECLARE_string(cl);
 namespace xe {
 namespace kernel {
 
+constexpr std::chrono::milliseconds kDeferredOverlappedDelayMillis(100);
+
 // This is a global object initialized with the XboxkrnlModule.
 // It references the current kernel state object that all kernel methods should
 // be using to stash their variables.
@@ -1019,6 +1021,8 @@ void KernelState::CompleteOverlappedDeferredEx(
     if (pre_callback) {
       pre_callback();
     }
+    // 5454082B infinitely loads free roam in netplay without sleep.
+    xe::threading::Sleep(kDeferredOverlappedDelayMillis);
     uint32_t extended_error, length;
     auto result = completion_callback(extended_error, length);
     CompleteOverlappedEx(overlapped_ptr, result, extended_error, length);
