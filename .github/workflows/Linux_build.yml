@@ -45,12 +45,19 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-24.04
+    outputs:
+      LLVM_VERSION: ${{ steps.setup.outputs.LLVM_VERSION }}
+      UBUNTU_BASE: ${{ steps.setup.outputs.UBUNTU_BASE }}
     steps:
       - uses: actions/checkout@main
       - name: Setup
+        id: setup
+        env:
+          LLVM_VERSION: 19 # Same as Windows
+          UBUNTU_BASE: noble
         run: |
-          LLVM_VERSION=19 # Same as Windows
-          UBUNTU_BASE=jammy
+          echo "LLVM_VERSION=$LLVM_VERSION" >> "$GITHUB_OUTPUT"
+          echo "UBUNTU_BASE=$UBUNTU_BASE" >> "$GITHUB_OUTPUT"
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
           sudo apt-add-repository "deb http://apt.llvm.org/${UBUNTU_BASE}/ llvm-toolchain-${UBUNTU_BASE}-$LLVM_VERSION main"
           sudo apt-get -y update
@@ -65,14 +72,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        LLVM_VERSION: [19]
+        LLVM_VERSION: ['${{ needs.lint.outputs.LLVM_VERSION }}']
     steps:
       - uses: actions/checkout@main
         with:
           fetch-depth: 0
       - name: Setup
+        env:
+          UBUNTU_BASE: ${{ needs.lint.outputs.UBUNTU_BASE }}
         run: |
-          UBUNTU_BASE=jammy
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
           sudo apt-add-repository "deb http://apt.llvm.org/${UBUNTU_BASE}/ llvm-toolchain-${UBUNTU_BASE}-${{ matrix.LLVM_VERSION }} main"
           sudo apt-get -y update
