@@ -14,7 +14,7 @@
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 
-extern "C" int main(int argc, char** argv) {
+int main(int argc, char** argv) {
   xe::ConsoleAppEntryInfo entry_info = xe::GetConsoleAppEntryInfo();
 
   if (!entry_info.transparent_options) {

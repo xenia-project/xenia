@@ -159,10 +159,26 @@ filter({"platforms:Linux", "language:C++", "toolset:clang"})
     "deprecated-enum-enum-conversion",
     "attributes",
   })
+if os.istarget("linux") and string.contains(_OPTIONS["cc"], "clang") then
+  CLANG_BIN = os.getenv("CC") or _OPTIONS["cc"]
+  if tonumber(string.match(os.outputof(CLANG_BIN.." --version"), "version (%d%d)")) >= 20 then
+    filter({"platforms:Linux", "language:C++", "toolset:clang"})
+      disablewarnings({
+        "deprecated-literal-operator", -- Needed only for tabulate
+        "nontrivial-memcall",
+      })
+  end
+end
+
 filter({"platforms:Linux", "language:C++", "toolset:clang", "files:*.cc or *.cpp"})
   buildoptions({
     "-stdlib=libstdc++",
     "-std=c++20", -- clang doesn't respect cppdialect(?)
+  })
+
+filter("files:third_party/tabulate/**")
+  defines({
+    "USE_CPP17",
   })
 
 filter("platforms:Android-*")
