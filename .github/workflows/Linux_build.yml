@@ -72,7 +72,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        LLVM_VERSION: ['${{ needs.lint.outputs.LLVM_VERSION }}']
+        LLVM_VERSION: ['${{ needs.lint.outputs.LLVM_VERSION }}', 20]
     steps:
       - uses: actions/checkout@main
         with:
@@ -104,7 +104,7 @@ jobs:
         if: steps.prepare_artifacts.outcome == 'success'
         uses: actions/upload-artifact@main
         with:
-          name: xenia_canary_linux
+          name: xenia_canary_linux_clang${{ matrix.LLVM_VERSION }}
           path: artifacts
           if-no-files-found: error
 

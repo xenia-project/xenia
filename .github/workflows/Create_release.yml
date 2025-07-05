@@ -25,33 +25,37 @@ jobs:
           rm -rf **/*.pdb
           case ${{ inputs.os }} in
             windows)
-              asset=xenia_canary_windows.zip
-              7z a $asset './xenia_canary_windows/*'
+              assets=xenia_canary_windows.zip
+              7z a $assets './xenia_canary_windows/*'
               ;;
             linux)
-              asset=xenia_canary_linux.tar.gz
-              cd xenia_canary_linux
-              chmod +x xenia_canary
-              tar -czvpf ../$asset *
-              cd -
+              for dir in xenia_canary_${{ inputs.os }}*; do
+                cd $dir
+                chmod +x xenia_canary
+                assets+=(${dir}.tar.gz)
+                tar -czvpf ../$assets *
+                cd -
+              done
               ;;
           esac
-          if [ ! -f $asset ]; then
-            echo "::error::$asset doesn't exist!"
-            exit 1
-          fi
-          if [ $(stat -c%s $asset) -lt 100000 ]; then
-            echo "::error::$asset is too small!"
-            exit 1
-          fi
+          for asset in ${assets[@]}; do
+            if [ ! -f $asset ]; then
+              echo "::error::$asset doesn't exist!"
+              exit 1
+            fi
+            if [ $(stat -c%s $asset) -lt 100000 ]; then
+              echo "::error::$asset is too small!"
+              exit 1
+            fi
+          done
           create_or_edit_release() {
             local tag=$1
             local title=$2
             if gh release view $tag; then
               gh release edit $tag -t $title -n "$notes"
-              gh release upload $tag $asset --clobber
+              gh release upload $tag ${assets[@]} --clobber
             else
-              gh release create $tag $asset --target 925ed98d5dce604b651027c36fb522dc1ff0fa55 -t $title -n "$notes"
+              gh release create $tag ${assets[@]} --target 925ed98d5dce604b651027c36fb522dc1ff0fa55 -t $title -n "$notes"
             fi
           }
           tag=${GITHUB_SHA::7}
