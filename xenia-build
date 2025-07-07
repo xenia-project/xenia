@@ -455,9 +455,9 @@ def get_clang_format_binary():
     Returns:
       A path to the clang-format executable.
     """
-    clang_format_minimum_ver='18'
+    clang_format_minimum_ver='19'
     attempts = [
-        'clang-format-19',
+        'clang-format-20',
         'clang-format-' + clang_format_minimum_ver,
         'clang-format',
         ]
