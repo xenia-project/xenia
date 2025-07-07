@@ -255,7 +255,7 @@ workspace("xenia")
       -- 10.0.22000.0: DWMWA_WINDOW_CORNER_PREFERENCE.
       filter("action:vs2017")
         systemversion("10.0.22000.0")
-      filter("action:vs2019")
+      filter("action:vs2019 or vs2022")
         systemversion("10.0")
       filter({})
     end

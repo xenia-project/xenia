@@ -516,7 +516,7 @@ def run_premake(target_os, action, cc=None):
 
     Args:
       target_os: target --os to pass to premake.
-      action: action to preform.
+      action: action to perform.
     """
     args = [
         sys.executable,
