@@ -32,8 +32,9 @@ jobs:
               for dir in xenia_canary_${{ inputs.os }}*; do
                 cd $dir
                 chmod +x xenia_canary
-                assets+=(${dir}.tar.gz)
-                tar -czvpf ../$assets *
+                asset=${dir}.tar.gz
+                assets+=($asset)
+                tar -czvpf ../${asset} *
                 cd -
               done
               ;;
