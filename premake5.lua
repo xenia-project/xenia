@@ -159,8 +159,8 @@ filter({"platforms:Linux", "language:C++", "toolset:clang"})
     "deprecated-enum-enum-conversion",
     "attributes",
   })
-if os.istarget("linux") and string.contains(_OPTIONS["cc"], "clang") then
-  CLANG_BIN = os.getenv("CC") or _OPTIONS["cc"]
+CLANG_BIN = os.getenv("CC") or _OPTIONS["cc"] or "clang"
+if os.istarget("linux") and string.contains(CLANG_BIN, "clang") then
   if tonumber(string.match(os.outputof(CLANG_BIN.." --version"), "version (%d%d)")) >= 20 then
     filter({"platforms:Linux", "language:C++", "toolset:clang"})
       disablewarnings({
