@@ -29,6 +29,7 @@ includedirs({
 defines({
   "_UNICODE",
   "UNICODE",
+  "USE_CPP17", -- Tabulate
 })
 
 cppdialect("C++20")
@@ -159,7 +160,7 @@ filter({"platforms:Linux", "language:C++", "toolset:clang"})
     "deprecated-enum-enum-conversion",
     "attributes",
   })
-CLANG_BIN = os.getenv("CC") or _OPTIONS["cc"] or "clang"
+CLANG_BIN = os.getenv("CC", _OPTIONS["cc"]) or "clang"
 if os.istarget("linux") and string.contains(CLANG_BIN, "clang") then
   if tonumber(string.match(os.outputof(CLANG_BIN.." --version"), "version (%d%d)")) >= 20 then
     filter({"platforms:Linux", "language:C++", "toolset:clang"})
@@ -170,16 +171,10 @@ if os.istarget("linux") and string.contains(CLANG_BIN, "clang") then
   end
 end
 
-filter({"platforms:Linux", "language:C++", "toolset:clang", "files:*.cc or *.cpp"})
-  buildoptions({
-    "-stdlib=libstdc++",
-    "-std=c++20", -- clang doesn't respect cppdialect(?)
-  })
-
-filter("files:third_party/tabulate/**")
-  defines({
-    "USE_CPP17",
-  })
+--filter({"platforms:Linux", "language:C++", "toolset:clang", "files:*.cc or *.cpp"})
+--  buildoptions({
+--    "-stdlib=libstdc++",
+--  })
 
 filter("platforms:Android-*")
   system("android")

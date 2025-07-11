@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
 
-# Copyright 2022 Ben Vanik. All Rights Reserved.
+# Copyright 2025 Ben Vanik. All Rights Reserved.
 
 """Main build script and tooling for xenia.
 
 Run with --help or no arguments for possible commands.
 """
-from __future__ import print_function
 from datetime import datetime
 from multiprocessing import Pool
 from functools import partial
-import argparse
-import json
+from argparse import ArgumentParser
+from json import loads as jsonloads
 import os
-import re
-import shutil
+from shutil import rmtree
 import subprocess
 import sys
 import stat
@@ -41,14 +39,14 @@ if sys.platform == 'linux':
     try:
         host_linux_platform_is_android = subprocess.Popen(
             ['uname', '-o'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            universal_newlines=True).communicate()[0] == 'Android\n'
+            text=True).communicate()[0] == 'Android\n'
     except Exception:
         pass
 
 
 def import_subprocess_environment(args):
     popen = subprocess.Popen(
-        args, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+        args, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     variables, _ = popen.communicate()
     envvars_to_save = (
         'devenvdir',
@@ -65,7 +63,7 @@ def import_subprocess_environment(args):
         )
     for line in variables.splitlines():
         for envvar in envvars_to_save:
-            if re.match(envvar + '=', line.lower()):
+            if envvar + '=' in line.lower():
                 var, setting = line.split('=', 1)
                 if envvar == 'path':
                     setting = os.path.dirname(sys.executable) + os.pathsep + setting
@@ -94,12 +92,10 @@ def import_vs_environment():
         "Microsoft.VisualStudio.Product.Professional "
         "Microsoft.VisualStudio.Product.Community "
         "Microsoft.VisualStudio.Product.BuildTools",
-        shell=False,
-        universal_newlines=True,
         encoding="utf-8",
     )
     if vswhere:
-        vswhere = json.loads(vswhere)
+        vswhere = jsonloads(vswhere)
     if vswhere and len(vswhere) > 0:
         version = int(vswhere[0].get("catalog", {}).get("productLineVersion", 2017))
         install_path = vswhere[0].get("installationPath", None)
@@ -141,14 +137,12 @@ def main():
 
     # Check git exists.
     if not has_bin('git'):
-        print('WARNING: Git should be installed and on PATH. Version info will be omitted from all binaries!')
-        print('')
+        print('WARNING: Git should be installed and on PATH. Version info will be omitted from all binaries!\n')
     elif not git_is_repository():
-        print('WARNING: The source tree is unversioned. Version info will be omitted from all binaries!')
-        print('')
+        print('WARNING: The source tree is unversioned. Version info will be omitted from all binaries!\n')
 
     # Check python version.
-    python_minimum_ver=3,9
+    python_minimum_ver = 3,9
     if not sys.version_info[:2] >= (python_minimum_ver[0], python_minimum_ver[1]):
         print('ERROR: Python ', python_minimum_ver[0], '.', python_minimum_ver[1], '+ must be installed and on PATH', sep='')
         sys.exit(1)
@@ -161,7 +155,7 @@ def main():
         print('https://github.com/xenia-canary/xenia-canary/blob/canary_experimental/docs/building.md')
 
     # Setup main argument parser and common arguments.
-    parser = argparse.ArgumentParser(prog='xenia-build')
+    parser = ArgumentParser(prog='xenia-build')
 
     # Grab all commands and populate the argument parser for each.
     subparsers = parser.add_subparsers(title='subcommands',
@@ -474,7 +468,6 @@ def get_clang_format_binary():
                 ])
             return binary
     print('ERROR: clang-format is not on PATH')
-    print('LLVM is available from https://llvm.org/releases/download.html')
     print('At least version ' + clang_format_minimum_ver + ' is required.')
     print('See docs/style_guide.md for instructions on how to get it.')
     sys.exit(1)
@@ -530,7 +523,7 @@ def run_premake(target_os, action, cc=None):
     if cc:
         args.insert(4, '--cc=%s' % cc)
 
-    ret = subprocess.call(args, shell=False)
+    ret = subprocess.call(args)
 
     if ret == 0:
         generate_version_h()
@@ -697,8 +690,7 @@ class SetupCommand(Command):
             help='Target OS passed to premake, for cross-compilation')
 
     def execute(self, args, pass_args, cwd):
-        print('Setting up the build environment...')
-        print('')
+        print('Setting up the build environment...\n')
 
         # Setup submodules.
         print('- git submodule init / update...')
@@ -706,12 +698,10 @@ class SetupCommand(Command):
             git_submodule_update()
         else:
             print('WARNING: Git not available or not a repository. Dependencies may be missing.')
-        print('')
 
-        print('- running premake...')
+        print('\n- running premake...')
         ret = run_platform_premake(target_os_override=args['target_os'])
-        print('')
-        print('Success!' if ret == 0 else 'Error!')
+        print('\nSuccess!' if ret == 0 else 'Error!')
 
         return ret
 
@@ -733,8 +723,7 @@ class PullCommand(Command):
             help='Target OS passed to premake, for cross-compilation')
 
     def execute(self, args, pass_args, cwd):
-        print('Pulling...')
-        print('')
+        print('Pulling...\n')
 
         print('- switching to canary_experimental...')
         shell_call([
@@ -764,8 +753,7 @@ class PullCommand(Command):
 
         print('- running premake...')
         if run_platform_premake(target_os_override=args['target_os']) == 0:
-            print('')
-            print('Success!')
+            print('\nSuccess!')
 
         return 0
 
@@ -789,8 +777,7 @@ class PremakeCommand(Command):
 
     def execute(self, args, pass_args, cwd):
         # Update premake. If no binary found, it will be built from source.
-        print('Running premake...')
-        print('')
+        print('Running premake...\n')
         ret = run_platform_premake(target_os_override=args['target_os'],
                                    cc=args['cc'], devenv=args['devenv'])
         print('Success!' if ret == 0 else 'Error!')
@@ -855,8 +842,7 @@ class BaseBuildCommand(Command):
                     '/m',
                     '/v:m',
                     '/p:Configuration=' + args['config'],
-                    ] + ([targets] if targets is not None else []) + pass_args,
-                    shell=False)
+                    ] + ([targets] if targets is not None else []) + pass_args)
         elif sys.platform == 'darwin':
             schemes = args['target'] if len(args['target']) else ['xenia-app']
             nested_args = [['-scheme', scheme] for scheme in schemes]
@@ -867,7 +853,7 @@ class BaseBuildCommand(Command):
                 'build/xenia.xcworkspace',
                 '-configuration',
                 args['config']
-            ] + scheme_args + pass_args, shell=False, env=dict(os.environ))
+            ] + scheme_args + pass_args, env=dict(os.environ))
         else:
             result = subprocess.call([
                 'cmake',
@@ -877,16 +863,16 @@ class BaseBuildCommand(Command):
                 '-DCMAKE_C_COMPILER=' + os.environ.get('CC', 'clang'),
                 '-DCMAKE_CXX_COMPILER=' + os.environ.get('CXX', 'clang++'),
                 '-GNinja'
-            ] + pass_args, shell=False, env=dict(os.environ))
+            ] + pass_args, env=dict(os.environ))
             print('')
             if result != 0:
                 print('ERROR: cmake failed with one or more errors.')
                 return result
             result = subprocess.call([
                     'ninja',
-                    '-C./build/build_%s' % (args['config']),
+                    '-Cbuild/build_%s' % (args['config']),
                     '-j' if threads == 0 else '-j%d' % threads,
-                ] + pass_args, shell=False, env=dict(os.environ))
+                ] + pass_args, env=dict(os.environ))
             if result != 0:
                 print('ERROR: ninja failed with one or more errors.')
                 return result
@@ -904,8 +890,7 @@ class BuildCommand(BaseBuildCommand):
             *args, **kwargs)
 
     def execute(self, args, pass_args, cwd):
-        print('Building %s...' % (args['config']))
-        print('')
+        print('Building %s...' % (args['config']) + '\n')
 
         result = super(BuildCommand, self).execute(args, pass_args, cwd)
 
@@ -1105,9 +1090,9 @@ class BuildShadersCommand(Command):
                     glslang_arguments.append('-I' + src_dir)
                 if subprocess.run(
                        glslang_arguments,
-                       input = (spirv_xesl_wrapper % src_name) if src_is_xesl
+                       input=(spirv_xesl_wrapper % src_name) if src_is_xesl
                                else None,
-                       universal_newlines = True).returncode != 0:
+                       text=True).returncode != 0:
                     print('ERROR: failed to build a SPIR-V shader')
                     return 1
                 # spirv-opt input and output files must be different.
@@ -1195,8 +1180,7 @@ class TestCommand(BaseBuildCommand):
             help='Don\'t stop when a test errors, but continue running all.')
 
     def execute(self, args, pass_args, cwd):
-        print('Testing...')
-        print('')
+        print('Testing...\n')
 
         # The test executables that will be built and run.
         test_targets = args['target'] or [
@@ -1312,8 +1296,7 @@ class GenTestsCommand(Command):
             ], stdout_path=os.path.join(test_bin, src_name) + '.map')
 
     def execute(self, args, pass_args, cwd):
-        print('Generating test binaries...')
-        print('')
+        print('Generating test binaries...\n')
 
         if sys.platform == 'win32':
             binutils_path = os.path.join('third_party', 'binutils-ppc-cygwin')
@@ -1326,8 +1309,7 @@ class GenTestsCommand(Command):
         ppc_nm = os.path.join(binutils_path, 'powerpc-none-elf-nm')
 
         if not os.path.exists(ppc_as) and sys.platform == 'linux':
-            print('Binaries are missing, binutils build required')
-            print('')
+            print('Binaries are missing, binutils build required\n')
             shell_script = os.path.join('third_party', 'binutils', 'build.sh')
             # Set executable bit for build script before running it
             os.chmod(shell_script, stat.S_IRUSR | stat.S_IWUSR |
@@ -1384,8 +1366,7 @@ class GpuTestCommand(BaseBuildCommand):
             help='Create reference files for new traces.')
 
     def execute(self, args, pass_args, cwd):
-        print('Testing...')
-        print('')
+        print('Testing...\n')
 
         # The test executables that will be built and run.
         test_targets = args['target'] or [
@@ -1411,7 +1392,7 @@ class GpuTestCommand(BaseBuildCommand):
 
         output_path = os.path.join(self_path, 'build', 'gputest')
         if os.path.isdir(output_path):
-            shutil.rmtree(output_path)
+            rmtree(output_path)
         os.makedirs(output_path)
         print('Running tests and outputting to %s...' % (output_path))
 
@@ -1455,8 +1436,7 @@ class CleanCommand(Command):
             help='Target OS passed to premake, for cross-compilation')
 
     def execute(self, args, pass_args, cwd):
-        print('Cleaning build artifacts...')
-        print('')
+        print('Cleaning build artifacts...\n')
 
         print('- premake clean...')
         run_premake(get_premake_target_os(args['target_os']), 'clean')
@@ -1480,12 +1460,11 @@ class NukeCommand(Command):
             help='Target OS passed to premake, for cross-compilation')
 
     def execute(self, args, pass_args, cwd):
-        print('Cleaning build artifacts...')
-        print('')
+        print('Cleaning build artifacts...\n')
 
         print('- removing build/...')
         if os.path.isdir('build/'):
-            shutil.rmtree('build/')
+            rmtree('build/')
         print('')
 
         print('- git reset to canary_experimental...')
