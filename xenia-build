@@ -443,10 +443,9 @@ def get_clang_format_binary():
     Returns:
       A path to the clang-format executable.
     """
-    clang_format_minimum_ver='19'
+    clang_format_version_req = '19'
     attempts = [
-        'clang-format-20',
-        'clang-format-' + clang_format_minimum_ver,
+        'clang-format-' + clang_format_version_req,
         'clang-format',
         ]
     if sys.platform == 'win32':
@@ -456,13 +455,12 @@ def get_clang_format_binary():
             attempts.append(os.path.join(os.environ['VCINSTALLDIR'], 'Tools', 'Llvm', 'bin', 'clang-format.exe'))
     for binary in attempts:
         if has_bin(binary):
-            shell_call([
-                binary,
-                '--version',
-                ])
-            return binary
+            clang_format_out = subprocess.check_output([binary, '--version'], text=True)
+            if int(clang_format_out.split('version ')[1].split('.')[0]) >= int(clang_format_version_req):
+                print(clang_format_out)
+                return binary
     print('ERROR: clang-format is not on PATH')
-    print('At least version ' + clang_format_minimum_ver + ' is required.')
+    print('Version ' + clang_format_version_req + ' is required.')
     print('See docs/style_guide.md for instructions on how to get it.')
     sys.exit(1)
 
