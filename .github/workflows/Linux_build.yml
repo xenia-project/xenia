@@ -65,8 +65,8 @@ jobs:
       - name: Lint
         run: ./xb lint --all
 
-  build:
-    name: Build (LLVM ${{ matrix.LLVM_VERSION }})
+  build-clang:
+    name: Build (Clang ${{ matrix.LLVM_VERSION }})
     needs: lint
     runs-on: ubuntu-24.04
     strategy:
@@ -107,9 +107,48 @@ jobs:
           path: artifacts
           if-no-files-found: error
 
+#  build-gcc:
+#    name: Build (GCC ${{ matrix.GCC_VERSION }})
+#    needs: lint
+#    runs-on: ubuntu-24.04
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        GCC_VERSION: [14]
+#    steps:
+#      - uses: actions/checkout@main
+#        with:
+#          fetch-depth: 0
+#      - name: Setup
+#        run: |
+#          sudo apt-get -y update
+#          sudo apt-get -y install mesa-vulkan-drivers valgrind libc++-dev libc++abi-dev libgtk-3-dev libsdl2-dev libvulkan-dev libx11-xcb-dev g++-${{ matrix.GCC_VERSION }}
+#          ./xb setup
+#      - name: Build
+#        env:
+#          CC: gcc-${{ matrix.GCC_VERSION }}
+#          CXX: g++-${{ matrix.GCC_VERSION }}
+#        #  AR: ar
+#        run: ./xb build --config=Release
+#      - name: Prepare artifacts
+#        id: prepare_artifacts
+#        run: |
+#          if [ $(stat -c %s build/bin/Linux/Release/xenia_canary) -le 100000 ]; then
+#            echo "::error::Binary is too small."
+#          fi
+#          mkdir -p artifacts
+#          cp -r build/bin/Linux/Release/xenia_canary LICENSE artifacts
+#      - name: Upload xenia canary artifacts
+#        if: steps.prepare_artifacts.outcome == 'success'
+#        uses: actions/upload-artifact@main
+#        with:
+#          name: xenia_canary_linux_gcc
+#          path: artifacts
+#          if-no-files-found: error
+
   create-release:
     name: Create release
-    needs: [lint, build]
+    needs: [lint, build-clang] #build-gcc
     if: |
       github.repository == 'xenia-canary/xenia-canary' &&
       github.event.action != 'pull_request' &&
