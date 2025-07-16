@@ -29,6 +29,39 @@ constexpr fourcc_t kThreadSaveSignature = make_fourcc("THRD");
 
 class XEvent;
 
+enum IRQL_FLAGS : uint8_t {
+  IRQL_PASSIVE = 0,
+  IRQL_APC = 1,
+  IRQL_DISPATCH = 2,
+  IRQL_DPC = 3,
+  IRQL_AUDIO = 68,   // used a few times in the audio driver
+  IRQL_CLOCK = 116,  // irql used by the clock interrupt
+  IRQL_HIGHEST = 124
+};
+
+enum X_DISPATCHER_FLAGS {
+  DISPATCHER_MANUAL_RESET_EVENT = 0,
+  DISPATCHER_AUTO_RESET_EVENT = 1,
+  DISPATCHER_MUTANT = 2,
+  DISPATCHER_QUEUE = 4,
+  DISPATCHER_SEMAPHORE = 5,
+  DISPATCHER_THREAD = 6,
+  DISPATCHER_MANUAL_RESET_TIMER = 8,
+  DISPATCHER_AUTO_RESET_TIMER = 9,
+};
+
+// https://www.geoffchappell.com/studies/windows/km/ntoskrnl/inc/ntos/ke/kthread_state.htm
+enum X_KTHREAD_STATE_FLAGS : uint8_t {
+  KTHREAD_STATE_INITIALIZED = 0,
+  KTHREAD_STATE_READY = 1,
+  KTHREAD_STATE_RUNNING = 2,
+  KTHREAD_STATE_STANDBY = 3,
+  KTHREAD_STATE_TERMINATED = 4,
+  KTHREAD_STATE_WAITING = 5,
+  KTHREAD_STATE_UNKNOWN = 6,  //"Transition" except that makes no sense here, so
+                              // 6 likely has a different meaning on xboxkrnl
+};
+
 constexpr uint32_t X_CREATE_SUSPENDED = 0x00000001;
 
 constexpr uint32_t X_TLS_OUT_OF_INDEXES = UINT32_MAX;
@@ -82,7 +115,7 @@ struct X_KTHREAD;
 struct X_KPROCESS;
 struct X_KPRCB {
   TypedGuestPointer<X_KTHREAD> current_thread;  // 0x0
-  TypedGuestPointer<X_KTHREAD> unk_4;           // 0x4
+  TypedGuestPointer<X_KTHREAD> next_thread;     // 0x4
   TypedGuestPointer<X_KTHREAD> idle_thread;     // 0x8
   uint8_t current_cpu;                          // 0xC
   uint8_t unk_D[3];                             // 0xD
@@ -104,14 +137,14 @@ struct X_KPRCB {
   xe::be<uint32_t> unk_3C;                        // 0x3C
   xe::be<uint32_t> dpc_related_40;                // 0x40
   // must be held to modify any dpc-related fields in the kprcb
-  xe::be<uint32_t> dpc_lock;           // 0x44
-  X_LIST_ENTRY queued_dpcs_list_head;  // 0x48
-  xe::be<uint32_t> dpc_active;         // 0x50
-  X_KSPINLOCK spin_lock;               // 0x54
-  xe::be<uint32_t> unk_58;             // 0x58
+  xe::be<uint32_t> dpc_lock;                         // 0x44
+  X_LIST_ENTRY queued_dpcs_list_head;                // 0x48
+  xe::be<uint32_t> dpc_active;                       // 0x50
+  X_KSPINLOCK spin_lock;                             // 0x54
+  TypedGuestPointer<X_KTHREAD> running_idle_thread;  // 0x58
   // definitely scheduler related
-  X_SINGLE_LIST_ENTRY unk_5C;  // 0x5C
-  xe::be<uint32_t> unk_60;     // 0x60
+  X_SINGLE_LIST_ENTRY enqueued_threads_list;      // 0x5C
+  xe::be<uint32_t> has_ready_thread_by_priority;  // 0x60
   // i think the following mask has something to do with the array that comes
   // after
   xe::be<uint32_t> unk_mask_64;  // 0x64
@@ -123,7 +156,7 @@ struct X_KPRCB {
   // thread_exit_dpc's routine drains this list and frees each threads threadid,
   // kernel stack and dereferences the thread
   X_LIST_ENTRY terminating_threads_list;  // 0x184
-  XDPC unk_18C;                           // 0x18C
+  XDPC switch_thread_processor_dpc;       // 0x18C
 };
 // Processor Control Region
 struct X_KPCR {
@@ -132,19 +165,25 @@ struct X_KPCR {
   union {
     xe::be<uint16_t> software_interrupt_state;  // 0x8
     struct {
-      uint8_t unknown_8;                     // 0x8
+      uint8_t generic_software_interrupt;    // 0x8
       uint8_t apc_software_interrupt_state;  // 0x9
     };
   };
-  uint8_t unk_0A[2];                 // 0xA
+  xe::be<uint16_t> unk_0A;           // 0xA
   uint8_t processtype_value_in_dpc;  // 0xC
-  uint8_t unk_0D[3];                 // 0xD
+  uint8_t timeslice_ended;           // 0xD
+  uint8_t timer_pending;             // 0xE
+  uint8_t unk_0F;                    // 0xF
   // used in KeSaveFloatingPointState / its vmx counterpart
-  xe::be<uint32_t> thread_fpu_related;  // 0x10
-  xe::be<uint32_t> thread_vmx_related;  // 0x14
-  uint8_t current_irql;                 // 0x18
-  uint8_t unk_19[0x17];                 // 0x19
-  xe::be<uint64_t> pcr_ptr;             // 0x30
+  xe::be<uint32_t> thread_fpu_related;   // 0x10
+  xe::be<uint32_t> thread_vmx_related;   // 0x14
+  uint8_t current_irql;                  // 0x18
+  uint8_t background_scheduling_active;  // 0x19
+  uint8_t background_scheduling_1A;      // 0x1A
+  uint8_t background_scheduling_1B;      // 0x1B
+  xe::be<uint32_t> timer_related;        // 0x1C
+  uint8_t unk_20[0x10];                  // 0x20
+  xe::be<uint64_t> pcr_ptr;              // 0x30
 
   // this seems to be just garbage data? we can stash a pointer to context here
   // as a hack for now
@@ -174,27 +213,54 @@ struct X_KPCR {
   uint8_t unk_2AC[0x2C];            // 0x2AC
 };
 
+enum : uint16_t {
+  WAIT_ALL = 0,
+  WAIT_ANY = 1,
+};
+
+// https://www.geoffchappell.com/studies/windows/km/ntoskrnl/inc/ntos/ke_x/kwait_block.htm
+//  pretty much the vista KWAIT_BLOCK verbatim, except that sparebyte is gone
+//  and WaitType is 2 bytes instead of 1
+struct X_KWAIT_BLOCK {
+  X_LIST_ENTRY wait_list_entry;  // 0x0
+  TypedGuestPointer<X_KTHREAD> thread;
+  TypedGuestPointer<X_DISPATCH_HEADER> object;
+  TypedGuestPointer<X_KWAIT_BLOCK> next_wait_block;
+  // this isnt the official vista name, but i think its better.
+  // this value is what will be returned to the waiter if this particular wait
+  // is satisfied
+  xe::be<uint16_t> wait_result_xstatus;
+  // WAIT_ALL or WAIT_ANY
+  xe::be<uint16_t> wait_type;
+};
+
+static_assert_size(X_KWAIT_BLOCK, 0x18);
+
+struct X_KTIMER {
+  X_DISPATCH_HEADER header;         // 0x0
+  xe::be<uint64_t> due_time;        // 0x10
+  X_LIST_ENTRY table_bucket_entry;  // 0x18
+  TypedGuestPointer<XDPC> dpc;      // 0x20
+  xe::be<uint32_t> period;          // 0x24
+};
+static_assert_size(X_KTIMER, 0x28);
+
 struct X_KTHREAD {
-  X_DISPATCH_HEADER header;       // 0x0
-  xe::be<uint32_t> unk_10;        // 0x10
-  xe::be<uint32_t> unk_14;        // 0x14
-  uint8_t unk_18[0x28];           // 0x10
-  xe::be<uint32_t> unk_40;        // 0x40
-  xe::be<uint32_t> unk_44;        // 0x44
-  xe::be<uint32_t> unk_48;        // 0x48
-  xe::be<uint32_t> unk_4C;        // 0x4C
-  uint8_t unk_50[0x4];            // 0x50
-  xe::be<uint16_t> unk_54;        // 0x54
-  xe::be<uint16_t> unk_56;        // 0x56
-  uint8_t unk_58[0x4];            // 0x58
-  xe::be<uint32_t> stack_base;    // 0x5C
-  xe::be<uint32_t> stack_limit;   // 0x60
-  xe::be<uint32_t> stack_kernel;  // 0x64
-  xe::be<uint32_t> tls_address;   // 0x68
+  X_DISPATCH_HEADER header;          // 0x0
+  xe::be<uint32_t> unk_10;           // 0x10
+  xe::be<uint32_t> unk_14;           // 0x14
+  X_KTIMER wait_timeout_timer;       // 0x18
+  X_KWAIT_BLOCK wait_timeout_block;  // 0x40
+  uint8_t unk_58[0x4];               // 0x58
+  xe::be<uint32_t> stack_base;       // 0x5C
+  xe::be<uint32_t> stack_limit;      // 0x60
+  xe::be<uint32_t> stack_kernel;     // 0x64
+  xe::be<uint32_t> tls_address;      // 0x68
   // state = is thread running, suspended, etc
   uint8_t thread_state;  // 0x6C
   // 0x70 = priority?
-  uint8_t unk_6D[0x3];        // 0x6D
+  uint8_t alerted[2];         // 0x6D
+  uint8_t alertable;          // 0x6F
   uint8_t priority;           // 0x70
   uint8_t fpu_exceptions_on;  // 0x71
   // these two process types both get set to the same thing, process_type is
@@ -205,50 +271,56 @@ struct X_KTHREAD {
   // apc_mode determines which list an apc goes into
   util::X_TYPED_LIST<XAPC, offsetof(XAPC, list_entry)> apc_lists[2];
   TypedGuestPointer<X_KPROCESS> process;  // 0x84
-  uint8_t unk_88[0x3];                    // 0x88
-  uint8_t may_queue_apcs;                 // 0x8B
-  X_KSPINLOCK apc_lock;                   // 0x8C
-  uint8_t unk_90[0xC];                    // 0x90
-  xe::be<uint32_t> msr_mask;              // 0x9C
-  uint8_t unk_A0[4];                      // 0xA0
-  uint8_t unk_A4;                         // 0xA4
-  uint8_t unk_A5[0xB];                    // 0xA5
-  int32_t apc_disable_count;              // 0xB0
-  uint8_t unk_B4[4];                      // 0xB4
-  uint8_t unk_B8;                         // 0xB8
-  uint8_t unk_B9;                         // 0xB9
-  uint8_t unk_BA;                         // 0xBA
-  uint8_t boost_disabled;                 // 0xBB
-  uint8_t suspend_count;                  // 0xBC
-  uint8_t unk_BD;                         // 0xBD
-  uint8_t terminated;                     // 0xBE
-  uint8_t current_cpu;                    // 0xBF
+  uint8_t executing_kernel_apc;           // 0x88
+  // when context switch happens, this is copied into
+  // apc_software_interrupt_state for kpcr
+  uint8_t deferred_apc_software_interrupt_state;  // 0x89
+  uint8_t user_apc_pending;                       // 0x8A
+  uint8_t may_queue_apcs;                         // 0x8B
+  X_KSPINLOCK apc_lock;                           // 0x8C
+  xe::be<uint32_t> num_context_switches_to;       // 0x90
+  X_LIST_ENTRY ready_prcb_entry;                  // 0x94
+  xe::be<uint32_t> msr_mask;                      // 0x9C
+  xe::be<X_STATUS> wait_result;                   // 0xA0
+  uint8_t wait_irql;                              // 0xA4
+  uint8_t unk_A5[0xB];                            // 0xA5
+  int32_t apc_disable_count;                      // 0xB0
+  xe::be<int32_t> quantum;                        // 0xB4
+  uint8_t unk_B8;                                 // 0xB8
+  uint8_t unk_B9;                                 // 0xB9
+  uint8_t unk_BA;                                 // 0xBA
+  uint8_t boost_disabled;                         // 0xBB
+  uint8_t suspend_count;                          // 0xBC
+  uint8_t was_preempted;                          // 0xBD
+  uint8_t terminated;                             // 0xBE
+  uint8_t current_cpu;                            // 0xBF
   // these two pointers point to KPRCBs, but seem to be rarely referenced, if at
   // all
   TypedGuestPointer<X_KPRCB> a_prcb_ptr;        // 0xC0
   TypedGuestPointer<X_KPRCB> another_prcb_ptr;  // 0xC4
-  uint8_t unk_C8[8];                            // 0xC8
+  uint8_t unk_C8;                               // 0xC8
+  uint8_t unk_C9;                               // 0xC9
+  uint8_t unk_CA;                               // 0xCA
+  uint8_t unk_CB;                               // 0xCB
+  X_KSPINLOCK timer_list_lock;                  // 0xCC
   xe::be<uint32_t> stack_alloc_base;            // 0xD0
-  // uint8_t unk_D4[0x5C];               // 0xD4
-  XAPC on_suspend;      // 0xD4
-  X_KSEMAPHORE unk_FC;  // 0xFC
+  XAPC on_suspend;                              // 0xD4
+  X_KSEMAPHORE suspend_sema;                    // 0xFC
   // this is an entry in
-  X_LIST_ENTRY process_threads;     // 0x110
-  xe::be<uint32_t> unk_118;         // 0x118
-  xe::be<uint32_t> unk_11C;         // 0x11C
-  xe::be<uint32_t> unk_120;         // 0x120
-  xe::be<uint32_t> unk_124;         // 0x124
-  xe::be<uint32_t> unk_128;         // 0x128
-  xe::be<uint32_t> unk_12C;         // 0x12C
-  xe::be<uint64_t> create_time;     // 0x130
-  xe::be<uint64_t> exit_time;       // 0x138
-  xe::be<uint32_t> exit_status;     // 0x140
-  xe::be<uint32_t> unk_144;         // 0x144
-  xe::be<uint32_t> unk_148;         // 0x148
+  X_LIST_ENTRY process_threads;  // 0x110
+  xe::be<uint32_t> unk_118;      // 0x118
+  X_LIST_ENTRY queue_related;    // 0x11C
+  xe::be<uint32_t> unk_124;      // 0x124
+  xe::be<uint32_t> unk_128;      // 0x128
+  xe::be<uint32_t> unk_12C;      // 0x12C
+  xe::be<uint64_t> create_time;  // 0x130
+  xe::be<uint64_t> exit_time;    // 0x138
+  xe::be<uint32_t> exit_status;  // 0x140
+  // tracks all pending timers that have apcs which target this thread
+  X_LIST_ENTRY timer_list;          // 0x144
   xe::be<uint32_t> thread_id;       // 0x14C
   xe::be<uint32_t> start_address;   // 0x150
-  xe::be<uint32_t> unk_154;         // 0x154
-  xe::be<uint32_t> unk_158;         // 0x158
+  X_LIST_ENTRY unk_154;             // 0x154
   uint8_t unk_15C[0x4];             // 0x15C
   xe::be<uint32_t> last_error;      // 0x160
   xe::be<uint32_t> fiber_ptr;       // 0x164

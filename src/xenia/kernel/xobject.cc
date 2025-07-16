@@ -347,7 +347,7 @@ void XObject::SetNativePointer(uint32_t native_ptr, bool uninitialized) {
 
   // Memory uninitialized, so don't bother with the check.
   if (!uninitialized) {
-    assert_true(!(header->wait_list_blink & 0x1));
+    assert_true(!(header->wait_list.blink_ptr & 0x1));
   }
 
   // Stash pointer in struct.
@@ -368,8 +368,8 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
   // we don't have to worry about PPC code poking the struct. Because of that,
   // we init on first use, store our handle in the struct, and dereference it
   // each time.
-  // We identify this by setting wait_list_flink to a magic value. When set,
-  // wait_list_blink will hold a handle to our object.
+  // We identify this by setting wait_list.flink_ptr to a magic value. When set,
+  // wait_list.blink_ptr will hold a handle to our object.
   if (!already_locked) {
     global_critical_region::mutex().lock();
   }
@@ -381,10 +381,10 @@ object_ref<XObject> XObject::GetNativeObject(KernelState* kernel_state,
     as_type = header->type;
   }
 
-  if (header->wait_list_flink == kXObjSignature) {
+  if (header->wait_list.flink_ptr == kXObjSignature) {
     // Already initialized.
     // TODO: assert if the type of the object != as_type
-    uint32_t handle = header->wait_list_blink;
+    uint32_t handle = header->wait_list.blink_ptr;
     result = kernel_state->object_table()
                  ->LookupObject<XObject>(handle, true)
                  .release();

@@ -57,8 +57,7 @@ typedef struct {
   };
 
   xe::be<uint32_t> signal_state;
-  xe::be<uint32_t> wait_list_flink;
-  xe::be<uint32_t> wait_list_blink;
+  X_LIST_ENTRY wait_list;
 } X_DISPATCH_HEADER;
 static_assert_size(X_DISPATCH_HEADER, 0x10);
 
@@ -245,8 +244,8 @@ class XObject {
 
   // Stash native pointer into X_DISPATCH_HEADER
   static void StashHandle(X_DISPATCH_HEADER* header, uint32_t handle) {
-    header->wait_list_flink = kXObjSignature;
-    header->wait_list_blink = handle;
+    header->wait_list.flink_ptr = kXObjSignature;
+    header->wait_list.blink_ptr = handle;
   }
 
   static uint32_t TimeoutTicksToMs(int64_t timeout_ticks);

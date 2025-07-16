@@ -797,14 +797,14 @@ dword_result_t NtCreateMutant_entry(
 }
 DECLARE_XBOXKRNL_EXPORT1(NtCreateMutant, kThreading, kImplemented);
 
-dword_result_t NtReleaseMutant_entry(dword_t mutant_handle, dword_t unknown) {
+dword_result_t NtReleaseMutant_entry(dword_t mutant_handle,
+                                     lpdword_t previous_count) {
   // This doesn't seem to be supported.
   // int32_t previous_count_ptr = SHIM_GET_ARG_32(2);
 
   // Whatever arg 1 is all games seem to set it to 0, so whether it's
   // abandon or wait we just say false. Which is good, cause they are
   // both ignored.
-  assert_zero(unknown);
   uint32_t priority_increment = 0;
   bool abandon = false;
   bool wait = false;
@@ -861,11 +861,11 @@ DECLARE_XBOXKRNL_EXPORT1(NtCreateTimer, kThreading, kImplemented);
 
 dword_result_t NtSetTimerEx_entry(dword_t timer_handle, lpqword_t due_time_ptr,
                                   lpvoid_t routine_ptr /*PTIMERAPCROUTINE*/,
-                                  dword_t unk_one, lpvoid_t routine_arg,
+                                  dword_t mode, lpvoid_t routine_arg,
                                   dword_t resume, dword_t period_ms,
-                                  dword_t unk_zero) {
-  assert_true(unk_one == 1);
-  assert_true(unk_zero == 0);
+                                  lpdword_t unk_zero) {
+  assert_true(mode == 1);
+  assert_true(!unk_zero);
 
   uint64_t due_time = *due_time_ptr;
 

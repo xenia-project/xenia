@@ -174,12 +174,15 @@ void XThread::InitializeGuestObject() {
 
   guest_thread->unk_10 = (thread_guest_ptr + 0x10);
   guest_thread->unk_14 = (thread_guest_ptr + 0x10);
-  guest_thread->unk_40 = (thread_guest_ptr + 0x20);
-  guest_thread->unk_44 = (thread_guest_ptr + 0x20);
-  guest_thread->unk_48 = (thread_guest_ptr);
+  guest_thread->wait_timeout_block.wait_list_entry.flink_ptr =
+      thread_guest_ptr + 0x20;
+  guest_thread->wait_timeout_block.wait_list_entry.blink_ptr =
+      thread_guest_ptr + 0x20;
+  guest_thread->wait_timeout_block.thread = thread_guest_ptr;
   uint32_t v6 = thread_guest_ptr + 0x18;
-  *(uint32_t*)&guest_thread->unk_54 = 16777729;
-  guest_thread->unk_4C = (v6);
+  guest_thread->wait_timeout_block.wait_result_xstatus = 0x0100;
+  guest_thread->wait_timeout_block.wait_type = 0x0201;
+  guest_thread->wait_timeout_block.object = v6;
   guest_thread->stack_base = (this->stack_base_);
   guest_thread->stack_limit = (this->stack_limit_);
   guest_thread->stack_kernel = (this->stack_base_ - 240);
@@ -207,14 +210,14 @@ void XThread::InitializeGuestObject() {
   guest_thread->process = process_info_block_address;
   guest_thread->stack_alloc_base = this->stack_base_;
   guest_thread->create_time = Clock::QueryGuestSystemTime();
-  guest_thread->unk_144 = thread_guest_ptr + 324;
-  guest_thread->unk_148 = thread_guest_ptr + 324;
+  guest_thread->timer_list.flink_ptr = thread_guest_ptr + 324;
+  guest_thread->timer_list.blink_ptr = thread_guest_ptr + 324;
   guest_thread->thread_id = this->thread_id_;
   guest_thread->start_address = this->creation_params_.start_address;
-  guest_thread->unk_154 = thread_guest_ptr + 340;
+  guest_thread->unk_154.flink_ptr = thread_guest_ptr + 340;
   uint32_t v9 = thread_guest_ptr;
   guest_thread->last_error = 0;
-  guest_thread->unk_158 = v9 + 340;
+  guest_thread->unk_154.blink_ptr = v9 + 340;
   guest_thread->creation_flags = this->creation_params_.creation_flags;
   guest_thread->unk_17C = 1;
 

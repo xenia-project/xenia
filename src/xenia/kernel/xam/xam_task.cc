@@ -32,7 +32,7 @@ struct XTASK_MESSAGE {
 };
 
 struct XAM_TASK_ARGS {
-  be<uint32_t> value1;
+  be<uint32_t> flags;
   be<uint32_t> value2;
   // i think there might be another value here, it might be padding
 };
@@ -48,7 +48,7 @@ dword_result_t XamTaskSchedule_entry(lpvoid_t callback,
   if (optional_ptr) {
     auto option = ctx->TranslateVirtual<XAM_TASK_ARGS*>(optional_ptr);
 
-    auto v1 = option->value1;
+    auto v1 = option->flags;
     auto v2 = option->value2;  // typically 0?
 
     XELOGI("Got xam task args: v1 = {:08X}, v2 = {:08X}", v1.get(), v2.get());

@@ -58,7 +58,8 @@ struct X_KPROCESS {
   // list of threads in this process, guarded by the spinlock above
   X_LIST_ENTRY thread_list;
 
-  xe::be<uint32_t> unk_0C;
+  // quantum value assigned to each thread of the process
+  xe::be<int32_t> quantum;
   // kernel sets this to point to a section of size 0x2F700 called CLRDATAA,
   // except it clears bit 31 of the pointer. in 17559 the address is 0x801C0000,
   // so it sets this ptr to 0x1C0000

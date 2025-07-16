@@ -1253,7 +1253,7 @@ void KernelState::InitializeProcess(X_KPROCESS* process, uint32_t type,
   process->unk_19 = unk_19;
   process->unk_1A = unk_1A;
   util::XeInitializeListHead(&process->thread_list, thread_list_guest_ptr);
-  process->unk_0C = 60;
+  process->quantum = 60;
   // doubt any guest code uses this ptr, which i think probably has something to
   // do with the page table
   process->clrdataa_masked_ptr = 0;
@@ -1353,7 +1353,7 @@ void KernelState::InitializeKernelGuestGlobals() {
 
   auto idle_process = memory()->TranslateVirtual<X_KPROCESS*>(GetIdleProcess());
   InitializeProcess(idle_process, X_PROCTYPE_IDLE, 0, 0, 0);
-  idle_process->unk_0C = 0x7F;
+  idle_process->quantum = 0x7F;
   auto system_process =
       memory()->TranslateVirtual<X_KPROCESS*>(GetSystemProcess());
   InitializeProcess(system_process, X_PROCTYPE_SYSTEM, 2, 5, 9);
