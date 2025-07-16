@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""python diff.py file1 file2 diff"""
+"""python diff.py file1 file2 diff
+"""
 
-import difflib
-import sys
+from difflib import unified_diff
+from sys import argv
 
-diff = difflib.unified_diff(
-    open(sys.argv[1], encoding='utf-8').readlines(),
-    open(sys.argv[2], encoding='utf-8').readlines())
-with open(sys.argv[3], 'w', encoding='utf-8') as f:
-    f.write(''.join(diff))
+diff = unified_diff(
+    open(argv[1], encoding="utf-8").readlines(),
+    open(argv[2], encoding="utf-8").readlines())
+with open(argv[3], "w", encoding="utf-8") as f:
+    f.write("".join(diff))
