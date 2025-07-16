@@ -106,3 +106,6 @@
 [submodule "third_party/libusb"]
 	path = third_party/libusb
 	url = https://github.com/libusb/libusb.git
+[submodule "third_party/cpplint"]
+	path = third_party/cpplint
+	url = https://github.com/cpplint/cpplint.git
