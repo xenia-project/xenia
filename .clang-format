@@ -3,6 +3,9 @@ BasedOnStyle: Google
 DerivePointerAlignment: false
 PointerAlignment: Left
 SortIncludes: true
+KeepEmptyLines:
+  AtStartOfFile: false
+InsertNewlineAtEOF: true
 
 # Regroup causes unnecessary noise due to clang-format bug.
 IncludeBlocks: Preserve

@@ -1,5 +1,3 @@
-
-
 #if defined(OVERRIDING_BASE_CMDPROCESSOR)
 #define PM4_OVERRIDE override
 #else
