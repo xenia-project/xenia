@@ -71,7 +71,7 @@ jobs:
       - name: Setup
         run: .\xb setup
       - name: Build
-        run: .\xb build --config=Release --target=src\xenia-app
+        run: .\xb build --no_premake --config=Release --target=src\xenia-app
       - name: Prepare artifacts
         id: prepare_artifacts
         run: |
