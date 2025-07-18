@@ -46,7 +46,7 @@ jobs:
     name: Lint
     runs-on: ubuntu-24.04
     outputs:
-      LLVM_VERSION: ${{ steps.setup.outputs.LLVM_VERSION }}
+      #LLVM_VERSION: ${{ steps.setup.outputs.LLVM_VERSION }}
       UBUNTU_BASE: ${{ steps.setup.outputs.UBUNTU_BASE }}
     steps:
       - uses: actions/checkout@main
@@ -56,7 +56,7 @@ jobs:
           LLVM_VERSION: 19 # Same as Windows
         run: |
           UBUNTU_BASE=$(lsb_release -cs)
-          echo "LLVM_VERSION=$LLVM_VERSION" >> "$GITHUB_OUTPUT"
+          #echo "LLVM_VERSION=$LLVM_VERSION" >> "$GITHUB_OUTPUT"
           echo "UBUNTU_BASE=$UBUNTU_BASE" >> "$GITHUB_OUTPUT"
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
           sudo apt-add-repository "deb http://apt.llvm.org/${UBUNTU_BASE}/ llvm-toolchain-${UBUNTU_BASE}-$LLVM_VERSION main"
@@ -72,7 +72,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        LLVM_VERSION: ['${{ needs.lint.outputs.LLVM_VERSION }}', 20]
+        LLVM_VERSION: [20] # '${{ needs.lint.outputs.LLVM_VERSION }}'
     steps:
       - uses: actions/checkout@main
         with:
@@ -103,7 +103,7 @@ jobs:
         if: steps.prepare_artifacts.outcome == 'success'
         uses: actions/upload-artifact@main
         with:
-          name: xenia_canary_linux_clang${{ matrix.LLVM_VERSION }}
+          name: xenia_canary_linux
           path: artifacts
           if-no-files-found: error
 
