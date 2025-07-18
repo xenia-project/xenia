@@ -9,10 +9,7 @@
 
 #include "xenia/gpu/vulkan/vulkan_shared_memory.h"
 
-#include <algorithm>
 #include <cstring>
-#include <utility>
-#include <vector>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"

@@ -9,8 +9,6 @@
 
 #include "xenia/kernel/user_module.h"
 
-#include <vector>
-
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/xxhash.h"

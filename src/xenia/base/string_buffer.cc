@@ -9,7 +9,6 @@
 
 #include "xenia/base/string_buffer.h"
 
-#include <algorithm>
 #include <cstdarg>
 
 #include "xenia/base/assert.h"

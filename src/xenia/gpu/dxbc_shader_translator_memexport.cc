@@ -7,9 +7,7 @@
  ******************************************************************************
  */
 
-#include <array>
 #include <cstdint>
-#include <functional>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"

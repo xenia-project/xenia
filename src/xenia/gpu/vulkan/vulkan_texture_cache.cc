@@ -9,10 +9,6 @@
 
 #include "xenia/gpu/vulkan/vulkan_texture_cache.h"
 
-#include <algorithm>
-#include <array>
-#include <utility>
-
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"

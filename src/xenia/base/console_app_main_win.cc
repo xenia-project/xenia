@@ -8,7 +8,6 @@
  */
 
 #include <cstdlib>
-#include <vector>
 
 #include "xenia/base/console_app_main.h"
 #include "xenia/base/main_win.h"

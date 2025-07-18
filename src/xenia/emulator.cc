@@ -9,9 +9,6 @@
 
 #include "xenia/emulator.h"
 
-#include <algorithm>
-#include <cinttypes>
-
 #include "config.h"
 #include "third_party/fmt/include/fmt/format.h"
 #include "third_party/tabulate/single_include/tabulate/tabulate.hpp"

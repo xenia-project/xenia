@@ -9,8 +9,6 @@
 
 #include "xenia/kernel/xam/user_profile.h"
 
-#include <ranges>
-
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/util/shim_utils.h"

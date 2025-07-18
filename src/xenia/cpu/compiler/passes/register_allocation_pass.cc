@@ -9,7 +9,6 @@
 
 #include "xenia/cpu/compiler/passes/register_allocation_pass.h"
 
-#include <algorithm>
 #include <cstring>
 
 #include "xenia/base/assert.h"

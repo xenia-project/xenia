@@ -9,8 +9,6 @@
 
 #include "xenia/kernel/xam/profile_manager.h"
 
-#include <filesystem>
-
 #include "xenia/base/logging.h"
 #include "xenia/emulator.h"
 #include "xenia/hid/input_system.h"

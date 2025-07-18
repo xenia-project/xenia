@@ -10,7 +10,6 @@
 #include <gtk/gtk.h>
 #include <cstdio>
 #include <cstdlib>
-#include <memory>
 
 #include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"

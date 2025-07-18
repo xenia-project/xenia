@@ -16,14 +16,12 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <ftw.h>
-#include <libgen.h>
 #include <pwd.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <iostream>
 
 namespace xe {
 

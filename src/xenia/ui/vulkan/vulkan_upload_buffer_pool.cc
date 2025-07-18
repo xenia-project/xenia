@@ -9,8 +9,6 @@
 
 #include "xenia/ui/vulkan/vulkan_upload_buffer_pool.h"
 
-#include <algorithm>
-
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/ui/vulkan/vulkan_util.h"

@@ -9,9 +9,7 @@
 
 #include "xenia/memory.h"
 
-#include <algorithm>
 #include <cstring>
-#include <utility>
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/assert.h"

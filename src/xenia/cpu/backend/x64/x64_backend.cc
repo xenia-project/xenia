@@ -9,7 +9,6 @@
 
 #include "xenia/cpu/backend/x64/x64_backend.h"
 
-#include <algorithm>
 #include <cstddef>
 #include "third_party/capstone/include/capstone/capstone.h"
 #include "third_party/capstone/include/capstone/x86.h"

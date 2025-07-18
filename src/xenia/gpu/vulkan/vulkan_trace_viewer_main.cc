@@ -7,9 +7,6 @@
  ******************************************************************************
  */
 
-#include <memory>
-#include <string>
-
 #include "xenia/base/logging.h"
 #include "xenia/gpu/trace_viewer.h"
 #include "xenia/gpu/vulkan/vulkan_command_processor.h"

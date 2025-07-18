@@ -9,9 +9,6 @@
 
 #include "xenia/cpu/ppc/ppc_scanner.h"
 
-#include <algorithm>
-#include <map>
-
 #include "xenia/base/logging.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"

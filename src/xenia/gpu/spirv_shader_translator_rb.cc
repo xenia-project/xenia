@@ -10,8 +10,6 @@
 #include "xenia/gpu/spirv_shader_translator.h"
 
 #include <cstdint>
-#include <memory>
-#include <utility>
 
 #include "third_party/glslang/SPIRV/GLSL.std.450.h"
 #include "xenia/base/assert.h"

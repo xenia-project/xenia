@@ -9,13 +9,8 @@
 
 #include "xenia/gpu/vulkan/vulkan_command_processor.h"
 
-#include <algorithm>
-#include <array>
 #include <cstdint>
 #include <cstring>
-#include <iterator>
-#include <tuple>
-#include <utility>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"

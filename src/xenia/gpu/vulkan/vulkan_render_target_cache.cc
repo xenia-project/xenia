@@ -9,15 +9,9 @@
 
 #include "xenia/gpu/vulkan/vulkan_render_target_cache.h"
 
-#include <algorithm>
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <memory>
-#include <tuple>
-#include <utility>
-#include <vector>
 
 #include "third_party/glslang/SPIRV/GLSL.std.450.h"
 #include "xenia/base/assert.h"

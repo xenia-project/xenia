@@ -9,9 +9,6 @@
 
 #include "xenia/ui/windowed_app.h"
 
-#include <string>
-#include <unordered_map>
-
 namespace xe {
 namespace ui {
 

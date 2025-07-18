@@ -10,7 +10,6 @@
 #include "xenia/gpu/trace_writer.h"
 
 #include <cstring>
-#include <memory>
 
 #include "third_party/snappy/snappy-sinksource.h"
 #include "third_party/snappy/snappy.h"

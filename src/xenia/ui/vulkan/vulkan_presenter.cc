@@ -9,12 +9,7 @@
 
 #include "xenia/ui/vulkan/vulkan_presenter.h"
 
-#include <algorithm>
-#include <cstddef>
 #include <cstdint>
-#include <memory>
-#include <utility>
-#include <vector>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"

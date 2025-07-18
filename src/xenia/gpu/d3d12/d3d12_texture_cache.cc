@@ -9,12 +9,9 @@
 
 #include "xenia/gpu/d3d12/d3d12_texture_cache.h"
 
-#include <algorithm>
 #include <array>
 #include <cfloat>
 #include <cstring>
-#include <memory>
-#include <utility>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"

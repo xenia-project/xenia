@@ -9,10 +9,7 @@
 
 #include "xenia/gpu/primitive_processor.h"
 
-#include <algorithm>
 #include <cstring>
-#include <functional>
-#include <utility>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"

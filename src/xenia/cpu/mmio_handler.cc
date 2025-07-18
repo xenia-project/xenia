@@ -9,9 +9,7 @@
 
 #include "xenia/cpu/mmio_handler.h"
 
-#include <algorithm>
 #include <cstring>
-#include <utility>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"

@@ -9,8 +9,6 @@
 
 #include "xenia/gpu/trace_reader.h"
 
-#include <cinttypes>
-
 #include "third_party/snappy/snappy.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"

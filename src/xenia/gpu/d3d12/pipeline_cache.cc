@@ -9,16 +9,8 @@
 
 #include "xenia/gpu/d3d12/pipeline_cache.h"
 
-#include <algorithm>
-#include <atomic>
-#include <cinttypes>
 #include <cmath>
 #include <cstring>
-#include <deque>
-#include <mutex>
-#include <set>
-#include <utility>
-#include <vector>
 
 #include "third_party/dxbc/DXBCChecksum.h"
 #include "third_party/fmt/include/fmt/format.h"

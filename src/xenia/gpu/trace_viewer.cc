@@ -10,7 +10,6 @@
 #include "xenia/gpu/trace_viewer.h"
 
 #include <cinttypes>
-#include <string>
 
 #include "third_party/half/include/half.hpp"
 #include "third_party/imgui/imgui.h"

@@ -9,7 +9,6 @@
 
 #include "xenia/apu/xma_context_old.h"
 
-#include <algorithm>
 #include <cstring>
 
 #include "xenia/apu/xma_decoder.h"

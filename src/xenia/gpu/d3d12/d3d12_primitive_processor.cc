@@ -9,10 +9,7 @@
 
 #include "xenia/gpu/d3d12/d3d12_primitive_processor.h"
 
-#include <algorithm>
 #include <cstdint>
-#include <memory>
-#include <utility>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"

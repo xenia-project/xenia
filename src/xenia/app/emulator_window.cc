@@ -9,13 +9,6 @@
 
 #include "xenia/app/emulator_window.h"
 
-#include <filesystem>
-#include <functional>
-#include <memory>
-#include <mutex>
-#include <string>
-#include <utility>
-
 #include "third_party/imgui/imgui.h"
 #include "third_party/stb/stb_image_write.h"
 #include "third_party/tomlplusplus/toml.hpp"

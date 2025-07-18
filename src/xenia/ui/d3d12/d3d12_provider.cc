@@ -9,7 +9,6 @@
 
 #include "xenia/ui/d3d12/d3d12_provider.h"
 
-#include <malloc.h>
 #include <cstdlib>
 
 #include "xenia/base/cvar.h"

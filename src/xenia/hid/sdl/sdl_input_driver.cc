@@ -9,8 +9,6 @@
 
 #include "xenia/hid/sdl/sdl_input_driver.h"
 
-#include <array>
-
 #if XE_PLATFORM_WIN32
 #include "xenia/base/platform_win.h"
 #endif  // XE_PLATFORM_WIN32

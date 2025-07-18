@@ -11,9 +11,6 @@
 
 #include <climits>
 #include <cmath>
-#include <memory>
-#include <sstream>
-#include <utility>
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "third_party/glslang/SPIRV/GLSL.std.450.h"

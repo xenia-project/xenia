@@ -9,9 +9,7 @@
 
 #include "xenia/gpu/draw_extent_estimator.h"
 
-#include <algorithm>
 #include <cfloat>
-#include <cstdint>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"

@@ -10,7 +10,6 @@
 #include "xenia/base/socket.h"
 
 #include <mutex>
-#include <thread>
 
 #include "xenia/base/logging.h"
 #include "xenia/base/platform_win.h"

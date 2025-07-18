@@ -9,8 +9,6 @@
 
 #include "xenia/ui/graphics_upload_buffer_pool.h"
 
-#include <algorithm>
-
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
 

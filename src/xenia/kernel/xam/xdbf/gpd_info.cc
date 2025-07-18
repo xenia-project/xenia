@@ -11,9 +11,6 @@
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/user_settings.h"
 
-#include <map>
-#include <ranges>
-
 namespace xe {
 namespace kernel {
 namespace xam {

@@ -9,9 +9,7 @@
 
 #include "xenia/gpu/vulkan/vulkan_primitive_processor.h"
 
-#include <algorithm>
 #include <cstdint>
-#include <memory>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"

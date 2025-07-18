@@ -16,8 +16,6 @@
 #include <arm_neon.h>
 #endif
 
-#include <algorithm>
-
 DEFINE_bool(
     writable_executable_memory, true,
     "Allow mapping memory with both write and execute access, for simulating "

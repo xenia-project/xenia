@@ -9,8 +9,6 @@
 
 #include "xenia/gpu/vulkan/vulkan_shader.h"
 
-#include <cstdint>
-
 #include "xenia/base/logging.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 

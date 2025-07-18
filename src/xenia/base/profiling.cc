@@ -7,9 +7,6 @@
  ******************************************************************************
  */
 
-#include <algorithm>
-#include <string>
-
 // NOTE: this must be included before microprofile as macro expansion needs
 // XELOGI.
 #include "xenia/base/logging.h"

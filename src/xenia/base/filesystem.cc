@@ -9,8 +9,6 @@
 
 #include "xenia/base/filesystem.h"
 
-#include <algorithm>
-
 namespace xe {
 namespace filesystem {
 

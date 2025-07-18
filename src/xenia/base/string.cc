@@ -10,8 +10,6 @@
 #include "xenia/base/string.h"
 
 #include <string.h>
-#include <algorithm>
-#include <locale>
 
 #include "xenia/base/platform.h"
 #if XE_PLATFORM_WIN32

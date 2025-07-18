@@ -9,8 +9,6 @@
 
 #include "xenia/cpu/backend/x64/x64_tracers.h"
 
-#include <cinttypes>
-
 #include "xenia/base/logging.h"
 #include "xenia/base/vec128.h"
 #include "xenia/cpu/backend/x64/x64_emitter.h"

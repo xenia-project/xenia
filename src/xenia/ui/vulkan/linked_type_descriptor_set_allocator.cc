@@ -9,10 +9,6 @@
 
 #include "xenia/ui/vulkan/linked_type_descriptor_set_allocator.h"
 
-#include <algorithm>
-#include <iterator>
-#include <utility>
-
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/ui/vulkan/vulkan_util.h"

@@ -14,7 +14,6 @@
 #include "xenia/base/platform.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/kernel/xam/xam_module.h"
-// #include "xenia/kernel/xnet.h"
 
 #ifdef XE_PLATFORM_WIN32
 // clang-format off

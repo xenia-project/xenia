@@ -24,9 +24,7 @@
 
 #include "xenia/cpu/backend/x64/x64_sequences.h"
 
-#include <algorithm>
 #include <cstring>
-#include <unordered_map>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"

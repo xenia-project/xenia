@@ -7,7 +7,6 @@
  ******************************************************************************
  */
 
-#include <malloc.h>
 #include <cstring>
 
 #include "xenia/base/cvar.h"

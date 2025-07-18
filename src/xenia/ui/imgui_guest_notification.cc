@@ -8,7 +8,6 @@
  */
 
 #include <cmath>
-#include <vector>
 
 #include "xenia/base/logging.h"
 #include "xenia/base/platform.h"

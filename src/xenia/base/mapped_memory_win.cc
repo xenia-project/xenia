@@ -7,9 +7,7 @@
  ******************************************************************************
  */
 
-#include <memory>
 #include <mutex>
-#include <vector>
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/logging.h"

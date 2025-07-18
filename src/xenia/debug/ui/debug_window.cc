@@ -9,9 +9,7 @@
 
 #include "xenia/debug/ui/debug_window.h"
 
-#include <algorithm>
 #include <cinttypes>
-#include <utility>
 
 #include "third_party/capstone/include/capstone/capstone.h"
 #include "third_party/capstone/include/capstone/x86.h"

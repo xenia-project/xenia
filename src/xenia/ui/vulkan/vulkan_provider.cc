@@ -10,11 +10,7 @@
 #include "xenia/ui/vulkan/vulkan_provider.h"
 
 #include <cfloat>
-#include <cstddef>
 #include <cstring>
-#include <type_traits>
-#include <utility>
-#include <vector>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"

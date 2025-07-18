@@ -7,10 +7,6 @@
  ******************************************************************************
  */
 
-#include <queue>
-#include <string>
-#include <vector>
-
 #include "xenia/base/console_app_main.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/literals.h"

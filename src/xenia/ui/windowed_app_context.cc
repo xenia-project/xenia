@@ -9,8 +9,6 @@
 
 #include "xenia/ui/windowed_app_context.h"
 
-#include <utility>
-
 #include "xenia/base/assert.h"
 #include "xenia/base/threading.h"
 

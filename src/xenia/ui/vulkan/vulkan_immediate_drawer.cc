@@ -9,10 +9,7 @@
 
 #include "xenia/ui/vulkan/vulkan_immediate_drawer.h"
 
-#include <algorithm>
 #include <cstring>
-#include <iterator>
-#include <utility>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"

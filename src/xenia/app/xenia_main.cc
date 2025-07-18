@@ -13,7 +13,6 @@
 #include <memory>
 #include <string>
 #include <thread>
-#include <vector>
 
 #include "xenia/app/discord/discord_presence.h"
 #include "xenia/app/emulator_window.h"

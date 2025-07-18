@@ -9,7 +9,6 @@
 
 #include "xenia/ui/file_picker.h"
 
-#include <filesystem>
 #include <string>
 
 #include <gdk/gdkx.h>

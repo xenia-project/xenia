@@ -9,8 +9,6 @@
 
 #include "xenia/gpu/shared_memory.h"
 
-#include <algorithm>
-
 #include "xenia/base/assert.h"
 #include "xenia/base/bit_range.h"
 #include "xenia/base/logging.h"

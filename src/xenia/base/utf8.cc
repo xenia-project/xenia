@@ -11,9 +11,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <locale>
-#include <numeric>
-#include <tuple>
 
 #define UTF_CPP_CPLUSPLUS 202002L
 #include "third_party/utfcpp/source/utf8.h"

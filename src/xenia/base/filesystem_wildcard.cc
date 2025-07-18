@@ -9,8 +9,6 @@
 
 #include "xenia/base/filesystem_wildcard.h"
 
-#include <algorithm>
-
 #include "xenia/base/assert.h"
 #include "xenia/base/string.h"
 

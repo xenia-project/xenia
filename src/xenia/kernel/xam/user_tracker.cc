@@ -10,9 +10,6 @@
 #include "xenia/emulator.h"
 #include "xenia/kernel/xam/user_profile.h"
 
-#include <ranges>
-#include <sstream>
-
 #include "third_party/fmt/include/fmt/format.h"
 #include "third_party/stb/stb_image.h"
 #include "xenia/kernel/kernel_state.h"

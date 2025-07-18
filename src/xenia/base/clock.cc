@@ -9,8 +9,6 @@
 
 #include "xenia/base/clock.h"
 
-#include <algorithm>
-#include <limits>
 #include <mutex>
 
 #include "xenia/base/assert.h"

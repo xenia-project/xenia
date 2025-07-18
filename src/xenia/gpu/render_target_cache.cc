@@ -9,13 +9,8 @@
 
 #include "xenia/gpu/render_target_cache.h"
 
-#include <algorithm>
 #include <cmath>
 #include <cstring>
-#include <iterator>
-#include <tuple>
-#include <unordered_set>
-#include <utility>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"

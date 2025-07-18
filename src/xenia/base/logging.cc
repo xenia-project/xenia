@@ -10,11 +10,8 @@
 #include "xenia/base/logging.h"
 
 #include <algorithm>
-#include <atomic>
 #include <cstdlib>
 #include <cstring>
-#include <mutex>
-#include <vector>
 
 #include "third_party/disruptorplus/include/disruptorplus/multi_threaded_claim_strategy.hpp"
 #include "third_party/disruptorplus/include/disruptorplus/ring_buffer.hpp"

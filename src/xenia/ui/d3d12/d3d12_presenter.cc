@@ -9,10 +9,7 @@
 
 #include "xenia/ui/d3d12/d3d12_presenter.h"
 
-#include <algorithm>
 #include <climits>
-#include <memory>
-#include <utility>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"

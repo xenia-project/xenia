@@ -9,7 +9,6 @@
 
 #include <cstdio>
 #include <string>
-#include <vector>
 
 #include "xenia/base/console_app_main.h"
 #include "xenia/base/cvar.h"

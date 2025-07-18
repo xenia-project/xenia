@@ -9,13 +9,8 @@
 
 #include "xenia/gpu/vulkan/vulkan_pipeline_cache.h"
 
-#include <algorithm>
-#include <array>
 #include <cstdint>
 #include <cstring>
-#include <memory>
-#include <utility>
-#include <vector>
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/assert.h"

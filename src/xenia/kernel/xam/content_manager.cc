@@ -9,10 +9,6 @@
 
 #include "xenia/kernel/xam/content_manager.h"
 
-#include <array>
-#include <string>
-#include <unordered_set>
-
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"

@@ -7,15 +7,7 @@
  ******************************************************************************
  */
 
-#include <algorithm>
-
 #include "xenia/gpu/graphics_system.h"
-
-#include <cstdint>
-#include <functional>
-#include <memory>
-#include <mutex>
-#include <utility>
 
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/clock.h"

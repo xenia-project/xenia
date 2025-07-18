@@ -9,7 +9,6 @@
 
 #include "xenia/cpu/backend/x64/x64_sequences.h"
 
-#include <algorithm>
 #include <cstring>
 
 #include "xenia/base/cvar.h"

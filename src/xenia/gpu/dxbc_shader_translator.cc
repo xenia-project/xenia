@@ -9,10 +9,7 @@
 
 #include "xenia/gpu/dxbc_shader_translator.h"
 
-#include <algorithm>
-#include <atomic>
 #include <cstring>
-#include <memory>
 
 #include "third_party/dxbc/DXBCChecksum.h"
 

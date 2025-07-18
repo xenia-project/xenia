@@ -8,10 +8,7 @@
  */
 
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
-#include <algorithm>
 #include <cstring>
-#include <sstream>
-#include <utility>
 #include "xenia/base/assert.h"
 #include "xenia/base/byte_order.h"
 #include "xenia/base/cvar.h"

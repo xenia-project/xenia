@@ -9,8 +9,6 @@
 
 #include "xenia/gpu/vulkan/deferred_command_buffer.h"
 
-#include <cstddef>
-#include <cstdint>
 #include <cstring>
 
 #include "xenia/base/assert.h"

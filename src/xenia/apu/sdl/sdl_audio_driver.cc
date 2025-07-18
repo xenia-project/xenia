@@ -9,7 +9,6 @@
 
 #include "xenia/apu/sdl/sdl_audio_driver.h"
 
-#include <array>
 #include <cstring>
 
 #include "xenia/apu/apu_flags.h"

@@ -10,7 +10,6 @@
 #include "xenia/gpu/sampler_info.h"
 
 #include <cstring>
-#include <memory>
 
 #include "xenia/base/xxhash.h"
 

@@ -10,8 +10,6 @@
 #include "xenia/gpu/shader_translator.h"
 
 #include <cstdarg>
-#include <set>
-#include <string>
 
 #include "xenia/base/math.h"
 
