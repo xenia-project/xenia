@@ -168,7 +168,6 @@ enum : XNotificationID {
   kXNotifyLive = 0x00000002,
   kXNotifyFriends = 0x00000004,
   kXNotifyCustom = 0x00000008,
-  kXNotifyDvdDrive = 0x00000010,  // ?
   kXNotifyXmp = 0x00000020,
   kXNotifyMsgr = 0x00000040,
   kXNotifyParty = 0x00000080,
@@ -181,15 +180,36 @@ enum : XNotificationID {
      - XNotifyBroadcast(kXNotificationSystemNUIHardwareStatusChanged,
      device_state)
   */
+  kXNotificationSystemTitleLoad = 0x80000001,
+  kXNotificationSystemTimeZone = 0x80000002,
+  kXNotificationSystemLanguage = 0x80000003,
+  kXNotificationSystemVideoFlags = 0x80000004,
+  kXNotificationSystemAudioFlags = 0x80000005,
+  kXNotificationSystemParentalControlGames = 0x80000006,
+  kXNotificationSystemParentalControlPassword = 0x80000007,
+  kXNotificationSystemParentalControlMovies = 0x80000008,
   kXNotificationSystemUI = 0x00000009,
   kXNotificationSystemSignInChanged = 0x0000000A,
   kXNotificationSystemStorageDevicesChanged = 0x0000000B,
+  kXNotificationSystemDashContextChanged = 0x8000000C,
+  kXNotificationSystemTrayStateChanged = 0x8000000D,
   kXNotificationSystemProfileSettingChanged = 0x0000000E,
+  kXNotificationSystemThemeChanged = 0x8000000F,
+  kXNotificationSystemSystemUpdateChanged = 0x80000010,
   kXNotificationSystemMuteListChanged = 0x00000011,
   kXNotificationSystemInputDevicesChanged = 0x00000012,
   kXNotificationSystemXLiveTitleUpdate = 0x00000015,
   kXNotificationSystemXLiveSystemUpdate = 0x00000016,
   kXNotificationSystemInputDeviceConfigChanged = 0x00010013,
+  /* Dvd Drive? Notes:
+     - after XamLoaderGetMediaInfoEx(media_type?, title_id?, unk) is used for
+     some funcs the first param is used with
+     XNotifyBroadcast(kXNotificationSystemTrayStateChanged, media_type?)
+     - after XamLoaderGetMediaInfoEx(media_type?, title_id?, unk) is used for
+     some funcs the third param is used with
+     XNotifyBroadcast(kXNotificationUnkUnknown2, unk)
+  */
+  kXNotificationSystemUnknown = 0x80010014,
   kXNotificationSystemPlayerTimerNotice = 0x00030015,
   kXNotificationSystemAvatarChanged = 0x00040017,
   kXNotificationSystemNUIHardwareStatusChanged = 0x00060019,
@@ -205,44 +225,37 @@ enum : XNotificationID {
   kXNotificationLiveConnectionChanged = 0x02000001,
   kXNotificationLiveInviteAccepted = 0x02000002,
   kXNotificationLiveLinkStateChanged = 0x02000003,
-  kXNotificationLiveInvitedRecieved = 0x02000004,
-  kXNotificationLiveInvitedAnswerRecieved = 0x02000005,
-  kXNotificationLiveMessageListChanged = 0x02000006,
+  kXNotificationLiveInvitedRecieved = 0x82000004,
+  kXNotificationLiveInvitedAnswerRecieved = 0x82000005,
+  kXNotificationLiveMessageListChanged = 0x82000006,
   kXNotificationLiveContentInstalled = 0x02000007,
   kXNotificationLiveMembershipPurchased = 0x02000008,
   kXNotificationLiveVoicechatAway = 0x02000009,
   kXNotificationLivePresenceChanged = 0x0200000A,
-  kXNotificationLivePointsBalanceChanged = 0x0200000B,
-  kXNotificationLivePlayerListChanged = 0x0200000C,
-  kXNotificationLiveItemPurchased = 0x0200000D,
+  kXNotificationLivePointsBalanceChanged = 0x8200000B,
+  kXNotificationLivePlayerListChanged = 0x8200000C,
+  kXNotificationLiveItemPurchased = 0x8200000D,
 
   // XNotification Friends
   kXNotificationFriendsPresenceChanged = 0x04000001,
   kXNotificationFriendsFriendAdded = 0x04000002,
   kXNotificationFriendsFriendRemoved = 0x04000003,
+  kXNotificationFriendsFriendRequestReceived = 0x84000004,
+  kXNotificationFriendsFriendAnswerReceived = 0x84000005,
+  kXNotificationFriendsFriendRequestResult = 0x84000006,
 
   // XNotification Custom
   kXNotificationCustomActionPressed = 0x06000003,
   kXNotificationCustomGamercard = 0x06010004,
 
-  // XNotification Dvd ?
-  /* Dvd Drive? Notes:
-     - after XamLoaderGetMediaInfoEx(media_type?, title_id?, unk) is used for
-     some funcs the first param is used with
-     XNotifyBroadcast(kXNotificationDvdDriveTrayStateChanged, media_type?)
-     - after XamLoaderGetMediaInfoEx(media_type?, title_id?, unk) is used for
-     some funcs the third param is used with
-     XNotifyBroadcast(kXNotificationDvdDriveUnknown2, unk)
-  */
-  kXNotificationDvdDriveUnknown1 = 0x80000003,
-  kXNotificationDvdDriveUnknownDashContext = 0x8000000C,
-  kXNotificationDvdDriveTrayStateChanged = 0x8000000D,
-  kXNotificationDvdDriveUnknown2 = 0x80010014,
-
   // XNotification XMP
   kXNotificationXmpStateChanged = 0x0A000001,
   kXNotificationXmpPlaybackBehaviorChanged = 0x0A000002,
   kXNotificationXmpPlaybackControllerChanged = 0x0A000003,
+  kXNotificationXmpMediaSourceConnectionChanged = 0x8A000004,
+  kXNotificationXmpTitlePlayListContentChanged = 0x8A000005,
+  kXNotificationXmpLocalMediaContentChanged = 0x8A000006,
+  kXNotificationXmpDashNowPlayingQueueModeChanged = 0x8A000007,
 
   // XNotification Party
   kXNotificationPartyMembersChanged = 0x0E040002,

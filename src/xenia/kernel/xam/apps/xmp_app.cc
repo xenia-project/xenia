@@ -94,6 +94,8 @@ X_HRESULT XmpApp::XMPCreateTitlePlaylist(
 
   kernel_state_->emulator()->audio_media_player()->AddPlaylist(
       next_playlist_handle_, std::move(playlist));
+  kernel_state_->BroadcastNotification(
+      kXNotificationXmpTitlePlayListContentChanged, 0);
 
   return X_E_SUCCESS;
 }
@@ -548,16 +550,17 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
     case 0x00070053: {
       // Called on the blades dashboard Version 4532-5787 after clicking on the
       // picture or video library. It only receives buffer
+      // *unk1_ptr = to some unknown value
       struct {
         xe::be<uint32_t> xmp_client;
-        xe::be<uint32_t> unk1;
+        xe::be<uint32_t> unk1_ptr;
       }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
       static_assert_size(decltype(*args), 8);
 
       assert_true(args->xmp_client == 0x00000002 ||
                   args->xmp_client == 0x00000000);
       XELOGD("XMPUnk70053({:08X}, {:08X}), unimplemented",
-             args->xmp_client.get(), args->unk1.get());
+             args->xmp_client.get(), args->unk1_ptr.get());
       return X_E_SUCCESS;
     }
   }

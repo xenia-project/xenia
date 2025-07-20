@@ -58,7 +58,7 @@ SystemManagementController::~SystemManagementController() {};
 
 void SystemManagementController::SetTrayState(X_DVD_TRAY_STATE state) {
   dvd_tray_state_ = state;
-  kernel_state()->BroadcastNotification(kXNotificationDvdDriveTrayStateChanged,
+  kernel_state()->BroadcastNotification(kXNotificationSystemTrayStateChanged,
                                         static_cast<uint8_t>(state));
 }
 

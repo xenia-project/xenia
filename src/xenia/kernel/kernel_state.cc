@@ -865,7 +865,7 @@ void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
     listener->EnqueueNotification(kXNotificationSystemSignInChanged, 1);
     listener->EnqueueNotification(kXNotificationSystemSignInChanged, 1);
 
-    listener->EnqueueNotification(kXNotificationDvdDriveTrayStateChanged,
+    listener->EnqueueNotification(kXNotificationSystemTrayStateChanged,
                                   X_DVD_DISC_STATE::XBOX_360_GAME_DISC);
   }
   if (listener->mask() & kXNotifyLive) {
