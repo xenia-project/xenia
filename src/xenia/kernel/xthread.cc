@@ -704,6 +704,14 @@ uint32_t XThread::suspend_count() {
   return guest_object<X_KTHREAD>()->suspend_count;
 }
 
+X_FILETIME XThread::creation_time() {
+  return static_cast<X_FILETIME>(guest_object<X_KTHREAD>()->create_time);
+}
+
+uint32_t XThread::start_address() {
+  return guest_object<X_KTHREAD>()->start_address;
+}
+
 X_STATUS XThread::Resume(uint32_t* out_suspend_count) {
   auto guest_thread = guest_object<X_KTHREAD>();
 

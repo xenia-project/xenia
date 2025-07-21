@@ -199,6 +199,14 @@ struct X_DASH_APP_INFO {
 };
 static_assert_size(X_DASH_APP_INFO, 0xC);
 
+struct X_GUID {
+  xe::be<uint32_t> Data1;
+  xe::be<uint16_t> Data2;
+  xe::be<uint16_t> Data3;
+  uint8_t Data4[8];
+};
+static_assert_size(X_GUID, 0x10);
+
 struct X_PASSPORT_SESSION_TOKEN {
   uint8_t SessionToken[28];
 };

@@ -18,6 +18,7 @@
 #include "xenia/cpu/thread.h"
 #include "xenia/cpu/thread_state.h"
 #include "xenia/kernel/util/native_list.h"
+#include "xenia/kernel/util/xfiletime.h"
 #include "xenia/kernel/xmutant.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/xbox.h"
@@ -371,6 +372,8 @@ class XThread : public XObject, public cpu::Thread {
   const CreationParams* creation_params() const { return &creation_params_; }
   uint32_t tls_ptr() const { return tls_static_address_; }
   uint32_t pcr_ptr() const { return pcr_address_; }
+  uint32_t stack_base() const { return stack_base_; }
+  uint32_t stack_limit() const { return stack_limit_; }
   // True if the thread is created by the guest app.
   bool is_guest_thread() const { return guest_thread_; }
   bool main_thread() const { return main_thread_; }
@@ -414,6 +417,9 @@ class XThread : public XObject, public cpu::Thread {
   bool SetTLSValue(uint32_t slot, uint32_t value);
 
   uint32_t suspend_count();
+  X_FILETIME creation_time();
+  uint32_t start_address();
+
   X_STATUS Resume(uint32_t* out_suspend_count = nullptr);
   X_STATUS Suspend(uint32_t* out_suspend_count = nullptr);
   X_STATUS Delay(uint32_t processor_mode, uint32_t alertable,

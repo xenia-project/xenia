@@ -7,6 +7,8 @@
  ******************************************************************************
  */
 
+#include <ranges>
+
 #include "xenia/kernel/kernel_state.h"
 
 #include "xenia/base/byte_stream.h"
@@ -847,6 +849,19 @@ object_ref<XThread> KernelState::GetThreadByID(uint32_t thread_id) {
     thread = it->second;
   }
   return retain_object(thread);
+}
+
+std::vector<uint32_t> KernelState::GetAllThreadIDs() {
+  auto global_lock = global_critical_region_.Acquire();
+
+  auto thread_ids_view =
+      threads_by_id_ |
+      std::views::transform([](const auto& pair) { return pair.first; });
+
+  std::vector<std::uint32_t> thread_ids(thread_ids_view.begin(),
+                                        thread_ids_view.end());
+
+  return thread_ids;
 }
 
 void KernelState::RegisterNotifyListener(XNotifyListener* listener) {
