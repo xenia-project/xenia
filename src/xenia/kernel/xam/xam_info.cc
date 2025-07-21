@@ -199,6 +199,32 @@ dword_result_t XamBuildXamResourceLocator_entry(lpu16string_t filename,
 }
 DECLARE_XAM_EXPORT1(XamBuildXamResourceLocator, kNone, kImplemented);
 
+dword_result_t XamGetCachedTitleName_entry(dword_t title_id,
+                                           dword_t title_name_address,
+                                           lpdword_t title_name_size_ptr) {
+  if (!title_name_address || !title_name_size_ptr) {
+    return X_ERROR_INVALID_PARAMETER;
+  }
+
+  assert_false(title_id != kernel_state()->title_id());
+
+  char16_t* title_name_ptr =
+      kernel_state()->memory()->TranslateVirtual<char16_t*>(title_name_address);
+
+  std::u16string title_name = xe::to_utf16(
+      kernel_state()->emulator()->game_info_database()->GetTitleName());
+
+  size_t title_name_size = string_util::size_in_bytes(title_name, true);
+
+  string_util::copy_and_swap_truncating(title_name_ptr, title_name,
+                                        title_name_size);
+
+  *title_name_size_ptr = static_cast<uint32_t>(title_name_size);
+
+  return X_ERROR_SUCCESS;
+}
+DECLARE_XAM_EXPORT1(XamGetCachedTitleName, kNone, kImplemented);
+
 dword_result_t XamGetSystemVersion_entry() {
   // eh, just picking one. If we go too low we may break new games, but
   // this value seems to be used for conditionally loading symbols and if
