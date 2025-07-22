@@ -12,6 +12,8 @@
 #include "xenia/kernel/user_module.h"
 #include "xenia/kernel/util/shim_utils.h"
 #include "xenia/kernel/xam/xam_private.h"
+#include "xenia/kernel/xboxkrnl/xboxkrnl_error.h"
+#include "xenia/kernel/xboxkrnl/xboxkrnl_threading.h"
 #include "xenia/kernel/xthread.h"
 #include "xenia/xbox.h"
 
@@ -78,8 +80,21 @@ dword_result_t XamTaskSchedule_entry(lpvoid_t callback,
 }
 DECLARE_XAM_EXPORT2(XamTaskSchedule, kNone, kImplemented, kSketchy);
 
-dword_result_t XamTaskShouldExit_entry(dword_t r3) { return 0; }
-DECLARE_XAM_EXPORT2(XamTaskShouldExit, kNone, kStub, kSketchy);
+dword_result_t XamTaskCloseHandle_entry(dword_t obj_handle) {
+  const X_STATUS error_code = xboxkrnl::NtClose(obj_handle);
+
+  if (XFAILED(error_code)) {
+    const uint32_t result = xboxkrnl::xeRtlNtStatusToDosError(error_code);
+    XThread::SetLastError(result);
+    return false;
+  }
+
+  return true;
+}
+DECLARE_XAM_EXPORT1(XamTaskCloseHandle, kNone, kImplemented);
+
+dword_result_t XamTaskShouldExit_entry() { return 0; }
+DECLARE_XAM_EXPORT1(XamTaskShouldExit, kNone, kStub);
 
 }  // namespace xam
 }  // namespace kernel
