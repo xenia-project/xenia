@@ -19,6 +19,15 @@
 namespace xe {
 namespace kernel {
 
+enum X_ENUMERATION_FLAGS : uint32_t {
+  None = 0x0,
+  Back = 0x1,
+  Foreground = 0x2,
+  MatchingInstance = 0x4,
+  IncludePartialDownloads = 0x8,
+  IncludeCorruptContent = 0x10,
+};
+
 struct X_KENUMERATOR {
   be<uint32_t> app_id;
   be<uint32_t> open_message;
@@ -29,10 +38,22 @@ struct X_KENUMERATOR {
 };
 static_assert_size(X_KENUMERATOR, 0x18);
 
+struct X_ENUMERATE_PARAM {
+  xe::be<uint32_t> user_index;
+  xe::be<uint32_t> flags;
+  xe::be<uint32_t> private_enum_structure_ptr;
+  xe::be<uint32_t> buffer_ptr;  // XCONTENT_DATA_INTERNAL
+  xe::be<uint32_t> buffer_size;
+  xe::be<uint32_t> items_requested;
+  xe::be<uint32_t> items_returned_ptr;
+};
+static_assert_size(X_ENUMERATE_PARAM, 0x1C);
+
 struct X_KENUMERATOR_CONTENT_AGGREGATE {
   be<uint32_t> magic;
   be<uint32_t> handle;
 };
+static_assert_size(X_KENUMERATOR_CONTENT_AGGREGATE, 0x8);
 
 class XEnumerator : public XObject {
  public:
