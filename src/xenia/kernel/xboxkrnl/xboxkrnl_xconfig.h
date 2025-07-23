@@ -249,15 +249,98 @@ enum X_RETAIL_FLAGS : uint32_t {
 enum X_PC_FLAGS : uint8_t {
   XBLAllowed = 0x01,
   XBLMembershipCreationAllowed = 0x02,
+  XboxOneGameAllowed = 0x04,
   PCEnabled = 0x80,
 };
 
-enum X_PC_HINTS : uint8_t {
-  FavoriteFictionalCharactar = 0,
-  FavoritePersonFromHistory = 1,
-  FavoriteChildhoodBookOrStory = 2,
-  FavoriteMovie = 3,
-  FavoriteFood = 4
+// XCONFIG_USER_PC_GAMES
+enum X_PC_GAMES_FLAGS : uint32_t {
+  EarlyChildhoodMax = 0x00000000,
+  EveryoneMax = 0x00000002,
+  Everyone_10Max = 0x00000004,
+  TeenMax = 0x00000006,
+  MatureMax = 0x00000008,
+  NoGameRestrictions = 0x000000FF,
+};
+
+// XCONFIG_USER_PC_PASSWORD
+enum X_PC_PASSWORD_FLAGS : uint32_t {
+  XButton = 0x00000001,
+  YButton = 0x00000002,
+  LeftButton = 0x00000003,
+  RightButton = 0x00000004,
+  UPButton = 0x00000005,
+  DownButton = 0x00000006,
+  LTButton = 0x00000009,
+  RTButton = 0x0000000A,
+  LBButton = 0x0000000B,
+  RBButton = 0x0000000C,
+};
+
+// XCONFIG_USER_PC_MOVIE
+enum X_PC_MOVIE_FLAGS : uint32_t {
+  GeneralAudiences = 0x00000001,
+  ParentalGuidance = 0x00000003,
+  ParentalGuidance13 = 0x00000004,
+  Restricted = 0x00000006,
+  NoMovieRestrictions = 0x000000FF,
+};
+
+// XCONFIG_USER_PC_GAME_RATING
+enum X_PC_GAME_RATING_FLAGS : uint32_t {
+  DefaultGame = 0x00000000,
+};
+
+// XCONFIG_USER_PC_MOVIE_RATING
+enum X_PC_MOVIE_RATING_FLAGS : uint32_t {
+  DefaultMovie = 0x00000000,
+};
+
+// XCONFIG_USER_ARCADE_FLAGS
+enum X_ARCADE_FLAGS : uint32_t {
+  AutoDownloadOff = 0x00000000,
+  AutoDownloadNewReleases = 0x00000001,
+};
+
+// XCONFIG_USER_PC_VERSION
+enum X_PC_VERSION : uint32_t {
+  VersionOne = 0x00000001,
+};
+
+// XCONFIG_USER_PC_TV
+enum X_PC_TV : uint32_t {
+  TVG = 0X00000006,
+  TVPG = 0X00000008,
+  TV14 = 0X0000000a,
+  TVMatureAudience = 0x0000000C,
+  NoTVRestrictions = 0X000000FF,
+};
+
+// XCONFIG_USER_PC_TV_RATING
+enum X_PC_TV_RATING : uint32_t {
+  DefaultTV = 0X00000000,
+};
+
+// XCONFIG_USER_PC_EXPLICIT_VIDEO
+enum X_PC_EXPLICIT_VIDEO : uint32_t {
+  ExplicitVideoAllowed = 0X000000FF,
+  ExplicitVideoBanned = 0X00000000,
+};
+
+// XCONFIG_USER_PC_EXPLICIT_VIDEO_RATING
+enum X_PC_EXPLICIT_VIDEO_RATING : uint32_t {
+  ExplicitAllowed = 0X00000000,
+};
+
+// XCONFIG_USER_PC_UNRATED_VIDEO
+enum X_PC_EXPLICIT_UNRATED : uint32_t {
+  ExplicitUnratedBanned = 0X00000000,
+  UnratedALL = 0X000000FF,
+};
+
+// XCONFIG_USER_PC_UNRATED_VIDEO_RATING
+enum X_PC_EXPLICIT_UNRATED_RATING : uint32_t {
+  DefaultExplicitUnrated = 0X00000000,
 };
 
 // XCONFIG_USER_VIDEO_OUTPUT_BLACK_LEVELS

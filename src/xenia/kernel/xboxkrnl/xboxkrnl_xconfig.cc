@@ -139,7 +139,10 @@ X_STATUS xeExGetXConfigSetting(X_CONFIG_CATEGORY category, uint16_t setting,
           break;
         case XCONFIG_USER_PC_FLAGS:
           setting_size = 1;
-          value[0] = static_cast<uint8_t>(0);
+          // All related flags must be set for PC to function
+          // Both flags set even when PC are off
+          value[0] =
+              X_PC_FLAGS::XBLAllowed | X_PC_FLAGS::XBLMembershipCreationAllowed;
           break;
         case XCONFIG_USER_AV_COMPONENT_SCREENSZ:
           setting_size = 4;
@@ -165,9 +168,74 @@ X_STATUS xeExGetXConfigSetting(X_CONFIG_CATEGORY category, uint16_t setting,
             xe::store_and_swap<int32_t>(value, 0);
           }
           break;
+        case XCONFIG_USER_PC_GAME:
+          setting_size = 4;
+          xe::store_and_swap<uint32_t>(value,
+                                       X_PC_GAMES_FLAGS::NoGameRestrictions);
+          break;
+        case XCONFIG_USER_PC_PASSWORD:
+          setting_size = 4;
+          std::memset(value, 0, 4);
+          break;
+        case XCONFIG_USER_PC_MOVIE:
+          setting_size = 4;
+          xe::store_and_swap<uint32_t>(value,
+                                       X_PC_MOVIE_FLAGS::NoMovieRestrictions);
+          break;
+        case XCONFIG_USER_PC_GAME_RATING:
+          setting_size = 4;
+          xe::store_and_swap<uint32_t>(value,
+                                       X_PC_GAME_RATING_FLAGS::DefaultGame);
+          break;
+        case XCONFIG_USER_PC_MOVIE_RATING:
+          setting_size = 4;
+          xe::store_and_swap<uint32_t>(value,
+                                       X_PC_MOVIE_RATING_FLAGS::DefaultMovie);
+          break;
         case XCONFIG_USER_PC_HINT:
-          setting_size = 1;
-          value[0] = static_cast<uint8_t>(0);
+          // ExSetXConfigSetting and ExGetXConfigSetting request size of 0x40
+          setting_size = 0x40;
+          store_and_swap<std::string>(value, "");
+          break;
+        case XCONFIG_USER_PC_HINT_ANSWER:
+          setting_size = 0x20;
+          store_and_swap<std::string>(value, "");
+          break;
+        case XCONFIG_USER_ARCADE_FLAGS:
+          setting_size = 4;
+          xe::store_and_swap<uint32_t>(value, X_ARCADE_FLAGS::AutoDownloadOff);
+          break;
+        case XCONFIG_USER_PC_VERSION:
+          setting_size = 4;
+          xe::store_and_swap<uint32_t>(value, X_PC_VERSION::VersionOne);
+          break;
+        case XCONFIG_USER_PC_TV:
+          setting_size = 4;
+          xe::store_and_swap<uint32_t>(value, X_PC_TV::NoTVRestrictions);
+          break;
+        case XCONFIG_USER_PC_TV_RATING:
+          setting_size = 4;
+          xe::store_and_swap<uint32_t>(value, X_PC_TV_RATING::DefaultTV);
+          break;
+        case XCONFIG_USER_PC_EXPLICIT_VIDEO:
+          setting_size = 4;
+          xe::store_and_swap<uint32_t>(
+              value, X_PC_EXPLICIT_VIDEO::ExplicitVideoAllowed);
+          break;
+        case XCONFIG_USER_PC_EXPLICIT_VIDEO_RATING:
+          setting_size = 4;
+          xe::store_and_swap<uint32_t>(
+              value, X_PC_EXPLICIT_VIDEO_RATING::ExplicitAllowed);
+          break;
+        case XCONFIG_USER_PC_UNRATED_VIDEO:
+          setting_size = 4;
+          xe::store_and_swap<uint32_t>(value,
+                                       X_PC_EXPLICIT_UNRATED::UnratedALL);
+          break;
+        case XCONFIG_USER_PC_UNRATED_VIDEO_RATING:
+          setting_size = 4;
+          xe::store_and_swap<uint32_t>(
+              value, X_PC_EXPLICIT_UNRATED_RATING::DefaultExplicitUnrated);
           break;
         case XCONFIG_USER_VIDEO_OUTPUT_BLACK_LEVELS:
           setting_size = 4;
