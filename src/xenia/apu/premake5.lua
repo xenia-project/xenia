@@ -12,8 +12,6 @@ project("xenia-apu")
     "libavformat",
     "xenia-base",
   })
-  defines({
-  })
   includedirs({
     project_root.."/third_party/FFmpeg/",
   })

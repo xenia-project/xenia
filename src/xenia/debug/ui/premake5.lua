@@ -12,13 +12,4 @@ project("xenia-debug-ui")
     "xenia-cpu",
     "xenia-ui",
   })
---  filter({"configurations:Release", "platforms:Windows"})
---    buildoptions({
---      "/O1",
---    })
---  filter{}
-  defines({
-  })
-  includedirs({
-  })
   local_platform_files()

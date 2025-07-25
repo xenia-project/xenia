@@ -9,8 +9,6 @@ project("xenia-app-discord")
   links({
     "discord-rpc"
   })
-  defines({
-  })
   includedirs({
     project_root.."/third_party/discord-rpc/src"
   })

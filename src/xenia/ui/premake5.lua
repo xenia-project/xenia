@@ -9,8 +9,6 @@ project("xenia-ui")
   links({
     "xenia-base",
   })
-  defines({
-  })
   local_platform_files()
   removefiles({"*_demo.cc"})
   removefiles({"windowed_app_main_*.cc"})

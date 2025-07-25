@@ -7,8 +7,8 @@ project("SDL2")
 
   defines({
     "HAVE_LIBC",
-       "SDL_LEAN_AND_MEAN=1",
-       "SDL_RENDER_DISABLED=1"
+    "SDL_LEAN_AND_MEAN",
+    "SDL_RENDER_DISABLED",
   })
   links({
     "setupapi.lib",
@@ -21,7 +21,6 @@ project("SDL2")
   })
   files({
     -- 1:1 from SDL2/VisualC/SDL/SDL.vcxproj file
-
     "SDL2/include/begin_code.h",
     "SDL2/include/close_code.h",
     "SDL2/include/SDL.h",

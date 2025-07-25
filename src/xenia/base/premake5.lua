@@ -8,8 +8,6 @@ project("xenia-base")
   links({
     "fmt",
   })
-  defines({
-  })
   local_platform_files()
   removefiles({"console_app_main_*.cc"})
   removefiles({"main_init_*.cc"})

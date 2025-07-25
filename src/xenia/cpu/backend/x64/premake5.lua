@@ -14,8 +14,6 @@ project("xenia-cpu-backend-x64")
   })
   defines({
     "CAPSTONE_X86_ATT_DISABLE",
-    "CAPSTONE_DIET_NO",
-    "CAPSTONE_X86_REDUCE_NO",
     "CAPSTONE_HAS_X86",
     "CAPSTONE_USE_SYS_DYN_MEM",
     "XBYAK_NO_OP_NAMES",

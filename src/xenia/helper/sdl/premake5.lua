@@ -9,9 +9,5 @@ project("xenia-helper-sdl")
   links({
     "SDL2",
   })
-  defines({
-  })
-  includedirs({
-  })
   local_platform_files()
   sdl2_include()

@@ -129,6 +129,4 @@ project("xenia-app")
     local user_file = project_root.."/build/xenia-app.vcxproj.user"
     if not os.isfile(user_file) then
       debugdir(project_root)
-      debugargs({
-      })
     end

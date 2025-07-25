@@ -11,6 +11,4 @@ project("xenia-hid-winkey")
     "xenia-hid",
     "xenia-ui",
   })
-  defines({
-  })
   local_platform_files()

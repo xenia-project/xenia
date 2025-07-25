@@ -10,7 +10,5 @@ project("xenia-hid")
     "xenia-base",
     "xenia-hid-skylander",
   })
-  defines({
-  })
   local_platform_files()
   removefiles({"*_demo.cc"})

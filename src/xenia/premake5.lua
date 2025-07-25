@@ -10,6 +10,4 @@ project("xenia-core")
     "fmt",
     "xenia-base",
   })
-  defines({
-  })
   files({"*.h", "*.cc"})

@@ -27,10 +27,3 @@ project("mspack")
       "mspack/system.c",
       "mspack/system.h",
   })
-
-  filter("platforms:Windows")
-    defines({
-    })
-  filter("platforms:Linux")
-    defines({
-    })

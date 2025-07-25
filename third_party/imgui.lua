@@ -3,19 +3,12 @@ project("imgui")
   uuid("ed9271c4-b0a1-42ef-8403-067b11bf49d0")
   kind("StaticLib")
   language("C++")
-  links({
-  })
   defines({
     "_LIB",
   })
   includedirs({
     "imgui",
   })
---  filter({"configurations:Release", "platforms:Windows"})
---    buildoptions({
---      "/O1",
---    })
---  filter{}
   files({
     "imgui/imconfig.h",
     "imgui/imgui.cpp",

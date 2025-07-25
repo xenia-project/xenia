@@ -5,17 +5,10 @@ project("capstone")
   language("C")
   defines({
     "CAPSTONE_X86_ATT_DISABLE",
-    "CAPSTONE_DIET_NO",
-    "CAPSTONE_X86_REDUCE_NO",
     "CAPSTONE_HAS_X86",
     "CAPSTONE_USE_SYS_DYN_MEM",
     "_LIB",
   })
---  filter({"configurations:Release", "platforms:Windows"})
---    buildoptions({
---      "/O1",
---    })
---  filter {}
 
   includedirs({
     "capstone",
@@ -48,4 +41,8 @@ project("capstone")
   force_compile_as_c({
     "capstone/**.c",
     "capstone/arch/X86/**.c",
+  })
+  removefiles({
+    "capstone/arch/X86/X86ATTInstPrinter.c",
+    "capstone/arch/X86/*reduce.inc",
   })

@@ -10,6 +10,4 @@ project("xenia-hid-xinput")
     "xenia-base",
     "xenia-hid",
   })
-  defines({
-  })
   local_platform_files()

@@ -10,6 +10,4 @@ project("xenia-apu-xaudio2")
     "xenia-base",
     "xenia-apu",
   })
-  defines({
-  })
   local_platform_files()

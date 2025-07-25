@@ -12,7 +12,5 @@ project("xenia-hid-sdl")
     "xenia-ui",
     "SDL2",
   })
-  defines({
-  })
   local_platform_files()
   sdl2_include()
