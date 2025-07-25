@@ -15,7 +15,8 @@
 	url = https://github.com/premake/premake-core.git
 [submodule "third_party/snappy"]
 	path = third_party/snappy
-	url = https://github.com/xenia-project/snappy.git
+	url = https://github.com/google/snappy.git
+	ignore = dirty
 [submodule "third_party/premake-export-compile-commands"]
 	path = third_party/premake-export-compile-commands
 	url = https://github.com/xenia-project/premake-export-compile-commands.git

@@ -10,9 +10,10 @@ drivers.
 
 * Windows 10 or later
 * [Visual Studio 2022](https://www.visualstudio.com/downloads/)
+* CMake 3.10+ (or C++ CMake tools for Windows)
+* Windows 11 SDK version 10.0.22000.0 (for Visual Studio 2022, this or any newer version)
 * [Python 3.9+](https://www.python.org/downloads/)
   * Ensure Python is in PATH.
-* Windows 11 SDK version 10.0.22000.0 (for Visual Studio 2022, this or any newer version)
 
 ```
 git clone https://github.com/xenia-canary/xenia-canary.git
