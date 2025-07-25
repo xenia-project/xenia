@@ -11,7 +11,7 @@
 #define XENIA_KERNEL_XBOXKRNL_XBOXKRNL_OB_H_
 
 #include "xenia/cpu/ppc/ppc_context.h"
-#include "xenia/xbox.h"
+#include "xenia/kernel/kernel.h"
 
 using PPCContext = xe::cpu::ppc::PPCContext;
 

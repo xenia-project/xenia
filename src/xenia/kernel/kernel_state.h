@@ -19,6 +19,7 @@
 #include "xenia/base/bit_map.h"
 #include "xenia/cpu/backend/backend.h"
 #include "xenia/cpu/export_resolver.h"
+#include "xenia/kernel/kernel.h"
 #include "xenia/kernel/smc.h"
 #include "xenia/kernel/util/kernel_fwd.h"
 #include "xenia/kernel/util/native_list.h"
@@ -31,7 +32,6 @@
 #include "xenia/kernel/xam/xdbf/spa_info.h"
 #include "xenia/kernel/xevent.h"
 #include "xenia/vfs/virtual_file_system.h"
-#include "xenia/xbox.h"
 
 namespace xe {
 class ByteStream;
@@ -182,7 +182,6 @@ class KernelState {
   const std::unique_ptr<xam::SpaInfo> title_xdbf() const;
   const std::unique_ptr<xam::SpaInfo> module_xdbf(
       object_ref<UserModule> exec_module) const;
-  bool UpdateSpaData(vfs::Entry* spa_file_update);
 
   xam::XamState* xam_state() const { return xam_state_.get(); }
 
@@ -382,7 +381,6 @@ class KernelState {
 
  public:
   uint32_t dash_context_ = 0;
-  X_DASH_APP_INFO dash_app_info_ = {};
   std::unordered_map<XObject::Type, uint32_t>
       host_object_type_enum_to_guest_object_type_ptr_;
   uint32_t GetKernelGuestGlobals() const { return kernel_guest_globals_; }

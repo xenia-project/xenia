@@ -421,7 +421,7 @@ X_RESULT ContentManager::OpenContent(const std::string_view root_name,
     std::string spa_path = fmt::format("{}:\\{}", root_name, kSpaFilename);
     auto spa_update = kernel_state_->file_system()->ResolvePath(spa_path);
     if (spa_update) {
-      kernel_state_->UpdateSpaData(spa_update);
+      UpdateSpaData(spa_update);
     }
   }
 
@@ -557,6 +557,27 @@ uint64_t ContentManager::GetContentFreeSpace() const {
   }
 
   return drive_stats.free;
+}
+
+bool ContentManager::UpdateSpaData(vfs::Entry* spa_file_update) {
+  vfs::File* file;
+  if (spa_file_update->Open(vfs::FileAccess::kFileReadData, &file) !=
+      X_STATUS_SUCCESS) {
+    return false;
+  }
+
+  std::vector<uint8_t> data(spa_file_update->size());
+
+  size_t read_bytes = 0;
+  if (file->ReadSync(std::span<uint8_t>(data.data(), spa_file_update->size()),
+                     0, &read_bytes) != X_STATUS_SUCCESS) {
+    return false;
+  }
+
+  xam::SpaInfo new_spa_data(std::span<uint8_t>(data.data(), data.size()));
+  kernel_state_->xam_state()->LoadSpaInfo(&new_spa_data);
+  kernel_state_->emulator()->game_info_database()->Update(&new_spa_data);
+  return true;
 }
 
 }  // namespace xam

@@ -139,27 +139,6 @@ const std::unique_ptr<xam::SpaInfo> KernelState::module_xdbf(
   return nullptr;
 }
 
-bool KernelState::UpdateSpaData(vfs::Entry* spa_file_update) {
-  vfs::File* file;
-  if (spa_file_update->Open(vfs::FileAccess::kFileReadData, &file) !=
-      X_STATUS_SUCCESS) {
-    return false;
-  }
-
-  std::vector<uint8_t> data(spa_file_update->size());
-
-  size_t read_bytes = 0;
-  if (file->ReadSync(std::span<uint8_t>(data.data(), spa_file_update->size()),
-                     0, &read_bytes) != X_STATUS_SUCCESS) {
-    return false;
-  }
-
-  xam::SpaInfo new_spa_data(std::span<uint8_t>(data.data(), data.size()));
-  xam_state_->LoadSpaInfo(&new_spa_data);
-  emulator_->game_info_database()->Update(&new_spa_data);
-  return true;
-}
-
 uint32_t KernelState::AllocateTLS() { return uint32_t(tls_bitmap_.Acquire()); }
 
 void KernelState::FreeTLS(uint32_t slot) {

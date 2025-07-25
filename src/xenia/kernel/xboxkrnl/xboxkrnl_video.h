@@ -10,7 +10,7 @@
 #ifndef XENIA_KERNEL_XBOXKRNL_XBOXKRNL_VIDEO_H_
 #define XENIA_KERNEL_XBOXKRNL_XBOXKRNL_VIDEO_H_
 
-#include "xenia/xbox.h"
+#include "xenia/kernel/kernel.h"
 
 namespace xe {
 namespace kernel {

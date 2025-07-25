@@ -10,8 +10,8 @@
 #ifndef XENIA_KERNEL_UTIL_NATIVE_LIST_H_
 #define XENIA_KERNEL_UTIL_NATIVE_LIST_H_
 
+#include "xenia/kernel/kernel.h"
 #include "xenia/memory.h"
-#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {

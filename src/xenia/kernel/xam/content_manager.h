@@ -20,6 +20,7 @@
 #include "xenia/base/mutex.h"
 #include "xenia/base/string_key.h"
 #include "xenia/base/string_util.h"
+#include "xenia/vfs/entry.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -202,6 +203,8 @@ class ContentManager {
   std::unordered_set<uint32_t> FindPublisherTitleIds(
       const uint64_t xuid,
       uint32_t base_title_id = kCurrentlyRunningTitleId) const;
+
+  bool UpdateSpaData(vfs::Entry* spa_file_update);
 
   KernelState* kernel_state_;
   std::filesystem::path root_path_;

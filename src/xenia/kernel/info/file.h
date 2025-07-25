@@ -10,7 +10,8 @@
 #ifndef XENIA_KERNEL_INFO_FILE_H_
 #define XENIA_KERNEL_INFO_FILE_H_
 
-#include "xenia/xbox.h"
+#include "xenia/base/byte_order.h"
+#include "xenia/kernel/kernel.h"
 
 namespace xe {
 namespace kernel {

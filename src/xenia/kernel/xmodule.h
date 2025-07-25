@@ -12,9 +12,10 @@
 
 #include <string>
 
+#include "xenia/base/byte_order.h"
 #include "xenia/cpu/module.h"
+#include "xenia/kernel/kernel.h"
 #include "xenia/kernel/xobject.h"
-#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {

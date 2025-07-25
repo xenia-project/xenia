@@ -10,7 +10,9 @@
 #ifndef XENIA_KERNEL_XAM_XAM_CONTENT_DEVICE_H_
 #define XENIA_KERNEL_XAM_XAM_CONTENT_DEVICE_H_
 
-#include "xenia/xbox.h"
+#include <cstdint>
+#include <string_view>
+#include <vector>
 
 namespace xe {
 namespace kernel {

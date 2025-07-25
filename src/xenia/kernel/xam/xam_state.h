@@ -11,11 +11,13 @@
 #define XENIA_KERNEL_XAM_XAM_STATE_H_
 
 #include <memory>
+
 #include "xenia/kernel/xam/achievement_manager.h"
 #include "xenia/kernel/xam/app_manager.h"
 #include "xenia/kernel/xam/content_manager.h"
 #include "xenia/kernel/xam/profile_manager.h"
 #include "xenia/kernel/xam/user_tracker.h"
+#include "xenia/kernel/xam/xam.h"
 
 namespace xe {
 class Emulator;
@@ -54,6 +56,8 @@ class XamState {
 
   //
   void LoadSpaInfo(const SpaInfo* info);
+
+  X_DASH_APP_INFO dash_app_info_ = {};
 
  private:
   KernelState* kernel_state_;

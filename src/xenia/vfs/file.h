@@ -11,6 +11,7 @@
 #define XENIA_VFS_FILE_H_
 
 #include <cstdint>
+#include <filesystem>
 #include <span>
 
 #include "xenia/xbox.h"

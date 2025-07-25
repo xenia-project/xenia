@@ -17,9 +17,9 @@
 #include <vector>
 
 #include "xenia/kernel/xam/user_property.h"
+#include "xenia/kernel/xam/xam.h"
 #include "xenia/kernel/xam/xdbf/gpd_info_profile.h"
 #include "xenia/kernel/xam/xdbf/gpd_info_title.h"
-#include "xenia/xbox.h"
 
 namespace xe {
 namespace kernel {

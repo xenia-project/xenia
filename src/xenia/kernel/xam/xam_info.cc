@@ -771,10 +771,10 @@ DECLARE_XAM_EXPORT1(XamIsChildAccountSignedIn, kNone, kImplemented);
 
 void XamSetActiveDashAppInfo_entry(pointer_t<X_DASH_APP_INFO> dash_app) {
   if (!dash_app) {
-    kernel_state()->dash_app_info_ = {};
+    kernel_state()->xam_state()->dash_app_info_ = {};
     return;
   }
-  std::memcpy(&kernel_state()->dash_app_info_, dash_app,
+  std::memcpy(&kernel_state()->xam_state()->dash_app_info_, dash_app,
               sizeof(X_DASH_APP_INFO));
 }
 DECLARE_XAM_EXPORT1(XamSetActiveDashAppInfo, kNone, kImplemented);
@@ -783,7 +783,7 @@ void XamGetActiveDashAppInfo_entry(pointer_t<X_DASH_APP_INFO> dash_app) {
   if (!dash_app) {
     return;
   }
-  std::memcpy(dash_app, &kernel_state()->dash_app_info_,
+  std::memcpy(dash_app, &kernel_state()->xam_state()->dash_app_info_,
               sizeof(X_DASH_APP_INFO));
 }
 DECLARE_XAM_EXPORT1(XamGetActiveDashAppInfo, kNone, kImplemented);
