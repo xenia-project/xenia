@@ -16,8 +16,8 @@
 #include <string>
 
 #include "xenia/base/threading.h"
+#include "xenia/kernel/kernel.h"
 #include "xenia/memory.h"
-#include "xenia/xbox.h"
 
 namespace xe {
 class ByteStream;
