@@ -8,7 +8,7 @@
  */
 
 #include "xenia/kernel/util/xlast.h"
-#include "third_party/zlib/zlib.h"
+#include "third_party/zlib-ng/zlib-ng.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/string_util.h"
@@ -50,14 +50,14 @@ XLast::XLast(const uint8_t* compressed_xml_data,
   parsed_xlast_ = std::make_unique<pugi::xml_document>();
   xlast_decompressed_xml_.resize(decompressed_data_size);
 
-  z_stream stream;
+  zng_stream stream;
   stream.zalloc = Z_NULL;
   stream.zfree = Z_NULL;
   stream.opaque = Z_NULL;
   stream.avail_in = 0;
   stream.next_in = Z_NULL;
 
-  int ret = inflateInit2(
+  int ret = zng_inflateInit2(
       &stream, 16 + MAX_WBITS);  // 16 + MAX_WBITS enables gzip decoding
   if (ret != Z_OK) {
     XELOGE("XLast: Error during Zlib stream init");
@@ -70,13 +70,13 @@ XLast::XLast(const uint8_t* compressed_xml_data,
   stream.avail_out = decompressed_data_size;
   stream.next_out = reinterpret_cast<Bytef*>(xlast_decompressed_xml_.data());
 
-  ret = inflate(&stream, Z_NO_FLUSH);
+  ret = zng_inflate(&stream, Z_NO_FLUSH);
   if (ret == Z_STREAM_ERROR) {
     XELOGE("XLast: Error during XLast decompression");
-    inflateEnd(&stream);
+    zng_inflateEnd(&stream);
     return;
   }
-  inflateEnd(&stream);
+  zng_inflateEnd(&stream);
 
   parse_result_ = parsed_xlast_->load_buffer(xlast_decompressed_xml_.data(),
                                              xlast_decompressed_xml_.size());

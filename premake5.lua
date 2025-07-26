@@ -300,7 +300,7 @@ workspace("xenia")
   include("third_party/xxhash.lua")
   include("third_party/zarchive.lua")
   include("third_party/zstd.lua")
-  include("third_party/zlib.lua")
+  include("third_party/zlib-ng.lua")
   include("third_party/pugixml.lua")
 
   if os.istarget("windows") then

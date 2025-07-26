@@ -98,9 +98,10 @@
 [submodule "third_party/rapidcsv"]
 	path = third_party/rapidcsv
 	url = https://github.com/d99kris/rapidcsv.git
-[submodule "third_party/zlib"]
-	path = third_party/zlib
-	url = https://github.com/madler/zlib.git
+[submodule "third_party/zlib-ng"]
+	path = third_party/zlib-ng
+	url = https://github.com/zlib-ng/zlib-ng.git
+	ignore = dirty
 [submodule "third_party/pugixml"]
 	path = third_party/pugixml
 	url = https://github.com/zeux/pugixml.git
