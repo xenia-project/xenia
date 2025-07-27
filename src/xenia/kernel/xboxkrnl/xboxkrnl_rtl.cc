@@ -7,6 +7,8 @@
  ******************************************************************************
  */
 
+#include <cwctype>
+
 #include "xenia/kernel/xboxkrnl/xboxkrnl_rtl.h"
 
 #include "xenia/base/atomic.h"
@@ -391,6 +393,11 @@ dword_result_t RtlUnicodeToMultiByteN_entry(pointer_t<uint8_t> destination_ptr,
 }
 DECLARE_XBOXKRNL_EXPORT3(RtlUnicodeToMultiByteN, kNone, kImplemented,
                          kHighFrequency, kSketchy);
+
+dword_result_t RtlDowncaseUnicodeChar_entry(word_t unicode_char) {
+  return std::towlower(unicode_char);
+}
+DECLARE_XBOXKRNL_EXPORT1(RtlDowncaseUnicodeChar, kNone, kImplemented);
 
 // https://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/Executable%20Images/RtlImageNtHeader.html
 static XIMAGE_NT_HEADERS32* ImageNtHeader(uint8_t* module) {
