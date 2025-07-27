@@ -10,6 +10,7 @@ from datetime import datetime
 from multiprocessing import Pool
 from functools import partial
 from argparse import ArgumentParser
+from glob import glob
 from json import loads as jsonloads
 import os
 from shutil import rmtree
@@ -454,7 +455,7 @@ def get_clang_format_binary():
     for binary in attempts:
         if has_bin(binary):
             clang_format_out = subprocess.check_output([binary, "--version"], text=True)
-            if int(clang_format_out.split("version ")[1].split(".")[0]) >= int(clang_format_version_req):
+            if int(clang_format_out.split("version ")[1].split(".")[0]) == int(clang_format_version_req):
                 print(clang_format_out)
                 return binary
     print("ERROR: clang-format is not on PATH"
@@ -938,20 +939,11 @@ class BuildShadersCommand(Command):
                 print("Building Direct3D 12 Shader Model 5.1 DXBC shaders...")
 
                 # Get the FXC path.
-                # TODO(Triang3l): Find FXC in the most recent Windows SDK.
-                program_files_path = os.environ["ProgramFiles(x86)"]
-                if not os.path.exists(program_files_path):
-                    print("ERROR: could not find 32-bit Program Files")
+                fxc = glob(os.path.join(os.environ["ProgramFiles(x86)"], "Windows Kits", "10", "bin", "*", "x64", "fxc.exe"))
+                if not fxc:
+                    print("ERROR: could not find fxc!")
                     return 1
-                windows_sdk_bin_path = os.path.join(
-                    program_files_path, "Windows Kits/10/bin/10.0.22000.0/x64")
-                if not os.path.exists(windows_sdk_bin_path):
-                    print("ERROR: could not find Windows 10 SDK binaries")
-                    return 1
-                fxc = os.path.join(windows_sdk_bin_path, "fxc")
-                if not has_bin(fxc):
-                    print("ERROR: could not find fxc")
-                    return 1
+                fxc = fxc[-1] # Highest version is last
 
                 # Build DXBC.
                 dxbc_stages = ["vs", "hs", "ds", "gs", "ps", "cs"]
