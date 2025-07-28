@@ -7,12 +7,10 @@ REM ============================================================================
 REM Environment Validation
 REM ============================================================================
 
-SET "PYTHON_MINIMUM_VERSION[0]=3"
-SET "PYTHON_MINIMUM_VERSION[1]=9"
 CALL :check_python
 IF %_RESULT% NEQ 0 (
   ECHO.
-  ECHO Python %PYTHON_MINIMUM_VERSION[0]%.%PYTHON_MINIMUM_VERSION[1]%+ must be installed and on PATH:
+  ECHO Python 3.9+ must be installed and on PATH:
   ECHO https://www.python.org/
   GOTO :eof
 )
@@ -35,22 +33,16 @@ SETLOCAL ENABLEDELAYEDEXPANSION
 
 SET FOUND_PATH=""
 
-SET "CANDIDATE_PATHS[0]=C:\python314\python.exe"
-SET "CANDIDATE_PATHS[1]=C:\python313\python.exe"
-SET "CANDIDATE_PATHS[2]=C:\python312\python.exe"
-SET "CANDIDATE_PATHS[3]=C:\python311\python.exe"
-SET "CANDIDATE_PATHS[4]=C:\python310\python.exe"
-SET "CANDIDATE_PATHS[5]=C:\python%PYTHON_MINIMUM_VERSION[0]%%PYTHON_MINIMUM_VERSION[1]%\python.exe"
 SET "CANDIDATE_PATHS[6]=%WINDIR%\py.exe"
-SET OUTPUT_INDEX=7
+SET OUTPUT_INDEX=1
 
-FOR /F "usebackq delims=" %%L IN (`2^>NUL where python3`) DO (
+FOR /F "usebackq delims=" %%L IN (`2^>NUL where python`) DO (
   IF %%~zL NEQ 0 (
     SET "CANDIDATE_PATHS[!OUTPUT_INDEX!]=%%L"
     SET /A OUTPUT_INDEX+=1
   )
 )
-FOR /F "usebackq delims=" %%L IN (`2^>NUL where python`) DO (
+FOR /F "usebackq delims=" %%L IN (`2^>NUL where python3`) DO (
   IF %%~zL NEQ 0 (
     SET "CANDIDATE_PATHS[!OUTPUT_INDEX!]=%%L"
     SET /A OUTPUT_INDEX+=1
@@ -73,14 +65,6 @@ SET "FOUND_PATH=%CANDIDATE_PATH%"
 IF "%FOUND_PATH%"=="" (
   ECHO ERROR: no Python executable found on PATH.
   ECHO Make sure you can run 'python' or 'python3' in a Command Prompt.
-  ENDLOCAL & SET _RESULT=1
-  GOTO :eof
-)
-
-CMD /C ""%FOUND_PATH%" -c "import sys; sys.exit(1 if not sys.version_info[:2] ^>= (%PYTHON_MINIMUM_VERSION[0]%, %PYTHON_MINIMUM_VERSION[1]%) else 0)"
-IF %ERRORLEVEL% NEQ 0 (
-  ECHO ERROR: Python version mismatch, not at least %PYTHON_MINIMUM_VERSION[0]%.%PYTHON_MINIMUM_VERSION[1]%.
-  ECHO Found Python executable was "%FOUND_PATH%".
   ENDLOCAL & SET _RESULT=1
   GOTO :eof
 )

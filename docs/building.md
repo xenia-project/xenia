@@ -12,7 +12,7 @@ drivers.
 * [Visual Studio 2022](https://www.visualstudio.com/downloads/)
 * CMake 3.10+ (or C++ CMake tools for Windows)
 * Windows 11 SDK version 10.0.22000.0 (for Visual Studio 2022, this or any newer version)
-* [Python 3.9+](https://www.python.org/downloads/)
+* [Python 3.9+ 64-bit](https://www.python.org/downloads/)
   * Ensure Python is in PATH.
 
 ```

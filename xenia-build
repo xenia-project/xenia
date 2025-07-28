@@ -139,8 +139,8 @@ def main():
 
     # Check python version.
     python_minimum_ver = 3,9
-    if not sys.version_info[:2] >= (python_minimum_ver[0], python_minimum_ver[1]):
-        print(f"ERROR: Python {python_minimum_ver[0]}.{python_minimum_ver[1]} must be installed and on PATH")
+    if not sys.version_info[:2] >= (python_minimum_ver[0], python_minimum_ver[1]) or not sys.maxsize > 2**32:
+        print(f"ERROR: Python {python_minimum_ver[0]}.{python_minimum_ver[1]}+ 64-bit must be installed and on PATH")
         sys.exit(1)
 
     # Grab Visual Studio version and execute shell to set up environment.
