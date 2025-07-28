@@ -226,6 +226,7 @@ class KernelState {
   bool RegisterUserModule(object_ref<UserModule> module);
   void UnregisterUserModule(UserModule* module);
   bool IsKernelModule(const std::string_view name);
+  bool IsModuleLoaded(const std::string_view name);
   object_ref<XModule> GetModule(const std::string_view name,
                                 bool user_only = false);
 

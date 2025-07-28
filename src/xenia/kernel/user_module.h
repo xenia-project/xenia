@@ -108,6 +108,11 @@ class UserModule : public XModule {
                                         ByteStream* stream,
                                         const std::string_view path);
 
+  // TODO(Gliniak): This shouldn't be required. It is used for initial DLL
+  // initialization. Which should happen on main thread before main execution
+  // which isn't really possible right now.
+  bool is_attached_ = false;
+
  private:
   void CalculateHash();
 

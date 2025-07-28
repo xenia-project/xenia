@@ -24,6 +24,7 @@
 #include "xenia/cpu/processor.h"
 #include "xenia/emulator.h"
 #include "xenia/kernel/kernel_state.h"
+#include "xenia/kernel/user_module.h"
 #include "xenia/kernel/xmodule.h"
 
 #include "third_party/crypto/TinySHA1.hpp"
@@ -1062,6 +1063,15 @@ bool XexModule::LoadContinue() {
                   opt_import_libraries->string_table.count);
       assert_not_null(string_table[library_name_index]);
       auto library_name = std::string(string_table[library_name_index]);
+
+      if (!kernel_state_->IsModuleLoaded(library_name)) {
+        if (auto module = kernel_state_->LoadUserModule(library_name)) {
+          if (kernel_state_->FinishLoadingUserModule(module, false)) {
+            library_name = module->path();
+          }
+        }
+      }
+
       SetupLibraryImports(library_name, library);
       library_offset += library->size;
     }

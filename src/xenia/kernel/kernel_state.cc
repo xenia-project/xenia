@@ -217,6 +217,28 @@ bool KernelState::IsKernelModule(const std::string_view name) {
   return false;
 }
 
+bool KernelState::IsModuleLoaded(const std::string_view name) {
+  if (name.empty()) {
+    return true;
+  }
+
+  for (auto kernel_module : kernel_modules_) {
+    if (kernel_module->Matches(name)) {
+      return true;
+    }
+  }
+
+  auto global_lock = global_critical_region_.Acquire();
+
+  for (auto user_module : user_modules_) {
+    if (user_module->Matches(name)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 object_ref<KernelModule> KernelState::GetKernelModule(
     const std::string_view name) {
   assert_true(IsKernelModule(name));
@@ -431,9 +453,14 @@ object_ref<UserModule> KernelState::LoadUserModule(
   auto name = xe::utf8::find_name_from_guest_path(raw_name);
   std::string path(raw_name);
   if (name == raw_name) {
-    assert_not_null(executable_module_);
-    path = xe::utf8::join_guest_paths(
-        xe::utf8::find_base_guest_path(executable_module_->path()), name);
+    if (!executable_module_) {
+      path = xe::utf8::join_guest_paths(
+          xe::utf8::find_base_guest_path((*user_modules_.cbegin())->path()),
+          name);
+    } else {
+      path = xe::utf8::join_guest_paths(
+          xe::utf8::find_base_guest_path(executable_module_->path()), name);
+    }
   }
 
   object_ref<UserModule> module;
@@ -521,6 +548,9 @@ X_RESULT KernelState::FinishLoadingUserModule(
         1,  // DLL_PROCESS_ATTACH
         0,  // 0 because always dynamic
     };
+
+    module->is_attached_ = true;
+
     auto thread_state = XThread::GetCurrentThread()->thread_state();
     processor()->Execute(thread_state, module->entry_point(), args,
                          xe::countof(args));
@@ -808,9 +838,16 @@ void KernelState::OnThreadExecute(XThread* thread) {
     if (user_module->is_dll_module() && user_module->entry_point()) {
       uint64_t args[] = {
           user_module->handle(),
-          2,  // DLL_THREAD_ATTACH
-          0,  // 0 because always dynamic
+          user_module->is_attached_
+              ? static_cast<uint64_t>(2)   // DLL_THREAD_ATTACH - Used to call
+                                           // DLL for each thread created.
+              : static_cast<uint64_t>(1),  // DLL_PROCESS_ATTACH - Used only
+                                           // once for initialization.
+          0,                               // 0 because always dynamic
       };
+
+      user_module->is_attached_ = true;
+
       processor()->Execute(thread_state, user_module->entry_point(), args,
                            xe::countof(args));
     }
