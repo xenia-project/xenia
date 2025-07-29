@@ -10,10 +10,6 @@ project("mspack")
     "_LIB",
     "HAVE_CONFIG_H",
   })
-  removedefines({
-    "_UNICODE",
-    "UNICODE",
-  })
   includedirs({
       "mspack",
   })

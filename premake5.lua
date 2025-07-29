@@ -27,17 +27,15 @@ includedirs({
 })
 
 defines({
-  "_UNICODE",
-  "UNICODE",
   "USE_CPP17", -- Tabulate
 })
 
 cdialect("C17")
 cppdialect("C++20")
-exceptionhandling("On")
-rtti("On")
+--exceptionhandling("On")
+--rtti("On")
 symbols("On")
-characterset("Unicode")
+--characterset("Unicode")
 fatalwarnings("All")
 
 -- TODO(DrChat): Find a way to disable this on other architectures.
