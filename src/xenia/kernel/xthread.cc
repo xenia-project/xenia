@@ -743,6 +743,13 @@ X_STATUS XThread::Suspend(uint32_t* out_suspend_count) {
   }
   // If we are suspending ourselves, we can't hold the lock.
   uint32_t unused_host_suspend_count = 0;
+
+  // If we had suspend count wrap around and go back to 0 then thread is not
+  // suspended.
+  if (guest_thread->suspend_count == 0) {
+    return X_STATUS_SUCCESS;
+  }
+
   if (thread_->Suspend(&unused_host_suspend_count)) {
     return X_STATUS_SUCCESS;
   } else {
