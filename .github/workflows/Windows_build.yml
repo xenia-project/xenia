@@ -56,7 +56,7 @@ jobs:
     steps:
       - uses: actions/checkout@main
       - name: Lint
-        run: .\xb lint --all
+        run: .\xenia-build.py lint --all
 
   build:
     name: Build
@@ -69,9 +69,9 @@ jobs:
         with:
           fetch-depth: 0
       - name: Setup
-        run: .\xb setup
+        run: .\xenia-build.py setup
       - name: Build
-        run: .\xb build --no_premake --config=Release --target=src\xenia-app
+        run: .\xenia-build.py build --no_premake --config=Release --target=src\xenia-app
       - name: Prepare artifacts
         id: prepare_artifacts
         run: |

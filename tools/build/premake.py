@@ -33,14 +33,14 @@ def setup_premake_path_override():
     # its repository.
     # On Termux, the home directory is in the internal storage - use it for
     # executing.
-    # If xenia-build doesn't have execute permissions, Xenia is in the external
+    # If xenia-build.py doesn't have execute permissions, Xenia is in the external
     # storage now.
     try:
       popen = subprocess.Popen(
           ['uname', '-o'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
           universal_newlines=True)
       if popen.communicate()[0] == 'Android\n':
-        xb_file = os.path.join(root_path, 'xenia-build')
+        xb_file = os.path.join(root_path, 'xenia-build.py')
         if (os.path.isfile(xb_file) and not os.access(xb_file, os.X_OK) and
             'HOME' in os.environ):
           premake_path = os.path.join(

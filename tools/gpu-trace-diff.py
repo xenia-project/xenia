@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 
 # Copyright 2015 Ben Vanik. All Rights Reserved.
 
@@ -40,7 +40,7 @@ def main():
     return
 
   # Setup main argument parser and common arguments.
-  parser = argparse.ArgumentParser(prog='gpu-trace-diff',
+  parser = argparse.ArgumentParser(prog='gpu-trace-diff.py',
                                    description='Run and diff GPU traces.')
   parser.add_argument(
       '-x', '--executable',

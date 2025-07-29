@@ -151,7 +151,7 @@ def main():
                f"https://github.com/xenia-canary/xenia-canary/blob/{default_branch}/docs/building.md")
 
     # Setup main argument parser and common arguments.
-    parser = ArgumentParser(prog="xenia-build")
+    parser = ArgumentParser(prog="xenia-build.py")
 
     # Grab all commands and populate the argument parser for each.
     subparsers = parser.add_subparsers(title="subcommands",
@@ -504,7 +504,7 @@ def run_premake(target_os, action, cc=None):
     """
     args = [
         sys.executable,
-        os.path.join("tools", "build", "premake"),
+        os.path.join("tools", "build", "premake.py"),
         "--file=premake5.lua",
         f"--os={target_os}",
         #"--test-suite-mode=combined",
@@ -1386,7 +1386,7 @@ class GpuTestCommand(BaseBuildCommand):
         any_failed = False
         result = shell_call([
             sys.executable,
-            os.path.join(self_path, "tools", "gpu-trace-diff"),
+            os.path.join(self_path, "tools", "gpu-trace-diff.py"),
             f"--executable={test_executables[0]}",
             f"--trace_path={os.path.join(reference_trace_root, 'traces')}",
             f"--output_path={output_path}",

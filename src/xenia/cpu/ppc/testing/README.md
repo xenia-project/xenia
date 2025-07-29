@@ -5,10 +5,10 @@ runner.
 
 Each test is structured as a source `[name].s` PPC assembly file and the
 generated outputs. The outputs are made using the custom build of binutils
-setup when `xenia-build gentests` is called and are checked in to make it easier
+setup when `xb gentests` is called and are checked in to make it easier
 to run the tests on Windows.
 
-Tests are run using the `xenia-test` app or via `xenia-build test`.
+Tests are run using the `xenia-test` app or via `xb test`.
 
 ## Execution
 

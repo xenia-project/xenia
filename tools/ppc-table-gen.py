@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 
 # Copyright 2015 Ben Vanik & shuffle2. All Rights Reserved.
 
@@ -217,7 +217,7 @@ def generate_table(insns):
   for i in insns:
     w1(fmt % (i.opcode, i.mnem, i.form, i.group, i.type))
   w0('};')
-  w0('static_assert(sizeof(ppc_opcode_table) / sizeof(PPCOpcodeInfo) == static_cast<int>(PPCOpcode::kInvalid), "PPC table mismatch - rerun ppc-table-gen");')
+  w0('static_assert(sizeof(ppc_opcode_table) / sizeof(PPCOpcodeInfo) == static_cast<int>(PPCOpcode::kInvalid), "PPC table mismatch - rerun ppc-table-gen.py");')
   w0('')
   w0('const PPCOpcodeInfo& GetOpcodeInfo(PPCOpcode opcode) {')
   w1('return ppc_opcode_table[static_cast<int>(opcode)];')
@@ -379,7 +379,7 @@ def generate_disasm(insns):
         ('PrintDisasm_' + literal_mnem(i.mnem)) if i.disasm_str else 'nullptr',
         ))
   w0('};')
-  w0('static_assert(sizeof(ppc_opcode_disasm_table) / sizeof(PPCOpcodeDisasmInfo) == static_cast<int>(PPCOpcode::kInvalid), "PPC table mismatch - rerun ppc-table-gen");')
+  w0('static_assert(sizeof(ppc_opcode_disasm_table) / sizeof(PPCOpcodeDisasmInfo) == static_cast<int>(PPCOpcode::kInvalid), "PPC table mismatch - rerun ppc-table-gen.py");')
   w0('')
   w0('const PPCOpcodeDisasmInfo& GetOpcodeDisasmInfo(PPCOpcode opcode) {')
   w1('return ppc_opcode_disasm_table[static_cast<int>(opcode)];')

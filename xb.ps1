@@ -12,4 +12,4 @@ if (!$pythonPath) {
     Throw "ERROR: Python 3.9+ 64-bit must be installed and on PATH:`nhttps://www.python.org/"
 }
 
-& $pythonPath "$($PSScriptRoot)/xenia-build" $args
+& $pythonPath "$($PSScriptRoot)/xenia-build.py" $args

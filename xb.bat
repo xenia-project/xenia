@@ -1,5 +1,5 @@
 @ECHO OFF
-REM Copyright 2022 Ben Vanik. All Rights Reserved.
+REM Copyright 2025 Ben Vanik. All Rights Reserved.
 
 SET "DIR=%~dp0"
 
@@ -17,10 +17,10 @@ IF %_RESULT% NEQ 0 (
 
 
 REM ============================================================================
-REM Trampoline into xenia-build
+REM Trampoline into xenia-build.py
 REM ============================================================================
 
-"%PYTHON_EXE%" "%DIR%\xenia-build" %*
+"%PYTHON_EXE%" "%DIR%\xenia-build.py" %*
 EXIT /b %ERRORLEVEL%
 
 
