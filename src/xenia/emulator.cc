@@ -1099,7 +1099,7 @@ void Emulator::Resume() {
       continue;
     }
 
-    if (thread->is_running()) {
+    if (!thread->is_running()) {
       thread->thread()->Resume(nullptr);
     }
   }
