@@ -4,9 +4,6 @@ project("snappy")
   kind("StaticLib")
   language("C++")
 
-  defines({
-    "_LIB",
-  })
   files({
     "snappy/snappy-internal.h",
     "snappy/snappy-sinksource.cc",

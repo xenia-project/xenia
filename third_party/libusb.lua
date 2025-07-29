@@ -3,9 +3,6 @@ project("libusb")
   uuid("5f8b5485-fde5-4a42-8a13-8545fcf6d25b")
   kind("StaticLib")
   language("C")
-  defines({
-    "_LIB",
-  })
   includedirs({"libusb/libusb/"})
 
   files({

@@ -3,9 +3,6 @@ project("glslang-spirv")
   uuid("1cc8f45e-91e2-4daf-a55e-666bf8b5e6b2")
   kind("StaticLib")
   language("C++")
-  defines({
-    "_LIB",
-  })
 
   files({
     "glslang/SPIRV/bitutils.h",

@@ -3,9 +3,6 @@ project("discord-rpc")
   uuid("012f6131-efc0-4abd-852d-a33640732d4c")
   kind("StaticLib")
   language("C++")
-  defines({
-    "_LIB",
-  })
   includedirs({
     "discord-rpc/include",
     "rapidjson/include"

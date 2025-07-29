@@ -3,9 +3,6 @@ project("aes_128")
   uuid("b50458bf-dd83-4c1a-8cad-61f5fbbfd720")
   kind("StaticLib")
   language("C")
-  defines({
-    "_LIB",
-  })
   includedirs({
     "aes_128",
   })

@@ -7,7 +7,6 @@ project("mspack")
     "xenia-base",
   })
   defines({
-    "_LIB",
     "HAVE_CONFIG_H",
   })
   includedirs({

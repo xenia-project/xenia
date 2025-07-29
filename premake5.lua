@@ -32,10 +32,7 @@ defines({
 
 cdialect("C17")
 cppdialect("C++20")
---exceptionhandling("On")
---rtti("On")
 symbols("On")
---characterset("Unicode")
 fatalwarnings("All")
 
 -- TODO(DrChat): Find a way to disable this on other architectures.
@@ -71,6 +68,9 @@ filter({"configurations:Checked or Debug", "platforms:Linux"})
     "_GLIBCXX_DEBUG",   -- libstdc++ debug mode
   })
 
+filter({"configurations:Checked or Debug", "platforms:Windows"})
+  symbols("Full")
+
 filter("configurations:Debug")
   runtime("Release")
   optimize("Off")
@@ -79,11 +79,6 @@ filter("configurations:Debug")
     "_NO_DEBUG_HEAP=1",
   })
 
---filter({"configurations:Debug", "platforms:Linux"})
---  defines({
---    "_GLIBCXX_DEBUG",   -- make dbg symbols work on some distros
---  })
-
 filter("configurations:Release")
   runtime("Release")
   defines({
@@ -91,7 +86,6 @@ filter("configurations:Release")
     "_NO_DEBUG_HEAP=1",
   })
   optimize("Speed")
-  symbols("Off")
   flags({
     "NoBufferSecurityCheck"
   })
@@ -104,9 +98,11 @@ filter("configurations:Release")
   -- (such as constant propagation) emulation as predictable as possible,
   -- including handling of specials since games make assumptions about them.
 
+filter({"configurations:Release", "platforms:not Windows"})
+  symbols("Off")
+
 filter({"configurations:Release", "platforms:Windows"}) -- "toolset:msc"
   linktimeoptimization("On")
-  symbols("On")
   buildoptions({
     "/Gw",
     "/Ob3",

@@ -7,7 +7,6 @@ project("capstone")
     "CAPSTONE_X86_ATT_DISABLE",
     "CAPSTONE_HAS_X86",
     "CAPSTONE_USE_SYS_DYN_MEM",
-    "_LIB",
   })
 
   includedirs({

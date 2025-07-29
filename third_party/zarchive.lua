@@ -6,9 +6,6 @@ project("zarchive")
   links({
     "zstd",
   })
-  defines({
-    "_LIB",
-  })
   includedirs({
     "zarchive/include",
     "zstd/lib",
