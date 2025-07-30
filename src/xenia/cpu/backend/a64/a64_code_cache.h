@@ -85,19 +85,20 @@ class A64CodeCache : public CodeCache {
   // Access to indirection table base for emitter
   uint8_t* indirection_table_base() const { return indirection_table_base_; }
   
-#if XE_PLATFORM_MAC && XE_ARCH_ARM64
-  // Returns true if the indirection table is mapped at guest addresses,
-  // allowing direct access like x64 does
-  bool indirection_table_at_guest_addresses() const {
-    return indirection_table_actual_base_ == kIndirectionTableBase;
-  }
-#endif
+  // Returns the actual base address used for indirection table
+  uintptr_t indirection_table_base_address() const { return indirection_table_actual_base_; }
 
  public:
   // All executable code falls within 0x80000000 to 0x9FFFFFFF, so we can
   // only map enough for lookups within that range.
   static const size_t kIndirectionTableSize = 0x1FFFFFFF;
+#if XE_PLATFORM_MAC && XE_ARCH_ARM64
+  // On macOS ARM64, the base address is determined dynamically at runtime
+  // based on where the OS allows us to allocate memory
+  static uintptr_t kIndirectionTableBase;
+#else
   static const uintptr_t kIndirectionTableBase = 0x80000000;
+#endif
   // The code range is 512MB, but we know the total code games will have is
   // pretty small (dozens of mb at most) and our expansion is reasonablish
   // so 256MB should be more than enough.
