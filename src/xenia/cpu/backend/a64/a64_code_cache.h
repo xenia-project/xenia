@@ -126,6 +126,9 @@ class A64CodeCache : public CodeCache {
   // the generated code table that correspond to the PPC functions in guest
   // space.
   uint8_t* indirection_table_base_ = nullptr;
+  // Actual base address of the indirection table (may differ from kIndirectionTableBase
+  // on systems where fixed address allocation fails)
+  uintptr_t indirection_table_actual_base_ = 0;
   // Fixed at kGeneratedCodeExecuteBase and holding all generated code, growing
   // as needed.
   uint8_t* generated_code_execute_base_ = nullptr;

@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <libunwind.h>
 #include <libkern/OSCacheControl.h>
+#include <pthread.h>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
@@ -125,8 +126,6 @@ void MacOSA64CodeCache::PlaceCode(uint32_t guest_address, void* machine_code,
 
     // Flush instruction cache to ensure code is executable
     sys_icache_invalidate(code_execute_address, func_info.code_size.total);
-    // Since sys_icache_invalidate returns void, we cannot check its return value.
-    // If you need to log or handle errors, ensure that the addresses and sizes are correct.
 }
 
 void MacOSA64CodeCache::InitializeUnwindEntry(
