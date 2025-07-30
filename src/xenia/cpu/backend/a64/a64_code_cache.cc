@@ -29,6 +29,10 @@ namespace a64 {
 
 using namespace xe::literals;
 
+// Define static constants for linking
+const size_t A64CodeCache::kIndirectionTableSize;
+const uintptr_t A64CodeCache::kIndirectionTableBase;
+
 A64CodeCache::A64CodeCache() = default;
 
 A64CodeCache::~A64CodeCache() {
@@ -54,26 +58,71 @@ A64CodeCache::~A64CodeCache() {
 }
 
 bool A64CodeCache::Initialize() {
+  XELOGI("A64CodeCache::Initialize() called - starting initialization");
+#if XE_PLATFORM_MAC && XE_ARCH_ARM64
+  // On macOS ARM64, try to create a virtual memory mapping that allows
+  // guest addresses to directly access the indirection table, just like x64
+  XELOGI("A64CodeCache Initialize: Starting dual-mode indirection table setup");
+  XELOGI("A64CodeCache Initialize: kIndirectionTableBase = 0x{:X}, kIndirectionTableSize = 0x{:X}", 
+         static_cast<uint64_t>(kIndirectionTableBase), kIndirectionTableSize);
+  
+  // First, try to reserve the guest address range
+  void* guest_reservation = xe::memory::AllocFixed(
+      reinterpret_cast<void*>(kIndirectionTableBase), kIndirectionTableSize,
+      xe::memory::AllocationType::kReserve,
+      xe::memory::PageAccess::kNoAccess);
+      
+  XELOGI("A64CodeCache Initialize: Guest reservation attempt returned: 0x{:016X}", reinterpret_cast<uint64_t>(guest_reservation));
+      
+  if (guest_reservation == reinterpret_cast<void*>(kIndirectionTableBase)) {
+    // Success! We can map at guest addresses
+    // Now commit the memory with the right permissions
+    bool commit_success = xe::memory::AllocFixed(
+        guest_reservation, kIndirectionTableSize,
+        xe::memory::AllocationType::kCommit,
+        xe::memory::PageAccess::kReadWrite) != nullptr;
+        
+    if (commit_success) {
+      indirection_table_base_ = reinterpret_cast<uint8_t*>(guest_reservation);
+      indirection_table_actual_base_ = kIndirectionTableBase;
+      XELOGI("Successfully mapped indirection table at guest addresses {:#X}-{:#X}",
+             static_cast<uint64_t>(kIndirectionTableBase),
+             kIndirectionTableBase + kIndirectionTableSize);
+    } else {
+      // Commit failed, clean up and fall back
+      xe::memory::DeallocFixed(guest_reservation, 0, xe::memory::DeallocationType::kRelease);
+      guest_reservation = nullptr;
+    }
+  } else if (guest_reservation) {
+    // Got a reservation but not at the target address, clean up and fall back
+    XELOGI("A64CodeCache Initialize: Got reservation at wrong address, cleaning up and falling back");
+    xe::memory::DeallocFixed(guest_reservation, 0, xe::memory::DeallocationType::kRelease);
+    guest_reservation = nullptr;
+  }
+  
+  if (!guest_reservation) {
+    // Fallback: allocate at any address
+    XELOGW("Unable to map indirection table at guest addresses, using fallback");
+    XELOGI("A64CodeCache Initialize: Attempting fallback allocation");
+    indirection_table_base_ = reinterpret_cast<uint8_t*>(xe::memory::AllocFixed(
+        nullptr, kIndirectionTableSize,
+        xe::memory::AllocationType::kReserveCommit,
+        xe::memory::PageAccess::kReadWrite));
+    XELOGI("A64CodeCache Initialize: Fallback allocation returned: 0x{:016X}", reinterpret_cast<uint64_t>(indirection_table_base_));
+    if (!indirection_table_base_) {
+      XELOGE("Unable to allocate indirection table at any address");
+      return false;
+    }
+    indirection_table_actual_base_ = reinterpret_cast<uintptr_t>(indirection_table_base_);
+    XELOGI("Allocated indirection table at fallback address {:#x}", indirection_table_actual_base_);
+  }
+#else
+  // Other platforms: try to allocate at the preferred address
   indirection_table_base_ = reinterpret_cast<uint8_t*>(xe::memory::AllocFixed(
       reinterpret_cast<void*>(kIndirectionTableBase), kIndirectionTableSize,
       xe::memory::AllocationType::kReserve,
       xe::memory::PageAccess::kReadWrite));
   if (!indirection_table_base_) {
-#if XE_PLATFORM_MAC && XE_ARCH_ARM64
-    XELOGW("Unable to allocate indirection table at fixed address on macOS ARM64, trying OS-chosen address");
-    // Try to allocate at an OS-chosen address instead
-    indirection_table_base_ = reinterpret_cast<uint8_t*>(xe::memory::AllocFixed(
-        nullptr, kIndirectionTableSize,
-        xe::memory::AllocationType::kReserve,
-        xe::memory::PageAccess::kReadWrite));
-    if (!indirection_table_base_) {
-      XELOGE("Unable to allocate indirection table at any address");
-      return false;
-    }
-    // Store the actual base address for offset calculations
-    indirection_table_actual_base_ = reinterpret_cast<uintptr_t>(indirection_table_base_);
-    XELOGI("Allocated indirection table at OS-chosen address {:#x}", indirection_table_actual_base_);
-#else
     XELOGE("Unable to allocate code cache indirection table");
     XELOGE(
         "This is likely because the {:X}-{:X} range is in use by some other "
@@ -81,11 +130,9 @@ bool A64CodeCache::Initialize() {
         static_cast<uint64_t>(kIndirectionTableBase),
         kIndirectionTableBase + kIndirectionTableSize);
     return false;
-#endif
-  } else {
-    // Fixed address allocation succeeded, use the expected base
-    indirection_table_actual_base_ = kIndirectionTableBase;
   }
+  indirection_table_actual_base_ = kIndirectionTableBase;
+#endif
 
   // Create mmap file. This allows us to share the code cache with the debugger.
   file_name_ = fmt::format("xenia_code_cache");
@@ -190,63 +237,128 @@ bool A64CodeCache::Initialize() {
   // Preallocate the function map to a large, reasonable size.
   generated_code_map_.reserve(kMaximumFunctionCount);
 
+  XELOGI("A64CodeCache::Initialize() completed successfully, indirection_table_base_=0x{:016X}", 
+         reinterpret_cast<uint64_t>(indirection_table_base_));
   return true;
 }
 
 void A64CodeCache::set_indirection_default(uint32_t default_value) {
+#if XE_PLATFORM_MAC && XE_ARCH_ARM64
+  // On macOS ARM64, we extend 32-bit values to 64-bit
+  indirection_default_value_ = default_value;
+#else
+  indirection_default_value_ = default_value;
+#endif
+}
+
+#if XE_PLATFORM_MAC && XE_ARCH_ARM64
+void A64CodeCache::set_indirection_default_64(uint64_t default_value) {
   indirection_default_value_ = default_value;
 }
+#endif
 
 void A64CodeCache::AddIndirection(uint32_t guest_address,
                                   uint32_t host_address) {
+#if XE_PLATFORM_MAC && XE_ARCH_ARM64
+  // On macOS ARM64, delegate to the 64-bit version
+  AddIndirection64(guest_address, host_address);
+#else
   if (!indirection_table_base_) {
     return;
   }
 
-#if XE_PLATFORM_MAC && XE_ARCH_ARM64
-  // On macOS ARM64, we might have an indirection table at a different base address
-  if (indirection_table_actual_base_ != kIndirectionTableBase) {
-    // Calculate the offset from the expected base and apply it to the actual base
-    uint32_t offset = guest_address - kIndirectionTableBase;
-    uint32_t* indirection_slot = reinterpret_cast<uint32_t*>(
-        indirection_table_base_ + offset);
-    *indirection_slot = host_address;
-  } else {
-    uint32_t* indirection_slot = reinterpret_cast<uint32_t*>(
-        indirection_table_base_ + (guest_address - kIndirectionTableBase));
-    *indirection_slot = host_address;
-  }
-#else
   uint32_t* indirection_slot = reinterpret_cast<uint32_t*>(
       indirection_table_base_ + (guest_address - kIndirectionTableBase));
   *indirection_slot = host_address;
 #endif
 }
 
-void A64CodeCache::CommitExecutableRange(uint32_t guest_low,
-                                         uint32_t guest_high) {
+#if XE_PLATFORM_MAC && XE_ARCH_ARM64
+void A64CodeCache::AddIndirection64(uint32_t guest_address,
+                                    uint64_t host_address) {
   if (!indirection_table_base_) {
     return;
   }
 
-#if XE_PLATFORM_MAC && XE_ARCH_ARM64
-  // On macOS ARM64, use the actual base address for calculations
-  uintptr_t table_base = indirection_table_actual_base_;
-#else
-  uintptr_t table_base = kIndirectionTableBase;
+  if (indirection_table_at_guest_addresses()) {
+    // Direct mapping like x64: guest address maps to indirection table
+    uint64_t* indirection_slot = reinterpret_cast<uint64_t*>(
+        indirection_table_base_ + (guest_address - kIndirectionTableBase) * 2);
+    XELOGI("AddIndirection64 (direct): guest_address=0x{:08X}, host_address=0x{:016X}, slot_ptr=0x{:016X}", 
+           guest_address, host_address, reinterpret_cast<uint64_t>(indirection_slot));
+    *indirection_slot = host_address;
+  } else {
+    // Fallback: calculate offset from actual base
+    uint32_t offset = (guest_address - kIndirectionTableBase) * 2;
+    uint64_t* indirection_slot = reinterpret_cast<uint64_t*>(
+        indirection_table_base_ + offset);
+    XELOGI("AddIndirection64 (fallback): guest_address=0x{:08X}, host_address=0x{:016X}, offset=0x{:08X}, slot_ptr=0x{:016X}", 
+           guest_address, host_address, offset, reinterpret_cast<uint64_t>(indirection_slot));
+    *indirection_slot = host_address;
+  }
+}
 #endif
 
-  // Commit the memory.
+void A64CodeCache::CommitExecutableRange(uint32_t guest_low,
+                                         uint32_t guest_high) {
+  if (!indirection_table_base_) {
+    XELOGE("CommitExecutableRange: indirection_table_base_ is null!");
+    return;
+  }
+
+  XELOGI("CommitExecutableRange: guest_low=0x{:08X}, guest_high=0x{:08X}, indirection_table_base_=0x{:016X}", 
+         guest_low, guest_high, reinterpret_cast<uint64_t>(indirection_table_base_));
+
+#if XE_PLATFORM_MAC && XE_ARCH_ARM64
+  if (indirection_table_at_guest_addresses()) {
+    // Direct mapping: use same calculation as x64
+    uint32_t start_offset = (guest_low - kIndirectionTableBase) * 2;  // 8-byte entries
+    uint32_t size = (guest_high - guest_low) * 2;
+    XELOGI("CommitExecutableRange (direct): start_offset=0x{:08X}, size=0x{:08X}", start_offset, size);
+    
+    xe::memory::AllocFixed(
+        indirection_table_base_ + start_offset, size,
+        xe::memory::AllocationType::kCommit, xe::memory::PageAccess::kReadWrite);
+    
+    // Fill with default value using direct indexing like x64
+    uint64_t* p = reinterpret_cast<uint64_t*>(indirection_table_base_);
+    XELOGI("Filling indirection table with default value 0x{:016X}", indirection_default_value_);
+    for (uint32_t address = guest_low; address < guest_high; address += 4) {
+      p[(address - kIndirectionTableBase) / 4] = indirection_default_value_;
+    }
+  } else {
+    // Fallback: use offset calculation
+    uint32_t start_offset = (guest_low - kIndirectionTableBase) * 2;  // Convert guest offset to byte offset for 64-bit entries
+    uint32_t size = (guest_high - guest_low) * 2;  // Each guest address needs 8 bytes, but guest addresses are 4 bytes apart, so 8/4 = 2
+    XELOGI("CommitExecutableRange (fallback): start_offset=0x{:08X}, size=0x{:08X}", start_offset, size);
+    
+    xe::memory::AllocFixed(
+        indirection_table_base_ + start_offset, size,
+        xe::memory::AllocationType::kCommit, xe::memory::PageAccess::kReadWrite);
+    
+    // Fill with default value
+    uint64_t* p = reinterpret_cast<uint64_t*>(indirection_table_base_);
+    XELOGI("Filling indirection table with default value 0x{:016X}", indirection_default_value_);
+    for (uint32_t address = guest_low; address < guest_high; address += 4) {
+      uint32_t index = (address - kIndirectionTableBase) / 4;
+      p[index] = indirection_default_value_;
+    }
+  }
+#else
+  // Other platforms: use 32-bit entries
+  uint32_t start_offset = (guest_low - kIndirectionTableBase);
+  uint32_t size = (guest_high - guest_low);
+
   xe::memory::AllocFixed(
-      indirection_table_base_ + (guest_low - table_base),
-      guest_high - guest_low, xe::memory::AllocationType::kCommit,
+      indirection_table_base_ + start_offset, size,
+      xe::memory::AllocationType::kCommit,
       xe::memory::PageAccess::kReadWrite);
 
-  // Fill memory with the default value.
   uint32_t* p = reinterpret_cast<uint32_t*>(indirection_table_base_);
-  for (uint32_t address = guest_low; address < guest_high; ++address) {
-    p[(address - table_base) / 4] = indirection_default_value_;
+  for (uint32_t address = guest_low; address < guest_high; address += 4) {
+    p[(address - kIndirectionTableBase) / 4] = indirection_default_value_;
   }
+#endif
 }
 
 void A64CodeCache::PlaceHostCode(uint32_t guest_address, void* machine_code,
@@ -335,8 +447,8 @@ void A64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
     } while (generated_code_commit_mark_.compare_exchange_weak(
         old_commit_mark, new_commit_mark));
 
-    // Copy code.
-    std::memcpy(code_write_address, machine_code, func_info.code_size.total);
+    // Copy code using platform-specific method that handles JIT protection
+    CopyMachineCode(code_write_address, machine_code, func_info.code_size.total);
 
     // Fill unused slots with 0x00
     std::memset(tail_write_address, 0x00,
@@ -351,16 +463,30 @@ void A64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
   // Note that we do support code that doesn't have an indirection fixup, so
   // ignore those when we see them.
   if (guest_address && indirection_table_base_) {
+    XELOGI("PlaceGuestCode: Processing guest_address=0x{:08X}", guest_address);
 #if XE_PLATFORM_MAC && XE_ARCH_ARM64
-    // On macOS ARM64, use the actual base address for calculations
-    uint32_t* indirection_slot = reinterpret_cast<uint32_t*>(
-        indirection_table_base_ + (guest_address - indirection_table_actual_base_));
+    if (indirection_table_at_guest_addresses()) {
+      // Direct mapping like x64: guest address maps to indirection table
+      uint64_t* indirection_slot = reinterpret_cast<uint64_t*>(
+          indirection_table_base_ + (guest_address - kIndirectionTableBase) * 2);
+      XELOGI("PlaceGuestCode (direct): guest_address=0x{:08X}, code_execute_address=0x{:016X}, slot_ptr=0x{:016X}", 
+             guest_address, reinterpret_cast<uint64_t>(code_execute_address), reinterpret_cast<uint64_t>(indirection_slot));
+      *indirection_slot = reinterpret_cast<uint64_t>(code_execute_address);
+    } else {
+      // Fallback: calculate offset from actual base
+      uint32_t offset = (guest_address - kIndirectionTableBase) * 2;
+      uint64_t* indirection_slot = reinterpret_cast<uint64_t*>(
+          indirection_table_base_ + offset);
+      XELOGI("PlaceGuestCode (fallback): guest_address=0x{:08X}, code_execute_address=0x{:016X}, offset=0x{:08X}, slot_ptr=0x{:016X}", 
+             guest_address, reinterpret_cast<uint64_t>(code_execute_address), offset, reinterpret_cast<uint64_t>(indirection_slot));
+      *indirection_slot = reinterpret_cast<uint64_t>(code_execute_address);
+    }
 #else
     uint32_t* indirection_slot = reinterpret_cast<uint32_t*>(
         indirection_table_base_ + (guest_address - kIndirectionTableBase));
-#endif
     *indirection_slot =
         uint32_t(reinterpret_cast<uint64_t>(code_execute_address));
+#endif
   }
 }
 

@@ -123,20 +123,12 @@ bool A64Backend::Initialize(Processor* processor) {
   guest_to_host_thunk_ = thunk_emitter.EmitGuestToHostThunk();
   resolve_function_thunk_ = thunk_emitter.EmitResolveFunctionThunk();
 
-  // Set the code cache to use the ResolveFunction thunk for default
-  // indirections.
 #if XE_PLATFORM_MAC && defined(__aarch64__)
-  // On macOS ARM64, addresses may be allocated in higher memory space
-  // TODO: Implement proper 32-bit address allocation for thunks
-  if (uint64_t(resolve_function_thunk_) & 0xFFFFFFFF00000000ull) {
-    XELOGW("Resolve function thunk allocated at high address 0x{:X}, may cause compatibility issues", 
-           uint64_t(resolve_function_thunk_));
-    // For now, use a placeholder value to continue execution
-    code_cache_->set_indirection_default(0x9FFF0000);
-  } else {
-    code_cache_->set_indirection_default(
-        uint32_t(uint64_t(resolve_function_thunk_)));
-  }
+  // On macOS ARM64, we use 64-bit addresses and the indirection table now
+  // supports 64-bit entries, so we can store the actual thunk address directly.
+  XELOGI("Setting 64-bit indirection default to thunk address: 0x{:016X}", uint64_t(resolve_function_thunk_));
+  static_cast<A64CodeCache*>(code_cache_.get())->set_indirection_default_64(
+      uint64_t(resolve_function_thunk_));
 #else
   assert_zero(uint64_t(resolve_function_thunk_) & 0xFFFFFFFF00000000ull);
   code_cache_->set_indirection_default(

@@ -53,6 +53,9 @@ class MacOSA64CodeCache : public A64CodeCache {
 
   void* LookupUnwindInfo(uint64_t host_pc) override;
 
+ protected:
+  void CopyMachineCode(void* dest, const void* src, size_t size) override;
+
  private:
   struct UnwindInfo {
     uint64_t begin_address;
@@ -99,6 +102,17 @@ bool MacOSA64CodeCache::Initialize() {
   return true;
 }
 
+void MacOSA64CodeCache::CopyMachineCode(void* dest, const void* src, size_t size) {
+  // On Apple Silicon, disable write protection for JIT memory during code writing
+  pthread_jit_write_protect_np(0);
+  
+  // Copy the machine code
+  std::memcpy(dest, src, size);
+  
+  // Re-enable write protection after writing
+  pthread_jit_write_protect_np(1);
+}
+
 MacOSA64CodeCache::UnwindReservation
 MacOSA64CodeCache::RequestUnwindReservation(uint8_t* entry_address) {
   assert_false(unwind_table_count_ >= kMaximumFunctionCount);
@@ -124,8 +138,13 @@ void MacOSA64CodeCache::PlaceCode(uint32_t guest_address, void* machine_code,
   unwind_info.end_address = unwind_info.begin_address + func_info.code_size.total;
   unwind_table_.emplace_back(unwind_info);
 
-    // Flush instruction cache to ensure code is executable
-    sys_icache_invalidate(code_execute_address, func_info.code_size.total);
+  // On Apple Silicon, ensure JIT write protection is properly managed
+  // Note: The actual code copy happens before this method is called
+  // We need to ensure write protection is enabled for execution
+  pthread_jit_write_protect_np(1);
+  
+  // Flush instruction cache to ensure code is executable
+  sys_icache_invalidate(code_execute_address, func_info.code_size.total);
 }
 
 void MacOSA64CodeCache::InitializeUnwindEntry(

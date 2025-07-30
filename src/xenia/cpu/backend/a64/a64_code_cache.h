@@ -59,7 +59,13 @@ class A64CodeCache : public CodeCache {
 
   bool has_indirection_table() { return indirection_table_base_ != nullptr; }
   void set_indirection_default(uint32_t default_value);
+#if XE_PLATFORM_MAC && XE_ARCH_ARM64
+  void set_indirection_default_64(uint64_t default_value);
+#endif
   void AddIndirection(uint32_t guest_address, uint32_t host_address);
+#if XE_PLATFORM_MAC && XE_ARCH_ARM64
+  void AddIndirection64(uint32_t guest_address, uint64_t host_address);
+#endif
 
   void CommitExecutableRange(uint32_t guest_low, uint32_t guest_high);
 
@@ -76,7 +82,18 @@ class A64CodeCache : public CodeCache {
 
   GuestFunction* LookupFunction(uint64_t host_pc) override;
 
- protected:
+  // Access to indirection table base for emitter
+  uint8_t* indirection_table_base() const { return indirection_table_base_; }
+  
+#if XE_PLATFORM_MAC && XE_ARCH_ARM64
+  // Returns true if the indirection table is mapped at guest addresses,
+  // allowing direct access like x64 does
+  bool indirection_table_at_guest_addresses() const {
+    return indirection_table_actual_base_ == kIndirectionTableBase;
+  }
+#endif
+
+ public:
   // All executable code falls within 0x80000000 to 0x9FFFFFFF, so we can
   // only map enough for lookups within that range.
   static const size_t kIndirectionTableSize = 0x1FFFFFFF;
@@ -110,6 +127,11 @@ class A64CodeCache : public CodeCache {
                          const EmitFunctionInfo& func_info,
                          void* code_execute_address,
                          UnwindReservation unwind_reservation) {}
+  
+  // Platform-specific code copying with JIT protection handling
+  virtual void CopyMachineCode(void* dest, const void* src, size_t size) {
+    std::memcpy(dest, src, size);
+  }
 
   std::filesystem::path file_name_;
   xe::memory::FileMappingHandle mapping_ =
@@ -120,9 +142,24 @@ class A64CodeCache : public CodeCache {
   xe::global_critical_region global_critical_region_;
 
   // Value that the indirection table will be initialized with upon commit.
+#if XE_PLATFORM_MAC && XE_ARCH_ARM64
+  uint64_t indirection_default_value_ = 0xFEEDF00D;
+#else
   uint32_t indirection_default_value_ = 0xFEEDF00D;
+#endif
 
-  // Fixed at kIndirectionTableBase in host space, holding 4 byte pointers into
+#if XE_PLATFORM_MAC && XE_ARCH_ARM64
+  // On macOS ARM64, we use 64-bit pointers in the indirection table to handle
+  // high addresses that can't fit in 32-bit values
+  using indirection_entry_t = uint64_t;
+  static constexpr size_t kIndirectionEntrySize = 8;
+#else
+  // Other platforms use 32-bit pointers
+  using indirection_entry_t = uint32_t;
+  static constexpr size_t kIndirectionEntrySize = 4;
+#endif
+
+  // Fixed at kIndirectionTableBase in host space, holding pointers into
   // the generated code table that correspond to the PPC functions in guest
   // space.
   uint8_t* indirection_table_base_ = nullptr;

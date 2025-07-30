@@ -450,7 +450,25 @@ void A64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
     // The target dword will either contain the address of the generated code
     // or a thunk to ResolveAddress.
     MOV(W17, function->address());
+#if XE_PLATFORM_MAC && XE_ARCH_ARM64
+    // On macOS ARM64, if we successfully mapped the indirection table at guest addresses,
+    // we can access it directly like x64 does. Otherwise, use the complex calculation.
+    auto a64_cache = static_cast<A64CodeCache*>(code_cache_);
+    if (a64_cache->indirection_table_at_guest_addresses()) {
+      // Direct access like x64: guest address maps directly to indirection table
+      LDR(X16, X17);
+    } else {
+      // Fallback: calculate the proper indirection table slot address
+      MOV(X18, reinterpret_cast<uint64_t>(a64_cache->indirection_table_base()));
+      SUB(W17, W17, static_cast<uint32_t>(A64CodeCache::kIndirectionTableBase));
+      LSL(X17, X17, 1);  // Multiply by 2 to convert guest offset to byte offset for 64-bit entries
+      ADD(X18, X18, X17);
+      LDR(X16, X18);
+    }
+#else
+    // Other platforms use 32-bit addresses
     LDR(W16, X17);
+#endif
   } else {
     // Old-style resolve.
     // Not too important because indirection table is almost always available.
@@ -497,7 +515,25 @@ void A64Emitter::CallIndirect(const hir::Instr* instr,
     if (reg.toW().index() != W17.index()) {
       MOV(W17, reg.toW());
     }
+#if XE_PLATFORM_MAC && XE_ARCH_ARM64
+    // On macOS ARM64, if we successfully mapped the indirection table at guest addresses,
+    // we can access it directly like x64 does. Otherwise, use the complex calculation.
+    auto a64_cache = static_cast<A64CodeCache*>(code_cache_);
+    if (a64_cache->indirection_table_at_guest_addresses()) {
+      // Direct access like x64: guest address maps directly to indirection table
+      LDR(X16, X17);
+    } else {
+      // Fallback: calculate the proper indirection table slot address
+      MOV(X18, reinterpret_cast<uint64_t>(a64_cache->indirection_table_base()));
+      SUB(W17, W17, static_cast<uint32_t>(A64CodeCache::kIndirectionTableBase));
+      LSL(X17, X17, 1);  // Multiply by 2 to convert guest offset to byte offset for 64-bit entries
+      ADD(X18, X18, X17);
+      LDR(X16, X18);
+    }
+#else
+    // Other platforms use 32-bit addresses
     LDR(W16, X17);
+#endif
   } else {
     // Old-style resolve.
     // Not too important because indirection table is almost always available.

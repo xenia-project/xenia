@@ -98,16 +98,9 @@ bool A64Assembler::Assemble(GuestFunction* function, HIRBuilder* builder,
   const uint64_t host_address = reinterpret_cast<uint64_t>(machine_code);
 #if XE_PLATFORM_MAC && XE_ARCH_ARM64
   // On macOS ARM64, machine code might be allocated in high address space
-  if ((host_address >> 32) != 0) {
-    XELOGW("Machine code allocated at high address {:#x}, using lower 32 bits", host_address);
-    // Use only the lower 32 bits for the indirection table
-    // This is a temporary workaround that may cause issues if the actual code needs the full address
-    reinterpret_cast<A64CodeCache*>(backend_->code_cache())
-        ->AddIndirection(function->address(), static_cast<uint32_t>(host_address));
-  } else {
-    reinterpret_cast<A64CodeCache*>(backend_->code_cache())
-        ->AddIndirection(function->address(), static_cast<uint32_t>(host_address));
-  }
+  // Use the 64-bit version of AddIndirection to store the full address
+  reinterpret_cast<A64CodeCache*>(backend_->code_cache())
+      ->AddIndirection64(function->address(), host_address);
 #else
   assert_true((host_address >> 32) == 0);
   reinterpret_cast<A64CodeCache*>(backend_->code_cache())

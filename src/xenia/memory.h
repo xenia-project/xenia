@@ -325,8 +325,8 @@ class Memory {
         if (heap) {
             host_address += heap->host_address_offset();
         }
-        // Optional logging
-        XELOGI("TranslateVirtual: guest_address=0x%08X, host_address=%p", guest_address, host_address);
+        // Optional logging - disabled for performance
+        // XELOGI("TranslateVirtual: guest_address=0x{:08X}, host_address={:p}", guest_address, host_address);
         return reinterpret_cast<T>(host_address);
     }
 
