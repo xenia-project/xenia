@@ -90,8 +90,8 @@ bool MacOSA64CodeCache::Initialize() {
     return false;
   }
 
-  // Reserve space for unwind table entries
-  unwind_table_.reserve(kMaximumFunctionCount);
+  // Resize (not reserve) space for unwind table entries to ensure vector has actual elements
+  unwind_table_.resize(kMaximumFunctionCount);
 
   // Additional MacOS-specific initialization can be done here
 

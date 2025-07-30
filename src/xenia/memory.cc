@@ -281,6 +281,52 @@ int Memory::MapViews() {
 
     uint64_t granularity_mask = ~uint64_t(system_allocation_granularity_ - 1);
 
+#if XE_PLATFORM_MAC && defined(__aarch64__)
+    // On macOS ARM64, allocate a large contiguous block first to ensure all views are contiguous
+    
+    // Calculate total size needed for all views
+    size_t total_size = 0;
+    size_t max_target_address = 0;
+    
+    for (size_t n = 0; n < xe::countof(map_info); n++) {
+        size_t aligned_length = map_info[n].virtual_address_end - map_info[n].virtual_address_start + 1;
+        aligned_length = ((aligned_length + granularity_mask) & granularity_mask);
+        size_t target_offset = map_info[n].target_address & granularity_mask;
+        
+        size_t end_address = target_offset + aligned_length;
+        max_target_address = std::max(max_target_address, end_address);
+    }
+    
+    total_size = max_target_address;
+    XELOGI("Allocating contiguous block of {} bytes ({} GB) for guest memory", total_size, total_size / (1024*1024*1024));
+    
+    // Try to allocate one large contiguous block first
+    uint8_t* base_address = reinterpret_cast<uint8_t*>(xe::memory::MapFileView(
+        mapping_, nullptr, total_size, xe::memory::PageAccess::kReadWrite, 0));
+        
+    if (!base_address) {
+        XELOGE("Failed to allocate contiguous memory block for guest memory");
+        return 1;
+    }
+    
+    XELOGI("Allocated contiguous guest memory block at 0x{:X} to 0x{:X}", 
+           (uintptr_t)base_address, (uintptr_t)base_address + total_size - 1);
+    
+    // Now map individual views within the allocated block
+    for (size_t n = 0; n < xe::countof(map_info); n++) {
+        size_t aligned_length = map_info[n].virtual_address_end - map_info[n].virtual_address_start + 1;
+        aligned_length = ((aligned_length + granularity_mask) & granularity_mask);
+        size_t target_offset = map_info[n].target_address & granularity_mask;
+        
+        // Calculate address within the contiguous block
+        views_.all_views[n] = base_address + target_offset;
+        
+        XELOGI("Mapped view {} at address 0x{:X} (length {}, offset 0x{:X})", 
+               n, (uintptr_t)views_.all_views[n], aligned_length, target_offset);
+    }
+    
+#else
+    // Standard implementation for other platforms - map each view individually
     for (size_t n = 0; n < xe::countof(map_info); n++) {
         // Compute aligned length
         size_t aligned_length = map_info[n].virtual_address_end - map_info[n].virtual_address_start + 1;
@@ -298,8 +344,10 @@ int Memory::MapViews() {
         }
 
         // Log the mapping
-        XELOGI("Mapped view {} at address {} (length {})\n", n, (void*)views_.all_views[n], aligned_length);
+        XELOGI("Mapped view {} at address 0x{:X} (length {})", n, (uintptr_t)views_.all_views[n], aligned_length);
     }
+#endif
+    
     return 0;
 }
 

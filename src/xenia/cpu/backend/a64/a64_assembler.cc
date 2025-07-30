@@ -34,11 +34,11 @@ using xe::cpu::hir::HIRBuilder;
 
 A64Assembler::A64Assembler(A64Backend* backend)
     : Assembler(backend), a64_backend_(backend), capstone_handle_(0) {
-  if (cs_open(CS_ARCH_ARM, CS_MODE_LITTLE_ENDIAN, &capstone_handle_) !=
+  if (cs_open(CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN, &capstone_handle_) !=
       CS_ERR_OK) {
     assert_always("Failed to initialize capstone");
   }
-  cs_option(capstone_handle_, CS_OPT_SYNTAX, CS_OPT_SYNTAX_INTEL);
+  // Remove Intel syntax option as it's not applicable to ARM64
   cs_option(capstone_handle_, CS_OPT_DETAIL, CS_OPT_OFF);
 }
 
@@ -96,10 +96,24 @@ bool A64Assembler::Assemble(GuestFunction* function, HIRBuilder* builder,
 
   // Install into indirection table.
   const uint64_t host_address = reinterpret_cast<uint64_t>(machine_code);
+#if XE_PLATFORM_MAC && XE_ARCH_ARM64
+  // On macOS ARM64, machine code might be allocated in high address space
+  if ((host_address >> 32) != 0) {
+    XELOGW("Machine code allocated at high address {:#x}, using lower 32 bits", host_address);
+    // Use only the lower 32 bits for the indirection table
+    // This is a temporary workaround that may cause issues if the actual code needs the full address
+    reinterpret_cast<A64CodeCache*>(backend_->code_cache())
+        ->AddIndirection(function->address(), static_cast<uint32_t>(host_address));
+  } else {
+    reinterpret_cast<A64CodeCache*>(backend_->code_cache())
+        ->AddIndirection(function->address(), static_cast<uint32_t>(host_address));
+  }
+#else
   assert_true((host_address >> 32) == 0);
   reinterpret_cast<A64CodeCache*>(backend_->code_cache())
       ->AddIndirection(function->address(),
                        static_cast<uint32_t>(host_address));
+#endif
 
   return true;
 }

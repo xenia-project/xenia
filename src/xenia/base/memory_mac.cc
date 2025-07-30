@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <cstddef>
 #include <iostream>
+#include <filesystem>
 
 #include "xenia/base/math.h"
 #include "xenia/base/platform.h"
@@ -111,15 +112,37 @@ void* AllocFixed(void* base_address, size_t length,
         flags |= MAP_JIT;
     }
     
-    void* result = mmap(reinterpret_cast<void*>(aligned_addr), length, prot,
-                        flags, -1, 0);
+    void* result = nullptr;
     
-    XELOGI("Memory Mapped from 0x{:X} to 0x{:X}", (size_t)result, (size_t)result + (size_t)length - 1);
+#if XE_PLATFORM_MAC && defined(__aarch64__)
+    // On macOS ARM64, try fixed address mapping first if requested, but fall back to OS-chosen address
+    if (aligned_addr != 0) {
+        result = mmap(reinterpret_cast<void*>(aligned_addr), length, prot,
+                      flags | MAP_FIXED, -1, 0);
+        
+        if (result == MAP_FAILED) {
+            XELOGW("Fixed address mapping at 0x{:X} failed, trying OS-chosen address", aligned_addr);
+            // Fall back to letting OS choose the address
+            result = mmap(nullptr, length, prot, flags, -1, 0);
+        }
+    } else {
+        // Let OS choose the address
+        result = mmap(nullptr, length, prot, flags, -1, 0);
+    }
+#else
+    // Standard behavior on other platforms - use fixed address if specified
+    result = mmap(aligned_addr ? reinterpret_cast<void*>(aligned_addr) : nullptr, 
+                  length, prot, 
+                  flags | (aligned_addr ? MAP_FIXED : 0), -1, 0);
+#endif
     
     if (result == MAP_FAILED) {
-        XELOGE("Memory Allocation from Address 0x{:X} to 0x{:X} Failed!", (size_t)aligned_addr, (size_t)aligned_addr + length - 1);
+        int err = errno;
+        XELOGE("Memory Allocation Failed: {} (errno: {})", strerror(err), err);
         return nullptr;
     }
+    
+    XELOGI("Memory Mapped from 0x{:X} to 0x{:X}", (size_t)result, (size_t)result + (size_t)length - 1);
     return result;
 }
 
@@ -216,22 +239,49 @@ void* MapFileView(FileMappingHandle handle, void* base_address, size_t length,
         aligned_addr = xe::round_up(aligned_addr, page_size());
     }
     
+    void* result = nullptr;
+    
+#if XE_PLATFORM_MAC && defined(__aarch64__)
+    // On macOS ARM64, try fixed address mapping first if requested, but fall back to OS-chosen address
+    if (aligned_addr != 0) {
+        int flags = MAP_SHARED | MAP_FIXED;
+        result = mmap(reinterpret_cast<void*>(aligned_addr), length,
+                      ToPosixProtectFlags(access), flags,
+                      reinterpret_cast<int>(handle), file_offset);
+        
+        if (result == MAP_FAILED) {
+            int err = errno;
+            XELOGW("Fixed address file mapping at 0x{:X} failed: {} (errno: {}), trying OS-chosen address", 
+                   aligned_addr, strerror(err), err);
+            
+            // Fall back to letting OS choose the address
+            int fallback_flags = MAP_SHARED;
+            result = mmap(nullptr, length, ToPosixProtectFlags(access),
+                          fallback_flags, reinterpret_cast<int>(handle), file_offset);
+        }
+    } else {
+        // Let OS choose the address
+        int flags = MAP_SHARED;
+        result = mmap(nullptr, length, ToPosixProtectFlags(access), flags,
+                      reinterpret_cast<int>(handle), file_offset);
+    }
+#else
+    // Standard behavior on other platforms - use fixed address if specified
     int flags = MAP_SHARED | (base_address ? MAP_FIXED : 0);
-    void* result = mmap(reinterpret_cast<void*>(aligned_addr), length,
-                        ToPosixProtectFlags(access),
-                        flags,
-                        reinterpret_cast<int>(handle),
-                        file_offset);
+    result = mmap(reinterpret_cast<void*>(aligned_addr), length,
+                  ToPosixProtectFlags(access), flags,
+                  reinterpret_cast<int>(handle), file_offset);
+#endif
     
     if (result == MAP_FAILED) {
-//        XELOGE("Shared Memory Object {} Mapping Failed", (int)handle, (size_t)result, (size_t)result + length);
         int err = errno;  // Capture errno as soon as possible
         std::cerr << "Shared Memory Object " << (int)handle
                   << " Mapping Failed: " << strerror(err) << " (errno: " << err << ")\n";
         return nullptr;
     }
     
-    XELOGI("Shared Memory Object {} Mapped from 0x{:X} to 0x{:X}", (int)handle, (size_t)result, (size_t)result + length);
+    XELOGI("Shared Memory Object {} Mapped from 0x{:X} to 0x{:X}", 
+           (int)handle, (size_t)result, (size_t)result + length);
     
     return result;
 }

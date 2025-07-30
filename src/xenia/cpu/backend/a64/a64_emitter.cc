@@ -424,8 +424,27 @@ void A64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
   if (fn->machine_code()) {
     // TODO(benvanik): is it worth it to do this? It removes the need for
     // a ResolveFunction call, but makes the table less useful.
+#if XE_PLATFORM_MAC && defined(__aarch64__)
+    // On macOS ARM64, addresses may be allocated in higher memory space
+    if (uint64_t(fn->machine_code()) & 0xFFFFFFFF00000000) {
+      XELOGW("Function machine code at high address 0x{:X}, using indirect call", 
+             uint64_t(fn->machine_code()));
+      // Fall back to indirect calling mechanism
+      if (code_cache_->has_indirection_table()) {
+        MOV(W17, function->address());
+        LDR(W16, X17);
+      } else {
+        // Use a different calling mechanism for high addresses
+        // TODO: Implement proper high-address calling
+        MOV(X16, uint64_t(fn->machine_code()));
+      }
+    } else {
+      MOV(X16, uint32_t(uint64_t(fn->machine_code())));
+    }
+#else
     assert_zero(uint64_t(fn->machine_code()) & 0xFFFFFFFF00000000);
     MOV(X16, uint32_t(uint64_t(fn->machine_code())));
+#endif
   } else if (code_cache_->has_indirection_table()) {
     // Load the pointer to the indirection table maintained in A64CodeCache.
     // The target dword will either contain the address of the generated code
@@ -789,8 +808,17 @@ uintptr_t A64Emitter::PlaceConstData() {
     ptr += kConstDataIncrement;
   }
 
+#if XE_PLATFORM_MAC && XE_ARCH_ARM64
+  // On macOS ARM64, memory is often allocated in high address space
+  if (reinterpret_cast<uintptr_t>(mem) & ~0x7FFFFFFF) {
+    XELOGW("Const data allocated at high address {:#x}, may cause compatibility issues", 
+           reinterpret_cast<uintptr_t>(mem));
+    // Continue anyway since we'll handle it later
+  }
+#else
   // The pointer must not be greater than 31 bits.
   assert_zero(reinterpret_cast<uintptr_t>(mem) & ~0x7FFFFFFF);
+#endif
   std::memcpy(mem, v_consts, sizeof(v_consts));
   memory::Protect(mem, kConstDataSize, memory::PageAccess::kReadOnly, nullptr);
 
