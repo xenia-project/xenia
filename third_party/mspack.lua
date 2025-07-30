@@ -28,7 +28,7 @@ project("mspack")
       "mspack/system.h",
   })
 
-  filter("platforms:Windows")
+  filter("platforms:Windows-*")
     defines({
     })
   filter("platforms:Linux")

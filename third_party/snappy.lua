@@ -18,5 +18,5 @@ project("snappy")
     "snappy/snappy.h",
   })
 
-  filter("platforms:Windows")
+  filter("platforms:Windows-*")
     warnings("Off")  -- Too many warnings.

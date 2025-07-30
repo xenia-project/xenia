@@ -11,6 +11,8 @@
 
 #include <cstdlib>
 
+#if XE_ARCH_AMD64
+
 // Includes Windows headers, so it goes after platform_win.h.
 #include "third_party/xbyak/xbyak/xbyak_util.h"
 
@@ -39,3 +41,5 @@ class StartupAvxCheck {
 #pragma warning(suppress : 4073)
 #pragma init_seg(lib)
 static StartupAvxCheck gStartupAvxCheck;
+
+#endif

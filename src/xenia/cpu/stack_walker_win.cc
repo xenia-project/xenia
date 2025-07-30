@@ -58,6 +58,12 @@ LPSYMFUNCTIONTABLEACCESS64 sym_function_table_access_64_ = nullptr;
 LPSYMGETMODULEBASE64 sym_get_module_base_64_ = nullptr;
 LPSYMGETSYMFROMADDR64 sym_get_sym_from_addr_64_ = nullptr;
 
+#if XE_ARCH_AMD64
+static const DWORD kMachineType = IMAGE_FILE_MACHINE_AMD64;
+#elif XE_ARCH_ARM64
+static const DWORD kMachineType = IMAGE_FILE_MACHINE_ARM64;
+#endif
+
 namespace xe {
 namespace cpu {
 
@@ -173,40 +179,70 @@ class Win32StackWalker : public StackWalker {
     } else {
       // Copy thread context local. We will be modifying it during stack
       // walking, so we don't want to mess with the incoming copy.
+#if XE_ARCH_AMD64
       thread_context.Rip = in_host_context->rip;
       thread_context.EFlags = in_host_context->eflags;
       std::memcpy(&thread_context.Rax, in_host_context->int_registers,
                   sizeof(in_host_context->int_registers));
       std::memcpy(&thread_context.Xmm0, in_host_context->xmm_registers,
                   sizeof(in_host_context->xmm_registers));
+#elif XE_ARCH_ARM64
+      thread_context.Pc = in_host_context->pc;
+      thread_context.Cpsr = in_host_context->cpsr;
+      std::memcpy(thread_context.X, in_host_context->x,
+                  sizeof(in_host_context->x));
+      std::memcpy(&thread_context.V, in_host_context->v,
+                  sizeof(in_host_context->v));
+#endif
     }
 
     if (out_host_context) {
       // Write out the captured thread context if the caller asked for it.
+#if XE_ARCH_AMD64
       out_host_context->rip = thread_context.Rip;
       out_host_context->eflags = thread_context.EFlags;
       std::memcpy(out_host_context->int_registers, &thread_context.Rax,
                   sizeof(out_host_context->int_registers));
       std::memcpy(out_host_context->xmm_registers, &thread_context.Xmm0,
                   sizeof(out_host_context->xmm_registers));
+#elif XE_ARCH_ARM64
+      out_host_context->pc = thread_context.Pc;
+      out_host_context->cpsr = thread_context.Cpsr;
+      std::memcpy(out_host_context->x, &thread_context.X,
+                  sizeof(out_host_context->x));
+      std::memcpy(out_host_context->v, &thread_context.V,
+                  sizeof(out_host_context->v));
+#endif
     }
 
     // Setup the frame for walking.
     STACKFRAME64 stack_frame = {0};
     stack_frame.AddrPC.Mode = AddrModeFlat;
+#if XE_ARCH_AMD64
     stack_frame.AddrPC.Offset = thread_context.Rip;
+#elif XE_ARCH_ARM64
+    stack_frame.AddrPC.Offset = thread_context.Pc;
+#endif
     stack_frame.AddrFrame.Mode = AddrModeFlat;
+#if XE_ARCH_AMD64
     stack_frame.AddrFrame.Offset = thread_context.Rbp;
+#elif XE_ARCH_ARM64
+    stack_frame.AddrFrame.Offset = thread_context.Fp;
+#endif
     stack_frame.AddrStack.Mode = AddrModeFlat;
+#if XE_ARCH_AMD64
     stack_frame.AddrStack.Offset = thread_context.Rsp;
+#elif XE_ARCH_ARM64
+    stack_frame.AddrStack.Offset = thread_context.Sp;
+#endif
 
     // Walk the stack.
     // Note that StackWalk64 is thread safe, though other dbghelp functions are
     // not.
     size_t frame_index = 0;
     while (frame_index < frame_count &&
-           stack_walk_64_(IMAGE_FILE_MACHINE_AMD64, GetCurrentProcess(),
-                          thread_handle, &stack_frame, &thread_context, nullptr,
+           stack_walk_64_(kMachineType, GetCurrentProcess(), thread_handle,
+                          &stack_frame, &thread_context, nullptr,
                           XSymFunctionTableAccess64, XSymGetModuleBase64,
                           nullptr) == TRUE) {
       if (frame_index >= frame_offset) {
@@ -237,7 +273,7 @@ class Win32StackWalker : public StackWalker {
         if (function) {
           frame.guest_symbol.function = function;
           // Figure out where in guest code we are by looking up the
-          // displacement in x64 from the JIT'ed code start to the PC.
+          // displacement in bytes from the JIT'ed code start to the PC.
           if (function->is_guest()) {
             auto guest_function = static_cast<GuestFunction*>(function);
             // Adjust the host PC by -1 so that we will go back into whatever
