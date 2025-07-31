@@ -68,7 +68,7 @@ filter({"configurations:Checked or Debug", "platforms:Linux"})
     "_GLIBCXX_DEBUG",   -- libstdc++ debug mode
   })
 
-filter({"configurations:Checked or Debug", "platforms:Windows"})
+filter({"configurations:Checked or Debug", "platforms:Windows"}) -- "toolset:msc"
   symbols("Full")
 
 filter("configurations:Debug")

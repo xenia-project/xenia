@@ -8,5 +8,4 @@ project("dxbc")
   })
   files({
     "dxbc/DXBCChecksum.cpp",
-    "dxbc/DXBCChecksum.h",
   })

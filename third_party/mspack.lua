@@ -14,11 +14,6 @@ project("mspack")
   })
   files({
       "mspack/logging.cc",
-      "mspack/lzx.h",
       "mspack/lzxd.c",
-      "mspack/mspack.h",
-      "mspack/readbits.h",
-      "mspack/readhuff.h",
       "mspack/system.c",
-      "mspack/system.h",
   })

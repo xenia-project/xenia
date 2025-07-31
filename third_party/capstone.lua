@@ -15,23 +15,12 @@ project("capstone")
   })
   files({
     "capstone/cs.c",
-    "capstone/cs_priv.h",
-    "capstone/LEB128.h",
-    "capstone/MathExtras.h",
-    "capstone/MCDisassembler.h",
-    "capstone/MCFixedLenDisassembler.h",
     "capstone/MCInst.c",
-    "capstone/MCInst.h",
     "capstone/MCInstrDesc.c",
-    "capstone/MCInstrDesc.h",
     "capstone/MCRegisterInfo.c",
-    "capstone/MCRegisterInfo.h",
     "capstone/SStream.c",
-    "capstone/SStream.h",
     "capstone/utils.c",
-    "capstone/utils.h",
     "capstone/Mapping.c",
-    "capstone/Mapping.h",
 
     "capstone/arch/X86/*.c",
     "capstone/arch/X86/*.h",

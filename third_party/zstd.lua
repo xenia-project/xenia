@@ -19,65 +19,65 @@ function project_zstd(dir, compression, decompression, deprecated, dictbuilder, 
 		deprecated = false
 	end
 
-	project 'zstd'
-		kind 'StaticLib'
-		language 'C'
+	project "zstd"
+		kind "StaticLib"
+		language "C"
 
 		files {
-			dir .. 'zstd.h',
-			dir .. 'common/**.c',
-			dir .. 'common/**.h'
+			dir .. "zstd.h",
+			dir .. "common/**.c",
+			dir .. "common/**.h"
 		}
 
 		if compression then
 			files {
-				dir .. 'compress/**.c',
-				dir .. 'compress/**.h'
+				dir .. "compress/**.c",
+				dir .. "compress/**.h"
 			}
 		end
 
 		if decompression then
 			files {
-				dir .. 'decompress/**.c',
-				dir .. 'decompress/**.h'
+				dir .. "decompress/**.c",
+				dir .. "decompress/**.h"
 			}
 		end
 
 		if dictbuilder then
 			files {
-				dir .. 'dictBuilder/**.c',
-				dir .. 'dictBuilder/**.h'
+				dir .. "dictBuilder/**.c",
+				dir .. "dictBuilder/**.h"
 			}
 		end
 
 		if deprecated then
 			files {
-				dir .. 'deprecated/**.c',
-				dir .. 'deprecated/**.h'
+				dir .. "deprecated/**.c",
+				dir .. "deprecated/**.h"
 			}
 		end
 
 		if legacy ~= 0 then
 			if legacy >= 8 then
 				files {
-					dir .. 'legacy/zstd_v0' .. (legacy - 7) .. '.*'
+					dir .. "legacy/zstd_v0" .. (legacy - 7) .. ".*"
 				}
 			end
 			includedirs {
-				dir .. 'legacy'
+				dir .. "legacy"
 			}
 		end
 
 		includedirs {
 			dir,
-			dir .. 'common'
+			dir .. "common"
 		}
 
 		defines {
-			'XXH_NAMESPACE=ZSTD_',
+			"XXH_NAMESPACE=ZSTD_",
 			-- See here on why: https://gitlab.kitware.com/cmake/cmake/-/issues/25744
-			'ZSTD_DISABLE_ASM=1',
-			'ZSTD_LEGACY_SUPPORT=' .. legacy
+			"ZSTD_DISABLE_ASM=1",
+			"ZSTD_LEGACY_SUPPORT=" .. legacy
 		}
 end
 
@@ -85,5 +85,4 @@ end
 group("third_party")
 project("zstd")
   uuid("df336aac-f0c8-11ed-a05b-0242ac120003")
-  project_zstd('./zstd/lib/')
-
+  project_zstd("./zstd/lib/")

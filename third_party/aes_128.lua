@@ -7,6 +7,5 @@ project("aes_128")
     "aes_128",
   })
   files({
-    "aes_128/aes.h",
     "aes_128/unroll/aes.c",
   })

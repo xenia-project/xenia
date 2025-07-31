@@ -8,5 +8,4 @@ project("xxhash")
   })
   files({
     "xxhash/xxhash.c",
-    "xxhash/xxhash.h",
   })
