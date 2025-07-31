@@ -1180,9 +1180,8 @@ struct PERMUTE_V128
   }
 
   static void EmitByInt16(A64Emitter& e, const EmitArgType& i) {
-    // Permute bytes between src2 and src3.
-    // src1 is an array of indices corresponding to positions within src2 and
-    // src3.
+    // Permute 16-bit halfwords between src2 and src3.
+    // src1 is an array of 16-bit indices corresponding to positions within src2 and src3.
     if (i.src3.value->IsConstantZero()) {
       if (i.src2.value->IsConstantZero()) {
         // src2 & src3 are zero, so result will always be zero.
@@ -1191,45 +1190,53 @@ struct PERMUTE_V128
       }
     }
 
-    const QReg indices = Q0;
-    if (i.src1.is_constant) {
-      e.LoadConstantV(indices, i.src1.constant());
-    } else {
-      e.MOV(indices.B16(), i.src1.reg().B16());
+    // This implementation is adapted from the x64 backend
+    assert_true(i.src1.is_constant);
+
+    // Process the constant indices to create byte shuffle masks and blend control
+    vec128_t perm = (i.src1.constant() & vec128s(0xF)) ^ vec128s(0x1);
+    vec128_t perm_bytes = vec128b(0);
+    vec128_t blend_mask = vec128b(0);
+    
+    for (int idx = 0; idx < 8; idx++) {
+      bool from_src3 = perm.i16[idx] > 7;
+      
+      // Create byte indices for this 16-bit element
+      uint8_t base_byte_idx = uint8_t(perm.u16[idx] & 7) * 2;
+      perm_bytes.u8[idx * 2] = base_byte_idx;
+      perm_bytes.u8[idx * 2 + 1] = base_byte_idx + 1;
+      
+      // Create blend mask (0xFF means take from src3, 0x00 means take from src2)
+      blend_mask.u8[idx * 2] = from_src3 ? 0xFF : 0x00;
+      blend_mask.u8[idx * 2 + 1] = from_src3 ? 0xFF : 0x00;
     }
 
-    // Indices must be endian-swapped
-    e.MOVI(Q1.H8(), 0b1);
-    e.EOR(indices.B16(), indices.B16(), Q1.B16());
+    // Load the byte shuffle mask
+    e.LoadConstantV(Q0, perm_bytes);
+    
+    // Load the blend mask
+    e.LoadConstantV(Q1, blend_mask);
 
-    // Modulo-16 the indices
-    e.MOVI(Q1.H8(), 0b0000'1111);
-    e.AND(indices.B16(), indices.B16(), Q1.B16());
-
-    // Convert int16 indices into int8
-    e.MOVI(Q1.H8(), 2);  // Multiply each 16-bit element by 2
-    e.MUL(indices.H8(), indices.H8(), Q1.H8());
-
-    e.MOVI(Q1.H8(), 1);  // Add 1 to each 16-bit element  
-    e.ADD(indices.H8(), indices.H8(), Q1.H8());
-
-    // Table-registers must be sequential indices
-    const QReg table_lo = Q2;
+    // Load src2 and shuffle it
     if (i.src2.is_constant) {
-      e.LoadConstantV(table_lo, i.src2.constant());
+      e.LoadConstantV(Q2, i.src2.constant());
     } else {
-      e.MOV(table_lo.B16(), i.src2.reg().B16());
+      e.MOV(Q2.B16(), i.src2.reg().B16());
     }
+    e.TBL(Q2.B16(), List{Q2.B16()}, Q0.B16());
 
-    const QReg table_hi = Q3;
+    // Load src3 and shuffle it
     if (i.src3.is_constant) {
-      e.LoadConstantV(table_hi, i.src3.constant());
+      e.LoadConstantV(Q3, i.src3.constant());
     } else {
-      e.MOV(table_hi.B16(), i.src3.reg().B16());
+      e.MOV(Q3.B16(), i.src3.reg().B16());
     }
+    e.TBL(Q3.B16(), List{Q3.B16()}, Q0.B16());
 
-    e.TBL(i.dest.reg().B16(), List{table_lo.B16(), table_hi.B16()},
-          indices.B16());
+    // Blend the results: dest = (Q3 & Q1) | (Q2 & ~Q1)
+    e.AND(Q3.B16(), Q3.B16(), Q1.B16());    // Q3 & mask
+    e.BIC(Q2.B16(), Q2.B16(), Q1.B16());    // Q2 & ~mask  
+    e.ORR(i.dest.reg().B16(), Q3.B16(), Q2.B16());  // combine
   }
 
   static void EmitByInt32(A64Emitter& e, const EmitArgType& i) {

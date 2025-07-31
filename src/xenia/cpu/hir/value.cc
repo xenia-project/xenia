@@ -409,13 +409,17 @@ void Value::MulHi(Value* other, bool is_unsigned) {
       }
 #else
       if (is_unsigned) {
+        uint64_t a = constant.i64;
+        uint64_t b = other->constant.i64;
         constant.i64 = static_cast<uint64_t>(
-            static_cast<unsigned __int128>(constant.i64) *
-            static_cast<unsigned __int128>(other->constant.i64));
+            (static_cast<unsigned __int128>(a) *
+             static_cast<unsigned __int128>(b)) >> 64);
       } else {
+        int64_t a = constant.i64;
+        int64_t b = other->constant.i64;
         constant.i64 =
-            static_cast<uint64_t>(static_cast<__int128>(constant.i64) *
-                                  static_cast<__int128>(other->constant.i64));
+            static_cast<uint64_t>((static_cast<__int128>(a) *
+                                   static_cast<__int128>(b)) >> 64);
       }
 #endif  // XE_COMPILER_MSVC
       break;
