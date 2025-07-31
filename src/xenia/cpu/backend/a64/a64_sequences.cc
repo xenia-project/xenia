@@ -1736,30 +1736,35 @@ struct MUL_ADD_V128
                I<OPCODE_MUL_ADD, V128Op, V128Op, V128Op, V128Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     const QReg dest = i.dest.reg();
-    if (i.src3.is_constant) {
-      e.LoadConstantV(dest.toQ(), i.src3.constant());
-    } else {
-      // If i.dest != i.src3, move the addition-term into dest for FMLA
-      if (i.dest != i.src3) {
-        e.MOV(dest.B16(), i.src3.reg().B16());
-      }
-    }
-
-    QReg src2 = Q2;
-    if (i.src2.is_constant) {
-      e.LoadConstantV(src2.toQ(), i.src2.constant());
-    } else {
-      src2 = i.src2.reg();
-    }
-
-    QReg src1 = Q1;
+    
+    // Always use temporary registers to avoid conflicts
+    QReg temp1 = Q0;
+    QReg temp2 = Q1;
+    QReg temp3 = Q2;
+    
     if (i.src1.is_constant) {
-      e.LoadConstantV(src1.toQ(), i.src1.constant());
+      e.LoadConstantV(temp1, i.src1.constant());
     } else {
-      src1 = i.src1.reg();
+      e.MOV(temp1.B16(), i.src1.reg().B16());
     }
-
-    e.FMLA(dest.S4(), src1.S4(), src2.S4());
+    
+    if (i.src2.is_constant) {
+      e.LoadConstantV(temp2, i.src2.constant());
+    } else {
+      e.MOV(temp2.B16(), i.src2.reg().B16());
+    }
+    
+    if (i.src3.is_constant) {
+      e.LoadConstantV(temp3, i.src3.constant());
+    } else {
+      e.MOV(temp3.B16(), i.src3.reg().B16());
+    }
+    
+    // First multiply: dest = temp1 * temp2
+    e.FMUL(dest.S4(), temp1.S4(), temp2.S4());
+    
+    // Then add: dest = dest + temp3
+    e.FADD(dest.S4(), dest.S4(), temp3.S4());
   }
 };
 EMITTER_OPCODE_TABLE(OPCODE_MUL_ADD, MUL_ADD_F32, MUL_ADD_F64, MUL_ADD_V128);
