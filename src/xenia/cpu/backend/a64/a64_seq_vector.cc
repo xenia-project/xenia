@@ -1573,18 +1573,16 @@ struct PACK : Sequence<PACK, I<OPCODE_PACK, V128Op, V128Op, V128Op>> {
           if (i.src2.is_constant) {
             e.LoadConstantV(src2, i.src2.constant());
           }
-          e.UQXTN(i.dest.reg().toD().B8(), src2.H8());
-          e.UQXTN2(i.dest.reg().B16(), src1.H8());
+          e.UQXTN(i.dest.reg().toD().B8(), src1.H8());
+          e.UQXTN2(i.dest.reg().B16(), src2.H8());
 
           e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
-          e.EXT(i.dest.reg().B16(), i.dest.reg().B16(), i.dest.reg().B16(), 8);
         } else {
           // unsigned -> unsigned
-          e.XTN(i.dest.reg().toD().B8(), i.src2.reg().H8());
-          e.XTN2(i.dest.reg().B16(), i.src1.reg().H8());
+          e.XTN(i.dest.reg().toD().B8(), i.src1.reg().H8());
+          e.XTN2(i.dest.reg().B16(), i.src2.reg().H8());
 
           e.REV32(i.dest.reg().H8(), i.dest.reg().H8());
-          e.EXT(i.dest.reg().B16(), i.dest.reg().B16(), i.dest.reg().B16(), 8);
         }
       } else {
         if (IsPackOutSaturate(flags)) {
