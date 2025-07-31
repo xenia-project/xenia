@@ -1207,10 +1207,10 @@ struct PERMUTE_V128
     e.AND(indices.B16(), indices.B16(), Q1.B16());
 
     // Convert int16 indices into int8
-    e.MOVI(Q1.H8(), 0x02'02);
+    e.MOVI(Q1.H8(), 2);  // Multiply each 16-bit element by 2
     e.MUL(indices.H8(), indices.H8(), Q1.H8());
 
-    e.MOVI(Q1.H8(), 0x01'00);
+    e.MOVI(Q1.H8(), 1);  // Add 1 to each 16-bit element  
     e.ADD(indices.H8(), indices.H8(), Q1.H8());
 
     // Table-registers must be sequential indices

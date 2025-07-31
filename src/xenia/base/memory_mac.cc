@@ -109,7 +109,15 @@ void* AllocFixed(void* base_address, size_t length,
     
     uint32_t flags = MAP_PRIVATE | MAP_ANONYMOUS;
     if (access == PageAccess::kExecuteReadWrite) {
+#if XE_PLATFORM_MAC && defined(__aarch64__)
+        // On ARM64 macOS, MAP_JIT is mandatory for executable pages
         flags |= MAP_JIT;
+        XELOGI("Memory: Using MAP_JIT for ExecuteReadWrite allocation on ARM64 macOS (flags: 0x{:X})", flags);
+#else
+        XELOGI("Memory: Using regular RWX allocation for ExecuteReadWrite (flags: 0x{:X})", flags);
+#endif
+    } else {
+        XELOGI("Memory: Using standard allocation for access type {} (flags: 0x{:X})", static_cast<int>(access), flags);
     }
     
     void* result = nullptr;
@@ -142,7 +150,16 @@ void* AllocFixed(void* base_address, size_t length,
         return nullptr;
     }
     
-    XELOGI("Memory Mapped from 0x{:X} to 0x{:X}", (size_t)result, (size_t)result + (size_t)length - 1);
+    // Log successful allocation with detailed info
+    XELOGI("Memory Mapped from 0x{:X} to 0x{:X} (size: {} bytes)", 
+           (size_t)result, (size_t)result + length - 1, length);
+    XELOGI("Memory Protection: {} (prot: 0x{:X}, flags: 0x{:X})", 
+           access == PageAccess::kExecuteReadWrite ? "RWX (regular)" :
+           access == PageAccess::kReadWrite ? "RW" :
+           access == PageAccess::kExecuteReadOnly ? "RX" :
+           access == PageAccess::kReadOnly ? "R" : "None",
+           prot, flags);
+    
     return result;
 }
 
@@ -161,7 +178,27 @@ bool Protect(void* base_address, size_t length, PageAccess access,
 }
 
 bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
+    // macOS doesn't have a direct way to query memory permissions
+    // We could use vm_region but it's complex. For now, return false
+    // and rely on our own tracking.
     return false;
+}
+
+// Utility function to verify JIT memory state
+bool VerifyJITMemoryState(void* address, size_t size) {
+    if (!address || size == 0) {
+        XELOGE("VerifyJITMemoryState: Invalid parameters");
+        return false;
+    }
+    
+    // Try to read from the memory to verify it's accessible
+    volatile char test = *static_cast<char*>(address);
+    (void)test; // Avoid unused variable warning
+    
+    XELOGI("VerifyJITMemoryState: Memory at 0x{:016X} (size {}) is readable", 
+           (uintptr_t)address, size);
+    
+    return true;
 }
 
 FileMappingHandle CreateFileMappingHandle(const std::filesystem::path& path,

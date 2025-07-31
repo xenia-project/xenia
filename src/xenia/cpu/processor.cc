@@ -229,22 +229,30 @@ std::vector<Function*> Processor::FindFunctionsWithAddress(uint32_t address) {
 }
 
 Function* Processor::ResolveFunction(uint32_t address) {
+  XELOGI("Processor::ResolveFunction called for address 0x{:08X}", address);
   Entry* entry;
   Entry::Status status = entry_table_.GetOrCreate(address, &entry);
+  XELOGI("ResolveFunction: Entry status = {}", (int)status);
   if (status == Entry::STATUS_NEW) {
     // Needs to be generated. We have the 'lock' on it and must do so now.
+    XELOGI("ResolveFunction: Need to generate new function");
 
     // Grab symbol declaration.
+    XELOGI("ResolveFunction: Looking up function symbol");
     auto function = LookupFunction(address);
     if (!function) {
+      XELOGI("ResolveFunction: Function symbol not found");
       entry->status = Entry::STATUS_FAILED;
       return nullptr;
     }
+    XELOGI("ResolveFunction: Function symbol found, demanding compilation");
 
     if (!DemandFunction(function)) {
+      XELOGI("ResolveFunction: DemandFunction failed");
       entry->status = Entry::STATUS_FAILED;
       return nullptr;
     }
+    XELOGI("ResolveFunction: DemandFunction completed successfully");
     entry->function = function;
     entry->end_address = function->end_address();
     status = entry->status = Entry::STATUS_READY;
@@ -300,18 +308,24 @@ Function* Processor::LookupFunction(Module* module, uint32_t address) {
 }
 
 bool Processor::DemandFunction(Function* function) {
+  XELOGI("DemandFunction: Starting compilation for function 0x{:08X}", function->address());
   // Lock function for generation. If it's already being generated
   // by another thread this will block and return DECLARED.
   auto module = function->module();
+  XELOGI("DemandFunction: Calling DefineFunction");
   auto symbol_status = module->DefineFunction(function);
+  XELOGI("DemandFunction: DefineFunction returned status {}", (int)symbol_status);
   if (symbol_status == Symbol::Status::kNew) {
     // Symbol is undefined, so define now.
     assert_true(function->is_guest());
+    XELOGI("DemandFunction: Calling frontend DefineFunction");
     if (!frontend_->DefineFunction(static_cast<GuestFunction*>(function),
                                    debug_info_flags_)) {
+      XELOGI("DemandFunction: Frontend DefineFunction failed");
       function->set_status(Symbol::Status::kFailed);
       return false;
     }
+    XELOGI("DemandFunction: Frontend DefineFunction completed");
 
     // Before we give the symbol back to the rest, let the debugger know.
     OnFunctionDefined(function);
@@ -331,6 +345,7 @@ bool Processor::DemandFunction(Function* function) {
 bool Processor::Execute(ThreadState* thread_state, uint32_t address) {
   SCOPE_profile_cpu_f("cpu");
 
+  XELOGI("Processor::Execute: Starting execution of function 0x{:08X}", address);
   // Attempt to get the function.
   auto function = ResolveFunction(address);
   if (!function) {
@@ -338,6 +353,7 @@ bool Processor::Execute(ThreadState* thread_state, uint32_t address) {
     XELOGCPU("Execute({:08X}): failed to find function", address);
     return false;
   }
+  XELOGI("Processor::Execute: Function resolved successfully, preparing context");
 
   auto context = thread_state->context();
 
@@ -350,8 +366,10 @@ bool Processor::Execute(ThreadState* thread_state, uint32_t address) {
   uint64_t previous_lr = context->lr;
   context->lr = 0xBCBCBCBC;
 
+  XELOGI("Processor::Execute: About to call function->Call()");
   // Execute the function.
   auto result = function->Call(thread_state, uint32_t(context->lr));
+  XELOGI("Processor::Execute: function->Call() returned with result {}", result);
 
   context->lr = previous_lr;
   context->r[1] += 64 + 112;

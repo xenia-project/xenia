@@ -48,6 +48,14 @@ A64CodeCache::~A64CodeCache() {
 
   // Unmap all views and close mapping.
   if (mapping_ != xe::memory::kFileMappingHandleInvalid) {
+#if XE_PLATFORM_MAC && XE_ARCH_ARM64
+    // On macOS ARM64, we used AllocFixed instead of MapFileView, so use DeallocFixed
+    if (generated_code_execute_base_) {
+      xe::memory::DeallocFixed(generated_code_execute_base_, kGeneratedCodeSize,
+                               xe::memory::DeallocationType::kRelease);
+    }
+#else
+    // Other platforms use MapFileView/UnmapFileView
     if (generated_code_write_base_ &&
         generated_code_write_base_ != generated_code_execute_base_) {
       xe::memory::UnmapFileView(mapping_, generated_code_write_base_,
@@ -57,6 +65,7 @@ A64CodeCache::~A64CodeCache() {
       xe::memory::UnmapFileView(mapping_, generated_code_execute_base_,
                                 kGeneratedCodeSize);
     }
+#endif
     xe::memory::CloseFileMappingHandle(mapping_, file_name_);
     mapping_ = xe::memory::kFileMappingHandleInvalid;
   }
@@ -80,12 +89,12 @@ bool A64CodeCache::Initialize() {
     return false;
   }
   
-  // Update the static base address to match where we actually got the memory
-  kIndirectionTableBase = reinterpret_cast<uintptr_t>(indirection_table_base_);
-  indirection_table_actual_base_ = kIndirectionTableBase;
+  // Keep kIndirectionTableBase as 0x80000000 for offset calculations
+  // Store the actual allocated address separately
+  indirection_table_actual_base_ = reinterpret_cast<uintptr_t>(indirection_table_base_);
   
-  XELOGI("A64CodeCache Initialize: Allocated indirection table at 0x{:016X}", kIndirectionTableBase);
-  XELOGI("A64CodeCache Initialize: Guest addresses will map directly to this table");
+  XELOGI("A64CodeCache Initialize: Allocated indirection table at 0x{:016X}", reinterpret_cast<uintptr_t>(indirection_table_base_));
+  XELOGI("A64CodeCache Initialize: Using logical base 0x{:016X} for guest address mapping", kIndirectionTableBase);
   
 #else
   // Other platforms: try to allocate at the preferred address
@@ -118,23 +127,31 @@ bool A64CodeCache::Initialize() {
   // Map generated code region into the file. Pages are committed as required.
   if (xe::memory::IsWritableExecutableMemoryPreferred()) {
 #if XE_PLATFORM_MAC && XE_ARCH_ARM64
-    // On macOS ARM64, try OS-chosen addresses if fixed addresses fail
+    // On macOS ARM64, use MAP_JIT allocation for proper JIT memory
+    // This allows both write and execute permissions with pthread_jit_write_protect_np() control
+    // CRITICAL: Use AllocFixed instead of MapFileView to ensure MAP_JIT memory
     generated_code_execute_base_ =
-        reinterpret_cast<uint8_t*>(xe::memory::MapFileView(
-            mapping_, reinterpret_cast<void*>(kGeneratedCodeExecuteBase),
-            kGeneratedCodeSize, xe::memory::PageAccess::kExecuteReadWrite, 0));
+        reinterpret_cast<uint8_t*>(xe::memory::AllocFixed(
+            reinterpret_cast<void*>(kGeneratedCodeExecuteBase),
+            kGeneratedCodeSize, xe::memory::AllocationType::kReserveCommit,
+            xe::memory::PageAccess::kExecuteReadWrite));
     if (!generated_code_execute_base_) {
       XELOGW("Fixed address mapping for generated code failed, trying OS-chosen address");
       generated_code_execute_base_ =
-          reinterpret_cast<uint8_t*>(xe::memory::MapFileView(
-              mapping_, nullptr, kGeneratedCodeSize, 
-              xe::memory::PageAccess::kExecuteReadWrite, 0));
+          reinterpret_cast<uint8_t*>(xe::memory::AllocFixed(
+              nullptr, kGeneratedCodeSize, 
+              xe::memory::AllocationType::kReserveCommit,
+              xe::memory::PageAccess::kExecuteReadWrite));
     }
     generated_code_write_base_ = generated_code_execute_base_;
     if (!generated_code_execute_base_ || !generated_code_write_base_) {
       XELOGE("Unable to allocate code cache generated code storage");
       return false;
     }
+    
+    // On macOS ARM64, verify the memory is properly allocated for MAP_JIT
+    XELOGI("A64CodeCache::Initialize: Code cache allocated with MAP_JIT at execute=0x{:016X}, write=0x{:016X}", 
+           (uintptr_t)generated_code_execute_base_, (uintptr_t)generated_code_write_base_);
 #else
     generated_code_execute_base_ =
         reinterpret_cast<uint8_t*>(xe::memory::MapFileView(
@@ -251,9 +268,10 @@ void A64CodeCache::AddIndirection64(uint32_t guest_address,
     return;
   }
 
-  // Simple direct mapping: guest address maps directly to indirection table
+  // Calculate offset from the logical base (0x80000000), not from actual table address
+  uintptr_t guest_offset = (guest_address - kIndirectionTableBase) * 2;  // 8-byte entries
   uint64_t* indirection_slot = reinterpret_cast<uint64_t*>(
-      indirection_table_base_ + (guest_address - kIndirectionTableBase) * 2);
+      indirection_table_base_ + guest_offset);
   *indirection_slot = host_address;
 }
 #endif
@@ -266,18 +284,49 @@ void A64CodeCache::CommitExecutableRange(uint32_t guest_low,
   }
 
 #if XE_PLATFORM_MAC && XE_ARCH_ARM64
-  // On macOS ARM64: simple direct mapping like x64
-  uint32_t start_offset = (guest_low - kIndirectionTableBase) * 2;  // 8-byte entries
+  // On macOS ARM64: use offset-based addressing from guest base (0x80000000)
+  static const uintptr_t kGuestAddressBase = 0x80000000;
+  
+  // Calculate offsets from the guest address base, not the table base
+  if (guest_low < kGuestAddressBase) {
+    XELOGE("CommitExecutableRange: guest_low 0x{:08X} is below guest base 0x{:08X}", 
+           guest_low, kGuestAddressBase);
+    return;
+  }
+  
+  uint32_t start_offset = (guest_low - kGuestAddressBase) * 2;  // 8-byte entries
   uint32_t size = (guest_high - guest_low) * 2;
   
-  xe::memory::AllocFixed(
-      indirection_table_base_ + start_offset, size,
-      xe::memory::AllocationType::kCommit, xe::memory::PageAccess::kReadWrite);
+  // Check bounds - the address space is much larger than our table
+  XELOGI("CommitExecutableRange: Guest range 0x{:08X}-0x{:08X}, start_offset=0x{:X}, size=0x{:X}, table_size=0x{:X}",
+         guest_low, guest_high, start_offset, size, kIndirectionTableSize);
+  XELOGI("CommitExecutableRange: Default value = 0x{:016X}", indirection_default_value_);
   
-  // Fill with default value using direct indexing like x64
-  uint64_t* p = reinterpret_cast<uint64_t*>(indirection_table_base_);
-  for (uint32_t address = guest_low; address < guest_high; address += 4) {
-    p[(address - kIndirectionTableBase) / 4] = indirection_default_value_;
+  if (start_offset + size > kIndirectionTableSize) {
+    XELOGW("Guest range exceeds table size, using modulo addressing");
+    // Use modulo addressing to wrap around in the available space
+    start_offset = start_offset % kIndirectionTableSize;
+    if (start_offset + size > kIndirectionTableSize) {
+      size = kIndirectionTableSize - start_offset;  // Truncate to fit
+    }
+  }
+  
+  // The memory should already be allocated, just fill with default value
+  void* target_memory = indirection_table_base_ + start_offset;
+  uint64_t* p = reinterpret_cast<uint64_t*>(target_memory);
+  uint32_t entry_count = size / 8;  // 8 bytes per entry
+  for (uint32_t i = 0; i < entry_count; i++) {
+    p[i] = indirection_default_value_;
+  }
+  
+  XELOGI("CommitExecutableRange: Populated indirection table at offset 0x{:X} for guest 0x{:08X}-0x{:08X}", 
+         start_offset, guest_low, guest_high);
+  
+  // Debug: Dump the first few entries to verify they contain the thunk address
+  uint64_t* debug_p = reinterpret_cast<uint64_t*>(indirection_table_base_);
+  XELOGI("CommitExecutableRange: Table base = 0x{:016X}", reinterpret_cast<uintptr_t>(indirection_table_base_));
+  for (int i = 0; i < 8; i++) {
+    XELOGI("  Table[{:X}] = 0x{:016X}", i, debug_p[i]);
   }
 #else
   // Other platforms: use 32-bit entries
@@ -311,6 +360,7 @@ void A64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
                                   GuestFunction* function_info,
                                   void*& code_execute_address_out,
                                   void*& code_write_address_out) {
+  XELOGI("A64CodeCache::PlaceGuestCode: Starting for guest address 0x{:08X}", guest_address);
   // Hold a lock while we bump the pointers up. This is important as the
   // unwind table requires entries AND code to be sorted in order.
   size_t low_mark;
@@ -318,12 +368,15 @@ void A64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
   uint8_t* code_execute_address;
   UnwindReservation unwind_reservation;
   {
+    XELOGI("A64CodeCache::PlaceGuestCode: About to acquire global lock");
     auto global_lock = global_critical_region_.Acquire();
+    XELOGI("A64CodeCache::PlaceGuestCode: Global lock acquired");
 
     low_mark = generated_code_offset_;
 
     // Reserve code.
     // Always move the code to land on 16b alignment.
+    XELOGI("A64CodeCache::PlaceGuestCode: About to reserve code space");
     code_execute_address =
         generated_code_execute_base_ + generated_code_offset_;
     code_execute_address_out = code_execute_address;
@@ -331,6 +384,7 @@ void A64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
         generated_code_write_base_ + generated_code_offset_;
     code_write_address_out = code_write_address;
     generated_code_offset_ += xe::round_up(func_info.code_size.total, 16);
+    XELOGI("A64CodeCache::PlaceGuestCode: Code space reserved");
 
     auto tail_write_address =
         generated_code_write_base_ + generated_code_offset_;
@@ -338,9 +392,11 @@ void A64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
     // Reserve unwind info.
     // We go on the high size of the unwind info as we don't know how big we
     // need it, and a few extra bytes of padding isn't the worst thing.
+    XELOGI("A64CodeCache::PlaceGuestCode: About to reserve unwind info");
     unwind_reservation = RequestUnwindReservation(generated_code_write_base_ +
                                                   generated_code_offset_);
     generated_code_offset_ += xe::round_up(unwind_reservation.data_size, 16);
+    XELOGI("A64CodeCache::PlaceGuestCode: Unwind info reserved");
 
     auto end_write_address =
         generated_code_write_base_ + generated_code_offset_;
@@ -349,10 +405,12 @@ void A64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
 
     // Store in map. It is maintained in sorted order of host PC dependent on
     // us also being append-only.
+    XELOGI("A64CodeCache::PlaceGuestCode: About to update code map");
     generated_code_map_.emplace_back(
         (uint64_t(code_execute_address - generated_code_execute_base_) << 32) |
             generated_code_offset_,
         function_info);
+    XELOGI("A64CodeCache::PlaceGuestCode: Code map updated");
 
     // TODO(DrChat): The following code doesn't really need to be under the
     // global lock except for PlaceCode (but it depends on the previous code
@@ -361,11 +419,13 @@ void A64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
     // If we are going above the high water mark of committed memory, commit
     // some more. It's ok if multiple threads do this, as redundant commits
     // aren't harmful.
+    XELOGI("A64CodeCache::PlaceGuestCode: About to check memory commit");
     size_t old_commit_mark, new_commit_mark;
     do {
       old_commit_mark = generated_code_commit_mark_;
       if (high_mark <= old_commit_mark) break;
 
+      XELOGI("A64CodeCache::PlaceGuestCode: About to commit more memory");
       new_commit_mark = old_commit_mark + 16_MiB;
       if (generated_code_execute_base_ == generated_code_write_base_) {
         xe::memory::AllocFixed(generated_code_execute_base_, new_commit_mark,
@@ -379,37 +439,104 @@ void A64CodeCache::PlaceGuestCode(uint32_t guest_address, void* machine_code,
                                xe::memory::AllocationType::kCommit,
                                xe::memory::PageAccess::kReadWrite);
       }
+      XELOGI("A64CodeCache::PlaceGuestCode: Memory commit completed");
     } while (generated_code_commit_mark_.compare_exchange_weak(
         old_commit_mark, new_commit_mark));
+    XELOGI("A64CodeCache::PlaceGuestCode: Memory commit check completed");
 
     // Copy code using platform-specific method that handles JIT protection
+    XELOGI("A64CodeCache::PlaceGuestCode: About to copy machine code");
     CopyMachineCode(code_write_address, machine_code, func_info.code_size.total);
+    XELOGI("A64CodeCache::PlaceGuestCode: Machine code copied");
 
     // Fill unused slots with 0x00
-    std::memset(tail_write_address, 0x00,
-                static_cast<size_t>(end_write_address - tail_write_address));
+    XELOGI("A64CodeCache::PlaceGuestCode: About to zero unused slots");
+    XELOGI("A64CodeCache::PlaceGuestCode: tail_write_address=0x{:016X}, end_write_address=0x{:016X}, size={}", 
+           (uintptr_t)tail_write_address, (uintptr_t)end_write_address, 
+           static_cast<size_t>(end_write_address - tail_write_address));
+#if XE_PLATFORM_MAC && defined(__aarch64__)
+    // On MAP_JIT memory, ensure write mode is enabled before memset
+    pthread_jit_write_protect_np(0);
+#endif
+    if (end_write_address > tail_write_address) {
+      std::memset(tail_write_address, 0x00,
+                  static_cast<size_t>(end_write_address - tail_write_address));
+    }
+#if XE_PLATFORM_MAC && defined(__aarch64__)
+    // Restore execute mode after memset
+    pthread_jit_write_protect_np(1);
+#endif
+    XELOGI("A64CodeCache::PlaceGuestCode: Unused slots zeroed");
 
     // Notify subclasses of placed code.
+    XELOGI("A64CodeCache::PlaceGuestCode: About to call PlaceCode");
     PlaceCode(guest_address, machine_code, func_info, code_execute_address,
               unwind_reservation);
+    XELOGI("A64CodeCache::PlaceGuestCode: PlaceCode completed");
   }
+  XELOGI("A64CodeCache::PlaceGuestCode: Global lock released");
 
   // Now that everything is ready, fix up the indirection table.
   // Note that we do support code that doesn't have an indirection fixup, so
   // ignore those when we see them.
+  XELOGI("A64CodeCache::PlaceGuestCode: About to update indirection table");
   if (guest_address && indirection_table_base_) {
+    XELOGI("A64CodeCache::PlaceGuestCode: Guest address 0x{:08X}, indirection table exists", guest_address);
 #if XE_PLATFORM_MAC && XE_ARCH_ARM64
-    // Simple direct mapping like x64: guest address maps directly to indirection table
-    uint64_t* indirection_slot = reinterpret_cast<uint64_t*>(
-        indirection_table_base_ + (guest_address - kIndirectionTableBase) * 2);
+    // On ARM64 Mac, map guest addresses to table offsets using logical base
+    // kIndirectionTableBase remains 0x80000000 for calculation purposes
+    XELOGI("A64CodeCache::PlaceGuestCode: About to calculate indirection slot (ARM64 Mac)");
+    
+    // Calculate offset from the logical guest base (0x80000000)
+    if (guest_address < kIndirectionTableBase) {
+      XELOGE("A64CodeCache::PlaceGuestCode: ERROR - guest_address 0x{:08X} is below logical base 0x{:08X}!", 
+             guest_address, static_cast<uint32_t>(kIndirectionTableBase));
+      return;
+    }
+    
+    // Debug the calculation step by step
+    uintptr_t guest_diff = guest_address - kIndirectionTableBase;
+    XELOGI("A64CodeCache::PlaceGuestCode: guest_diff = 0x{:08X} - 0x{:08X} = 0x{:X}", 
+           guest_address, static_cast<uint32_t>(kIndirectionTableBase), guest_diff);
+    
+    uintptr_t guest_offset = guest_diff * 2;  // 8-byte entries
+    uintptr_t slot_address = reinterpret_cast<uintptr_t>(indirection_table_base_) + guest_offset;
+    uint64_t* indirection_slot = reinterpret_cast<uint64_t*>(slot_address);
+    
+    XELOGI("A64CodeCache::PlaceGuestCode: guest_address=0x{:08X}, kIndirectionTableBase=0x{:08X}", 
+           guest_address, static_cast<uint32_t>(kIndirectionTableBase));
+    XELOGI("A64CodeCache::PlaceGuestCode: guest_offset=0x{:X}, slot_address=0x{:016X}", 
+           guest_offset, slot_address);
+    XELOGI("A64CodeCache::PlaceGuestCode: indirection_table_base_=0x{:016X}", 
+           reinterpret_cast<uintptr_t>(indirection_table_base_));
+    XELOGI("A64CodeCache::PlaceGuestCode: calculation: (0x{:08X} - 0x{:08X}) * 2 = 0x{:X}", 
+           guest_address, static_cast<uint32_t>(kIndirectionTableBase), guest_offset);
+    XELOGI("A64CodeCache::PlaceGuestCode: code_execute_address=0x{:016X}", 
+           reinterpret_cast<uint64_t>(code_execute_address));
+    
+    // Check if the slot address is within bounds
+    uintptr_t table_end = reinterpret_cast<uintptr_t>(indirection_table_base_) + kIndirectionTableSize;
+    if (slot_address >= table_end) {
+      XELOGE("A64CodeCache::PlaceGuestCode: ERROR - slot_address 0x{:016X} is beyond table end 0x{:016X}!", 
+             slot_address, table_end);
+      XELOGE("A64CodeCache::PlaceGuestCode: This guest address (0x{:08X}) cannot be mapped in current table size", 
+             guest_address);
+      return;  // Avoid the hanging write
+    }
+    
+    XELOGI("A64CodeCache::PlaceGuestCode: About to update indirection slot at 0x{:016X}", slot_address);
     *indirection_slot = reinterpret_cast<uint64_t>(code_execute_address);
+    XELOGI("A64CodeCache::PlaceGuestCode: Indirection slot updated successfully");
 #else
     uint32_t* indirection_slot = reinterpret_cast<uint32_t*>(
         indirection_table_base_ + (guest_address - kIndirectionTableBase));
     *indirection_slot =
         uint32_t(reinterpret_cast<uint64_t>(code_execute_address));
 #endif
+  } else {
+    XELOGI("A64CodeCache::PlaceGuestCode: No indirection table update needed");
   }
+  XELOGI("A64CodeCache::PlaceGuestCode: Method completed successfully");
 }
 
 uint32_t A64CodeCache::PlaceData(const void* data, size_t length) {

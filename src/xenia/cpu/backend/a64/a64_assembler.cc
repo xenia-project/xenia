@@ -69,18 +69,22 @@ void A64Assembler::Reset() {
 bool A64Assembler::Assemble(GuestFunction* function, HIRBuilder* builder,
                             uint32_t debug_info_flags,
                             std::unique_ptr<FunctionDebugInfo> debug_info) {
+  XELOGI("A64Assembler::Assemble: Starting assembly for function 0x{:08X}", function->address());
   SCOPE_profile_cpu_f("cpu");
 
   // Reset when we leave.
   xe::make_reset_scope(this);
 
   // Lower HIR -> a64.
+  XELOGI("A64Assembler::Assemble: About to call emitter_->Emit");
   void* machine_code = nullptr;
   size_t code_size = 0;
   if (!emitter_->Emit(function, builder, debug_info_flags, debug_info.get(),
                       &machine_code, &code_size, &function->source_map())) {
+    XELOGI("A64Assembler::Assemble: Emitter->Emit failed");
     return false;
   }
+  XELOGI("A64Assembler::Assemble: Emitter->Emit completed successfully");
 
   // Stash generated machine code.
   if (debug_info_flags & DebugInfoFlags::kDebugInfoDisasmMachineCode) {
@@ -91,9 +95,29 @@ bool A64Assembler::Assemble(GuestFunction* function, HIRBuilder* builder,
   }
 
   function->set_debug_info(std::move(debug_info));
-  static_cast<A64Function*>(function)->Setup(
-      reinterpret_cast<uint8_t*>(machine_code), code_size);
+  
+  XELOGI("A64Assembler::Assemble: About to call Setup with machine_code=0x{:016X}, size={}", 
+         (uintptr_t)machine_code, code_size);
+  fflush(stdout); fflush(stderr);
+  
+  auto* a64_func = static_cast<A64Function*>(function);
+  XELOGI("A64Assembler::Assemble: A64Function pointer = 0x{:016X}", (uintptr_t)a64_func);
+  fflush(stdout); fflush(stderr);
+  
+  // Check vtable before Setup call
+  void** vtable = *((void***)a64_func);
+  XELOGI("A64Assembler::Assemble: vtable pointer = 0x{:016X}", (uintptr_t)vtable);
+  if (vtable) {
+    XELOGI("A64Assembler::Assemble: CallImpl vtable entry = 0x{:016X}", (uintptr_t)vtable[0]);
+  }
+  fflush(stdout); fflush(stderr);
+  
+  a64_func->Setup(reinterpret_cast<uint8_t*>(machine_code), code_size);
+  
+  XELOGI("A64Assembler::Assemble: Setup completed successfully");
+  fflush(stdout); fflush(stderr);
 
+  XELOGI("A64Assembler::Assemble: Installing into indirection table");
   // Install into indirection table.
   const uint64_t host_address = reinterpret_cast<uint64_t>(machine_code);
 #if XE_PLATFORM_MAC && XE_ARCH_ARM64

@@ -115,9 +115,13 @@ bool PPCFrontend::DeclareFunction(GuestFunction* function) {
 
 bool PPCFrontend::DefineFunction(GuestFunction* function,
                                  uint32_t debug_info_flags) {
+  XELOGI("PPCFrontend::DefineFunction: Starting translation for function 0x{:08X}", function->address());
   auto translator = translator_pool_.Allocate(this);
+  XELOGI("PPCFrontend::DefineFunction: Calling translator->Translate");
   bool result = translator->Translate(function, debug_info_flags);
+  XELOGI("PPCFrontend::DefineFunction: Translate returned {}", result);
   translator_pool_.Release(translator);
+  XELOGI("PPCFrontend::DefineFunction: Translation completed");
   return result;
 }
 

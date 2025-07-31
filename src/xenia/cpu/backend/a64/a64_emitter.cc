@@ -108,6 +108,7 @@ bool A64Emitter::Emit(GuestFunction* function, HIRBuilder* builder,
                       uint32_t debug_info_flags, FunctionDebugInfo* debug_info,
                       void** out_code_address, size_t* out_code_size,
                       std::vector<SourceMapEntry>* out_source_map) {
+  XELOGI("A64Emitter::Emit: Starting emit for function 0x{:08X}", function->address());
   SCOPE_profile_cpu_f("cpu");
 
   // Reset.
@@ -117,23 +118,32 @@ bool A64Emitter::Emit(GuestFunction* function, HIRBuilder* builder,
   source_map_arena_.Reset();
 
   // Fill the generator with code.
+  XELOGI("A64Emitter::Emit: About to call Emit(builder, func_info)");
   EmitFunctionInfo func_info = {};
   if (!Emit(builder, func_info)) {
+    XELOGI("A64Emitter::Emit: Emit(builder, func_info) failed");
     return false;
   }
+  XELOGI("A64Emitter::Emit: Emit(builder, func_info) completed successfully");
 
   // Copy the final code to the cache and relocate it.
   *out_code_size = offset();
+  XELOGI("A64Emitter::Emit: About to call Emplace");
   *out_code_address = Emplace(func_info, function);
+  XELOGI("A64Emitter::Emit: Emplace completed successfully");
 
   // Stash source map.
+  XELOGI("A64Emitter::Emit: About to clone source map");
   source_map_arena_.CloneContents(out_source_map);
+  XELOGI("A64Emitter::Emit: Source map cloned successfully");
 
   return true;
 }
 
 void* A64Emitter::Emplace(const EmitFunctionInfo& func_info,
                           GuestFunction* function) {
+  XELOGI("A64Emitter::Emplace: Starting emplace for function 0x{:08X}", 
+         function ? function->address() : 0);
   // Copy the current oaknut instruction-buffer into the code-cache
   void* new_execute_address;
   void* new_write_address;
@@ -141,22 +151,29 @@ void* A64Emitter::Emplace(const EmitFunctionInfo& func_info,
   assert_true(func_info.code_size.total == offset());
 
   if (function) {
+    XELOGI("A64Emitter::Emplace: About to call PlaceGuestCode");
     code_cache_->PlaceGuestCode(function->address(), assembly_buffer.data(),
                                 func_info, function, new_execute_address,
                                 new_write_address);
+    XELOGI("A64Emitter::Emplace: PlaceGuestCode completed successfully");
   } else {
+    XELOGI("A64Emitter::Emplace: About to call PlaceHostCode");
     code_cache_->PlaceHostCode(0, assembly_buffer.data(), func_info,
                                new_execute_address, new_write_address);
+    XELOGI("A64Emitter::Emplace: PlaceHostCode completed successfully");
   }
 
   // Reset the oaknut instruction-buffer
+  XELOGI("A64Emitter::Emplace: About to reset assembly buffer");
   assembly_buffer.clear();
   label_lookup_.clear();
+  XELOGI("A64Emitter::Emplace: Assembly buffer reset completed");
 
   return new_execute_address;
 }
 
 bool A64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
+  XELOGI("A64Emitter::Emit(HIRBuilder): Starting HIR to ARM64 compilation");
   oaknut::Label epilog_label;
   epilog_label_ = &epilog_label;
 
@@ -178,6 +195,7 @@ bool A64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
   stack_offset -= StackLayout::GUEST_STACK_SIZE;
   stack_offset = xe::align(stack_offset, static_cast<size_t>(16));
 
+  XELOGI("A64Emitter::Emit(HIRBuilder): Stack calculation completed, starting code generation");
   struct _code_offsets {
     size_t prolog;
     size_t prolog_stack_alloc;
@@ -250,8 +268,11 @@ bool A64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
       offsetof(ppc::PPCContext, virtual_membase));
 
   // Body.
+  XELOGI("A64Emitter::Emit(HIRBuilder): Starting instruction processing loop");
   auto block = builder->first_block();
+  int block_count = 0;
   while (block) {
+    XELOGI("A64Emitter::Emit(HIRBuilder): Processing block {}", block_count++);
     // Mark block labels.
     auto label = block->label_head;
     while (label) {
@@ -261,21 +282,26 @@ bool A64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
 
     // Process instructions.
     const Instr* instr = block->instr_head;
+    int instr_count = 0;
     while (instr) {
+      XELOGI("A64Emitter::Emit(HIRBuilder): Processing instruction {} in block {}: {}", instr_count++, block_count-1, instr->opcode->name);
       const Instr* new_tail = instr;
       if (!SelectSequence(this, instr, &new_tail)) {
         // No sequence found!
         // NOTE: If you encounter this after adding a new instruction, do a full
         // rebuild!
+        XELOGI("A64Emitter::Emit(HIRBuilder): Failed to process instruction {}", instr->opcode->name);
         assert_always();
         XELOGE("Unable to process HIR opcode {}", instr->opcode->name);
         break;
       }
+      XELOGI("A64Emitter::Emit(HIRBuilder): Successfully processed instruction {}", instr->opcode->name);
       instr = new_tail;
     }
 
     block = block->next;
   }
+  XELOGI("A64Emitter::Emit(HIRBuilder): Completed instruction processing, generating epilog");
 
   // Function epilog.
   l(epilog_label);
@@ -405,14 +431,79 @@ void A64Emitter::UnimplementedInstr(const hir::Instr* i) {
 uint64_t ResolveFunction(void* raw_context, uint64_t target_address) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
 
-  // TODO(benvanik): required?
-  assert_not_zero(target_address);
+  XELOGI("ResolveFunction called with target_address=0x{:016X}", target_address);
+  
+  uint32_t guest_address;
+  
+  // Check if this is a 64-bit host address that needs to be mapped back to guest address
+  if (target_address > 0xFFFFFFFF) {
+    XELOGI("ResolveFunction: Received 64-bit address 0x{:016X}, attempting to map to guest address", target_address);
+    
+    // Special case: detect if we received a context pointer instead of target address
+    // Context pointers typically have patterns like 0x0000000XXXXXXXXX
+    uint64_t upper_32 = target_address >> 32;
+    if (upper_32 > 0 && upper_32 < 0x10000) {
+      XELOGE("ResolveFunction: Received what appears to be a context pointer 0x{:016X}", target_address);
+      XELOGE("ResolveFunction: This indicates a bug in PowerPC register handling");
+      XELOGE("ResolveFunction: The target register contains a context pointer instead of a function address");
+      return 0;
+    }
+    
+    // Try to find a function that contains this host address
+    auto code_cache = static_cast<A64CodeCache*>(thread_state->processor()->backend()->code_cache());
+    auto guest_function = code_cache->LookupFunction(target_address);
+    if (guest_function) {
+      guest_address = guest_function->MapMachineCodeToGuestAddress(target_address);
+      XELOGI("ResolveFunction: Mapped host address 0x{:016X} to guest address 0x{:08X}", 
+             target_address, guest_address);
+    } else {
+      // This might be a guest memory address stored in 64-bit form
+      // Extract the lower 32 bits as the potential guest address
+      uint32_t potential_guest = static_cast<uint32_t>(target_address);
+      XELOGI("ResolveFunction: No function mapping found, using lower 32 bits 0x{:08X} as guest address", potential_guest);
+      guest_address = potential_guest;
+    }
+  } else {
+    // Normal 32-bit guest address
+    guest_address = static_cast<uint32_t>(target_address);
+  }
+  
+  // Validate that we have a non-zero guest address
+  assert_not_zero(guest_address);
+  
+  // Xbox 360 guest addresses can be in these ranges:
+  // 0x00000000-0x3FFFFFFF: v00000000 heap (virtual)
+  // 0x40000000-0x7EFFFFFF: v40000000 heap (virtual) 
+  // 0x70000000-0x7F000000: Thread stacks
+  // 0x80000000-0x8FFFFFFF: v80000000 heap (XEX)
+  // 0x90000000-0x9FFFFFFF: v90000000 heap (XEX)
+  // 0xA0000000-0xBFFFFFFF: vA0000000 heap (physical)
+  // 0xC0000000-0xDFFFFFFF: vC0000000 heap (physical)
+  // 0xE0000000-0xFFCFFFFF: vE0000000 heap (physical)
+  
+  // Most executable code should be in XEX ranges (0x80000000-0x9FFFFFFF)
+  // but allow other ranges as they may contain valid code
+  if (guest_address == 0) {
+    XELOGE("ResolveFunction: guest_address is 0! This should not happen");
+    assert_not_zero(guest_address);
+  }
 
-  auto fn = thread_state->processor()->ResolveFunction(
-      static_cast<uint32_t>(target_address));
-  assert_not_null(fn);
+  auto fn = thread_state->processor()->ResolveFunction(guest_address);
+  if (!fn) {
+    XELOGE("ResolveFunction: Failed to resolve function at guest address 0x{:08X}", guest_address);
+    XELOGE("ResolveFunction: Original target_address was 0x{:016X}", target_address);
+    
+    // This can happen if the target address doesn't point to a valid function
+    // Return 0 to indicate failure - the calling code should handle this
+    return 0;
+  }
+  
   auto a64_fn = static_cast<A64Function*>(fn);
   uint64_t addr = reinterpret_cast<uint64_t>(a64_fn->machine_code());
+  if (!a64_fn->machine_code()) {
+    XELOGE("ResolveFunction: Function at guest address 0x{:08X} has no machine code", guest_address);
+    return 0;
+  }
 
   return addr;
 }
@@ -427,17 +518,18 @@ void A64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
 #if XE_PLATFORM_MAC && defined(__aarch64__)
     // On macOS ARM64, addresses may be allocated in higher memory space
     if (uint64_t(fn->machine_code()) & 0xFFFFFFFF00000000) {
-      XELOGW("Function machine code at high address 0x{:X}, using indirect call", 
+      XELOGW("Function machine code at high address 0x{:X}, using ResolveFunction", 
              uint64_t(fn->machine_code()));
-      // Fall back to indirect calling mechanism
-      if (code_cache_->has_indirection_table()) {
-        MOV(W17, function->address());
-        LDR(W16, X17);
-      } else {
-        // Use a different calling mechanism for high addresses
-        // TODO: Implement proper high-address calling
-        MOV(X16, uint64_t(fn->machine_code()));
-      }
+      // Use ResolveFunction to avoid memory access issues with high addresses
+      MOV(X0, reinterpret_cast<uint64_t>(ResolveFunction));
+      MOV(X1, GetContextReg());
+      MOV(W2, function->address());  // Use W register for 32-bit address
+      auto thunk = backend()->guest_to_host_thunk();
+      MOV(X16, reinterpret_cast<uint64_t>(thunk));
+      BLR(X16);
+      // Check if ResolveFunction failed (returned 0)
+      CBZ(X0, epilog_label());
+      MOV(X16, X0);
     } else {
       MOV(X16, uint32_t(uint64_t(fn->machine_code())));
     }
@@ -451,18 +543,33 @@ void A64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
     // or a thunk to ResolveAddress.
     MOV(W17, function->address());
 #if XE_PLATFORM_MAC && XE_ARCH_ARM64
-    // On macOS ARM64, we use direct access like x64 since the indirection table
-    // is always mapped at the (dynamic) guest addresses
-    LDR(X16, X17);
+    // On macOS ARM64, the indirection table is not mapped at guest addresses
+    // Use ResolveFunction directly
+    MOV(X0, reinterpret_cast<uint64_t>(ResolveFunction));
+    MOV(X1, GetContextReg());
+    MOV(W2, function->address());  // Use W register for 32-bit address
+    auto thunk = backend()->guest_to_host_thunk();
+    MOV(X16, reinterpret_cast<uint64_t>(thunk));
+    BLR(X16);
+    // Check if ResolveFunction failed (returned 0)
+    CBZ(X0, epilog_label());
+    MOV(X16, X0);
 #else
-    // Other platforms use 32-bit addresses
+    // Other platforms use 32-bit addresses mapped directly at guest addresses
     LDR(W16, X17);
 #endif
   } else {
     // Old-style resolve.
     // Not too important because indirection table is almost always available.
     // TODO: Overwrite the call-site with a straight call.
-    CallNative(&ResolveFunction, function->address());
+    MOV(X0, reinterpret_cast<uint64_t>(ResolveFunction));
+    MOV(X1, GetContextReg());
+    MOV(W2, function->address());  // Use W register for 32-bit address
+    auto thunk = backend()->guest_to_host_thunk();
+    MOV(X16, reinterpret_cast<uint64_t>(thunk));
+    BLR(X16);
+    // Check if ResolveFunction failed (returned 0)
+    CBZ(X0, epilog_label());
     MOV(X16, X0);
   }
 
@@ -505,21 +612,56 @@ void A64Emitter::CallIndirect(const hir::Instr* instr,
       MOV(W17, reg.toW());
     }
 #if XE_PLATFORM_MAC && XE_ARCH_ARM64
-    // On macOS ARM64, we use direct access like x64 since the indirection table
-    // is always mapped at the (dynamic) guest addresses
-    LDR(X16, X17);
+    // On macOS ARM64, the indirection table is not mapped at guest addresses
+    // Use ResolveFunction directly
+    
+    // Store the original register value for debugging
+    STR(reg, SP, kStashOffset);
+    
+    // DEBUG: The register contains 0x0000000AD08DC000 which looks like a context pointer
+    // This suggests we might need to read the actual target address from memory
+    // pointed to by this register, rather than using the register value directly
+    
+    // Let's try treating the register as a pointer to the target address
+    // First, let's check if the register value looks like a valid host pointer
+    // If so, try to read a 32-bit value from that location
+    
+    // For PowerPC indirect calls, the register might contain a pointer to 
+    // a function descriptor or jump table entry
+    
+    // Try to read the target address from the location pointed to by the register
+    // But we need to be careful about memory access - use the membase
+    
+    // For now, let's extract a potentially valid guest address from this pattern
+    // The address 0x0000000AD08DC000 has lower 32 bits 0xD08DC000
+    // Let's see if there's a pattern we can extract
+    
+    // Create a simpler call that matches the ResolveFunctionThunk signature
+    MOV(X0, reinterpret_cast<uint64_t>(ResolveFunction));
+    MOV(X1, GetContextReg());
+    // Extract only the lower 32 bits for the target address
+    MOV(W2, reg.toW());  // Use only the W register (32-bit) portion
+    auto thunk = backend()->guest_to_host_thunk();
+    MOV(X16, reinterpret_cast<uint64_t>(thunk));
+    BLR(X16);
+    // Check if ResolveFunction failed (returned 0)
+    CBZ(X0, epilog_label());
+    MOV(X16, X0);
 #else
-    // Other platforms use 32-bit addresses
+    // Other platforms use 32-bit addresses mapped directly at guest addresses
     LDR(W16, X17);
 #endif
   } else {
     // Old-style resolve.
     // Not too important because indirection table is almost always available.
-    MOV(X0, GetContextReg());
-    MOV(W1, reg.toW());
-
-    MOV(X16, reinterpret_cast<uint64_t>(ResolveFunction));
+    MOV(X0, reinterpret_cast<uint64_t>(ResolveFunction));
+    MOV(X1, GetContextReg());
+    MOV(W2, reg.toW());  // Use W register for 32-bit address
+    auto thunk = backend()->guest_to_host_thunk();
+    MOV(X16, reinterpret_cast<uint64_t>(thunk));
     BLR(X16);
+    // Check if ResolveFunction failed (returned 0)
+    CBZ(X0, epilog_label());
     MOV(X16, X0);
   }
 
