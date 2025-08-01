@@ -23,6 +23,7 @@ namespace xe {
 namespace ui {
 
 bool RenderdocApi::Initialize() {
+#if XE_PLATFORM_WIN32 || XE_PLATFORM_LINUX
   Shutdown();
   pRENDERDOC_GetAPI get_api = nullptr;
   // The RenderDoc library should be already loaded into the process if
@@ -58,6 +59,11 @@ bool RenderdocApi::Initialize() {
   }
   XELOGI("RenderDoc API initialized");
   return true;
+#else
+  // RenderDoc is not supported on this platform (macOS)
+  XELOGI("RenderDoc not supported on this platform, using dummy implementation");
+  return false;
+#endif
 }
 
 void RenderdocApi::Shutdown() {
