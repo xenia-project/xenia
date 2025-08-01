@@ -100,7 +100,9 @@ bool WindowDemoApp::OnInitialize() {
   Profiler::SetUserIO(kZOrderProfiler, window_.get(), presenter_.get(),
                       immediate_drawer_.get());
 
+  XELOGI("About to set presenter on window...");
   window_->SetPresenter(presenter_.get());
+  XELOGI("Successfully set presenter on window");
 
   return true;
 }
