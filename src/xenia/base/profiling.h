@@ -20,17 +20,17 @@
 #include "xenia/ui/virtual_key.h"
 #include "xenia/ui/window_listener.h"
 
-#if XE_PLATFORM_WIN32
+#if XE_PLATFORM_WIN32 || XE_PLATFORM_MAC
 #define XE_OPTION_PROFILING 1
 #define XE_OPTION_PROFILING_UI 1
 #else
 #define XE_OPTION_PROFILING 0
-#endif  // XE_PLATFORM_WIN32
+#endif  // XE_PLATFORM_WIN32 || XE_PLATFORM_MAC
 
 #if XE_OPTION_PROFILING
 // Pollutes the global namespace. Yuck.
 #define MICROPROFILE_MAX_THREADS 128
-#include <microprofile/microprofile.h>
+#include "third_party/microprofile/microprofile.h"
 #endif  // XE_OPTION_PROFILING
 
 namespace xe {

@@ -62,10 +62,10 @@ bool WindowDemoApp::OnInitialize() {
   auto debug_menu = MenuItem::Create(MenuItem::Type::kPopup, "&Debug");
   {
     debug_menu->AddChild(MenuItem::Create(MenuItem::Type::kString,
-                                          "Toggle Profiler &Display", "F3",
+                                          "Toggle Profiler &Display", "Cmd+G",
                                           []() { Profiler::ToggleDisplay(); }));
     debug_menu->AddChild(MenuItem::Create(MenuItem::Type::kString,
-                                          "&Pause/Resume Profiler", "`",
+                                          "&Pause/Resume Profiler", "Cmd+B",
                                           []() { Profiler::TogglePause(); }));
   }
   main_menu->AddChild(std::move(debug_menu));
@@ -100,9 +100,7 @@ bool WindowDemoApp::OnInitialize() {
   Profiler::SetUserIO(kZOrderProfiler, window_.get(), presenter_.get(),
                       immediate_drawer_.get());
 
-  XELOGI("About to set presenter on window...");
   window_->SetPresenter(presenter_.get());
-  XELOGI("Successfully set presenter on window");
 
   return true;
 }
@@ -112,17 +110,45 @@ void WindowDemoApp::WindowDemoWindowListener::OnClosing(UIEvent& e) {
 }
 
 void WindowDemoApp::WindowDemoWindowListener::OnKeyDown(KeyEvent& e) {
-  switch (e.virtual_key()) {
-    case VirtualKey::kF3:
-      Profiler::ToggleDisplay();
-      break;
-    default:
-      return;
+  // Handle Command+G and Command+B shortcuts
+  if (e.is_super_pressed()) {
+    switch (e.virtual_key()) {
+      case VirtualKey::kG:
+        Profiler::ToggleDisplay();
+        e.set_handled(true);
+        return;
+      case VirtualKey::kB:
+        Profiler::TogglePause();
+        e.set_handled(true);
+        return;
+    }
   }
-  e.set_handled(true);
 }
 
 void WindowDemoApp::WindowDemoDialog::OnDraw(ImGuiIO& io) {
+  // Force a very visible test window with solid colors
+  ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(1.0f, 0.0f, 0.0f, 1.0f)); // Red background
+  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); // White text
+  ImGui::Begin("BIG VISIBLE TEST WINDOW", nullptr, 
+               ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse);
+  
+  ImGui::SetWindowSize(ImVec2(400, 300));
+  ImGui::SetWindowPos(ImVec2(100, 100));
+  
+  // Large text that should be very visible
+  ImGui::Text("===== HELLO FROM IMGUI! =====");
+  ImGui::Text("This is a test window with red background");
+  ImGui::Text("Mouse position: %.1f, %.1f", io.MousePos.x, io.MousePos.y);
+  ImGui::Text("Display size: %.1f x %.1f", io.DisplaySize.x, io.DisplaySize.y);
+  
+  if (ImGui::Button("BIG TEST BUTTON")) {
+    // Button clicked
+  }
+  
+  ImGui::End();
+  ImGui::PopStyleColor(2);
+  
+  // Also show the demo windows
   ImGui::ShowDemoWindow();
   ImGui::ShowMetricsWindow();
 }

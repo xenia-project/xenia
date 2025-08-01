@@ -24,10 +24,11 @@ bool MacNSViewSurface::GetSizeImpl(uint32_t& width_out,
   }
 
   NSRect bounds = [view_ bounds];
-  NSRect backingBounds = [view_ convertRectToBacking:bounds];
+  // Use logical coordinates to match Window size reporting
+  // (backing coordinates would be for Retina physical pixels)
   
-  width_out = static_cast<uint32_t>(backingBounds.size.width);
-  height_out = static_cast<uint32_t>(backingBounds.size.height);
+  width_out = static_cast<uint32_t>(bounds.size.width);
+  height_out = static_cast<uint32_t>(bounds.size.height);
   
   return true;
 }

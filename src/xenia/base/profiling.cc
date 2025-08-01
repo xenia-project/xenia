@@ -216,7 +216,8 @@ void Profiler::TogglePause() {}
 void Profiler::ToggleDisplay() {
   bool was_visible = is_visible();
   MicroProfileToggleDisplayMode();
-  if (is_visible() != was_visible) {
+  bool now_visible = is_visible();
+  if (now_visible != was_visible) {
     if (window_) {
       if (was_visible) {
         window_->RemoveInputListener(&input_listener_);

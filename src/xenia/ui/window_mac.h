@@ -20,10 +20,14 @@
 @class NSWindow;
 @class NSView;
 @class XeniaWindowDelegate;
+@class NSEvent;
+@class NSMenuItem;
 #else
 typedef struct objc_object NSWindow;
 typedef struct objc_object NSView;
 typedef struct objc_object XeniaWindowDelegate;
+typedef struct objc_object NSEvent;
+typedef struct objc_object NSMenuItem;
 #endif
 
 namespace xe {
@@ -51,6 +55,10 @@ class MacWindow : public Window {
   // Public wrapper for delegate close requests - handle close without recursion
   void RequestCloseFromDelegate();
 
+  // Handle mouse and keyboard events (public for XeniaContentView)
+  void HandleMouseEvent(void* event);
+  void HandleKeyEvent(void* event, bool is_down);
+
  protected:
   bool OpenImpl() override;
   void RequestCloseImpl() override;
@@ -67,14 +75,14 @@ class MacWindow : public Window {
  private:
   void HandleSizeUpdate();
   
-  // Handle mouse and keyboard events
-  void HandleMouseEvent(void* event);
-  void HandleKeyEvent(void* event, bool is_down);
+  // Helper method for menu creation
+  NSMenuItem* CreateNSMenuItemFromMenuItem(MenuItem* menu_item);
 
   NSWindow* window_ = nullptr;
   NSView* content_view_ = nullptr;
   XeniaWindowDelegate* delegate_ = nullptr;
   bool is_closing_ = false;  // Flag to prevent recursive closing
+  void* refresh_timer_ = nullptr;  // NSTimer* for continuous redraws
 
   friend class XeniaWindowDelegate;
 };
@@ -86,6 +94,9 @@ class MacMenuItem : public MenuItem {
   ~MacMenuItem() override;
 
   void* handle() const { return menu_item_; }
+  
+  // Public method to trigger menu selection from Objective-C callbacks
+  void TriggerSelection() { OnSelected(); }
 
  protected:
   void OnChildAdded(MenuItem* child_item) override;

@@ -58,6 +58,7 @@ class MenuItem {
   void AddChild(MenuItemPtr child_item);
   void RemoveChild(MenuItem* child_item);
   MenuItem* child(size_t index);
+  size_t child_count() const { return children_.size(); }
 
   virtual void SetEnabled(bool enabled) {}
 
