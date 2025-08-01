@@ -47,6 +47,10 @@
 #endif
 #include "third_party/Vulkan-Headers/include/vulkan/vulkan.h"
 
+#if XE_PLATFORM_MAC
+#include "third_party/Vulkan-Headers/include/vulkan/vulkan_metal.h"
+#endif
+
 #define XELOGVK XELOGI
 
 #define XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES 1
@@ -242,6 +246,7 @@ class VulkanProvider : public GraphicsProvider {
     bool ext_debug_utils;
     // Core since 1.1.0.
     bool khr_get_physical_device_properties2;
+    bool khr_portability_enumeration;
 
     // Surface extensions.
     bool khr_surface;
@@ -251,6 +256,8 @@ class VulkanProvider : public GraphicsProvider {
     bool khr_xcb_surface;
 #elif XE_PLATFORM_WIN32
     bool khr_win32_surface;
+#elif XE_PLATFORM_MAC
+    bool ext_metal_surface;
 #endif
   };
   const InstanceExtensions& instance_extensions() const {
@@ -269,6 +276,8 @@ class VulkanProvider : public GraphicsProvider {
 #include "xenia/ui/vulkan/functions/instance_khr_android_surface.inc"
 #elif XE_PLATFORM_GNU_LINUX
 #include "xenia/ui/vulkan/functions/instance_khr_xcb_surface.inc"
+#elif XE_PLATFORM_MAC
+#include "xenia/ui/vulkan/functions/instance_ext_metal_surface.inc"
 #elif XE_PLATFORM_WIN32
 #include "xenia/ui/vulkan/functions/instance_khr_win32_surface.inc"
 #endif
@@ -394,7 +403,7 @@ class VulkanProvider : public GraphicsProvider {
 
   RenderdocApi renderdoc_api_;
 
-#if XE_PLATFORM_LINUX
+#if XE_PLATFORM_LINUX || XE_PLATFORM_MAC
   void* library_ = nullptr;
 #elif XE_PLATFORM_WIN32
   HMODULE library_ = nullptr;

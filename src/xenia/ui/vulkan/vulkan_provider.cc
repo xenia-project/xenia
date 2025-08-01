@@ -24,7 +24,7 @@
 #include "xenia/ui/vulkan/vulkan_immediate_drawer.h"
 #include "xenia/ui/vulkan/vulkan_presenter.h"
 
-#if XE_PLATFORM_LINUX
+#if XE_PLATFORM_LINUX || XE_PLATFORM_MAC
 #include <dlfcn.h>
 #elif XE_PLATFORM_WIN32
 #include "xenia/base/platform_win.h"
@@ -94,7 +94,7 @@ VulkanProvider::~VulkanProvider() {
     lfn_.vkDestroyInstance(instance_, nullptr);
   }
 
-#if XE_PLATFORM_LINUX
+#if XE_PLATFORM_LINUX || XE_PLATFORM_MAC
   if (library_) {
     dlclose(library_);
   }
@@ -134,6 +134,16 @@ bool VulkanProvider::Initialize() {
 #define XE_VULKAN_LOAD_MODULE_LFN(name) \
   library_functions_loaded &=           \
       (lfn_.name = PFN_##name(GetProcAddress(library_, #name))) != nullptr;
+#elif XE_PLATFORM_MAC
+  // On macOS, use MoltenVK's libvulkan.dylib
+  library_ = dlopen("libvulkan.dylib", RTLD_NOW | RTLD_LOCAL);
+  if (!library_) {
+    XELOGE("Failed to load libvulkan.dylib");
+    return false;
+  }
+#define XE_VULKAN_LOAD_MODULE_LFN(name) \
+  library_functions_loaded &=           \
+      (lfn_.name = PFN_##name(dlsym(library_, #name))) != nullptr;
 #else
 #error No Vulkan library loading provided for the target platform.
 #endif
@@ -318,9 +328,10 @@ bool VulkanProvider::Initialize() {
   VkInstanceCreateInfo instance_create_info;
   instance_create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
   instance_create_info.pNext = nullptr;
-  // TODO(Triang3l): Enumerate portability subset devices using
-  // VK_KHR_portability_enumeration when ready.
-  instance_create_info.flags = 0;
+  // Enable portability enumeration when available for MoltenVK support
+  instance_create_info.flags = instance_extensions_.khr_portability_enumeration 
+                                ? VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR 
+                                : 0;
   instance_create_info.pApplicationInfo = &application_info;
   instance_create_info.enabledLayerCount = uint32_t(layers_enabled.size());
   instance_create_info.ppEnabledLayerNames = layers_enabled.data();
@@ -408,6 +419,12 @@ bool VulkanProvider::Initialize() {
     bool functions_loaded = true;
 #include "xenia/ui/vulkan/functions/instance_khr_xcb_surface.inc"
     instance_extensions_.khr_xcb_surface = functions_loaded;
+  }
+#elif XE_PLATFORM_MAC
+  if (instance_extensions_.ext_metal_surface) {
+    bool functions_loaded = true;
+#include "xenia/ui/vulkan/functions/instance_ext_metal_surface.inc"
+    instance_extensions_.ext_metal_surface = functions_loaded;
   }
 #elif XE_PLATFORM_WIN32
   if (instance_extensions_.khr_win32_surface) {
@@ -634,6 +651,10 @@ void VulkanProvider::AccumulateInstanceExtensions(
                !std::strcmp(instance_extension_name, "VK_KHR_surface")) {
       instance_extensions_enabled.push_back("VK_KHR_surface");
       instance_extensions.khr_surface = true;
+    } else if (!instance_extensions.khr_portability_enumeration &&
+               !std::strcmp(instance_extension_name, "VK_KHR_portability_enumeration")) {
+      instance_extensions_enabled.push_back("VK_KHR_portability_enumeration");
+      instance_extensions.khr_portability_enumeration = true;
     } else {
 #if XE_PLATFORM_ANDROID
       if (!instance_extensions.khr_android_surface &&
@@ -652,6 +673,12 @@ void VulkanProvider::AccumulateInstanceExtensions(
           !std::strcmp(instance_extension_name, "VK_KHR_win32_surface")) {
         instance_extensions_enabled.push_back("VK_KHR_win32_surface");
         instance_extensions.khr_win32_surface = true;
+      }
+#elif XE_PLATFORM_MAC
+      if (!instance_extensions.ext_metal_surface &&
+          !std::strcmp(instance_extension_name, "VK_EXT_metal_surface")) {
+        instance_extensions_enabled.push_back("VK_EXT_metal_surface");
+        instance_extensions.ext_metal_surface = true;
       }
 #endif
     }

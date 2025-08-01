@@ -49,3 +49,16 @@ project("xenia-ui-window-vulkan-demo")
       "xcb",
       "X11-xcb",
     })
+
+  filter("platforms:Mac")
+    files({
+      "Info.plist",
+    })
+    buildoptions({
+      "-DINFOPLIST_FILE=" .. path.getabsolute("Info.plist"),
+    })
+    xcodebuildsettings({
+      ["INFOPLIST_FILE"] = path.getabsolute("Info.plist"),
+      ["PRODUCT_BUNDLE_IDENTIFIER"] = "com.xenia.ui-vulkan-demo",
+      ["CODE_SIGN_STYLE"] = "Automatic",
+    })

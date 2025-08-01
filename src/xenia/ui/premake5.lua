@@ -15,6 +15,16 @@ project("xenia-ui")
   removefiles({"*_demo.cc"})
   removefiles({"windowed_app_main_*.cc"})
 
+  filter("platforms:Mac")
+    files({
+      "surface_mac.mm",
+      "surface_mac.h",
+      "windowed_app_context_mac.h",
+      "windowed_app_context_mac.mm",
+      "window_mac.h",
+      "window_mac.mm",
+    })
+
   filter("platforms:Android-*")
     -- Exports JNI functions.
     wholelib("On")

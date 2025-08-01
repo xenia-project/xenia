@@ -104,27 +104,23 @@ filter("platforms:Mac")
     "-Wextra",                   -- Enable extra warnings
     "-Wno-unused-parameter",     -- Disable specific warnings if necessary
     "-Wno-error",                -- Disable treating warnings as errors
-    "-ferror-limit=0"
+    "-ferror-limit=0",
     -- Add other macOS-specific compiler flags as needed
   })
   
-  -- Linker Options
-  linkoptions({
-    "-v",
-    "-L/opt/homebrew/lib",
-    "-framework Cocoa",            -- GUI framework
-    "-framework IOKit",            -- Hardware interactions
-    "-framework CoreFoundation",    -- Fundamental data types and utilities
-    "-framework Security",         -- Security and cryptography
-    "-framework OpenGL",           -- Graphics rendering (if used)
-    "-framework Metal",            -- Modern graphics API (if used)
-    "-lc++",                       -- C++ standard library
-    "-lpthread",                   -- POSIX threads
-    "-llz4",                        -- Compression library
-    "--stdlib=libc++",             -- Use libc++ standard library
-    "-g",                          -- Debug symbols
-    -- Add other macOS-specific linker flags as needed
-  })
+  -- macOS Frameworks
+  filter "system:macosx"
+    links({
+      "Cocoa.framework",
+      "Carbon.framework", 
+      "CoreGraphics.framework",
+      "QuartzCore.framework"
+    })
+    libdirs({
+      "/opt/homebrew/lib",
+      "/usr/local/lib"
+    })
+  filter {}
   
   -- Libraries to Link Against
   links({

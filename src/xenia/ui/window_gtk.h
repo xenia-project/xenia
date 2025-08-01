@@ -15,7 +15,9 @@
 
 #include <gdk/gdk.h>
 #include <gtk/gtk.h>
+#if XE_PLATFORM_LINUX
 #include <xcb/xcb.h>
+#endif
 
 #include "xenia/base/platform_linux.h"
 #include "xenia/ui/menu_item.h"

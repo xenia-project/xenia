@@ -29,6 +29,10 @@
 #if XE_PLATFORM_GNU_LINUX
 #include "xenia/ui/surface_gnulinux.h"
 #endif
+#if XE_PLATFORM_MAC
+#include "xenia/ui/surface_mac.h"
+#include "vulkan/vulkan_metal.h"
+#endif
 #if XE_PLATFORM_WIN32
 #include "xenia/ui/surface_win.h"
 #endif
@@ -610,6 +614,29 @@ VulkanPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
         vulkan_surface_create_result =
             ifn.vkCreateXcbSurfaceKHR(instance, &surface_create_info, nullptr,
                                       &paint_context_.vulkan_surface);
+      } break;
+#endif
+#if XE_PLATFORM_MAC
+      case Surface::kTypeIndex_MacNSView: {
+        auto& mac_ns_view_surface =
+            static_cast<const MacNSViewSurface&>(new_surface);
+        
+        // Get or create the Metal layer for the view
+        CAMetalLayer* metal_layer = mac_ns_view_surface.GetOrCreateMetalLayer();
+        if (!metal_layer) {
+          XELOGE("VulkanPresenter: Failed to get Metal layer from NSView");
+          return SurfacePaintConnectResult::kFailureSurfaceUnusable;
+        }
+        
+        VkMetalSurfaceCreateInfoEXT surface_create_info;
+        surface_create_info.sType =
+            VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT;
+        surface_create_info.pNext = nullptr;
+        surface_create_info.flags = 0;
+        surface_create_info.pLayer = metal_layer;
+        vulkan_surface_create_result =
+            ifn.vkCreateMetalSurfaceEXT(instance, &surface_create_info, nullptr,
+                                        &paint_context_.vulkan_surface);
       } break;
 #endif
 #if XE_PLATFORM_WIN32

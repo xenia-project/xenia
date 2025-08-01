@@ -150,6 +150,10 @@ class VulkanPresenter final : public Presenter {
     if (instance_extensions.khr_xcb_surface) {
       type_flags |= Surface::kTypeFlag_XcbWindow;
     }
+#elif XE_PLATFORM_MAC
+    if (instance_extensions.ext_metal_surface) {
+      type_flags |= Surface::kTypeFlag_MacNSView;
+    }
 #elif XE_PLATFORM_WIN32
     if (instance_extensions.khr_win32_surface) {
       type_flags |= Surface::kTypeFlag_Win32Hwnd;

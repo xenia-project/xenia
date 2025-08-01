@@ -10,14 +10,16 @@
 #include <algorithm>
 #include <string>
 
+#if XE_PLATFORM_LINUX
 #include <X11/Xlib-xcb.h>
 #include <gdk/gdkx.h>
 #include <xcb/xcb.h>
+#include "xenia/base/platform_linux.h"
+#include "xenia/ui/surface_gnulinux.h"
+#endif
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
-#include "xenia/base/platform_linux.h"
-#include "xenia/ui/surface_gnulinux.h"
 #include "xenia/ui/virtual_key.h"
 #include "xenia/ui/window_gtk.h"
 
@@ -277,6 +279,7 @@ void GTKWindow::FocusImpl() { gtk_window_activate_focus(GTK_WINDOW(window_)); }
 
 std::unique_ptr<Surface> GTKWindow::CreateSurfaceImpl(
     Surface::TypeFlags allowed_types) {
+#if XE_PLATFORM_LINUX
   GdkDisplay* display = gtk_widget_get_display(window_);
   GdkWindow* drawing_area_window = gtk_widget_get_window(drawing_area_);
   bool type_known = false;
@@ -296,6 +299,11 @@ std::unique_ptr<Surface> GTKWindow::CreateSurfaceImpl(
         "GTKWindow: The window system of the GTK window is not supported by "
         "Xenia");
   }
+#else
+  // TODO(macOS): Implement macOS surface creation
+  XELOGE("GTKWindow: Surface creation not yet implemented for macOS");
+  (void)allowed_types;  // Suppress unused parameter warning
+#endif
   return nullptr;
 }
 
