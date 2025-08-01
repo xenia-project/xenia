@@ -11,9 +11,9 @@ project("xenia-apu")
     "libavutil",
     "xenia-base",
   })
-  defines({
-  })
   includedirs({
     project_root.."/third_party/FFmpeg/",
+  })
+  defines({
   })
   local_platform_files()
