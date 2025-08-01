@@ -41,15 +41,13 @@ extern "C" int main(int argc_pre_gtk, char** argv_pre_gtk) {
     // Initialize logging. Needs parsed cvars.
     xe::InitializeLogging(app->GetName());
 
-    result = app->OnInitialize();
-    if (result) {
+    if (app->OnInitialize()) {
+      app_context.RunMainCocoaLoop();
+      result = EXIT_SUCCESS;
+    } else {
       XELOGE("Failed to initialize app");
-      app->InvokeOnDestroy();
-      xe::ShutdownLogging();
-      return result;
+      result = EXIT_FAILURE;
     }
-
-    app_context.RunMainCocoaLoop();
 
     app->InvokeOnDestroy();
   }
