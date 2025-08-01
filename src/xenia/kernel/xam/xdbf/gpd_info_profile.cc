@@ -88,6 +88,17 @@ void GpdInfoProfile::AddNewTitle(const SpaInfo* title_data) {
   UpsertEntry(&entry);
 }
 
+bool GpdInfoProfile::RemoveTitle(const uint32_t title_id) {
+  const Entry* entry =
+      GetEntry(static_cast<uint16_t>(GpdSection::kTitle), title_id);
+  if (!entry) {
+    return false;
+  }
+
+  DeleteEntry(entry);
+  return true;
+}
+
 X_XDBF_GPD_TITLE_PLAYED GpdInfoProfile::FillTitlePlayedData(
     const SpaInfo* title_data) const {
   X_XDBF_GPD_TITLE_PLAYED title_gpd_data = {};

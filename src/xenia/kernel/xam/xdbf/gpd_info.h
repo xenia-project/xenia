@@ -135,6 +135,7 @@ class GpdInfo : public XdbfFile {
                                const GpdSection section);
 
   void UpsertEntry(Entry* entry);
+  void DeleteEntry(const Entry* entry);
 
   uint32_t FindFreeLocation(const uint32_t entry_size);
 
@@ -144,7 +145,6 @@ class GpdInfo : public XdbfFile {
   uint32_t title_id_ = 0;
 
   void InsertEntry(Entry* entry);
-  void DeleteEntry(const Entry* entry);
 
   std::vector<const Entry*> GetSortedEntries() const;
 

@@ -185,6 +185,19 @@ void UserTracker::AddTitleToPlayedList(uint64_t xuid) {
   UpdateProfileGpd();
 }
 
+void UserTracker::RemoveTitleFromPlayedList(uint64_t xuid, uint32_t title_id) {
+  auto user = kernel_state()->xam_state()->GetUserProfile(xuid);
+  if (!user) {
+    return;
+  }
+
+  if (user->dashboard_gpd_.RemoveTitle(title_id)) {
+    UpdateSettingValue(xuid, kDashboardID,
+                       UserSettingId::XPROFILE_GAMERCARD_TITLES_PLAYED, -1);
+    FlushUserData(xuid);
+  }
+}
+
 // Privates
 bool UserTracker::IsUserTracked(uint64_t xuid) const {
   return tracked_xuids_.find(xuid) != tracked_xuids_.cend();

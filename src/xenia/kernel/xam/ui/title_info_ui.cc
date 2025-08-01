@@ -112,18 +112,6 @@ void TitleListUI::DrawTitleEntry(ImGuiIO& io, TitleInfo& entry) {
   if (ImGui::BeginPopupContextItem(
           fmt::format("Title Menu {:08X}", entry.id).c_str())) {
     selected_title_ = entry.id;
-    if (ImGui::MenuItem("Refresh title stats", nullptr, nullptr, true)) {
-      kernel_state()->xam_state()->user_tracker()->RefreshTitleSummary(
-          profile_->xuid(), entry.id);
-
-      const auto title_info =
-          kernel_state()->xam_state()->user_tracker()->GetUserTitleInfo(
-              profile_->xuid(), entry.id);
-
-      if (title_info) {
-        entry = title_info.value();
-      }
-    }
 
     const auto savefile_path = profile_manager_->GetProfileContentPath(
         profile_->xuid(), entry.id, XContentType::kSavedGame);
@@ -148,6 +136,29 @@ void TitleListUI::DrawTitleEntry(ImGuiIO& io, TitleInfo& entry) {
                         std::filesystem::exists(tu_path))) {
       std::thread path_open(LaunchFileExplorer, tu_path);
       path_open.detach();
+    }
+
+    ImGui::Separator();
+
+    const auto title_info =
+        kernel_state()->xam_state()->user_tracker()->GetUserTitleInfo(
+            profile_->xuid(), entry.id);
+
+    if (ImGui::MenuItem("Refresh title stats", nullptr, nullptr, true)) {
+      kernel_state()->xam_state()->user_tracker()->RefreshTitleSummary(
+          profile_->xuid(), entry.id);
+
+      if (title_info) {
+        entry = title_info.value();
+      }
+    }
+
+    if (title_info) {
+      if (ImGui::MenuItem("Delete title", nullptr, nullptr,
+                          !title_info->unlocked_achievements_count)) {
+        kernel_state()->xam_state()->user_tracker()->RemoveTitleFromPlayedList(
+            profile_->xuid(), entry.id);
+      }
     }
 
     ImGui::EndPopup();
