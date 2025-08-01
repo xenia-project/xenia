@@ -5,6 +5,9 @@ project("imgui")
   language("C++")
   includedirs({
     "imgui",
+    --"imgui/misc/freetype",
+    --"freetype/include",
+    "stb",
   })
   files({
     "imgui/imgui.cpp",
@@ -12,4 +15,5 @@ project("imgui")
     "imgui/imgui_draw.cpp",
     "imgui/imgui_tables.cpp",
     "imgui/imgui_widgets.cpp",
+    --"imgui/misc/freetype/imgui_freetype.cpp",
   })

@@ -234,13 +234,13 @@ void TraceViewer::DrawControllerUI() {
     ImGui::SetTooltip("Reset to first frame");
   }
   ImGui::SameLine();
-  ImGui::PushButtonRepeat(true);
+  ImGui::PushItemFlag(ImGuiItemFlags_ButtonRepeat, true);
   if (ImGui::Button(">>", ImVec2(0, 0))) {
     if (target_frame + 1 < player_->frame_count()) {
       ++target_frame;
     }
   }
-  ImGui::PopButtonRepeat();
+  ImGui::PopItemFlag();
   if (ImGui::IsItemHovered()) {
     ImGui::SetTooltip("Next frame (hold for continuous)");
   }
@@ -433,7 +433,8 @@ void TraceViewer::DrawPacketDisassemblerUI() {
 int TraceViewer::RecursiveDrawCommandBufferUI(
     const TraceReader::Frame* frame, TraceReader::CommandBuffer* buffer) {
   int selected_id = -1;
-  int column_width = int(ImGui::GetContentRegionMax().x);
+  int column_width =
+      int(ImGui::GetContentRegionAvail().x);  // TODO: This might be broken
 
   for (size_t i = 0; i < buffer->commands.size(); i++) {
     switch (buffer->commands[i].type) {
@@ -512,7 +513,8 @@ void TraceViewer::DrawCommandListUI() {
   }
   int command_count = int(frame->commands.size());
   int target_command = player_->current_command_index();
-  int column_width = int(ImGui::GetContentRegionMax().x);
+  int column_width =
+      int(ImGui::GetContentRegionAvail().x);  // TODO: This might be broken
   ImGui::Text("Frame #%d", player_->current_frame_index());
   ImGui::Separator();
   if (ImGui::Button("reset")) {
@@ -522,7 +524,7 @@ void TraceViewer::DrawCommandListUI() {
     ImGui::SetTooltip("Reset to before any frame commands");
   }
   ImGui::SameLine();
-  ImGui::PushButtonRepeat(true);
+  ImGui::PushItemFlag(ImGuiItemFlags_ButtonRepeat, true);
   if (ImGui::Button("prev", ImVec2(0, 0))) {
     if (target_command >= 0) {
       --target_command;
@@ -540,7 +542,7 @@ void TraceViewer::DrawCommandListUI() {
   if (ImGui::IsItemHovered()) {
     ImGui::SetTooltip("Move to the next command (hold)");
   }
-  ImGui::PopButtonRepeat();
+  ImGui::PopItemFlag();
   ImGui::SameLine();
   if (ImGui::Button("end")) {
     target_command = command_count - 1;

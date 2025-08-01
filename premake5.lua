@@ -27,6 +27,11 @@ includedirs({
 })
 
 defines({
+  "IMGUI_DISABLE_OBSOLETE_FUNCTIONS",
+  "IMGUI_DISABLE_DEFAULT_FONT",
+  --"IMGUI_USE_WCHAR32",
+  "IMGUI_USE_STB_SPRINTF",
+  --"IMGUI_ENABLE_FREETYPE",
   "USE_CPP17", -- Tabulate
 })
 

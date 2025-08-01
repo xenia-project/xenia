@@ -188,9 +188,9 @@ void ImGuiDrawer::Initialize() {
   style.Colors[ImGuiCol_ResizeGripActive] = ImVec4(1.00f, 1.00f, 1.00f, 0.90f);
   style.Colors[ImGuiCol_Tab] = style.Colors[ImGuiCol_Button];
   style.Colors[ImGuiCol_TabHovered] = style.Colors[ImGuiCol_ButtonHovered];
-  style.Colors[ImGuiCol_TabActive] = style.Colors[ImGuiCol_ButtonActive];
-  style.Colors[ImGuiCol_TabUnfocused] = style.Colors[ImGuiCol_FrameBg];
-  style.Colors[ImGuiCol_TabUnfocusedActive] =
+  style.Colors[ImGuiCol_TabSelected] = style.Colors[ImGuiCol_ButtonActive];
+  style.Colors[ImGuiCol_TabDimmed] = style.Colors[ImGuiCol_FrameBg];
+  style.Colors[ImGuiCol_TabDimmedSelected] =
       style.Colors[ImGuiCol_FrameBgHovered];
   style.Colors[ImGuiCol_PlotLines] = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
   style.Colors[ImGuiCol_PlotLinesHovered] = ImVec4(0.90f, 0.70f, 0.00f, 1.00f);
@@ -739,7 +739,6 @@ void ImGuiDrawer::ClearInput() {
   io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
   std::memset(io.MouseDown, 0, sizeof(io.MouseDown));
   io.ClearInputKeys();
-  io.ClearInputCharacters();
   touch_pointer_id_ = TouchEvent::kPointerIDNone;
   reset_mouse_position_after_next_frame_ = false;
 }
