@@ -135,10 +135,25 @@ bool VulkanProvider::Initialize() {
   library_functions_loaded &=           \
       (lfn_.name = PFN_##name(GetProcAddress(library_, #name))) != nullptr;
 #elif XE_PLATFORM_MAC
-  // On macOS, use MoltenVK's libvulkan.dylib
-  library_ = dlopen("libvulkan.dylib", RTLD_NOW | RTLD_LOCAL);
+  // On macOS, try multiple paths for Vulkan library
+  const char* vulkan_paths[] = {
+    "libvulkan.dylib",                                    // Try current directory/bundle first
+    "/opt/homebrew/lib/libvulkan.dylib",                 // Homebrew installation
+    "/usr/local/lib/libvulkan.dylib",                    // Manual installation
+    "@executable_path/../Frameworks/libvulkan.dylib",    // App bundle Frameworks
+    nullptr
+  };
+  
+  for (const char** path = vulkan_paths; *path; ++path) {
+    library_ = dlopen(*path, RTLD_NOW | RTLD_LOCAL);
+    if (library_) {
+      XELOGD("Successfully loaded Vulkan library from: {}", *path);
+      break;
+    }
+  }
+  
   if (!library_) {
-    XELOGE("Failed to load libvulkan.dylib");
+    XELOGE("Failed to load libvulkan.dylib from any of the attempted paths");
     return false;
   }
 #define XE_VULKAN_LOAD_MODULE_LFN(name) \

@@ -79,8 +79,9 @@ std::unique_ptr<MenuItem> MenuItem::Create(Type type,
 
 - (BOOL)windowShouldClose:(NSWindow*)sender {
   if (_window) {
+    // Handle the close request with OnBeforeClose, then allow the window to close
     _window->RequestCloseFromDelegate();
-    return NO;  // Let our close handling manage the actual close
+    return YES;  // Allow the window to close after our handling
   }
   return YES;
 }
@@ -153,18 +154,25 @@ bool MacWindow::OpenImpl() {
   return true;
 }
 
-void MacWindow::RequestCloseImpl() {
-  assert_true(app_context().IsInUIThread());
-  
-  if (!window_) {
-    return;
+void MacWindow::RequestCloseFromDelegate() {
+  // Handle close request from windowShouldClose delegate  
+  if (is_closing_) {
+    return;  // Already in close process
   }
-
-  // Close the window
-  [window_ close];
   
-  window_ = nullptr;
-  content_view_ = nullptr;
+  is_closing_ = true;
+  
+  // Call OnBeforeClose as per the pattern from GTK/Win32 implementations
+  WindowDestructionReceiver destruction_receiver(this);
+  OnBeforeClose(destruction_receiver);
+  // Note: Don't call [window_ close] here - windowShouldClose will return YES
+  // and the system will handle the actual window destruction
+}
+
+void MacWindow::RequestCloseImpl() {
+  // This is called from the base Window class RequestClose()
+  // Delegate to our close handler
+  RequestCloseFromDelegate();
 }
 
 void MacWindow::ApplyNewFullscreen() {
@@ -247,8 +255,15 @@ void MacWindow::HandleSizeUpdate() {
 }
 
 void MacWindow::OnWindowWillClose() {
-  // The window is about to close
-  RequestCloseImpl();
+  // The window is being closed by the system - handle final cleanup
+  if (is_closing_) {
+    // Clean up references - window is being destroyed by system
+    window_ = nullptr;
+    content_view_ = nullptr;
+    
+    // Complete the close handling
+    OnAfterClose();
+  }
 }
 
 void MacWindow::OnWindowDidResize() {

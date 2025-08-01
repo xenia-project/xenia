@@ -10,7 +10,7 @@
 #include "xenia/ui/surface_mac.h"
 
 #import <Cocoa/Cocoa.h>
-#import <QuartzCore/CAMetalLayer.h>
+#import <QuartzCore/QuartzCore.h>
 
 namespace xe {
 namespace ui {
@@ -34,19 +34,24 @@ bool MacNSViewSurface::GetSizeImpl(uint32_t& width_out,
 
 CAMetalLayer* MacNSViewSurface::GetOrCreateMetalLayer() const {
   if (!view_) {
-    return nil;
+    return nullptr;
   }
-  
-  // Check if the view already has a Metal layer
-  if ([view_.layer isKindOfClass:[CAMetalLayer class]]) {
-    return (CAMetalLayer*)view_.layer;
+
+  // Check if the view already has a CAMetalLayer
+  CALayer* layer = [view_ layer];
+  if ([layer isKindOfClass:[CAMetalLayer class]]) {
+    return static_cast<CAMetalLayer*>(layer);
   }
-  
-  // Create a new Metal layer and set it as the view's layer
+
+  // Create and set a new CAMetalLayer
   CAMetalLayer* metalLayer = [CAMetalLayer layer];
-  view_.wantsLayer = YES;
-  view_.layer = metalLayer;
+  [view_ setWantsLayer:YES];
+  [view_ setLayer:metalLayer];
   
+  // Configure the metal layer
+  metalLayer.framebufferOnly = YES;
+  metalLayer.opaque = YES;
+
   return metalLayer;
 }
 

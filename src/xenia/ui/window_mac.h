@@ -48,8 +48,8 @@ class MacWindow : public Window {
   void OnWindowDidBecomeKey();
   void OnWindowDidResignKey();
   
-  // Public wrapper for delegate close requests
-  void RequestCloseFromDelegate() { RequestCloseImpl(); }
+  // Public wrapper for delegate close requests - handle close without recursion
+  void RequestCloseFromDelegate();
 
  protected:
   bool OpenImpl() override;
@@ -74,6 +74,7 @@ class MacWindow : public Window {
   NSWindow* window_ = nullptr;
   NSView* content_view_ = nullptr;
   XeniaWindowDelegate* delegate_ = nullptr;
+  bool is_closing_ = false;  // Flag to prevent recursive closing
 
   friend class XeniaWindowDelegate;
 };

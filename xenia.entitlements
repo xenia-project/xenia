@@ -16,10 +16,14 @@
     
     <!-- Allow unsigned executable memory (fallback option) -->
     <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
-    <false/>
+    <true/>
     
     <!-- Disable library validation (may be needed for emulator plugins) -->
     <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+    
+    <!-- Allow loading of dynamic libraries -->
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
     <true/>
 </dict>
 </plist>
