@@ -132,3 +132,18 @@ project("xenia-app")
       debugargs({
       })
     end
+
+  filter("platforms:Mac")
+    files({
+      "Info.plist",
+      project_root.."/xenia.entitlements",
+    })
+    buildoptions({
+      "-DINFOPLIST_FILE=" .. path.getabsolute("Info.plist"),
+    })
+    xcodebuildsettings({
+      ["INFOPLIST_FILE"] = path.getabsolute("Info.plist"),
+      ["PRODUCT_BUNDLE_IDENTIFIER"] = "com.xenia.ui-vulkan-demo",
+      ["CODE_SIGN_STYLE"] = "Automatic",
+      ["CODE_SIGN_ENTITLEMENTS"] = path.getabsolute(project_root.."/xenia.entitlements"),
+    })
