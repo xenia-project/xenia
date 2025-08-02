@@ -118,11 +118,14 @@ void WindowDemoApp::WindowDemoWindowListener::OnKeyDown(KeyEvent& e) {
         e.set_handled(true);
         return;
       case VirtualKey::kB:
+        XELOGI("WindowDemo: Command+B pressed - toggling profiler pause");
         Profiler::TogglePause();
         e.set_handled(true);
         return;
     }
   }
+  XELOGI("WindowDemo: Key pressed - virtual_key: {}, super_pressed: {}", 
+         static_cast<int>(e.virtual_key()), e.is_super_pressed());
 }
 
 void WindowDemoApp::WindowDemoDialog::OnDraw(ImGuiIO& io) {
