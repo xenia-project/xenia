@@ -168,3 +168,64 @@ Most critical functionality is working, with the main focus needed on polish and
 **Impact**: These are specialized data conversion operations primarily used for GPU-related processing. Core emulation functionality appears unaffected.
 
 **Priority**: Medium - The failures are in specialized vector operations rather than core CPU emulation.
+
+---
+
+## Runtime Issues
+
+### XAM Module Initialization Failure (August 2025)
+- **Status**: ❌ BLOCKING - Program crashes at startup
+- **Description**: Successful FFmpeg ARM64 compatibility and build completion, but runtime failure during Xbox Application Model (XAM) initialization
+- **Error Details**:
+  ```
+  Assertion failed: (export_entry->ordinal < xam_exports.size()), 
+  function RegisterExport_xam, file xam_module.cc, line 40.
+  
+  Thread 0 crashed:
+  xe::kernel::xam::RegisterExport_xam(xe::cpu::Export*) + 88 
+  __cxx_global_var_init.13 + 36 at xam_avatar.cc:31:1
+  DECLARE_XAM_EXPORT1(XamAvatarInitialize, kAvatars, kStub);
+  ```
+- **Location**: 
+  - `src/xenia/kernel/xam/xam_module.cc:40`
+  - `src/xenia/kernel/xam/xam_avatar.cc:31`
+- **Analysis**: 
+  - The XAM export system expects a specific export table size
+  - Export ordinal validation is failing during global constructor initialization
+  - Likely related to export table setup differences between platforms
+- **Build Status**: ✅ Complete success including:
+  - FFmpeg ARM64 compatibility (disabled NEON optimizations)
+  - Audio subsystem with XMAFRAMES codec support
+  - GPU trace utilities build successfully (`xenia-gpu-vulkan-trace-dump`)
+- **Impact**: Prevents any program execution beyond initialization
+- **Priority**: HIGH - Blocking all runtime functionality
+
+**Next Steps**:
+1. Investigate XAM export table initialization and sizing
+2. Compare export ordinal assignment between platforms
+3. Debug global constructor ordering issues
+4. Verify XAM module setup for macOS ARM64
+
+---
+
+## Build System & Dependencies
+
+### FFmpeg ARM64 Compatibility (✅ RESOLVED - August 2025)
+- **Status**: ✅ RESOLVED
+- **Description**: FFmpeg ARM64 assembly optimizations incompatible with LLVM assembler used by Xcode
+- **Solution Implemented**:
+  - Disabled `ARCH_AARCH64` in macOS FFmpeg config to prevent ARM64 optimization calls
+  - Disabled NEON features (`HAVE_NEON 0`)
+  - Created stub implementations for missing ARM64 functions:
+    - `ff_fft_init_aarch64()`
+    - `ff_float_dsp_init_aarch64()`
+    - `ff_get_cpu_flags_aarch64()`
+    - `ff_get_cpu_max_align_aarch64()`
+  - Excluded problematic assembly files from macOS builds
+- **Result**: Full audio subsystem builds successfully with Xbox codec support
+- **Performance Impact**: Uses generic C implementations instead of ARM64 NEON optimizations
+- **Files Modified**:
+  - `third_party/FFmpeg/config_macos_aarch64.h`
+  - `third_party/FFmpeg/macos_aarch64_stubs.c`
+  - `third_party/FFmpeg/libavutil/premake5.lua`
+  - `third_party/FFmpeg/libavcodec/premake5.lua`
