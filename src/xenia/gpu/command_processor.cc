@@ -193,12 +193,41 @@ void CommandProcessor::SetDesiredSwapPostEffect(
   });
 }
 
+void CommandProcessor::WaitForIdle() {
+  // If we're not running, there's nothing to wait for
+  if (!worker_running_.load()) {
+    return;
+  }
+  
+  // Use a simple polling approach - wait until the pending queue is empty
+  // and the worker is in the wait state (not actively processing commands)
+  while (worker_running_.load() && !pending_fns_.empty()) {
+    // Give the worker thread a chance to process pending functions
+    xe::threading::MaybeYield();
+    xe::threading::Sleep(std::chrono::milliseconds(1));
+  }
+  
+  // At this point, pending_fns_ is empty, but the worker might still be
+  // processing GPU commands. We need to wait for it to reach the idle state.
+  // We can trigger the event to wake up the worker and let it check if 
+  // there's anything to do, then go back to waiting.
+  if (worker_running_.load()) {
+    write_ptr_index_event_->Set();
+    // Give a small delay to let the worker reach the wait state
+    xe::threading::Sleep(std::chrono::milliseconds(5));
+  }
+}
+
 void CommandProcessor::WorkerThreadMain() {
+  threading::set_name("GPU Commands");
   if (!SetupContext()) {
     xe::FatalError("Unable to setup command processor internal state");
     return;
   }
+  fflush(stdout); fflush(stderr);
 
+  XELOGI("CommandProcessor::WorkerThreadMain: About to enter main loop");
+  
   while (worker_running_) {
     while (!pending_fns_.empty()) {
       auto fn = std::move(pending_fns_.front());

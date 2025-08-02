@@ -88,6 +88,9 @@ class CommandProcessor {
 
   void CallInThread(std::function<void()> fn);
 
+  // Wait for all pending functions in the command processor thread to complete
+  void WaitForIdle();
+
   virtual void ClearCaches();
 
   // "Desired" is for the external thread managing the post-processing effect.

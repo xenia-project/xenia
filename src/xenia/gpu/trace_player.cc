@@ -88,7 +88,7 @@ void TracePlayer::WaitOnPlayback() {
 void TracePlayer::PlayTrace(const uint8_t* trace_data, size_t trace_size,
                             TracePlaybackMode playback_mode,
                             bool clear_caches) {
-  playing_trace_ = true;
+  playing_trace_.store(true);
   graphics_system_->command_processor()->CallInThread([=]() {
     PlayTraceOnThread(trace_data, trace_size, playback_mode, clear_caches);
   });
@@ -108,7 +108,7 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
   playback_percent_ = 0;
   auto trace_end = trace_data + trace_size;
 
-  playing_trace_ = true;
+  playing_trace_.store(true);
   auto trace_ptr = trace_data;
   bool pending_break = false;
   const PacketStartCommand* pending_packet = nullptr;
@@ -163,7 +163,7 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
           pending_packet = nullptr;
         }
         if (pending_break) {
-          playing_trace_ = false;
+          playing_trace_.store(false);
           return;
         }
         break;
@@ -242,7 +242,7 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
     }
   }
 
-  playing_trace_ = false;
+  playing_trace_.store(false);
 
   playback_event_->Set();
 }
