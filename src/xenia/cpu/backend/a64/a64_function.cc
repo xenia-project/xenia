@@ -22,6 +22,24 @@
 // Thread-local storage to track if this thread has been initialized for JIT execution
 thread_local bool jit_thread_initialized = false;
 
+// Thread cleanup callback for JIT state
+static void CleanupJITThread() {
+  if (jit_thread_initialized) {
+    XELOGI("JIT thread cleanup starting for thread 0x{:016X}", (uintptr_t)pthread_self());
+    // Reset JIT state to a safe default before thread exit
+    pthread_jit_write_protect_np(1);  // Ensure execute mode is enabled
+    jit_thread_initialized = false;
+    XELOGI("JIT thread cleanup completed for thread 0x{:016X}", (uintptr_t)pthread_self());
+  }
+}
+
+// Thread-local destructor to ensure cleanup on thread exit
+thread_local struct JITThreadCleanup {
+  ~JITThreadCleanup() {
+    CleanupJITThread();
+  }
+} jit_cleanup;
+
 // Initialize JIT execution for the current thread
 static void InitializeJITThread() {
   if (!jit_thread_initialized) {

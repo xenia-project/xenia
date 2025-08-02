@@ -456,6 +456,11 @@ void PosixThread::Terminate(int exit_code) {
     PosixConditionBase::cond_.notify_all();
   }
   if (is_current_thread) {
+#if XE_PLATFORM_MAC && defined(__aarch64__)
+    // On macOS ARM64, ensure JIT write protection is properly reset before thread exit
+    // This prevents crashes during pthread_exit() due to corrupted JIT state
+    pthread_jit_write_protect_np(1);  // Set to execute mode (safe default)
+#endif
     pthread_exit(reinterpret_cast<void*>(exit_code));
   } else {
     pthread_cancel(thread_);
@@ -553,6 +558,10 @@ void Thread::Exit(int exit_code) {
     current_thread_->Terminate(exit_code);
   } else {
     // Should only happen with the main thread
+#if XE_PLATFORM_MAC && defined(__aarch64__)
+    // On macOS ARM64, ensure JIT write protection is properly reset before thread exit
+    pthread_jit_write_protect_np(1);  // Set to execute mode (safe default)
+#endif
     pthread_exit(reinterpret_cast<void*>(exit_code));
   }
   // Function must not return
