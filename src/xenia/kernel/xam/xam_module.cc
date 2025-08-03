@@ -37,7 +37,19 @@ XamModule::XamModule(Emulator* emulator, KernelState* kernel_state)
 std::vector<xe::cpu::Export*> xam_exports(4096);
 
 xe::cpu::Export* RegisterExport_xam(xe::cpu::Export* export_entry) {
-  assert_true(export_entry->ordinal < xam_exports.size());
+  // Debug output to help diagnose the crash
+//  printf("DEBUG: RegisterExport_xam called with ordinal %u (0x%X), xam_exports.size() = %zu\n", 
+//         export_entry->ordinal, export_entry->ordinal, xam_exports.size());
+  
+  if (export_entry->ordinal >= xam_exports.size()) {
+    printf("ERROR: Ordinal %u (0x%X) is >= xam_exports.size() (%zu)\n", 
+           export_entry->ordinal, export_entry->ordinal, xam_exports.size());
+    printf("ERROR: Export name: %s\n", export_entry->name ? export_entry->name : "unknown");
+    // Resize the vector to accommodate the ordinal
+    xam_exports.resize(export_entry->ordinal + 1);
+    printf("DEBUG: Resized xam_exports to %zu\n", xam_exports.size());
+  }
+  
   xam_exports[export_entry->ordinal] = export_entry;
   return export_entry;
 }

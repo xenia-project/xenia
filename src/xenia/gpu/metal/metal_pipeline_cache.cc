@@ -16,6 +16,10 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/profiling.h"
+#include "xenia/base/string_buffer.h"
+#include "xenia/base/xxhash.h"
+#include "xenia/gpu/gpu_flags.h"
+#include "xenia/gpu/metal/metal_command_processor.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/metal/metal_command_processor.h"
 #include "xenia/gpu/metal/metal_shader.h"
@@ -38,7 +42,7 @@ MetalPipelineCache::~MetalPipelineCache() {
 bool MetalPipelineCache::Initialize() {
   SCOPE_profile_cpu_f("gpu");
 
-  XELOGD("Metal pipeline cache: Initialized successfully");
+  XELOGI("Metal pipeline cache: Initialized successfully");
   return true;
 }
 
@@ -47,13 +51,12 @@ void MetalPipelineCache::Shutdown() {
 
   ClearCache();
 
-  XELOGD("Metal pipeline cache: Shutdown complete");
+  XELOGI("Metal pipeline cache: Shutdown complete");
 }
 
 void MetalPipelineCache::ClearCache() {
   SCOPE_profile_cpu_f("gpu");
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
   // Release all Metal render pipeline states
   for (auto& pair : render_pipeline_cache_) {
     if (pair.second) {
@@ -69,9 +72,8 @@ void MetalPipelineCache::ClearCache() {
     }
   }
   compute_pipeline_cache_.clear();
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 
-  XELOGD("Metal pipeline cache: Cache cleared");
+  XELOGI("Metal pipeline cache: Cache cleared");
 }
 
 bool MetalPipelineCache::TranslateShader(DxbcShaderTranslator& translator,
@@ -81,14 +83,42 @@ bool MetalPipelineCache::TranslateShader(DxbcShaderTranslator& translator,
 
   // Metal-specific shader translation will be implemented here
   // This will use Metal Shader Converter for Xbox 360 game shaders
-  XELOGD("Metal pipeline cache: Shader translation requested for shader %016" PRIx64, 
+  XELOGI("Metal pipeline cache: Shader translation requested for shader %016" PRIx64, 
          shader.ucode_data_hash());
   
   // For now, just return true as a stub
   return true;
 }
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
+Shader* MetalPipelineCache::LoadShader(xenos::ShaderType shader_type,
+                                       const uint32_t* host_address,
+                                       uint32_t dword_count) {
+  SCOPE_profile_cpu_f("gpu");
+
+  // Phase B Step 1: Use MetalShader for DXIL→Metal conversion
+  XELOGI("Metal pipeline cache: Loading {} shader, {} dwords",
+         shader_type == xenos::ShaderType::kVertex ? "vertex" : "pixel",
+         dword_count);
+
+  // Create a hash from the shader data using XXH3 (same as D3D12 backend)
+  uint64_t data_hash = XXH3_64bits(host_address, dword_count * sizeof(uint32_t));
+  
+  XELOGI("Metal pipeline cache: Shader data hash = {:016x}", data_hash);
+
+  // Create MetalShader object which supports DXIL→Metal conversion
+  auto metal_shader = std::make_unique<MetalShader>(shader_type, data_hash, host_address, dword_count);
+  
+  // Analyze the shader ucode to populate basic information
+  StringBuffer ucode_disasm_buffer;
+  metal_shader->AnalyzeUcode(ucode_disasm_buffer);
+  
+  XELOGI("Metal pipeline cache: Created MetalShader object for {} shader",
+         shader_type == xenos::ShaderType::kVertex ? "vertex" : "pixel");
+  
+  // For Phase B, we'll start the DXIL translation process
+  // The actual Metal compilation will happen when needed by the pipeline
+  return metal_shader.release();
+}
 
 MTL::RenderPipelineState* MetalPipelineCache::GetRenderPipelineState(
     const RenderPipelineDescription& description) {
@@ -104,7 +134,7 @@ MTL::RenderPipelineState* MetalPipelineCache::GetRenderPipelineState(
   MTL::RenderPipelineState* pipeline_state = CreateRenderPipelineState(description);
   if (pipeline_state) {
     render_pipeline_cache_[description] = pipeline_state;
-    XELOGD("Metal pipeline cache: Created new render pipeline (total: {})",
+    XELOGI("Metal pipeline cache: Created new render pipeline (total: {})",
            render_pipeline_cache_.size());
   }
 
@@ -125,7 +155,7 @@ MTL::ComputePipelineState* MetalPipelineCache::GetComputePipelineState(
   MTL::ComputePipelineState* pipeline_state = CreateComputePipelineState(description);
   if (pipeline_state) {
     compute_pipeline_cache_[description] = pipeline_state;
-    XELOGD("Metal pipeline cache: Created new compute pipeline (total: {})",
+    XELOGI("Metal pipeline cache: Created new compute pipeline (total: {})",
            compute_pipeline_cache_.size());
   }
 
@@ -136,12 +166,9 @@ MTL::RenderPipelineState* MetalPipelineCache::CreateRenderPipelineState(
     const RenderPipelineDescription& description) {
   SCOPE_profile_cpu_f("gpu");
 
-  // TODO: Get Metal device from command processor
-  // MTL::Device* device = command_processor_->GetMetalDevice();
-  // For now, create a temporary device
-  MTL::Device* device = MTL::CreateSystemDefaultDevice();
+  MTL::Device* device = command_processor_->GetMetalDevice();
   if (!device) {
-    XELOGE("Metal pipeline cache: Failed to get Metal device");
+    XELOGE("Metal pipeline cache: Failed to get Metal device from command processor");
     return nullptr;
   }
 
@@ -153,8 +180,76 @@ MTL::RenderPipelineState* MetalPipelineCache::CreateRenderPipelineState(
     return nullptr;
   }
 
-  // TODO: Set vertex and fragment functions from shader cache
-  // This requires getting the compiled Metal shaders from the shader system
+  // Phase B Step 3: Set vertex and fragment functions from shader cache
+  // For now, we'll create basic placeholder functions to pass Metal validation
+  // In later phases, this will use the actual compiled Metal shaders
+  
+  // Get Metal library and create basic vertex/fragment functions
+  std::string vertex_source = R"(
+#include <metal_stdlib>
+using namespace metal;
+
+struct VertexIn {
+    float3 position [[attribute(0)]];
+};
+
+struct VertexOut {
+    float4 position [[position]];
+};
+
+vertex VertexOut vertex_main(VertexIn in [[stage_in]]) {
+    VertexOut out;
+    out.position = float4(in.position, 1.0);
+    return out;
+}
+)";
+
+  std::string fragment_source = R"(
+#include <metal_stdlib>
+using namespace metal;
+
+fragment float4 fragment_main() {
+    return float4(1.0, 0.0, 1.0, 1.0); // Magenta placeholder
+}
+)";
+
+  // Create temporary Metal library for placeholder shaders
+  NS::String* vertex_code = NS::String::string(vertex_source.c_str(), NS::UTF8StringEncoding);
+  MTL::CompileOptions* compile_options = MTL::CompileOptions::alloc()->init();
+  
+  NS::Error* error = nullptr;
+  MTL::Library* library = device->newLibrary(vertex_code, compile_options, &error);
+  
+  if (error || !library) {
+    XELOGW("Metal pipeline cache: Failed to create placeholder shader library");
+    if (error) {
+      XELOGW("Metal pipeline cache: Error: {}", error->localizedDescription()->utf8String());
+    }
+    // Continue without shaders for now - this will fail validation but we can debug
+  } else {
+    // Get vertex function
+    NS::String* vertex_func_name = NS::String::string("vertex_main", NS::UTF8StringEncoding);
+    MTL::Function* vertex_function = library->newFunction(vertex_func_name);
+    if (vertex_function) {
+      descriptor->setVertexFunction(vertex_function);
+      vertex_function->release();
+      XELOGI("Metal pipeline cache: Set placeholder vertex function");
+    }
+    
+    // Get fragment function  
+    NS::String* fragment_func_name = NS::String::string("fragment_main", NS::UTF8StringEncoding);
+    MTL::Function* fragment_function = library->newFunction(fragment_func_name);
+    if (fragment_function) {
+      descriptor->setFragmentFunction(fragment_function);
+      fragment_function->release();
+      XELOGI("Metal pipeline cache: Set placeholder fragment function");
+    }
+    
+    library->release();
+  }
+  
+  compile_options->release();
+  vertex_code->release();
   
   // Configure blend state
   ConfigureBlendState(descriptor, description);
@@ -168,10 +263,11 @@ MTL::RenderPipelineState* MetalPipelineCache::CreateRenderPipelineState(
 
   // Set render target formats (simplified for now)
   descriptor->colorAttachments()->object(0)->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
-  descriptor->setDepthAttachmentPixelFormat(MTL::PixelFormatDepth32Float);
+  // TODO: Add depth attachment when implementing Xbox 360 depth buffer support
+  // descriptor->setDepthAttachmentPixelFormat(MTL::PixelFormatDepth32Float);
 
   // Create the pipeline state
-  NS::Error* error = nullptr;
+  error = nullptr;
   MTL::RenderPipelineState* pipeline_state = device->newRenderPipelineState(descriptor, &error);
   
   descriptor->release();
@@ -237,15 +333,29 @@ MTL::VertexDescriptor* MetalPipelineCache::CreateVertexDescriptor(
     return nullptr;
   }
 
-  // TODO: Configure vertex attributes based on Xbox 360 vertex format
-  // This requires parsing the vertex format hash and setting up appropriate
-  // Metal vertex attributes and buffer layouts
+  // Phase B Step 3: Configure basic vertex descriptor for placeholder shaders
+  // This matches our placeholder vertex shader that expects position at attribute 0
   
-  // For now, return empty descriptor
+  // Configure position attribute (float3 at attribute 0)
+  MTL::VertexAttributeDescriptor* position_attr = vertex_descriptor->attributes()->object(0);
+  position_attr->setFormat(MTL::VertexFormatFloat3);
+  position_attr->setOffset(0);
+  position_attr->setBufferIndex(0);
+  
+  // Configure buffer layout (stride = 3 floats = 12 bytes)
+  MTL::VertexBufferLayoutDescriptor* buffer_layout = vertex_descriptor->layouts()->object(0);
+  buffer_layout->setStride(12); // 3 * sizeof(float)
+  buffer_layout->setStepRate(1);
+  buffer_layout->setStepFunction(MTL::VertexStepFunctionPerVertex);
+  
+  XELOGI("Metal pipeline cache: Created basic vertex descriptor with position attribute");
+  
+  // TODO: Configure vertex attributes based on actual Xbox 360 vertex format
+  // This requires parsing the vertex format hash and setting up appropriate
+  // Metal vertex attributes and buffer layouts for real Xbox 360 data
+  
   return vertex_descriptor;
 }
-
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 
 bool MetalPipelineCache::CompileMetalShader(MetalShader* shader, uint64_t modification) {
   if (!shader) {

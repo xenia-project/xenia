@@ -20,9 +20,7 @@
 #include "xenia/gpu/xenos.h"
 
 #if XE_PLATFORM_MAC
-#ifdef METAL_CPP_AVAILABLE
 #include "third_party/metal-cpp/Metal/Metal.hpp"
-#endif  // METAL_CPP_AVAILABLE
 #endif  // XE_PLATFORM_MAC
 
 namespace xe {
@@ -43,27 +41,19 @@ class MetalPipelineCache {
   void Shutdown();
   void ClearCache();
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
-  // Get or create Metal render pipeline state
-  MTL::RenderPipelineState* GetRenderPipelineState(
-      const RenderPipelineDescription& description);
-  
-  // Get or create Metal compute pipeline state
-  MTL::ComputePipelineState* GetComputePipelineState(
-      const ComputePipelineDescription& description);
-#endif
+  // Shader loading and management
+  Shader* LoadShader(xenos::ShaderType shader_type,
+                     const uint32_t* host_address, uint32_t dword_count);
 
- protected:
-  bool TranslateShader(DxbcShaderTranslator& translator, 
-                       const Shader& shader, 
-                       reg::SQ_PROGRAM_CNTL cntl);
-
- private:
+  // Pipeline state descriptions (public for use by command processor)
   struct RenderPipelineDescription {
     uint64_t vertex_shader_hash;
     uint64_t pixel_shader_hash;
     uint64_t vertex_shader_modification;
     uint64_t pixel_shader_modification;
+    
+    // Primitive type for this draw call
+    xenos::PrimitiveType primitive_type;
     
     // Render state from Xbox 360 GPU registers
     uint32_t color_mask[4];
@@ -94,11 +84,24 @@ class MetalPipelineCache {
     size_t operator()(const ComputePipelineDescription& desc) const;
   };
 
+  // Get or create Metal render pipeline state
+  MTL::RenderPipelineState* GetRenderPipelineState(
+      const RenderPipelineDescription& description);
+  
+  // Get or create Metal compute pipeline state
+  MTL::ComputePipelineState* GetComputePipelineState(
+      const ComputePipelineDescription& description);
+
+ protected:
+  bool TranslateShader(DxbcShaderTranslator& translator, 
+                       const Shader& shader, 
+                       reg::SQ_PROGRAM_CNTL cntl);
+
+ private:
   MetalCommandProcessor* command_processor_;
   const RegisterFile* register_file_;
   bool edram_rov_used_;
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
   // Metal pipeline state caches
   std::unordered_map<RenderPipelineDescription, MTL::RenderPipelineState*,
                      RenderPipelineDescriptionHasher> render_pipeline_cache_;
@@ -120,7 +123,6 @@ class MetalPipelineCache {
   // Convert Xbox 360 vertex format to Metal
   MTL::VertexDescriptor* CreateVertexDescriptor(
       const RenderPipelineDescription& description);
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 
   // Shader compilation helpers
   bool CompileMetalShader(MetalShader* shader, uint64_t modification);

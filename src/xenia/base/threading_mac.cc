@@ -192,8 +192,6 @@ class PosixThread : public Thread,
   void* native_handle() const override;
   PosixConditionBase& condition() override;
 
-  void WaitStarted() const;
-
   // Alertable synchronization
   mutable std::mutex alertable_mutex_;
   std::condition_variable alertable_cv_;
@@ -257,26 +255,36 @@ bool PosixThread::Initialize(Thread::CreationParameters params,
       {std::move(start_routine), params.create_suspended, this});
 
   pthread_attr_t attr;
-  if (pthread_attr_init(&attr) != 0) return false;
+  if (pthread_attr_init(&attr) != 0) {
+    delete start_data;
+    return false;
+  }
   if (pthread_attr_setstacksize(&attr, params.stack_size) != 0) {
     pthread_attr_destroy(&attr);
+    delete start_data;
     return false;
   }
   // Set detach state to joinable
   if (pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE) != 0) {
     pthread_attr_destroy(&attr);
+    delete start_data;
     return false;
   }
+  
+  // Create thread and wait for it to initialize under lock
   {
     std::unique_lock<std::mutex> lock(state_mutex_);
     if (pthread_create(&thread_, &attr, ThreadStartRoutine, start_data) != 0) {
       pthread_attr_destroy(&attr);
+      delete start_data;
       return false;
     }
+    
+    // Wait for the thread to complete initialization
+    state_signal_.wait(lock, [this]() { return state_ != State::kUninitialized; });
   }
+  
   pthread_attr_destroy(&attr);
-
-  WaitStarted();
 
   if (params.create_suspended) {
     std::unique_lock<std::mutex> lock(state_mutex_);
@@ -292,11 +300,6 @@ bool PosixThread::Initialize(Thread::CreationParameters params,
   return true;
 }
 
-void PosixThread::WaitStarted() const {
-  std::unique_lock<std::mutex> lock(state_mutex_);
-  state_signal_.wait(lock, [this]() { return state_ != State::kUninitialized; });
-}
-
 void* PosixThread::ThreadStartRoutine(void* parameter) {
   threading::set_name("");
 
@@ -308,13 +311,14 @@ void* PosixThread::ThreadStartRoutine(void* parameter) {
   auto start_routine = std::move(start_data->start_routine);
   delete start_data;
 
-  current_thread_ = thread;
-
-  // Set mach_thread_
-  thread->mach_thread_ = pthread_mach_thread_np(pthread_self());
-
+  // Set mach_thread_ before any other operations
+  mach_port_t mach_thread = pthread_mach_thread_np(pthread_self());
+  
+  // Synchronize all thread initialization under one lock
   {
     std::unique_lock<std::mutex> lock(thread->state_mutex_);
+    current_thread_ = thread;
+    thread->mach_thread_ = mach_thread;
     thread->state_ = State::kRunning;
     thread->state_signal_.notify_all();
   }
@@ -337,7 +341,6 @@ void* PosixThread::ThreadStartRoutine(void* parameter) {
 }
 
 void PosixThread::set_name(std::string name) {
-  WaitStarted();
   Thread::set_name(name);
   std::unique_lock<std::mutex> lock(state_mutex_);
   if (pthread_self() == thread_) {
@@ -362,7 +365,6 @@ void PosixThread::set_affinity_mask(uint64_t mask) {
 }
 
 int PosixThread::priority() {
-  WaitStarted();
   int policy;
   sched_param param{};
   int ret = pthread_getschedparam(thread_, &policy, &param);
@@ -374,7 +376,6 @@ int PosixThread::priority() {
 }
 
 void PosixThread::set_priority(int new_priority) {
-  WaitStarted();
   sched_param param{};
   param.sched_priority = new_priority;
   if (pthread_setschedparam(thread_, SCHED_FIFO, &param) != 0)
@@ -382,7 +383,6 @@ void PosixThread::set_priority(int new_priority) {
 }
 
 void PosixThread::QueueUserCallback(std::function<void()> callback) {
-  WaitStarted();
   {
     std::lock_guard<std::mutex> lock(alertable_mutex_);
     user_callback_ = std::move(callback);
@@ -395,7 +395,6 @@ bool PosixThread::Resume(uint32_t* out_previous_suspend_count) {
   if (out_previous_suspend_count) {
     *out_previous_suspend_count = 0;
   }
-  WaitStarted();
   std::unique_lock<std::mutex> lock(state_mutex_);
   if (state_ != State::kSuspended) return false;
   if (out_previous_suspend_count) {
@@ -417,7 +416,6 @@ bool PosixThread::Suspend(uint32_t* out_previous_suspend_count) {
   if (out_previous_suspend_count) {
     *out_previous_suspend_count = 0;
   }
-  WaitStarted();
   std::unique_lock<std::mutex> lock(state_mutex_);
   if (out_previous_suspend_count) {
     *out_previous_suspend_count = suspend_count_;

@@ -210,17 +210,13 @@ MTL::Buffer* MetalBufferCache::GetVertexBuffer(uint32_t guest_base, uint32_t gue
 }
 
 MTL::Buffer* MetalBufferCache::CreateBuffer(size_t size, MTL::ResourceOptions options) {
-  // TODO: Get Metal device from command processor
-  // MTL::Device* device = command_processor_->GetMetalDevice();
-  // For now, create a temporary device
-  MTL::Device* device = MTL::CreateSystemDefaultDevice();
+  MTL::Device* device = command_processor_->GetMetalDevice();
   if (!device) {
-    XELOGE("Metal buffer cache: Failed to get Metal device");
+    XELOGE("Metal buffer cache: Failed to get Metal device from command processor");
     return nullptr;
   }
 
   MTL::Buffer* buffer = device->newBuffer(size, options);
-  device->release();
 
   if (!buffer) {
     XELOGE("Metal buffer cache: Failed to create buffer of size {}", size);

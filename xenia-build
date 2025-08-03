@@ -538,12 +538,12 @@ def get_build_bin_path(args):
       A full path for the bin folder.
     """
     if sys.platform == 'darwin':
-        platform = 'macosx'
+        platform = 'Mac'
     elif sys.platform == 'win32':
         platform = 'windows'
     else:
         platform = 'linux'
-    return os.path.join(self_path, 'build', 'bin', platform.capitalize(), args['config'].capitalize())
+    return os.path.join(self_path, 'build', 'bin', platform, args['config'].capitalize())
 
 
 def create_clion_workspace():

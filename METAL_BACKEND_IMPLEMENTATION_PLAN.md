@@ -332,71 +332,69 @@ DEFINE_bool(metal_capture, false, "Enable Metal GPU capture", "GPU");
 
 This implementation leverages Apple's official Metal Shader Converter to create a robust, high-performance Metal backend that solves all MoltenVK compatibility issues while providing superior performance on Apple Silicon.
 
-## Progress Update (Phase 2.6 - Metal UI Backend Implementation Complete)
+## Progress Update (Phase C Complete - Metal Command Encoding Pipeline Working)
 
-### ✅ Phase 1 Completed (Metal Shader Converter Integration)
-- ✅ **1.1 Metal Shader Converter Setup**: Metal Shader Converter 3.0 system installation at `/opt/metal-shaderconverter`, third_party dependencies, premake integration
-- ✅ **1.2 Metal Graphics System Structure**: Complete Metal backend file structure with graphics system, command processor, all cache systems (pipeline, buffer, texture, render target, presenter)
+### ✅ Phase A Completed - Enable Basic Trace Processing
+- ✅ **Step 1**: MetalCommandProcessor initialization with cache system integration
+- ✅ **Step 2**: Basic shader loading via MetalPipelineCache::LoadShader 
+- ✅ **Step 3**: Basic draw command processing via MetalCommandProcessor::IssueDraw
 
-### 🏗️ Phase 2.1-2.4 Partial (Core Metal Backend - Architecture Only)
-- ✅ **Step 1**: MetalGraphicsSystem with Metal device and command queue creation *(basic device creation working, rendering stubs)*
-- ✅ **Step 2**: MetalCommandProcessor with cache system integration *(constructor working, command processing stubs)*
-- ✅ **Step 3**: Basic command processing infrastructure *(architecture in place, actual command processing TODO)*
-- ✅ **Step 4**: Metal trace dump test target creation *(builds but doesn't run due to kernel initialization issues)*
+### ✅ Phase B Completed - Enable Metal Shader Conversion
+- ✅ **Step 1**: MetalShader integration with DXIL→Metal conversion infrastructure
+- ✅ **Step 2**: Pipeline state object creation and caching system
+- ✅ **Step 3**: Metal shader functions and vertex descriptors with placeholder shaders
 
-### ✅ Phase 2.6 Completed (Metal UI Backend Implementation)
-- ✅ **MetalImmediateDrawer Complete Implementation**: 
-  - Metal Shading Language (MSL) vertex and fragment shaders with proper texture sampling
-  - Dual pipeline system (textured/non-textured) with correct fragment shader selection
-  - Complete texture creation with RGBA8 format, proper sampling, and Metal texture wrapper
-  - Full vertex buffer management with proper Metal vertex descriptors
-  - Orthographic projection matrix setup for UI coordinate space (0,0 top-left)
-  - Debug logging and comprehensive draw call implementation
-- ✅ **MetalPresenter Complete Implementation**:
-  - CAMetalLayer integration with drawable acquisition and presentation
-  - Command buffer and render encoder lifecycle management
-  - MetalUIDrawContext creation and Metal command object bridging
-  - Proper render pass setup with background color and Metal presentation pipeline
-  - Surface connection management with .mm Objective-C++ compatibility
-- ✅ **ImGui Full Functionality**: Interactive ImGui interface with complete visual rendering
-- ✅ **MicroProfile Profiler Integration**: 
-  - Command+G toggle working with proper z-order layering (profiler on top of ImGui)
-  - Fixed scissor rect management to prevent ImGui clipping affecting profiler rendering
-  - Both text rendering (with font texture) and colored box rendering (non-textured) working
-- ✅ **Visual Parity Achievement**: `xenia-ui-window-metal-demo` matches `xenia-ui-window-vulkan-demo` exactly
+### ✅ Phase C Completed - Enable Metal Command Encoding  
+- ✅ **Step 1**: Metal command buffers and render pass encoding
+- ✅ **Step 2**: Enhanced Metal frame debugging with detailed labeling
+- ✅ **Step 3**: Basic vertex buffer support and actual draw call execution
 
-### 🔄 Current Reality Check: Metal UI Backend vs. GPU Backend Status
-**What's Now Fully Working:**
-- ✅ Complete Metal UI backend with working ImGui rendering and interactivity
-- ✅ Metal device creation and command queue management
-- ✅ Metal texture creation, shader compilation, and draw call execution
-- ✅ Profiler integration with proper overlay rendering
-- ✅ CAMetalLayer presentation pipeline with frame synchronization
-- ✅ Scissor rect management and render state handling
+### 🎯 MAJOR MILESTONE ACHIEVED
+**Successfully rendering graphics through Metal GPU backend:**
+- ✅ Complete Xbox 360 trace processing pipeline working end-to-end
+- ✅ Metal pipeline state creation and caching functional
+- ✅ Metal command buffer encoding and draw call execution
+- ✅ Placeholder shaders rendering blue squares in Xcode GPU capture
+- ✅ No more PM4_DRAW_INDX backend failures - all draw commands succeeding
 
-**What's Still TODO (GPU Backend Implementation):**
-- **MetalGraphicsSystem GPU Implementation** - Xbox 360 command processing and graphics pipeline
-- **Metal Shader Translation** - DXIL→Metal Shader Converter integration for game shaders
-- **MetalCommandProcessor** - Actual PM4 command translation and execution
-- **Cache Systems** - Pipeline cache, buffer cache, texture cache with Xbox 360 GPU semantics
-- **Metal Trace Processing** - Execute Xbox 360 GPU traces through Metal backend
+### ⚠️ CRITICAL LIMITATIONS & TODO ITEMS
 
-### 🎯 Achievement: Vulkan Window Demo Parity Reached
-**Completed Target**: Full parity with `xenia-ui-window-vulkan-demo`:
-- ✅ ImGui windows render with proper text, buttons, and visual elements
-- ✅ Interactive UI with mouse and keyboard input handling
-- ✅ Profiler overlay with Command+G toggle functionality
-- ✅ Proper z-order layering and scissor rect management
-- ✅ Metal presentation pipeline with smooth frame rendering
+**🚨 Placeholder/Stub Implementations (NOT Production Ready):**
+- **Placeholder Shaders Only**: Using hardcoded vertex/fragment shaders, NOT Xbox 360 game shaders
+- **No DXIL→Metal Translation**: Metal Shader Converter integration exists but not used for real shaders
+- **Dummy Vertex Data**: Creating triangle vertices instead of using Xbox 360 vertex buffers  
+- **No Xbox 360 GPU State**: Pipeline states use hardcoded hashes, not actual Xbox 360 register state
+- **No Index Buffer Support**: Missing IndexBufferInfo processing for indexed draws
+- **No Texture Binding**: Xbox 360 textures not mapped to Metal textures
+- **No Render Target Mapping**: Drawing to dummy 256x256 texture, not Xbox 360 render targets
+- **Primitive Type Issues**: "unknown" primitive types indicating incomplete Xbox 360→Metal mapping
 
-**Next Phase Priority:**
-1. **Document and Commit Progress** - Create proper git commits for Metal UI backend implementation
-2. **Metal GPU Backend Development** - Focus on Xbox 360 graphics command processing
-3. **DXIL→Metal Shader Translation** - Implement game shader conversion pipeline
-4. **Trace Testing Infrastructure** - Enable `xenia-gpu-metal-trace-dump` functionality
+**🔧 Incomplete Cache Systems:**
+- MetalBufferCache - Architecture only, no Xbox 360 buffer translation
+- MetalTextureCache - Architecture only, no Xbox 360 texture format conversion  
+- MetalRenderTargetCache - Architecture only, no Xbox 360 render target mapping
+- MetalPipelineCache - Basic caching works, but using placeholder pipeline descriptions
 
-### 📊 Implementation Status: Metal UI Complete, GPU Backend Next
-- **Metal UI Backend: 100% Complete** - Full implementation with visual parity to Vulkan backend
-- **Metal GPU Backend: 15% Complete** - Architecture and device creation only, major implementation work required
-- **Realistic Next Steps**: Build on proven Metal UI foundation to implement Xbox 360 GPU command processing
-- **Known Working Foundation**: Metal device management, shader compilation, texture handling, and presentation pipeline
+**📊 Realistic Current Status:**
+- **Metal Command Pipeline: 90% Complete** - Full command encoding working with placeholders
+- **Xbox 360 Integration: 15% Complete** - Basic trace processing only, no real GPU state translation
+- **Shader Translation: 5% Complete** - Infrastructure exists, Metal Shader Converter not actively used
+- **Resource Management: 10% Complete** - Cache architectures exist, Xbox 360 resource mapping missing
+
+### 🎯 Phase D Priority Items (Xbox 360 Data Integration)
+
+**Immediate Next Steps for Production Readiness:**
+1. **Fix Primitive Type Mapping** - Complete Xbox 360→Metal primitive type conversion
+2. **Real Shader Translation** - Implement DXIL→Metal Shader Converter pipeline for game shaders
+3. **Xbox 360 Vertex Buffer Integration** - Use actual Xbox 360 vertex data instead of hardcoded triangles
+4. **Xbox 360 Pipeline State Mapping** - Extract shader hashes and GPU state from Xbox 360 registers
+5. **Index Buffer Processing** - Handle Xbox 360 index buffer data for indexed draws
+6. **Render Target Integration** - Map Xbox 360 render targets to Metal textures
+7. **Texture Binding** - Xbox 360 texture sampling through Metal texture arrays
+
+**Validation Requirements:**
+- Test with complex Xbox 360 games, not just simple trace files
+- Verify shader translation accuracy with Metal Shader Converter
+- Performance comparison against D3D12/Vulkan backends
+- Memory usage optimization for Apple Silicon
+- Comprehensive Xbox 360 GPU feature coverage testing

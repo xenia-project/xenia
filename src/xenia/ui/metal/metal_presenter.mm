@@ -163,8 +163,15 @@ MetalPresenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(
 }
 
 void MetalPresenter::DisconnectPaintingFromSurfaceFromUIThreadImpl() {
-  // TODO(wmarti): Implement Metal surface disconnection
-  XELOGW("Metal DisconnectPaintingFromSurfaceFromUIThreadImpl not implemented");
+  // Clean up Metal presentation resources
+  if (metal_layer_) {
+    metal_layer_ = nullptr;
+  }
+  
+  // Command queue is owned by the provider, not released here
+  command_queue_ = nullptr;
+  
+  XELOGI("Metal surface disconnected successfully");
 }
 
 bool MetalPresenter::RefreshGuestOutputImpl(

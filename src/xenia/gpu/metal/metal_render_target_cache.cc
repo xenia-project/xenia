@@ -248,12 +248,9 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor() con
 
 MTL::Texture* MetalRenderTargetCache::CreateColorTarget(uint32_t width, uint32_t height,
                                                         MTL::PixelFormat format, uint32_t samples) {
-  // TODO: Get Metal device from command processor
-  // MTL::Device* device = command_processor_->GetMetalDevice();
-  // For now, create a temporary device
-  MTL::Device* device = MTL::CreateSystemDefaultDevice();
+  MTL::Device* device = command_processor_->GetMetalDevice();
   if (!device) {
-    XELOGE("Metal render target cache: Failed to get Metal device");
+    XELOGE("Metal render target cache: Failed to get Metal device from command processor");
     return nullptr;
   }
 
@@ -285,12 +282,9 @@ MTL::Texture* MetalRenderTargetCache::CreateColorTarget(uint32_t width, uint32_t
 
 MTL::Texture* MetalRenderTargetCache::CreateDepthTarget(uint32_t width, uint32_t height,
                                                         MTL::PixelFormat format, uint32_t samples) {
-  // TODO: Get Metal device from command processor
-  // MTL::Device* device = command_processor_->GetMetalDevice();
-  // For now, create a temporary device
-  MTL::Device* device = MTL::CreateSystemDefaultDevice();
+  MTL::Device* device = command_processor_->GetMetalDevice();
   if (!device) {
-    XELOGE("Metal render target cache: Failed to get Metal device");
+    XELOGE("Metal render target cache: Failed to get Metal device from command processor");
     return nullptr;
   }
 
@@ -310,7 +304,6 @@ MTL::Texture* MetalRenderTargetCache::CreateDepthTarget(uint32_t width, uint32_t
   MTL::Texture* texture = device->newTexture(descriptor);
   
   descriptor->release();
-  device->release();
 
   if (!texture) {
     XELOGE("Metal render target cache: Failed to create depth target {}x{}", width, height);

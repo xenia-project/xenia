@@ -375,29 +375,37 @@ X_STATUS XThread::Create() {
   xe::threading::Thread::CreationParameters params;
   params.stack_size = 16_MiB;  // Allocate a big host stack.
   params.create_suspended = true;
-  thread_ = xe::threading::Thread::Create(params, [this]() {
+  
+  // Create a shared_ptr to ensure object stability during thread creation
+  auto self_ref = std::shared_ptr<XThread>(this, [](XThread*) {
+    // Custom deleter that does nothing - the object is managed by RetainHandle/ReleaseHandle
+  });
+  
+  thread_ = xe::threading::Thread::Create(params, [self_ref]() {
+    auto* self = self_ref.get();
+    
     // Set thread ID override. This is used by logging.
-    xe::threading::set_current_thread_id(handle());
+    xe::threading::set_current_thread_id(self->handle());
 
     // Set name immediately, if we have one.
-    thread_->set_name(thread_name_);
+    xe::threading::set_name(self->thread_name_);
 
     // Profiler needs to know about the thread.
-    xe::Profiler::ThreadEnter(thread_name_.c_str());
+    xe::Profiler::ThreadEnter(self->thread_name_.c_str());
 
     // Execute user code.
-    current_xthread_tls_ = this;
-    current_thread_ = this;
-    running_ = true;
-    Execute();
-    running_ = false;
+    current_xthread_tls_ = self;
+    current_thread_ = self;
+    self->running_ = true;
+    self->Execute();
+    self->running_ = false;
     current_thread_ = nullptr;
     current_xthread_tls_ = nullptr;
 
     xe::Profiler::ThreadExit();
 
     // Release the self-reference to the thread.
-    ReleaseHandle();
+    self->ReleaseHandle();
   });
 
   if (!thread_) {
@@ -1074,19 +1082,91 @@ XHostThread::XHostThread(KernelState* kernel_state, uint32_t stack_size,
   // By default host threads are not debugger suspendable. If the thread runs
   // any guest code this must be overridden.
   can_debugger_suspend_ = false;
+  
+  // Debug: Check if the function is valid at construction time
+  XELOGI("XHostThread constructor: this pointer = 0x{:016X}", (uintptr_t)this);
+  XELOGI("XHostThread constructor: host_fn_ address = 0x{:016X}", (uintptr_t)&host_fn_);
+  
+  if (!host_fn_) {
+    XELOGE("XHostThread constructor: host_fn is null for thread {}", thread_id_);
+  } else {
+    XELOGI("XHostThread constructor: host_fn is valid for thread {}", thread_id_);
+    // Check the std::function internals
+    XELOGI("XHostThread constructor: host_fn_.target_type = {}", host_fn_.target_type().name());
+  }
+  
+  // Check object integrity immediately after construction
+  void** vtable = *(void***)this;
+  XELOGI("XHostThread constructor: vtable pointer = 0x{:016X}", (uintptr_t)vtable);
 }
 
 void XHostThread::Execute() {
+  // Get system ID safely - thread_ might not be fully initialized yet
+  uint32_t native_id = 0;
+  if (thread_) {
+    native_id = thread_->system_id();
+  } else {
+    // Fallback to getting current thread ID directly
+    native_id = xe::threading::current_thread_system_id();
+  }
+  
   XELOGKERNEL(
-      "XThread::Execute thid {} (handle={:08X}, '{}', native={:08X}, <host>)",
-      thread_id_, handle(), thread_name_, thread_->system_id());
+      "XHostThread::Execute thid {} (handle={:08X}, '{}', native={:08X}, <host>)",
+      thread_id_, handle(), thread_name_, native_id);
 
   // Let the kernel know we are starting.
   kernel_state()->OnThreadExecute(this);
 
-  int ret = host_fn_();
+  int ret = 0;
+  
+  // Debug: Check object integrity before execution
+  XELOGI("XHostThread::Execute: About to check object integrity for thread {}", thread_id_);
+  XELOGI("XHostThread::Execute: this pointer = 0x{:016X}", (uintptr_t)this);
+  
+  // Check vtable integrity
+  void** vtable = *(void***)this;
+  XELOGI("XHostThread::Execute: vtable pointer = 0x{:016X}", (uintptr_t)vtable);
+  
+  // Check if we can read the vtable
+  if (vtable) {
+    try {
+      XELOGI("XHostThread::Execute: vtable[0] = 0x{:016X}", (uintptr_t)vtable[0]);
+    } catch (...) {
+      XELOGE("XHostThread::Execute: CRITICAL - vtable is corrupted!");
+    }
+  }
+  
+  // Debug: Check function validity again at execution time
+  XELOGI("XHostThread::Execute: About to check host_fn_ validity for thread {}", thread_id_);
+  XELOGI("XHostThread::Execute: host_fn_ address = 0x{:016X}", (uintptr_t)&host_fn_);
+  
+  // Check if host_fn_ memory is accessible
+  try {
+    bool has_target = static_cast<bool>(host_fn_);
+    XELOGI("XHostThread::Execute: host_fn_ bool conversion = {}", has_target);
+  } catch (...) {
+    XELOGE("XHostThread::Execute: CRITICAL - host_fn_ memory is corrupted!");
+    Exit(1);
+    return;
+  }
+  
+  if (host_fn_) {
+    XELOGI("XHostThread::Execute: host_fn_ is valid, calling function for thread {}", thread_id_);
+    try {
+      ret = host_fn_();
+      XELOGI("XHostThread::Execute: host_fn_ completed successfully for thread {} with ret={}", thread_id_, ret);
+    } catch (...) {
+      XELOGE("XHostThread::Execute: Exception caught while executing host_fn_ for thread {}", thread_id_);
+      ret = -1;
+    }
+  } else {
+    XELOGE("XHostThread::Execute: host_fn_ is null for thread {}", thread_id_);
+    Exit(1);
+    return;
+  }
 
   // Exit.
+  XELOGI("XHostThread::Execute: About to exit thread {} with ret={}", thread_id_, ret);
   Exit(ret);
 }
 

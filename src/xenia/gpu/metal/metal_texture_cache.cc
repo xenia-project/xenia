@@ -253,12 +253,9 @@ MTL::PixelFormat MetalTextureCache::ConvertXenosFormat(xenos::TextureFormat form
 
 MTL::Texture* MetalTextureCache::CreateTexture2D(uint32_t width, uint32_t height, 
                                                   MTL::PixelFormat format, uint32_t mip_levels) {
-  // TODO: Get Metal device from command processor
-  // MTL::Device* device = command_processor_->GetMetalDevice();
-  // For now, create a temporary device
-  MTL::Device* device = MTL::CreateSystemDefaultDevice();
+  MTL::Device* device = command_processor_->GetMetalDevice();
   if (!device) {
-    XELOGE("Metal texture cache: Failed to get Metal device");
+    XELOGE("Metal texture cache: Failed to get Metal device from command processor");
     return nullptr;
   }
 
@@ -274,7 +271,6 @@ MTL::Texture* MetalTextureCache::CreateTexture2D(uint32_t width, uint32_t height
   MTL::Texture* texture = device->newTexture(descriptor);
   
   descriptor->release();
-  device->release();
 
   if (!texture) {
     XELOGE("Metal texture cache: Failed to create 2D texture {}x{}", width, height);
@@ -286,12 +282,9 @@ MTL::Texture* MetalTextureCache::CreateTexture2D(uint32_t width, uint32_t height
 
 MTL::Texture* MetalTextureCache::CreateTextureCube(uint32_t width, MTL::PixelFormat format, 
                                                    uint32_t mip_levels) {
-  // TODO: Get Metal device from command processor
-  // MTL::Device* device = command_processor_->GetMetalDevice();
-  // For now, create a temporary device
-  MTL::Device* device = MTL::CreateSystemDefaultDevice();
+  MTL::Device* device = command_processor_->GetMetalDevice();
   if (!device) {
-    XELOGE("Metal texture cache: Failed to get Metal device");
+    XELOGE("Metal texture cache: Failed to get Metal device from command processor");
     return nullptr;
   }
 
@@ -307,7 +300,6 @@ MTL::Texture* MetalTextureCache::CreateTextureCube(uint32_t width, MTL::PixelFor
   MTL::Texture* texture = device->newTexture(descriptor);
   
   descriptor->release();
-  device->release();
 
   if (!texture) {
     XELOGE("Metal texture cache: Failed to create cube texture {}", width);
