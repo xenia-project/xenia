@@ -204,15 +204,30 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // This demonstrates the shader→pipeline integration
   XELOGI("Metal IssueDraw: Attempting pipeline state creation...");
   
-  // Get current vertex and pixel shaders from the register state
-  // For now, we'll create a basic pipeline description
+  // Phase D.1: Get real Xbox 360 shaders from register state
+  // Use active shaders loaded from Xbox 360 game data instead of hardcoded values
+  Shader* vertex_shader = active_vertex_shader();
+  Shader* pixel_shader = active_pixel_shader();
+  
+  if (!vertex_shader || !pixel_shader) {
+    XELOGE("Metal IssueDraw: Missing active shaders - vertex: {}, pixel: {}",
+           vertex_shader ? "present" : "missing", 
+           pixel_shader ? "present" : "missing");
+    return false;
+  }
+  
+  XELOGI("Metal IssueDraw: Using real Xbox 360 shaders - vertex: {:016x}, pixel: {:016x}",
+         vertex_shader->ucode_data_hash(), pixel_shader->ucode_data_hash());
+  
+  // Create pipeline description with real shader hashes
   MetalPipelineCache::RenderPipelineDescription pipeline_desc = {};
   pipeline_desc.primitive_type = prim_type;
+  pipeline_desc.vertex_shader_hash = vertex_shader->ucode_data_hash();
+  pipeline_desc.pixel_shader_hash = pixel_shader->ucode_data_hash();
   
-  // TODO: Get actual vertex and pixel shader hashes from current state
-  // For now, we'll use placeholder values to test pipeline creation
-  pipeline_desc.vertex_shader_hash = 0x1111111111111111ULL;
-  pipeline_desc.pixel_shader_hash = 0x2222222222222222ULL;
+  // TODO: Set shader modifications based on register state
+  pipeline_desc.vertex_shader_modification = 0;
+  pipeline_desc.pixel_shader_modification = 0;
   
   // Request pipeline state from cache (this will create it if needed)
   MTL::RenderPipelineState* pipeline_state = 

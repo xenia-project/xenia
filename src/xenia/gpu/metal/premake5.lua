@@ -1,29 +1,33 @@
-project_root = "../../../.."
-include(project_root.."/tools/build")
+-- premake5.lua
+local project_root = "../../../.."
+local metal_converter_libdir = path.join(project_root, "third_party/metal-shader-converter/lib")
+
+include(path.join(project_root, "tools/build"))
+
+----------------------------------------------------------------------
+-- GPU backend -------------------------------------------------------
+----------------------------------------------------------------------
 
 group("src")
 project("xenia-gpu-metal")
   uuid("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
   kind("StaticLib")
   language("C++")
-  links({
+
+  links {
     "xenia-base",
     "xenia-gpu",
     "xenia-ui",
     "fmt",
-    "metal-shader-converter",
     "metal-cpp",
-  })
-  defines({
-  })
-  local_platform_files()
-  
-  filter("system:macosx")
-    -- Metal is macOS only
-    files({
+    "metalirconverter",
+  }
+
+  filter "system:macosx"
+    files {
       "metal_command_processor.cc",
       "metal_command_processor.h",
-      "metal_graphics_system.cc", 
+      "metal_graphics_system.cc",
       "metal_graphics_system.h",
       "metal_shader.cc",
       "metal_shader.h",
@@ -37,23 +41,29 @@ project("xenia-gpu-metal")
       "metal_render_target_cache.h",
       "metal_presenter.cc",
       "metal_presenter.h",
-    })
-    -- Add Metal framework dependencies
-    links({
+    }
+
+    libdirs     { metal_converter_libdir }
+    runpathdirs { metal_converter_libdir }
+
+    links {
       "Metal.framework",
       "MetalKit.framework",
-    })
-  
-  filter("not system:macosx")
-    -- Exclude Metal backend on non-macOS platforms
-    removefiles("**")
+    }
+  filter "not system:macosx"
+    removefiles "**"
+  filter {}
 
-group("src")
+----------------------------------------------------------------------
+-- Trace‑dump utility -----------------------------------------------
+----------------------------------------------------------------------
+
 project("xenia-gpu-metal-trace-dump")
   uuid("8e9f0a1b-2c3d-4e5f-6789-0abcdef12345")
   kind("ConsoleApp")
   language("C++")
-  links({
+
+  links {
     "xenia-apu",
     "xenia-apu-nop",
     "xenia-base",
@@ -62,13 +72,12 @@ project("xenia-gpu-metal-trace-dump")
     "xenia-gpu",
     "xenia-gpu-metal",
     "xenia-hid",
-    "xenia-hid-nop", 
+    "xenia-hid-nop",
     "xenia-kernel",
     "xenia-ui",
     "xenia-ui-metal",
     "xenia-vfs",
-  })
-  links({
+
     "aes_128",
     "capstone",
     "fmt",
@@ -78,26 +87,22 @@ project("xenia-gpu-metal-trace-dump")
     "mspack",
     "snappy",
     "xxhash",
-    "metal-shader-converter",
     "metal-cpp",
-  })
-  files({
+    "metalirconverter",
+  }
+
+  files {
     "metal_trace_dump_main.cc",
-    "../../base/console_app_main_"..platform_suffix..".cc",
-  })
+    path.join("..", "..", "base", "console_app_main_" .. platform_suffix .. ".cc"),
+  }
 
-  filter("architecture:ARM64")
-    links({
-      "xenia-cpu-backend-a64",
-    })
+  filter "architecture:ARM64"
+    links { "xenia-cpu-backend-a64" }
 
-  filter("system:macosx")
-    -- Add Metal framework dependencies
-    links({
-      "Metal.framework",
-      "MetalKit.framework",
-    })
-
-  filter("not system:macosx")
-    -- Exclude Metal trace dump on non-macOS platforms
-    removefiles("**")
+  filter "system:macosx"
+    libdirs     { metal_converter_libdir }
+    runpathdirs { metal_converter_libdir }
+    links       { "Metal.framework", "MetalKit.framework" }
+  filter "not system:macosx"
+    removefiles "**"
+  filter {}

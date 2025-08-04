@@ -16,12 +16,17 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/profiling.h"
 
-#if XE_PLATFORM_MAC
 // Define metal-cpp implementation (only in one cpp file)
 #define NS_PRIVATE_IMPLEMENTATION
-#define MTL_PRIVATE_IMPLEMENTATION  
+#define CA_PRIVATE_IMPLEMENTATION
+#define MTL_PRIVATE_IMPLEMENTATION
 #include "third_party/metal-cpp/Metal/Metal.hpp"
-#endif
+
+// Include dispatch for GCD functions
+#include <dispatch/dispatch.h>
+
+// Include Metal Shader Converter headers
+#include "third_party/metal-shader-converter/include/metal_irconverter.h"
 
 namespace xe {
 namespace gpu {
@@ -55,7 +60,6 @@ MetalShader::MetalTranslation::MetalTranslation(MetalShader& shader,
 
 MetalShader::MetalTranslation::~MetalTranslation() {
 #if XE_PLATFORM_MAC
-#ifdef METAL_CPP_AVAILABLE
   // Clean up Metal objects (metal-cpp uses RAII)
   if (metal_function_) {
     metal_function_->release();
@@ -65,9 +69,7 @@ MetalShader::MetalTranslation::~MetalTranslation() {
     metal_library_->release();
     metal_library_ = nullptr;
   }
-#endif  // METAL_CPP_AVAILABLE
 
-#ifdef METAL_SHADER_CONVERTER_AVAILABLE
   // Clean up Metal Shader Converter objects
   if (metal_lib_binary_) {
     IRMetalLibBinaryDestroy(metal_lib_binary_);
@@ -81,7 +83,6 @@ MetalShader::MetalTranslation::~MetalTranslation() {
     IRCompilerDestroy(ir_compiler_);
     ir_compiler_ = nullptr;
   }
-#endif  // METAL_SHADER_CONVERTER_AVAILABLE
 #endif  // XE_PLATFORM_MAC
 }
 
@@ -113,7 +114,6 @@ bool MetalShader::MetalTranslation::ConvertToMetal() {
 bool MetalShader::MetalTranslation::ConvertDxilToMetal(
     const std::vector<uint8_t>& dxil_bytecode) {
 #if XE_PLATFORM_MAC
-#ifdef METAL_SHADER_CONVERTER_AVAILABLE
   // Create IR compiler
   ir_compiler_ = IRCompilerCreate();
   if (!ir_compiler_) {
@@ -132,7 +132,8 @@ bool MetalShader::MetalTranslation::ConvertDxilToMetal(
                                   IRCompatibilityFlagForceTextureArray);
 
   // Set minimum deployment target for Metal features
-  IRCompilerSetMinimumDeploymentTarget(ir_compiler_, IROperatingSystemmacOS, 14, 0);
+  IRCompilerSetMinimumDeploymentTarget(ir_compiler_, IROperatingSystem_macOS, "14.0");
+    
 
   // Create IR object from DXIL bytecode
   IRObject* dxil_object = IRObjectCreateFromDXIL(
@@ -152,18 +153,25 @@ bool MetalShader::MetalTranslation::ConvertDxilToMetal(
 
   if (!ir_object_) {
     if (error) {
-      // TODO: Extract error message from IRError
-      XELOGE("Metal shader: Compilation failed");
+      uint32_t error_code = IRErrorGetCode(error);
+      const char* error_payload = (const char*)IRErrorGetPayload(error);
+      XELOGE("Metal shader: Compilation failed with error code: {}", error_code);
+      
+      // Try to extract error string if available
+      if (error_payload) {
+        // Error payload might contain additional information
+        XELOGE("Metal shader: Failed with error payload: {}", error_payload);
+        
+      }
+      
       IRErrorDestroy(error);
+    } else {
+      XELOGE("Metal shader: Compilation failed with unknown error");
     }
     return false;
   }
 
   return true;
-#else
-  XELOGE("Metal shader: Metal Shader Converter not available");
-  return false;
-#endif  // METAL_SHADER_CONVERTER_AVAILABLE
 #else
   XELOGE("Metal shader: Not supported on non-macOS platforms");
   return false;
@@ -172,7 +180,6 @@ bool MetalShader::MetalTranslation::ConvertDxilToMetal(
 
 bool MetalShader::MetalTranslation::CreateMetalLibrary() {
 #if XE_PLATFORM_MAC
-#if defined(METAL_SHADER_CONVERTER_AVAILABLE) && defined(METAL_CPP_AVAILABLE)
   if (!ir_object_) {
     XELOGE("Metal shader: No IR object available for Metal library creation");
     return false;
@@ -246,10 +253,6 @@ bool MetalShader::MetalTranslation::CreateMetalLibrary() {
 
   device->release();
   return true;
-#else
-  XELOGE("Metal shader: Metal Shader Converter or metal-cpp not available");
-  return false;
-#endif  // METAL_SHADER_CONVERTER_AVAILABLE && METAL_CPP_AVAILABLE
 #else
   XELOGE("Metal shader: Not supported on non-macOS platforms");
   return false;

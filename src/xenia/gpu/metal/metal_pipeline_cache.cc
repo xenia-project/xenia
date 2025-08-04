@@ -20,9 +20,8 @@
 #include "xenia/base/xxhash.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/metal/metal_command_processor.h"
-#include "xenia/gpu/gpu_flags.h"
-#include "xenia/gpu/metal/metal_command_processor.h"
 #include "xenia/gpu/metal/metal_shader.h"
+#include "xenia/ui/graphics_provider.h"
 
 namespace xe {
 namespace gpu {
@@ -41,6 +40,18 @@ MetalPipelineCache::~MetalPipelineCache() {
 
 bool MetalPipelineCache::Initialize() {
   SCOPE_profile_cpu_f("gpu");
+
+  // Initialize shader translator for Xbox 360 → DXIL conversion
+  shader_translator_ = std::make_unique<DxbcShaderTranslator>(
+      ui::GraphicsProvider::GpuVendorID::kApple,  // vendor_id - use Apple for Metal
+      false,  // bindless_resources_used
+      edram_rov_used_,
+      false,  // gamma_render_target_as_srgb
+      true,   // msaa_2x_supported 
+      1,      // draw_resolution_scale_x
+      1,      // draw_resolution_scale_y
+      false  // force_emit_source_map
+  );
 
   XELOGI("Metal pipeline cache: Initialized successfully");
   return true;
@@ -105,6 +116,13 @@ Shader* MetalPipelineCache::LoadShader(xenos::ShaderType shader_type,
   
   XELOGI("Metal pipeline cache: Shader data hash = {:016x}", data_hash);
 
+  // Check if shader already exists in cache
+  auto it = shaders_.find(data_hash);
+  if (it != shaders_.end()) {
+    XELOGI("Metal pipeline cache: Found existing shader in cache");
+    return it->second.get();
+  }
+
   // Create MetalShader object which supports DXIL→Metal conversion
   auto metal_shader = std::make_unique<MetalShader>(shader_type, data_hash, host_address, dword_count);
   
@@ -117,7 +135,10 @@ Shader* MetalPipelineCache::LoadShader(xenos::ShaderType shader_type,
   
   // For Phase B, we'll start the DXIL translation process
   // The actual Metal compilation will happen when needed by the pipeline
-  return metal_shader.release();
+  MetalShader* shader_ptr = metal_shader.get();
+  shaders_[data_hash] = std::move(metal_shader);
+  
+  return shader_ptr;
 }
 
 MTL::RenderPipelineState* MetalPipelineCache::GetRenderPipelineState(
@@ -180,76 +201,131 @@ MTL::RenderPipelineState* MetalPipelineCache::CreateRenderPipelineState(
     return nullptr;
   }
 
-  // Phase B Step 3: Set vertex and fragment functions from shader cache
-  // For now, we'll create basic placeholder functions to pass Metal validation
-  // In later phases, this will use the actual compiled Metal shaders
+  // Phase D.1 Step 1: Get actual Xbox 360 shaders and convert to Metal
+  // Replace placeholder shaders with real DXIL→Metal conversion
   
-  // Get Metal library and create basic vertex/fragment functions
-  std::string vertex_source = R"(
-#include <metal_stdlib>
-using namespace metal;
-
-struct VertexIn {
-    float3 position [[attribute(0)]];
-};
-
-struct VertexOut {
-    float4 position [[position]];
-};
-
-vertex VertexOut vertex_main(VertexIn in [[stage_in]]) {
-    VertexOut out;
-    out.position = float4(in.position, 1.0);
-    return out;
-}
-)";
-
-  std::string fragment_source = R"(
-#include <metal_stdlib>
-using namespace metal;
-
-fragment float4 fragment_main() {
-    return float4(1.0, 0.0, 1.0, 1.0); // Magenta placeholder
-}
-)";
-
-  // Create temporary Metal library for placeholder shaders
-  NS::String* vertex_code = NS::String::string(vertex_source.c_str(), NS::UTF8StringEncoding);
-  MTL::CompileOptions* compile_options = MTL::CompileOptions::alloc()->init();
+  // Look up shaders by hash in the shader cache
+  MetalShader* vertex_shader = nullptr;
+  MetalShader* pixel_shader = nullptr;
   
-  NS::Error* error = nullptr;
-  MTL::Library* library = device->newLibrary(vertex_code, compile_options, &error);
-  
-  if (error || !library) {
-    XELOGW("Metal pipeline cache: Failed to create placeholder shader library");
-    if (error) {
-      XELOGW("Metal pipeline cache: Error: {}", error->localizedDescription()->utf8String());
+  // Find vertex shader in cache
+  for (auto& shader_entry : shaders_) {
+    auto* shader = shader_entry.second.get();
+    if (shader->ucode_data_hash() == description.vertex_shader_hash && 
+        shader->type() == xenos::ShaderType::kVertex) {
+      vertex_shader = static_cast<MetalShader*>(shader);
+      break;
     }
-    // Continue without shaders for now - this will fail validation but we can debug
-  } else {
-    // Get vertex function
-    NS::String* vertex_func_name = NS::String::string("vertex_main", NS::UTF8StringEncoding);
-    MTL::Function* vertex_function = library->newFunction(vertex_func_name);
-    if (vertex_function) {
-      descriptor->setVertexFunction(vertex_function);
-      vertex_function->release();
-      XELOGI("Metal pipeline cache: Set placeholder vertex function");
-    }
-    
-    // Get fragment function  
-    NS::String* fragment_func_name = NS::String::string("fragment_main", NS::UTF8StringEncoding);
-    MTL::Function* fragment_function = library->newFunction(fragment_func_name);
-    if (fragment_function) {
-      descriptor->setFragmentFunction(fragment_function);
-      fragment_function->release();
-      XELOGI("Metal pipeline cache: Set placeholder fragment function");
-    }
-    
-    library->release();
   }
   
-  compile_options->release();
-  vertex_code->release();
+  // Find pixel shader in cache
+  for (auto& shader_entry : shaders_) {
+    auto* shader = shader_entry.second.get();
+    if (shader->ucode_data_hash() == description.pixel_shader_hash && 
+        shader->type() == xenos::ShaderType::kPixel) {
+      pixel_shader = static_cast<MetalShader*>(shader);
+      break;
+    }
+  }
+  
+  if (!vertex_shader || !pixel_shader) {
+    XELOGE("Metal pipeline cache: Missing vertex ({}) or pixel ({}) shader for pipeline creation",
+           vertex_shader ? "found" : "missing", pixel_shader ? "found" : "missing");
+    descriptor->release();
+    return nullptr;
+  }
+  
+  // Phase D.1 Step 2: Convert Xbox 360 shaders to Metal using Metal Shader Converter
+  XELOGI("Metal pipeline cache: Converting Xbox 360 shaders to Metal...");
+  
+  // First, ensure Xbox 360 → DXIL translation has happened
+  auto vertex_translation = vertex_shader->GetOrCreateTranslation(0);
+  if (!vertex_translation->is_translated()) {
+    StringBuffer ucode_disasm_buffer;
+    vertex_shader->AnalyzeUcode(ucode_disasm_buffer);
+    if (!TranslateAnalyzedShader(vertex_shader)) {
+      XELOGE("Metal pipeline cache: Failed to translate vertex shader from Xbox 360 to DXIL");
+      descriptor->release();
+      return nullptr;
+    }
+  }
+  if (!vertex_translation->is_valid()) {
+    XELOGE("Metal pipeline cache: Vertex shader translation is not valid");
+    descriptor->release();
+    return nullptr;
+  }
+  
+  auto pixel_translation_default = pixel_shader->GetOrCreateTranslation(0);
+  if (!pixel_translation_default->is_translated()) {
+    StringBuffer ucode_disasm_buffer;
+    pixel_shader->AnalyzeUcode(ucode_disasm_buffer);
+    if (!TranslateAnalyzedShader(pixel_shader)) {
+      XELOGE("Metal pipeline cache: Failed to translate pixel shader from Xbox 360 to DXIL");
+      descriptor->release();
+      return nullptr;
+    }
+  }
+  if (!pixel_translation_default->is_valid()) {
+    XELOGE("Metal pipeline cache: Pixel shader translation is not valid");
+    descriptor->release();
+    return nullptr;
+  }
+  
+  XELOGI("Metal pipeline cache: Xbox 360 → DXIL translation completed for both shaders");
+  
+  // Get or create DXIL translation for vertex shader
+  vertex_translation = vertex_shader->GetOrCreateTranslation(description.vertex_shader_modification);
+  if (!vertex_translation) {
+    XELOGE("Metal pipeline cache: Failed to get vertex shader translation");
+    descriptor->release();
+    return nullptr;
+  }
+  
+  // Convert to Metal
+  auto* vertex_metal_translation = static_cast<MetalShader::MetalTranslation*>(vertex_translation);
+  if (!vertex_metal_translation->ConvertToMetal()) {
+    XELOGE("Metal pipeline cache: Failed to convert vertex shader to Metal");
+    descriptor->release();
+    return nullptr;
+  }
+  
+  // Get or create DXIL translation for pixel shader
+  auto pixel_translation = pixel_shader->GetOrCreateTranslation(description.pixel_shader_modification);
+  if (!pixel_translation) {
+    XELOGE("Metal pipeline cache: Failed to get pixel shader translation");
+    descriptor->release();
+    return nullptr;
+  }
+  
+  // Convert to Metal
+  auto* pixel_metal_translation = static_cast<MetalShader::MetalTranslation*>(pixel_translation);
+  if (!pixel_metal_translation->ConvertToMetal()) {
+    XELOGE("Metal pipeline cache: Failed to convert pixel shader to Metal");
+    descriptor->release();
+    return nullptr;
+  }
+  
+  // Phase D.1 Step 3: Get Metal functions from converted shaders
+#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
+  MTL::Function* vertex_function = vertex_metal_translation->GetMetalFunction();
+  MTL::Function* fragment_function = pixel_metal_translation->GetMetalFunction();
+  
+  if (!vertex_function || !fragment_function) {
+    XELOGE("Metal pipeline cache: Failed to get Metal functions from converted shaders");
+    descriptor->release();
+    return nullptr;
+  }
+  
+  // Set the real Metal functions
+  descriptor->setVertexFunction(vertex_function);
+  descriptor->setFragmentFunction(fragment_function);
+  
+  XELOGI("Metal pipeline cache: Successfully set Xbox 360→Metal converted shader functions");
+#else
+  XELOGE("Metal pipeline cache: Metal Shader Converter not available - cannot create pipeline");
+  descriptor->release();
+  return nullptr;
+#endif
   
   // Configure blend state
   ConfigureBlendState(descriptor, description);
@@ -266,8 +342,8 @@ fragment float4 fragment_main() {
   // TODO: Add depth attachment when implementing Xbox 360 depth buffer support
   // descriptor->setDepthAttachmentPixelFormat(MTL::PixelFormatDepth32Float);
 
-  // Create the pipeline state
-  error = nullptr;
+    // Create the pipeline state
+  NS::Error* error = nullptr;
   MTL::RenderPipelineState* pipeline_state = device->newRenderPipelineState(descriptor, &error);
   
   descriptor->release();
@@ -377,6 +453,27 @@ bool MetalPipelineCache::CompileMetalShader(MetalShader* shader, uint64_t modifi
   // TODO: Trigger Metal shader compilation if not already done
   // This will involve calling the Metal Shader Converter APIs
   
+  return translation->is_valid();
+}
+
+bool MetalPipelineCache::TranslateAnalyzedShader(MetalShader* shader) {
+  if (!shader) {
+    return false;
+  }
+
+  // Create a translation with default modification (0)
+  auto translation = shader->GetOrCreateTranslation(0);
+  if (!translation) {
+    XELOGE("Metal pipeline cache: Failed to create shader translation");
+    return false;
+  }
+
+  // Use the DXBC shader translator to convert Xbox 360 → DXIL
+  if (!shader_translator_->TranslateAnalyzedShader(*translation)) {
+    XELOGE("Metal pipeline cache: Failed to translate Xbox 360 shader to DXIL");
+    return false;
+  }
+
   return translation->is_valid();
 }
 

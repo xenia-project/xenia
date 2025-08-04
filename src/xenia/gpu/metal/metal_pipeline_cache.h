@@ -13,6 +13,7 @@
 #include <memory>
 #include <unordered_map>
 
+#include "xenia/base/hash.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
 #include "xenia/gpu/register_file.h"
@@ -102,12 +103,19 @@ class MetalPipelineCache {
   const RegisterFile* register_file_;
   bool edram_rov_used_;
 
+  // Shader translator for Xbox 360 → DXIL conversion
+  std::unique_ptr<DxbcShaderTranslator> shader_translator_;
+
   // Metal pipeline state caches
   std::unordered_map<RenderPipelineDescription, MTL::RenderPipelineState*,
                      RenderPipelineDescriptionHasher> render_pipeline_cache_;
   
   std::unordered_map<ComputePipelineDescription, MTL::ComputePipelineState*,
                      ComputePipelineDescriptionHasher> compute_pipeline_cache_;
+
+  // Shader cache - maps shader hash to shader object
+  std::unordered_map<uint64_t, std::unique_ptr<MetalShader>, xe::hash::IdentityHasher<uint64_t>>
+      shaders_;
 
   // Helper methods for Metal pipeline creation
   MTL::RenderPipelineState* CreateRenderPipelineState(
@@ -126,6 +134,9 @@ class MetalPipelineCache {
 
   // Shader compilation helpers
   bool CompileMetalShader(MetalShader* shader, uint64_t modification);
+  
+  // Translate Xbox 360 shader to DXIL
+  bool TranslateAnalyzedShader(MetalShader* shader);
 };
 
 }  // namespace metal
