@@ -284,88 +284,270 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
           // Phase C Step 2: Enhanced debugging - Push debug group
           encoder->pushDebugGroup(NS::String::string("Xbox360DrawCommands", NS::UTF8StringEncoding));
           
-          // Phase C Step 3: Basic Vertex Buffer Support
-          // Create a simple triangle vertex buffer for validation
-          float triangle_vertices[] = {
-              // position (x, y, z)
-              -0.5f, -0.5f, 0.0f,   // bottom left
-               0.5f, -0.5f, 0.0f,   // bottom right  
-               0.0f,  0.5f, 0.0f    // top center
+          // Phase C Step 3: Vertex Buffer Support from Xbox 360 guest memory
+          // Process vertex bindings from the active vertex shader
+          std::vector<MTL::Buffer*> vertex_buffers_to_release;
+          
+          if (vertex_shader) {
+            const auto& vertex_bindings = vertex_shader->vertex_bindings();
+          XELOGI("Metal IssueDraw: Processing {} vertex bindings", vertex_bindings.size());
+            
+            for (const auto& binding : vertex_bindings) {
+              // Get the vertex fetch constant for this binding
+              xenos::xe_gpu_vertex_fetch_t vfetch_constant = 
+                  register_file_->GetVertexFetch(binding.fetch_constant);
+              
+              if (vfetch_constant.type != xenos::FetchConstantType::kVertex) {
+              XELOGW("Metal IssueDraw: Vertex fetch constant {} is not a vertex type", 
+                       binding.fetch_constant);
+                continue;
+              }
+              
+              // Calculate the actual address and size
+              uint32_t address = vfetch_constant.address << 2;  // Convert from dwords to bytes
+              uint32_t size = vfetch_constant.size << 2;        // Convert from words to bytes
+              
+            XELOGI("Metal IssueDraw: Vertex binding {} - fetch constant {}, address 0x{:08X}, size {} bytes",
+                     binding.binding_index, binding.fetch_constant, address, size);
+              
+              // Map guest memory to get vertex data
+              const void* vertex_data = memory_->TranslatePhysical(address);
+              if (!vertex_data) {
+              XELOGW("Metal IssueDraw: Failed to translate vertex buffer address 0x{:08X}", address);
+                continue;
+              }
+              
+              // Create Metal buffer from Xbox 360 vertex data
+              MTL::Buffer* vertex_buffer = GetMetalDevice()->newBuffer(
+                  vertex_data, size, MTL::ResourceStorageModeShared);
+              
+              if (vertex_buffer) {
+                // Label the buffer for debugging
+                char label[256];
+                snprintf(label, sizeof(label), "Xbox360VertexBuffer_%d_0x%08X", 
+                        binding.binding_index, address);
+                vertex_buffer->setLabel(NS::String::string(label, NS::UTF8StringEncoding));
+                
+                // Bind vertex buffer at the appropriate index
+                // TODO: Map shader binding index to Metal buffer index properly
+                encoder->setVertexBuffer(vertex_buffer, 0, binding.binding_index);
+                
+                XELOGI("Metal IssueDraw: Bound vertex buffer {} ({} bytes) from guest address 0x{:08X}", 
+                       binding.binding_index, size, address);
+                
+                // Log first few bytes for debugging
+                if (size >= 12) {
+                  const float* floats = static_cast<const float*>(vertex_data);
+                  XELOGI("Metal IssueDraw: First vertex data: ({:.2f}, {:.2f}, {:.2f})",
+                         floats[0], floats[1], floats[2]);
+                }
+                
+                // Track for cleanup
+                vertex_buffers_to_release.push_back(vertex_buffer);
+              } else {
+              XELOGW("Metal IssueDraw: Failed to create vertex buffer for binding {}", 
+                       binding.binding_index);
+              }
+          }
+          }
+          
+          // If no vertex buffers were bound, create a fallback triangle
+          if (vertex_buffers_to_release.empty()) {
+            XELOGW("Metal IssueDraw: No vertex buffers bound, using fallback triangle");
+            float triangle_vertices[] = {
+                // position (x, y, z)
+                -0.5f, -0.5f, 0.0f,   // bottom left
+                 0.5f, -0.5f, 0.0f,   // bottom right  
+                 0.0f,  0.5f, 0.0f    // top center
           };
-          
+            
           MTL::Buffer* vertex_buffer = GetMetalDevice()->newBuffer(
-              triangle_vertices, sizeof(triangle_vertices), MTL::ResourceStorageModeShared);
-          
-          if (vertex_buffer) {
-            vertex_buffer->setLabel(NS::String::string("Xbox360VertexBuffer", NS::UTF8StringEncoding));
+                triangle_vertices, sizeof(triangle_vertices), MTL::ResourceStorageModeShared);
             
-            // Bind vertex buffer at index 0 (matches our vertex descriptor)
+            if (vertex_buffer) {
+              vertex_buffer->setLabel(NS::String::string("FallbackTriangleBuffer", NS::UTF8StringEncoding));
             encoder->setVertexBuffer(vertex_buffer, 0, 0);
+            XELOGI("Metal IssueDraw: Created and bound fallback triangle buffer ({} bytes)", 
+                     sizeof(triangle_vertices));
+              vertex_buffers_to_release.push_back(vertex_buffer);
+          }
+          }
+          
+          // Phase D: Bind required shader resource buffers
+          // The converted shaders expect these buffers to be bound:
+          // - Buffer at index 2: struct.top_level_global_ab[0] (global register state)
+          // - Buffer at index 4: drawArguments[0] (draw parameters)
+          // - Buffer at index 5: uniforms[0] (shader constants)
+          
+          // Create dummy buffers to satisfy shader requirements
+          // In a full implementation, these would contain actual Xbox 360 GPU state
+          
+          // Buffer 2: Global register state from actual Xbox 360 GPU
+          // The Xbox 360 GPU has a large register file that contains all GPU state
+          // We'll pass a subset of important registers that shaders might need
+          struct GlobalRegisters {
+              // Viewport and scissor registers
+              float viewport_scale[3];      // PA_CL_VPORT_XSCALE, YSCALE, ZSCALE
+              float viewport_offset[3];     // PA_CL_VPORT_XOFFSET, YOFFSET, ZOFFSET
+              
+              // Screen extent registers
+              uint32_t screen_scissor_tl;  // PA_SC_SCREEN_SCISSOR_TL
+              uint32_t screen_scissor_br;  // PA_SC_SCREEN_SCISSOR_BR
+              
+              // Render target configuration
+              uint32_t rb_surface_info;     // RB_SURFACE_INFO
+              uint32_t rb_color_info;       // RB_COLOR_INFO
+              uint32_t rb_depth_info;       // RB_DEPTH_INFO
+              
+              // Alpha test and blend state
+              uint32_t rb_colorcontrol;     // RB_COLORCONTROL
+              uint32_t rb_blendcontrol[4];  // RB_BLENDCONTROL_0 through 3
+              
+              // Padding to align to 256 bytes for now
+              uint32_t padding[256 - 19];
+          } global_registers = {};
+          
+          // Read actual register values from the Xbox 360 GPU register file
+          const uint32_t* regs = register_file_->values;
             
-            XELOGI("Metal IssueDraw: Created and bound vertex buffer ({} bytes)", sizeof(triangle_vertices));
+          // Viewport registers (0x20D8 - 0x20DD)
+          global_registers.viewport_scale[0] = *reinterpret_cast<const float*>(&regs[XE_GPU_REG_PA_CL_VPORT_XSCALE]);
+          global_registers.viewport_scale[1] = *reinterpret_cast<const float*>(&regs[XE_GPU_REG_PA_CL_VPORT_YSCALE]);
+          global_registers.viewport_scale[2] = *reinterpret_cast<const float*>(&regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE]);
+          global_registers.viewport_offset[0] = *reinterpret_cast<const float*>(&regs[XE_GPU_REG_PA_CL_VPORT_XOFFSET]);
+          global_registers.viewport_offset[1] = *reinterpret_cast<const float*>(&regs[XE_GPU_REG_PA_CL_VPORT_YOFFSET]);
+          global_registers.viewport_offset[2] = *reinterpret_cast<const float*>(&regs[XE_GPU_REG_PA_CL_VPORT_ZOFFSET]);
             
-            // Phase D: Bind required shader resource buffers
-            // The converted shaders expect these buffers to be bound:
-            // - Buffer at index 2: struct.top_level_global_ab[0] (global register state)
-            // - Buffer at index 4: drawArguments[0] (draw parameters)
-            // - Buffer at index 5: uniforms[0] (shader constants)
+          // Screen scissor registers
+          global_registers.screen_scissor_tl = regs[XE_GPU_REG_PA_SC_SCREEN_SCISSOR_TL];
+          global_registers.screen_scissor_br = regs[XE_GPU_REG_PA_SC_SCREEN_SCISSOR_BR];
             
-            // Create dummy buffers to satisfy shader requirements
-            // In a full implementation, these would contain actual Xbox 360 GPU state
+          // Render target configuration
+          global_registers.rb_surface_info = regs[XE_GPU_REG_RB_SURFACE_INFO];
+          global_registers.rb_color_info = regs[XE_GPU_REG_RB_COLOR_INFO];
+          global_registers.rb_depth_info = regs[XE_GPU_REG_RB_DEPTH_INFO];
             
-            // Buffer 2: Global register state (dummy for now)
-            uint32_t global_registers[256] = {0}; // Placeholder for Xbox 360 register state
-            MTL::Buffer* global_buffer = GetMetalDevice()->newBuffer(
-                global_registers, sizeof(global_registers), MTL::ResourceStorageModeShared);
-            if (global_buffer) {
+          // Alpha test and blend state
+          global_registers.rb_colorcontrol = regs[XE_GPU_REG_RB_COLORCONTROL];
+          global_registers.rb_blendcontrol[0] = regs[XE_GPU_REG_RB_BLENDCONTROL0];
+          global_registers.rb_blendcontrol[1] = regs[XE_GPU_REG_RB_BLENDCONTROL1];
+          global_registers.rb_blendcontrol[2] = regs[XE_GPU_REG_RB_BLENDCONTROL2];
+          global_registers.rb_blendcontrol[3] = regs[XE_GPU_REG_RB_BLENDCONTROL3];
+            
+          XELOGI("Metal IssueDraw: Read GPU registers - viewport scale: ({:.2f}, {:.2f}, {:.2f})",
+                   global_registers.viewport_scale[0], global_registers.viewport_scale[1], 
+                   global_registers.viewport_scale[2]);
+            
+          MTL::Buffer* global_buffer = GetMetalDevice()->newBuffer(
+                &global_registers, sizeof(global_registers), MTL::ResourceStorageModeShared);
+          if (global_buffer) {
               global_buffer->setLabel(NS::String::string("Xbox360GlobalRegisters", NS::UTF8StringEncoding));
-              encoder->setVertexBuffer(global_buffer, 0, 2);
-              encoder->setFragmentBuffer(global_buffer, 0, 2);
-              XELOGI("Metal IssueDraw: Bound global register buffer at index 2");
-            }
+            encoder->setVertexBuffer(global_buffer, 0, 2);
+            encoder->setFragmentBuffer(global_buffer, 0, 2);
+            XELOGI("Metal IssueDraw: Bound global register buffer at index 2 with actual GPU state");
+          }
             
-            // Buffer 4: Draw arguments
-            struct DrawArguments {
+          // Buffer 4: Draw arguments from actual draw call
+          struct DrawArguments {
               uint32_t vertex_count;
               uint32_t instance_count;
               uint32_t first_vertex;
               uint32_t first_instance;
-            } draw_args = {3, 1, 0, 0};
+          } draw_args = {
+              index_count,  // Use actual index count from draw call
+              1,            // Instance count (Xbox 360 doesn't support instancing)
+              0,            // First vertex
+              0             // First instance
+          };
             
-            MTL::Buffer* draw_args_buffer = GetMetalDevice()->newBuffer(
+          MTL::Buffer* draw_args_buffer = GetMetalDevice()->newBuffer(
                 &draw_args, sizeof(draw_args), MTL::ResourceStorageModeShared);
-            if (draw_args_buffer) {
+          if (draw_args_buffer) {
               draw_args_buffer->setLabel(NS::String::string("Xbox360DrawArguments", NS::UTF8StringEncoding));
-              encoder->setVertexBuffer(draw_args_buffer, 0, 4);
-              XELOGI("Metal IssueDraw: Bound draw arguments buffer at index 4");
-            }
-            
-            // Buffer 5: Shader uniforms/constants
-            float uniforms[64] = {0}; // Placeholder for shader constants
-            MTL::Buffer* uniforms_buffer = GetMetalDevice()->newBuffer(
-                uniforms, sizeof(uniforms), MTL::ResourceStorageModeShared);
-            if (uniforms_buffer) {
-              uniforms_buffer->setLabel(NS::String::string("Xbox360ShaderUniforms", NS::UTF8StringEncoding));
-              encoder->setVertexBuffer(uniforms_buffer, 0, 5);
-              XELOGI("Metal IssueDraw: Bound uniforms buffer at index 5");
-            }
-            
-            // TODO: Phase C Step 2 - Bind index buffers from Xbox 360 data
-            // TODO: Phase C Step 2 - Use actual Xbox 360 vertex data
-            
-            // Encode the actual draw call
-            encoder->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0), NS::UInteger(3));
-            
-            XELOGI("Metal IssueDraw: Encoded draw primitives call (3 vertices, triangle)");
-            
-            // Clean up buffers
-            vertex_buffer->release();
-            if (global_buffer) global_buffer->release();
-            if (draw_args_buffer) draw_args_buffer->release();
-            if (uniforms_buffer) uniforms_buffer->release();
-          } else {
-            XELOGW("Metal IssueDraw: Failed to create vertex buffer");
+            encoder->setVertexBuffer(draw_args_buffer, 0, 4);
+            XELOGI("Metal IssueDraw: Bound draw arguments buffer at index 4");
           }
+            
+          // Buffer 5: Shader uniforms/constants from Xbox 360 GPU
+            // The Xbox 360 has 512 float constants (c0-c511), each is a float4
+            // For now, we'll pass the first 64 constants which are most commonly used
+          const int kNumConstants = 64;
+          float shader_constants[kNumConstants * 4]; // 64 float4 constants
+            
+          // Copy shader constants from the register file
+          // Constants start at XE_GPU_REG_SHADER_CONSTANT_000_X (0x4000)
+          for (int i = 0; i < kNumConstants; i++) {
+            // Each constant is 4 consecutive registers (XYZW)
+            int base_reg = XE_GPU_REG_SHADER_CONSTANT_000_X + (i * 4);
+            shader_constants[i * 4 + 0] = *reinterpret_cast<const float*>(&regs[base_reg + 0]); // X
+            shader_constants[i * 4 + 1] = *reinterpret_cast<const float*>(&regs[base_reg + 1]); // Y
+            shader_constants[i * 4 + 2] = *reinterpret_cast<const float*>(&regs[base_reg + 2]); // Z
+            shader_constants[i * 4 + 3] = *reinterpret_cast<const float*>(&regs[base_reg + 3]); // W
+          }
+            
+          XELOGI("Metal IssueDraw: Read {} shader constants from GPU registers", kNumConstants);
+          if (kNumConstants > 0) {
+            XELOGI("Metal IssueDraw: Constant c0 = ({:.2f}, {:.2f}, {:.2f}, {:.2f})",
+                     shader_constants[0], shader_constants[1], shader_constants[2], shader_constants[3]);
+          }
+            
+          MTL::Buffer* uniforms_buffer = GetMetalDevice()->newBuffer(
+                shader_constants, sizeof(shader_constants), MTL::ResourceStorageModeShared);
+          if (uniforms_buffer) {
+              uniforms_buffer->setLabel(NS::String::string("Xbox360ShaderConstants", NS::UTF8StringEncoding));
+            encoder->setVertexBuffer(uniforms_buffer, 0, 5);
+            encoder->setFragmentBuffer(uniforms_buffer, 0, 5);
+            XELOGI("Metal IssueDraw: Bound shader constants buffer at index 5 with actual GPU constants");
+          }
+            
+          // TODO: Phase C Step 2 - Bind index buffers from Xbox 360 data
+          // TODO: Phase C Step 2 - Use actual Xbox 360 vertex data
+            
+          // Encode the actual draw call
+          // Convert Xbox 360 primitive type to Metal primitive type
+          MTL::PrimitiveType metal_prim_type = MTL::PrimitiveTypeTriangle; // Default
+          switch (prim_type) {
+            case xenos::PrimitiveType::kPointList:
+              metal_prim_type = MTL::PrimitiveTypePoint;
+              break;
+            case xenos::PrimitiveType::kLineList:
+              metal_prim_type = MTL::PrimitiveTypeLine;
+              break;
+            case xenos::PrimitiveType::kLineStrip:
+              metal_prim_type = MTL::PrimitiveTypeLineStrip;
+              break;
+            case xenos::PrimitiveType::kTriangleList:
+              metal_prim_type = MTL::PrimitiveTypeTriangle;
+              break;
+            case xenos::PrimitiveType::kTriangleFan:
+            case xenos::PrimitiveType::kTriangleStrip:
+              metal_prim_type = MTL::PrimitiveTypeTriangleStrip;
+              break;
+            default:
+              XELOGW("Metal IssueDraw: Unsupported primitive type {}, using triangles", 
+                       static_cast<uint32_t>(prim_type));
+              break;
+          }
+            
+          if (index_buffer_info) {
+            // Indexed draw - need to bind index buffer
+            XELOGI("Metal IssueDraw: Indexed draw not yet implemented, using non-indexed fallback");
+            encoder->drawPrimitives(metal_prim_type, NS::UInteger(0), NS::UInteger(index_count));
+          } else {
+            // Non-indexed draw
+            encoder->drawPrimitives(metal_prim_type, NS::UInteger(0), NS::UInteger(index_count));
+          }
+          
+          XELOGI("Metal IssueDraw: Encoded draw primitives call ({} vertices, primitive type {})", 
+                 index_count, static_cast<uint32_t>(metal_prim_type));
+          
+          // Clean up buffers
+          for (auto* buffer : vertex_buffers_to_release) {
+            buffer->release();
+          }
+          if (global_buffer) global_buffer->release();
+          if (draw_args_buffer) draw_args_buffer->release();
+          if (uniforms_buffer) uniforms_buffer->release();
           
           // Pop debug group
           encoder->popDebugGroup();
