@@ -611,10 +611,67 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                   
               XELOGI("Metal IssueDraw: Drew indexed primitives with converted buffer");
             } else {
-              // TODO: Handle guest DMA index buffers
-              XELOGW("Metal IssueDraw: Guest DMA index buffers not yet implemented");
-              encoder->drawPrimitives(metal_prim_type, NS::UInteger(0), 
-                                    NS::UInteger(primitive_processing_result.host_draw_vertex_count));
+              // Handle guest DMA index buffers
+              XELOGI("Metal IssueDraw: Processing guest DMA index buffer from 0x{:08X}",
+                     primitive_processing_result.guest_index_base);
+              
+              // Map guest memory for index buffer
+              const void* guest_indices = memory_->TranslatePhysical(
+                  primitive_processing_result.guest_index_base);
+              
+              if (!guest_indices) {
+                XELOGE("Metal IssueDraw: Failed to translate guest index buffer address 0x{:08X}",
+                       primitive_processing_result.guest_index_base);
+                encoder->drawPrimitives(metal_prim_type, NS::UInteger(0), 
+                                      NS::UInteger(primitive_processing_result.host_draw_vertex_count));
+              } else {
+                // Calculate index buffer size
+                uint32_t index_size = 
+                    primitive_processing_result.host_index_format == xenos::IndexFormat::kInt32 ? 4 : 2;
+                uint32_t index_buffer_size = 
+                    primitive_processing_result.host_draw_vertex_count * index_size;
+                
+                XELOGI("Metal IssueDraw: Creating Metal index buffer - format: {}, count: {}, size: {} bytes",
+                       primitive_processing_result.host_index_format == xenos::IndexFormat::kInt32 ? "32-bit" : "16-bit",
+                       primitive_processing_result.host_draw_vertex_count,
+                       index_buffer_size);
+                
+                // Create Metal index buffer from guest data
+                MTL::Buffer* guest_index_buffer = GetMetalDevice()->newBuffer(
+                    guest_indices,
+                    index_buffer_size,
+                    MTL::ResourceStorageModeShared);
+                
+                if (guest_index_buffer) {
+                  // Label the buffer for debugging
+                  char label[256];
+                  snprintf(label, sizeof(label), "Xbox360GuestDMAIndexBuffer_0x%08X", 
+                          primitive_processing_result.guest_index_base);
+                  guest_index_buffer->setLabel(NS::String::string(label, NS::UTF8StringEncoding));
+                  
+                  MTL::IndexType index_type = 
+                      primitive_processing_result.host_index_format == xenos::IndexFormat::kInt32
+                          ? MTL::IndexTypeUInt32 
+                          : MTL::IndexTypeUInt16;
+                  
+                  // Draw with guest DMA index buffer
+                  encoder->drawIndexedPrimitives(
+                      metal_prim_type, 
+                      NS::UInteger(primitive_processing_result.host_draw_vertex_count),
+                      index_type,
+                      guest_index_buffer,
+                      NS::UInteger(0));  // offset
+                  
+                  XELOGI("Metal IssueDraw: Drew indexed primitives with guest DMA buffer");
+                  
+                  // Clean up - add to release list
+                  vertex_buffers_to_release.push_back(guest_index_buffer);
+                } else {
+                  XELOGE("Metal IssueDraw: Failed to create Metal buffer for guest indices");
+                  encoder->drawPrimitives(metal_prim_type, NS::UInteger(0), 
+                                        NS::UInteger(primitive_processing_result.host_draw_vertex_count));
+                }
+              }
             }
           } else {
             // Non-indexed draw

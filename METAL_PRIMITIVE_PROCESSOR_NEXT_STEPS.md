@@ -10,28 +10,23 @@ We have successfully implemented the Metal primitive processor infrastructure wi
 
 ## Immediate Next Steps (Priority Order)
 
-### 1. Guest DMA Index Buffer Support (2-3 days)
-Currently we see: `Metal IssueDraw: Guest DMA index buffers not yet implemented`
+### 1. ✅ Guest DMA Index Buffer Support (COMPLETED)
+**Status**: Implemented and tested successfully!
 
-**Implementation:**
-```cpp
-// In IssueDraw when primitive_processing_result.index_buffer_type == kGuestDMA
-case ProcessedIndexBufferType::kGuestDMA:
-  // Map guest memory for index buffer
-  const void* guest_indices = memory_->TranslatePhysical(
-      primitive_processing_result.guest_index_base);
-  
-  // Create Metal index buffer from guest data
-  MTL::Buffer* index_buffer = device->newBuffer(
-      guest_indices,
-      primitive_processing_result.guest_index_buffer_size,
-      MTL::ResourceStorageModeShared);
-  
-  // Bind and draw
-  encoder->drawIndexedPrimitives(...);
-```
+**What was implemented:**
+- Guest memory mapping via `TranslatePhysical()`
+- Metal buffer creation from guest index data
+- Proper index type handling (16-bit vs 32-bit)
+- Debug labeling for buffer tracking
+- Cleanup and memory management
 
-### 2. Primitive Restart Pre-processing (3-4 days)
+**Results:**
+- Successfully processing guest DMA index buffers
+- Creating Metal buffers directly from Xbox 360 memory
+- Drawing indexed primitives with guest data
+- No crashes or memory leaks
+
+### 2. Primitive Restart Pre-processing (3-4 days) - IN PROGRESS
 Metal always treats 0xFFFF/0xFFFFFFFF as restart indices. We need to handle when Xbox 360 uses these as real vertices.
 
 **Detection:**

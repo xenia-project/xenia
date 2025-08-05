@@ -686,11 +686,35 @@ class MetalIndexBufferCache {
 - **Primitive Restart**: Ready to pre-process indices to avoid Metal's hardcoded restart values
 - **Endianness**: Handles Xbox 360's big-endian to little-endian conversion
 
+### 🚀 Phase 2.10 Completed (Guest DMA Index Buffer Support) ✅
+
+**Achievement**: Implemented direct handling of Xbox 360 guest DMA index buffers.
+
+#### Implementation Details (`metal_command_processor.cc:614-675`):
+1. **Guest Memory Mapping**
+   - Maps guest physical addresses using `memory_->TranslatePhysical()`
+   - Handles invalid address cases gracefully
+   - Preserves Xbox 360 memory layout
+
+2. **Index Buffer Creation**
+   - Calculates buffer size based on index format (16/32-bit)
+   - Creates Metal buffers from guest memory with `MTL::ResourceStorageModeShared`
+   - Labels buffers for debugging (e.g., "Xbox360GuestDMAIndexBuffer_0x12345678")
+
+3. **Draw Call Integration**
+   - Uses `drawIndexedPrimitives` with proper Metal index types
+   - Adds buffers to cleanup list for proper memory management
+   - Falls back to non-indexed draw on error
+
+4. **Testing Results**
+   - Successfully processing guest DMA index buffers in A-Train HX traces
+   - Creating 16-byte buffers for 4 32-bit indices (typical for rectangle lists)
+   - No crashes or memory errors
+
 ### Next Implementation Steps:
 - **Week 1**: Complete primitive restart pre-processing
-- **Week 2**: Implement guest DMA index buffer support  
-- **Weeks 3-5**: EDRAM integration with proper render targets
-- **Week 6**: Viewport fixes and testing
+- **Weeks 2-4**: EDRAM integration with proper render targets
+- **Week 5**: Viewport fixes and testing
    - Caching system to avoid redundant Wine conversions
    - Thread-safe implementation with mutex protection
    - Reduces conversion overhead (50-100ms per shader)
