@@ -26,22 +26,22 @@ We have successfully implemented the Metal primitive processor infrastructure wi
 - Drawing indexed primitives with guest data
 - No crashes or memory leaks
 
-### 2. Primitive Restart Pre-processing (3-4 days) - IN PROGRESS
+### 2. ✅ Primitive Restart Pre-processing (COMPLETED)
 Metal always treats 0xFFFF/0xFFFFFFFF as restart indices. We need to handle when Xbox 360 uses these as real vertices.
 
-**Detection:**
-```cpp
-// Check if primitive restart is disabled
-if (!regs.PA_SU_SC_MODE_CNTL.multi_prim_ib_ena) {
-  // Scan indices for problematic values
-  // If found, process through ReplaceResetIndex16To24/32To24
-}
-```
+**Status**: Completed! The primitive processor already handles this automatically.
 
-**Implementation:**
-- Use existing `ReplaceResetIndex16To24()` for 16-bit indices
-- Use existing `ReplaceResetIndex32To24()` for 32-bit indices
-- Cache processed buffers to avoid re-processing
+**How it works:**
+- The base `PrimitiveProcessor::Process()` method detects when primitive restart is disabled but indices contain restart values
+- It automatically converts indices via `ProcessedIndexBufferType::kHostConverted` when needed
+- For guest DMA buffers (type `kGuestDMA`), the processor has already verified they don't need conversion
+- Metal command processor can use guest DMA buffers directly without additional checks
+
+**Key insight:**
+The primitive processor's result type tells us everything:
+- `kHostConverted`: Already pre-processed to avoid Metal's hardcoded restart
+- `kGuestDMA`: Safe to use directly, no problematic indices
+- `kHostBuiltinForAuto`/`kHostBuiltinForDMA`: Generated indices, no restart issues
 
 ### 3. Additional Primitive Type Support (2-3 days)
 Currently only handling rectangle lists. Need to add:

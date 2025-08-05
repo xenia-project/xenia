@@ -646,6 +646,12 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                        index_buffer_size);
                 
                 // Create Metal index buffer from guest data
+                // NOTE: The primitive processor already handles primitive restart pre-processing
+                // when needed. If primitive restart is disabled but the indices contain values
+                // that Metal would treat as restart (0xFFFF/0xFFFFFFFF), the primitive processor
+                // will have already converted them via ProcessedIndexBufferType::kHostConverted.
+                // For guest DMA buffers, we can use them directly since the processor determined
+                // they don't need conversion.
                 MTL::Buffer* guest_index_buffer = GetMetalDevice()->newBuffer(
                     guest_indices,
                     index_buffer_size,

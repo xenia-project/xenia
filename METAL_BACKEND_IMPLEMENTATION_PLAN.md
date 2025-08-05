@@ -711,8 +711,22 @@ class MetalIndexBufferCache {
    - Creating 16-byte buffers for 4 32-bit indices (typical for rectangle lists)
    - No crashes or memory errors
 
+### 🔄 Phase 2.11 Completed (Primitive Restart Pre-processing) ✅
+
+**Achievement**: Verified that primitive restart handling is already built into the base primitive processor.
+
+#### Key Understanding:
+- Metal ALWAYS treats 0xFFFF/0xFFFFFFFF as primitive restart indices
+- Xbox 360 can disable primitive restart and use these values as real vertex indices
+- The base `PrimitiveProcessor` already detects and handles this case automatically
+- When problematic indices are found, it returns `ProcessedIndexBufferType::kHostConverted`
+- For `kGuestDMA` buffers, the processor has verified they're safe to use directly
+
+#### Implementation Note:
+No additional code needed in Metal command processor - just use the primitive processor's result type to determine if conversion was already done.
+
 ### Next Implementation Steps:
-- **Week 1**: Complete primitive restart pre-processing
+- **Week 1**: Additional primitive type support (triangle fans, line loops, etc.)
 - **Weeks 2-4**: EDRAM integration with proper render targets
 - **Week 5**: Viewport fixes and testing
    - Caching system to avoid redundant Wine conversions
