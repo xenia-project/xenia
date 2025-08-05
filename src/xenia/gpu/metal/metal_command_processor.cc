@@ -9,6 +9,7 @@
 
 #include "xenia/gpu/metal/metal_command_processor.h"
 
+#include "xenia/base/byte_order.h"
 #include "xenia/base/logging.h"
 #include "xenia/gpu/primitive_processor.h"
 #include "xenia/gpu/metal/metal_graphics_system.h"
@@ -239,6 +240,17 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   if (!primitive_processor_->Process(primitive_processing_result)) {
     XELOGE("Metal IssueDraw: Primitive processing failed");
     return false;
+  }
+  
+  // Log primitive restart status for testing
+  const auto& pa_su_sc_mode_cntl = register_file_->Get<reg::PA_SU_SC_MODE_CNTL>();
+  XELOGI("Metal IssueDraw: Primitive restart enabled: {}, reset index enabled: {}", 
+         pa_su_sc_mode_cntl.multi_prim_ib_ena ? "YES" : "NO",
+         primitive_processing_result.host_primitive_reset_enabled ? "YES" : "NO");
+  
+  if (primitive_processing_result.index_buffer_type == 
+      PrimitiveProcessor::ProcessedIndexBufferType::kHostConverted) {
+    XELOGI("Metal IssueDraw: Index buffer was CONVERTED by primitive processor (likely for restart handling)");
   }
   
   XELOGI("Metal IssueDraw: Primitive processing result - "
@@ -644,6 +656,33 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                        primitive_processing_result.host_index_format == xenos::IndexFormat::kInt32 ? "32-bit" : "16-bit",
                        primitive_processing_result.host_draw_vertex_count,
                        index_buffer_size);
+                
+                // Check for restart indices in the data for testing
+                bool has_restart_values = false;
+                if (primitive_processing_result.host_index_format == xenos::IndexFormat::kInt16) {
+                  const uint16_t* indices16 = static_cast<const uint16_t*>(guest_indices);
+                  for (uint32_t i = 0; i < primitive_processing_result.host_draw_vertex_count && i < 10; ++i) {
+                    uint16_t index = xenos::GpuSwap(indices16[i], primitive_processing_result.host_shader_index_endian);
+                    if (index == 0xFFFF) {
+                      has_restart_values = true;
+                      XELOGI("Metal IssueDraw: Found 0xFFFF at index {}", i);
+                    }
+                  }
+                } else {
+                  const uint32_t* indices32 = static_cast<const uint32_t*>(guest_indices);
+                  for (uint32_t i = 0; i < primitive_processing_result.host_draw_vertex_count && i < 10; ++i) {
+                    uint32_t index = xenos::GpuSwap(indices32[i], primitive_processing_result.host_shader_index_endian);
+                    if (index == 0xFFFFFFFF) {
+                      has_restart_values = true;
+                      XELOGI("Metal IssueDraw: Found 0xFFFFFFFF at index {}", i);
+                    }
+                  }
+                }
+                
+                if (has_restart_values && !pa_su_sc_mode_cntl.multi_prim_ib_ena) {
+                  XELOGI("Metal IssueDraw: WARNING - Found restart values with primitive restart DISABLED!");
+                  XELOGI("Metal IssueDraw: This should have been caught by primitive processor!");
+                }
                 
                 // Create Metal index buffer from guest data
                 // NOTE: The primitive processor already handles primitive restart pre-processing
