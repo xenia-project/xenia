@@ -41,6 +41,10 @@ project("xenia-gpu-metal")
       "metal_render_target_cache.h",
       "metal_presenter.cc",
       "metal_presenter.h",
+      "dxbc_to_dxil_converter.cc",
+      "dxbc_to_dxil_converter.h",
+      "metal_shader_cache.cc",
+      "metal_shader_cache.h",
     }
 
     libdirs     { metal_converter_libdir }

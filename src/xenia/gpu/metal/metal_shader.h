@@ -74,6 +74,9 @@ class MetalShader : public DxbcShader {
   void ConfigureMetalShaderConverter();
 };
 
+// Cleanup function to be called on shutdown
+void CleanupMetalShaderResources();
+
 }  // namespace metal
 }  // namespace gpu
 }  // namespace xe

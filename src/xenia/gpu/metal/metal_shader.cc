@@ -9,12 +9,17 @@
 
 #include "xenia/gpu/metal/metal_shader.h"
 
+#include <dispatch/dispatch.h>
+
 #include <algorithm>
 #include <cstring>
+#include <fstream>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/profiling.h"
+#include "xenia/gpu/metal/dxbc_to_dxil_converter.h"
+#include "xenia/gpu/metal/metal_shader_cache.h"
 
 // Define metal-cpp implementation (only in one cpp file)
 #define NS_PRIVATE_IMPLEMENTATION
@@ -31,6 +36,9 @@
 namespace xe {
 namespace gpu {
 namespace metal {
+
+// Global DXBC to DXIL converter instance (initialized once)
+static std::unique_ptr<DxbcToDxilConverter> g_dxbc_to_dxil_converter;
 
 MetalShader::MetalShader(xenos::ShaderType shader_type, uint64_t data_hash,
                          const uint32_t* dword_ptr, uint32_t dword_count)
@@ -87,12 +95,62 @@ MetalShader::MetalTranslation::~MetalTranslation() {
 }
 
 bool MetalShader::MetalTranslation::ConvertToMetal() {
-  // Get the DXIL bytecode from the base class
-  const auto& dxil_bytecode = translated_binary();
-  if (dxil_bytecode.empty()) {
-    XELOGE("Metal shader: No DXIL bytecode available for Metal conversion");
+  XELOGI("========== Metal shader: ConvertToMetal() CALLED ==========");
+  
+  // Initialize the DXBC to DXIL converter if not already done
+  if (!g_dxbc_to_dxil_converter) {
+    XELOGI("Metal shader: Initializing DXBC to DXIL converter...");
+    g_dxbc_to_dxil_converter = std::make_unique<DxbcToDxilConverter>();
+    if (!g_dxbc_to_dxil_converter->Initialize()) {
+      XELOGE("Metal shader: Failed to initialize DXBC to DXIL converter");
+      XELOGE("Make sure Wine is installed and dxbc2dxil.exe is available");
+      return false;
+    }
+    XELOGI("Metal shader: DXBC to DXIL converter initialized successfully");
+  }
+
+  // Initialize shader cache if not already done
+  if (!g_metal_shader_cache) {
+    g_metal_shader_cache = std::make_unique<MetalShaderCache>();
+    // Optionally load from disk
+    // g_metal_shader_cache->LoadFromFile("shader_cache.bin");
+  }
+
+  // Get the DXBC bytecode from the base class
+  // NOTE: Despite the method name, this actually returns DXBC, not DXIL
+  const auto& dxbc_bytecode = translated_binary();
+  if (dxbc_bytecode.empty()) {
+    XELOGE("Metal shader: No DXBC bytecode available for conversion");
     return false;
   }
+  
+  XELOGD("Metal shader: Got DXBC bytecode, size = {} bytes", dxbc_bytecode.size());
+  
+
+  // Get shader hash for caching
+  uint64_t shader_hash = shader().ucode_data_hash();
+  
+  // Check cache first
+  std::vector<uint8_t> dxil_bytecode;
+  if (!g_metal_shader_cache->GetCachedDxil(shader_hash, dxil_bytecode)) {
+    // Not in cache, need to convert
+    std::string error_message;
+    
+    XELOGD("Metal shader: Converting DXBC ({} bytes) to DXIL...", dxbc_bytecode.size());
+    
+    if (!g_dxbc_to_dxil_converter->Convert(dxbc_bytecode, dxil_bytecode, &error_message)) {
+      XELOGE("Metal shader: DXBC to DXIL conversion failed: {}", error_message);
+      return false;
+    }
+    
+    // Store in cache for next time
+    g_metal_shader_cache->StoreDxil(shader_hash, dxil_bytecode);
+  } else {
+    XELOGD("Metal shader: Found DXIL in cache ({} bytes)", dxil_bytecode.size());
+  }
+
+  XELOGD("Metal shader: Successfully got DXIL ({} bytes)", dxil_bytecode.size());
+  
 
   // Convert DXIL to Metal using Metal Shader Converter
   if (!ConvertDxilToMetal(dxil_bytecode)) {
@@ -136,12 +194,22 @@ bool MetalShader::MetalTranslation::ConvertDxilToMetal(
     
 
   // Create IR object from DXIL bytecode
+  XELOGD("Metal shader: Creating IR object from DXIL ({} bytes)...", dxil_bytecode.size());
+  
+  // DEBUG: Print first few bytes of DXIL to check header
+  if (dxil_bytecode.size() >= 16) {
+    XELOGD("Metal shader: DXIL header bytes: {:02x} {:02x} {:02x} {:02x} {:02x} {:02x} {:02x} {:02x}",
+           dxil_bytecode[0], dxil_bytecode[1], dxil_bytecode[2], dxil_bytecode[3],
+           dxil_bytecode[4], dxil_bytecode[5], dxil_bytecode[6], dxil_bytecode[7]);
+  }
+  
   IRObject* dxil_object = IRObjectCreateFromDXIL(
       dxil_bytecode.data(), dxil_bytecode.size(), IRBytecodeOwnershipNone);
   if (!dxil_object) {
-    XELOGE("Metal shader: Failed to create IR object from DXIL");
+    XELOGE("Metal shader: Failed to create IR object from DXIL - IRObjectCreateFromDXIL returned nullptr");
     return false;
   }
+  XELOGD("Metal shader: Successfully created IR object from DXIL");
 
   // Compile DXIL to Metal IR
   IRError* error = nullptr;
@@ -221,11 +289,18 @@ bool MetalShader::MetalTranslation::CreateMetalLibrary() {
   }
 
   NS::Error* error = nullptr;
-  dispatch_data_t data = dispatch_data_create(metallib_data, metallib_size, 
-                                              dispatch_get_main_queue(), DISPATCH_DATA_DESTRUCTOR_DEFAULT);
   
-  MTL::Library* library = device->newLibrary(data, &error);
-  dispatch_release(data);
+  // Create dispatch data with cleanup block
+  auto cleanup_block = ^{
+    delete[] metallib_data;
+  };
+  
+  dispatch_data_t dispatch_data = dispatch_data_create(
+      metallib_data, metallib_size, dispatch_get_main_queue(),
+      cleanup_block);
+  
+  MTL::Library* library = device->newLibrary(dispatch_data, &error);
+  dispatch_release(dispatch_data);
   
   if (!library) {
     NS::String* error_desc = error ? error->localizedDescription() : NS::String::string("Unknown error", NS::UTF8StringEncoding);
@@ -257,6 +332,22 @@ bool MetalShader::MetalTranslation::CreateMetalLibrary() {
   XELOGE("Metal shader: Not supported on non-macOS platforms");
   return false;
 #endif  // XE_PLATFORM_MAC
+}
+
+// Cleanup function to be called on shutdown
+void CleanupMetalShaderResources() {
+  if (g_metal_shader_cache) {
+    // Optionally save cache to disk
+    // g_metal_shader_cache->SaveToFile("shader_cache.bin");
+    XELOGD("Metal shader cache stats: {} shaders, {} total bytes",
+           g_metal_shader_cache->GetCacheSize(),
+           g_metal_shader_cache->GetTotalBytes());
+    g_metal_shader_cache.reset();
+  }
+  
+  if (g_dxbc_to_dxil_converter) {
+    g_dxbc_to_dxil_converter.reset();
+  }
 }
 
 }  // namespace metal
