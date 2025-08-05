@@ -108,7 +108,7 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
           if (elapsed >= vsync_duration) {
             // Check again before calling MarkVblank in case we're shutting down
             if (vsync_worker_running_.load()) {
-              XELOGI("GPU VSync: Marking vblank");
+              // XELOGI("GPU VSync: Marking vblank");
               MarkVblank();
               last_frame_time = current_time;
             }
@@ -282,7 +282,7 @@ void GraphicsSystem::MarkVblank() {
   // Safety check - if we're shutting down, don't do anything
   // Use atomic load to avoid race condition
   if (!vsync_worker_running_.load()) {
-    XELOGI("GPU VSync: MarkVblank called but shutting down, skipping");
+    // XELOGI("GPU VSync: MarkVblank called but shutting down, skipping");
     return;
   }
 
@@ -298,9 +298,9 @@ void GraphicsSystem::MarkVblank() {
   // TODO(benvanik): we shouldn't need to do the dispatch here, but there's
   //     something wrong and the CP will block waiting for code that
   //     needs to be run in the interrupt.
-  XELOGI("GPU VSync: About to call DispatchInterruptCallback");
+  // XELOGI("GPU VSync: About to call DispatchInterruptCallback");
   DispatchInterruptCallback(0, 2);
-  XELOGI("GPU VSync: DispatchInterruptCallback completed");
+  // XELOGI("GPU VSync: DispatchInterruptCallback completed");
 }
 
 void GraphicsSystem::ClearCaches() {

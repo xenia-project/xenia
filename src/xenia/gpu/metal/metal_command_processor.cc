@@ -10,10 +10,13 @@
 #include "xenia/gpu/metal/metal_command_processor.h"
 
 #include "xenia/base/logging.h"
+#include "xenia/gpu/primitive_processor.h"
 #include "xenia/gpu/metal/metal_graphics_system.h"
 #include "xenia/gpu/metal/metal_buffer_cache.h"
 #include "xenia/gpu/metal/metal_pipeline_cache.h"
+#include "xenia/gpu/metal/metal_primitive_processor.h"
 #include "xenia/gpu/metal/metal_render_target_cache.h"
+#include "xenia/gpu/metal/metal_shared_memory.h"
 #include "xenia/gpu/metal/metal_texture_cache.h"
 
 namespace xe {
@@ -50,6 +53,17 @@ bool MetalCommandProcessor::SetupContext() {
       this, register_file_, memory_);
   render_target_cache_ = std::make_unique<MetalRenderTargetCache>(
       this, register_file_, memory_);
+  // Create shared memory
+  shared_memory_ = std::make_unique<MetalSharedMemory>(
+      *this, *memory_, trace_writer_);
+  if (!shared_memory_->Initialize()) {
+    XELOGE("Failed to initialize Metal shared memory");
+    return false;
+  }
+  
+  // Create primitive processor
+  primitive_processor_ = std::make_unique<MetalPrimitiveProcessor>(
+      *this, *register_file_, *memory_, trace_writer_, *shared_memory_);
   
   // Initialize each cache system
   if (!buffer_cache_->Initialize()) {
@@ -68,6 +82,10 @@ bool MetalCommandProcessor::SetupContext() {
     XELOGE("Failed to initialize Metal pipeline cache");
     return false;
   }
+  if (!primitive_processor_->Initialize()) {
+    XELOGE("Failed to initialize Metal primitive processor");
+    return false;
+  }
   
   XELOGI("Metal cache systems initialized successfully");
   
@@ -76,6 +94,10 @@ bool MetalCommandProcessor::SetupContext() {
 
 void MetalCommandProcessor::ShutdownContext() {
   // Shutdown cache systems in reverse order
+  if (primitive_processor_) {
+    primitive_processor_->Shutdown();
+    primitive_processor_.reset();
+  }
   if (pipeline_cache_) {
     pipeline_cache_->Shutdown();
     pipeline_cache_.reset();
@@ -91,6 +113,10 @@ void MetalCommandProcessor::ShutdownContext() {
   if (buffer_cache_) {
     buffer_cache_->Shutdown();
     buffer_cache_.reset();
+  }
+  if (shared_memory_) {
+    shared_memory_->Shutdown();
+    shared_memory_.reset();
   }
   
   XELOGI("Metal cache systems shutdown");
@@ -199,6 +225,39 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
            static_cast<int>(index_buffer_info->format),
            static_cast<int>(index_buffer_info->endianness));
   }
+
+  // Begin submission for this draw
+  if (!BeginSubmission(true)) {
+    XELOGE("Metal IssueDraw: Failed to begin submission");
+    return false;
+  }
+  
+  // Process primitives through the primitive processor
+  // This handles primitive restart, primitive type conversion, etc.
+  XELOGI("Metal IssueDraw: About to call primitive processor Process()");
+  PrimitiveProcessor::ProcessingResult primitive_processing_result;
+  if (!primitive_processor_->Process(primitive_processing_result)) {
+    XELOGE("Metal IssueDraw: Primitive processing failed");
+    return false;
+  }
+  
+  XELOGI("Metal IssueDraw: Primitive processing result - "
+         "type: {}, index_count: {}, index_buffer_type: {}",
+         static_cast<uint32_t>(primitive_processing_result.host_primitive_type),
+         primitive_processing_result.host_draw_vertex_count,
+         static_cast<uint32_t>(primitive_processing_result.index_buffer_type));
+  
+  // Check if there's anything to draw
+  if (!primitive_processing_result.host_draw_vertex_count) {
+    XELOGI("Metal IssueDraw: Nothing to draw after primitive processing");
+    return true;
+  }
+  
+  XELOGI("Metal IssueDraw: Primitive processing result - "
+         "type: {}, index_count: {}, index_buffer_type: {}",
+         static_cast<uint32_t>(primitive_processing_result.host_primitive_type),
+         primitive_processing_result.host_draw_vertex_count,
+         static_cast<uint32_t>(primitive_processing_result.index_buffer_type));
 
   // Phase B Step 2: Create pipeline state for this draw call
   // This demonstrates the shader→pipeline integration
@@ -504,9 +563,9 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
           // TODO: Phase C Step 2 - Use actual Xbox 360 vertex data
             
           // Encode the actual draw call
-          // Convert Xbox 360 primitive type to Metal primitive type
+          // Convert processed primitive type to Metal primitive type
           MTL::PrimitiveType metal_prim_type = MTL::PrimitiveTypeTriangle; // Default
-          switch (prim_type) {
+          switch (primitive_processing_result.host_primitive_type) {
             case xenos::PrimitiveType::kPointList:
               metal_prim_type = MTL::PrimitiveTypePoint;
               break;
@@ -529,13 +588,38 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               break;
           }
             
-          if (index_buffer_info) {
-            // Indexed draw - need to bind index buffer
-            XELOGI("Metal IssueDraw: Indexed draw not yet implemented, using non-indexed fallback");
-            encoder->drawPrimitives(metal_prim_type, NS::UInteger(0), NS::UInteger(index_count));
+          if (primitive_processing_result.index_buffer_type != 
+              PrimitiveProcessor::ProcessedIndexBufferType::kNone) {
+            // Indexed draw
+            if (primitive_processing_result.index_buffer_type == 
+                PrimitiveProcessor::ProcessedIndexBufferType::kHostConverted) {
+              // Use pre-processed index buffer from primitive processor
+              MTL::Buffer* index_buffer = reinterpret_cast<MTL::Buffer*>(
+                  primitive_processing_result.host_index_buffer_handle);
+              
+              MTL::IndexType index_type = 
+                  primitive_processing_result.host_index_format == xenos::IndexFormat::kInt32
+                      ? MTL::IndexTypeUInt32 
+                      : MTL::IndexTypeUInt16;
+              
+              encoder->drawIndexedPrimitives(
+                  metal_prim_type, 
+                  NS::UInteger(primitive_processing_result.host_draw_vertex_count),
+                  index_type,
+                  index_buffer,
+                  NS::UInteger(0));  // offset
+                  
+              XELOGI("Metal IssueDraw: Drew indexed primitives with converted buffer");
+            } else {
+              // TODO: Handle guest DMA index buffers
+              XELOGW("Metal IssueDraw: Guest DMA index buffers not yet implemented");
+              encoder->drawPrimitives(metal_prim_type, NS::UInteger(0), 
+                                    NS::UInteger(primitive_processing_result.host_draw_vertex_count));
+            }
           } else {
             // Non-indexed draw
-            encoder->drawPrimitives(metal_prim_type, NS::UInteger(0), NS::UInteger(index_count));
+            encoder->drawPrimitives(metal_prim_type, NS::UInteger(0), 
+                                  NS::UInteger(primitive_processing_result.host_draw_vertex_count));
           }
           
           XELOGI("Metal IssueDraw: Encoded draw primitives call ({} vertices, primitive type {})", 
@@ -583,6 +667,9 @@ bool MetalCommandProcessor::IssueCopy() {
 }
 
 bool MetalCommandProcessor::BeginSubmission(bool is_guest_command) {
+  XELOGI("Metal BeginSubmission called: is_guest_command={}, submission_open={}",
+         is_guest_command, submission_open_);
+  
   if (submission_open_) {
     return true;
   }
@@ -592,6 +679,9 @@ bool MetalCommandProcessor::BeginSubmission(bool is_guest_command) {
     frame_open_ = true;
     
     // Notify cache systems of new frame
+    if (primitive_processor_) {
+      primitive_processor_->BeginFrame();
+    }
     if (buffer_cache_) {
       // buffer_cache_->BeginFrame();  // Will add when implementing buffer cache
     }
@@ -614,6 +704,12 @@ bool MetalCommandProcessor::BeginSubmission(bool is_guest_command) {
   }
 
   submission_open_ = true;
+  
+  // Notify primitive processor of new submission
+  if (primitive_processor_) {
+    primitive_processor_->BeginSubmission();
+  }
+  
   return true;
 }
 
@@ -626,6 +722,9 @@ bool MetalCommandProcessor::EndSubmission(bool is_swap) {
 
   if (is_closing_frame) {
     // Notify cache systems of frame end
+    if (primitive_processor_) {
+      primitive_processor_->EndFrame();
+    }
     if (texture_cache_) {
       // texture_cache_->EndFrame();  // Will add when implementing texture cache
     }

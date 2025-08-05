@@ -29,7 +29,9 @@ namespace metal {
 class MetalGraphicsSystem;
 class MetalBufferCache;
 class MetalPipelineCache;
+class MetalPrimitiveProcessor;
 class MetalRenderTargetCache;
+class MetalSharedMemory;
 class MetalTextureCache;
 
 class MetalCommandProcessor : public CommandProcessor {
@@ -47,6 +49,7 @@ class MetalCommandProcessor : public CommandProcessor {
   // Cache system access
   MetalBufferCache* buffer_cache() const { return buffer_cache_.get(); }
   MetalPipelineCache* pipeline_cache() const { return pipeline_cache_.get(); }
+  MetalPrimitiveProcessor* primitive_processor() const { return primitive_processor_.get(); }
   MetalRenderTargetCache* render_target_cache() const { return render_target_cache_.get(); }
   MetalTextureCache* texture_cache() const { return texture_cache_.get(); }
 
@@ -93,7 +96,9 @@ class MetalCommandProcessor : public CommandProcessor {
   // Cache systems
   std::unique_ptr<MetalBufferCache> buffer_cache_;
   std::unique_ptr<MetalPipelineCache> pipeline_cache_;
+  std::unique_ptr<MetalPrimitiveProcessor> primitive_processor_;
   std::unique_ptr<MetalRenderTargetCache> render_target_cache_;
+  std::unique_ptr<MetalSharedMemory> shared_memory_;
   std::unique_ptr<MetalTextureCache> texture_cache_;
 };
 
