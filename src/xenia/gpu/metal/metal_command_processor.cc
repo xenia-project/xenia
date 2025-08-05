@@ -366,8 +366,8 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               uint32_t address = vfetch_constant.address << 2;  // Convert from dwords to bytes
               uint32_t size = vfetch_constant.size << 2;        // Convert from words to bytes
               
-            XELOGI("Metal IssueDraw: Vertex binding {} - fetch constant {}, address 0x{:08X}, size {} bytes",
-                     binding.binding_index, binding.fetch_constant, address, size);
+            XELOGI("Metal IssueDraw: Vertex binding {} - fetch constant {}, address 0x{:08X}, size {} bytes, stride {} words",
+                     binding.binding_index, binding.fetch_constant, address, size, binding.stride_words);
               
               // Map guest memory to get vertex data
               const void* vertex_data = memory_->TranslatePhysical(address);
@@ -394,11 +394,18 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 XELOGI("Metal IssueDraw: Bound vertex buffer {} ({} bytes) from guest address 0x{:08X}", 
                        binding.binding_index, size, address);
                 
-                // Log first few bytes for debugging
-                if (size >= 12) {
-                  const float* floats = static_cast<const float*>(vertex_data);
-                  XELOGI("Metal IssueDraw: First vertex data: ({:.2f}, {:.2f}, {:.2f})",
-                         floats[0], floats[1], floats[2]);
+                // Log vertex attributes for debugging
+                if (!binding.attributes.empty() && size >= binding.stride_words * 4) {
+                  XELOGI("Metal IssueDraw: Vertex has {} attributes with stride {} bytes", 
+                         binding.attributes.size(), binding.stride_words * 4);
+                  
+                  // Only log raw data if we have a reasonable stride
+                  if (binding.stride_words > 0 && binding.stride_words < 64) {
+                    const uint32_t* vertex_data_u32 = static_cast<const uint32_t*>(vertex_data);
+                    XELOGI("Metal IssueDraw: First vertex raw data (hex): 0x{:08X} 0x{:08X} 0x{:08X} 0x{:08X}",
+                           xe::byte_swap(vertex_data_u32[0]), xe::byte_swap(vertex_data_u32[1]), 
+                           xe::byte_swap(vertex_data_u32[2]), xe::byte_swap(vertex_data_u32[3]));
+                  }
                 }
                 
                 // Track for cleanup
@@ -470,6 +477,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
           const uint32_t* regs = register_file_->values;
             
           // Viewport registers (0x20D8 - 0x20DD)
+          // Note: The register file already stores values in the correct endianness
           global_registers.viewport_scale[0] = *reinterpret_cast<const float*>(&regs[XE_GPU_REG_PA_CL_VPORT_XSCALE]);
           global_registers.viewport_scale[1] = *reinterpret_cast<const float*>(&regs[XE_GPU_REG_PA_CL_VPORT_YSCALE]);
           global_registers.viewport_scale[2] = *reinterpret_cast<const float*>(&regs[XE_GPU_REG_PA_CL_VPORT_ZSCALE]);
@@ -535,6 +543,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             
           // Copy shader constants from the register file
           // Constants start at XE_GPU_REG_SHADER_CONSTANT_000_X (0x4000)
+          // Note: The register file already stores values in the correct endianness
           for (int i = 0; i < kNumConstants; i++) {
             // Each constant is 4 consecutive registers (XYZW)
             int base_reg = XE_GPU_REG_SHADER_CONSTANT_000_X + (i * 4);
