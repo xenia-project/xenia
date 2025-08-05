@@ -523,6 +523,23 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                     XELOGI("Metal IssueDraw: First vertex raw data (hex): 0x{:08X} 0x{:08X} 0x{:08X} 0x{:08X}",
                            xe::byte_swap(vertex_data_u32[0]), xe::byte_swap(vertex_data_u32[1]), 
                            xe::byte_swap(vertex_data_u32[2]), xe::byte_swap(vertex_data_u32[3]));
+                    
+                    // If we did endian swapping, show the swapped values as floats
+                    if (vfetch_constant.endian != xenos::Endian::kNone && binding.attributes.size() > 0) {
+                      const auto& first_attr = binding.attributes[0].fetch_instr;
+                      if (first_attr.attributes.data_format == xenos::VertexFormat::k_32_32_FLOAT ||
+                          first_attr.attributes.data_format == xenos::VertexFormat::k_32_32_32_FLOAT ||
+                          first_attr.attributes.data_format == xenos::VertexFormat::k_32_32_32_32_FLOAT) {
+                        // Show the data after endian swap as floats
+                        float swapped_floats[4];
+                        for (int i = 0; i < 4; i++) {
+                          uint32_t swapped = xenos::GpuSwap(vertex_data_u32[i], vfetch_constant.endian);
+                          swapped_floats[i] = *reinterpret_cast<float*>(&swapped);
+                        }
+                        XELOGI("Metal IssueDraw: After endian swap as floats: ({:.3f}, {:.3f}, {:.3f}, {:.3f})",
+                               swapped_floats[0], swapped_floats[1], swapped_floats[2], swapped_floats[3]);
+                      }
+                    }
                   }
                 }
                 
