@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/metal/metal_command_processor.h"
 
+#include <cstring>
+
 #include "xenia/base/byte_order.h"
 #include "xenia/base/logging.h"
 #include "xenia/gpu/primitive_processor.h"
@@ -161,6 +163,68 @@ Shader* MetalCommandProcessor::LoadShader(xenos::ShaderType shader_type,
                                           uint32_t dword_count) {
   // Delegate to the pipeline cache for shader loading
   return pipeline_cache_->LoadShader(shader_type, host_address, dword_count);
+}
+
+// Helper function to swap vertex element endianness
+void SwapVertexElement(uint8_t* data, xenos::VertexFormat format, xenos::Endian endian) {
+  switch (format) {
+    case xenos::VertexFormat::k_32_FLOAT:
+    case xenos::VertexFormat::k_32:
+      // Single 32-bit value
+      *(uint32_t*)data = xenos::GpuSwap(*(uint32_t*)data, endian);
+      break;
+      
+    case xenos::VertexFormat::k_16_16_FLOAT:
+    case xenos::VertexFormat::k_16_16:
+      // Two 16-bit values
+      *(uint16_t*)(data + 0) = xenos::GpuSwap(*(uint16_t*)(data + 0), endian);
+      *(uint16_t*)(data + 2) = xenos::GpuSwap(*(uint16_t*)(data + 2), endian);
+      break;
+      
+    case xenos::VertexFormat::k_32_32_FLOAT:
+    case xenos::VertexFormat::k_32_32:
+      // Two 32-bit values
+      *(uint32_t*)(data + 0) = xenos::GpuSwap(*(uint32_t*)(data + 0), endian);
+      *(uint32_t*)(data + 4) = xenos::GpuSwap(*(uint32_t*)(data + 4), endian);
+      break;
+      
+    case xenos::VertexFormat::k_32_32_32_FLOAT:
+      // Three 32-bit values
+      *(uint32_t*)(data + 0) = xenos::GpuSwap(*(uint32_t*)(data + 0), endian);
+      *(uint32_t*)(data + 4) = xenos::GpuSwap(*(uint32_t*)(data + 4), endian);
+      *(uint32_t*)(data + 8) = xenos::GpuSwap(*(uint32_t*)(data + 8), endian);
+      break;
+      
+    case xenos::VertexFormat::k_32_32_32_32_FLOAT:
+    case xenos::VertexFormat::k_32_32_32_32:
+      // Four 32-bit values
+      *(uint32_t*)(data + 0) = xenos::GpuSwap(*(uint32_t*)(data + 0), endian);
+      *(uint32_t*)(data + 4) = xenos::GpuSwap(*(uint32_t*)(data + 4), endian);
+      *(uint32_t*)(data + 8) = xenos::GpuSwap(*(uint32_t*)(data + 8), endian);
+      *(uint32_t*)(data + 12) = xenos::GpuSwap(*(uint32_t*)(data + 12), endian);
+      break;
+      
+    case xenos::VertexFormat::k_8_8_8_8:
+    case xenos::VertexFormat::k_2_10_10_10:
+    case xenos::VertexFormat::k_10_11_11:
+    case xenos::VertexFormat::k_11_11_10:
+      // Single 32-bit packed value
+      *(uint32_t*)data = xenos::GpuSwap(*(uint32_t*)data, endian);
+      break;
+      
+    case xenos::VertexFormat::k_16_16_16_16_FLOAT:
+    case xenos::VertexFormat::k_16_16_16_16:
+      // Four 16-bit values
+      *(uint16_t*)(data + 0) = xenos::GpuSwap(*(uint16_t*)(data + 0), endian);
+      *(uint16_t*)(data + 2) = xenos::GpuSwap(*(uint16_t*)(data + 2), endian);
+      *(uint16_t*)(data + 4) = xenos::GpuSwap(*(uint16_t*)(data + 4), endian);
+      *(uint16_t*)(data + 6) = xenos::GpuSwap(*(uint16_t*)(data + 6), endian);
+      break;
+      
+    default:
+      XELOGW("SwapVertexElement: Unhandled vertex format {}", static_cast<uint32_t>(format));
+      break;
+  }
 }
 
 bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
@@ -388,9 +452,51 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 continue;
               }
               
-              // Create Metal buffer from Xbox 360 vertex data
-              MTL::Buffer* vertex_buffer = GetMetalDevice()->newBuffer(
-                  vertex_data, size, MTL::ResourceStorageModeShared);
+              // Check if we need endian conversion
+              MTL::Buffer* vertex_buffer = nullptr;
+              
+              if (vfetch_constant.endian != xenos::Endian::kNone) {
+                // Need to swap endianness - create a copy with swapped data
+                void* swapped_data = std::malloc(size);
+                if (swapped_data) {
+                  std::memcpy(swapped_data, vertex_data, size);
+                  
+                  // Get vertex format info from the binding
+                  // For now, log the endian type and handle common cases
+                  XELOGI("Metal IssueDraw: Vertex buffer needs endian swap - endian type: {}", 
+                         static_cast<uint32_t>(vfetch_constant.endian));
+                  
+                  // Swap based on the endian type and stride
+                  uint32_t stride_bytes = binding.stride_words * 4;
+                  uint32_t vertex_count = size / stride_bytes;
+                  
+                  for (uint32_t v = 0; v < vertex_count; v++) {
+                    uint8_t* vertex_start = static_cast<uint8_t*>(swapped_data) + (v * stride_bytes);
+                    
+                    // For each element in the vertex
+                    for (const auto& attribute : binding.attributes) {
+                      const auto& fetch = attribute.fetch_instr;
+                      uint8_t* element_data = vertex_start + fetch.attributes.offset * 4;
+                      
+                      // Swap based on element format
+                      SwapVertexElement(element_data, fetch.attributes.data_format, vfetch_constant.endian);
+                    }
+                  }
+                  
+                  vertex_buffer = GetMetalDevice()->newBuffer(
+                      swapped_data, 
+                      size, 
+                      MTL::ResourceStorageModeShared);
+                  
+                  std::free(swapped_data);
+                }
+              } else {
+                // No endian swap needed - use data directly
+                vertex_buffer = GetMetalDevice()->newBuffer(
+                    vertex_data, 
+                    size, 
+                    MTL::ResourceStorageModeShared);
+              }
               
               if (vertex_buffer) {
                 // Label the buffer for debugging
