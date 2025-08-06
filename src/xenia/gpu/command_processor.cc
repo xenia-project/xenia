@@ -33,6 +33,7 @@ extern "C" {
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/ring_buffer.h"
+#include "xenia/base/thread_monitor.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/graphics_system.h"
 #include "xenia/gpu/sampler_info.h"
@@ -96,10 +97,14 @@ bool CommandProcessor::Initialize() {
 void CommandProcessor::Shutdown() {
   EndTracing();
 
+  THREAD_MONITOR_EVENT(kJoinStarted, "CommandProcessor::Shutdown starting");
   worker_running_ = false;
   write_ptr_index_event_->Set();
+  THREAD_MONITOR_EVENT(kJoinStarted, "Waiting for worker thread to exit");
   worker_thread_->Wait(0, 0, 0, nullptr);
+  THREAD_MONITOR_EVENT(kJoinCompleted, "Worker thread joined");
   worker_thread_.reset();
+  THREAD_MONITOR_REPORT();
 }
 
 void CommandProcessor::InitializeShaderStorage(
@@ -233,12 +238,15 @@ void CommandProcessor::WaitForIdle() {
 void CommandProcessor::WorkerThreadMain() {
   // NOTE: XHostThread::Execute() already creates an autorelease pool for this thread
   // We only need per-iteration pools for long-running loops
+  THREAD_MONITOR_EVENT(kStarted, "CommandProcessor::WorkerThreadMain started");
 
   threading::set_name("GPU Commands");
   if (!SetupContext()) {
+    THREAD_MONITOR_EVENT(kError, "SetupContext failed");
     xe::FatalError("Unable to setup command processor internal state");
     return;
   }
+  THREAD_MONITOR_EVENT(kStarted, "SetupContext completed successfully");
   fflush(stdout); fflush(stderr);
 
   XELOGI("CommandProcessor::WorkerThreadMain: About to enter main loop");
@@ -248,6 +256,7 @@ void CommandProcessor::WorkerThreadMain() {
     // Create per-loop autorelease pool to prevent memory buildup during long execution
     // This is a nested pool inside the XHostThread's main pool
     void* loop_pool = objc_autoreleasePoolPush();
+    THREAD_MONITOR_EVENT(kPoolCreated, "Per-loop autorelease pool created");
 #endif
     while (!pending_fns_.empty()) {
       auto fn = std::move(pending_fns_.front());
@@ -305,18 +314,23 @@ void CommandProcessor::WorkerThreadMain() {
         XELOGI("CommandProcessor: {} Metal objects alive before pool drain",
                xe::gpu::metal::MetalObjectTracker::Instance().GetAliveCount());
       }
+      THREAD_MONITOR_EVENT(kPoolDrained, "About to drain per-loop autorelease pool");
       objc_autoreleasePoolPop(loop_pool);
+      THREAD_MONITOR_EVENT(kPoolDrained, "Per-loop autorelease pool drained");
     }
 #endif
   }
 
+  THREAD_MONITOR_EVENT(kExiting, "Worker thread exiting main loop");
   ShutdownContext();
+  THREAD_MONITOR_EVENT(kExiting, "ShutdownContext completed");
   
 #if XE_PLATFORM_MAC
   // Report any leaked Metal objects before thread exit
   xe::gpu::metal::MetalObjectTracker::Instance().PrintReport();
 #endif
   
+  THREAD_MONITOR_EVENT(kExiting, "WorkerThreadMain about to return");
   // Main autorelease pool cleanup is handled by XHostThread::Execute()
 }
 

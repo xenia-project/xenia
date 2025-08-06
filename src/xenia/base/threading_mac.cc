@@ -13,6 +13,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/threading_timer_queue.h"
+#include "xenia/base/thread_monitor.h"
 
 #include <pthread.h>
 #include <sched.h>
@@ -312,11 +313,8 @@ bool PosixThread::Initialize(Thread::CreationParameters params,
 }
 
 void* PosixThread::ThreadStartRoutine(void* parameter) {
-#if XE_PLATFORM_MAC
-  // Create autorelease pool for this thread (required for macOS)
-  void* autorelease_pool = objc_autoreleasePoolPush();
-#endif
-
+  THREAD_MONITOR_EVENT(kStarted, "ThreadStartRoutine entered");
+  
   threading::set_name("");
 
   auto start_data = static_cast<ThreadStartData*>(parameter);
@@ -326,6 +324,22 @@ void* PosixThread::ThreadStartRoutine(void* parameter) {
   auto thread = static_cast<PosixThread*>(start_data->thread_obj);
   auto start_routine = std::move(start_data->start_routine);
   delete start_data;
+  
+  THREAD_MONITOR_EVENT(kStarted, "Thread object initialized");
+  
+#if XE_PLATFORM_MAC
+  // Create autorelease pool for this thread (required for macOS)
+  // NOTE: GPU threads will manage their own pools, so we check the name
+  void* autorelease_pool = nullptr;
+  bool is_gpu_thread = (thread->name().find("GPU") != std::string::npos);
+  
+  if (!is_gpu_thread) {
+    autorelease_pool = objc_autoreleasePoolPush();
+    THREAD_MONITOR_EVENT(kPoolCreated, "Main autorelease pool created for non-GPU thread");
+  } else {
+    THREAD_MONITOR_EVENT(kStarted, "GPU thread - will manage its own autorelease pools");
+  }
+#endif
 
   // Set mach_thread_ before any other operations
   mach_port_t mach_thread = pthread_mach_thread_np(pthread_self());
@@ -342,7 +356,9 @@ void* PosixThread::ThreadStartRoutine(void* parameter) {
       thread->state_signal_.notify_all();
     }
 
+    THREAD_MONITOR_EVENT(kStarted, "About to call start_routine");
     start_routine();
+    THREAD_MONITOR_EVENT(kExiting, "start_routine completed");
 
     {
       std::unique_lock<std::mutex> lock(thread->state_mutex_);
@@ -375,17 +391,22 @@ void* PosixThread::ThreadStartRoutine(void* parameter) {
   current_thread_ = nullptr;
   
 #if XE_PLATFORM_MAC
-  // Clean up autorelease pool before thread exits
+  // Clean up autorelease pool before thread exits (only for non-GPU threads)
   if (autorelease_pool) {
+    THREAD_MONITOR_EVENT(kPoolDrained, "Draining main autorelease pool for non-GPU thread");
     objc_autoreleasePoolPop(autorelease_pool);
+    THREAD_MONITOR_EVENT(kPoolDrained, "Main autorelease pool drained");
   }
 #endif
 
+  THREAD_MONITOR_EVENT(kReturnFromFunc, "ThreadStartRoutine returning normally");
   return exit_value;
 }
 
 void PosixThread::set_name(std::string name) {
   Thread::set_name(name);
+  THREAD_MONITOR_SET_NAME(name);
+  THREAD_MONITOR_EVENT(kNameSet, name);
   std::unique_lock<std::mutex> lock(state_mutex_);
   if (pthread_self() == thread_) {
     pthread_setname_np(name.c_str());
@@ -498,11 +519,13 @@ void PosixThread::Terminate(int exit_code) {
     PosixConditionBase::cond_.notify_all();
   }
   if (is_current_thread) {
+    THREAD_MONITOR_EVENT(kTerminating, "About to call pthread_exit");
 #if XE_PLATFORM_MAC && defined(__aarch64__)
     // On macOS ARM64, ensure JIT write protection is properly reset before thread exit
     // This prevents crashes during pthread_exit() due to corrupted JIT state
     pthread_jit_write_protect_np(1);  // Set to execute mode (safe default)
 #endif
+    THREAD_MONITOR_EVENT(kPthreadExit, "Calling pthread_exit");
     pthread_exit(reinterpret_cast<void*>(exit_code));
   } else {
     pthread_cancel(thread_);

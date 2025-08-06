@@ -27,6 +27,7 @@ extern "C" {
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
+#include "xenia/base/thread_monitor.h"
 #include "xenia/cpu/breakpoint.h"
 #include "xenia/cpu/ppc/ppc_decode_data.h"
 #include "xenia/cpu/processor.h"
@@ -449,6 +450,8 @@ X_STATUS XThread::Create() {
 X_STATUS XThread::Exit(int exit_code) {
   // This may only be called on the thread itself.
   assert_true(XThread::GetCurrentThread() == this);
+  
+  THREAD_MONITOR_EVENT(kExiting, fmt::format("XThread::Exit called with code {} for thread {}", exit_code, thread_id_));
 
   // TODO(benvanik): dispatch events? waiters? etc?
   RundownAPCs();
@@ -471,6 +474,7 @@ X_STATUS XThread::Exit(int exit_code) {
   running_ = false;
   ReleaseHandle();
 
+  THREAD_MONITOR_EVENT(kTerminating, fmt::format("XThread::Exit calling Thread::Exit for thread {}", thread_id_));
   // NOTE: this does not return!
   xe::threading::Thread::Exit(exit_code);
   return X_STATUS_SUCCESS;
@@ -1109,22 +1113,11 @@ XHostThread::XHostThread(KernelState* kernel_state, uint32_t stack_size,
 }
 
 void XHostThread::Execute() {
-#if XE_PLATFORM_MAC
-  // Create autorelease pool for this thread (CRITICAL for Metal operations)
-  // See third_party/metal-cpp/README.md - required for every thread
-  // NOTE: For GPU threads, the pool is managed in WorkerThreadMain to ensure
-  // Metal objects are not released prematurely
-  void* autorelease_pool = nullptr;
+  THREAD_MONITOR_EVENT(kStarted, fmt::format("XHostThread::Execute started for thread {}", thread_id_));
   
-  // Only create autorelease pool for non-GPU threads
-  // GPU threads manage their own pools due to Metal object lifecycle requirements
-  if (thread_name_.find("GPU") == std::string::npos) {
-    autorelease_pool = objc_autoreleasePoolPush();
-    XELOGI("XHostThread::Execute: Created autorelease pool for thread {}", thread_id_);
-  } else {
-    XELOGI("XHostThread::Execute: GPU thread {} will manage its own autorelease pool", thread_id_);
-  }
-#endif
+  // NOTE: We don't create autorelease pools here because:
+  // 1. PosixThread::ThreadStartRoutine creates one for non-GPU threads
+  // 2. GPU threads manage their own pools in WorkerThreadMain
 
   // Get system ID safely - thread_ might not be fully initialized yet
   uint32_t native_id = 0;
@@ -1177,15 +1170,19 @@ void XHostThread::Execute() {
   
   if (host_fn_) {
     XELOGI("XHostThread::Execute: host_fn_ is valid, calling function for thread {}", thread_id_);
+    THREAD_MONITOR_EVENT(kStarted, fmt::format("Calling host_fn_ for thread {}", thread_id_));
     try {
       ret = host_fn_();
       XELOGI("XHostThread::Execute: host_fn_ completed successfully for thread {} with ret={}", thread_id_, ret);
+      THREAD_MONITOR_EVENT(kExiting, fmt::format("host_fn_ completed with ret={} for thread {}", ret, thread_id_));
     } catch (...) {
       XELOGE("XHostThread::Execute: Exception caught while executing host_fn_ for thread {}", thread_id_);
+      THREAD_MONITOR_EVENT(kError, fmt::format("Exception in host_fn_ for thread {}", thread_id_));
       ret = -1;
     }
   } else {
     XELOGE("XHostThread::Execute: host_fn_ is null for thread {}", thread_id_);
+    THREAD_MONITOR_EVENT(kError, fmt::format("host_fn_ is null for thread {}", thread_id_));
     Exit(1);
     return;
   }
@@ -1193,15 +1190,7 @@ void XHostThread::Execute() {
   // Exit.
   XELOGI("XHostThread::Execute: About to exit thread {} with ret={}", thread_id_, ret);
   
-#if XE_PLATFORM_MAC
-  // Clean up autorelease pool before Exit() but after all work is done
-  // This ensures all autoreleased objects from the thread are cleaned up
-  if (autorelease_pool) {
-    XELOGI("XHostThread::Execute: Draining autorelease pool for thread {}", thread_id_);
-    objc_autoreleasePoolPop(autorelease_pool);
-  }
-#endif
-
+  THREAD_MONITOR_EVENT(kExiting, fmt::format("XHostThread::Execute calling Exit({}) for thread {}", ret, thread_id_));
   Exit(ret);
 }
 
