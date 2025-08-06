@@ -48,7 +48,8 @@ class MetalRenderTargetCache {
   MTL::Texture* GetDepthTarget() const;
   
   // Get render pass descriptor for current targets
-  MTL::RenderPassDescriptor* GetRenderPassDescriptor();
+  // expected_sample_count: The sample count expected by the pipeline (for dummy target creation)
+  MTL::RenderPassDescriptor* GetRenderPassDescriptor(uint32_t expected_sample_count = 1);
 
  private:
   struct RenderTargetDescriptor {

@@ -30,6 +30,7 @@ enum class TracePlaybackMode {
 class TracePlayer : public TraceReader {
  public:
   TracePlayer(GraphicsSystem* graphics_system);
+  ~TracePlayer();
 
   GraphicsSystem* graphics_system() const { return graphics_system_; }
   int current_frame_index() const { return current_frame_index_; }
@@ -56,6 +57,7 @@ class TracePlayer : public TraceReader {
   int current_frame_index_;
   int current_command_index_;
   std::atomic<bool> playing_trace_ = {false};
+  std::atomic<bool> stop_requested_ = {false};
   std::atomic<uint32_t> playback_percent_ = {0};
   std::unique_ptr<xe::threading::Event> playback_event_;
 };

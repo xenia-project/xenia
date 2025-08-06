@@ -36,6 +36,30 @@ TracePlayer::TracePlayer(GraphicsSystem* graphics_system)
   assert_not_null(playback_event_);
 }
 
+TracePlayer::~TracePlayer() {
+  // Signal stop to any running playback
+  stop_requested_.store(true);
+  
+  // Wake up the playback thread if it's waiting
+  if (playback_event_) {
+    playback_event_->Set();
+  }
+  
+  // Wait for playback to finish
+  // Note: WaitOnPlayback uses the same event, so we need to wait a bit
+  // to ensure the thread has exited the playback loop
+  if (playing_trace_.load()) {
+    // Give the playback thread time to notice stop_requested and exit
+    xe::threading::Sleep(std::chrono::milliseconds(100));
+    
+    // If still playing, wait for it to finish
+    int wait_count = 0;
+    while (playing_trace_.load() && wait_count++ < 100) {
+      xe::threading::Sleep(std::chrono::milliseconds(10));
+    }
+  }
+}
+
 const TraceReader::Frame* TracePlayer::current_frame() const {
   if (current_frame_index_ >= frame_count()) {
     return nullptr;
@@ -88,6 +112,7 @@ void TracePlayer::WaitOnPlayback() {
 void TracePlayer::PlayTrace(const uint8_t* trace_data, size_t trace_size,
                             TracePlaybackMode playback_mode,
                             bool clear_caches) {
+  stop_requested_.store(false);  // Reset stop flag for new playback
   playing_trace_.store(true);
   graphics_system_->command_processor()->CallInThread([=]() {
     PlayTraceOnThread(trace_data, trace_size, playback_mode, clear_caches);
@@ -112,7 +137,7 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
   auto trace_ptr = trace_data;
   bool pending_break = false;
   const PacketStartCommand* pending_packet = nullptr;
-  while (trace_ptr < trace_data + trace_size) {
+  while (trace_ptr < trace_data + trace_size && !stop_requested_.load()) {
     playback_percent_ = uint32_t(
         (float(trace_ptr - trace_data) / float(trace_end - trace_data)) *
         10000);

@@ -9,6 +9,8 @@
 
 #include "xenia/gpu/metal/metal_command_processor.h"
 
+#import <Foundation/Foundation.h>
+
 #include <cstring>
 #include <ctime>
 
@@ -23,6 +25,7 @@
 typedef struct objc_object* id;
 #endif
 
+#include "xenia/base/autorelease_pool.h"
 #include "xenia/base/byte_order.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/profiling.h"
@@ -60,6 +63,8 @@ std::string MetalCommandProcessor::GetWindowTitleText() const {
 }
 
 bool MetalCommandProcessor::SetupContext() {
+  XE_SCOPED_AUTORELEASE_POOL("SetupContext");
+  
   // Initialize cache systems
   pipeline_cache_ = std::make_unique<MetalPipelineCache>(
       this, register_file_, false);  // edram_rov_used = false for now
@@ -109,6 +114,13 @@ bool MetalCommandProcessor::SetupContext() {
 }
 
 void MetalCommandProcessor::ShutdownContext() {
+  XE_SCOPED_AUTORELEASE_POOL("ShutdownContext");
+  
+  XELOGI("MetalCommandProcessor: Beginning clean shutdown");
+  
+  // NOTE: Don't check for leaks here - we just created a pool above!
+  // The leak check happens at the end of this function after the scoped pool is destroyed.
+  
   // Force flush any pending commands
   if (submission_open_) {
     XELOGI("Metal ShutdownContext: Forcing EndSubmission before shutdown");
@@ -117,8 +129,10 @@ void MetalCommandProcessor::ShutdownContext() {
   
   // Clean up any remaining command buffer
   if (current_command_buffer_) {
-    XELOGI("Metal ShutdownContext: Found uncommitted command buffer - this shouldn't happen");
-    // Don't track release here - EndSubmission should have handled it
+    XELOGI("Metal ShutdownContext: Found uncommitted command buffer - releasing it");
+    // Release our retained reference
+    TRACK_METAL_RELEASE(current_command_buffer_);
+    current_command_buffer_->release();
     current_command_buffer_ = nullptr;
   }
   
@@ -185,6 +199,11 @@ void MetalCommandProcessor::ShutdownContext() {
   MetalObjectTracker::Instance().PrintReport();
   
   CommandProcessor::ShutdownContext();
+  
+  XELOGI("MetalCommandProcessor: Clean shutdown complete");
+  
+  // The autorelease pool created at the beginning of this function
+  // will be automatically destroyed when we exit this scope
 }
 
 void MetalCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
@@ -194,6 +213,10 @@ void MetalCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
   
   XELOGI("Metal IssueSwap: frontbuffer 0x{:08X}, {}x{}", 
          frontbuffer_ptr, frontbuffer_width, frontbuffer_height);
+  
+  // Frame boundary - any pending draws should be committed
+  // Reset draw batch counter for next frame
+  draws_in_current_batch_ = 0;
   
   // End the current submission and mark it as a swap
   if (!EndSubmission(true)) {
@@ -375,6 +398,9 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                                       uint32_t index_count,
                                       IndexBufferInfo* index_buffer_info,
                                       bool major_mode_explicit) {
+  // NOTE: No autorelease pool here - too broad, causes accumulation
+  // We'll add focused pools around specific Metal operations instead
+  
   // Phase B Step 2: Pipeline state object creation and caching
   
   const char* prim_type_name = "unknown";
@@ -436,10 +462,13 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   }
 
   // Begin submission for this draw
+  XELOGI("Metal IssueDraw: Calling BeginSubmission, submission_open_={}", submission_open_);
   if (!BeginSubmission(true)) {
     XELOGE("Metal IssueDraw: Failed to begin submission");
     return false;
   }
+  XELOGI("Metal IssueDraw: BeginSubmission succeeded, current_command_buffer_={}", 
+         current_command_buffer_ != nullptr);
   
   // Process primitives through the primitive processor
   // This handles primitive restart, primitive type conversion, etc.
@@ -605,7 +634,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
       pipeline_desc.num_color_attachments = i + 1;
       // Get sample count from the first render target
       if (i == 0) {
-        pipeline_desc.sample_count = color_target->sampleCount();
+        pipeline_desc.sample_count = static_cast<uint32_t>(color_target->sampleCount());
       }
     }
   }
@@ -616,11 +645,33 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     pipeline_desc.depth_format = depth_target->pixelFormat();
     // If no color targets, get sample count from depth target
     if (pipeline_desc.num_color_attachments == 0) {
-      pipeline_desc.sample_count = depth_target->sampleCount();
+      pipeline_desc.sample_count = static_cast<uint32_t>(depth_target->sampleCount());
     }
   }
   
-  // If no render targets are bound (neither color nor depth), use a default format for the dummy target
+  // Check if the pixel shader writes color output
+  bool shader_writes_color = false;
+  if (pixel_shader) {
+    // The shader analyzer determines which render targets are written to
+    shader_writes_color = pixel_shader->writes_color_targets() != 0;
+  }
+  
+  // If the shader writes color but we have no color attachments, we need a dummy target
+  // This is required by Metal - if the fragment shader writes color, there must be at least one color attachment
+  if (shader_writes_color && pipeline_desc.num_color_attachments == 0) {
+    XELOGW("Metal IssueDraw: Shader writes color but no color targets bound - adding dummy target");
+    // Use the depth target's sample count if available, otherwise from RB_SURFACE_INFO
+    uint32_t sample_count = pipeline_desc.sample_count;
+    if (sample_count == 1 && depth_target) {
+      sample_count = static_cast<uint32_t>(depth_target->sampleCount());
+    }
+    
+    pipeline_desc.color_formats[0] = MTL::PixelFormatBGRA8Unorm;
+    pipeline_desc.num_color_attachments = 1;
+    pipeline_desc.sample_count = sample_count;
+  }
+  
+  // If no render targets are bound at all (neither color nor depth), use a default format for the dummy target
   if (pipeline_desc.num_color_attachments == 0 && pipeline_desc.depth_format == MTL::PixelFormatInvalid) {
     // Get MSAA samples from RB_SURFACE_INFO for consistency
     uint32_t msaa_samples = (rb_surface_info >> 16) & 0x3;
@@ -639,8 +690,12 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   }
   
   // Request pipeline state from cache (this will create it if needed)
-  MTL::RenderPipelineState* pipeline_state = 
-      pipeline_cache_->GetRenderPipelineState(pipeline_desc);
+  MTL::RenderPipelineState* pipeline_state = nullptr;
+  {
+    // Scoped pool for pipeline creation (may trigger shader compilation)
+    XE_SCOPED_AUTORELEASE_POOL("GetRenderPipelineState");
+    pipeline_state = pipeline_cache_->GetRenderPipelineState(pipeline_desc);
+  }
   
   if (pipeline_state) {
     XELOGI("Metal IssueDraw: Successfully obtained pipeline state");
@@ -648,12 +703,16 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     // Phase C Step 1: Metal Command Buffer and Render Pass Encoding
     MTL::CommandQueue* command_queue = GetMetalCommandQueue();
     if (command_queue) {
+      // The command buffer should already be created by BeginSubmission called earlier
       MTL::CommandBuffer* command_buffer = current_command_buffer_;
       if (!command_buffer) {
-        // Create a new command buffer if we don't have one
-        BeginSubmission(true);
-        command_buffer = current_command_buffer_;
+        XELOGE("Metal IssueDraw: current_command_buffer_ is null even after BeginSubmission!");
+        return false;
       }
+      
+      // Validate the command buffer is actually a command buffer
+      XELOGI("Metal IssueDraw: Validating command buffer at address {}", (void*)command_buffer);
+      
       if (command_buffer) {
         XELOGI("Metal IssueDraw: Using command buffer for rendering");
         
@@ -661,19 +720,30 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
         char draw_label[256];
         snprintf(draw_label, sizeof(draw_label), "Xbox360Draw_%s_idx%u", 
                 prim_type_name, index_count);
-        command_buffer->setLabel(NS::String::string(draw_label, NS::UTF8StringEncoding));
+        // Skip label setting for now to avoid potential crashes
+        XELOGI("Metal IssueDraw: Skipping command buffer label (would be: {})", draw_label);
         
         // Render targets were already set up before pipeline creation
         
         // Get render pass descriptor from cache
-        // For now, if no descriptor available, create a dummy one
-        XELOGI("Metal IssueDraw: Getting render pass descriptor from cache...");
-        MTL::RenderPassDescriptor* render_pass = render_target_cache_->GetRenderPassDescriptor();
+        // IMPORTANT: We need to ensure the render pass uses the same sample count as the pipeline
+        // Store the pipeline's sample count so we can use it if we need to create a dummy target
+        uint32_t pipeline_sample_count = pipeline_desc.sample_count;
+        XELOGI("Metal IssueDraw: Getting render pass descriptor from cache (pipeline expects {} samples)...", 
+               pipeline_sample_count);
+        
+        // Pass the pipeline's sample count to ensure dummy targets match
+        MTL::RenderPassDescriptor* render_pass = render_target_cache_->GetRenderPassDescriptor(pipeline_sample_count);
+        if (render_pass) {
+          // Retain the render pass to extend its lifetime
+          render_pass->retain();
+        }
         XELOGI("Metal IssueDraw: Got render pass: {}", render_pass ? "valid" : "null");
         
         if (!render_pass) {
           // Fallback: Create a dummy render pass for testing
-          XELOGW("Metal IssueDraw: No render pass from cache, creating dummy render target");
+          XELOGW("Metal IssueDraw: No render pass from cache, creating dummy render target with {} samples", 
+                 pipeline_sample_count);
           render_pass = MTL::RenderPassDescriptor::alloc()->init();
           TRACK_METAL_OBJECT(render_pass, "MTL::RenderPassDescriptor");
           
@@ -683,6 +753,14 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
           texture_desc->setHeight(720);
           texture_desc->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
           texture_desc->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
+          
+          // Set texture type and sample count to match pipeline
+          if (pipeline_sample_count > 1) {
+            texture_desc->setTextureType(MTL::TextureType2DMultisample);
+            texture_desc->setSampleCount(pipeline_sample_count);
+          } else {
+            texture_desc->setTextureType(MTL::TextureType2D);
+          }
           
           MTL::Texture* render_target = GetMetalDevice()->newTexture(texture_desc);
           render_pass->colorAttachments()->object(0)->setTexture(render_target);
@@ -696,9 +774,48 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
         }
         
         // Create render command encoder
+        // DO NOT use autorelease pool here - the encoder is autoreleased and we need it to survive
         XELOGI("Metal IssueDraw: Creating render command encoder...");
-        MTL::RenderCommandEncoder* encoder = command_buffer->renderCommandEncoder(render_pass);
+        XELOGI("Metal IssueDraw: Command buffer valid: {}, render pass valid: {}", 
+               command_buffer != nullptr, render_pass != nullptr);
+        
+        if (!command_buffer) {
+          XELOGE("Metal IssueDraw: Command buffer is null!");
+          return false;
+        }
+        if (!render_pass) {
+          XELOGE("Metal IssueDraw: Render pass is null!");
+          return false;
+        }
+        
+        XELOGI("Metal IssueDraw: About to call renderCommandEncoder...");
+        XELOGI("Metal IssueDraw: command_buffer pointer = {}, render_pass pointer = {}", 
+               (void*)command_buffer, (void*)render_pass);
+        MTL::RenderCommandEncoder* encoder = nullptr;
+        
+        // Wrap in Objective-C exception handling since Metal throws NSExceptions
+        @try {
+          encoder = command_buffer->renderCommandEncoder(render_pass);
+          XELOGI("Metal IssueDraw: renderCommandEncoder returned: {}", encoder ? "valid" : "null");
+          if (encoder) {
+            // Retain the encoder to prevent it from being autoreleased prematurely
+            encoder->retain();
+            XELOGI("Metal IssueDraw: Encoder retained successfully");
+          }
+        }
+        @catch (NSException* exception) {
+          // Log the Objective-C exception details
+          XELOGE("Metal IssueDraw: NSException creating render encoder - Name: {}, Reason: {}",
+                 [[exception name] UTF8String],
+                 [[exception reason] UTF8String]);
+          encoder = nullptr;
+        }
+        @catch (...) {
+          XELOGE("Metal IssueDraw: Unknown exception creating render encoder");
+          encoder = nullptr;
+        }
         XELOGI("Metal IssueDraw: Render encoder created: {}", encoder ? "valid" : "null");
+        
         if (encoder) {
           // Track encoder creation
           TRACK_METAL_OBJECT(encoder, "MTL::RenderCommandEncoder");
@@ -752,7 +869,11 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               // Check if we need endian conversion
               MTL::Buffer* vertex_buffer = nullptr;
               
-              if (vfetch_constant.endian != xenos::Endian::kNone) {
+              // Create pool for vertex buffer operations
+              {
+                XE_SCOPED_AUTORELEASE_POOL("CreateVertexBuffer");
+                
+                if (vfetch_constant.endian != xenos::Endian::kNone) {
                 // Need to swap endianness - create a copy with swapped data
                 void* swapped_data = std::malloc(size);
                 if (swapped_data) {
@@ -790,12 +911,13 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 }
               } else {
                 // No endian swap needed - use data directly
-                vertex_buffer = GetMetalDevice()->newBuffer(
-                    vertex_data, 
-                    size, 
-                    MTL::ResourceStorageModeShared);
+                  vertex_buffer = GetMetalDevice()->newBuffer(
+                      vertex_data, 
+                      size, 
+                      MTL::ResourceStorageModeShared);
                   TRACK_METAL_OBJECT(vertex_buffer, "MTL::Buffer[VertexDirect]");
-              }
+                }
+              } // End autorelease pool for vertex buffer creation
               
               if (vertex_buffer) {
                 // Label the buffer for debugging
@@ -1188,21 +1310,32 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
           
           // Track encoder release
           TRACK_METAL_RELEASE(encoder);
+          // Release our retained reference
           encoder->release();
           
           XELOGI("Metal IssueDraw: Metal frame debugging - Command buffer '{}' ready for capture", draw_label);
         }
         
-        // Don't commit here - let EndSubmission handle it
-        // The command buffer will be committed when:
-        // 1. IssueSwap is called (for swap)
-        // 2. OnPrimaryBufferEnd is called (for primary buffer completion)
-        // 3. ShutdownContext is called (for cleanup)
-        XELOGI("Metal IssueDraw: Draw commands added to command buffer");
+        // Batch draws to avoid hitting Metal's 64 in-flight command buffer limit
+        // Only commit after every N draws or when explicitly needed
+        draws_in_current_batch_++;
         
-        // Cleanup render pass if it was allocated here
+        // Commit after 50 draws to avoid too many in-flight command buffers
+        if (draws_in_current_batch_ >= 50) {
+          XELOGI("Metal IssueDraw: Committing command buffer after {} draws", draws_in_current_batch_);
+          EndSubmission(false);
+          draws_in_current_batch_ = 0;
+          // Start a new submission for the next batch of draws
+          BeginSubmission(true);
+        } else {
+          XELOGI("Metal IssueDraw: Draw {} added to batch", draws_in_current_batch_);
+        }
+        
+        // Cleanup render pass
         if (render_pass) {
           TRACK_METAL_RELEASE(render_pass);
+          // We retained the render pass from the cache or created it ourselves
+          // Either way, we need to release it
           render_pass->release();
         }
       }
@@ -1235,6 +1368,8 @@ bool MetalCommandProcessor::IssueCopy() {
 }
 
 bool MetalCommandProcessor::BeginSubmission(bool is_guest_command) {
+  XE_SCOPED_AUTORELEASE_POOL("BeginSubmission");
+  
   XELOGI("Metal BeginSubmission called: is_guest_command={}, submission_open={}",
          is_guest_command, submission_open_);
   
@@ -1272,6 +1407,9 @@ bool MetalCommandProcessor::BeginSubmission(bool is_guest_command) {
     return false;
   }
   
+  // Retain the command buffer to keep it alive (commandBuffer returns autoreleased object)
+  current_command_buffer_->retain();
+  
   // Track command buffer creation
   TRACK_METAL_OBJECT(current_command_buffer_, "MTL::CommandBuffer");
 
@@ -1286,6 +1424,8 @@ bool MetalCommandProcessor::BeginSubmission(bool is_guest_command) {
 }
 
 bool MetalCommandProcessor::EndSubmission(bool is_swap) {
+  XE_SCOPED_AUTORELEASE_POOL("EndSubmission");
+  
   if (!submission_open_) {
     return true;
   }
@@ -1340,8 +1480,10 @@ bool MetalCommandProcessor::EndSubmission(bool is_swap) {
 
   // Commit and submit the command buffer
   if (current_command_buffer_) {
-#if defined(DEBUG) || defined(_DEBUG) || defined(CHECKED)
+    XELOGI("Metal EndSubmission: About to commit command buffer");
+#if 0 // DISABLED - completion handler causing hang
     // Add completion handler for debugging
+    XELOGI("Metal EndSubmission: Adding completion handler");
     current_command_buffer_->addCompletedHandler(^(MTL::CommandBuffer* buffer) {
       if (buffer->error()) {
         NS::Error* error = buffer->error();
@@ -1363,12 +1505,17 @@ bool MetalCommandProcessor::EndSubmission(bool is_swap) {
         XELOGE("Command buffer status: {}", status_str);
       }
     });
+    XELOGI("Metal EndSubmission: Completion handler added");
 #endif
     
+    XELOGI("Metal EndSubmission: Calling commit() on command buffer");
     current_command_buffer_->commit();
+    XELOGI("Metal EndSubmission: Command buffer committed");
     
     // Track command buffer release before nulling
     TRACK_METAL_RELEASE(current_command_buffer_);
+    // Release our retained reference
+    current_command_buffer_->release();
     current_command_buffer_ = nullptr;
   }
 
@@ -1383,10 +1530,15 @@ bool MetalCommandProcessor::CanEndSubmissionImmediately() const {
 }
 
 void MetalCommandProcessor::OnPrimaryBufferEnd() {
+  XELOGI("Metal OnPrimaryBufferEnd: Called, submission_open_={}", submission_open_);
   // Submit on primary buffer end to reduce latency and handle traces without SWAP
   if (submission_open_ && CanEndSubmissionImmediately()) {
     XELOGI("Metal OnPrimaryBufferEnd: Submitting command buffer");
     EndSubmission(false);
+  } else if (submission_open_) {
+    XELOGI("Metal OnPrimaryBufferEnd: Submission open but cannot end immediately");
+  } else {
+    XELOGI("Metal OnPrimaryBufferEnd: No submission open to end");
   }
 }
 

@@ -328,7 +328,7 @@ MTL::Texture* MetalRenderTargetCache::GetDepthTarget() const {
   return current_depth_target_->texture;
 }
 
-MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor() {
+MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(uint32_t expected_sample_count) {
   if (!render_pass_descriptor_dirty_ && cached_render_pass_descriptor_) {
     return cached_render_pass_descriptor_;
   }
@@ -375,17 +375,59 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor() {
     depth_attachment->setStoreAction(MTL::StoreActionStore);
     depth_attachment->setClearDepth(1.0);
     has_attachments = true;
+    
+    // IMPORTANT: If we have a depth attachment but no color attachments,
+    // we still need a dummy color attachment because the fragment shader
+    // will likely write color output. Metal throws an exception if the
+    // fragment shader writes color but there's no color attachment.
+    bool has_color_attachment = false;
+    for (uint32_t i = 0; i < 4; ++i) {
+      if (current_color_targets_[i]) {
+        has_color_attachment = true;
+        break;
+      }
+    }
+    
+    if (!has_color_attachment) {
+      XELOGW("Metal render target cache: Depth-only render pass - adding dummy color target for shader compatibility");
+      // Use the depth target's sample count for consistency
+      uint32_t sample_count = current_depth_target_->samples;
+      
+      // Create dummy texture if needed
+      if (!dummy_color_target_ || dummy_color_target_->samples != sample_count) {
+        MTL::Texture* dummy_texture = CreateColorTarget(
+            256, 256, MTL::PixelFormatBGRA8Unorm, sample_count);
+        if (dummy_texture) {
+          dummy_color_target_ = std::make_unique<MetalRenderTarget>();
+          dummy_color_target_->texture = dummy_texture;
+          dummy_color_target_->width = 256;
+          dummy_color_target_->height = 256;
+          dummy_color_target_->format = MTL::PixelFormatBGRA8Unorm;
+          dummy_color_target_->samples = sample_count;
+          dummy_color_target_->is_depth = false;
+        }
+      }
+      
+      if (dummy_color_target_) {
+        MTL::RenderPassColorAttachmentDescriptor* color_attachment = 
+            cached_render_pass_descriptor_->colorAttachments()->object(0);
+        
+        color_attachment->setTexture(dummy_color_target_->texture);
+        color_attachment->setLoadAction(MTL::LoadActionClear);
+        color_attachment->setStoreAction(MTL::StoreActionDontCare);
+        color_attachment->setClearColor(MTL::ClearColor(0.0, 0.0, 0.0, 1.0));
+      }
+    }
   }
   
-  // If no render targets are set, create a dummy render target
+  // If no render targets are set at all, create a dummy render target
   // This is needed because Metal requires at least one attachment
   if (!has_attachments) {
-    XELOGW("Metal render target cache: No render targets set, creating dummy target");
+    XELOGW("Metal render target cache: No render targets set, creating dummy target with {} samples", 
+           expected_sample_count);
     
-    // Get MSAA samples from RB_SURFACE_INFO for the dummy target
-    auto rb_surface_info = register_file_->values[XE_GPU_REG_RB_SURFACE_INFO];
-    uint32_t msaa_samples = (rb_surface_info >> 16) & 0x3;
-    uint32_t sample_count = msaa_samples ? (1 << msaa_samples) : 1;
+    // Use the expected sample count from the pipeline to ensure consistency
+    uint32_t sample_count = expected_sample_count;
     
     // Create a small dummy texture if we haven't already or if sample count changed
     if (!dummy_color_target_ || dummy_color_target_->samples != sample_count) {
