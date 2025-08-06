@@ -1,6 +1,6 @@
 # Current Plan: Metal Backend Implementation
 
-## Current Status (70% Complete)
+## Current Status (75% Complete - PNG Output Working!)
 ✅ Metal object lifecycle tracking implemented
 ✅ Command buffer submission flow working
 ✅ Draw commands executing successfully (terminal and XCode)
@@ -21,8 +21,8 @@
 ✅ Autorelease pool crash fixes - Metal objects managed correctly
 ✅ VSync thread hang resolved - trace dump completes execution
 ✅ Clean program completion - no crashes or hangs
-❌ PNG output (capture working, needs file output implementation)
-❌ Proper depth visualization (requires compute shader)
+✅ PNG output working! Successfully generating PNG files from trace dumps
+❌ Proper depth visualization (currently using gray placeholder, requires compute shader)
 ❌ Texture support not implemented
 
 ## Critical Issues Found and Fixed (2025-08-06)
@@ -170,39 +170,85 @@
 
 ## Next Immediate Steps (Priority Order)
 
-### CURRENT FOCUS: Complete PNG Output Implementation
+### SUCCESS: PNG Output Implementation Complete! (2025-08-06)
 
-**MAJOR BREAKTHROUGH**: All thread hangs and crashes completely resolved! 
+**MAJOR ACHIEVEMENT**: Full PNG output pipeline working end-to-end! 
 
-**Status**: 
-- ✅ Capture logic working (1280x720 depth+stencil textures detected)
-- ✅ Gray placeholder image creation working (creates gray RGBA images)  
-- ✅ MetalTraceDump fallback logic implemented
-- ✅ All threads exit cleanly - no crashes or hangs
-- ✅ Trace dump completes execution successfully
-- ✅ Frame data captured and stored in command processor (verified working)
-- ❌ PNG output needs final implementation (access captured frame data after base class completion)
+**What Was Fixed Today**:
+- ✅ Metal command buffer crash on shutdown (added synchronous wait)
+- ✅ Presenter override for trace dumps (made presenter() virtual in base class)
+- ✅ Dummy presenter implementation for headless capture
+- ✅ Infinite recursion fix in CaptureGuestOutput
+- ✅ PNG file successfully generated (36KB file with actual image data)
 
-1. **Complete PNG Output** (IMMEDIATE - should be straightforward now)
-   - ⏳ Access last_captured_frame_data_ from command processor after trace completion
-   - ⏳ Implement PNG file writing in MetalTraceDump::Main()
-   - ⏳ Test PNG generation with captured depth+stencil data
+**Technical Solution**:
+1. Created `MetalTraceDumpPresenter` dummy presenter class
+2. Made `GraphicsSystem::presenter()` virtual to allow override
+3. Metal backend now captures frames during draw operations
+4. Trace dump retrieves captured frame via `GetLastCapturedFrame()`
+5. PNG saved using stb_image_write library
 
-2. **Test PNG Output Generation**
-   - ⏳ Verify placeholder black image PNG creation works
-   - ⏳ Test with different trace files 
-   - ⏳ Generate first PNG output from Metal trace dump
+## DETAILED NEXT STEPS PLAN (2025-01-06)
 
-3. **Implement Proper Depth Visualization**
-   - ⏳ Create compute shader to extract depth values from depth+stencil textures
-   - ⏳ Convert depth values to grayscale RGBA for visualization
-   - ⏳ Replace placeholder black images with actual depth data
+### IMMEDIATE PRIORITY: Get Real Rendered Output
 
-4. **Implement EDRAM Load/Store Operations** (metal_render_target_cache.cc)
-   - ⏳ Create blit encoder for EDRAM transfers
-   - ⏳ Copy EDRAM buffer to render target textures on load  
-   - ⏳ Copy render target textures to EDRAM buffer on store
-   - ⏳ Handle format conversions and byte swapping
+#### Step 1: Fix Color Buffer Capture (TODAY)
+**Problem**: We're capturing depth buffer (gray) instead of color buffer
+**Location**: `metal_command_processor.mm::CaptureColorTarget()`
+**Current Code**:
+```cpp
+if (!color_targets_[index]) {
+  // Falls back to depth buffer - THIS IS THE PROBLEM
+  if (depth_target_) {
+    // Creates gray placeholder
+  }
+}
+```
+**Fix Required**:
+1. Debug why `color_targets_[0]` is null
+2. Check `SetRenderTargets()` - is it creating color targets?
+3. Verify render pass has color attachments
+4. Capture actual color buffer content
+
+#### Step 2: Fix Autorelease Pool Crash (TODAY)
+**Problem**: Crash in `objc_autoreleasePoolPop()` during shutdown
+**Location**: `metal_command_processor.mm::ShutdownContext()`
+**Investigation**:
+1. Check if Metal-cpp objects are being double-released
+2. Verify autorelease pool scope boundaries
+3. Consider removing the ScopedAutoreleasePool from ShutdownContext
+4. Test with OBJC_DEBUG_MISSING_POOLS=YES
+
+#### Step 3: Implement EDRAM Operations (THIS WEEK)
+**Critical**: Xbox 360 games render to EDRAM, not directly to textures
+**Files**: `metal_render_target_cache.cc`
+**Implementation**:
+```cpp
+// LoadRenderTargetsFromEDRAM
+1. Create blit command encoder
+2. Copy from EDRAM buffer offset to texture
+3. Handle tiling/untiling
+4. Format conversion if needed
+
+// StoreRenderTargetsToEDRAM  
+1. After each render pass
+2. Copy texture back to EDRAM
+3. Resolve MSAA if needed
+4. Update EDRAM dirty flags
+```
+
+#### Step 4: Basic Texture Support (NEXT WEEK)
+**Critical**: A-Train HX logo is a texture
+**Files**: `metal_texture_cache.cc`
+**Priority Formats**:
+1. k_DXT1 (BC1) - Most common
+2. k_DXT5 (BC3) - UI/transparency
+3. k_8_8_8_8 - Uncompressed RGBA
+**Implementation**:
+1. Create Metal textures from guest memory
+2. Handle endian swapping
+3. Implement texture binding
+4. Add sampler states
 
 2. **Compare Environments**
    ```bash

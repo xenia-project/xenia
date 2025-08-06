@@ -102,23 +102,25 @@ MetalGraphicsSystem::CreateCommandProcessor() {
 }
 
 bool MetalGraphicsSystem::CaptureGuestOutput(ui::RawImage& raw_image) {
-  // If we have a presenter, use it
-  if (presenter()) {
-    return presenter()->CaptureGuestOutput(raw_image);
-  }
+  XELOGI("Metal CaptureGuestOutput: Called, presenter={}", presenter() ? "yes" : "no");
   
-  // Otherwise, use last captured frame from the command processor
+  // Don't use presenter even if set - it might be our trace dump presenter
+  // which would cause infinite recursion. Always go directly to command processor.
+  
+  // Use last captured frame from the command processor
   auto* metal_cmd_processor = static_cast<MetalCommandProcessor*>(command_processor());
   if (!metal_cmd_processor) {
     XELOGE("Metal CaptureGuestOutput: No command processor available");
     return false;
   }
   
+  XELOGI("Metal CaptureGuestOutput: Using command processor");
   uint32_t width, height;
   std::vector<uint8_t> data;
   
   // Try to get the last captured frame first (this works even after shutdown)
   if (!metal_cmd_processor->GetLastCapturedFrame(width, height, data)) {
+    XELOGW("Metal CaptureGuestOutput: No last captured frame, trying live capture");
     // Fallback to live capture if no frame was saved
     if (!metal_cmd_processor->CaptureColorTarget(0, width, height, data)) {
       XELOGE("Metal CaptureGuestOutput: Failed to get captured frame");

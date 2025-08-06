@@ -41,6 +41,19 @@ class MetalGraphicsSystem : public GraphicsSystem {
   
   // Direct framebuffer capture (for trace dumps without presenter)
   bool CaptureGuestOutput(ui::RawImage& raw_image);
+  
+  // Allow setting a custom presenter for testing/trace dumps
+  void SetPresenterForTesting(ui::Presenter* presenter) {
+    test_presenter_ = presenter;
+  }
+  
+  // Override presenter() to return test presenter if set
+  ui::Presenter* presenter() const {
+    if (test_presenter_) {
+      return test_presenter_;
+    }
+    return GraphicsSystem::presenter();
+  }
 
  protected:
   std::unique_ptr<CommandProcessor> CreateCommandProcessor() override;
@@ -49,6 +62,9 @@ class MetalGraphicsSystem : public GraphicsSystem {
   // Metal device resources
   MTL::Device* metal_device_ = nullptr;
   MTL::CommandQueue* metal_command_queue_ = nullptr;
+  
+  // Test presenter (not owned, set for trace dumps)
+  ui::Presenter* test_presenter_ = nullptr;
 };
 
 }  // namespace metal

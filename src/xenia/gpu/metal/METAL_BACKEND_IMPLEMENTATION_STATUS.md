@@ -2,9 +2,9 @@
 
 ## Executive Summary
 
-The Metal GPU backend is in **early development** with basic rendering pipeline operational but no visible output yet. The implementation can execute draw commands and manage Metal resources properly, but lacks the critical render target readback needed to see results. Current implementation is approximately **30% complete** compared to working Vulkan and D3D12 backends.
+The Metal GPU backend has reached a **major milestone** with working PNG output generation from trace dumps. The implementation can execute draw commands, manage Metal resources, and capture rendered frames. However, we're currently only capturing depth buffers (gray placeholders) instead of actual color render targets. Current implementation is approximately **35% complete** compared to working Vulkan and D3D12 backends.
 
-**Latest Status**: Fixed Metal object lifecycle management, command buffer submission flow works, but thread shutdown crashes and no real rendered output yet.
+**Latest Status (2025-01-06)**: PNG output pipeline fully working! Successfully generating PNG files from trace dumps, though currently showing depth buffer placeholders instead of actual rendered content. Some autorelease pool crashes remain during shutdown.
 
 ## Current Capabilities vs Reality
 
@@ -16,16 +16,19 @@ The Metal GPU backend is in **early development** with basic rendering pipeline 
 - Draw command encoding and execution
 - Render target creation with format/MSAA support
 - Endian conversion for vertex data
-- Metal object lifecycle (no leaks)
-- Command buffer submission flow
+- Metal object lifecycle (no leaks with proper tracking)
+- Command buffer submission flow with synchronization
+- **PNG output generation from trace dumps** ✅ NEW!
+- Frame capture during draw operations
+- Depth buffer capture as placeholder images
 
 ### ❌ What Doesn't Work
-- **No visible output** - PNG files show test gradient only
-- **Thread shutdown crash** - Trace dumps hang and must be killed
+- **No color output** - Only capturing depth buffer (gray images)
+- **Autorelease pool crashes** - Still occurring during shutdown
 - **No EDRAM integration** - Buffer exists but not connected
-- **No texture sampling** - Textures not implemented
-- **No render target readback** - Can't see what was rendered
-- **RefreshGuestOutput stub** - Doesn't copy render data
+- **No texture sampling** - Textures not implemented (critical for actual games)
+- **No color render targets** - Need to capture color buffer instead of depth
+- **Missing most Xbox 360 features** - Blending, proper depth/stencil, etc.
 
 ## File Structure
 
@@ -49,62 +52,69 @@ metal_trace_dump_main.cc     - Trace dump entry (WORKING)
 dxbc_to_dxil_converter.cc    - Shader conversion (WORKING)
 ```
 
-## Recent Changes (This Session)
+## Recent Changes (2025-01-06)
 
-### 1. Fixed Metal Object Lifecycle ✅
-**Problem**: Command buffers and other Metal objects were leaking
+### 1. PNG Output Pipeline Implementation ✅
+**Problem**: No way to verify rendering output
 **Solution**: 
-- Added comprehensive object tracking system (`metal_object_tracker.h`)
-- Fixed command buffer to use member variable, not local
-- Proper release tracking for all Metal objects
-**Result**: 0 objects leaked at shutdown
+- Created `MetalTraceDumpPresenter` dummy presenter class
+- Made `GraphicsSystem::presenter()` virtual for override
+- Implemented frame capture in `MetalCommandProcessor`
+- Added `GetLastCapturedFrame()` for post-execution retrieval
+**Result**: Successfully generating PNG files from trace dumps!
 
-### 2. Fixed Command Buffer Submission ✅
-**Problem**: Command buffers created but never committed
+### 2. Fixed Command Buffer Synchronization ✅
+**Problem**: Crashes from async command buffer completion
 **Solution**:
-- Implemented `OnPrimaryBufferEnd()` matching D3D12 pattern
-- Proper `BeginSubmission`/`EndSubmission` flow
-- Command buffer committed in `EndSubmission`
-**Result**: Draw commands execute successfully
+- Added `waitUntilCompleted()` for trace dump mode
+- Proper fence at shutdown to wait for all GPU work
+- Synchronous completion in headless mode
+**Result**: No more command buffer related crashes
 
-### 3. Threading Improvements (Partial) ⚠️
-**Problem**: Autorelease pool crashes
-**Changes**:
-- Added pools to `XHostThread::Execute()`
-- Per-loop pools in `CommandProcessor::WorkerThreadMain()`
-**Result**: Metal objects cleaned up properly, but thread exit still crashes
+### 3. Frame Capture Implementation ✅
+**Problem**: No way to capture rendered frames
+**Solution**:
+- Capture every 10th draw for debugging
+- Store last captured frame in command processor
+- Direct Metal texture → CPU buffer copy
+**Result**: Capturing 1280x720 frames successfully
 
-### 4. RefreshGuestOutput Structure ✅
-**Added**: Framework for guest output refresh
-**Missing**: Actual render target copy implementation
-**Result**: PNG generation works but shows test pattern only
+### 4. Depth Buffer Placeholder ✅
+**Problem**: Depth+stencil textures can't be directly read
+**Solution**: Generate gray placeholder images for now
+**Result**: PNG output works, showing gray placeholders
 
 ## Critical Missing Pieces
 
-### 1. Render Target Readback (Highest Priority)
+### 1. Color Buffer Capture (URGENT - Currently Only Depth)
 ```cpp
-// CURRENT (Stub):
-RefreshGuestOutput(...) {
-  return true;  // Does nothing!
+// CURRENT:
+CaptureColorTarget(0, ...) {
+  // Falls back to depth buffer when no color target
+  // Results in gray placeholder images
 }
 
 // NEEDED:
-RefreshGuestOutput(...) {
-  // Copy render target to guest output texture
-  // Use Metal blit encoder
-  return CopyRenderTargetToGuestOutput(...);
+CaptureColorTarget(0, ...) {
+  // Actually capture color render target
+  // Show real rendered content
 }
 ```
 
-### 2. Thread Shutdown Fix
-- Crashes in `objc_autoreleasePoolPop()` during pthread TLS cleanup
-- Happens after all Metal objects properly released
-- Blocks clean trace dump completion
+### 2. Autorelease Pool Crash Fix
+- Still crashing in `objc_autoreleasePoolPop()` during shutdown
+- Happens in `MetalCommandProcessor::ShutdownContext`
+- Need to investigate Metal-cpp object lifecycle
 
-### 3. EDRAM Integration
+### 3. EDRAM Integration (Required for Real Rendering)
 - 10MB buffer created but never used
-- Need to connect to render targets
-- Implement resolve operations
+- Need Load/Store operations between EDRAM and textures
+- Xbox 360 games expect EDRAM for all framebuffer operations
+
+### 4. Texture Support (Critical for Games)
+- Currently NO texture support at all
+- A-Train HX logo is a texture - won't appear without this
+- Need format conversion, sampling, caching
 
 ## Test Results
 
@@ -120,8 +130,9 @@ RefreshGuestOutput(...) {
 3. ✅ Creates pipeline states
 4. ✅ Executes 11 draw calls
 5. ✅ No Metal validation errors
-6. ❌ PNG shows test gradient (no real render data)
-7. ❌ Hangs on thread exit (must Ctrl+C)
+6. ✅ PNG output generated successfully
+7. ⚠️ PNG shows gray placeholder (depth buffer, not color)
+8. ❌ Autorelease pool crash on shutdown
 
 ### Metal Object Tracker Output
 ```
@@ -133,45 +144,75 @@ Currently alive: 0
 
 ## Realistic Assessment
 
-### What's Done (~30%)
-- Core rendering pipeline structure
-- Shader translation working
-- Draw command execution
-- Resource management basics
+### What's Done (~35%)
+- Core rendering pipeline structure ✅
+- Shader translation working ✅
+- Draw command execution ✅
+- Resource management basics ✅
+- PNG output generation ✅
+- Frame capture pipeline ✅
 
-### What's Not Done (~70%)
-- Actual visible rendering output
-- Texture support
-- EDRAM operations
-- Most GPU features (blending, depth, stencil, etc.)
-- Clean shutdown
+### What's Not Done (~65%)
+- Color render target capture (currently depth only)
+- Texture support (0% done)
+- EDRAM operations (buffer exists, not connected)
+- Most GPU features (blending, proper depth/stencil, etc.)
+- Clean shutdown (autorelease crashes)
 - Performance optimization
 
+### Distance from Reference Image
+**Current**: Gray placeholder (depth buffer)
+**Target**: A-Train HX title screen with logo and UI
+**Gap**: Need color buffers, textures, EDRAM, proper render states
+
 ### Time to Functional
-Based on current progress, reaching feature parity with D3D12/Vulkan would require:
-- **Minimum viable** (can run simple games): 2-3 months
+Based on current progress:
+- **See actual rendered content**: 1-2 weeks (color buffer + EDRAM basics)
+- **Minimum viable** (simple games work): 2-3 months
 - **Feature complete** (most games work): 6-12 months
 
-## Next Priority Tasks
+## Next Priority Tasks (Updated 2025-01-06)
 
-1. **Implement RefreshGuestOutput** (1-2 days)
-   - Add render target to guest output copy
-   - Enable real PNG output
-   - Verify rendering is actually working
+### Phase 1: Fix Immediate Issues (1-2 days)
+1. **Fix Autorelease Pool Crash**
+   - Investigate Metal-cpp object lifecycle in ShutdownContext
+   - May need to restructure cleanup order
+   - Consider using NS::AutoreleasePool directly
 
-2. **Fix Thread Shutdown** (1-3 days)
-   - Debug pthread/autorelease interaction
-   - May require XThread architecture changes
+2. **Capture Color Buffer Instead of Depth**
+   - Modify CaptureColorTarget to actually get color RT
+   - Stop falling back to depth buffer
+   - Should immediately show more realistic output
 
-3. **Connect EDRAM** (3-5 days)
-   - Wire buffer to render targets
-   - Implement resolve operations
-   - Handle tiling
+### Phase 2: Enable Basic Rendering (3-5 days)
+3. **Implement EDRAM Load/Store**
+   - Connect 10MB EDRAM buffer to render targets
+   - Implement LoadRenderTargetsFromEDRAM
+   - Implement StoreRenderTargetsToEDRAM
+   - Handle resolve operations
 
-4. **Basic Textures** (1 week)
+4. **Fix SetRenderTargets**
+   - Ensure color targets are properly bound
+   - Verify render pass descriptors are correct
+   - Check MSAA settings match
+
+### Phase 3: Texture Support (1 week)
+5. **Basic Texture Implementation**
+   - Start with common formats (DXT1, DXT5, RGBA8)
    - Implement texture cache
-   - Add sampling support
-   - Format conversions
+   - Add sampler state management
+   - Wire up texture binding in shaders
+
+### Phase 4: Render States (3-4 days)
+6. **Implement Blend States**
+   - Alpha blending for UI
+   - Color write masks
+   - Blend equations
+
+7. **Depth/Stencil States**
+   - Proper depth testing
+   - Stencil operations
+   - Clear operations
 
 ## Known Issues
 

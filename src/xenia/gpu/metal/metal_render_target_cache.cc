@@ -250,28 +250,112 @@ bool MetalRenderTargetCache::SetRenderTargets(uint32_t rt_count, const uint32_t*
   return true;
 }
 
-void MetalRenderTargetCache::LoadRenderTargetsFromEDRAM() {
+void MetalRenderTargetCache::LoadRenderTargetsFromEDRAM(MTL::CommandBuffer* command_buffer) {
   SCOPE_profile_cpu_f("gpu");
   
-  // TODO: Implement loading render target contents from EDRAM buffer
-  // This would involve:
-  // 1. Creating a compute or blit encoder
-  // 2. Copying data from EDRAM buffer at the appropriate offset to each render target texture
-  // 3. Handling format conversions if needed
+  if (!edram_buffer_) {
+    XELOGW("Metal render target cache: LoadRenderTargetsFromEDRAM - No EDRAM buffer");
+    return;
+  }
   
-  XELOGD("Metal render target cache: LoadRenderTargetsFromEDRAM - TODO");
+  XELOGI("Metal render target cache: LoadRenderTargetsFromEDRAM - Loading color targets + depth target");
+  
+  // Use provided command buffer, or skip if none provided
+  MTL::CommandBuffer* cb = command_buffer;
+  if (!cb) {
+    XELOGW("Metal render target cache: No command buffer provided for EDRAM load, skipping");
+    return;
+  }
+  
+  auto blit_encoder = cb->blitCommandEncoder();
+  if (!blit_encoder) {
+    XELOGW("Metal render target cache: Failed to create blit encoder for EDRAM load");
+    return;
+  }
+  
+  // Load color targets
+  for (size_t i = 0; i < 4; ++i) {
+    auto target = current_color_targets_[i];
+    if (target && target->texture) {
+      uint32_t edram_offset = target->edram_base;
+      uint32_t bytes_per_pixel = 4; // Assume RGBA8 for now
+      uint32_t stride = target->width * bytes_per_pixel;
+      uint32_t bytes_needed = stride * target->height;
+      
+      XELOGD("Metal render target cache: Loading color target {} from EDRAM offset 0x{:08X} ({}x{}, {} bytes)",
+             i, edram_offset, target->width, target->height, bytes_needed);
+      
+      // Copy from EDRAM buffer to texture
+      blit_encoder->copyFromBuffer(
+          edram_buffer_, edram_offset, stride, bytes_needed,
+          MTL::Size::Make(target->width, target->height, 1),
+          target->texture, 0, 0, MTL::Origin::Make(0, 0, 0));
+    }
+  }
+  
+  // Load depth target
+  if (current_depth_target_ && current_depth_target_->texture) {
+    // Skip depth/stencil textures - Metal doesn't allow buffer ↔ depth/stencil texture blits
+    XELOGD("Metal render target cache: Skipping depth target load (Metal doesn't support depth↔buffer blits)");
+  }
+  
+  blit_encoder->endEncoding();
+  
+  XELOGD("Metal render target cache: LoadRenderTargetsFromEDRAM completed");
 }
 
-void MetalRenderTargetCache::StoreRenderTargetsToEDRAM() {
+void MetalRenderTargetCache::StoreRenderTargetsToEDRAM(MTL::CommandBuffer* command_buffer) {
   SCOPE_profile_cpu_f("gpu");
   
-  // TODO: Implement storing render target contents to EDRAM buffer
-  // This would involve:
-  // 1. Creating a compute or blit encoder
-  // 2. Copying data from each render target texture to EDRAM buffer at the appropriate offset
-  // 3. Handling format conversions if needed
+  if (!edram_buffer_) {
+    XELOGW("Metal render target cache: StoreRenderTargetsToEDRAM - No EDRAM buffer");
+    return;
+  }
   
-  XELOGD("Metal render target cache: StoreRenderTargetsToEDRAM - TODO");
+  XELOGI("Metal render target cache: StoreRenderTargetsToEDRAM - Storing color targets + depth target");
+  
+  // Use provided command buffer, or skip if none provided
+  MTL::CommandBuffer* cb = command_buffer;
+  if (!cb) {
+    XELOGW("Metal render target cache: No command buffer provided for EDRAM store, skipping");
+    return;
+  }
+  
+  auto blit_encoder = cb->blitCommandEncoder();
+  if (!blit_encoder) {
+    XELOGW("Metal render target cache: Failed to create blit encoder for EDRAM store");
+    return;
+  }
+  
+  // Store color targets
+  for (size_t i = 0; i < 4; ++i) {
+    auto target = current_color_targets_[i];
+    if (target && target->texture) {
+      uint32_t edram_offset = target->edram_base;
+      uint32_t bytes_per_pixel = 4; // Assume RGBA8 for now
+      uint32_t stride = target->width * bytes_per_pixel;
+      uint32_t bytes_needed = stride * target->height;
+      
+      XELOGD("Metal render target cache: Storing color target {} to EDRAM offset 0x{:08X} ({}x{}, {} bytes)",
+             i, edram_offset, target->width, target->height, bytes_needed);
+      
+      // Copy from texture to EDRAM buffer
+      blit_encoder->copyFromTexture(
+          target->texture, 0, 0, MTL::Origin::Make(0, 0, 0),
+          MTL::Size::Make(target->width, target->height, 1),
+          edram_buffer_, edram_offset, stride, bytes_needed);
+    }
+  }
+  
+  // Store depth target
+  if (current_depth_target_ && current_depth_target_->texture) {
+    // Skip depth/stencil textures - Metal doesn't allow buffer ↔ depth/stencil texture blits
+    XELOGD("Metal render target cache: Skipping depth target store (Metal doesn't support depth↔buffer blits)");
+  }
+  
+  blit_encoder->endEncoding();
+  
+  XELOGD("Metal render target cache: StoreRenderTargetsToEDRAM completed");
 }
 
 bool MetalRenderTargetCache::Resolve(Memory& memory, uint32_t& written_address, uint32_t& written_length) {

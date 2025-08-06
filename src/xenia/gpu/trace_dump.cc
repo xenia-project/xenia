@@ -133,6 +133,7 @@ int TraceDump::Run() {
   int result = 0;
   XELOGI("TraceDump::Run: Capturing guest output");
   ui::Presenter* presenter = graphics_system_->presenter();
+  XELOGI("TraceDump::Run: presenter={}", presenter ? "yes" : "no");
   ui::RawImage raw_image;
   if (presenter && presenter->CaptureGuestOutput(raw_image)) {
     // Save framebuffer png.

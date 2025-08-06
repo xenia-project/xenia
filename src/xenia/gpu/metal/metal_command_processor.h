@@ -59,6 +59,9 @@ class MetalCommandProcessor : public CommandProcessor {
                          
   // Get last captured frame (for trace dumps)
   bool GetLastCapturedFrame(uint32_t& width, uint32_t& height, std::vector<uint8_t>& data);
+  
+  // Helper for depth buffer visualization
+  void ConvertDepthToRGBA(std::vector<uint8_t>& data, uint32_t width, uint32_t height, MTL::PixelFormat format);
 
   // Command processing
   bool BeginSubmission(bool is_guest_command);

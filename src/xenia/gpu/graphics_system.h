@@ -46,7 +46,7 @@ class GraphicsSystem {
   cpu::Processor* processor() const { return processor_; }
   kernel::KernelState* kernel_state() const { return kernel_state_; }
   ui::GraphicsProvider* provider() const { return provider_.get(); }
-  ui::Presenter* presenter() const { return presenter_.get(); }
+  virtual ui::Presenter* presenter() const { return presenter_.get(); }
 
   virtual X_STATUS Setup(cpu::Processor* processor,
                          kernel::KernelState* kernel_state,

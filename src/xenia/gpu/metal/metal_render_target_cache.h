@@ -44,8 +44,8 @@ class MetalRenderTargetCache {
   bool Resolve(Memory& memory, uint32_t& written_address, uint32_t& written_length);
   
   // Copy render targets to/from EDRAM buffer
-  void LoadRenderTargetsFromEDRAM();
-  void StoreRenderTargetsToEDRAM();
+  void LoadRenderTargetsFromEDRAM(MTL::CommandBuffer* command_buffer = nullptr);
+  void StoreRenderTargetsToEDRAM(MTL::CommandBuffer* command_buffer = nullptr);
   
   // Get current render targets for Metal render pass
   MTL::Texture* GetColorTarget(uint32_t index) const;

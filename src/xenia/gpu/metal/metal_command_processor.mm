@@ -130,11 +130,31 @@ void MetalCommandProcessor::ShutdownContext() {
   
   // Clean up any remaining command buffer
   if (current_command_buffer_) {
-    XELOGI("Metal ShutdownContext: Found uncommitted command buffer - releasing it");
+    XELOGI("Metal ShutdownContext: Found uncommitted command buffer");
+    // Commit it first to ensure it completes
+    current_command_buffer_->commit();
+    // Wait for it to complete before releasing
+    current_command_buffer_->waitUntilCompleted();
+    XELOGI("Metal ShutdownContext: Command buffer completed, releasing");
     // Release our retained reference
     TRACK_METAL_RELEASE(current_command_buffer_);
     current_command_buffer_->release();
     current_command_buffer_ = nullptr;
+  }
+  
+  // Wait for all command buffers to complete before continuing
+  // This prevents crashes from async completion handlers
+  MTL::CommandQueue* command_queue = GetMetalCommandQueue();
+  if (command_queue) {
+    XELOGI("Metal ShutdownContext: Waiting for command queue to finish all work");
+    // Create a dummy command buffer to act as a fence
+    MTL::CommandBuffer* fence = command_queue->commandBuffer();
+    if (fence) {
+      fence->commit();
+      fence->waitUntilCompleted();
+      fence->release();
+      XELOGI("Metal ShutdownContext: All GPU work completed");
+    }
   }
   
   // Generate PNG before shutting down to capture final render output
@@ -875,6 +895,9 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   bool depth_enabled = (rb_depthcontrol & 0x00000002) || (rb_depthcontrol & 0x00000004);
   uint32_t depth_target_info = depth_enabled ? rb_depth_info : 0;
   render_target_cache_->SetRenderTargets(rt_count, color_targets, depth_target_info);
+  
+  // Load current render target contents from EDRAM buffer
+  render_target_cache_->LoadRenderTargetsFromEDRAM(current_command_buffer_);
   
   // Create pipeline description with real shader hashes
   MetalPipelineCache::RenderPipelineDescription pipeline_desc = {};
@@ -1626,6 +1649,9 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     XELOGW("Metal IssueDraw: Failed to create pipeline state");
   }
 
+  // Store render target contents back to EDRAM buffer after draw completion
+  render_target_cache_->StoreRenderTargetsToEDRAM(current_command_buffer_);
+
   // Phase C: Return true to indicate successful Metal command encoding
   return true;
 }
@@ -1793,6 +1819,14 @@ bool MetalCommandProcessor::EndSubmission(bool is_swap) {
     XELOGI("Metal EndSubmission: Calling commit() on command buffer");
     current_command_buffer_->commit();
     XELOGI("Metal EndSubmission: Command buffer committed");
+    
+    // For trace dumps, wait synchronously to ensure completion
+    // This prevents crashes from async completion handlers after shutdown
+    if (!graphics_system_->presenter()) {
+      XELOGI("Metal EndSubmission: No presenter (trace dump mode) - waiting for completion");
+      current_command_buffer_->waitUntilCompleted();
+      XELOGI("Metal EndSubmission: Command buffer completed");
+    }
     
     // Track command buffer release before nulling
     TRACK_METAL_RELEASE(current_command_buffer_);

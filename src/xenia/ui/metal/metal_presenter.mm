@@ -69,10 +69,10 @@ bool MetalPresenter::CaptureGuestOutput(RawImage& image_out) {
     XELOGW("Metal CaptureGuestOutput: No guest output available, trying auto-refresh");
     
     // Try to auto-refresh for trace dumps without SWAP commands
-    // Use a simple RefreshGuestOutput call with dummy render data
+    // For now, just create placeholder textures since accessing render targets safely is complex
     RefreshGuestOutput(
         1280, 720, 1280, 720,
-        [this](GuestOutputRefreshContext& context) -> bool {
+        [](GuestOutputRefreshContext& context) -> bool {
           XELOGI("Metal CaptureGuestOutput: Auto-refresh creating placeholder texture");
           // Just return true to create guest output textures with placeholder data
           // This ensures CaptureGuestOutput has something to read
