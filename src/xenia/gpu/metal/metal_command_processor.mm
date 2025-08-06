@@ -115,12 +115,11 @@ bool MetalCommandProcessor::SetupContext() {
 }
 
 void MetalCommandProcessor::ShutdownContext() {
-  XE_SCOPED_AUTORELEASE_POOL("ShutdownContext");
+  // REMOVED: XE_SCOPED_AUTORELEASE_POOL was causing crashes
+  // Metal-cpp manages its own autorelease pools internally
+  // Having our own pool here interferes with proper cleanup
   
   XELOGI("MetalCommandProcessor: Beginning clean shutdown");
-  
-  // NOTE: Don't check for leaks here - we just created a pool above!
-  // The leak check happens at the end of this function after the scoped pool is destroyed.
   
   // Force flush any pending commands
   if (submission_open_) {
@@ -222,9 +221,6 @@ void MetalCommandProcessor::ShutdownContext() {
   CommandProcessor::ShutdownContext();
   
   XELOGI("MetalCommandProcessor: Clean shutdown complete");
-  
-  // The autorelease pool created at the beginning of this function
-  // will be automatically destroyed when we exit this scope
 }
 
 void MetalCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
