@@ -107,7 +107,7 @@ bool MetalGraphicsSystem::CaptureGuestOutput(ui::RawImage& raw_image) {
     return presenter()->CaptureGuestOutput(raw_image);
   }
   
-  // Otherwise, capture directly from the command processor
+  // Otherwise, use last captured frame from the command processor
   auto* metal_cmd_processor = static_cast<MetalCommandProcessor*>(command_processor());
   if (!metal_cmd_processor) {
     XELOGE("Metal CaptureGuestOutput: No command processor available");
@@ -117,9 +117,13 @@ bool MetalGraphicsSystem::CaptureGuestOutput(ui::RawImage& raw_image) {
   uint32_t width, height;
   std::vector<uint8_t> data;
   
-  if (!metal_cmd_processor->CaptureColorTarget(0, width, height, data)) {
-    XELOGE("Metal CaptureGuestOutput: Failed to capture color target");
-    return false;
+  // Try to get the last captured frame first (this works even after shutdown)
+  if (!metal_cmd_processor->GetLastCapturedFrame(width, height, data)) {
+    // Fallback to live capture if no frame was saved
+    if (!metal_cmd_processor->CaptureColorTarget(0, width, height, data)) {
+      XELOGE("Metal CaptureGuestOutput: Failed to get captured frame");
+      return false;
+    }
   }
   
   // Set up the raw image

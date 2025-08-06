@@ -56,6 +56,9 @@ class MetalCommandProcessor : public CommandProcessor {
   // Direct framebuffer capture (for trace dumps without presenter)
   bool CaptureColorTarget(uint32_t index, uint32_t& width, uint32_t& height,
                          std::vector<uint8_t>& data);
+                         
+  // Get last captured frame (for trace dumps)
+  bool GetLastCapturedFrame(uint32_t& width, uint32_t& height, std::vector<uint8_t>& data);
 
   // Command processing
   bool BeginSubmission(bool is_guest_command);
@@ -116,6 +119,11 @@ class MetalCommandProcessor : public CommandProcessor {
   
   // Draw batching to avoid too many in-flight command buffers
   int draws_in_current_batch_ = 0;
+  
+  // Last captured frame for trace dumps
+  std::vector<uint8_t> last_captured_frame_data_;
+  uint32_t last_captured_frame_width_ = 0;
+  uint32_t last_captured_frame_height_ = 0;
   
 };
 

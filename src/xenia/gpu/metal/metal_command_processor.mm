@@ -228,6 +228,16 @@ void MetalCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
   frame_count_++;
   XELOGI("Metal IssueSwap: Frame {} complete", frame_count_);
   
+  // Capture the current frame for trace dumps (do this before presenter operations)
+  uint32_t capture_width, capture_height;
+  std::vector<uint8_t> capture_data;
+  if (CaptureColorTarget(0, capture_width, capture_height, capture_data)) {
+    last_captured_frame_data_ = std::move(capture_data);
+    last_captured_frame_width_ = capture_width;
+    last_captured_frame_height_ = capture_height;
+    XELOGI("Metal IssueSwap: Captured frame {}x{} for trace dump", capture_width, capture_height);
+  }
+  
   // Update presenter with guest output for PNG capture
   ui::Presenter* presenter = graphics_system_->presenter();
   if (presenter) {
@@ -322,16 +332,23 @@ bool MetalCommandProcessor::CaptureColorTarget(uint32_t index, uint32_t& width, 
                                               std::vector<uint8_t>& data) {
   SCOPE_profile_cpu_f("gpu");
   
+  XELOGI("Metal CaptureColorTarget: Starting capture for index {}", index);
+  
   // Get the color target or depth target if no color is available
   MTL::Texture* texture = render_target_cache_->GetColorTarget(index);
   if (!texture) {
+    XELOGI("Metal CaptureColorTarget: No color target {}, trying depth target", index);
     // Try depth target as fallback
     texture = render_target_cache_->GetDepthTarget();
     if (!texture) {
-      XELOGW("Metal CaptureColorTarget: No render targets available");
+      XELOGW("Metal CaptureColorTarget: No render targets available at all");
       return false;
     }
-    XELOGI("Metal CaptureColorTarget: Using depth target (no color target available)");
+    XELOGI("Metal CaptureColorTarget: Using depth target ({}x{}, format {})", 
+           texture->width(), texture->height(), static_cast<uint32_t>(texture->pixelFormat()));
+  } else {
+    XELOGI("Metal CaptureColorTarget: Found color target ({}x{}, format {})", 
+           texture->width(), texture->height(), static_cast<uint32_t>(texture->pixelFormat()));
   }
   
   width = static_cast<uint32_t>(texture->width());
@@ -375,7 +392,23 @@ bool MetalCommandProcessor::CaptureColorTarget(uint32_t index, uint32_t& width, 
     return false;
   }
   
-  // Copy texture to buffer
+  // Handle different texture formats
+  MTL::PixelFormat pixel_format = texture->pixelFormat();
+  bool is_depth_stencil = (pixel_format == MTL::PixelFormatDepth32Float_Stencil8 ||
+                          pixel_format == MTL::PixelFormatDepth24Unorm_Stencil8);
+  
+  if (is_depth_stencil) {
+    XELOGI("Metal CaptureColorTarget: Skipping depth+stencil texture capture (format {})", 
+           static_cast<uint32_t>(pixel_format));
+    // For now, skip depth+stencil captures as they require special handling
+    blit_encoder->endEncoding();
+    blit_encoder->release();
+    command_buffer->release();
+    read_buffer->release();
+    return false;
+  }
+  
+  // Copy texture to buffer (works for color formats and depth-only formats)
   blit_encoder->copyFromTexture(
       texture, 0, 0,  // sourceSlice, sourceLevel
       MTL::Origin(0, 0, 0),  // sourceOrigin
@@ -401,6 +434,20 @@ bool MetalCommandProcessor::CaptureColorTarget(uint32_t index, uint32_t& width, 
   read_buffer->release();
   
   XELOGI("Metal CaptureColorTarget: Captured {}x{} texture", width, height);
+  return true;
+}
+
+bool MetalCommandProcessor::GetLastCapturedFrame(uint32_t& width, uint32_t& height, std::vector<uint8_t>& data) {
+  if (last_captured_frame_data_.empty()) {
+    XELOGW("Metal GetLastCapturedFrame: No captured frame available");
+    return false;
+  }
+  
+  width = last_captured_frame_width_;
+  height = last_captured_frame_height_;
+  data = last_captured_frame_data_;
+  
+  XELOGI("Metal GetLastCapturedFrame: Returning {}x{} frame", width, height);
   return true;
 }
 
@@ -1412,6 +1459,18 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
         // Batch draws to avoid hitting Metal's 64 in-flight command buffer limit
         // Only commit after every N draws or when explicitly needed
         draws_in_current_batch_++;
+        
+        // Capture frame after each draw for trace dumps (since IssueSwap might not be called)
+        if (draws_in_current_batch_ % 5 == 0) {  // Capture every 5th draw to avoid too much overhead
+          uint32_t capture_width, capture_height;
+          std::vector<uint8_t> capture_data;
+          if (CaptureColorTarget(0, capture_width, capture_height, capture_data)) {
+            last_captured_frame_data_ = std::move(capture_data);
+            last_captured_frame_width_ = capture_width;
+            last_captured_frame_height_ = capture_height;
+            XELOGI("Metal IssueDraw: Captured frame {}x{} after draw {}", capture_width, capture_height, draws_in_current_batch_);
+          }
+        }
         
         // Commit after 50 draws to avoid too many in-flight command buffers
         if (draws_in_current_batch_ >= 50) {
