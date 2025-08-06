@@ -67,7 +67,6 @@ MetalShader::MetalTranslation::MetalTranslation(MetalShader& shader,
     : DxbcTranslation(shader, modification), metal_shader_(shader) {}
 
 MetalShader::MetalTranslation::~MetalTranslation() {
-#if XE_PLATFORM_MAC
   // Clean up Metal objects (metal-cpp uses RAII)
   if (metal_function_) {
     metal_function_->release();
@@ -91,7 +90,6 @@ MetalShader::MetalTranslation::~MetalTranslation() {
     IRCompilerDestroy(ir_compiler_);
     ir_compiler_ = nullptr;
   }
-#endif  // XE_PLATFORM_MAC
 }
 
 bool MetalShader::MetalTranslation::ConvertToMetal() {
@@ -171,7 +169,6 @@ bool MetalShader::MetalTranslation::ConvertToMetal() {
 
 bool MetalShader::MetalTranslation::ConvertDxilToMetal(
     const std::vector<uint8_t>& dxil_bytecode) {
-#if XE_PLATFORM_MAC
   // Create IR compiler
   ir_compiler_ = IRCompilerCreate();
   if (!ir_compiler_) {
@@ -240,14 +237,9 @@ bool MetalShader::MetalTranslation::ConvertDxilToMetal(
   }
 
   return true;
-#else
-  XELOGE("Metal shader: Not supported on non-macOS platforms");
-  return false;
-#endif  // XE_PLATFORM_MAC
 }
 
 bool MetalShader::MetalTranslation::CreateMetalLibrary() {
-#if XE_PLATFORM_MAC
   if (!ir_object_) {
     XELOGE("Metal shader: No IR object available for Metal library creation");
     return false;
@@ -328,10 +320,6 @@ bool MetalShader::MetalTranslation::CreateMetalLibrary() {
 
   device->release();
   return true;
-#else
-  XELOGE("Metal shader: Not supported on non-macOS platforms");
-  return false;
-#endif  // XE_PLATFORM_MAC
 }
 
 // Cleanup function to be called on shutdown

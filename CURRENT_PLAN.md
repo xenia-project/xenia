@@ -8,18 +8,51 @@
 2. ✅ **Presentation Pipeline** - Implemented CAMetalLayer frame management
 3. ✅ **Resolve Framework** - Added copy/resolve operation structure
 4. ✅ **Platform Guards** - Cleaned up unnecessary conditional compilation
+5. ✅ **Metal Validation** - Enabled validation layers for debug builds
+6. ✅ **Dummy Render Target** - Fixed null render encoder with fallback target
+7. ✅ **Command Buffer Error Handling** - Added completion handlers for debugging
+8. ✅ **Memory Management Fixes** - Fixed double-release crashes in buffer/descriptor cleanup
+9. ✅ **Vertex Endian Swapping** - Properly handle all endian modes for 16-bit vertex formats
+10. ✅ **MSAA Texture Support** - Fixed texture type for multisampled render targets
+11. 🔄 **Real Render Targets** - Now parsing Xbox 360 RT registers and creating actual textures
 
 ## Current State
 The Metal backend successfully:
-- Loads Xbox 360 GPU traces
-- Converts shaders (Xbox 360 → DXBC → DXIL → Metal)
-- Processes draw commands
-- Creates command buffers
+- ✅ Loads Xbox 360 GPU traces
+- ✅ Converts shaders (Xbox 360 → DXBC → DXIL → Metal)
+- ✅ Creates MTLRenderPipelineState objects with correct formats
+- ✅ Creates render command encoders
+- ✅ Processes and encodes draw calls
+- ✅ Binds vertex buffers and constants
+- ✅ Handles render pass descriptors with real render targets
+- ✅ Creates Xbox 360 render targets with proper formats
 
-But it **doesn't yet**:
-- Create MTLRenderPipelineState objects
-- Encode actual draw calls
-- Bind resources to the pipeline
+Current issues:
+- Performance: Processing ~200 draw calls/second (Wine shader conversion bottleneck)
+- No frame completion detection
+- May be re-processing the same frame in a loop
+- EDRAM buffer created but not integrated with render targets
+
+## What's Missing for Real Frame Capture
+
+### 1. Real Render Target Creation
+Currently using a dummy 256x256 texture. Need to:
+- Parse Xbox 360 render target registers correctly
+- Create textures with proper dimensions from RB_SURFACE_INFO
+- Map Xbox 360 EDRAM addresses to Metal textures
+- Handle MSAA configurations
+
+### 2. EDRAM Integration
+We have the 10MB EDRAM buffer but it's not being used:
+- Need to bind EDRAM buffer as actual render targets
+- Implement tiling/untiling for Xbox 360's tile-based rendering
+- Handle resolve operations from EDRAM to textures
+
+### 3. Frame Boundaries
+Need to detect when a frame is complete:
+- Track swap/present commands
+- Implement proper command buffer submission per frame
+- Add frame counter and capture triggers
 
 ## Next Implementation Steps (2-3 Sessions to Frame Capture)
 

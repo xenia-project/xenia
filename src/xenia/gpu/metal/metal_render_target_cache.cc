@@ -31,7 +31,11 @@ MetalRenderTargetCache::MetalRenderTargetCache(MetalCommandProcessor* command_pr
       memory_(memory),
       edram_buffer_(nullptr),
       cached_render_pass_descriptor_(nullptr),
-      render_pass_descriptor_dirty_(true) {
+      render_pass_descriptor_dirty_(true),
+      current_depth_target_(nullptr) {
+  for (auto& rt : current_color_targets_) {
+    rt = nullptr;
+  }
 }
 
 MetalRenderTargetCache::~MetalRenderTargetCache() {
@@ -75,6 +79,9 @@ void MetalRenderTargetCache::Shutdown() {
 
   ClearCache();
 
+  // Clean up dummy target first
+  dummy_color_target_.reset();
+
   if (cached_render_pass_descriptor_) {
     cached_render_pass_descriptor_->release();
     cached_render_pass_descriptor_ = nullptr;
@@ -93,9 +100,9 @@ void MetalRenderTargetCache::ClearCache() {
 
   // Clear current render targets
   for (auto& rt : current_color_targets_) {
-    rt.reset();
+    rt = nullptr;
   }
-  current_depth_target_.reset();
+  current_depth_target_ = nullptr;
 
   // Clear cache
   render_target_cache_.clear();
@@ -113,9 +120,9 @@ bool MetalRenderTargetCache::SetRenderTargets(uint32_t rt_count, const uint32_t*
 
   // Clear existing targets
   for (auto& rt : current_color_targets_) {
-    rt.reset();
+    rt = nullptr;
   }
-  current_depth_target_.reset();
+  current_depth_target_ = nullptr;
 
   // Set up color targets
   for (uint32_t i = 0; i < rt_count && i < 4; ++i) {
@@ -123,20 +130,29 @@ bool MetalRenderTargetCache::SetRenderTargets(uint32_t rt_count, const uint32_t*
       continue;
     }
 
-    // TODO: Parse Xbox 360 render target configuration from registers
-    // For now, create basic targets
+    // Parse render target info from the register value
+    // Format: bits 16-18 specify the format
+    uint32_t rt_format = (color_targets[i] >> 16) & 0x7;
+    
+    // Get render target dimensions from RB_SURFACE_INFO
+    auto rb_surface_info = register_file_->values[XE_GPU_REG_RB_SURFACE_INFO];
+    uint32_t surface_pitch = rb_surface_info & 0x3FFF;
+    uint32_t msaa_samples = (rb_surface_info >> 16) & 0x3;
+    
+    // Calculate dimensions from pitch and format
+    // For now use common resolutions
     RenderTargetDescriptor desc = {};
-    desc.base_address = color_targets[i];
-    desc.width = 1280;  // TODO: Get from registers
-    desc.height = 720;  // TODO: Get from registers
-    desc.format = static_cast<uint32_t>(xenos::ColorRenderTargetFormat::k_8_8_8_8); // TODO: Get from registers
-    desc.msaa_samples = 1;  // TODO: Get from registers
+    desc.base_address = color_targets[i] & 0xFFFFF000;  // Mask off flags
+    desc.width = surface_pitch ? surface_pitch : 1280;
+    desc.height = 720;  // Common Xbox 360 resolution
+    desc.format = rt_format;
+    desc.msaa_samples = msaa_samples ? (1 << msaa_samples) : 1;
     desc.is_depth = false;
 
     // Check cache first
     auto it = render_target_cache_.find(desc);
     if (it != render_target_cache_.end()) {
-      current_color_targets_[i] = std::make_unique<MetalRenderTarget>(*it->second);
+      current_color_targets_[i] = it->second.get();
       continue;
     }
 
@@ -148,6 +164,9 @@ bool MetalRenderTargetCache::SetRenderTargets(uint32_t rt_count, const uint32_t*
       continue;
     }
 
+    XELOGI("Metal render target cache: Creating color target {} - {}x{}, format {}, {} samples",
+           i, desc.width, desc.height, static_cast<uint32_t>(metal_format), desc.msaa_samples);
+    
     MTL::Texture* texture = CreateColorTarget(desc.width, desc.height, metal_format, desc.msaa_samples);
     if (!texture) {
       XELOGE("Metal render target cache: Failed to create color target {}", i);
@@ -162,7 +181,7 @@ bool MetalRenderTargetCache::SetRenderTargets(uint32_t rt_count, const uint32_t*
     metal_rt->samples = desc.msaa_samples;
     metal_rt->is_depth = false;
 
-    current_color_targets_[i] = std::make_unique<MetalRenderTarget>(*metal_rt);
+    current_color_targets_[i] = metal_rt.get();
     render_target_cache_[desc] = std::move(metal_rt);
   }
 
@@ -179,7 +198,7 @@ bool MetalRenderTargetCache::SetRenderTargets(uint32_t rt_count, const uint32_t*
     // Check cache first
     auto it = render_target_cache_.find(desc);
     if (it != render_target_cache_.end()) {
-      current_depth_target_ = std::make_unique<MetalRenderTarget>(*it->second);
+      current_depth_target_ = it->second.get();
     } else {
       // Create new depth target
       MTL::PixelFormat metal_format = ConvertDepthFormat(
@@ -197,7 +216,7 @@ bool MetalRenderTargetCache::SetRenderTargets(uint32_t rt_count, const uint32_t*
           metal_rt->samples = desc.msaa_samples;
           metal_rt->is_depth = true;
 
-          current_depth_target_ = std::make_unique<MetalRenderTarget>(*metal_rt);
+          current_depth_target_ = metal_rt.get();
           render_target_cache_[desc] = std::move(metal_rt);
         }
       }
@@ -292,23 +311,29 @@ MTL::Texture* MetalRenderTargetCache::GetDepthTarget() const {
   return current_depth_target_->texture;
 }
 
-MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor() const {
+MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor() {
   if (!render_pass_descriptor_dirty_ && cached_render_pass_descriptor_) {
     return cached_render_pass_descriptor_;
   }
 
-  // Release old descriptor
+  // Release old descriptor safely
   if (cached_render_pass_descriptor_) {
     cached_render_pass_descriptor_->release();
     cached_render_pass_descriptor_ = nullptr;
   }
-
-  // Create new descriptor
-  cached_render_pass_descriptor_ = MTL::RenderPassDescriptor::alloc()->init();
-  if (!cached_render_pass_descriptor_) {
+  
+  // Create new descriptor using the convenience constructor
+  // This returns an autoreleased object, so we need to retain it
+  cached_render_pass_descriptor_ = MTL::RenderPassDescriptor::renderPassDescriptor();
+  if (cached_render_pass_descriptor_) {
+    cached_render_pass_descriptor_->retain();
+  } else {
     return nullptr;
   }
 
+  // Check if we have any render targets
+  bool has_attachments = false;
+  
   // Set up color attachments
   for (uint32_t i = 0; i < 4; ++i) {
     if (current_color_targets_[i]) {
@@ -319,6 +344,7 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor() con
       color_attachment->setLoadAction(MTL::LoadActionClear);
       color_attachment->setStoreAction(MTL::StoreActionStore);
       color_attachment->setClearColor(MTL::ClearColor(0.0, 0.0, 0.0, 1.0));
+      has_attachments = true;
     }
   }
 
@@ -331,6 +357,38 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor() con
     depth_attachment->setLoadAction(MTL::LoadActionClear);
     depth_attachment->setStoreAction(MTL::StoreActionStore);
     depth_attachment->setClearDepth(1.0);
+    has_attachments = true;
+  }
+  
+  // If no render targets are set, create a dummy render target
+  // This is needed because Metal requires at least one attachment
+  if (!has_attachments) {
+    XELOGW("Metal render target cache: No render targets set, creating dummy target");
+    
+    // Create a small dummy texture if we haven't already
+    if (!dummy_color_target_) {
+      MTL::Texture* dummy_texture = CreateColorTarget(
+          256, 256, MTL::PixelFormatBGRA8Unorm, 1);
+      if (dummy_texture) {
+        dummy_color_target_ = std::make_unique<MetalRenderTarget>();
+        dummy_color_target_->texture = dummy_texture;
+        dummy_color_target_->width = 256;
+        dummy_color_target_->height = 256;
+        dummy_color_target_->format = MTL::PixelFormatBGRA8Unorm;
+        dummy_color_target_->samples = 1;
+        dummy_color_target_->is_depth = false;
+      }
+    }
+    
+    if (dummy_color_target_) {
+      MTL::RenderPassColorAttachmentDescriptor* color_attachment = 
+          cached_render_pass_descriptor_->colorAttachments()->object(0);
+      
+      color_attachment->setTexture(dummy_color_target_->texture);
+      color_attachment->setLoadAction(MTL::LoadActionClear);
+      color_attachment->setStoreAction(MTL::StoreActionDontCare);
+      color_attachment->setClearColor(MTL::ClearColor(0.0, 0.0, 0.0, 1.0));
+    }
   }
 
   render_pass_descriptor_dirty_ = false;
@@ -346,17 +404,21 @@ MTL::Texture* MetalRenderTargetCache::CreateColorTarget(uint32_t width, uint32_t
   }
 
   MTL::TextureDescriptor* descriptor = MTL::TextureDescriptor::alloc()->init();
-  descriptor->setTextureType(MTL::TextureType2D);
+  
+  // Set texture type based on MSAA
+  if (samples > 1) {
+    descriptor->setTextureType(MTL::TextureType2DMultisample);
+    descriptor->setSampleCount(samples);
+  } else {
+    descriptor->setTextureType(MTL::TextureType2D);
+  }
+  
   descriptor->setPixelFormat(format);
   descriptor->setWidth(width);
   descriptor->setHeight(height);
   descriptor->setMipmapLevelCount(1);
   descriptor->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
   descriptor->setStorageMode(MTL::StorageModePrivate);
-
-  if (samples > 1) {
-    descriptor->setSampleCount(samples);
-  }
 
   MTL::Texture* texture = device->newTexture(descriptor);
   
@@ -380,17 +442,21 @@ MTL::Texture* MetalRenderTargetCache::CreateDepthTarget(uint32_t width, uint32_t
   }
 
   MTL::TextureDescriptor* descriptor = MTL::TextureDescriptor::alloc()->init();
-  descriptor->setTextureType(MTL::TextureType2D);
+  
+  // Set texture type based on MSAA
+  if (samples > 1) {
+    descriptor->setTextureType(MTL::TextureType2DMultisample);
+    descriptor->setSampleCount(samples);
+  } else {
+    descriptor->setTextureType(MTL::TextureType2D);
+  }
+  
   descriptor->setPixelFormat(format);
   descriptor->setWidth(width);
   descriptor->setHeight(height);
   descriptor->setMipmapLevelCount(1);
   descriptor->setUsage(MTL::TextureUsageRenderTarget);
   descriptor->setStorageMode(MTL::StorageModePrivate);
-
-  if (samples > 1) {
-    descriptor->setSampleCount(samples);
-  }
 
   MTL::Texture* texture = device->newTexture(descriptor);
   

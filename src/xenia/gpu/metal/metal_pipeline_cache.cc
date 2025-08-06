@@ -323,7 +323,6 @@ MTL::RenderPipelineState* MetalPipelineCache::CreateRenderPipelineState(
   XELOGI("Metal pipeline cache: Pixel shader successfully converted to Metal");
   
   // Phase D.1 Step 3: Get Metal functions from converted shaders
-#if XE_PLATFORM_MAC
   MTL::Function* vertex_function = vertex_metal_translation->GetMetalFunction();
   MTL::Function* fragment_function = pixel_metal_translation->GetMetalFunction();
   
@@ -338,11 +337,6 @@ MTL::RenderPipelineState* MetalPipelineCache::CreateRenderPipelineState(
   descriptor->setFragmentFunction(fragment_function);
   
   XELOGI("Metal pipeline cache: Successfully set Xbox 360→Metal converted shader functions");
-#else
-  XELOGE("Metal pipeline cache: Metal Shader Converter not available - cannot create pipeline");
-  descriptor->release();
-  return nullptr;
-#endif
   
   // Configure blend state
   ConfigureBlendState(descriptor, description);
@@ -354,10 +348,22 @@ MTL::RenderPipelineState* MetalPipelineCache::CreateRenderPipelineState(
     vertex_descriptor->release();
   }
 
-  // Set render target formats (simplified for now)
-  descriptor->colorAttachments()->object(0)->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
-  // TODO: Add depth attachment when implementing Xbox 360 depth buffer support
-  // descriptor->setDepthAttachmentPixelFormat(MTL::PixelFormatDepth32Float);
+  // Set render target formats from the pipeline description
+  for (uint32_t i = 0; i < description.num_color_attachments; ++i) {
+    if (description.color_formats[i] != MTL::PixelFormatInvalid) {
+      descriptor->colorAttachments()->object(i)->setPixelFormat(description.color_formats[i]);
+    }
+  }
+  
+  // Set depth format if present
+  if (description.depth_format != MTL::PixelFormatInvalid) {
+    descriptor->setDepthAttachmentPixelFormat(description.depth_format);
+  }
+  
+  // Set sample count for MSAA
+  if (description.sample_count > 1) {
+    descriptor->setSampleCount(description.sample_count);
+  }
 
     // Create the pipeline state
   NS::Error* error = nullptr;
@@ -514,7 +520,11 @@ bool MetalPipelineCache::RenderPipelineDescription::operator==(
          depth_func == other.depth_func &&
          depth_write_enable == other.depth_write_enable &&
          stencil_enable == other.stencil_enable &&
-         vertex_format_hash == other.vertex_format_hash;
+         vertex_format_hash == other.vertex_format_hash &&
+         std::memcmp(color_formats, other.color_formats, sizeof(color_formats)) == 0 &&
+         depth_format == other.depth_format &&
+         num_color_attachments == other.num_color_attachments &&
+         sample_count == other.sample_count;
 }
 
 size_t MetalPipelineCache::RenderPipelineDescriptionHasher::operator()(
@@ -525,6 +535,12 @@ size_t MetalPipelineCache::RenderPipelineDescriptionHasher::operator()(
   hash ^= std::hash<uint64_t>{}(desc.vertex_shader_modification) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
   hash ^= std::hash<uint64_t>{}(desc.pixel_shader_modification) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
   hash ^= std::hash<uint32_t>{}(desc.vertex_format_hash) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+  hash ^= std::hash<uint32_t>{}(desc.num_color_attachments) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+  for (uint32_t i = 0; i < desc.num_color_attachments; ++i) {
+    hash ^= std::hash<uint32_t>{}(static_cast<uint32_t>(desc.color_formats[i])) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+  }
+  hash ^= std::hash<uint32_t>{}(static_cast<uint32_t>(desc.depth_format)) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+  hash ^= std::hash<uint32_t>{}(desc.sample_count) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
   return hash;
 }
 

@@ -36,15 +36,12 @@ class MetalShader : public DxbcShader {
     bool ConvertToMetal();
 
     // Get the compiled Metal library for pipeline creation
-#if XE_PLATFORM_MAC
     MTL::Library* GetMetalLibrary() const { return metal_library_; }
     MTL::Function* GetMetalFunction() const { return metal_function_; }
-#endif
 
    private:
     MetalShader& metal_shader_;
 
-#if XE_PLATFORM_MAC
     // Metal Shader Converter objects
     IRCompiler* ir_compiler_ = nullptr;
     IRObject* ir_object_ = nullptr;
@@ -53,7 +50,6 @@ class MetalShader : public DxbcShader {
     // Metal library and function (using metal-cpp)
     MTL::Library* metal_library_ = nullptr;
     MTL::Function* metal_function_ = nullptr;
-#endif  // XE_PLATFORM_MAC
 
     // Convert DXIL bytecode to Metal IR using Metal Shader Converter
     bool ConvertDxilToMetal(const std::vector<uint8_t>& dxil_bytecode);

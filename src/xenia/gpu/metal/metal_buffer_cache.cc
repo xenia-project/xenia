@@ -29,10 +29,8 @@ MetalBufferCache::MetalBufferCache(MetalCommandProcessor* command_processor,
     : command_processor_(command_processor),
       register_file_(register_file),
       memory_(memory) {
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
   dynamic_vertex_buffer_offset_ = 0;
   dynamic_index_buffer_offset_ = 0;
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 }
 
 MetalBufferCache::~MetalBufferCache() {
@@ -42,7 +40,6 @@ MetalBufferCache::~MetalBufferCache() {
 bool MetalBufferCache::Initialize() {
   SCOPE_profile_cpu_f("gpu");
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
   // Create dynamic vertex buffer
   dynamic_vertex_buffer_ = std::make_unique<MetalBuffer>();
   dynamic_vertex_buffer_->buffer = CreateBuffer(
@@ -66,7 +63,6 @@ bool MetalBufferCache::Initialize() {
   }
   dynamic_index_buffer_->capacity = static_cast<uint32_t>(kDynamicIndexBufferSize);
   dynamic_index_buffer_->is_dynamic = true;
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 
   XELOGD("Metal buffer cache: Initialized successfully");
   
@@ -76,12 +72,13 @@ bool MetalBufferCache::Initialize() {
 void MetalBufferCache::Shutdown() {
   SCOPE_profile_cpu_f("gpu");
 
+  // Clear cache first to release any cached buffers
   ClearCache();
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
+  // Explicitly reset dynamic buffers
+  // These will call the destructor which releases the Metal buffer
   dynamic_vertex_buffer_.reset();
   dynamic_index_buffer_.reset();
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 
   XELOGD("Metal buffer cache: Shutdown complete");
 }
@@ -89,11 +86,9 @@ void MetalBufferCache::Shutdown() {
 void MetalBufferCache::ClearCache() {
   SCOPE_profile_cpu_f("gpu");
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
   buffer_cache_.clear();
   dynamic_vertex_buffer_offset_ = 0;
   dynamic_index_buffer_offset_ = 0;
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 
   XELOGD("Metal buffer cache: Cache cleared");
 }
@@ -117,7 +112,6 @@ bool MetalBufferCache::UploadIndexBuffer(uint32_t guest_base, uint32_t guest_len
     return false;
   }
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
   // For now, use the dynamic buffer approach
   // TODO: Implement static buffer caching for frequently used buffers
   
@@ -137,8 +131,7 @@ bool MetalBufferCache::UploadIndexBuffer(uint32_t guest_base, uint32_t guest_len
   uint8_t* buffer_data = static_cast<uint8_t*>(dynamic_index_buffer_->buffer->contents());
   std::memcpy(buffer_data + dynamic_index_buffer_offset_, guest_data, buffer_size);
 
-  dynamic_index_buffer_offset_ += xe::align(buffer_size, 16);  // 16-byte alignment
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
+  dynamic_index_buffer_offset_ += xe::align(buffer_size, uint32_t(16));  // 16-byte alignment
 
   return true;
 }
@@ -157,7 +150,6 @@ bool MetalBufferCache::UploadVertexBuffer(uint32_t guest_base, uint32_t guest_le
     return false;
   }
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
   // For now, use the dynamic buffer approach
   // TODO: Implement static buffer caching for frequently used buffers
   
@@ -177,13 +169,11 @@ bool MetalBufferCache::UploadVertexBuffer(uint32_t guest_base, uint32_t guest_le
   uint8_t* buffer_data = static_cast<uint8_t*>(dynamic_vertex_buffer_->buffer->contents());
   std::memcpy(buffer_data + dynamic_vertex_buffer_offset_, guest_data, guest_length);
 
-  dynamic_vertex_buffer_offset_ += xe::align(guest_length, 16);  // 16-byte alignment
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
+  dynamic_vertex_buffer_offset_ += xe::align(guest_length, uint32_t(16));  // 16-byte alignment
 
   return true;
 }
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
 
 MTL::Buffer* MetalBufferCache::GetIndexBuffer(uint32_t guest_base, uint32_t guest_length,
                                               xenos::IndexFormat format, uint32_t* offset_out) {
@@ -193,7 +183,7 @@ MTL::Buffer* MetalBufferCache::GetIndexBuffer(uint32_t guest_base, uint32_t gues
   if (offset_out) {
     uint32_t index_size = (format == xenos::IndexFormat::kInt32) ? 4 : 2;
     uint32_t buffer_size = guest_length * index_size;
-    *offset_out = dynamic_index_buffer_offset_ - xe::align(buffer_size, 16);
+    *offset_out = dynamic_index_buffer_offset_ - xe::align(buffer_size, uint32_t(16));
   }
   
   return dynamic_index_buffer_->buffer;
@@ -205,7 +195,7 @@ MTL::Buffer* MetalBufferCache::GetVertexBuffer(uint32_t guest_base, uint32_t gue
   // TODO: Implement proper buffer caching with static buffers for reused data
   
   if (offset_out) {
-    *offset_out = dynamic_vertex_buffer_offset_ - xe::align(guest_length, 16);
+    *offset_out = dynamic_vertex_buffer_offset_ - xe::align(guest_length, uint32_t(16));
   }
   
   return dynamic_vertex_buffer_->buffer;
@@ -243,7 +233,6 @@ bool MetalBufferCache::UpdateBuffer(MTL::Buffer* buffer, const void* data, size_
   return true;
 }
 
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 
 bool MetalBufferCache::BufferDescriptor::operator==(const BufferDescriptor& other) const {
   return guest_base == other.guest_base &&

@@ -201,7 +201,11 @@ brew install cmake ninja python3
 ./build/bin/Mac/Checked/xenia-ui-window-metal-demo
 
 # 7. Metal trace dump (current development target)
-./build/bin/Mac/Checked/xenia-gpu-metal-trace-dump testdata/reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace
+# Always run with Metal validation layers enabled for debugging:
+METAL_DEVICE_WRAPPER_TYPE=1 METAL_DEBUG_ERROR_MODE=5 METAL_SHADER_VALIDATION=1 ./build/bin/Mac/Checked/xenia-gpu-metal-trace-dump testdata/reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace
+
+# Or with H3 trace:
+METAL_DEVICE_WRAPPER_TYPE=1 METAL_DEBUG_ERROR_MODE=5 METAL_SHADER_VALIDATION=1 ./build/bin/Mac/Checked/xenia-gpu-metal-trace-dump testdata/reference-gpu-traces/traces/H3_Main_Menu-4D5307E6_9843.xtr
 
 # GPU regression tests (currently non-functional)
 # Note: ./xb gputest doesn't recognize Metal trace dump yet
@@ -274,6 +278,14 @@ open build/gputest/results.html                 # View results
 - Follow existing Xenia style guide (`docs/style_guide.md`)
 - Use `./xb format` before committing
 - Maintain compatibility with upstream Xenia architecture
+
+### Project Management
+- **Periodically update CURRENT_PLAN.md** as implementation progresses
+  - Especially important when context usage reaches ~15% remaining
+  - Summarize achievements and current blockers
+  - Update next steps based on recent discoveries
+- Track completed milestones and adjust next steps based on discoveries
+- Document any significant challenges or solutions found during development
 
 ### Metal Backend Development
 - **Priority 1**: EDRAM simulation (10MB Metal buffer)

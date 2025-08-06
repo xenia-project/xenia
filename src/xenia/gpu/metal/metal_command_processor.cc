@@ -178,9 +178,15 @@ void SwapVertexElement(uint8_t* data, xenos::VertexFormat format, xenos::Endian 
       
     case xenos::VertexFormat::k_16_16_FLOAT:
     case xenos::VertexFormat::k_16_16:
-      // Two 16-bit values
-      *(uint16_t*)(data + 0) = xenos::GpuSwap(*(uint16_t*)(data + 0), endian);
-      *(uint16_t*)(data + 2) = xenos::GpuSwap(*(uint16_t*)(data + 2), endian);
+      // Two 16-bit values - need to handle different endian modes
+      if (endian == xenos::Endian::k8in16 || endian == xenos::Endian::kNone) {
+        // Can use 16-bit swap directly
+        *(uint16_t*)(data + 0) = xenos::GpuSwap(*(uint16_t*)(data + 0), endian);
+        *(uint16_t*)(data + 2) = xenos::GpuSwap(*(uint16_t*)(data + 2), endian);
+      } else {
+        // For k8in32 or k16in32, treat as 32-bit value
+        *(uint32_t*)data = xenos::GpuSwap(*(uint32_t*)data, endian);
+      }
       break;
       
     case xenos::VertexFormat::k_32_32_FLOAT:
@@ -216,11 +222,18 @@ void SwapVertexElement(uint8_t* data, xenos::VertexFormat format, xenos::Endian 
       
     case xenos::VertexFormat::k_16_16_16_16_FLOAT:
     case xenos::VertexFormat::k_16_16_16_16:
-      // Four 16-bit values
-      *(uint16_t*)(data + 0) = xenos::GpuSwap(*(uint16_t*)(data + 0), endian);
-      *(uint16_t*)(data + 2) = xenos::GpuSwap(*(uint16_t*)(data + 2), endian);
-      *(uint16_t*)(data + 4) = xenos::GpuSwap(*(uint16_t*)(data + 4), endian);
-      *(uint16_t*)(data + 6) = xenos::GpuSwap(*(uint16_t*)(data + 6), endian);
+      // Four 16-bit values - need to handle different endian modes
+      if (endian == xenos::Endian::k8in16 || endian == xenos::Endian::kNone) {
+        // Can use 16-bit swap directly
+        *(uint16_t*)(data + 0) = xenos::GpuSwap(*(uint16_t*)(data + 0), endian);
+        *(uint16_t*)(data + 2) = xenos::GpuSwap(*(uint16_t*)(data + 2), endian);
+        *(uint16_t*)(data + 4) = xenos::GpuSwap(*(uint16_t*)(data + 4), endian);
+        *(uint16_t*)(data + 6) = xenos::GpuSwap(*(uint16_t*)(data + 6), endian);
+      } else {
+        // For k8in32 or k16in32, treat as two 32-bit values
+        *(uint32_t*)(data + 0) = xenos::GpuSwap(*(uint32_t*)(data + 0), endian);
+        *(uint32_t*)(data + 4) = xenos::GpuSwap(*(uint32_t*)(data + 4), endian);
+      }
       break;
       
     default:
@@ -356,6 +369,55 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   XELOGI("Metal IssueDraw: Using real Xbox 360 shaders - vertex: {:016x}, pixel: {:016x}",
          vertex_shader->ucode_data_hash(), pixel_shader->ucode_data_hash());
   
+  // IMPORTANT: Update render targets BEFORE creating pipeline so we get the correct formats
+  // Parse RB_SURFACE_INFO and RB_COLOR_INFO registers to determine active render targets
+  uint32_t rb_surface_info = register_file_->values[XE_GPU_REG_RB_SURFACE_INFO];
+  uint32_t rb_color_info[4] = {
+    register_file_->values[XE_GPU_REG_RB_COLOR_INFO],
+    register_file_->values[XE_GPU_REG_RB_COLOR1_INFO],
+    register_file_->values[XE_GPU_REG_RB_COLOR2_INFO],
+    register_file_->values[XE_GPU_REG_RB_COLOR3_INFO]
+  };
+  uint32_t rb_depth_info = register_file_->values[XE_GPU_REG_RB_DEPTH_INFO];
+  
+  // Log all render target info for debugging
+  XELOGI("Metal IssueDraw: RB_SURFACE_INFO = 0x{:08X}", rb_surface_info);
+  XELOGI("Metal IssueDraw: RB_COLOR_INFO[0-3] = 0x{:08X}, 0x{:08X}, 0x{:08X}, 0x{:08X}",
+         rb_color_info[0], rb_color_info[1], rb_color_info[2], rb_color_info[3]);
+  XELOGI("Metal IssueDraw: RB_DEPTH_INFO = 0x{:08X}", rb_depth_info);
+  
+  // Count active color render targets and avoid duplicates
+  uint32_t rt_count = 0;
+  uint32_t color_targets[4] = {0};
+  uint32_t seen_addresses[4] = {0};
+  uint32_t seen_count = 0;
+  
+  for (uint32_t i = 0; i < 4; ++i) {
+    // Xbox 360 may not always set bit 0, check if there's actual RT info
+    uint32_t base_address = rb_color_info[i] & 0xFFFFF000;
+    if (base_address != 0) {  // Has base address
+      // Check if we've already seen this address
+      bool duplicate = false;
+      for (uint32_t j = 0; j < seen_count; ++j) {
+        if (seen_addresses[j] == base_address) {
+          duplicate = true;
+          XELOGW("Metal IssueDraw: Skipping duplicate render target {} with address 0x{:08X}", 
+                 i, base_address);
+          break;
+        }
+      }
+      
+      if (!duplicate) {
+        color_targets[rt_count++] = rb_color_info[i];
+        seen_addresses[seen_count++] = base_address;
+      }
+    }
+  }
+  
+  // Set render targets in cache BEFORE creating pipeline
+  uint32_t depth_target_info = (rb_depth_info & 0x00000001) ? rb_depth_info : 0;
+  render_target_cache_->SetRenderTargets(rt_count, color_targets, depth_target_info);
+  
   // Create pipeline description with real shader hashes
   MetalPipelineCache::RenderPipelineDescription pipeline_desc = {};
   pipeline_desc.primitive_type = prim_type;
@@ -365,6 +427,52 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // TODO: Set shader modifications based on register state
   pipeline_desc.vertex_shader_modification = 0;
   pipeline_desc.pixel_shader_modification = 0;
+  
+  // Get render target formats from render target cache
+  // Initialize all formats to invalid
+  for (int i = 0; i < 4; ++i) {
+    pipeline_desc.color_formats[i] = MTL::PixelFormatInvalid;
+  }
+  pipeline_desc.depth_format = MTL::PixelFormatInvalid;
+  pipeline_desc.num_color_attachments = 0;
+  pipeline_desc.sample_count = 1;  // Default to no MSAA
+  
+  // Query the render target cache for the current formats
+  for (uint32_t i = 0; i < 4; ++i) {
+    MTL::Texture* color_target = render_target_cache_->GetColorTarget(i);
+    if (color_target) {
+      pipeline_desc.color_formats[i] = color_target->pixelFormat();
+      pipeline_desc.num_color_attachments = i + 1;
+      // Get sample count from the first render target
+      if (i == 0) {
+        pipeline_desc.sample_count = color_target->sampleCount();
+      }
+    }
+  }
+  
+  // Get depth format
+  MTL::Texture* depth_target = render_target_cache_->GetDepthTarget();
+  if (depth_target) {
+    pipeline_desc.depth_format = depth_target->pixelFormat();
+    // If no color targets, get sample count from depth target
+    if (pipeline_desc.num_color_attachments == 0) {
+      pipeline_desc.sample_count = depth_target->sampleCount();
+    }
+  }
+  
+  // If no render targets are bound, use a default format for the dummy target
+  if (pipeline_desc.num_color_attachments == 0) {
+    pipeline_desc.color_formats[0] = MTL::PixelFormatBGRA8Unorm;
+    pipeline_desc.num_color_attachments = 1;
+    pipeline_desc.sample_count = 1;  // Dummy target has no MSAA
+  }
+  
+  // Log pipeline descriptor details for debugging
+  XELOGI("Metal IssueDraw: Pipeline descriptor - {} color attachments, sample count: {}",
+         pipeline_desc.num_color_attachments, pipeline_desc.sample_count);
+  for (uint32_t i = 0; i < pipeline_desc.num_color_attachments; ++i) {
+    XELOGI("  Color attachment {}: format {}", i, static_cast<uint32_t>(pipeline_desc.color_formats[i]));
+  }
   
   // Request pipeline state from cache (this will create it if needed)
   MTL::RenderPipelineState* pipeline_state = 
@@ -386,26 +494,39 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 prim_type_name, index_count);
         command_buffer->setLabel(NS::String::string(draw_label, NS::UTF8StringEncoding));
         
-        // For now, we'll create a basic render pass to a dummy texture
-        // In a full implementation, this would use the Xbox 360 render targets
-        MTL::RenderPassDescriptor* render_pass = MTL::RenderPassDescriptor::alloc()->init();
+        // Render targets were already set up before pipeline creation
         
-        // Create a simple 1x1 render target for validation
-        // TODO: Use actual Xbox 360 render targets
-        MTL::TextureDescriptor* texture_desc = MTL::TextureDescriptor::alloc()->init();
-        texture_desc->setWidth(256);
-        texture_desc->setHeight(256);
-        texture_desc->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
-        texture_desc->setUsage(MTL::TextureUsageRenderTarget);
+        // Get render pass descriptor from cache
+        // For now, if no descriptor available, create a dummy one
+        XELOGI("Metal IssueDraw: Getting render pass descriptor from cache...");
+        MTL::RenderPassDescriptor* render_pass = render_target_cache_->GetRenderPassDescriptor();
+        XELOGI("Metal IssueDraw: Got render pass: {}", render_pass ? "valid" : "null");
         
-        MTL::Texture* render_target = GetMetalDevice()->newTexture(texture_desc);
-        render_pass->colorAttachments()->object(0)->setTexture(render_target);
-        render_pass->colorAttachments()->object(0)->setLoadAction(MTL::LoadActionClear);
-        render_pass->colorAttachments()->object(0)->setStoreAction(MTL::StoreActionStore);
-        render_pass->colorAttachments()->object(0)->setClearColor(MTL::ClearColor(0.2, 0.0, 0.8, 1.0)); // Blue clear
+        if (!render_pass) {
+          // Fallback: Create a dummy render pass for testing
+          XELOGW("Metal IssueDraw: No render pass from cache, creating dummy render target");
+          render_pass = MTL::RenderPassDescriptor::alloc()->init();
+          
+          MTL::TextureDescriptor* texture_desc = MTL::TextureDescriptor::alloc()->init();
+          texture_desc->setWidth(1280);
+          texture_desc->setHeight(720);
+          texture_desc->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
+          texture_desc->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
+          
+          MTL::Texture* render_target = GetMetalDevice()->newTexture(texture_desc);
+          render_pass->colorAttachments()->object(0)->setTexture(render_target);
+          render_pass->colorAttachments()->object(0)->setLoadAction(MTL::LoadActionClear);
+          render_pass->colorAttachments()->object(0)->setStoreAction(MTL::StoreActionStore);
+          render_pass->colorAttachments()->object(0)->setClearColor(MTL::ClearColor(0.1, 0.0, 0.2, 1.0));
+          
+          texture_desc->release();
+          // Note: render_target will be released automatically when render pass is released
+        }
         
         // Create render command encoder
+        XELOGI("Metal IssueDraw: Creating render command encoder...");
         MTL::RenderCommandEncoder* encoder = command_buffer->renderCommandEncoder(render_pass);
+        XELOGI("Metal IssueDraw: Render encoder created: {}", encoder ? "valid" : "null");
         if (encoder) {
           char encoder_label[256];
           snprintf(encoder_label, sizeof(encoder_label), "Xbox360RenderPass_%s_hash_0x%llx_0x%llx", 
@@ -882,10 +1003,10 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
         command_buffer->commit();
         XELOGI("Metal IssueDraw: Committed Metal command buffer");
         
-        // Cleanup
-        render_target->release();
-        texture_desc->release();
-        render_pass->release();
+        // Cleanup render pass if it was allocated here
+        if (render_pass) {
+          render_pass->release();
+        }
       }
     }
   } else {
@@ -982,6 +1103,31 @@ bool MetalCommandProcessor::EndSubmission(bool is_swap) {
 
   // Commit and submit the command buffer
   if (current_command_buffer_) {
+#if defined(DEBUG) || defined(_DEBUG) || defined(CHECKED)
+    // Add completion handler for debugging
+    current_command_buffer_->addCompletedHandler(^(MTL::CommandBuffer* buffer) {
+      if (buffer->error()) {
+        NS::Error* error = buffer->error();
+        XELOGE("Metal command buffer error: {} (code: {})",
+               error->localizedDescription()->utf8String(),
+               error->code());
+        
+        // Check command buffer status
+        MTL::CommandBufferStatus status = buffer->status();
+        const char* status_str = "Unknown";
+        switch (status) {
+          case MTL::CommandBufferStatusNotEnqueued: status_str = "NotEnqueued"; break;
+          case MTL::CommandBufferStatusEnqueued: status_str = "Enqueued"; break;
+          case MTL::CommandBufferStatusCommitted: status_str = "Committed"; break;
+          case MTL::CommandBufferStatusScheduled: status_str = "Scheduled"; break;
+          case MTL::CommandBufferStatusCompleted: status_str = "Completed"; break;
+          case MTL::CommandBufferStatusError: status_str = "Error"; break;
+        }
+        XELOGE("Command buffer status: {}", status_str);
+      }
+    });
+#endif
+    
     current_command_buffer_->commit();
     current_command_buffer_ = nullptr;
   }

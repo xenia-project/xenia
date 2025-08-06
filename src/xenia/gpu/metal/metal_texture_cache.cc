@@ -52,9 +52,7 @@ void MetalTextureCache::Shutdown() {
 void MetalTextureCache::ClearCache() {
   SCOPE_profile_cpu_f("gpu");
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
   texture_cache_.clear();
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 
   XELOGD("Metal texture cache: Cache cleared");
 }
@@ -66,7 +64,6 @@ bool MetalTextureCache::UploadTexture2D(const TextureInfo& texture_info) {
     return false;
   }
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
   // Create texture descriptor for cache lookup
   TextureDescriptor desc = {};
   desc.guest_base = texture_info.memory.base_address;
@@ -117,7 +114,6 @@ bool MetalTextureCache::UploadTexture2D(const TextureInfo& texture_info) {
          texture_info.width, texture_info.height, 
          static_cast<uint32_t>(texture_info.format_info()->format),
          texture_cache_.size());
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 
   return true;
 }
@@ -129,7 +125,6 @@ bool MetalTextureCache::UploadTextureCube(const TextureInfo& texture_info) {
     return false;
   }
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
   // Create texture descriptor for cache lookup
   TextureDescriptor desc = {};
   desc.guest_base = texture_info.memory.base_address;
@@ -180,12 +175,10 @@ bool MetalTextureCache::UploadTextureCube(const TextureInfo& texture_info) {
          texture_info.width, texture_info.height, 
          static_cast<uint32_t>(texture_info.format_info()->format),
          texture_cache_.size());
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 
   return true;
 }
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
 
 MTL::Texture* MetalTextureCache::GetTexture2D(const TextureInfo& texture_info) {
   TextureDescriptor desc = {};
@@ -233,7 +226,7 @@ MTL::PixelFormat MetalTextureCache::ConvertXenosFormat(xenos::TextureFormat form
     case xenos::TextureFormat::k_8_8_8_8:
       return MTL::PixelFormatRGBA8Unorm;
     case xenos::TextureFormat::k_1_5_5_5:
-      return MTL::PixelFormatRGB5A1Unorm;
+      return MTL::PixelFormatA1BGR5Unorm;
     case xenos::TextureFormat::k_5_6_5:
       return MTL::PixelFormatB5G6R5Unorm;
     case xenos::TextureFormat::k_8:
@@ -242,9 +235,9 @@ MTL::PixelFormat MetalTextureCache::ConvertXenosFormat(xenos::TextureFormat form
       return MTL::PixelFormatRG8Unorm;
     case xenos::TextureFormat::k_DXT1:
       return MTL::PixelFormatBC1_RGBA;
-    case xenos::TextureFormat::k_DXT3:
+    case xenos::TextureFormat::k_DXT2_3:
       return MTL::PixelFormatBC2_RGBA;
-    case xenos::TextureFormat::k_DXT5:
+    case xenos::TextureFormat::k_DXT4_5:
       return MTL::PixelFormatBC3_RGBA;
     default:
       XELOGW("Metal texture cache: Unsupported Xbox 360 texture format {}", 
@@ -374,7 +367,6 @@ bool MetalTextureCache::ConvertTextureData(const void* src_data, void* dst_data,
   return false;
 }
 
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 
 bool MetalTextureCache::TextureDescriptor::operator==(const TextureDescriptor& other) const {
   return guest_base == other.guest_base &&

@@ -20,9 +20,7 @@
 #include "xenia/gpu/shader.h"
 #include "xenia/gpu/xenos.h"
 
-#if XE_PLATFORM_MAC
 #include "third_party/metal-cpp/Metal/Metal.hpp"
-#endif  // XE_PLATFORM_MAC
 
 namespace xe {
 namespace gpu {
@@ -66,6 +64,12 @@ class MetalPipelineCache {
     
     // Vertex layout and format information
     uint32_t vertex_format_hash;
+    
+    // Render target formats (up to 4 color attachments + depth)
+    MTL::PixelFormat color_formats[4];
+    MTL::PixelFormat depth_format;
+    uint32_t num_color_attachments;
+    uint32_t sample_count;  // MSAA sample count
     
     bool operator==(const RenderPipelineDescription& other) const;
   };

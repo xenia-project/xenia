@@ -18,11 +18,7 @@
 #include "xenia/gpu/xenos.h"
 #include "xenia/memory.h"
 
-#if XE_PLATFORM_MAC
-#ifdef METAL_CPP_AVAILABLE
 #include "third_party/metal-cpp/Metal/Metal.hpp"
-#endif  // METAL_CPP_AVAILABLE
-#endif  // XE_PLATFORM_MAC
 
 namespace xe {
 namespace gpu {
@@ -45,7 +41,6 @@ class MetalTextureCache {
   bool UploadTexture2D(const TextureInfo& texture_info);
   bool UploadTextureCube(const TextureInfo& texture_info);
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
   // Get Metal textures for rendering
   MTL::Texture* GetTexture2D(const TextureInfo& texture_info);
   MTL::Texture* GetTextureCube(const TextureInfo& texture_info);
@@ -53,7 +48,6 @@ class MetalTextureCache {
   // Pixel format conversion
   MTL::PixelFormat ConvertXenosFormat(xenos::TextureFormat format, 
                                       xenos::Endian endian = xenos::Endian::k8in32);
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 
  private:
   struct TextureDescriptor {
@@ -73,7 +67,6 @@ class MetalTextureCache {
     size_t operator()(const TextureDescriptor& desc) const;
   };
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
   struct MetalTexture {
     MTL::Texture* texture;
     uint32_t size;
@@ -100,17 +93,14 @@ class MetalTextureCache {
                          uint32_t width, uint32_t height,
                          xenos::TextureFormat src_format, 
                          MTL::PixelFormat dst_format);
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 
   MetalCommandProcessor* command_processor_;
   const RegisterFile* register_file_;
   Memory* memory_;
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
   // Texture cache
   std::unordered_map<TextureDescriptor, std::unique_ptr<MetalTexture>,
                      TextureDescriptorHasher> texture_cache_;
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 };
 
 }  // namespace metal

@@ -48,7 +48,7 @@ class MetalRenderTargetCache {
   MTL::Texture* GetDepthTarget() const;
   
   // Get render pass descriptor for current targets
-  MTL::RenderPassDescriptor* GetRenderPassDescriptor() const;
+  MTL::RenderPassDescriptor* GetRenderPassDescriptor();
 
  private:
   struct RenderTargetDescriptor {
@@ -105,9 +105,9 @@ class MetalRenderTargetCache {
   // EDRAM buffer - 10MB of embedded DRAM that Xbox 360 uses for render targets
   MTL::Buffer* edram_buffer_;
   
-  // Current render targets
-  std::unique_ptr<MetalRenderTarget> current_color_targets_[4];
-  std::unique_ptr<MetalRenderTarget> current_depth_target_;
+  // Current render targets (pointers to cached targets)
+  MetalRenderTarget* current_color_targets_[4];
+  MetalRenderTarget* current_depth_target_;
   
   // Render target cache
   std::unordered_map<RenderTargetDescriptor, std::unique_ptr<MetalRenderTarget>,
@@ -116,6 +116,9 @@ class MetalRenderTargetCache {
   // Cached render pass descriptor
   mutable MTL::RenderPassDescriptor* cached_render_pass_descriptor_;
   mutable bool render_pass_descriptor_dirty_;
+  
+  // Dummy render target for when no render targets are bound
+  mutable std::unique_ptr<MetalRenderTarget> dummy_color_target_;
 };
 
 }  // namespace metal

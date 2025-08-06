@@ -1,0 +1,4 @@
+run testdata/reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace
+# After it hangs, use Ctrl+C to break
+# Then run: thread backtrace all
+# And: thread list

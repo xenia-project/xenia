@@ -65,14 +65,30 @@ X_STATUS MetalGraphicsSystem::Setup(cpu::Processor* processor,
     return X_STATUS_UNSUCCESSFUL;
   }
   
-  // Create command queue
+#if defined(DEBUG) || defined(_DEBUG) || defined(CHECKED)
+  // Enable Metal validation layers for debug/checked builds
+  // This helps catch API misuse, resource leaks, and other issues
+  setenv("METAL_DEVICE_WRAPPER_TYPE", "1", 1);  // Enable Metal validation
+  setenv("METAL_DEBUG_ERROR_MODE", "5", 1);      // Assert on errors
+  setenv("METAL_SHADER_VALIDATION", "1", 1);     // Enable shader validation
+  
+  XELOGI("Metal validation layers ENABLED for debug/checked build");
+#endif
+  
+  // Create command queue with error handler
   metal_command_queue_ = metal_device_->newCommandQueue();
   if (!metal_command_queue_) {
     XELOGE("Failed to create Metal command queue");
     return X_STATUS_UNSUCCESSFUL;
   }
   
+  // Set a label for debugging
+  metal_command_queue_->setLabel(NS::String::string("Xenia Xbox 360 GPU Command Queue", NS::UTF8StringEncoding));
+  
   XELOGI("Metal device created: {}", metal_device_->name()->utf8String());
+  XELOGI("Metal device supports: Unified Memory={}, GPU Family={}",
+         metal_device_->hasUnifiedMemory() ? "Yes" : "No",
+         metal_device_->supportsFamily(MTL::GPUFamilyApple7) ? "Apple7+" : "Earlier");
   
   return GraphicsSystem::Setup(processor, kernel_state, app_context,
                                is_surface_required);

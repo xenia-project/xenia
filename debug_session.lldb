@@ -1,0 +1,15 @@
+# Set breakpoint at the crash location
+b metal_render_target_cache.cc:315
+
+# Set breakpoint at GetRenderPassDescriptor entry
+b metal_render_target_cache.cc:308
+
+# Run with the trace file
+r testdata/reference-gpu-traces/traces/H3_Main_Menu-4D5307E6_9843.xtr
+
+# When we hit the breakpoint, print some info
+frame variable
+thread backtrace
+
+# Continue
+c
