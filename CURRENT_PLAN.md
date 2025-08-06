@@ -1,13 +1,17 @@
-# Current Plan: Metal Backend Thread Exit Crash
+# Current Plan: Metal Backend Implementation
 
-## Current Status
+## Current Status (30% Complete)
 ✅ Metal object lifecycle fixed - no leaks
 ✅ Command buffer submission flow corrected
 ✅ Draw commands executing successfully
-❌ Thread exit crash in autorelease pool TLS cleanup
+✅ Shader translation pipeline working
+⚠️ Thread exit hangs (non-critical, shutdown only)
+❌ No visible rendering output (RefreshGuestOutput stub)
+❌ EDRAM integration missing
+❌ Texture support not implemented
 
-## Problem Statement
-The GPU Commands thread crashes during exit in `objc_release()` when pthread cleans up thread-local storage. This happens AFTER we've properly cleaned up all Metal objects and drained our autorelease pools.
+## Known Issue: Thread Exit Hang
+The GPU Commands thread hangs during exit in `objc_release()` when pthread cleans up thread-local storage. This happens after Metal objects are cleaned but doesn't affect functionality - only prevents clean shutdown.
 
 ## Stack Trace
 ```
@@ -93,11 +97,24 @@ Add logging to understand exact thread exit sequence.
 - [ ] Clean thread shutdown
 - [ ] No autorelease pool warnings
 
-## Alternative Approach
-Since Metal objects are properly managed and the crash only happens during shutdown, we could:
-1. Focus on getting PNG generation working first
-2. Accept the shutdown crash temporarily
-3. Return to fix it after core functionality works
+## Next Priority: Implement RefreshGuestOutput
+
+The most critical missing piece is RefreshGuestOutput implementation to:
+1. Copy render target data to guest output texture
+2. Enable PNG capture for testing
+3. Verify that rendering is actually working
+
+### Implementation Steps
+1. Get render target from cache
+2. Create blit encoder to copy RT → guest output texture  
+3. Synchronize and wait for copy
+4. Return texture for PNG generation
+
+## Alternative Thread Fix
+The thread hang is non-critical (shutdown only). Potential solutions:
+1. Use pthread_cancel instead of pthread_exit
+2. Skip TLS cleanup for GPU threads
+3. Accept the hang for now and use Ctrl+C to exit
 
 ## Notes
 - The crash is consistent and reproducible
