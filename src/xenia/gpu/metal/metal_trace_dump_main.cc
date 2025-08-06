@@ -43,51 +43,21 @@ class MetalTraceDump : public TraceDump {
     XELOGI("Metal frame capture: End capture manually through Xcode GPU debugging tools");
   }
 
+public:
+  
   int Main(const std::vector<std::string>& args) {
-    // Use base implementation to set up and run
-    int result = TraceDump::Main(args);
-    
-    // If the base implementation failed to capture (no presenter), try direct Metal capture
-    if (result != 0 && graphics_system_) {
-      XELOGI("MetalTraceDump: Base capture failed, trying direct Metal capture");
-      
-      auto* metal_graphics_system = static_cast<MetalGraphicsSystem*>(graphics_system_);
-      ui::RawImage raw_image;
-      
-      if (metal_graphics_system->CaptureGuestOutput(raw_image)) {
-        // Reconstruct the output path (same logic as TraceDump::Main)
-        std::filesystem::path png_path;
-        if (args.size() >= 2) {
-          png_path = std::filesystem::path(args[1]).replace_extension(".png");
-        } else {
-          png_path = "trace_output.png";
-        }
-        
-        // Save PNG
-        XELOGI("MetalTraceDump: Saving PNG to {}", xe::path_to_utf8(png_path));
-        auto handle = xe::filesystem::OpenFile(png_path, "wb");
-        if (handle) {
-          auto callback = [](void* context, void* data, int size) {
-            fwrite(data, 1, size, (FILE*)context);
-          };
-          stbi_write_png_to_func(callback, handle,
-                                static_cast<int>(raw_image.width),
-                                static_cast<int>(raw_image.height), 4,
-                                raw_image.data.data(),
-                                static_cast<int>(raw_image.stride));
-          fclose(handle);
-          XELOGI("MetalTraceDump: PNG saved successfully");
-          return 0;  // Success
-        } else {
-          XELOGE("MetalTraceDump: Failed to open PNG file for writing");
-        }
-      } else {
-        XELOGE("MetalTraceDump: Direct Metal capture also failed");
-      }
+    // Store args for PNG path generation since base class members are private
+    png_output_path_ = "trace_output.png";  // Default
+    if (args.size() >= 2) {
+      png_output_path_ = std::filesystem::path(args[1]).replace_extension(".png");
     }
     
-    return result;
+    // Use base implementation to set up, but our overridden Run() method
+    return TraceDump::Main(args);
   }
+  
+private:
+  std::filesystem::path png_output_path_;
 };
 
 int trace_dump_main(const std::vector<std::string>& args) {

@@ -423,95 +423,29 @@ bool MetalCommandProcessor::CaptureColorTarget(uint32_t index, uint32_t& width, 
   
   
   if (is_depth_stencil) {
-    // For depth+stencil textures, create a depth-only intermediate texture and use a render pass
-    XELOGI("Metal CaptureColorTarget: Handling depth+stencil texture (format {}) - creating depth-only copy", 
+    // For depth+stencil textures, we cannot easily capture them with blit operations
+    // due to Metal validation restrictions. For now, create a gray placeholder
+    // that indicates a depth buffer was present.
+    XELOGI("Metal CaptureColorTarget: Skipping depth+stencil texture capture (format {})", 
            static_cast<uint32_t>(pixel_format));
     
     // End the current blit encoder
     blit_encoder->endEncoding();
-    // blit_encoder is autoreleased, don't release manually
-    
-    // Create a nested autorelease pool for Metal object creation
-    void* nested_pool = AutoreleasePoolTracker::Push("CaptureColorTarget_DepthStencil");
-    
-    // Create a depth-only texture to copy depth values 
-    MTL::TextureDescriptor* depth_desc = MTL::TextureDescriptor::texture2DDescriptor(
-        MTL::PixelFormatR32Float, width, height, false);
-    depth_desc->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
-    
-    MTL::Texture* temp_texture = device->newTexture(depth_desc);
-    depth_desc->release();
-    
-    if (!temp_texture) {
-      XELOGE("Metal CaptureColorTarget: Failed to create temporary texture");
-      read_buffer->release();
-      AutoreleasePoolTracker::Pop(nested_pool, "CaptureColorTarget_DepthStencil");
-      AutoreleasePoolTracker::Pop(pool, "CaptureColorTarget");
-      return false;
-    }
-    
-    // Create a render pass descriptor to copy depth to RGBA
-    MTL::RenderPassDescriptor* render_pass = MTL::RenderPassDescriptor::renderPassDescriptor();
-    render_pass->colorAttachments()->object(0)->setTexture(temp_texture);
-    render_pass->colorAttachments()->object(0)->setLoadAction(MTL::LoadActionDontCare);
-    render_pass->colorAttachments()->object(0)->setStoreAction(MTL::StoreActionStore);
-    
-    // Create render command encoder for depth visualization
-    MTL::RenderCommandEncoder* render_encoder = command_buffer->renderCommandEncoder(render_pass);
-    if (!render_encoder) {
-      XELOGE("Metal CaptureColorTarget: Failed to create render encoder for depth visualization");
-      temp_texture->release();
-      read_buffer->release();
-      AutoreleasePoolTracker::Pop(nested_pool, "CaptureColorTarget_DepthStencil");
-      AutoreleasePoolTracker::Pop(pool, "CaptureColorTarget");
-      return false;
-    }
-    
-    // TODO: Here we would need a shader to sample the depth texture and write to color
-    // For now, just end the render pass without doing anything
-    render_encoder->endEncoding();
-    // render_encoder is autoreleased, don't release manually
-    
-    // Create a new blit encoder to copy the temp texture to buffer
-    blit_encoder = command_buffer->blitCommandEncoder();
-    if (!blit_encoder) {
-      XELOGE("Metal CaptureColorTarget: Failed to create second blit encoder");
-      temp_texture->release();
-      read_buffer->release();
-      AutoreleasePoolTracker::Pop(nested_pool, "CaptureColorTarget_DepthStencil");
-      AutoreleasePoolTracker::Pop(pool, "CaptureColorTarget");
-      return false;
-    }
-    
-    // Copy from temp texture (R32Float format)
-    blit_encoder->copyFromTexture(
-        temp_texture, 0, 0,
-        MTL::Origin(0, 0, 0),
-        MTL::Size(width, height, 1),
-        read_buffer, 0,
-        width * 4, // 4 bytes per R32Float pixel
-        height * width * 4
-    );
-    
-    temp_texture->release();
-    
-    // End the blit encoder before popping the nested pool
-    blit_encoder->endEncoding();
-    
-    // Pop the nested pool to clean up autoreleased objects immediately
-    AutoreleasePoolTracker::Pop(nested_pool, "CaptureColorTarget_DepthStencil");
-    
-    // For now, create a simple black image as a placeholder
-    // blit_encoder and command_buffer are autoreleased
+    // Clean up allocated buffer
     read_buffer->release();
     
-    XELOGW("Metal CaptureColorTarget: Creating placeholder black image for depth+stencil texture");
+    XELOGW("Metal CaptureColorTarget: Creating gray placeholder for depth+stencil texture");
     
-    // Create a black RGBA image as a placeholder
+    // Create a gray RGBA image to indicate depth buffer presence
     data.resize(width * height * 4);
-    std::fill(data.begin(), data.end(), 0); // Fill with black
+    for (size_t i = 0; i < data.size(); i += 4) {
+      data[i + 0] = 128;  // R
+      data[i + 1] = 128;  // G  
+      data[i + 2] = 128;  // B
+      data[i + 3] = 255;  // A
+    }
     
-    XELOGI("Metal CaptureColorTarget: Created {}x{} placeholder image", width, height);
+    XELOGI("Metal CaptureColorTarget: Created {}x{} gray depth placeholder", width, height);
     AutoreleasePoolTracker::Pop(pool, "CaptureColorTarget");
     return true;
   } else if (is_depth_only) {
