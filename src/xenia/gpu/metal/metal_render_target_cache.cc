@@ -377,17 +377,22 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor() {
   if (!has_attachments) {
     XELOGW("Metal render target cache: No render targets set, creating dummy target");
     
-    // Create a small dummy texture if we haven't already
-    if (!dummy_color_target_) {
+    // Get MSAA samples from RB_SURFACE_INFO for the dummy target
+    auto rb_surface_info = register_file_->values[XE_GPU_REG_RB_SURFACE_INFO];
+    uint32_t msaa_samples = (rb_surface_info >> 16) & 0x3;
+    uint32_t sample_count = msaa_samples ? (1 << msaa_samples) : 1;
+    
+    // Create a small dummy texture if we haven't already or if sample count changed
+    if (!dummy_color_target_ || dummy_color_target_->samples != sample_count) {
       MTL::Texture* dummy_texture = CreateColorTarget(
-          256, 256, MTL::PixelFormatBGRA8Unorm, 1);
+          256, 256, MTL::PixelFormatBGRA8Unorm, sample_count);
       if (dummy_texture) {
         dummy_color_target_ = std::make_unique<MetalRenderTarget>();
         dummy_color_target_->texture = dummy_texture;
         dummy_color_target_->width = 256;
         dummy_color_target_->height = 256;
         dummy_color_target_->format = MTL::PixelFormatBGRA8Unorm;
-        dummy_color_target_->samples = 1;
+        dummy_color_target_->samples = sample_count;
         dummy_color_target_->is_depth = false;
       }
     }

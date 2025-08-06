@@ -132,8 +132,33 @@ void MetalCommandProcessor::ShutdownContext() {
 void MetalCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
                                       uint32_t frontbuffer_width,
                                       uint32_t frontbuffer_height) {
-  // TODO(wmarti): Implement Metal swapchain presentation
-  XELOGW("Metal IssueSwap not implemented");
+  SCOPE_profile_cpu_f("gpu");
+  
+  XELOGI("Metal IssueSwap: frontbuffer 0x{:08X}, {}x{}", 
+         frontbuffer_ptr, frontbuffer_width, frontbuffer_height);
+  
+  // End the current submission and mark it as a swap
+  if (!EndSubmission(true)) {
+    XELOGE("Metal IssueSwap: Failed to end submission");
+    return;
+  }
+  
+  // Track frame boundaries
+  frame_count_++;
+  XELOGI("Metal IssueSwap: Frame {} complete", frame_count_);
+  
+  // TODO: When we have a real window/presenter:
+  // 1. Copy frontbuffer from guest memory or EDRAM to a texture
+  // 2. Present the texture to the swapchain
+  // 3. Handle gamma correction if needed
+  
+  // For trace dumps, frame boundaries are still useful for:
+  // - GPU frame capture points
+  // - Performance metrics
+  // - Debug logging
+  
+  // Begin a new submission for the next frame
+  BeginSubmission(true);
 }
 
 void MetalCommandProcessor::OnGammaRamp256EntryTableValueWritten() {
@@ -491,11 +516,15 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     }
   }
   
-  // If no render targets are bound, use a default format for the dummy target
-  if (pipeline_desc.num_color_attachments == 0) {
+  // If no render targets are bound (neither color nor depth), use a default format for the dummy target
+  if (pipeline_desc.num_color_attachments == 0 && pipeline_desc.depth_format == MTL::PixelFormatInvalid) {
+    // Get MSAA samples from RB_SURFACE_INFO for consistency
+    uint32_t msaa_samples = (rb_surface_info >> 16) & 0x3;
+    uint32_t sample_count = msaa_samples ? (1 << msaa_samples) : 1;
+    
     pipeline_desc.color_formats[0] = MTL::PixelFormatBGRA8Unorm;
     pipeline_desc.num_color_attachments = 1;
-    pipeline_desc.sample_count = 1;  // Dummy target has no MSAA
+    pipeline_desc.sample_count = sample_count;
   }
   
   // Log pipeline descriptor details for debugging

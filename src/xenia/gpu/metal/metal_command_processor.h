@@ -100,6 +100,9 @@ class MetalCommandProcessor : public CommandProcessor {
   std::unique_ptr<MetalRenderTargetCache> render_target_cache_;
   std::unique_ptr<MetalSharedMemory> shared_memory_;
   std::unique_ptr<MetalTextureCache> texture_cache_;
+  
+  // Frame tracking
+  uint32_t frame_count_ = 0;
 };
 
 }  // namespace metal

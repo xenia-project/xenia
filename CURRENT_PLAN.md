@@ -17,6 +17,7 @@
 11. ✅ **Real Render Targets** - Parsing Xbox 360 RT registers and creating actual textures
 12. ✅ **Pipeline Format Matching** - Pipeline now queries actual RT formats and sample counts
 13. ✅ **Duplicate RT Detection** - Detect and handle overlapping render targets (temporary workaround)
+14. ✅ **Depth Format Support** - Fixed depth format parsing and macOS compatibility (Depth32Float)
 
 ## Current State
 The Metal backend successfully:
@@ -29,12 +30,14 @@ The Metal backend successfully:
 - ✅ Handles render pass descriptors with real render targets
 - ✅ Creates Xbox 360 render targets with proper formats (RGB10A2, etc.)
 - ✅ Detects and works around duplicate render targets
+- ✅ **A-Train HX trace runs to completion without crashes**
+- ✅ Proper depth buffer support on macOS (Depth32Float_Stencil8)
 
 Current limitations:
-- **Overlapping RTs**: Halo 3 uses same EDRAM for different formats - currently dropping duplicates
-- **Performance**: Processing ~200 draw calls/second (Wine shader conversion bottleneck)
-- **No frame boundaries**: Processing same frame repeatedly
+- **No visual output**: Draw calls process but no frame capture yet
 - **EDRAM not integrated**: Buffer created but not used for actual rendering
+- **No frame boundaries**: Need to detect frame completion
+- **Overlapping RTs**: Halo 3 uses same EDRAM for different formats (postponed)
 
 ## What's Missing for Real Frame Capture
 
