@@ -43,6 +43,10 @@ class MetalRenderTargetCache {
   // Resolve (copy) render targets to shared memory
   bool Resolve(Memory& memory, uint32_t& written_address, uint32_t& written_length);
   
+  // Copy render targets to/from EDRAM buffer
+  void LoadRenderTargetsFromEDRAM();
+  void StoreRenderTargetsToEDRAM();
+  
   // Get current render targets for Metal render pass
   MTL::Texture* GetColorTarget(uint32_t index) const;
   MTL::Texture* GetDepthTarget() const;
@@ -75,10 +79,11 @@ class MetalRenderTargetCache {
     MTL::PixelFormat format;
     uint32_t samples;
     bool is_depth;
+    uint32_t edram_base;  // EDRAM address offset for this render target
     
     MetalRenderTarget() : texture(nullptr), resolve_texture(nullptr),
                          width(0), height(0), format(MTL::PixelFormatInvalid),
-                         samples(1), is_depth(false) {}
+                         samples(1), is_depth(false), edram_base(0) {}
     ~MetalRenderTarget() {
       if (texture) {
         texture->release();

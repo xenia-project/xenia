@@ -241,8 +241,15 @@ void MetalCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
           // Get current color render target from render target cache
           MTL::Texture* color_target = render_target_cache_->GetColorTarget(0);
           if (!color_target) {
-            XELOGW("Metal IssueSwap: No color render target available for guest output");
-            return false;
+            // Try to get depth target if no color target is available
+            MTL::Texture* depth_target = render_target_cache_->GetDepthTarget();
+            if (depth_target) {
+              XELOGI("Metal IssueSwap: Using depth target for guest output (no color target available)");
+              color_target = depth_target;
+            } else {
+              XELOGW("Metal IssueSwap: No render targets available for guest output");
+              return false;
+            }
           }
           
           // Cast to Metal-specific context to get the destination texture
@@ -309,6 +316,92 @@ void MetalCommandProcessor::TracePlaybackWroteMemory(uint32_t base_ptr,
 void MetalCommandProcessor::RestoreEdramSnapshot(const void* snapshot) {
   // TODO(wmarti): Restore EDRAM state from snapshot
   XELOGW("Metal RestoreEdramSnapshot not implemented");
+}
+
+bool MetalCommandProcessor::CaptureColorTarget(uint32_t index, uint32_t& width, uint32_t& height,
+                                              std::vector<uint8_t>& data) {
+  SCOPE_profile_cpu_f("gpu");
+  
+  // Get the color target or depth target if no color is available
+  MTL::Texture* texture = render_target_cache_->GetColorTarget(index);
+  if (!texture) {
+    // Try depth target as fallback
+    texture = render_target_cache_->GetDepthTarget();
+    if (!texture) {
+      XELOGW("Metal CaptureColorTarget: No render targets available");
+      return false;
+    }
+    XELOGI("Metal CaptureColorTarget: Using depth target (no color target available)");
+  }
+  
+  width = static_cast<uint32_t>(texture->width());
+  height = static_cast<uint32_t>(texture->height());
+  
+  // Calculate bytes per pixel (assuming RGBA8 for now)
+  size_t bytes_per_pixel = 4;
+  size_t data_size = width * height * bytes_per_pixel;
+  data.resize(data_size);
+  
+  // Get Metal device and command queue
+  MTL::Device* device = GetMetalDevice();
+  MTL::CommandQueue* command_queue = GetMetalCommandQueue();
+  if (!device || !command_queue) {
+    XELOGE("Metal CaptureColorTarget: No device or command queue");
+    return false;
+  }
+  
+  // Create a command buffer to read the texture
+  MTL::CommandBuffer* command_buffer = command_queue->commandBuffer();
+  if (!command_buffer) {
+    XELOGE("Metal CaptureColorTarget: Failed to create command buffer");
+    return false;
+  }
+  
+  // Create a blit encoder to copy the texture to a buffer
+  MTL::BlitCommandEncoder* blit_encoder = command_buffer->blitCommandEncoder();
+  if (!blit_encoder) {
+    XELOGE("Metal CaptureColorTarget: Failed to create blit encoder");
+    command_buffer->release();
+    return false;
+  }
+  
+  // Create a temporary buffer to read the texture data
+  MTL::Buffer* read_buffer = device->newBuffer(data_size, MTL::ResourceStorageModeShared);
+  if (!read_buffer) {
+    XELOGE("Metal CaptureColorTarget: Failed to create read buffer");
+    blit_encoder->endEncoding();
+    blit_encoder->release();
+    command_buffer->release();
+    return false;
+  }
+  
+  // Copy texture to buffer
+  blit_encoder->copyFromTexture(
+      texture, 0, 0,  // sourceSlice, sourceLevel
+      MTL::Origin(0, 0, 0),  // sourceOrigin
+      MTL::Size(width, height, 1),  // sourceSize
+      read_buffer,  // destinationBuffer
+      0,  // destinationOffset
+      width * bytes_per_pixel,  // destinationBytesPerRow
+      height * width * bytes_per_pixel  // destinationBytesPerImage
+  );
+  
+  blit_encoder->endEncoding();
+  blit_encoder->release();
+  
+  // Submit and wait for completion
+  command_buffer->commit();
+  command_buffer->waitUntilCompleted();
+  command_buffer->release();
+  
+  // Copy data from buffer to vector
+  memcpy(data.data(), read_buffer->contents(), data_size);
+  
+  // Clean up
+  read_buffer->release();
+  
+  XELOGI("Metal CaptureColorTarget: Captured {}x{} texture", width, height);
+  return true;
 }
 
 Shader* MetalCommandProcessor::LoadShader(xenos::ShaderType shader_type,

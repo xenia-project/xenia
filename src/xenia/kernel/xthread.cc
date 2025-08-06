@@ -451,20 +451,25 @@ X_STATUS XThread::Exit(int exit_code) {
   // This may only be called on the thread itself.
   assert_true(XThread::GetCurrentThread() == this);
   
+  XELOGI("XThread::Exit: ENTRY - thread_id={}, exit_code={}", thread_id_, exit_code);
   THREAD_MONITOR_EVENT(kExiting, fmt::format("XThread::Exit called with code {} for thread {}", exit_code, thread_id_));
 
   // TODO(benvanik): dispatch events? waiters? etc?
+  XELOGI("XThread::Exit: Running down APCs");
   RundownAPCs();
 
   // Set exit code.
   X_KTHREAD* thread = guest_object<X_KTHREAD>();
   thread->header.signal_state = 1;
   thread->exit_status = exit_code;
+  XELOGI("XThread::Exit: Set thread signal_state=1, exit_status={}", exit_code);
 
   kernel_state()->OnThreadExit(this);
+  XELOGI("XThread::Exit: Called OnThreadExit");
 
   // Notify processor of our exit.
   emulator()->processor()->OnThreadExit(thread_id_);
+  XELOGI("XThread::Exit: Called processor OnThreadExit");
 
   // NOTE: unless PlatformExit fails, expect it to never return!
   current_xthread_tls_ = nullptr;
@@ -473,10 +478,16 @@ X_STATUS XThread::Exit(int exit_code) {
 
   running_ = false;
   ReleaseHandle();
+  XELOGI("XThread::Exit: Set running_=false, released handle");
 
   THREAD_MONITOR_EVENT(kTerminating, fmt::format("XThread::Exit calling Thread::Exit for thread {}", thread_id_));
-  // NOTE: this does not return!
+  XELOGI("XThread::Exit: About to call threading::Thread::Exit({})", exit_code);
+  
+  // NOTE: this does not return for guest threads, but may return for XHostThreads
   xe::threading::Thread::Exit(exit_code);
+  
+  // If we got here, it's an XHostThread that skipped pthread_exit to avoid TLS cleanup hang
+  XELOGI("XThread::Exit: Thread::Exit returned for XHostThread, allowing normal return");
   return X_STATUS_SUCCESS;
 }
 
@@ -1115,9 +1126,13 @@ XHostThread::XHostThread(KernelState* kernel_state, uint32_t stack_size,
 void XHostThread::Execute() {
   THREAD_MONITOR_EVENT(kStarted, fmt::format("XHostThread::Execute started for thread {}", thread_id_));
   
-  // NOTE: We don't create autorelease pools here because:
-  // 1. PosixThread::ThreadStartRoutine creates one for non-GPU threads
-  // 2. GPU threads manage their own pools in WorkerThreadMain
+#if XE_PLATFORM_MAC
+  // NOTE: No thread-level autorelease pools here
+  // Thread-level pools cause accumulation of autoreleased objects
+  // Each operation that needs a pool should create its own scoped pool
+  // This prevents the hang during TLS cleanup
+  XELOGI("XHostThread::Execute: Thread '{}' starting without thread-level pool", thread_name_);
+#endif
 
   // Get system ID safely - thread_ might not be fully initialized yet
   uint32_t native_id = 0;
@@ -1189,9 +1204,19 @@ void XHostThread::Execute() {
 
   // Exit.
   XELOGI("XHostThread::Execute: About to exit thread {} with ret={}", thread_id_, ret);
+  XELOGI("XHostThread::Execute: Thread name: '{}'", thread_name_);
   
   THREAD_MONITOR_EVENT(kExiting, fmt::format("XHostThread::Execute calling Exit({}) for thread {}", ret, thread_id_));
+  XELOGI("XHostThread::Execute: Calling Exit({}) for thread_id={}", ret, thread_id_);
   Exit(ret);
+  
+  // Note: Exit() may return for XHostThreads to avoid pthread_exit TLS cleanup hang
+  // In that case, we just return normally from this function
+  XELOGI("XHostThread::Execute: Exit() returned, allowing thread to return normally");
+  
+#if XE_PLATFORM_MAC
+  // No thread-level pool to clean up
+#endif
 }
 
 }  // namespace kernel

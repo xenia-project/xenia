@@ -38,6 +38,9 @@ class MetalGraphicsSystem : public GraphicsSystem {
   // Metal device and command queue access
   MTL::Device* metal_device() const { return metal_device_; }
   MTL::CommandQueue* metal_command_queue() const { return metal_command_queue_; }
+  
+  // Direct framebuffer capture (for trace dumps without presenter)
+  bool CaptureGuestOutput(ui::RawImage& raw_image);
 
  protected:
   std::unique_ptr<CommandProcessor> CreateCommandProcessor() override;

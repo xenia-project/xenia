@@ -101,7 +101,12 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
         XELOGI("GPU VSync thread starting");
         uint64_t vsync_duration = cvars::vsync ? 16 : 1;
         uint64_t last_frame_time = Clock::QueryGuestTickCount();
-        while (vsync_worker_running_.load()) {
+        int loop_count = 0;
+        while (vsync_worker_running_.load(std::memory_order_acquire)) {
+          if (++loop_count % 1000 == 0) {
+            XELOGI("GPU VSync thread still running, loop {}, vsync_worker_running_={}", 
+                   loop_count, vsync_worker_running_.load());
+          }
           uint64_t current_time = Clock::QueryGuestTickCount();
           uint64_t elapsed = (current_time - last_frame_time) /
                              (Clock::guest_tick_frequency() / 1000);
@@ -115,7 +120,7 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
           }
           xe::threading::Sleep(std::chrono::milliseconds(1));
         }
-        XELOGI("GPU VSync thread exiting");
+        XELOGI("GPU VSync thread exiting - vsync_worker_running_ is now false");
         return 0;
       }));
   // As we run vblank interrupts the debugger must be able to suspend us.
@@ -134,7 +139,9 @@ void GraphicsSystem::Shutdown() {
   // Stop VSync thread first to prevent it from accessing command_processor_
   if (vsync_worker_thread_) {
     XELOGI("GPU: Shutting down VSync thread");
-    vsync_worker_running_ = false;
+    XELOGI("GPU: Setting vsync_worker_running_ to false (was: {})", vsync_worker_running_.load());
+    vsync_worker_running_.store(false, std::memory_order_release);
+    XELOGI("GPU: vsync_worker_running_ is now: {}", vsync_worker_running_.load());
     vsync_worker_thread_->Wait(0, 0, 0, nullptr);
     vsync_worker_thread_.reset();
     XELOGI("GPU: VSync thread shut down");

@@ -1,6 +1,6 @@
 # Current Plan: Metal Backend Implementation
 
-## Current Status (35% Complete)
+## Current Status (40% Complete)
 ✅ Metal object lifecycle tracking implemented
 ✅ Command buffer submission flow working
 ✅ Draw commands executing successfully (terminal and XCode)
@@ -8,8 +8,11 @@
 ✅ Thread lifecycle and autorelease pool management fixed
 ✅ Program runs to completion without crashes or hangs
 ✅ Clean shutdown with proper resource cleanup
-❌ No visible rendering output (RefreshGuestOutput stub)
-❌ EDRAM integration missing
+✅ Render target creation with EDRAM address tracking
+✅ EDRAM buffer allocated (10MB)
+✅ Direct framebuffer capture for trace dumps
+❌ No visible rendering output (need EDRAM Load/Store)
+❌ No presenter for trace dump PNG capture
 ❌ Texture support not implemented
 
 ## Critical Issues Found and Fixed (2025-08-06)
@@ -61,7 +64,7 @@
 - Threads now detach themselves before exiting
 - Proper cleanup prevents TSan from seeing threads as leaked
 
-### Fixes Applied Today
+### Fixes Applied Today (Session 1)
 1. ✅ Fixed Metal exception for depth-only render passes
 2. ✅ Added proper Objective-C exception handling
 3. ✅ Implemented draw batching (50 draws per batch)
@@ -72,17 +75,32 @@
 8. ✅ Fixed ThreadSanitizer thread leak warnings
 9. ✅ Program now runs to completion in terminal without crashes
 
+### Implementation Progress Today (Session 2)
+1. ✅ Implemented SetRenderTargets with EDRAM address tracking
+2. ✅ Added edram_base field to MetalRenderTarget structure
+3. ✅ Created 10MB EDRAM buffer in MetalRenderTargetCache
+4. ✅ Implemented CaptureColorTarget for direct framebuffer capture
+5. ✅ Added CaptureGuestOutput to MetalGraphicsSystem
+6. ✅ Modified RefreshGuestOutput to use depth buffer when no color target
+7. ✅ Verified render targets are created at correct EDRAM addresses
+8. ✅ Added placeholder EDRAM Load/Store methods
+
 ## New Implementation Plan: Complete Metal Backend Core Features
 
-### Phase 1: EDRAM Implementation (IMMEDIATE PRIORITY)
+### Phase 1: EDRAM Implementation (IN PROGRESS - 50% Complete)
 **Goal**: Implement 10MB EDRAM simulation for Xbox 360 framebuffer operations
 
-**Tasks:**
-1. Create 10MB Metal buffer for EDRAM storage
-2. Implement color/depth render target binding
-3. Add EDRAM resolve operations (color & depth)
-4. Support MSAA resolve operations
-5. Implement format conversion for Xbox 360 formats
+**Completed:**
+1. ✅ Created 10MB Metal buffer for EDRAM storage
+2. ✅ Render targets track EDRAM addresses
+3. ✅ SetRenderTargets creates Metal textures
+
+**Remaining Tasks:**
+1. ⏳ Implement LoadRenderTargetsFromEDRAM (copy EDRAM → textures)
+2. ⏳ Implement StoreRenderTargetsToEDRAM (copy textures → EDRAM)
+3. ⏳ Add blit encoders for EDRAM transfers
+4. ⏳ Support MSAA resolve operations
+5. ⏳ Implement format conversion for Xbox 360 formats
 
 ### Phase 2: RefreshGuestOutput Implementation
 **Goal**: Display rendered content to screen
@@ -116,28 +134,28 @@
 
 ## Next Immediate Steps (Priority Order)
 
-1. **Implement EDRAM Buffer** (metal_render_target_cache.cc)
-   - Create 10MB Metal buffer
-   - Set up render target descriptors
-   - Implement basic resolve operations
+### TODAY'S FOCUS: Make Rendering Visible
 
-2. **Implement RefreshGuestOutput** (metal_command_processor.mm)
-   - Copy EDRAM content to presentable texture
-   - Set up presentation pipeline
-   - Test with trace dumps
+1. **Implement EDRAM Load/Store Operations** (metal_render_target_cache.cc)
+   - ⏳ Create blit encoder for EDRAM transfers
+   - ⏳ Copy EDRAM buffer to render target textures on load
+   - ⏳ Copy render target textures to EDRAM buffer on store
+   - ⏳ Handle format conversions and byte swapping
 
-3. **Add More Texture Formats** (metal_texture_cache.cc)
-   - Start with common formats used in test traces
-   - Implement format conversion shaders
-   - Test with actual game textures
+2. **Create Null Presenter for Trace Dumps** (metal_null_presenter.cc)
+   - ⏳ Implement minimal presenter that captures to buffer
+   - ⏳ Enable PNG output from trace dumps
+   - ⏳ Test with existing traces
 
-4. **Optimize Performance**
-   - Profile current implementation
-   - Reduce autorelease pool overhead
-   - Optimize draw batching
-   - Metal memory management guidelines
-   - Autorelease pool threading rules
-   - Metal-cpp best practices
+3. **Fix Depth Buffer Visualization** 
+   - ⏳ Convert depth format to displayable RGBA
+   - ⏳ Handle depth range normalization
+   - ⏳ Test depth buffer capture
+
+4. **Verify Rendering Pipeline**
+   - ⏳ Ensure draws are actually rendering to targets
+   - ⏳ Check blend state and clear operations
+   - ⏳ Verify viewport and scissor setup
 
 2. **Compare Environments**
    ```bash

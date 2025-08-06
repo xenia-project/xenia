@@ -15,6 +15,7 @@
 #include "xenia/base/math.h"
 #include "xenia/gpu/metal/metal_command_processor.h"
 #include "xenia/gpu/draw_util.h"
+#include "xenia/ui/presenter.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -98,6 +99,37 @@ std::unique_ptr<CommandProcessor>
 MetalGraphicsSystem::CreateCommandProcessor() {
   return std::unique_ptr<CommandProcessor>(
       new MetalCommandProcessor(this, kernel_state_));
+}
+
+bool MetalGraphicsSystem::CaptureGuestOutput(ui::RawImage& raw_image) {
+  // If we have a presenter, use it
+  if (presenter()) {
+    return presenter()->CaptureGuestOutput(raw_image);
+  }
+  
+  // Otherwise, capture directly from the command processor
+  auto* metal_cmd_processor = static_cast<MetalCommandProcessor*>(command_processor());
+  if (!metal_cmd_processor) {
+    XELOGE("Metal CaptureGuestOutput: No command processor available");
+    return false;
+  }
+  
+  uint32_t width, height;
+  std::vector<uint8_t> data;
+  
+  if (!metal_cmd_processor->CaptureColorTarget(0, width, height, data)) {
+    XELOGE("Metal CaptureGuestOutput: Failed to capture color target");
+    return false;
+  }
+  
+  // Set up the raw image
+  raw_image.width = width;
+  raw_image.height = height;
+  raw_image.stride = width * 4;  // RGBA8
+  raw_image.data = std::move(data);
+  
+  XELOGI("Metal CaptureGuestOutput: Captured {}x{} image", width, height);
+  return true;
 }
 
 }  // namespace metal

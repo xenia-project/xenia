@@ -153,6 +153,8 @@ bool MetalRenderTargetCache::SetRenderTargets(uint32_t rt_count, const uint32_t*
     auto it = render_target_cache_.find(desc);
     if (it != render_target_cache_.end()) {
       current_color_targets_[i] = it->second.get();
+      XELOGD("Metal render target cache: Reusing cached color target {} at EDRAM 0x{:08X}",
+             i, desc.base_address);
       continue;
     }
 
@@ -164,9 +166,9 @@ bool MetalRenderTargetCache::SetRenderTargets(uint32_t rt_count, const uint32_t*
       continue;
     }
 
-    XELOGI("Metal render target cache: Creating color target {} - {}x{}, format {}, {} samples (MSAA: {})",
+    XELOGI("Metal render target cache: Creating color target {} - {}x{}, format {}, {} samples (MSAA: {}), EDRAM address: 0x{:08X}",
            i, desc.width, desc.height, static_cast<uint32_t>(metal_format), desc.msaa_samples,
-           desc.msaa_samples > 1 ? "YES" : "NO");
+           desc.msaa_samples > 1 ? "YES" : "NO", desc.base_address);
     
     MTL::Texture* texture = CreateColorTarget(desc.width, desc.height, metal_format, desc.msaa_samples);
     if (!texture) {
@@ -181,6 +183,7 @@ bool MetalRenderTargetCache::SetRenderTargets(uint32_t rt_count, const uint32_t*
     metal_rt->format = metal_format;
     metal_rt->samples = desc.msaa_samples;
     metal_rt->is_depth = false;
+    metal_rt->edram_base = desc.base_address;  // Store EDRAM address for later use
 
     current_color_targets_[i] = metal_rt.get();
     render_target_cache_[desc] = std::move(metal_rt);
@@ -219,9 +222,9 @@ bool MetalRenderTargetCache::SetRenderTargets(uint32_t rt_count, const uint32_t*
       if (metal_format == MTL::PixelFormatInvalid) {
         XELOGE("Metal render target cache: Unsupported depth format {}", desc.format);
       } else {
-        XELOGI("Metal render target cache: Creating depth target - {}x{}, format {}, {} samples (MSAA: {})",
+        XELOGI("Metal render target cache: Creating depth target - {}x{}, format {}, {} samples (MSAA: {}), EDRAM address: 0x{:08X}",
                desc.width, desc.height, static_cast<uint32_t>(metal_format), desc.msaa_samples,
-               desc.msaa_samples > 1 ? "YES" : "NO");
+               desc.msaa_samples > 1 ? "YES" : "NO", desc.base_address);
         
         MTL::Texture* texture = CreateDepthTarget(desc.width, desc.height, metal_format, desc.msaa_samples);
         if (texture) {
@@ -232,6 +235,7 @@ bool MetalRenderTargetCache::SetRenderTargets(uint32_t rt_count, const uint32_t*
           metal_rt->format = metal_format;
           metal_rt->samples = desc.msaa_samples;
           metal_rt->is_depth = true;
+          metal_rt->edram_base = desc.base_address;  // Store EDRAM address for later use
 
           current_depth_target_ = metal_rt.get();
           render_target_cache_[desc] = std::move(metal_rt);
@@ -244,6 +248,30 @@ bool MetalRenderTargetCache::SetRenderTargets(uint32_t rt_count, const uint32_t*
          rt_count, depth_target != 0 ? "yes" : "no");
 
   return true;
+}
+
+void MetalRenderTargetCache::LoadRenderTargetsFromEDRAM() {
+  SCOPE_profile_cpu_f("gpu");
+  
+  // TODO: Implement loading render target contents from EDRAM buffer
+  // This would involve:
+  // 1. Creating a compute or blit encoder
+  // 2. Copying data from EDRAM buffer at the appropriate offset to each render target texture
+  // 3. Handling format conversions if needed
+  
+  XELOGD("Metal render target cache: LoadRenderTargetsFromEDRAM - TODO");
+}
+
+void MetalRenderTargetCache::StoreRenderTargetsToEDRAM() {
+  SCOPE_profile_cpu_f("gpu");
+  
+  // TODO: Implement storing render target contents to EDRAM buffer
+  // This would involve:
+  // 1. Creating a compute or blit encoder
+  // 2. Copying data from each render target texture to EDRAM buffer at the appropriate offset
+  // 3. Handling format conversions if needed
+  
+  XELOGD("Metal render target cache: StoreRenderTargetsToEDRAM - TODO");
 }
 
 bool MetalRenderTargetCache::Resolve(Memory& memory, uint32_t& written_address, uint32_t& written_length) {
@@ -405,6 +433,7 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(uint3
           dummy_color_target_->format = MTL::PixelFormatBGRA8Unorm;
           dummy_color_target_->samples = sample_count;
           dummy_color_target_->is_depth = false;
+          dummy_color_target_->edram_base = 0;  // Dummy target not in EDRAM
         }
       }
       
@@ -441,6 +470,7 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(uint3
         dummy_color_target_->format = MTL::PixelFormatBGRA8Unorm;
         dummy_color_target_->samples = sample_count;
         dummy_color_target_->is_depth = false;
+        dummy_color_target_->edram_base = 0;  // Dummy target not in EDRAM
       }
     }
     

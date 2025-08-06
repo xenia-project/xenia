@@ -119,19 +119,24 @@ bool TraceDump::Load(const std::filesystem::path& trace_file_path) {
 }
 
 int TraceDump::Run() {
+  XELOGI("TraceDump::Run: Starting");
   BeginHostCapture();
   player_->SeekFrame(0);
   player_->SeekCommand(
       static_cast<int>(player_->current_frame()->commands.size() - 1));
+  XELOGI("TraceDump::Run: Waiting on playback");
   player_->WaitOnPlayback();
+  XELOGI("TraceDump::Run: Playback complete");
   EndHostCapture();
 
   // Capture.
   int result = 0;
+  XELOGI("TraceDump::Run: Capturing guest output");
   ui::Presenter* presenter = graphics_system_->presenter();
   ui::RawImage raw_image;
   if (presenter && presenter->CaptureGuestOutput(raw_image)) {
     // Save framebuffer png.
+    XELOGI("TraceDump::Run: Saving PNG");
     auto png_path = base_output_path_.replace_extension(".png");
     auto handle = filesystem::OpenFile(png_path, "wb");
     auto callback = [](void* context, void* data, int size) {
@@ -142,12 +147,17 @@ int TraceDump::Run() {
                            raw_image.data.data(),
                            static_cast<int>(raw_image.stride));
     fclose(handle);
+    XELOGI("TraceDump::Run: PNG saved to {}", xe::path_to_utf8(png_path));
   } else {
+    XELOGI("TraceDump::Run: Failed to capture guest output");
     result = 1;
   }
 
+  XELOGI("TraceDump::Run: Resetting player");
   player_.reset();
+  XELOGI("TraceDump::Run: Resetting emulator");
   emulator_.reset();
+  XELOGI("TraceDump::Run: Complete, returning {}", result);
   return result;
 }
 

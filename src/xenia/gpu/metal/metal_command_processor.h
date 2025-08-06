@@ -52,6 +52,10 @@ class MetalCommandProcessor : public CommandProcessor {
   MetalPrimitiveProcessor* primitive_processor() const { return primitive_processor_.get(); }
   MetalRenderTargetCache* render_target_cache() const { return render_target_cache_.get(); }
   MetalTextureCache* texture_cache() const { return texture_cache_.get(); }
+  
+  // Direct framebuffer capture (for trace dumps without presenter)
+  bool CaptureColorTarget(uint32_t index, uint32_t& width, uint32_t& height,
+                         std::vector<uint8_t>& data);
 
   // Command processing
   bool BeginSubmission(bool is_guest_command);
@@ -109,6 +113,9 @@ class MetalCommandProcessor : public CommandProcessor {
   
   // Frame tracking
   uint32_t frame_count_ = 0;
+  
+  // Draw batching to avoid too many in-flight command buffers
+  int draws_in_current_batch_ = 0;
   
 };
 
