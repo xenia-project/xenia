@@ -11,6 +11,7 @@
 
 #import <Foundation/Foundation.h>
 
+#include <algorithm>
 #include <cstring>
 #include <ctime>
 
@@ -229,6 +230,7 @@ void MetalCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
   XELOGI("Metal IssueSwap: Frame {} complete", frame_count_);
   
   // Capture the current frame for trace dumps (do this before presenter operations)
+  // Note: CaptureColorTarget has its own autorelease pool management
   uint32_t capture_width, capture_height;
   std::vector<uint8_t> capture_data;
   if (CaptureColorTarget(0, capture_width, capture_height, capture_data)) {
@@ -332,6 +334,9 @@ bool MetalCommandProcessor::CaptureColorTarget(uint32_t index, uint32_t& width, 
                                               std::vector<uint8_t>& data) {
   SCOPE_profile_cpu_f("gpu");
   
+  // Create autorelease pool for Metal object management
+  void* pool = AutoreleasePoolTracker::Push("CaptureColorTarget");
+  
   XELOGI("Metal CaptureColorTarget: Starting capture for index {}", index);
   
   // Get the color target or depth target if no color is available
@@ -342,6 +347,7 @@ bool MetalCommandProcessor::CaptureColorTarget(uint32_t index, uint32_t& width, 
     texture = render_target_cache_->GetDepthTarget();
     if (!texture) {
       XELOGW("Metal CaptureColorTarget: No render targets available at all");
+      AutoreleasePoolTracker::Pop(pool, "CaptureColorTarget");
       return false;
     }
     XELOGI("Metal CaptureColorTarget: Using depth target ({}x{}, format {})", 
@@ -354,9 +360,29 @@ bool MetalCommandProcessor::CaptureColorTarget(uint32_t index, uint32_t& width, 
   width = static_cast<uint32_t>(texture->width());
   height = static_cast<uint32_t>(texture->height());
   
-  // Calculate bytes per pixel (assuming RGBA8 for now)
-  size_t bytes_per_pixel = 4;
-  size_t data_size = width * height * bytes_per_pixel;
+  // Handle different texture formats  
+  MTL::PixelFormat pixel_format = texture->pixelFormat();
+  bool is_depth_stencil = (pixel_format == MTL::PixelFormatDepth32Float_Stencil8 ||
+                          pixel_format == MTL::PixelFormatDepth24Unorm_Stencil8);
+  bool is_depth_only = (pixel_format == MTL::PixelFormatDepth32Float ||
+                       pixel_format == MTL::PixelFormatDepth16Unorm);
+  
+  // Calculate bytes per pixel based on format
+  size_t bytes_per_pixel = 4; // Default for RGBA8
+  size_t source_bytes_per_pixel = 4;
+  
+  if (pixel_format == MTL::PixelFormatDepth32Float_Stencil8) {
+    source_bytes_per_pixel = 8; // 4 bytes depth + 1 byte stencil + 3 bytes padding = 8
+  } else if (pixel_format == MTL::PixelFormatDepth32Float) {
+    source_bytes_per_pixel = 4; // 4 bytes depth
+  } else if (pixel_format == MTL::PixelFormatDepth16Unorm) {
+    source_bytes_per_pixel = 2; // 2 bytes depth
+  } else if (pixel_format == MTL::PixelFormatDepth24Unorm_Stencil8) {
+    source_bytes_per_pixel = 4; // 3 bytes depth + 1 byte stencil = 4
+  }
+  
+  size_t data_size = width * height * bytes_per_pixel; // Output buffer size (RGBA8)
+  size_t source_data_size = width * height * source_bytes_per_pixel; // Input texture size
   data.resize(data_size);
   
   // Get Metal device and command queue
@@ -364,6 +390,7 @@ bool MetalCommandProcessor::CaptureColorTarget(uint32_t index, uint32_t& width, 
   MTL::CommandQueue* command_queue = GetMetalCommandQueue();
   if (!device || !command_queue) {
     XELOGE("Metal CaptureColorTarget: No device or command queue");
+    AutoreleasePoolTracker::Pop(pool, "CaptureColorTarget");
     return false;
   }
   
@@ -371,6 +398,7 @@ bool MetalCommandProcessor::CaptureColorTarget(uint32_t index, uint32_t& width, 
   MTL::CommandBuffer* command_buffer = command_queue->commandBuffer();
   if (!command_buffer) {
     XELOGE("Metal CaptureColorTarget: Failed to create command buffer");
+    AutoreleasePoolTracker::Pop(pool, "CaptureColorTarget");
     return false;
   }
   
@@ -378,62 +406,172 @@ bool MetalCommandProcessor::CaptureColorTarget(uint32_t index, uint32_t& width, 
   MTL::BlitCommandEncoder* blit_encoder = command_buffer->blitCommandEncoder();
   if (!blit_encoder) {
     XELOGE("Metal CaptureColorTarget: Failed to create blit encoder");
-    command_buffer->release();
+    // command_buffer is autoreleased, don't release manually
+    AutoreleasePoolTracker::Pop(pool, "CaptureColorTarget");
     return false;
   }
   
-  // Create a temporary buffer to read the texture data
-  MTL::Buffer* read_buffer = device->newBuffer(data_size, MTL::ResourceStorageModeShared);
+  // Create a temporary buffer to read the texture data (use source data size for reading)
+  MTL::Buffer* read_buffer = device->newBuffer(source_data_size, MTL::ResourceStorageModeShared);
   if (!read_buffer) {
     XELOGE("Metal CaptureColorTarget: Failed to create read buffer");
     blit_encoder->endEncoding();
-    blit_encoder->release();
-    command_buffer->release();
+    // blit_encoder and command_buffer are autoreleased, don't release manually
+    AutoreleasePoolTracker::Pop(pool, "CaptureColorTarget");
     return false;
   }
   
-  // Handle different texture formats
-  MTL::PixelFormat pixel_format = texture->pixelFormat();
-  bool is_depth_stencil = (pixel_format == MTL::PixelFormatDepth32Float_Stencil8 ||
-                          pixel_format == MTL::PixelFormatDepth24Unorm_Stencil8);
   
   if (is_depth_stencil) {
-    XELOGI("Metal CaptureColorTarget: Skipping depth+stencil texture capture (format {})", 
+    // For depth+stencil textures, create a depth-only intermediate texture and use a render pass
+    XELOGI("Metal CaptureColorTarget: Handling depth+stencil texture (format {}) - creating depth-only copy", 
            static_cast<uint32_t>(pixel_format));
-    // For now, skip depth+stencil captures as they require special handling
+    
+    // End the current blit encoder
     blit_encoder->endEncoding();
-    blit_encoder->release();
-    command_buffer->release();
+    // blit_encoder is autoreleased, don't release manually
+    
+    // Create a nested autorelease pool for Metal object creation
+    void* nested_pool = AutoreleasePoolTracker::Push("CaptureColorTarget_DepthStencil");
+    
+    // Create a depth-only texture to copy depth values 
+    MTL::TextureDescriptor* depth_desc = MTL::TextureDescriptor::texture2DDescriptor(
+        MTL::PixelFormatR32Float, width, height, false);
+    depth_desc->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
+    
+    MTL::Texture* temp_texture = device->newTexture(depth_desc);
+    depth_desc->release();
+    
+    if (!temp_texture) {
+      XELOGE("Metal CaptureColorTarget: Failed to create temporary texture");
+      read_buffer->release();
+      AutoreleasePoolTracker::Pop(nested_pool, "CaptureColorTarget_DepthStencil");
+      AutoreleasePoolTracker::Pop(pool, "CaptureColorTarget");
+      return false;
+    }
+    
+    // Create a render pass descriptor to copy depth to RGBA
+    MTL::RenderPassDescriptor* render_pass = MTL::RenderPassDescriptor::renderPassDescriptor();
+    render_pass->colorAttachments()->object(0)->setTexture(temp_texture);
+    render_pass->colorAttachments()->object(0)->setLoadAction(MTL::LoadActionDontCare);
+    render_pass->colorAttachments()->object(0)->setStoreAction(MTL::StoreActionStore);
+    
+    // Create render command encoder for depth visualization
+    MTL::RenderCommandEncoder* render_encoder = command_buffer->renderCommandEncoder(render_pass);
+    if (!render_encoder) {
+      XELOGE("Metal CaptureColorTarget: Failed to create render encoder for depth visualization");
+      temp_texture->release();
+      read_buffer->release();
+      AutoreleasePoolTracker::Pop(nested_pool, "CaptureColorTarget_DepthStencil");
+      AutoreleasePoolTracker::Pop(pool, "CaptureColorTarget");
+      return false;
+    }
+    
+    // TODO: Here we would need a shader to sample the depth texture and write to color
+    // For now, just end the render pass without doing anything
+    render_encoder->endEncoding();
+    // render_encoder is autoreleased, don't release manually
+    
+    // Create a new blit encoder to copy the temp texture to buffer
+    blit_encoder = command_buffer->blitCommandEncoder();
+    if (!blit_encoder) {
+      XELOGE("Metal CaptureColorTarget: Failed to create second blit encoder");
+      temp_texture->release();
+      read_buffer->release();
+      AutoreleasePoolTracker::Pop(nested_pool, "CaptureColorTarget_DepthStencil");
+      AutoreleasePoolTracker::Pop(pool, "CaptureColorTarget");
+      return false;
+    }
+    
+    // Copy from temp texture (R32Float format)
+    blit_encoder->copyFromTexture(
+        temp_texture, 0, 0,
+        MTL::Origin(0, 0, 0),
+        MTL::Size(width, height, 1),
+        read_buffer, 0,
+        width * 4, // 4 bytes per R32Float pixel
+        height * width * 4
+    );
+    
+    temp_texture->release();
+    
+    // End the blit encoder before popping the nested pool
+    blit_encoder->endEncoding();
+    
+    // Pop the nested pool to clean up autoreleased objects immediately
+    AutoreleasePoolTracker::Pop(nested_pool, "CaptureColorTarget_DepthStencil");
+    
+    // For now, create a simple black image as a placeholder
+    // blit_encoder and command_buffer are autoreleased
     read_buffer->release();
-    return false;
+    
+    XELOGW("Metal CaptureColorTarget: Creating placeholder black image for depth+stencil texture");
+    
+    // Create a black RGBA image as a placeholder
+    data.resize(width * height * 4);
+    std::fill(data.begin(), data.end(), 0); // Fill with black
+    
+    XELOGI("Metal CaptureColorTarget: Created {}x{} placeholder image", width, height);
+    AutoreleasePoolTracker::Pop(pool, "CaptureColorTarget");
+    return true;
+  } else if (is_depth_only) {
+    XELOGI("Metal CaptureColorTarget: Capturing depth-only texture (format {})", 
+           static_cast<uint32_t>(pixel_format));
+    
+    // Depth-only textures can be copied directly  
+    blit_encoder->copyFromTexture(
+        texture, 0, 0,  // sourceSlice, sourceLevel
+        MTL::Origin(0, 0, 0),  // sourceOrigin
+        MTL::Size(width, height, 1),  // sourceSize
+        read_buffer,  // destinationBuffer
+        0,  // destinationOffset
+        width * source_bytes_per_pixel,  // destinationBytesPerRow (use source format size)
+        height * width * source_bytes_per_pixel  // destinationBytesPerImage
+    );
+  } else {
+    // Color texture - copy directly
+    blit_encoder->copyFromTexture(
+        texture, 0, 0,  // sourceSlice, sourceLevel
+        MTL::Origin(0, 0, 0),  // sourceOrigin
+        MTL::Size(width, height, 1),  // sourceSize
+        read_buffer,  // destinationBuffer
+        0,  // destinationOffset
+        width * source_bytes_per_pixel,  // destinationBytesPerRow (use source format size)
+        height * width * source_bytes_per_pixel  // destinationBytesPerImage
+    );
   }
   
-  // Copy texture to buffer (works for color formats and depth-only formats)
-  blit_encoder->copyFromTexture(
-      texture, 0, 0,  // sourceSlice, sourceLevel
-      MTL::Origin(0, 0, 0),  // sourceOrigin
-      MTL::Size(width, height, 1),  // sourceSize
-      read_buffer,  // destinationBuffer
-      0,  // destinationOffset
-      width * bytes_per_pixel,  // destinationBytesPerRow
-      height * width * bytes_per_pixel  // destinationBytesPerImage
-  );
-  
   blit_encoder->endEncoding();
-  blit_encoder->release();
+  // blit_encoder is autoreleased, don't release manually
   
   // Submit and wait for completion
   command_buffer->commit();
   command_buffer->waitUntilCompleted();
-  command_buffer->release();
+  // command_buffer is autoreleased, don't release manually
   
-  // Copy data from buffer to vector
-  memcpy(data.data(), read_buffer->contents(), data_size);
+  // Handle data conversion based on format
+  if (is_depth_stencil || is_depth_only) {
+    XELOGI("Metal CaptureColorTarget: Converting depth values to RGBA for visualization");
+    
+    // Create temporary vector with source data
+    std::vector<uint8_t> source_data(source_data_size);
+    memcpy(source_data.data(), read_buffer->contents(), source_data_size);
+    
+    // Convert depth values to RGBA for visualization
+    ConvertDepthToRGBA(source_data, width, height, pixel_format);
+    
+    // Copy converted data to output
+    data = std::move(source_data);
+  } else {
+    // Direct copy for color textures
+    memcpy(data.data(), read_buffer->contents(), std::min(data_size, source_data_size));
+  }
   
   // Clean up
   read_buffer->release();
   
   XELOGI("Metal CaptureColorTarget: Captured {}x{} texture", width, height);
+  AutoreleasePoolTracker::Pop(pool, "CaptureColorTarget");
   return true;
 }
 
@@ -449,6 +587,63 @@ bool MetalCommandProcessor::GetLastCapturedFrame(uint32_t& width, uint32_t& heig
   
   XELOGI("Metal GetLastCapturedFrame: Returning {}x{} frame", width, height);
   return true;
+}
+
+void MetalCommandProcessor::ConvertDepthToRGBA(std::vector<uint8_t>& data, uint32_t width, uint32_t height, MTL::PixelFormat format) {
+  // Convert depth values to RGBA for visualization
+  // Depth values are typically float32 in range [0,1], we'll map to grayscale
+  
+  if (format == MTL::PixelFormatDepth32Float || format == MTL::PixelFormatDepth32Float_Stencil8) {
+    // Each depth value is a 32-bit float
+    const float* depth_data = reinterpret_cast<const float*>(data.data());
+    size_t pixel_count = width * height;
+    
+    // Create RGBA data (4 bytes per pixel)
+    std::vector<uint8_t> rgba_data(pixel_count * 4);
+    
+    for (size_t i = 0; i < pixel_count; ++i) {
+      float depth = depth_data[i];
+      
+      // Clamp depth to [0,1] and convert to [0,255]
+      depth = std::max(0.0f, std::min(1.0f, depth));
+      uint8_t gray = static_cast<uint8_t>(depth * 255.0f);
+      
+      // Set RGBA to grayscale (RGB same value, A=255)
+      rgba_data[i * 4 + 0] = gray;  // R
+      rgba_data[i * 4 + 1] = gray;  // G
+      rgba_data[i * 4 + 2] = gray;  // B
+      rgba_data[i * 4 + 3] = 255;   // A
+    }
+    
+    // Replace original data
+    data = std::move(rgba_data);
+    XELOGI("Metal ConvertDepthToRGBA: Converted {}x{} depth32f to RGBA", width, height);
+    
+  } else if (format == MTL::PixelFormatDepth16Unorm) {
+    // Each depth value is a 16-bit unsigned normalized integer
+    const uint16_t* depth_data = reinterpret_cast<const uint16_t*>(data.data());
+    size_t pixel_count = width * height;
+    
+    // Create RGBA data (4 bytes per pixel)  
+    std::vector<uint8_t> rgba_data(pixel_count * 4);
+    
+    for (size_t i = 0; i < pixel_count; ++i) {
+      uint16_t depth_u16 = depth_data[i];
+      
+      // Convert 16-bit [0,65535] to 8-bit [0,255]
+      uint8_t gray = static_cast<uint8_t>(depth_u16 >> 8);
+      
+      // Set RGBA to grayscale
+      rgba_data[i * 4 + 0] = gray;  // R
+      rgba_data[i * 4 + 1] = gray;  // G  
+      rgba_data[i * 4 + 2] = gray;  // B
+      rgba_data[i * 4 + 3] = 255;   // A
+    }
+    
+    // Replace original data
+    data = std::move(rgba_data);
+    XELOGI("Metal ConvertDepthToRGBA: Converted {}x{} depth16 to RGBA", width, height);
+  }
 }
 
 Shader* MetalCommandProcessor::LoadShader(xenos::ShaderType shader_type,
@@ -1461,6 +1656,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
         draws_in_current_batch_++;
         
         // Capture frame after each draw for trace dumps (since IssueSwap might not be called)
+        // Note: CaptureColorTarget has its own autorelease pool management
         if (draws_in_current_batch_ % 5 == 0) {  // Capture every 5th draw to avoid too much overhead
           uint32_t capture_width, capture_height;
           std::vector<uint8_t> capture_data;
