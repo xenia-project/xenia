@@ -253,7 +253,8 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
   // so it's safe to add both - adding it will neither move the 16p8 clamping
   // bounds -32768 and 32767+255/256 into the 0...8192 screen space range, nor
   // cause 24p8 overflow.
-  if (!regs.Get<reg::PA_SU_VTX_CNTL>().pix_center) {
+  if (regs.Get<reg::PA_SU_VTX_CNTL>().pix_center ==
+      xenos::PixelCenter::kD3DZero) {
     max_y_24p8 += 128;
   }
   if (pa_su_sc_mode_cntl.vtx_window_offset_enable) {
@@ -329,7 +330,8 @@ uint32_t DrawExtentEstimator::EstimateMaxY(bool try_to_estimate_vertex_max_y,
     if (regs.Get<reg::PA_SU_SC_MODE_CNTL>().vtx_window_offset_enable) {
       viewport_bottom += float(window_y_offset);
     }
-    if (!regs.Get<reg::PA_SU_VTX_CNTL>().pix_center) {
+    if (regs.Get<reg::PA_SU_VTX_CNTL>().pix_center ==
+        xenos::PixelCenter::kD3DZero) {
       viewport_bottom += 0.5f;
     }
     // Then apply the floating-point viewport offset.

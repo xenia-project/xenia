@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2013 Ben Vanik. All rights reserved.                             *
+ * Copyright 2025 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -10,8 +10,25 @@
 // This is a partial file designed to be included by other files when
 // constructing various tables.
 
-// Almost all of these values are taken directly from:
-// https://github.com/freedreno/amd-gpu/blob/master/include/reg/yamato/22/yamato_offset.h
+// Most 3D registers are the same as in the Qualcomm Adreno 200 (AMD Z430,
+// another R400 architecture family chip):
+// https://github.com/UDOOboard/Kernel_Unico/blob/master/drivers/mxc/amd-gpu/include/reg/yamato/10/yamato_offset.h
+// https://github.com/freedreno/amd-gpu/blob/master/include/reg/yamato/10/yamato_offset.h
+//
+// The addresses in this file are specified in dwords, similarly to how they are
+// defined in yamato_offset.h. AMD, however, generally uses byte addresses in
+// their documentation and open source drivers, so when looking up similar
+// registers there, multiply by 4 and convert to hexadecimal.
+//
+// Display controller register addresses mostly match the M56 ones:
+// https://www.x.org/docs/AMD/old/RRG-216M56-03oOEM.pdf
+//
+// 3D registers on the later chips such as the R600 are very different, but some
+// of them are still partially or fully the same, and also share the address.
+// However, on the R600, the 3D register space (at 0x8000 bytes, or 0x2000
+// dwords, on the Xenos) is split into config registers (at 0x8000 bytes) and
+// context registers (at 0x28000 bytes), but the lower bits of the address may
+// still be the same.
 
 //#define XE_GPU_REGISTER(index, type, name)
 

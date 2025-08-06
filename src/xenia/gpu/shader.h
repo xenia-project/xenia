@@ -940,9 +940,7 @@ class Shader {
     if (!uses_register_dynamic_addressing()) {
       return 0;
     }
-    return std::max((program_cntl_num_reg & 0x80)
-                        ? uint32_t(0)
-                        : (program_cntl_num_reg + uint32_t(1)),
+    return std::max(program_cntl_num_reg + uint32_t(1),
                     register_static_address_bound());
   }
 

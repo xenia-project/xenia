@@ -766,7 +766,12 @@ enum class SignedRepeatingFractionMode : uint32_t {
   kNoZero,
 };
 
-// instr_arbitrary_filter_t
+// Arbitrary filter is still present in the Code Aurora Forum release of the
+// Adreno 200 programming interface, but is deprecated according to the
+// IPR2015-00325 R400 Document Library Folder History:
+//   "Change 124923 on 2003/10/03 by jhoule@jhoule_doc_lt
+//   [...]
+//   Deprecated the ARBITRARY_FILTER fields from TFetch instr+const."
 enum class ArbitraryFilter : uint32_t {
   k2x4Sym = 0,
   k2x4Asym = 1,
@@ -777,13 +782,7 @@ enum class ArbitraryFilter : uint32_t {
   kUseFetchConst = 7,
 };
 
-// While instructions contain 6-bit register index fields (allowing literal
-// indices, or literal index offsets, depending on the addressing mode, of up to
-// 63), the maximum total register count for a vertex and a pixel shader
-// combined is 128, and the boundary between vertex and pixel shaders can be
-// moved via SQ_PROGRAM_CNTL::VS/PS_NUM_REG, according to the IPR2015-00325
-// specification (section 8 "Register file allocation").
-constexpr uint32_t kMaxShaderTempRegistersLog2 = 7;
+constexpr uint32_t kMaxShaderTempRegistersLog2 = 6;
 constexpr uint32_t kMaxShaderTempRegisters = UINT32_C(1)
                                              << kMaxShaderTempRegistersLog2;
 
@@ -859,34 +858,59 @@ enum class PolygonType : uint32_t {
   kTriangles = 2,
 };
 
-enum class ModeControl : uint32_t {
-  kIgnore = 0,
+enum class PixelCenter : uint32_t {
+  // Pixel center at vertex positions .0, like in Direct3D 9.
+  // Commonly used in Xbox 360 games.
+  kD3DZero = 0,
+  // Pixel center at vertex positions .5, like in OpenGL.
+  // Used in 415607E6.
+  kOGLHalf = 1,
+};
+
+enum class VertexRounding : uint32_t {
+  kTruncate = 0,  // OpenGL.
+  kRound = 1,
+  kRoundToEven = 2,  // Direct3D. Common in Xbox 360 games.
+  kRoundToOdd = 3,
+};
+
+enum class VertexQuantization : uint32_t {
+  k_1_16th = 0,
+  k_1_8th = 1,
+  k_1_4th = 2,
+  k_1_2 = 3,
+  k_1 = 4,
+  // 1/256th was added in R600. On the Xbox 360, games normally use 1/16th.
+};
+
+enum class EdramMode : uint32_t {
+  kNoOperation = 0,
   kColorDepth = 4,
-  // TODO(Triang3l): Verify whether kDepth means the pixel shader is ignored
+  // TODO(Triang3l): Verify whether kDepthOnly means the pixel shader is ignored
   // completely even if it writes depth, exports to memory or kills pixels.
   // Hints suggesting that it should be completely ignored (which is desirable
   // on real hardware to avoid scheduling the pixel shader at all and waiting
   // for it especially since the Xbox 360 doesn't have early per-sample depth /
   // stencil, only early hi-Z / hi-stencil, and other registers possibly
   // toggling pixel shader execution are yet to be found):
-  // - Most of depth pre-pass draws in 415607E6 use the kDepth more with a
+  // - Most of depth pre-pass draws in 415607E6 use the kDepthOnly more with a
   //   `oC0 = tfetch2D(tf0, r0.xy) * r1` shader, some use `oC0 = r0` though.
   //   However, when alphatested surfaces are drawn, kColorDepth is explicitly
   //   used with the same shader performing the texture fetch.
-  // - 5454082B has some kDepth draws with alphatest enabled, but the shader is
-  //   `oC0 = r0`, which makes no sense (alphatest based on an interpolant from
-  //   the vertex shader) as no texture alpha cutout is involved.
-  // - 5454082B also has kDepth draws with pretty complex shaders clearly for
-  //   use only in the color pass - even fetching and filtering a shadowmap.
+  // - 5454082B has some kDepthOnly draws with alphatest enabled, but the shader
+  //   is `oC0 = r0`, which makes no sense (alphatest based on an interpolant
+  //   from the vertex shader) as no texture alpha cutout is involved.
+  // - 5454082B also has kDepthOnly draws with pretty complex shaders clearly
+  //   for use only in the color pass - even fetching and filtering a shadowmap.
   // For now, based on these, let's assume the pixel shader is never used with
-  // kDepth.
-  kDepth = 5,
+  // kDepthOnly.
+  kDepthOnly = 5,
   kCopy = 6,
 };
 
 // Xenos copies EDRAM contents to a tiled 2D or 3D texture (resolves - from
 // "MSAA resolve", but this name is also used for single-sampled copying) by
-// drawing primitives with the EDRAM mode ModeControl::kCopy. Pixels covered by
+// drawing primitives with the EDRAM mode EdramMode::kCopy. Pixels covered by
 // the drawn geometry are copied. It's likely that only rectangular regions can
 // be resolved.
 //
@@ -1095,9 +1119,9 @@ union alignas(uint32_t) xe_gpu_vertex_fetch_t {
     FetchConstantType type : 2;  // +0
     uint32_t address : 30;       // +2 address in dwords
 
-    Endian endian : 2;   // +0
-    uint32_t size : 24;  // +2 size in words
-    uint32_t unk1 : 6;   // +26
+    Endian endian : 2;       // +0
+    uint32_t size : 24;      // +2 size in words
+    uint32_t _pad_1_26 : 6;  // +26
   };
 };
 static_assert_size(xe_gpu_vertex_fetch_t, sizeof(uint32_t) * 2);
@@ -1168,21 +1192,21 @@ union alignas(uint32_t) xe_gpu_texture_fetch_t {
   };
   struct {
     FetchConstantType type : 2;  // +0 dword_0
-    // Likely before the swizzle, seems logical from R5xx (SIGNED_COMP0/1/2/3
-    // set the signedness of components 0/1/2/3, while SEL_ALPHA/RED/GREEN/BLUE
-    // specify "swizzling for each channel at the input of the pixel shader",
-    // which can be texture components 0/1/2/3 or constant 0/1) and R6xx
-    // (signedness is FORMAT_COMP_X/Y/Z/W, while the swizzle is DST_SEL_X/Y/Z/W,
-    // which is named in resources the same as DST_SEL in fetch clauses).
-    TextureSign sign_x : 2;                              // +2
-    TextureSign sign_y : 2;                              // +4
-    TextureSign sign_z : 2;                              // +6
-    TextureSign sign_w : 2;                              // +8
-    ClampMode clamp_x : 3;                               // +10
-    ClampMode clamp_y : 3;                               // +13
-    ClampMode clamp_z : 3;                               // +16
-    SignedRepeatingFractionMode signed_rf_mode_all : 1;  // +19
-    uint32_t dim_tbd : 2;                                // +20
+    // The signedness applies to the data components (before the swizzle, which
+    // is the destination selection).
+    // Signed repeating fraction formats always use the kZeroClampMinusOne mode,
+    // according to the IPR2015-00325 R400 Document Library Folder History:
+    //   "Change 133990 on 2003/11/25 by jhoule@jhoule_doc_lt
+    //   v1.80 - Indicated that NO_ZERO srf mode is unsupported for Xenos (will
+    //   currently only work in the VC path)"
+    TextureSign sign_x : 2;  // +2
+    TextureSign sign_y : 2;  // +4
+    TextureSign sign_z : 2;  // +6
+    TextureSign sign_w : 2;  // +8
+    ClampMode clamp_x : 3;   // +10
+    ClampMode clamp_y : 3;   // +13
+    ClampMode clamp_z : 3;   // +16
+    uint32_t _pad_0_19 : 3;  // +19
     // Base row pitch in pixels (not blocks) >> 5. For linear textures, this is
     // provided by Direct3D 9 in a way that every row of blocks ends up aligned
     // to kTextureLinearRowAlignmentBytes (the GPU requires 256-byte alignment
@@ -1209,7 +1233,7 @@ union alignas(uint32_t) xe_gpu_texture_fetch_t {
     union {  // dword_2
       struct {
         uint32_t width : 24;
-        uint32_t _pad_88 : 8;
+        uint32_t _pad_size_1d : 8;
       } size_1d;
       struct {
         uint32_t width : 13;

@@ -2,7 +2,7 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2017 Ben Vanik. All rights reserved.                             *
+ * Copyright 2025 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
@@ -16,10 +16,29 @@
 #include "xenia/base/assert.h"
 #include "xenia/gpu/xenos.h"
 
-// Most registers can be found from:
-// https://github.com/UDOOboard/Kernel_Unico/blob/master/drivers/mxc/amd-gpu/include/reg/yamato/14/yamato_registers.h
-// Some registers were added on Adreno specifically and are not referenced in
-// game .pdb files and never set by games.
+// Most 3D registers are the same as in the Qualcomm Adreno 200 (AMD Z430,
+// another R400 architecture family chip):
+//
+// https://github.com/UDOOboard/Kernel_Unico/blob/master/drivers/mxc/amd-gpu/include/reg/yamato/10/yamato_registers.h
+// https://github.com/freedreno/amd-gpu/blob/master/include/reg/yamato/10/yamato_registers.h
+//
+// https://gitlab.freedesktop.org/mesa/mesa/-/blob/main/src/freedreno/registers/adreno/a2xx.xml
+//
+// The Adreno 200, however, has various differences in its registers (primarily
+// in the render backend, but not limited to that). Before adding the
+// definitions from the Adreno 200, see the actual values of those registers set
+// by games, and/or test them on the Xenos hardware.
+//
+// Other useful sources are the register references for later ATI/AMD 3D chips,
+// most importantly the R600 - while it has a massive amount of differences,
+// it's the closest relative of the R400 architecture that is available on the
+// PC. Documentation for newer AMD GPUs, such as Evergreen, Northern Islands,
+// and even GCN also can provide details in some cases. The earlier ATI's
+// architecture, R3xx/R5xx, has very differently structured registers (although
+// some are still very similar), but can provide some historical context.
+//
+// Display controller register addresses mostly match the M56 ones:
+// https://www.x.org/docs/AMD/old/RRG-216M56-03oOEM.pdf
 
 // All unused bits are intentionally declared as named fields for stable
 // comparisons when register values are constructed or modified by Xenia itself.
@@ -108,17 +127,20 @@ static_assert_size(WAIT_UNTIL, sizeof(uint32_t));
 union alignas(uint32_t) SQ_PROGRAM_CNTL {
   uint32_t value;
   struct {
-    // Note from a2xx.xml:
-    // Only 0x3F worth of valid register values for VS_NUM_REG and PS_NUM_REG,
-    // but high bit is set to indicate "0 registers used".
-    // (Register count = (num_reg & 0x80) ? 0 : (num_reg + 1))
-    uint32_t vs_num_reg : 8;                           // +0
-    uint32_t ps_num_reg : 8;                           // +8
+    // GPR counts minus 1.
+    // Ignore the Freedreno a2xx.xml note about the bit 7 for zero registers,
+    // the fields are 6-bit, not 8-bit, in yamato_registers.h, and games never
+    // set the bits 7:6.
+    uint32_t vs_num_reg : 6;                           // +0, value minus 1
+    uint32_t _pad_6 : 2;                               // +6
+    uint32_t ps_num_reg : 6;                           // +8, value minus 1
+    uint32_t _pad_14 : 2;                              // +14
     uint32_t vs_resource : 1;                          // +16
     uint32_t ps_resource : 1;                          // +17
     uint32_t param_gen : 1;                            // +18
     uint32_t gen_index_pix : 1;                        // +19
-    uint32_t vs_export_count : 4;                      // +20
+    // Interpolator output count minus 1.
+    uint32_t vs_export_count : 4;                      // +20, value minus 1
     xenos::VertexShaderExportMode vs_export_mode : 3;  // +24
     uint32_t ps_export_mode : 4;                       // +27
     uint32_t gen_index_vtx : 1;                        // +31
@@ -211,7 +233,7 @@ union alignas(uint32_t) SQ_CONTEXT_MISC {
     //   non-negative for other primitive types.
     uint32_t param_gen_pos : 8;    // +8
     uint32_t perfcounter_ref : 1;  // +16
-    uint32_t yeild_optimize : 1;   // +17 sic
+    uint32_t yield_optimize : 1;   // +17
     uint32_t tx_cache_sel : 1;     // +18
     uint32_t _pad_19 : 13;         // +19
   };
@@ -237,7 +259,7 @@ union alignas(uint32_t) SQ_VS_CONST {
     uint32_t base : 9;    // +0
     uint32_t _pad_9 : 3;  // +9
     // Vec4 count minus one.
-    uint32_t size : 9;      // +12
+    uint32_t size : 9;      // +12, value minus 1
     uint32_t _pad_21 : 11;  // +21
   };
   static constexpr Register register_index = XE_GPU_REG_SQ_VS_CONST;
@@ -251,7 +273,7 @@ union alignas(uint32_t) SQ_PS_CONST {
     uint32_t base : 9;    // +0
     uint32_t _pad_9 : 3;  // +9
     // Vec4 count minus one.
-    uint32_t size : 9;      // +12
+    uint32_t size : 9;      // +12, value minus 1
     uint32_t _pad_21 : 11;  // +21
   };
   static constexpr Register register_index = XE_GPU_REG_SQ_PS_CONST;
@@ -288,10 +310,15 @@ union alignas(uint32_t) VGT_DMA_SIZE {
 
 union alignas(uint32_t) VGT_DRAW_INITIATOR {
   uint32_t value;
-  // Different than on A2xx and R6xx/R7xx.
+  // Has differences from the Adreno 200.
   struct {
     xenos::PrimitiveType prim_type : 6;     // +0
     xenos::SourceSelect source_select : 2;  // +6
+    // Adreno 200 replaced this with FACENESS_CULL_SELECT possibly due to the
+    // removal of tessellation, but on the Xenos this is MAJOR_MODE like on the
+    // R600, it's set to the explicit mode mainly for tessellated draws in games
+    // (because VGT_OUTPUT_PATH_CNTL where tessellation is enabled is ignored in
+    // the implicit major mode).
     xenos::MajorMode major_mode : 2;        // +8
     uint32_t _pad_10 : 1;                   // +10
     xenos::IndexFormat index_size : 1;      // +11
@@ -466,9 +493,9 @@ static_assert_size(PA_SU_SC_MODE_CNTL, sizeof(uint32_t));
 union alignas(uint32_t) PA_SU_VTX_CNTL {
   uint32_t value;
   struct {
-    uint32_t pix_center : 1;  // +0 1 = half pixel offset (OpenGL).
-    uint32_t round_mode : 2;  // +1
-    uint32_t quant_mode : 3;  // +3
+    xenos::PixelCenter pix_center : 1;         // +0
+    xenos::VertexRounding round_mode : 2;      // +1
+    xenos::VertexQuantization quant_mode : 3;  // +3
     uint32_t _pad_6 : 26;     // +6
   };
   static constexpr Register register_index = XE_GPU_REG_PA_SU_VTX_CNTL;
@@ -507,6 +534,8 @@ static_assert_size(PA_SC_VIZ_QUERY, sizeof(uint32_t));
 union alignas(uint32_t) PA_CL_CLIP_CNTL {
   uint32_t value;
   struct {
+    // Like on the Adreno 200, but with user clip planes from R3xx (used in
+    // 4D5307E6 for the hanging lamp on Last Resort).
     uint32_t ucp_ena_0 : 1;               // +0
     uint32_t ucp_ena_1 : 1;               // +1
     uint32_t ucp_ena_2 : 1;               // +2
@@ -631,8 +660,8 @@ static_assert_size(PA_SC_WINDOW_SCISSOR_BR, sizeof(uint32_t));
 union alignas(uint32_t) RB_MODECONTROL {
   uint32_t value;
   struct {
-    xenos::ModeControl edram_mode : 3;  // +0
-    uint32_t _pad_3 : 29;               // +3
+    xenos::EdramMode edram_mode : 3;  // +0
+    uint32_t _pad_3 : 29;             // +3
   };
   static constexpr Register register_index = XE_GPU_REG_RB_MODECONTROL;
 };
@@ -773,7 +802,7 @@ union alignas(uint32_t) RB_DEPTHCONTROL {
     uint32_t stencil_enable : 1;  // +0
     uint32_t z_enable : 1;        // +1
     uint32_t z_write_enable : 1;  // +2
-    // EARLY_Z_ENABLE was added on Adreno.
+    // EARLY_Z_ENABLE was added on Adreno, never set by Xbox 360 games.
     uint32_t _pad_3 : 1;                        // +3
     xenos::CompareFunction zfunc : 3;           // +4
     uint32_t backface_enable : 1;               // +7

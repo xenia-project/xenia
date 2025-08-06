@@ -2159,8 +2159,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
 
   const RegisterFile& regs = *register_file_;
 
-  xenos::ModeControl edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
-  if (edram_mode == xenos::ModeControl::kCopy) {
+  xenos::EdramMode edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
+  if (edram_mode == xenos::EdramMode::kCopy) {
     // Special copy handling.
     return IssueCopy();
   }
@@ -2192,9 +2192,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
       draw_util::IsRasterizationPotentiallyDone(regs, primitive_polygonal);
   VulkanShader* pixel_shader = nullptr;
   if (is_rasterization_done) {
-    // See xenos::ModeControl for explanation why the pixel shader is only used
+    // See xenos::EdramMode for explanation why the pixel shader is only used
     // when it's kColorDepth here.
-    if (edram_mode == xenos::ModeControl::kColorDepth) {
+    if (edram_mode == xenos::EdramMode::kColorDepth) {
       pixel_shader = static_cast<VulkanShader*>(active_pixel_shader());
       if (pixel_shader) {
         pipeline_cache_->AnalyzeShaderUcode(*pixel_shader);
