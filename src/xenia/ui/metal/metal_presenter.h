@@ -10,6 +10,8 @@
 #ifndef XENIA_UI_METAL_METAL_PRESENTER_H_
 #define XENIA_UI_METAL_METAL_PRESENTER_H_
 
+#include <array>
+
 #include "xenia/ui/presenter.h"
 #include "xenia/ui/surface.h"
 
@@ -17,12 +19,14 @@
 namespace MTL {
 class Device;
 class CommandQueue;
+class Texture;
 }
 
 // Forward declaration for CAMetalLayer
 #ifdef __OBJC__
 @class CAMetalLayer;
 @protocol MTLCommandQueue;
+@protocol MTLTexture;
 #else
 typedef struct objc_object CAMetalLayer;
 typedef struct objc_object* id;
@@ -33,6 +37,19 @@ namespace ui {
 namespace metal {
 
 class MetalProvider;
+
+class MetalGuestOutputRefreshContext final : public Presenter::GuestOutputRefreshContext {
+ public:
+  MetalGuestOutputRefreshContext(bool& is_8bpc_out_ref, id resource)
+      : Presenter::GuestOutputRefreshContext(is_8bpc_out_ref), resource_(resource) {}
+
+  // The guest output Metal texture that the refresher should write to.
+  // Initial state is undefined, refresher must write all pixels.
+  id resource_uav_capable() const { return resource_; }
+
+ private:
+  id resource_;
+};
 
 class MetalUIDrawContext final : public UIDrawContext {
  public:
@@ -63,6 +80,12 @@ class MetalPresenter : public Presenter {
   Surface::TypeFlags GetSupportedSurfaceTypes() const override;
   bool CaptureGuestOutput(RawImage& image_out) override;
 
+  // Helper method to copy Metal texture to guest output texture
+  bool CopyTextureToGuestOutput(MTL::Texture* source_texture, id dest_texture);
+  
+  // Helper method for trace dumps to populate guest output before PNG capture
+  void TryRefreshGuestOutputForTraceDump(void* command_processor);
+
  protected:
   PaintResult PaintAndPresentImpl(bool execute_ui_drawers) override;
   
@@ -84,6 +107,9 @@ class MetalPresenter : public Presenter {
   // Metal presentation resources
   CAMetalLayer* metal_layer_ = nullptr;
   id command_queue_ = nullptr;  // id<MTLCommandQueue>
+  
+  // Guest output textures for PNG capture (mailbox system)
+  std::array<id, kGuestOutputMailboxSize> guest_output_textures_;
 };
 
 }  // namespace metal

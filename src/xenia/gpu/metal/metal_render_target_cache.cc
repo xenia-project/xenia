@@ -164,8 +164,9 @@ bool MetalRenderTargetCache::SetRenderTargets(uint32_t rt_count, const uint32_t*
       continue;
     }
 
-    XELOGI("Metal render target cache: Creating color target {} - {}x{}, format {}, {} samples",
-           i, desc.width, desc.height, static_cast<uint32_t>(metal_format), desc.msaa_samples);
+    XELOGI("Metal render target cache: Creating color target {} - {}x{}, format {}, {} samples (MSAA: {})",
+           i, desc.width, desc.height, static_cast<uint32_t>(metal_format), desc.msaa_samples,
+           desc.msaa_samples > 1 ? "YES" : "NO");
     
     MTL::Texture* texture = CreateColorTarget(desc.width, desc.height, metal_format, desc.msaa_samples);
     if (!texture) {
@@ -218,6 +219,10 @@ bool MetalRenderTargetCache::SetRenderTargets(uint32_t rt_count, const uint32_t*
       if (metal_format == MTL::PixelFormatInvalid) {
         XELOGE("Metal render target cache: Unsupported depth format {}", desc.format);
       } else {
+        XELOGI("Metal render target cache: Creating depth target - {}x{}, format {}, {} samples (MSAA: {})",
+               desc.width, desc.height, static_cast<uint32_t>(metal_format), desc.msaa_samples,
+               desc.msaa_samples > 1 ? "YES" : "NO");
+        
         MTL::Texture* texture = CreateDepthTarget(desc.width, desc.height, metal_format, desc.msaa_samples);
         if (texture) {
           auto metal_rt = std::make_unique<MetalRenderTarget>();

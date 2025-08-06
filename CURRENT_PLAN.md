@@ -1,244 +1,105 @@
-# Current Metal Backend Implementation Plan
+# Current Plan: Metal Backend Thread Exit Crash
 
-## Immediate Goal: Enable Xcode Frame Capture
-**Target**: Get Metal trace dump to produce capturable frames in Xcode's GPU debugger
+## Current Status
+✅ Metal object lifecycle fixed - no leaks
+✅ Command buffer submission flow corrected
+✅ Draw commands executing successfully
+❌ Thread exit crash in autorelease pool TLS cleanup
 
-## Recent Achievements (This Session)
-1. ✅ **EDRAM Buffer** - Created 10MB buffer for Xbox 360's embedded DRAM
-2. ✅ **Presentation Pipeline** - Implemented CAMetalLayer frame management
-3. ✅ **Resolve Framework** - Added copy/resolve operation structure
-4. ✅ **Platform Guards** - Cleaned up unnecessary conditional compilation
-5. ✅ **Metal Validation** - Enabled validation layers for debug builds
-6. ✅ **Dummy Render Target** - Fixed null render encoder with fallback target
-7. ✅ **Command Buffer Error Handling** - Added completion handlers for debugging
-8. ✅ **Memory Management Fixes** - Fixed double-release crashes in buffer/descriptor cleanup
-9. ✅ **Vertex Endian Swapping** - Properly handle all endian modes for 16-bit vertex formats
-10. ✅ **MSAA Texture Support** - Fixed texture type for multisampled render targets
-11. ✅ **Real Render Targets** - Parsing Xbox 360 RT registers and creating actual textures
-12. ✅ **Pipeline Format Matching** - Pipeline now queries actual RT formats and sample counts
-13. ✅ **Duplicate RT Detection** - Detect and handle overlapping render targets (temporary workaround)
-14. ✅ **Depth Format Support** - Fixed depth format parsing and macOS compatibility (Depth32Float)
+## Problem Statement
+The GPU Commands thread crashes during exit in `objc_release()` when pthread cleans up thread-local storage. This happens AFTER we've properly cleaned up all Metal objects and drained our autorelease pools.
 
-## Current State
-The Metal backend successfully:
-- ✅ Loads Xbox 360 GPU traces
-- ✅ Converts shaders (Xbox 360 → DXBC → DXIL → Metal)
-- ✅ Creates MTLRenderPipelineState objects with correct formats and sample counts
-- ✅ Creates render command encoders without validation errors
-- ✅ Processes and encodes draw calls
-- ✅ Binds vertex buffers and constants with proper endian swapping
-- ✅ Handles render pass descriptors with real render targets
-- ✅ Creates Xbox 360 render targets with proper formats (RGB10A2, etc.)
-- ✅ Detects and works around duplicate render targets
-- ✅ **A-Train HX trace runs to completion without crashes**
-- ✅ Proper depth buffer support on macOS (Depth32Float_Stencil8)
-
-Current limitations:
-- **No visual output**: Draw calls process but no frame capture yet
-- **EDRAM not integrated**: Buffer created but not used for actual rendering
-- **No frame boundaries**: Need to detect frame completion
-- **Overlapping RTs**: Halo 3 uses same EDRAM for different formats (postponed)
-
-## What's Missing for Real Frame Capture
-
-### 1. Real Render Target Creation
-Currently using a dummy 256x256 texture. Need to:
-- Parse Xbox 360 render target registers correctly
-- Create textures with proper dimensions from RB_SURFACE_INFO
-- Map Xbox 360 EDRAM addresses to Metal textures
-- Handle MSAA configurations
-
-### 2. EDRAM Integration
-We have the 10MB EDRAM buffer but it's not being used:
-- Need to bind EDRAM buffer as actual render targets
-- Implement tiling/untiling for Xbox 360's tile-based rendering
-- Handle resolve operations from EDRAM to textures
-
-### 3. Frame Boundaries
-Need to detect when a frame is complete:
-- Track swap/present commands
-- Implement proper command buffer submission per frame
-- Add frame counter and capture triggers
-
-## Decision Point: Which Trace to Focus On?
-
-### Option 1: Continue with Halo 3 (H3_Main_Menu-4D5307E6_9843.xtr)
-**Pros**: Real-world complex rendering, will expose all issues early
-**Cons**: Uses overlapping RTs (needs complex workaround), MSAA 4x, deferred rendering
-
-### Option 2: Switch to Simpler Trace (title_414B07D1_frame_589.xenia_gpu_trace)
-**Pros**: Likely simpler rendering, easier to get first working frame
-**Cons**: May not expose issues we'll need to fix anyway
-
-**Recommendation**: Try the simpler trace first to get basic rendering working, then tackle Halo 3's complexity
-
-## Next Implementation Steps (Path to First Frame Capture)
-
-### Session 1: Complete Pipeline State Creation
-**Files to modify**: `metal_pipeline_cache.cc/h`
-
-1. **Create MTLRenderPipelineDescriptor**
-   ```cpp
-   MTL::RenderPipelineDescriptor* descriptor = MTL::RenderPipelineDescriptor::alloc()->init();
-   descriptor->setVertexFunction(vertex_shader->GetMetalFunction());
-   descriptor->setFragmentFunction(pixel_shader->GetMetalFunction());
-   ```
-
-2. **Configure Vertex Descriptor**
-   - Parse Xbox 360 vertex fetch constants
-   - Map to Metal vertex attribute descriptors
-   - Set up vertex buffer layouts
-
-3. **Set Render State**
-   - Configure color attachments from render target cache
-   - Set blend state from Xbox 360 registers
-   - Configure depth/stencil state
-
-4. **Create Pipeline State Object**
-   ```cpp
-   NS::Error* error = nullptr;
-   pipeline_state = device->newRenderPipelineState(descriptor, &error);
-   ```
-
-### Session 2: Implement Render Command Encoding
-**Files to modify**: `metal_command_processor.cc`
-
-1. **Create Render Command Encoder**
-   ```cpp
-   // In IssueDraw after pipeline state creation
-   MTL::RenderPassDescriptor* render_pass = render_target_cache_->GetRenderPassDescriptor();
-   MTL::RenderCommandEncoder* encoder = command_buffer->renderCommandEncoder(render_pass);
-   ```
-
-2. **Bind Pipeline and Resources**
-   ```cpp
-   encoder->setRenderPipelineState(pipeline_state);
-   encoder->setVertexBuffer(vertex_buffer, offset, 0);
-   encoder->setFragmentTexture(texture, 0);
-   ```
-
-3. **Issue Draw Call**
-   ```cpp
-   if (indexed) {
-     encoder->drawIndexedPrimitives(primitive_type, index_count, index_type, index_buffer, 0);
-   } else {
-     encoder->drawPrimitives(primitive_type, vertex_start, vertex_count);
-   }
-   encoder->endEncoding();
-   ```
-
-### Session 3: Wire Up Render Targets
-**Files to modify**: `metal_render_target_cache.cc`
-
-1. **Create Actual Render Target Textures**
-   - When SetRenderTargets is called, create Metal textures
-   - Configure texture descriptors with proper formats
-   - Set up MSAA if needed
-
-2. **Connect to Render Pass Descriptor**
-   - Set color/depth attachments to actual textures
-   - Configure load/store actions properly
-   - Handle clear operations
-
-3. **Implement Basic Resolve**
-   - Copy from render target to EDRAM buffer
-   - Basic format conversion if needed
-
-## Testing Strategy
-
-### Phase 1: Verify Pipeline Creation
-1. Run trace dump with logging
-2. Confirm pipeline states are created without errors
-3. Check shader compilation succeeds
-
-### Phase 2: Capture in Xcode
-1. Run trace dump under Xcode
-2. Use GPU Frame Capture
-3. Verify command buffer structure
-4. Check resource bindings
-
-### Phase 3: Debug Rendering
-1. Examine vertex data in capture
-2. Verify shader execution
-3. Check render target outputs
-4. Debug any rendering issues
-
-## Success Metrics
-
-### Milestone 1: Pipeline State Creation ✓
-- No Metal validation errors
-- Pipeline states cached properly
-- Shaders compile successfully
-
-### Milestone 2: Command Encoding ✓
-- Draw calls appear in Xcode capture
-- Resources properly bound
-- No encoder errors
-
-### Milestone 3: Visual Output ✓
-- Render targets contain data
-- Basic geometry visible
-- Can step through draw calls in debugger
-
-## Known Challenges
-
-1. **Vertex Format Mapping**
-   - Xbox 360 formats don't map 1:1 to Metal
-   - Need format conversion for some types
-
-2. **Primitive Restart**
-   - Metal always uses 0xFFFF/0xFFFFFFFF
-   - Already handled by primitive processor
-
-3. **Coordinate Systems**
-   - Xbox 360 uses different conventions
-   - May need viewport/projection adjustments
-
-## File Organization
-
-### Core Implementation Files
-- `metal_command_processor.cc` - Main command processing and draw calls
-- `metal_pipeline_cache.cc` - Pipeline state creation and caching
-- `metal_render_target_cache.cc` - Render target and EDRAM management
-- `metal_shader.cc` - Shader translation and compilation
-- `metal_buffer_cache.cc` - Vertex/index buffer management
-- `metal_texture_cache.cc` - Texture resource management
-
-### Support Files
-- `metal_presenter.cc` - CAMetalLayer presentation
-- `metal_primitive_processor.cc` - Primitive conversion
-- `dxbc_to_dxil_converter.cc` - Shader translation pipeline
-
-## Development Environment
-
-### Tools Required
-- Xcode 15+ with Metal debugging tools
-- Metal System Trace for performance analysis
-- Metal Shader Converter (installed at `/opt/metal-shaderconverter/`)
-- Wine for DXBC→DXIL conversion
-
-### Debug Commands
-```bash
-# Run trace dump
-./build/bin/Mac/Checked/xenia-gpu-metal-trace-dump testdata/reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace
-
-# Run with Metal validation
-MTL_DEBUG_LAYER=1 ./build/bin/Mac/Checked/xenia-gpu-metal-trace-dump [trace_file]
-
-# Capture with Xcode
-# 1. Open Xcode
-# 2. Debug → Attach to Process → xenia-gpu-metal-trace-dump
-# 3. Debug → Capture GPU Frame
+## Stack Trace
+```
+GPU Commands#0    0x000000019f4400ec in objc_release ()
+#1    0x000000019f447c84 in AutoreleasePoolPage::releaseUntil ()
+#2    0x000000019f444150 in objc_autoreleasePoolPop ()
+#3    0x000000019f478d18 in objc_tls_direct_base<AutoreleasePoolPage*, (tls_key)3, AutoreleasePoolPage::HotPageDealloc>::dtor_ ()
+#4    0x00000001013ba600 in _pthread_tsd_cleanup ()
+#5    0x00000001013b1198 in _pthread_exit ()
+#6    0x00000001013b2854 in pthread_exit ()
+#7    0x00000001000916a4 in xe::threading::PosixThread::Terminate at threading_mac.cc:506
 ```
 
-## Timeline
+## Root Cause Analysis
 
-- **Today**: Committed EDRAM, presentation, and resolve framework
-- **Next Session**: Complete pipeline state creation (2-3 hours)
-- **Following Session**: Implement command encoding (2-3 hours)
-- **Final Session**: Wire up render targets and debug (2-3 hours)
-- **Result**: Xcode frame capture working, basic rendering visible
+### What We Know
+1. All Metal objects are properly released (tracker shows 0 alive)
+2. Our explicit autorelease pools are properly created and drained
+3. The crash happens in pthread's TLS cleanup, not our code
+4. It's trying to clean up autorelease pool thread-local data
+
+### Hypothesis
+The Objective-C runtime maintains its own thread-local autorelease pool state. When we call `pthread_exit()`, it tries to clean this up, but something is corrupted or there are still autoreleased objects we don't know about.
+
+### Possible Causes
+1. **Metal-cpp autoreleases**: Metal-cpp might be autoreleasing objects internally
+2. **System frameworks**: NSUserDefaults and other system objects are being autoreleased (we see warnings)
+3. **Race condition**: Thread exit happening while Metal operations still pending
+4. **Double pool drain**: We might be draining a pool twice
+
+## Investigation Steps
+
+### 1. Check Thread Exit Path
+- Look at how PosixThread::Terminate is called
+- See if we can avoid pthread_exit and return naturally
+- Check if the thread is being terminated vs exiting normally
+
+### 2. System Object Autoreleases
+We see these warnings:
+```
+objc[93944]: MISSING POOLS: Object 0xb63490dc0 of class MTLDebugFunction autoreleased with no pool in place
+objc[93944]: MISSING POOLS: Object 0xb634923c0 of class MTLDebugFunction autoreleased with no pool in place
+```
+These happen AFTER thread exit, suggesting Metal debug layer is doing something after our cleanup.
+
+### 3. Metal Debug Layer
+The MTLDebugFunction objects are from Metal's debug layer. We should:
+- Try running without METAL_DEVICE_WRAPPER_TYPE=1
+- Check if debug layer has its own autorelease behavior
+
+## Immediate Actions
+
+### Option 1: Avoid pthread_exit
+Modify thread termination to return from thread function instead of calling pthread_exit.
+
+### Option 2: Disable Metal Debug Layer
+Test without Metal validation to see if the debug layer is causing issues.
+
+### Option 3: Drain Pools Earlier
+Ensure all autorelease pools are drained before ANY thread cleanup.
+
+## Test Plan
+
+### Test 1: Without Metal Debug Layer
+```bash
+./build/bin/Mac/Checked/xenia-gpu-metal-trace-dump \
+  testdata/reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace
+```
+
+### Test 2: With Explicit Pool Management
+```bash
+OBJC_DEBUG_MISSING_POOLS=YES \
+./build/bin/Mac/Checked/xenia-gpu-metal-trace-dump \
+  testdata/reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace
+```
+
+### Test 3: Check Thread Exit Path
+Add logging to understand exact thread exit sequence.
+
+## Success Criteria
+- [ ] Trace dump completes without crash
+- [ ] PNG file generated successfully  
+- [ ] Clean thread shutdown
+- [ ] No autorelease pool warnings
+
+## Alternative Approach
+Since Metal objects are properly managed and the crash only happens during shutdown, we could:
+1. Focus on getting PNG generation working first
+2. Accept the shutdown crash temporarily
+3. Return to fix it after core functionality works
 
 ## Notes
-
-The architecture is solid and the hard parts (shader translation) are working. We just need to connect the final pieces of the rendering pipeline. Once we can capture frames in Xcode, debugging and optimization will be much easier.
+- The crash is consistent and reproducible
+- It only affects shutdown, not runtime operation
+- All Metal rendering operations complete successfully before the crash

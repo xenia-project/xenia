@@ -85,6 +85,12 @@ class MetalCommandProcessor : public CommandProcessor {
 
   bool IssueCopy() override;
 
+  // Called when the primary buffer ends - we submit here to reduce latency
+  void OnPrimaryBufferEnd() override;
+  
+  // WaitForIdle to flush any pending submissions
+  void WaitForIdle();
+
  private:
   MetalGraphicsSystem* metal_graphics_system_;
 
@@ -103,6 +109,7 @@ class MetalCommandProcessor : public CommandProcessor {
   
   // Frame tracking
   uint32_t frame_count_ = 0;
+  
 };
 
 }  // namespace metal

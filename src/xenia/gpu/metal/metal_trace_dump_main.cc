@@ -9,9 +9,14 @@
 
 #include "xenia/base/console_app_main.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/filesystem.h"
+#include "xenia/base/string.h"
 #include "xenia/gpu/trace_dump.h"
 #include "xenia/gpu/metal/metal_command_processor.h"
 #include "xenia/gpu/metal/metal_graphics_system.h"
+#include "xenia/gpu/metal/metal_render_target_cache.h"
+#include "xenia/ui/metal/metal_presenter.h"
+#include "third_party/stb/stb_image_write.h"
 
 namespace xe {
 namespace gpu {

@@ -10,7 +10,18 @@
 #include "xenia/gpu/metal/metal_command_processor.h"
 
 #include <cstring>
+#include <ctime>
 
+#include "third_party/stb/stb_image_write.h"
+#include "xenia/ui/metal/metal_presenter.h"
+#include "xenia/gpu/metal/metal_object_tracker.h"
+
+// Forward declarations for Objective-C types
+#ifdef __OBJC__
+@protocol MTLTexture;
+#else
+typedef struct objc_object* id;
+#endif
 
 #include "xenia/base/byte_order.h"
 #include "xenia/base/logging.h"
@@ -98,6 +109,50 @@ bool MetalCommandProcessor::SetupContext() {
 }
 
 void MetalCommandProcessor::ShutdownContext() {
+  // Force flush any pending commands
+  if (submission_open_) {
+    XELOGI("Metal ShutdownContext: Forcing EndSubmission before shutdown");
+    EndSubmission(false);
+  }
+  
+  // Clean up any remaining command buffer
+  if (current_command_buffer_) {
+    XELOGI("Metal ShutdownContext: Found uncommitted command buffer - this shouldn't happen");
+    // Don't track release here - EndSubmission should have handled it
+    current_command_buffer_ = nullptr;
+  }
+  
+  // Generate PNG before shutting down to capture final render output
+  XELOGI("Metal ShutdownContext: Generating PNG before shutdown...");
+  
+  ui::Presenter* presenter = graphics_system_->presenter();
+  if (presenter) {
+    ui::RawImage raw_image;
+    if (presenter->CaptureGuestOutput(raw_image)) {
+      // Save PNG with timestamp to avoid overwrites
+      auto now = std::time(nullptr);
+      std::string filename = "xenia_metal_output_" + std::to_string(now) + ".png";
+      FILE* file = std::fopen(filename.c_str(), "wb");
+      if (file) {
+        auto callback = [](void* context, void* data, int size) {
+          std::fwrite(data, 1, size, (FILE*)context);
+        };
+        stbi_write_png_to_func(callback, file, static_cast<int>(raw_image.width),
+                               static_cast<int>(raw_image.height), 4,
+                               raw_image.data.data(),
+                               static_cast<int>(raw_image.stride));
+        std::fclose(file);
+        XELOGI("Metal ShutdownContext: PNG saved as {}", filename);
+      } else {
+        XELOGE("Metal ShutdownContext: Failed to create PNG file {}", filename);
+      }
+    } else {
+      XELOGW("Metal ShutdownContext: Failed to capture guest output for PNG");
+    }
+  } else {
+    XELOGW("Metal ShutdownContext: No presenter available for PNG generation");
+  }
+  
   // Shutdown cache systems in reverse order
   if (primitive_processor_) {
     primitive_processor_->Shutdown();
@@ -126,6 +181,9 @@ void MetalCommandProcessor::ShutdownContext() {
   
   XELOGI("Metal cache systems shutdown");
   
+  // Print Metal object tracking report
+  MetalObjectTracker::Instance().PrintReport();
+  
   CommandProcessor::ShutdownContext();
 }
 
@@ -147,15 +205,61 @@ void MetalCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
   frame_count_++;
   XELOGI("Metal IssueSwap: Frame {} complete", frame_count_);
   
-  // TODO: When we have a real window/presenter:
-  // 1. Copy frontbuffer from guest memory or EDRAM to a texture
-  // 2. Present the texture to the swapchain
-  // 3. Handle gamma correction if needed
-  
-  // For trace dumps, frame boundaries are still useful for:
-  // - GPU frame capture points
-  // - Performance metrics
-  // - Debug logging
+  // Update presenter with guest output for PNG capture
+  ui::Presenter* presenter = graphics_system_->presenter();
+  if (presenter) {
+    // For now, just refresh with basic dimensions
+    // TODO: Get actual frontbuffer dimensions and data from EDRAM or guest memory
+    presenter->RefreshGuestOutput(
+        frontbuffer_width ? frontbuffer_width : 1280,
+        frontbuffer_height ? frontbuffer_height : 720,
+        1280, 720,  // Display dimensions
+        [this, frontbuffer_width, frontbuffer_height](ui::Presenter::GuestOutputRefreshContext& context) -> bool {
+          // Get current color render target from render target cache
+          MTL::Texture* color_target = render_target_cache_->GetColorTarget(0);
+          if (!color_target) {
+            XELOGW("Metal IssueSwap: No color render target available for guest output");
+            return false;
+          }
+          
+          // Cast to Metal-specific context to get the destination texture
+          auto* metal_context = static_cast<xe::ui::metal::MetalGuestOutputRefreshContext*>(&context);
+          id dest_texture = metal_context->resource_uav_capable();
+          
+          // Get MetalPresenter to handle the texture copy (since it can use Objective-C)
+          auto* metal_presenter = static_cast<xe::ui::metal::MetalPresenter*>(graphics_system_->presenter());
+          if (!metal_presenter) {
+            XELOGE("Metal IssueSwap: Failed to get MetalPresenter for texture copy");
+            return false;
+          }
+          
+          // Use the helper method to copy the texture
+          return metal_presenter->CopyTextureToGuestOutput(color_target, dest_texture);
+        });
+    
+    // Generate PNG after successful guest output refresh
+    ui::RawImage raw_image;
+    if (presenter->CaptureGuestOutput(raw_image)) {
+      // Save PNG with frame number for trace analysis
+      std::string filename = "xenia_metal_frame_" + std::to_string(frame_count_) + ".png";
+      FILE* file = std::fopen(filename.c_str(), "wb");
+      if (file) {
+        auto callback = [](void* context, void* data, int size) {
+          std::fwrite(data, 1, size, (FILE*)context);
+        };
+        stbi_write_png_to_func(callback, file, static_cast<int>(raw_image.width),
+                               static_cast<int>(raw_image.height), 4,
+                               raw_image.data.data(),
+                               static_cast<int>(raw_image.stride));
+        std::fclose(file);
+        XELOGI("Metal IssueSwap: PNG saved as {} ({}x{})", filename, raw_image.width, raw_image.height);
+      } else {
+        XELOGE("Metal IssueSwap: Failed to create PNG file {}", filename);
+      }
+    } else {
+      XELOGW("Metal IssueSwap: Failed to capture guest output for PNG");
+    }
+  }
   
   // Begin a new submission for the next frame
   BeginSubmission(true);
@@ -544,9 +648,14 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     // Phase C Step 1: Metal Command Buffer and Render Pass Encoding
     MTL::CommandQueue* command_queue = GetMetalCommandQueue();
     if (command_queue) {
-      MTL::CommandBuffer* command_buffer = command_queue->commandBuffer();
+      MTL::CommandBuffer* command_buffer = current_command_buffer_;
+      if (!command_buffer) {
+        // Create a new command buffer if we don't have one
+        BeginSubmission(true);
+        command_buffer = current_command_buffer_;
+      }
       if (command_buffer) {
-        XELOGI("Metal IssueDraw: Created command buffer for rendering");
+        XELOGI("Metal IssueDraw: Using command buffer for rendering");
         
         // Phase C Step 3: Enhanced Metal frame debugging support
         char draw_label[256];
@@ -566,8 +675,10 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
           // Fallback: Create a dummy render pass for testing
           XELOGW("Metal IssueDraw: No render pass from cache, creating dummy render target");
           render_pass = MTL::RenderPassDescriptor::alloc()->init();
+          TRACK_METAL_OBJECT(render_pass, "MTL::RenderPassDescriptor");
           
           MTL::TextureDescriptor* texture_desc = MTL::TextureDescriptor::alloc()->init();
+          TRACK_METAL_OBJECT(texture_desc, "MTL::TextureDescriptor");
           texture_desc->setWidth(1280);
           texture_desc->setHeight(720);
           texture_desc->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
@@ -579,6 +690,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
           render_pass->colorAttachments()->object(0)->setStoreAction(MTL::StoreActionStore);
           render_pass->colorAttachments()->object(0)->setClearColor(MTL::ClearColor(0.1, 0.0, 0.2, 1.0));
           
+          TRACK_METAL_RELEASE(texture_desc);
           texture_desc->release();
           // Note: render_target will be released automatically when render pass is released
         }
@@ -588,6 +700,8 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
         MTL::RenderCommandEncoder* encoder = command_buffer->renderCommandEncoder(render_pass);
         XELOGI("Metal IssueDraw: Render encoder created: {}", encoder ? "valid" : "null");
         if (encoder) {
+          // Track encoder creation
+          TRACK_METAL_OBJECT(encoder, "MTL::RenderCommandEncoder");
           char encoder_label[256];
           snprintf(encoder_label, sizeof(encoder_label), "Xbox360RenderPass_%s_hash_0x%llx_0x%llx", 
                   prim_type_name, pipeline_desc.vertex_shader_hash, pipeline_desc.pixel_shader_hash);
@@ -670,6 +784,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                       swapped_data, 
                       size, 
                       MTL::ResourceStorageModeShared);
+                  TRACK_METAL_OBJECT(vertex_buffer, "MTL::Buffer[VertexSwapped]");
                   
                   std::free(swapped_data);
                 }
@@ -679,6 +794,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                     vertex_data, 
                     size, 
                     MTL::ResourceStorageModeShared);
+                  TRACK_METAL_OBJECT(vertex_buffer, "MTL::Buffer[VertexDirect]");
               }
               
               if (vertex_buffer) {
@@ -747,6 +863,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             
           MTL::Buffer* vertex_buffer = GetMetalDevice()->newBuffer(
                 triangle_vertices, sizeof(triangle_vertices), MTL::ResourceStorageModeShared);
+          TRACK_METAL_OBJECT(vertex_buffer, "MTL::Buffer[TriangleTest]");
             
             if (vertex_buffer) {
               vertex_buffer->setLabel(NS::String::string("FallbackTriangleBuffer", NS::UTF8StringEncoding));
@@ -825,6 +942,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             
           MTL::Buffer* global_buffer = GetMetalDevice()->newBuffer(
                 &global_registers, sizeof(global_registers), MTL::ResourceStorageModeShared);
+          TRACK_METAL_OBJECT(global_buffer, "MTL::Buffer[GlobalRegisters]");
           if (global_buffer) {
               global_buffer->setLabel(NS::String::string("Xbox360GlobalRegisters", NS::UTF8StringEncoding));
             encoder->setVertexBuffer(global_buffer, 0, 2);
@@ -847,6 +965,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             
           MTL::Buffer* draw_args_buffer = GetMetalDevice()->newBuffer(
                 &draw_args, sizeof(draw_args), MTL::ResourceStorageModeShared);
+          TRACK_METAL_OBJECT(draw_args_buffer, "MTL::Buffer[DrawArgs]");
           if (draw_args_buffer) {
               draw_args_buffer->setLabel(NS::String::string("Xbox360DrawArguments", NS::UTF8StringEncoding));
             encoder->setVertexBuffer(draw_args_buffer, 0, 4);
@@ -879,6 +998,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             
           MTL::Buffer* uniforms_buffer = GetMetalDevice()->newBuffer(
                 shader_constants, sizeof(shader_constants), MTL::ResourceStorageModeShared);
+          TRACK_METAL_OBJECT(uniforms_buffer, "MTL::Buffer[Uniforms]");
           if (uniforms_buffer) {
               uniforms_buffer->setLabel(NS::String::string("Xbox360ShaderConstants", NS::UTF8StringEncoding));
             encoder->setVertexBuffer(uniforms_buffer, 0, 5);
@@ -1001,6 +1121,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                     guest_indices,
                     index_buffer_size,
                     MTL::ResourceStorageModeShared);
+                TRACK_METAL_OBJECT(guest_index_buffer, "MTL::Buffer[GuestIndex]");
                 
                 if (guest_index_buffer) {
                   // Label the buffer for debugging
@@ -1044,27 +1165,44 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
           
           // Clean up buffers
           for (auto* buffer : vertex_buffers_to_release) {
+            TRACK_METAL_RELEASE(buffer);
             buffer->release();
           }
-          if (global_buffer) global_buffer->release();
-          if (draw_args_buffer) draw_args_buffer->release();
-          if (uniforms_buffer) uniforms_buffer->release();
+          if (global_buffer) {
+            TRACK_METAL_RELEASE(global_buffer);
+            global_buffer->release();
+          }
+          if (draw_args_buffer) {
+            TRACK_METAL_RELEASE(draw_args_buffer);
+            draw_args_buffer->release();
+          }
+          if (uniforms_buffer) {
+            TRACK_METAL_RELEASE(uniforms_buffer);
+            uniforms_buffer->release();
+          }
           
           // Pop debug group
           encoder->popDebugGroup();
           
           encoder->endEncoding();
+          
+          // Track encoder release
+          TRACK_METAL_RELEASE(encoder);
           encoder->release();
           
           XELOGI("Metal IssueDraw: Metal frame debugging - Command buffer '{}' ready for capture", draw_label);
         }
         
-        // Commit the command buffer
-        command_buffer->commit();
-        XELOGI("Metal IssueDraw: Committed Metal command buffer");
+        // Don't commit here - let EndSubmission handle it
+        // The command buffer will be committed when:
+        // 1. IssueSwap is called (for swap)
+        // 2. OnPrimaryBufferEnd is called (for primary buffer completion)
+        // 3. ShutdownContext is called (for cleanup)
+        XELOGI("Metal IssueDraw: Draw commands added to command buffer");
         
         // Cleanup render pass if it was allocated here
         if (render_pass) {
+          TRACK_METAL_RELEASE(render_pass);
           render_pass->release();
         }
       }
@@ -1103,6 +1241,7 @@ bool MetalCommandProcessor::BeginSubmission(bool is_guest_command) {
   if (submission_open_) {
     return true;
   }
+  
 
   // Mark frame as open if needed
   if (is_guest_command && !frame_open_) {
@@ -1132,6 +1271,9 @@ bool MetalCommandProcessor::BeginSubmission(bool is_guest_command) {
     XELOGE("Failed to create Metal command buffer");
     return false;
   }
+  
+  // Track command buffer creation
+  TRACK_METAL_OBJECT(current_command_buffer_, "MTL::CommandBuffer");
 
   submission_open_ = true;
   
@@ -1149,6 +1291,10 @@ bool MetalCommandProcessor::EndSubmission(bool is_swap) {
   }
 
   bool is_closing_frame = is_swap && frame_open_;
+  
+  if (is_swap) {
+    XELOGI("Metal EndSubmission: SWAP detected, is_closing_frame={}", is_closing_frame);
+  }
 
   if (is_closing_frame) {
     // Notify cache systems of frame end
@@ -1159,6 +1305,37 @@ bool MetalCommandProcessor::EndSubmission(bool is_swap) {
       // texture_cache_->EndFrame();  // Will add when implementing texture cache
     }
     frame_open_ = false;
+    
+    // Generate PNG after frame completion
+    XELOGI("Metal EndSubmission: Generating PNG for completed frame {}", frame_count_);
+    
+    ui::Presenter* presenter = graphics_system_->presenter();
+    if (presenter) {
+      ui::RawImage raw_image;
+      // For now, just use the fallback test pattern until we get real render target data
+      if (presenter->CaptureGuestOutput(raw_image)) {
+        std::string filename = "xenia_metal_frame_" + std::to_string(frame_count_) + ".png";
+        FILE* file = std::fopen(filename.c_str(), "wb");
+        if (file) {
+          auto callback = [](void* context, void* data, int size) {
+            std::fwrite(data, 1, size, (FILE*)context);
+          };
+          stbi_write_png_to_func(callback, file, static_cast<int>(raw_image.width),
+                                 static_cast<int>(raw_image.height), 4,
+                                 raw_image.data.data(),
+                                 static_cast<int>(raw_image.stride));
+          std::fclose(file);
+          XELOGI("Metal EndSubmission: PNG saved as {} ({}x{}) for frame {}", 
+                 filename, raw_image.width, raw_image.height, frame_count_);
+        } else {
+          XELOGE("Metal EndSubmission: Failed to create PNG file {} for frame {}", filename, frame_count_);
+        }
+      } else {
+        XELOGW("Metal EndSubmission: Failed to capture guest output for PNG for frame {}", frame_count_);
+      }
+    } else {
+      XELOGW("Metal EndSubmission: No presenter available for PNG generation for frame {}", frame_count_);
+    }
   }
 
   // Commit and submit the command buffer
@@ -1189,6 +1366,9 @@ bool MetalCommandProcessor::EndSubmission(bool is_swap) {
 #endif
     
     current_command_buffer_->commit();
+    
+    // Track command buffer release before nulling
+    TRACK_METAL_RELEASE(current_command_buffer_);
     current_command_buffer_ = nullptr;
   }
 
@@ -1200,6 +1380,25 @@ bool MetalCommandProcessor::CanEndSubmissionImmediately() const {
   // For now, always allow immediate submission
   // Later we may want to check for pipeline compilation, etc.
   return true;
+}
+
+void MetalCommandProcessor::OnPrimaryBufferEnd() {
+  // Submit on primary buffer end to reduce latency and handle traces without SWAP
+  if (submission_open_ && CanEndSubmissionImmediately()) {
+    XELOGI("Metal OnPrimaryBufferEnd: Submitting command buffer");
+    EndSubmission(false);
+  }
+}
+
+void MetalCommandProcessor::WaitForIdle() {
+  // First call base implementation to wait for command processing to complete
+  CommandProcessor::WaitForIdle();
+  
+  // Then flush any pending Metal submissions
+  if (submission_open_) {
+    XELOGI("Metal WaitForIdle: Flushing pending submission");
+    EndSubmission(false);
+  }
 }
 
 }  // namespace metal

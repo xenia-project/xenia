@@ -1,280 +1,194 @@
-# Metal GPU Backend Implementation Status & Roadmap
+# Metal GPU Backend Implementation Status
 
 ## Executive Summary
 
-The Metal GPU backend is in **active development** with basic infrastructure, shader translation pipeline, and EDRAM foundation implemented. Critical Xbox 360 emulation features are being added rapidly. Current implementation is approximately **35% complete** compared to working Vulkan and D3D12 backends.
+The Metal GPU backend is in **early development** with basic rendering pipeline operational but no visible output yet. The implementation can execute draw commands and manage Metal resources properly, but lacks the critical render target readback needed to see results. Current implementation is approximately **30% complete** compared to working Vulkan and D3D12 backends.
 
-**Recent Progress**: Fixed depth format support on macOS, traces now run without crashes, draw calls process successfully.
+**Latest Status**: Fixed Metal object lifecycle management, command buffer submission flow works, but thread shutdown crashes and no real rendered output yet.
 
-## Current Implementation Analysis
+## Current Capabilities vs Reality
 
-### ✅ What is Actually Implemented (35% Complete)
-
-#### 1. **Basic Infrastructure**
+### ✅ What Actually Works
 - Metal device and command queue initialization
-- Command processor architecture framework
-- Cache system structure (buffer, texture, render target, pipeline caches)
-- Vertex data endian swapping
-- Basic vertex buffer binding from Xbox 360 guest memory
+- Xbox 360 shader → Metal shader translation pipeline (DXBC→DXIL→Metal)
+- Pipeline state creation without validation errors
+- Vertex/index buffer binding from guest memory
+- Draw command encoding and execution
+- Render target creation with format/MSAA support
+- Endian conversion for vertex data
+- Metal object lifecycle (no leaks)
+- Command buffer submission flow
 
-#### 2. **Shader Translation Pipeline** 
-- **Xbox 360 → DXBC → DXIL → Metal** conversion chain implemented
-- DXBC shader translator integration
-- DXBC to DXIL converter with Wine integration  
-- Metal Shader Converter integration for DXIL → Metal
-- Metal library and function creation
+### ❌ What Doesn't Work
+- **No visible output** - PNG files show test gradient only
+- **Thread shutdown crash** - Trace dumps hang and must be killed
+- **No EDRAM integration** - Buffer exists but not connected
+- **No texture sampling** - Textures not implemented
+- **No render target readback** - Can't see what was rendered
+- **RefreshGuestOutput stub** - Doesn't copy render data
 
-#### 3. **Partial Pipeline Support**
-- Pipeline cache with proper hashing
-- Basic shader lookup and Metal pipeline creation
-- Simplified blend state configuration
-- Basic vertex descriptor framework
+## File Structure
 
-#### 4. **Basic Resource Management**
-- Dynamic vertex/index buffer allocation (64MB vertex, 16MB index)
-- Guest memory translation and copying
-- Basic Metal texture creation
-- Simple format conversion mapping
-
-### 🔄 Recently Implemented (January 2025)
-
-#### 1. **EDRAM Simulation - BASIC IMPLEMENTATION COMPLETE**
-```cpp
-// Status: Basic 10MB buffer created and integrated
-edram_buffer_ = device->newBuffer(edram_size, MTL::ResourceStorageModePrivate);
-edram_buffer_->setLabel(NS::String::string("Xbox360 EDRAM Buffer", NS::UTF8StringEncoding));
+### Core Implementation Files
+```
+metal_command_processor.mm    - Draw commands, submission flow (WORKING)
+metal_pipeline_cache.cc       - Pipeline state creation (WORKING)
+metal_shader.cc               - Shader translation (WORKING)
+metal_render_target_cache.cc  - RT creation (PARTIAL - no readback)
+metal_buffer_cache.cc         - Vertex/index buffers (WORKING)
+metal_texture_cache.cc        - Textures (STUB)
+metal_shared_memory.cc        - Shared memory (BASIC)
+metal_primitive_processor.cc  - Primitive conversion (BASIC)
+metal_object_tracker.h        - Debug tracking (NEW - WORKING)
 ```
 
-**Completed:**
-- ✅ 10MB EDRAM buffer creation with private storage
-- ✅ Integration with render target cache
-- ✅ Basic framework for tile addressing
+### Integration Files
+```
+metal_presenter.mm            - UI integration (PARTIAL)
+metal_trace_dump_main.cc     - Trace dump entry (WORKING)
+dxbc_to_dxil_converter.cc    - Shader conversion (WORKING)
+```
 
-**Still Required:**
-- Tile ownership transfer system
-- Complex render target aliasing
-- EDRAM snapshot save/restore
-- Metal Raster Order Groups for pixel-perfect accuracy
+## Recent Changes (This Session)
 
-#### 2. **Swapchain/Presentation - BASIC IMPLEMENTATION COMPLETE**
+### 1. Fixed Metal Object Lifecycle ✅
+**Problem**: Command buffers and other Metal objects were leaking
+**Solution**: 
+- Added comprehensive object tracking system (`metal_object_tracker.h`)
+- Fixed command buffer to use member variable, not local
+- Proper release tracking for all Metal objects
+**Result**: 0 objects leaked at shutdown
+
+### 2. Fixed Command Buffer Submission ✅
+**Problem**: Command buffers created but never committed
+**Solution**:
+- Implemented `OnPrimaryBufferEnd()` matching D3D12 pattern
+- Proper `BeginSubmission`/`EndSubmission` flow
+- Command buffer committed in `EndSubmission`
+**Result**: Draw commands execute successfully
+
+### 3. Threading Improvements (Partial) ⚠️
+**Problem**: Autorelease pool crashes
+**Changes**:
+- Added pools to `XHostThread::Execute()`
+- Per-loop pools in `CommandProcessor::WorkerThreadMain()`
+**Result**: Metal objects cleaned up properly, but thread exit still crashes
+
+### 4. RefreshGuestOutput Structure ✅
+**Added**: Framework for guest output refresh
+**Missing**: Actual render target copy implementation
+**Result**: PNG generation works but shows test pattern only
+
+## Critical Missing Pieces
+
+### 1. Render Target Readback (Highest Priority)
 ```cpp
-bool MetalPresenter::BeginFrame() {
-  current_drawable_ = metal_layer_->nextDrawable();
-  current_command_buffer_ = command_queue_->commandBuffer();
-  // Frame management implemented
+// CURRENT (Stub):
+RefreshGuestOutput(...) {
+  return true;  // Does nothing!
+}
+
+// NEEDED:
+RefreshGuestOutput(...) {
+  // Copy render target to guest output texture
+  // Use Metal blit encoder
+  return CopyRenderTargetToGuestOutput(...);
 }
 ```
 
-**Completed:**
-- ✅ CAMetalLayer integration
-- ✅ Drawable acquisition and management
-- ✅ Frame begin/end synchronization
-- ✅ Basic blit operations for texture copy
+### 2. Thread Shutdown Fix
+- Crashes in `objc_autoreleasePoolPop()` during pthread TLS cleanup
+- Happens after all Metal objects properly released
+- Blocks clean trace dump completion
 
-**Still Required:**
-- Gamma correction pipeline
-- Advanced presentation modes
+### 3. EDRAM Integration
+- 10MB buffer created but never used
+- Need to connect to render targets
+- Implement resolve operations
 
-#### 3. **Depth Format Support - FIXED FOR MACOS**
-```cpp
-// macOS doesn't support Depth24Unorm_Stencil8, using Depth32Float_Stencil8
-case xenos::DepthRenderTargetFormat::kD24S8:
-  return MTL::PixelFormatDepth32Float_Stencil8;
+## Test Results
+
+### Working Test Case
+```bash
+./build/bin/Mac/Checked/xenia-gpu-metal-trace-dump \
+  testdata/reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace
 ```
 
-**Completed:**
-- ✅ Fixed depth format parsing from Xbox 360 registers
-- ✅ Proper RB_DEPTHCONTROL checking for depth enable
-- ✅ Working depth buffer creation on macOS
-- ✅ A-Train HX trace runs without crashes
+### What Happens
+1. ✅ Loads trace successfully
+2. ✅ Translates shaders to Metal
+3. ✅ Creates pipeline states
+4. ✅ Executes 11 draw calls
+5. ✅ No Metal validation errors
+6. ❌ PNG shows test gradient (no real render data)
+7. ❌ Hangs on thread exit (must Ctrl+C)
 
-#### 4. **Copy Operations - FRAMEWORK IMPLEMENTED**
-```cpp
-bool MetalRenderTargetCache::Resolve(Memory& memory, uint32_t& written_address, uint32_t& written_length) {
-  // Parse Xbox 360 GPU registers
-  uint32_t copy_command = rb_copy_control & 0x7;
-  // Basic resolve framework in place
-}
+### Metal Object Tracker Output
+```
+====== Metal Object Tracker Report ======
+Total created: 63
+Currently alive: 0
+=== No Leaked Objects ===
 ```
 
-**Completed:**
-- ✅ Resolve method framework
-- ✅ GPU register parsing for copy operations
-- ✅ Integration with command processor
+## Realistic Assessment
 
-**Still Required:**
-- Actual EDRAM → texture copy implementation
-- Format conversion during copies
-- MSAA resolve operations
+### What's Done (~30%)
+- Core rendering pipeline structure
+- Shader translation working
+- Draw command execution
+- Resource management basics
 
-**Required Implementation:**
-- EDRAM resolve operations (render target → shared memory)
-- Format conversion during copies
-- Texture-to-texture copy operations
-- Scaling and filtering during copies
+### What's Not Done (~70%)
+- Actual visible rendering output
+- Texture support
+- EDRAM operations
+- Most GPU features (blending, depth, stencil, etc.)
+- Clean shutdown
+- Performance optimization
 
-#### 4. **Xbox 360 Format Support - SEVERELY LIMITED**
+### Time to Functional
+Based on current progress, reaching feature parity with D3D12/Vulkan would require:
+- **Minimum viable** (can run simple games): 2-3 months
+- **Feature complete** (most games work): 6-12 months
 
-**Current Status:** Only 9/50+ Xbox 360 formats implemented
-- Missing: Most compressed formats (DXT variants, 3Dc, CTX1)
-- Missing: Xbox 360-specific formats (signed formats, gamma formats)
-- Missing: Proper depth format handling (24-bit depth)
-- Missing: Texture format conversion shaders
+## Next Priority Tasks
 
-#### 5. **Advanced GPU Features - NOT IMPLEMENTED**
-- **Compute pipelines**: Returns error immediately
-- **MSAA support**: Framework exists but no implementation
-- **Tessellation**: No tessellation shader support
-- **Memory export**: No vertex shader memory writing
-- **Predicated rendering**: No Xbox 360 predicate support
+1. **Implement RefreshGuestOutput** (1-2 days)
+   - Add render target to guest output copy
+   - Enable real PNG output
+   - Verify rendering is actually working
 
-## Comparison with Working Backends
+2. **Fix Thread Shutdown** (1-3 days)
+   - Debug pthread/autorelease interaction
+   - May require XThread architecture changes
 
-### Metal vs D3D12 (Reference Implementation)
-| Feature | D3D12 | Metal | Gap |
-|---------|-------|-------|-----|
-| EDRAM Simulation | ✅ Dual-path (ROV + RTV) | ⚠️ Basic buffer created | **MAJOR** |
-| Xbox 360 Shader Support | ✅ Complete microcode translation | ⚠️ Basic translation only | **MAJOR** |
-| Format Support | ✅ All 50+ Xbox 360 formats | ❌ Only 9 basic formats | **CRITICAL** |
-| Copy Operations | ✅ Full resolve pipeline | ⚠️ Framework implemented | **MAJOR** |
-| Presentation | ✅ Full swapchain + gamma | ⚠️ Basic presentation working | **MODERATE** |
-| MSAA | ✅ 2x/4x with proper patterns | ❌ Not implemented | **MAJOR** |
-| Performance | ✅ Bindless + optimization | ❌ Basic resource management | **MAJOR** |
+3. **Connect EDRAM** (3-5 days)
+   - Wire buffer to render targets
+   - Implement resolve operations
+   - Handle tiling
 
-### Metal vs Vulkan (Production Ready)
-| Feature | Vulkan | Metal | Gap |
-|---------|--------|-------|-----|
-| EDRAM Simulation | ✅ Fragment interlock + render targets | ⚠️ Basic buffer created | **MAJOR** |
-| Shared Memory | ✅ 512MB buffer with barriers | ⚠️ Basic translation only | **MAJOR** |
-| Texture Cache | ✅ VMA + format conversion | ⚠️ Basic caching only | **MAJOR** |
-| Pipeline Management | ✅ SPIR-V + caching | ⚠️ Basic MSL translation | **MAJOR** |
-| Resource Barriers | ✅ Automatic state tracking | ❌ Not implemented | **MAJOR** |
+4. **Basic Textures** (1 week)
+   - Implement texture cache
+   - Add sampling support
+   - Format conversions
 
-## Why Current Implementation Can't Run Xbox 360 Games
+## Known Issues
 
-### 1. **No EDRAM = No Xbox 360 Graphics**
-Xbox 360 GPU architecture is fundamentally built around 10MB of embedded DRAM that serves as both framebuffer and intermediate storage. Without EDRAM simulation:
-- Render targets cannot be properly aliased
-- Resolve operations fail (render target → texture)
-- Memory export operations don't work
-- Tiled rendering patterns break
+### Critical
+- Thread shutdown crash prevents clean exit
+- No rendered output visible (test pattern only)
 
-### 2. **No Presentation = No Visual Output**
-Even if rendering worked, there's no way to display the final image without proper swapchain implementation.
+### Major  
+- EDRAM not functional
+- No texture support
+- RefreshGuestOutput is a stub
 
-### 3. **Limited Format Support = Texture Corruption**
-Xbox 360 games rely heavily on compressed textures and specialized formats. With only 9/50+ formats supported, most textures will be corrupted or missing.
+### Minor
+- Some vertex formats not handled
+- Limited primitive types
+- No performance optimization
 
-### 4. **No Copy Operations = Broken Post-Processing**
-Xbox 360 games extensively use resolve and copy operations for post-processing effects, depth-of-field, bloom, etc. Without copy support, these effects fail completely.
+## Summary
 
-## Realistic Implementation Roadmap
-
-### Phase 1: Foundation (3-6 months) 
-**Goal**: Get basic rendering working with simple test cases
-
-#### 1.1 EDRAM Buffer Implementation
-- [x] Create 10MB Metal buffer for EDRAM simulation ✅
-- [ ] Implement basic tile addressing (80 tiles × 16 samples)
-- [ ] Add EDRAM usage tracking and barriers
-- [ ] Create basic render target aliasing system
-
-#### 1.2 Presentation Pipeline  
-- [x] CAMetalLayer integration ✅
-- [x] Basic drawable management ✅
-- [x] Simple blit operations (texture → swapchain) ✅
-- [x] Frame synchronization ✅
-
-#### 1.3 Copy Operations Framework
-- [x] Basic resolve framework (register parsing) ✅
-- [ ] Actual resolve operations (EDRAM → memory)
-- [ ] Simple format conversions
-- [ ] Texture copy implementations
-
-**Success Criteria**: Simple colored triangles render and display
-
-### Phase 2: Format Support (2-4 months)
-**Goal**: Support textures and render targets properly
-
-#### 2.1 Texture Format Implementation
-- [ ] DXT1/DXT3/DXT5 compressed texture support
-- [ ] Xbox 360 signed/unsigned format variants
-- [ ] Endian swapping for texture data
-- [ ] Format conversion compute shaders
-
-#### 2.2 Render Target Formats
-- [ ] All Xbox 360 color render target formats
-- [ ] 24-bit depth format handling  
-- [ ] Gamma space conversion support
-- [ ] MSAA format variants
-
-**Success Criteria**: Textured geometry renders correctly
-
-### Phase 3: Advanced Features (4-8 months)
-**Goal**: Support complex Xbox 360 rendering techniques
-
-#### 3.1 MSAA Implementation
-- [ ] 2x MSAA support (emulated as 4x on Metal)
-- [ ] Proper sample pattern generation
-- [ ] MSAA resolve operations
-- [ ] Sample mask and coverage support
-
-#### 3.2 Overlapping Render Targets Support
-- [ ] Handle multiple RTs pointing to same EDRAM address (used in 4D5307E6)
-- [ ] Option 1: Multi-pass rendering for duplicate RTs
-- [ ] Option 2: Shader modification to merge duplicate RT outputs
-- [ ] Option 3: Use Metal raster order groups for programmable blending
-- [ ] Implement EDRAM ownership tracking (per Triang3l's approach)
-
-#### 3.3 Advanced Rendering
-- [ ] Memory export from vertex shaders
-- [ ] Predicated rendering support
-- [ ] Complex primitive types (rectangles, quads)
-- [ ] Tessellation shader integration
-
-#### 3.3 Performance Optimization
-- [ ] Metal argument buffers for bindless-like behavior
-- [ ] Persistent pipeline state caching
-- [ ] Efficient memory management with heaps
-- [ ] Multi-threaded command encoding
-
-**Success Criteria**: Most Xbox 360 games achieve basic functionality
-
-### Phase 4: Compatibility & Polish (2-4 months)
-**Goal**: Production-ready Xbox 360 game compatibility
-
-#### 4.1 Edge Case Handling
-- [ ] Complex EDRAM aliasing patterns
-- [ ] Advanced blend state support
-- [ ] Depth/stencil operation accuracy
-- [ ] Rare texture format support
-
-#### 4.2 Performance Tuning
-- [ ] GPU profiling and optimization
-- [ ] Memory bandwidth optimization  
-- [ ] Command submission optimization
-- [ ] Resource pooling and recycling
-
-**Success Criteria**: High compatibility with Xbox 360 game library
-
-## Current Development Priority
-
-### Immediate Priorities (Next 1-2 months)
-1. **EDRAM Buffer Creation** - Critical foundation requirement
-2. **Basic Presentation Pipeline** - Need to see visual output
-3. **Copy Operations Framework** - Required for resolve operations
-4. **DXT Texture Support** - Most common Xbox 360 texture format
-
-### Dependencies
-- Metal Shader Converter framework (already working)
-- Wine + DXBC2DXIL pipeline (already working)
-- Autorelease pool management (completed)
-- Basic shader translation (completed)
-
-## Status: Early Development
-
-**Completion**: ~35% of required functionality (+10% this session)
-**Timeline to Basic Functionality**: 4-8 months of focused development
-**Timeline to Production Ready**: 10-18 months of focused development
-
-The Metal backend has solid architectural foundations, working shader translation, and now basic EDRAM and presentation infrastructure. GPU traces now run without crashes and draw calls are being processed successfully. The A-Train HX trace (simpler than Halo 3) is now running to completion. The immediate focus is enabling Xcode frame captures to debug rendering output and implementing proper EDRAM integration.
+The Metal backend has a solid foundation with working shader translation and command execution, but lacks the critical final steps to actually see rendered output. The architecture is sound, but significant work remains to reach usability. Current state is best described as "proof of concept" rather than functional.

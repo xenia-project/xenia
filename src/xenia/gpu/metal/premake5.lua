@@ -25,7 +25,7 @@ project("xenia-gpu-metal")
 
   filter "system:macosx"
     files {
-      "metal_command_processor.cc",
+      "metal_command_processor.mm",
       "metal_command_processor.h",
       "metal_graphics_system.cc",
       "metal_graphics_system.h",

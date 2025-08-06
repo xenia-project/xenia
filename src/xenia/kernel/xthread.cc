@@ -12,6 +12,14 @@
 #include <cstring>
 
 #include "third_party/fmt/include/fmt/format.h"
+
+#if XE_PLATFORM_MAC
+// Declare Objective-C runtime functions for autorelease pool management
+extern "C" {
+  void* objc_autoreleasePoolPush(void);
+  void objc_autoreleasePoolPop(void*);
+}
+#endif
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/literals.h"
@@ -1101,6 +1109,23 @@ XHostThread::XHostThread(KernelState* kernel_state, uint32_t stack_size,
 }
 
 void XHostThread::Execute() {
+#if XE_PLATFORM_MAC
+  // Create autorelease pool for this thread (CRITICAL for Metal operations)
+  // See third_party/metal-cpp/README.md - required for every thread
+  // NOTE: For GPU threads, the pool is managed in WorkerThreadMain to ensure
+  // Metal objects are not released prematurely
+  void* autorelease_pool = nullptr;
+  
+  // Only create autorelease pool for non-GPU threads
+  // GPU threads manage their own pools due to Metal object lifecycle requirements
+  if (thread_name_.find("GPU") == std::string::npos) {
+    autorelease_pool = objc_autoreleasePoolPush();
+    XELOGI("XHostThread::Execute: Created autorelease pool for thread {}", thread_id_);
+  } else {
+    XELOGI("XHostThread::Execute: GPU thread {} will manage its own autorelease pool", thread_id_);
+  }
+#endif
+
   // Get system ID safely - thread_ might not be fully initialized yet
   uint32_t native_id = 0;
   if (thread_) {
@@ -1167,6 +1192,16 @@ void XHostThread::Execute() {
 
   // Exit.
   XELOGI("XHostThread::Execute: About to exit thread {} with ret={}", thread_id_, ret);
+  
+#if XE_PLATFORM_MAC
+  // Clean up autorelease pool before Exit() but after all work is done
+  // This ensures all autoreleased objects from the thread are cleaned up
+  if (autorelease_pool) {
+    XELOGI("XHostThread::Execute: Draining autorelease pool for thread {}", thread_id_);
+    objc_autoreleasePoolPop(autorelease_pool);
+  }
+#endif
+
   Exit(ret);
 }
 

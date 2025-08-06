@@ -9,12 +9,24 @@
 
 #include "xenia/gpu/command_processor.h"
 
+#if XE_PLATFORM_MAC
+#include "xenia/gpu/metal/metal_object_tracker.h"
+#endif
+
 #include <algorithm>
 #include <cinttypes>
 #include <cmath>
 #include <cstring>
 
 #include "third_party/fmt/include/fmt/format.h"
+
+#if XE_PLATFORM_MAC
+// Declare Objective-C runtime functions for autorelease pool management
+extern "C" {
+  void* objc_autoreleasePoolPush(void);
+  void objc_autoreleasePoolPop(void*);
+}
+#endif
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
@@ -219,6 +231,9 @@ void CommandProcessor::WaitForIdle() {
 }
 
 void CommandProcessor::WorkerThreadMain() {
+  // NOTE: XHostThread::Execute() already creates an autorelease pool for this thread
+  // We only need per-iteration pools for long-running loops
+
   threading::set_name("GPU Commands");
   if (!SetupContext()) {
     xe::FatalError("Unable to setup command processor internal state");
@@ -229,6 +244,11 @@ void CommandProcessor::WorkerThreadMain() {
   XELOGI("CommandProcessor::WorkerThreadMain: About to enter main loop");
   
   while (worker_running_) {
+#if XE_PLATFORM_MAC
+    // Create per-loop autorelease pool to prevent memory buildup during long execution
+    // This is a nested pool inside the XHostThread's main pool
+    void* loop_pool = objc_autoreleasePoolPush();
+#endif
     while (!pending_fns_.empty()) {
       auto fn = std::move(pending_fns_.front());
       pending_fns_.pop();
@@ -276,9 +296,28 @@ void CommandProcessor::WorkerThreadMain() {
 
     // FIXME: We're supposed to process the WAIT_UNTIL register at this point,
     // but no games seem to actually use it.
+
+#if XE_PLATFORM_MAC
+    // Drain per-loop autorelease pool
+    if (loop_pool) {
+      // Log Metal object state before draining pool
+      if (xe::gpu::metal::MetalObjectTracker::Instance().GetAliveCount() > 0) {
+        XELOGI("CommandProcessor: {} Metal objects alive before pool drain",
+               xe::gpu::metal::MetalObjectTracker::Instance().GetAliveCount());
+      }
+      objc_autoreleasePoolPop(loop_pool);
+    }
+#endif
   }
 
   ShutdownContext();
+  
+#if XE_PLATFORM_MAC
+  // Report any leaked Metal objects before thread exit
+  xe::gpu::metal::MetalObjectTracker::Instance().PrintReport();
+#endif
+  
+  // Main autorelease pool cleanup is handled by XHostThread::Execute()
 }
 
 void CommandProcessor::Pause() {
