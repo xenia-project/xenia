@@ -19,7 +19,7 @@ project("xenia-ui")
     -- Exports JNI functions.
     wholelib("On")
 
-  filter("platforms:Windows")
+  filter("platforms:Windows-*")
     links({
       "dwmapi",
       "dxgi",

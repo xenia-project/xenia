@@ -20,7 +20,7 @@ local function match_platform_files(base_path, base_match)
   removefiles({base_path.."/".."**_android.h", base_path.."/".."**_android.cc"})
   removefiles({base_path.."/".."**_mac.h", base_path.."/".."**_mac.cc"})
   removefiles({base_path.."/".."**_win.h", base_path.."/".."**_win.cc"})
-  filter("platforms:Windows")
+  filter("platforms:Windows-*")
     files({
       base_path.."/"..base_match.."_win.h",
       base_path.."/"..base_match.."_win.cc",
