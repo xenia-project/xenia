@@ -211,7 +211,7 @@ class ContentManager {
 
   // TODO(benvanik): remove use of global lock, it's bad here!
   xe::global_critical_region global_critical_region_;
-  std::unordered_map<string_key, ContentPackage*> open_packages_;
+  std::unordered_map<string_key_insensitive, ContentPackage*> open_packages_;
 };
 
 }  // namespace xam

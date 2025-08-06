@@ -366,7 +366,7 @@ X_RESULT ContentManager::CreateContent(const std::string_view root_name,
                                        const XCONTENT_AGGREGATE_DATA& data) {
   auto global_lock = global_critical_region_.Acquire();
 
-  if (open_packages_.count(string_key(root_name))) {
+  if (open_packages_.count(string_key_insensitive(root_name))) {
     // Already content open with this root name.
     return X_ERROR_ALREADY_EXISTS;
   }
@@ -384,7 +384,8 @@ X_RESULT ContentManager::CreateContent(const std::string_view root_name,
   auto package = ResolvePackage(root_name, xuid, data);
   assert_not_null(package);
 
-  open_packages_.insert({string_key::create(root_name), package.release()});
+  open_packages_.insert(
+      {string_key_insensitive::create(root_name), package.release()});
 
   return X_ERROR_SUCCESS;
 }
@@ -396,7 +397,7 @@ X_RESULT ContentManager::OpenContent(const std::string_view root_name,
                                      const uint32_t disc_number) {
   auto global_lock = global_critical_region_.Acquire();
 
-  if (open_packages_.count(string_key(root_name))) {
+  if (open_packages_.count(string_key_insensitive(root_name))) {
     // Already content open with this root name.
     return X_ERROR_ALREADY_EXISTS;
   }
@@ -425,7 +426,8 @@ X_RESULT ContentManager::OpenContent(const std::string_view root_name,
     }
   }
 
-  open_packages_.insert({string_key::create(root_name), package.release()});
+  open_packages_.insert(
+      {string_key_insensitive::create(root_name), package.release()});
 
   return X_ERROR_SUCCESS;
 }
@@ -433,7 +435,9 @@ X_RESULT ContentManager::OpenContent(const std::string_view root_name,
 X_RESULT ContentManager::CloseContent(const std::string_view root_name) {
   auto global_lock = global_critical_region_.Acquire();
 
-  auto it = open_packages_.find(string_key(root_name));
+  // 415607D6 - Uses XamContentCreate with name "save", but XamContentClose with
+  // "SAVE".
+  auto it = open_packages_.find(string_key_insensitive(root_name));
   if (it == open_packages_.end()) {
     return X_ERROR_FILE_NOT_FOUND;
   }
@@ -509,10 +513,11 @@ std::filesystem::path ContentManager::ResolveGameUserContentPath(
 }
 
 bool ContentManager::IsContentOpen(const XCONTENT_AGGREGATE_DATA& data) const {
-  return std::any_of(open_packages_.cbegin(), open_packages_.cend(),
-                     [data](std::pair<string_key, ContentPackage*> content) {
-                       return data == content.second->GetPackageContentData();
-                     });
+  return std::any_of(
+      open_packages_.cbegin(), open_packages_.cend(),
+      [data](std::pair<string_key_insensitive, ContentPackage*> content) {
+        return data == content.second->GetPackageContentData();
+      });
 }
 
 void ContentManager::CloseOpenedFilesFromContent(

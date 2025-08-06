@@ -10,6 +10,7 @@
 #ifndef XENIA_BASE_STRING_KEY_H_
 #define XENIA_BASE_STRING_KEY_H_
 
+#include <algorithm>
 #include <string>
 #include <variant>
 
@@ -58,6 +59,41 @@ struct string_key : internal::string_key_base {
   };
 };
 
+struct string_key_insensitive : internal::string_key_base {
+ public:
+  explicit string_key_insensitive(const std::string_view value)
+      : string_key_base(value) {}
+  explicit string_key_insensitive(std::string value) : string_key_base(value) {}
+
+  static string_key_insensitive create(const std::string_view value) {
+    return string_key_insensitive(std::string(value));
+  }
+
+  static string_key_insensitive create(std::string value) {
+    return string_key_insensitive(value);
+  }
+
+  bool operator==(const string_key_insensitive& other) const {
+    return other.view().size() == view().size() &&
+           std::ranges::equal(
+               other.view(), view(), {},
+               [](char ch) {
+                 return std::tolower(static_cast<unsigned char>(ch));
+               },
+               [](char ch) {
+                 return std::tolower(static_cast<unsigned char>(ch));
+               });
+  }
+
+  size_t hash() const { return utf8::hash_fnv1a(view()); }
+
+  struct Hash {
+    size_t operator()(const string_key_insensitive& t) const {
+      return t.hash();
+    }
+  };
+};
+
 struct string_key_case : internal::string_key_base {
  public:
   explicit string_key_case(const std::string_view value)
@@ -89,6 +125,13 @@ namespace std {
 template <>
 struct hash<xe::string_key> {
   std::size_t operator()(const xe::string_key& t) const { return t.hash(); }
+};
+
+template <>
+struct hash<xe::string_key_insensitive> {
+  std::size_t operator()(const xe::string_key_insensitive& t) const {
+    return t.hash();
+  }
 };
 
 template <>
