@@ -187,12 +187,24 @@ bool MetalRenderTargetCache::SetRenderTargets(uint32_t rt_count, const uint32_t*
 
   // Set up depth target
   if (depth_target != 0) {
+    // Parse depth format from RB_DEPTH_INFO (bit 16)
+    uint32_t depth_format_bit = (depth_target >> 16) & 0x1;
+    auto depth_format = static_cast<xenos::DepthRenderTargetFormat>(depth_format_bit);
+    
+    XELOGI("Metal render target cache: Depth target info: 0x{:08X}, format bit: {}, format: {}", 
+           depth_target, depth_format_bit, static_cast<uint32_t>(depth_format));
+    
+    // Get dimensions and MSAA from RB_SURFACE_INFO (same as color targets)
+    auto rb_surface_info = register_file_->values[XE_GPU_REG_RB_SURFACE_INFO];
+    uint32_t surface_pitch = rb_surface_info & 0x3FFF;
+    uint32_t msaa_samples = (rb_surface_info >> 16) & 0x3;
+    
     RenderTargetDescriptor desc = {};
-    desc.base_address = depth_target;
-    desc.width = 1280;  // TODO: Get from registers
-    desc.height = 720;  // TODO: Get from registers
-    desc.format = static_cast<uint32_t>(xenos::DepthRenderTargetFormat::kD24S8); // TODO: Get from registers
-    desc.msaa_samples = 1;  // TODO: Get from registers
+    desc.base_address = depth_target & 0xFFFFF000;  // Mask off flags
+    desc.width = surface_pitch ? surface_pitch : 1280;
+    desc.height = 720;  // Common Xbox 360 resolution
+    desc.format = static_cast<uint32_t>(depth_format);
+    desc.msaa_samples = msaa_samples ? (1 << msaa_samples) : 1;
     desc.is_depth = true;
 
     // Check cache first
@@ -502,7 +514,9 @@ MTL::PixelFormat MetalRenderTargetCache::ConvertColorFormat(xenos::ColorRenderTa
 MTL::PixelFormat MetalRenderTargetCache::ConvertDepthFormat(xenos::DepthRenderTargetFormat format) {
   switch (format) {
     case xenos::DepthRenderTargetFormat::kD24S8:
-      return MTL::PixelFormatDepth24Unorm_Stencil8;
+      // Depth24Unorm_Stencil8 is not supported on macOS, use Depth32Float_Stencil8 instead
+      // This provides more precision than needed but is the closest available format
+      return MTL::PixelFormatDepth32Float_Stencil8;
     case xenos::DepthRenderTargetFormat::kD24FS8:
       return MTL::PixelFormatDepth32Float_Stencil8;
     default:

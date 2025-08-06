@@ -206,7 +206,14 @@ Xbox 360 games extensively use resolve and copy operations for post-processing e
 - [ ] MSAA resolve operations
 - [ ] Sample mask and coverage support
 
-#### 3.2 Advanced Rendering
+#### 3.2 Overlapping Render Targets Support
+- [ ] Handle multiple RTs pointing to same EDRAM address (used in 4D5307E6)
+- [ ] Option 1: Multi-pass rendering for duplicate RTs
+- [ ] Option 2: Shader modification to merge duplicate RT outputs
+- [ ] Option 3: Use Metal raster order groups for programmable blending
+- [ ] Implement EDRAM ownership tracking (per Triang3l's approach)
+
+#### 3.3 Advanced Rendering
 - [ ] Memory export from vertex shaders
 - [ ] Predicated rendering support
 - [ ] Complex primitive types (rectangles, quads)

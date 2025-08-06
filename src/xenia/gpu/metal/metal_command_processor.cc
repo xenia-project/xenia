@@ -386,36 +386,67 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
          rb_color_info[0], rb_color_info[1], rb_color_info[2], rb_color_info[3]);
   XELOGI("Metal IssueDraw: RB_DEPTH_INFO = 0x{:08X}", rb_depth_info);
   
-  // Count active color render targets and avoid duplicates
+  // Process all color render targets - Xbox 360 allows multiple RTs at same address
+  // This is used for effects like deferred lighting (4D5307E6) where different
+  // shader outputs write to the same EDRAM location
   uint32_t rt_count = 0;
   uint32_t color_targets[4] = {0};
-  uint32_t seen_addresses[4] = {0};
-  uint32_t seen_count = 0;
+  uint32_t duplicate_rt_mask = 0;  // Track which RTs share addresses
   
+  // First pass: collect all active RTs
   for (uint32_t i = 0; i < 4; ++i) {
-    // Xbox 360 may not always set bit 0, check if there's actual RT info
     uint32_t base_address = rb_color_info[i] & 0xFFFFF000;
-    if (base_address != 0) {  // Has base address
-      // Check if we've already seen this address
-      bool duplicate = false;
-      for (uint32_t j = 0; j < seen_count; ++j) {
-        if (seen_addresses[j] == base_address) {
-          duplicate = true;
-          XELOGW("Metal IssueDraw: Skipping duplicate render target {} with address 0x{:08X}", 
-                 i, base_address);
-          break;
-        }
-      }
-      
-      if (!duplicate) {
-        color_targets[rt_count++] = rb_color_info[i];
-        seen_addresses[seen_count++] = base_address;
+    if (base_address != 0) {
+      color_targets[rt_count++] = rb_color_info[i];
+    }
+  }
+  
+  // Second pass: detect duplicates for special handling
+  for (uint32_t i = 0; i < rt_count; ++i) {
+    uint32_t addr_i = color_targets[i] & 0xFFFFF000;
+    for (uint32_t j = i + 1; j < rt_count; ++j) {
+      uint32_t addr_j = color_targets[j] & 0xFFFFF000;
+      if (addr_i == addr_j) {
+        duplicate_rt_mask |= (1u << i) | (1u << j);
+        XELOGW("Metal IssueDraw: RT{} and RT{} share address 0x{:08X}", 
+               i, j, addr_i);
       }
     }
   }
   
+  // For Metal, we must skip duplicates to avoid validation errors
+  // TODO: Implement proper handling via shader modification or multiple passes
+  if (duplicate_rt_mask) {
+    // Keep only the first RT at each address
+    uint32_t filtered_count = 0;
+    uint32_t seen_addresses[4] = {0};
+    uint32_t seen_count = 0;
+    
+    for (uint32_t i = 0; i < rt_count; ++i) {
+      uint32_t addr = color_targets[i] & 0xFFFFF000;
+      bool is_duplicate = false;
+      for (uint32_t j = 0; j < seen_count; ++j) {
+        if (seen_addresses[j] == addr) {
+          is_duplicate = true;
+          break;
+        }
+      }
+      if (!is_duplicate) {
+        color_targets[filtered_count++] = color_targets[i];
+        seen_addresses[seen_count++] = addr;
+      }
+    }
+    rt_count = filtered_count;
+    XELOGW("Metal IssueDraw: Filtered {} duplicate RTs, {} remain", 
+           4 - rt_count, rt_count);
+  }
+  
   // Set render targets in cache BEFORE creating pipeline
-  uint32_t depth_target_info = (rb_depth_info & 0x00000001) ? rb_depth_info : 0;
+  // Check if depth is actually used - need to check RB_DEPTHCONTROL, not RB_DEPTH_INFO bit 0
+  // RB_DEPTHCONTROL bit 1 = depth test enable, bit 2 = depth write enable
+  uint32_t rb_depthcontrol = register_file_->values[XE_GPU_REG_RB_DEPTHCONTROL];
+  bool depth_enabled = (rb_depthcontrol & 0x00000002) || (rb_depthcontrol & 0x00000004);
+  uint32_t depth_target_info = depth_enabled ? rb_depth_info : 0;
   render_target_cache_->SetRenderTargets(rt_count, color_targets, depth_target_info);
   
   // Create pipeline description with real shader hashes

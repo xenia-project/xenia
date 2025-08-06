@@ -14,24 +14,27 @@
 8. ✅ **Memory Management Fixes** - Fixed double-release crashes in buffer/descriptor cleanup
 9. ✅ **Vertex Endian Swapping** - Properly handle all endian modes for 16-bit vertex formats
 10. ✅ **MSAA Texture Support** - Fixed texture type for multisampled render targets
-11. 🔄 **Real Render Targets** - Now parsing Xbox 360 RT registers and creating actual textures
+11. ✅ **Real Render Targets** - Parsing Xbox 360 RT registers and creating actual textures
+12. ✅ **Pipeline Format Matching** - Pipeline now queries actual RT formats and sample counts
+13. ✅ **Duplicate RT Detection** - Detect and handle overlapping render targets (temporary workaround)
 
 ## Current State
 The Metal backend successfully:
 - ✅ Loads Xbox 360 GPU traces
 - ✅ Converts shaders (Xbox 360 → DXBC → DXIL → Metal)
-- ✅ Creates MTLRenderPipelineState objects with correct formats
-- ✅ Creates render command encoders
+- ✅ Creates MTLRenderPipelineState objects with correct formats and sample counts
+- ✅ Creates render command encoders without validation errors
 - ✅ Processes and encodes draw calls
-- ✅ Binds vertex buffers and constants
+- ✅ Binds vertex buffers and constants with proper endian swapping
 - ✅ Handles render pass descriptors with real render targets
-- ✅ Creates Xbox 360 render targets with proper formats
+- ✅ Creates Xbox 360 render targets with proper formats (RGB10A2, etc.)
+- ✅ Detects and works around duplicate render targets
 
-Current issues:
-- Performance: Processing ~200 draw calls/second (Wine shader conversion bottleneck)
-- No frame completion detection
-- May be re-processing the same frame in a loop
-- EDRAM buffer created but not integrated with render targets
+Current limitations:
+- **Overlapping RTs**: Halo 3 uses same EDRAM for different formats - currently dropping duplicates
+- **Performance**: Processing ~200 draw calls/second (Wine shader conversion bottleneck)
+- **No frame boundaries**: Processing same frame repeatedly
+- **EDRAM not integrated**: Buffer created but not used for actual rendering
 
 ## What's Missing for Real Frame Capture
 
@@ -54,7 +57,19 @@ Need to detect when a frame is complete:
 - Implement proper command buffer submission per frame
 - Add frame counter and capture triggers
 
-## Next Implementation Steps (2-3 Sessions to Frame Capture)
+## Decision Point: Which Trace to Focus On?
+
+### Option 1: Continue with Halo 3 (H3_Main_Menu-4D5307E6_9843.xtr)
+**Pros**: Real-world complex rendering, will expose all issues early
+**Cons**: Uses overlapping RTs (needs complex workaround), MSAA 4x, deferred rendering
+
+### Option 2: Switch to Simpler Trace (title_414B07D1_frame_589.xenia_gpu_trace)
+**Pros**: Likely simpler rendering, easier to get first working frame
+**Cons**: May not expose issues we'll need to fix anyway
+
+**Recommendation**: Try the simpler trace first to get basic rendering working, then tackle Halo 3's complexity
+
+## Next Implementation Steps (Path to First Frame Capture)
 
 ### Session 1: Complete Pipeline State Creation
 **Files to modify**: `metal_pipeline_cache.cc/h`
