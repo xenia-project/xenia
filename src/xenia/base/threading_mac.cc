@@ -10,6 +10,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/chrono_steady_cast.h"
+#include "xenia/base/logging.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/threading_timer_queue.h"
 
@@ -32,8 +33,18 @@
 #include <algorithm>
 #include <functional>
 
+#if XE_PLATFORM_MAC
+// Declare Objective-C runtime functions for autorelease pool management
+extern "C" {
+  void* objc_autoreleasePoolPush(void);
+  void objc_autoreleasePoolPop(void*);
+}
+#endif
+
 namespace xe {
 namespace threading {
+
+// Thread exit handling moved to Thread::Exit() for cleaner cleanup
 
 template <typename _Rep, typename _Period>
 inline timespec DurationToTimeSpec(
@@ -301,6 +312,11 @@ bool PosixThread::Initialize(Thread::CreationParameters params,
 }
 
 void* PosixThread::ThreadStartRoutine(void* parameter) {
+#if XE_PLATFORM_MAC
+  // Create autorelease pool for this thread (required for macOS)
+  void* autorelease_pool = objc_autoreleasePoolPush();
+#endif
+
   threading::set_name("");
 
   auto start_data = static_cast<ThreadStartData*>(parameter);
@@ -314,30 +330,58 @@ void* PosixThread::ThreadStartRoutine(void* parameter) {
   // Set mach_thread_ before any other operations
   mach_port_t mach_thread = pthread_mach_thread_np(pthread_self());
   
-  // Synchronize all thread initialization under one lock
-  {
-    std::unique_lock<std::mutex> lock(thread->state_mutex_);
-    current_thread_ = thread;
-    thread->mach_thread_ = mach_thread;
-    thread->state_ = State::kRunning;
-    thread->state_signal_.notify_all();
+  void* exit_value = nullptr;
+  
+  try {
+    // Synchronize all thread initialization under one lock
+    {
+      std::unique_lock<std::mutex> lock(thread->state_mutex_);
+      current_thread_ = thread;
+      thread->mach_thread_ = mach_thread;
+      thread->state_ = State::kRunning;
+      thread->state_signal_.notify_all();
+    }
+
+    start_routine();
+
+    {
+      std::unique_lock<std::mutex> lock(thread->state_mutex_);
+      thread->state_ = State::kFinished;
+    }
+
+    {
+      std::lock_guard<std::mutex> lock(PosixConditionBase::mutex_);
+      thread->signaled_ = true;
+      PosixConditionBase::cond_.notify_all();
+    }
   }
+  catch (...) {
+    // Unexpected exception
+    XELOGE("Unexpected exception in thread");
+    
+    {
+      std::unique_lock<std::mutex> lock(thread->state_mutex_);
+      thread->state_ = State::kFinished;
+      thread->exit_code_ = -1;
+    }
 
-  start_routine();
-
-  {
-    std::unique_lock<std::mutex> lock(thread->state_mutex_);
-    thread->state_ = State::kFinished;
-  }
-
-  {
-    std::lock_guard<std::mutex> lock(PosixConditionBase::mutex_);
-    thread->signaled_ = true;
-    PosixConditionBase::cond_.notify_all();
+    {
+      std::lock_guard<std::mutex> lock(PosixConditionBase::mutex_);
+      thread->signaled_ = true;
+      PosixConditionBase::cond_.notify_all();
+    }
   }
 
   current_thread_ = nullptr;
-  return nullptr;
+  
+#if XE_PLATFORM_MAC
+  // Clean up autorelease pool before thread exits
+  if (autorelease_pool) {
+    objc_autoreleasePoolPop(autorelease_pool);
+  }
+#endif
+
+  return exit_value;
 }
 
 void PosixThread::set_name(std::string name) {
@@ -550,6 +594,10 @@ Thread* Thread::GetCurrentThread() {
   current_thread_ = new PosixThread(handle);
   return current_thread_;
 }
+
+// Thread-local flag to indicate we want to exit the thread
+thread_local bool thread_exit_requested = false;
+thread_local int thread_exit_code = 0;
 
 void Thread::Exit(int exit_code) {
   if (current_thread_) {

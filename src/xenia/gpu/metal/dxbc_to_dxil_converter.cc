@@ -36,11 +36,11 @@ DxbcToDxilConverter::~DxbcToDxilConverter() {
 
 bool DxbcToDxilConverter::Initialize() {
   // Check if Wine is available
-  if (system("which wine > /dev/null 2>&1") != 0) {
-    printf("[DxbcToDxilConverter] Wine not found in PATH\n");
-    return false;
-  }
   wine_path_ = "wine";
+  if (system("which wine > /dev/null 2>&1") != 0) {
+    printf("[DxbcToDxilConverter] Wine not found in PATH, will hardcode path: /opt/homebrew/bin/wine\n");
+      wine_path_ = "/opt/homebrew/bin/wine";
+  }
 
   // Look for dxbc2dxil.exe in various locations
   std::vector<std::string> search_paths = {

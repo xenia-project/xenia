@@ -17,6 +17,7 @@
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/metal/metal_command_processor.h"
 
+
 namespace xe {
 namespace gpu {
 namespace metal {
@@ -41,6 +42,7 @@ bool MetalRenderTargetCache::Initialize() {
   SCOPE_profile_cpu_f("gpu");
 
   XELOGD("Metal render target cache: Initialized successfully");
+  
   return true;
 }
 

@@ -23,6 +23,7 @@
 #include "xenia/gpu/metal/metal_shader.h"
 #include "xenia/ui/graphics_provider.h"
 
+
 namespace xe {
 namespace gpu {
 namespace metal {

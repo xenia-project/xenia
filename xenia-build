@@ -1335,9 +1335,13 @@ class GpuTestCommand(BaseBuildCommand):
         print('')
 
         # The test executables that will be built and run.
-        test_targets = args['target'] or [
-            'xenia-gpu-vulkan-trace-dump',
-            ]
+        # Use Metal trace dump on macOS, Vulkan on other platforms
+        import platform
+        if platform.system() == 'Darwin':  # macOS detection
+            default_target = 'xenia-gpu-metal-trace-dump'
+        else:
+            default_target = 'xenia-gpu-vulkan-trace-dump'
+        test_targets = args['target'] or [default_target]
         args['target'] = test_targets
 
         # Build all targets (if desired).

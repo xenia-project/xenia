@@ -18,6 +18,7 @@
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/metal/metal_command_processor.h"
 
+
 namespace xe {
 namespace gpu {
 namespace metal {
@@ -68,6 +69,7 @@ bool MetalBufferCache::Initialize() {
 #endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 
   XELOGD("Metal buffer cache: Initialized successfully");
+  
   return true;
 }
 

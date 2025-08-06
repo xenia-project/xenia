@@ -85,6 +85,55 @@ If running under Visual Studio and you want to look at the JIT'ed code
 (available around 0xA0000000) you should pass `--emit_source_annotations` to
 get helpful spacers/movs in the disassembly.
 
+### macOS (Apple Silicon & Intel)
+
+macOS support includes both Vulkan (via MoltenVK) and native Metal backends.
+
+#### Requirements
+* macOS 13.0+ (Ventura or later)
+* [Xcode 15+](https://developer.apple.com/xcode/) with command line tools
+* [Python 3.6+](https://www.python.org/downloads/)
+* [Homebrew](https://brew.sh) package manager
+
+#### Dependencies
+```bash
+# Install build tools and dependencies
+brew install cmake ninja python3 wine-staging
+
+# Metal Shader Converter (required for Metal backend)
+# Download from: https://developer.apple.com/metal/shader-converter/
+# Install to: /opt/metal-shaderconverter/
+
+# For DXBC→DXIL conversion (Metal backend)
+# Download dxbc2dxil.exe from Microsoft DirectXShaderCompiler
+# Place in: third_party/dxbc2dxil/bin/
+```
+
+#### Building
+```bash
+git clone https://github.com/xenia-project/xenia.git
+cd xenia
+xb setup
+
+# Build (creates binaries in build/bin/Mac/Checked/)
+xb build
+
+# Build release configuration
+xb build --config=release
+
+# Test binaries (in order of development)
+./build/bin/Mac/Checked/xenia-base-tests       # Platform tests
+./build/bin/Mac/Checked/xenia-cpu-ppc-tests    # PPC instruction tests
+./build/bin/Mac/Checked/xenia-cpu-tests        # CPU backend tests
+./build/bin/Mac/Checked/xenia-ui-window-metal-demo  # Metal UI demo
+./build/bin/Mac/Checked/xenia-gpu-metal-trace-dump  # GPU trace testing
+```
+
+#### Known Issues
+* Vulkan backend has primitive restart issues with MoltenVK
+* Metal backend is in development (25% complete)
+* GPU tests (`xb gputest`) don't recognize Metal trace dump target yet
+
 ### Linux
 
 Linux support is extremely experimental and presently incomplete.
