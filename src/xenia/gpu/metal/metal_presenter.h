@@ -16,12 +16,8 @@
 #include "xenia/ui/presenter.h"
 #include "xenia/ui/surface.h"
 
-#if XE_PLATFORM_MAC
-#ifdef METAL_CPP_AVAILABLE
 #include "third_party/metal-cpp/Metal/Metal.hpp"
 #include "third_party/metal-cpp/QuartzCore/QuartzCore.hpp"
-#endif  // METAL_CPP_AVAILABLE
-#endif  // XE_PLATFORM_MAC
 
 namespace xe {
 namespace gpu {
@@ -46,7 +42,10 @@ class MetalPresenter : public xe::ui::Presenter {
   bool Initialize();
   void Shutdown();
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
+  // Frame management
+  bool BeginFrame();
+  void EndFrame(bool present = true);
+  
   // Metal-specific presentation
   void Present(MTL::Texture* source_texture);
   
@@ -55,7 +54,9 @@ class MetalPresenter : public xe::ui::Presenter {
   
   // Get Metal command queue for presentation
   MTL::CommandQueue* GetCommandQueue() const { return command_queue_; }
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
+  
+  // Check if frame is in progress
+  bool IsFrameInProgress() const { return frame_begun_; }
 
  protected:
   // Presenter implementation
@@ -63,7 +64,6 @@ class MetalPresenter : public xe::ui::Presenter {
   xe::ui::Presenter::PaintResult PaintAndPresentImpl(bool execute_ui_drawers) override;
 
  private:
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
   // Metal presentation state
   MetalCommandProcessor* command_processor_;
   MTL::Device* device_;
@@ -77,12 +77,12 @@ class MetalPresenter : public xe::ui::Presenter {
   // Frame synchronization
   bool frame_begun_;
   CA::MetalDrawable* current_drawable_;
+  MTL::CommandBuffer* current_command_buffer_;
   
   // Helper methods
   bool CreateBlitPipeline();
   bool CreateFullscreenQuadBuffer();
   void BlitTexture(MTL::Texture* source, MTL::Texture* destination);
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 };
 
 }  // namespace metal

@@ -14,6 +14,7 @@
 
 #include "xenia/base/byte_order.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/profiling.h"
 #include "xenia/gpu/primitive_processor.h"
 #include "xenia/gpu/metal/metal_graphics_system.h"
 #include "xenia/gpu/metal/metal_buffer_cache.h"
@@ -896,9 +897,22 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
 }
 
 bool MetalCommandProcessor::IssueCopy() {
-  // TODO(wmarti): Issue Metal copy commands
-  XELOGW("Metal IssueCopy not implemented");
-  return false;
+  SCOPE_profile_cpu_f("gpu");
+  
+  if (!BeginSubmission(true)) {
+    return false;
+  }
+  
+  // Call render target cache to perform the resolve operation
+  uint32_t written_address, written_length;
+  if (!render_target_cache_->Resolve(*memory_, written_address, written_length)) {
+    XELOGE("Metal command processor: Failed to resolve render targets");
+    return false;
+  }
+  
+  // TODO: Implement CPU readback for resolved data if needed
+  
+  return true;
 }
 
 bool MetalCommandProcessor::BeginSubmission(bool is_guest_command) {

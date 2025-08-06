@@ -16,6 +16,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/metal/metal_command_processor.h"
+#include "xenia/gpu/xenos.h"
 
 
 namespace xe {
@@ -27,11 +28,10 @@ MetalRenderTargetCache::MetalRenderTargetCache(MetalCommandProcessor* command_pr
                                                Memory* memory)
     : command_processor_(command_processor),
       register_file_(register_file),
-      memory_(memory) {
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
-  cached_render_pass_descriptor_ = nullptr;
-  render_pass_descriptor_dirty_ = true;
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
+      memory_(memory),
+      edram_buffer_(nullptr),
+      cached_render_pass_descriptor_(nullptr),
+      render_pass_descriptor_dirty_(true) {
 }
 
 MetalRenderTargetCache::~MetalRenderTargetCache() {
@@ -40,6 +40,30 @@ MetalRenderTargetCache::~MetalRenderTargetCache() {
 
 bool MetalRenderTargetCache::Initialize() {
   SCOPE_profile_cpu_f("gpu");
+
+  MTL::Device* device = command_processor_->GetMetalDevice();
+  if (!device) {
+    XELOGE("Metal render target cache: Failed to get Metal device");
+    return false;
+  }
+
+  // Create EDRAM buffer - 10MB of embedded DRAM used by Xbox 360 for render targets
+  // Note: Could scale by draw_resolution_scale_x/y for higher resolution rendering
+  uint32_t edram_size = xenos::kEdramSizeBytes;  // 10 MB
+  
+  edram_buffer_ = device->newBuffer(edram_size, MTL::ResourceStorageModePrivate);
+  if (!edram_buffer_) {
+    XELOGE("Metal render target cache: Failed to create EDRAM buffer ({}MB)", 
+           edram_size / (1024 * 1024));
+    device->release();
+    return false;
+  }
+  edram_buffer_->setLabel(NS::String::string("Xbox360 EDRAM Buffer", NS::UTF8StringEncoding));
+  
+  XELOGI("Metal render target cache: Created {}MB EDRAM buffer", 
+         edram_size / (1024 * 1024));
+  
+  device->release();
 
   XELOGD("Metal render target cache: Initialized successfully");
   
@@ -51,12 +75,15 @@ void MetalRenderTargetCache::Shutdown() {
 
   ClearCache();
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
   if (cached_render_pass_descriptor_) {
     cached_render_pass_descriptor_->release();
     cached_render_pass_descriptor_ = nullptr;
   }
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
+  
+  if (edram_buffer_) {
+    edram_buffer_->release();
+    edram_buffer_ = nullptr;
+  }
 
   XELOGD("Metal render target cache: Shutdown complete");
 }
@@ -64,7 +91,6 @@ void MetalRenderTargetCache::Shutdown() {
 void MetalRenderTargetCache::ClearCache() {
   SCOPE_profile_cpu_f("gpu");
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
   // Clear current render targets
   for (auto& rt : current_color_targets_) {
     rt.reset();
@@ -75,7 +101,6 @@ void MetalRenderTargetCache::ClearCache() {
   render_target_cache_.clear();
   
   render_pass_descriptor_dirty_ = true;
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 
   XELOGD("Metal render target cache: Cache cleared");
 }
@@ -84,7 +109,6 @@ bool MetalRenderTargetCache::SetRenderTargets(uint32_t rt_count, const uint32_t*
                                               uint32_t depth_target) {
   SCOPE_profile_cpu_f("gpu");
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
   render_pass_descriptor_dirty_ = true;
 
   // Clear existing targets
@@ -182,12 +206,77 @@ bool MetalRenderTargetCache::SetRenderTargets(uint32_t rt_count, const uint32_t*
 
   XELOGD("Metal render target cache: Set {} color targets, depth: {}",
          rt_count, depth_target != 0 ? "yes" : "no");
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 
   return true;
 }
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
+bool MetalRenderTargetCache::Resolve(Memory& memory, uint32_t& written_address, uint32_t& written_length) {
+  SCOPE_profile_cpu_f("gpu");
+
+  // Get the resolve region from the registers
+  uint32_t rb_copy_control = register_file_->values[XE_GPU_REG_RB_COPY_CONTROL];
+  
+  // Extract copy command (bits 0-2)
+  uint32_t copy_command = rb_copy_control & 0x7;
+  
+  // Check if this is a resolve operation (value 3 = resolve to texture)
+  if (copy_command != 3) {
+    // Not a resolve operation, might be raw copy or clear
+    XELOGD("Metal render target cache: Non-resolve copy command {}", copy_command);
+    written_address = 0;
+    written_length = 0;
+    return true;
+  }
+
+  // Get resolve parameters from registers
+  uint32_t rb_copy_dest_info = register_file_->values[XE_GPU_REG_RB_COPY_DEST_INFO];
+  uint32_t rb_copy_dest_base = register_file_->values[XE_GPU_REG_RB_COPY_DEST_BASE];
+  uint32_t rb_copy_dest_pitch = register_file_->values[XE_GPU_REG_RB_COPY_DEST_PITCH];
+  
+  // Parse destination info register
+  // bits 0-10: width minus 1
+  // bits 11-21: height minus 1  
+  // bits 22-27: format
+  uint32_t dest_width = (rb_copy_dest_info & 0x7FF) + 1;
+  uint32_t dest_height = ((rb_copy_dest_info >> 11) & 0x7FF) + 1;
+  uint32_t dest_format = (rb_copy_dest_info >> 22) & 0x3F;
+  
+  // Destination address is in 4KB pages
+  uint32_t dest_address = (rb_copy_dest_base & 0xFFFFF) << 12;
+  
+  // Pitch is in pixels
+  uint32_t dest_pitch = rb_copy_dest_pitch & 0x3FFF;
+  
+  // Get source surface info (which render target to resolve from)
+  uint32_t rb_surface_info = register_file_->values[XE_GPU_REG_RB_SURFACE_INFO];
+  uint32_t surface_pitch = rb_surface_info & 0x3FFF;
+  uint32_t msaa_samples = (rb_surface_info >> 16) & 0x3;
+  
+  // Calculate destination size (rough estimate - depends on format)
+  // For now assume 4 bytes per pixel
+  uint32_t bytes_per_pixel = 4;
+  uint32_t dest_size = dest_pitch * dest_height * bytes_per_pixel;
+  
+  // TODO: Implement actual resolve operation
+  // This would involve:
+  // 1. Reading from the current render target or EDRAM
+  // 2. Converting format if needed
+  // 3. Resolving MSAA samples if present
+  // 4. Writing to guest memory at dest_address
+  
+  XELOGD("Metal render target cache: Resolve to 0x{:08X}, {}x{}, format {}, pitch {}",
+         dest_address, dest_width, dest_height, dest_format, dest_pitch);
+  
+  // For now, just mark the memory as written
+  written_address = dest_address;
+  written_length = dest_size;
+  
+  // Mark the memory range as invalidated (data has been written)
+  // Note: InvalidatePhysicalMemory might not exist, just return for now
+  // The memory system will handle invalidation when needed
+  
+  return true;
+}
 
 MTL::Texture* MetalRenderTargetCache::GetColorTarget(uint32_t index) const {
   if (index >= 4 || !current_color_targets_[index]) {
@@ -356,8 +445,6 @@ MTL::PixelFormat MetalRenderTargetCache::ConvertDepthFormat(xenos::DepthRenderTa
       return MTL::PixelFormatInvalid;
   }
 }
-
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 
 bool MetalRenderTargetCache::RenderTargetDescriptor::operator==(const RenderTargetDescriptor& other) const {
   return base_address == other.base_address &&

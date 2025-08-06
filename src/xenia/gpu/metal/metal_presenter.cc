@@ -21,17 +21,16 @@ namespace metal {
 
 MetalPresenter::MetalPresenter(HostGpuLossCallback host_gpu_loss_callback,
                                MetalCommandProcessor* command_processor)
-    : xe::ui::Presenter(std::move(host_gpu_loss_callback)) {
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
-  command_processor_ = command_processor;
-  device_ = nullptr;
-  command_queue_ = nullptr;
-  metal_layer_ = nullptr;
-  blit_pipeline_ = nullptr;
-  fullscreen_quad_buffer_ = nullptr;
-  frame_begun_ = false;
-  current_drawable_ = nullptr;
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
+    : xe::ui::Presenter(std::move(host_gpu_loss_callback)),
+      command_processor_(command_processor),
+      device_(nullptr),
+      command_queue_(nullptr),
+      metal_layer_(nullptr),
+      blit_pipeline_(nullptr),
+      fullscreen_quad_buffer_(nullptr),
+      frame_begun_(false),
+      current_drawable_(nullptr),
+      current_command_buffer_(nullptr) {
 }
 
 MetalPresenter::~MetalPresenter() {
@@ -41,22 +40,21 @@ MetalPresenter::~MetalPresenter() {
 bool MetalPresenter::Initialize() {
   SCOPE_profile_cpu_f("gpu");
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
-  // TODO: Get Metal device from command processor
-  // device_ = command_processor_->GetMetalDevice();
-  // For now, create a system default device
-  device_ = MTL::CreateSystemDefaultDevice();
+  // Get Metal device from command processor
+  device_ = command_processor_->GetMetalDevice();
   if (!device_) {
-    XELOGE("Metal presenter: Failed to get Metal device");
+    XELOGE("Metal presenter: Failed to get Metal device from command processor");
     return false;
   }
 
-  // Create command queue
+  // Create command queue for presentation
   command_queue_ = device_->newCommandQueue();
   if (!command_queue_) {
     XELOGE("Metal presenter: Failed to create command queue");
+    device_->release();
     return false;
   }
+  command_queue_->setLabel(NS::String::string("Presentation Command Queue", NS::UTF8StringEncoding));
 
   // Create presentation resources
   if (!CreateBlitPipeline()) {
@@ -68,7 +66,6 @@ bool MetalPresenter::Initialize() {
     XELOGE("Metal presenter: Failed to create fullscreen quad buffer");
     return false;
   }
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 
   XELOGD("Metal presenter: Initialized successfully");
   return true;
@@ -77,7 +74,11 @@ bool MetalPresenter::Initialize() {
 void MetalPresenter::Shutdown() {
   SCOPE_profile_cpu_f("gpu");
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
+  // End any in-progress frame
+  if (frame_begun_) {
+    EndFrame(false);
+  }
+
   if (current_drawable_) {
     current_drawable_->release();
     current_drawable_ = nullptr;
@@ -103,23 +104,15 @@ void MetalPresenter::Shutdown() {
     device_ = nullptr;
   }
 
-  if (metal_layer_) {
-    metal_layer_->release();
-    metal_layer_ = nullptr;
-  }
-
+  // Note: We don't release metal_layer_ as it's owned by the UI layer
+  metal_layer_ = nullptr;
   frame_begun_ = false;
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 
   XELOGD("Metal presenter: Shutdown complete");
 }
 
 xe::ui::Surface::TypeFlags MetalPresenter::GetSupportedSurfaceTypes() const {
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
   return xe::ui::Surface::kTypeFlag_MacNSView;
-#else
-  return 0;
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 }
 
 bool MetalPresenter::CaptureGuestOutput(xe::ui::RawImage& image_out) {
@@ -141,12 +134,72 @@ xe::ui::ImmediateDrawer* MetalPresenter::immediate_drawer() {
   return nullptr;
 }
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
+bool MetalPresenter::BeginFrame() {
+  SCOPE_profile_cpu_f("gpu");
+
+  if (frame_begun_) {
+    XELOGW("Metal presenter: BeginFrame called while frame already in progress");
+    return false;
+  }
+
+  if (!metal_layer_) {
+    return false;
+  }
+
+  // Get the next drawable from the Metal layer
+  current_drawable_ = metal_layer_->nextDrawable();
+  if (!current_drawable_) {
+    XELOGW("Metal presenter: Failed to acquire next drawable");
+    return false;
+  }
+
+  // Create command buffer for this frame
+  current_command_buffer_ = command_queue_->commandBuffer();
+  if (!current_command_buffer_) {
+    XELOGE("Metal presenter: Failed to create command buffer");
+    current_drawable_->release();
+    current_drawable_ = nullptr;
+    return false;
+  }
+  current_command_buffer_->setLabel(NS::String::string("Presentation Frame", NS::UTF8StringEncoding));
+
+  frame_begun_ = true;
+  return true;
+}
+
+void MetalPresenter::EndFrame(bool present) {
+  SCOPE_profile_cpu_f("gpu");
+
+  if (!frame_begun_) {
+    return;
+  }
+
+  if (present && current_drawable_ && current_command_buffer_) {
+    // Present the drawable
+    current_command_buffer_->presentDrawable(current_drawable_);
+    
+    // Commit the command buffer
+    current_command_buffer_->commit();
+  }
+
+  // Clean up frame resources
+  if (current_command_buffer_) {
+    current_command_buffer_->release();
+    current_command_buffer_ = nullptr;
+  }
+
+  if (current_drawable_) {
+    current_drawable_->release();
+    current_drawable_ = nullptr;
+  }
+
+  frame_begun_ = false;
+}
 
 void MetalPresenter::Present(MTL::Texture* source_texture) {
   SCOPE_profile_cpu_f("gpu");
 
-  if (!frame_begun_ || !current_drawable_ || !source_texture) {
+  if (!frame_begun_ || !current_drawable_ || !source_texture || !current_command_buffer_) {
     return;
   }
 
@@ -172,9 +225,11 @@ bool MetalPresenter::SetupMetalLayer(void* layer) {
     metal_layer_->setDevice(device_);
   }
   
-  // Set up layer properties
-  metal_layer_->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
-  metal_layer_->setFramebufferOnly(true);
+  // Set up layer properties for optimal Xbox 360 rendering
+  metal_layer_->setPixelFormat(MTL::PixelFormatBGRA8Unorm_sRGB);
+  metal_layer_->setFramebufferOnly(false);  // Allow reading for debug captures
+  metal_layer_->setDisplaySyncEnabled(true);  // VSync
+  metal_layer_->setMaximumDrawableCount(3);  // Triple buffering
   
   return true;
 }
@@ -209,17 +264,69 @@ bool MetalPresenter::CreateFullscreenQuadBuffer() {
 }
 
 void MetalPresenter::BlitTexture(MTL::Texture* source, MTL::Texture* destination) {
-  // TODO: Implement proper texture blitting using Metal render commands
-  // This would typically involve:
-  // 1. Creating a render command encoder
-  // 2. Setting up the blit pipeline
-  // 3. Binding the source texture as input
-  // 4. Drawing the fullscreen quad to the destination
-  
-  XELOGD("Metal presenter: Texture blit operation stubbed");
-}
+  if (!current_command_buffer_ || !source || !destination) {
+    return;
+  }
 
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
+  // Use blit encoder for simple copy if formats match and no scaling needed
+  if (source->pixelFormat() == destination->pixelFormat() &&
+      source->width() == destination->width() &&
+      source->height() == destination->height()) {
+    
+    MTL::BlitCommandEncoder* blit_encoder = current_command_buffer_->blitCommandEncoder();
+    if (blit_encoder) {
+      blit_encoder->setLabel(NS::String::string("Present Blit", NS::UTF8StringEncoding));
+      
+      // Copy entire texture
+      blit_encoder->copyFromTexture(
+          source, 0, 0,  // sourceSlice, sourceLevel
+          MTL::Origin(0, 0, 0),  // sourceOrigin
+          MTL::Size(source->width(), source->height(), 1),  // sourceSize
+          destination, 0, 0,  // destSlice, destLevel  
+          MTL::Origin(0, 0, 0)  // destOrigin
+      );
+      
+      blit_encoder->endEncoding();
+      blit_encoder->release();
+      return;
+    }
+  }
+
+  // Otherwise, use render encoder with blit pipeline for format conversion/scaling
+  MTL::RenderPassDescriptor* render_pass = MTL::RenderPassDescriptor::alloc()->init();
+  if (!render_pass) {
+    return;
+  }
+
+  // Configure render pass to render to destination texture
+  MTL::RenderPassColorAttachmentDescriptor* color_attachment = 
+      render_pass->colorAttachments()->object(0);
+  color_attachment->setTexture(destination);
+  color_attachment->setLoadAction(MTL::LoadActionDontCare);
+  color_attachment->setStoreAction(MTL::StoreActionStore);
+
+  MTL::RenderCommandEncoder* render_encoder = 
+      current_command_buffer_->renderCommandEncoder(render_pass);
+  
+  if (render_encoder) {
+    render_encoder->setLabel(NS::String::string("Present Render", NS::UTF8StringEncoding));
+    
+    if (blit_pipeline_) {
+      // Set pipeline and draw fullscreen quad
+      render_encoder->setRenderPipelineState(blit_pipeline_);
+      render_encoder->setVertexBuffer(fullscreen_quad_buffer_, 0, 0);
+      render_encoder->setFragmentTexture(source, 0);
+      
+      // Draw triangle strip (4 vertices for quad)
+      render_encoder->drawPrimitives(MTL::PrimitiveTypeTriangleStrip, NS::UInteger(0), NS::UInteger(4));
+    }
+    
+    render_encoder->endEncoding();
+    render_encoder->release();
+  }
+  
+  render_pass->release();
+}
 
 }  // namespace metal
 }  // namespace gpu

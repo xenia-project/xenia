@@ -2,19 +2,20 @@
 
 ## Executive Summary
 
-The Xenia Xbox 360 emulator has been successfully ported to **macOS ARM64 (Apple Silicon)** with production-ready Xbox 360 game compatibility. This represents the **first native ARM64 Xbox 360 emulator**, eliminating the need for x86 translation layers like Rosetta 2.
+The Xenia Xbox 360 emulator has been successfully ported to **macOS ARM64 (Apple Silicon)** with a complete ARM64 CPU backend and platform integration. This represents the **first native ARM64 Xbox 360 emulator**, eliminating the need for x86 translation layers like Rosetta 2. The Metal GPU backend is currently in development (25% complete) to enable Xbox 360 game compatibility.
 
-**Current Status**: **Production Ready** for Xbox 360 emulation via Vulkan backend, with native Metal backend in active development.
+**Current Status**: **Metal GPU backend in active development** (25% complete). The Vulkan backend was abandoned on macOS due to MoltenVK primitive restart limitations.
 
 ## Implementation Status
 
 ### ✅ Completed Components (Production Ready)
 
-#### 1. **ARM64 CPU Backend** - 99%+ Compatibility
+#### 1. **ARM64 CPU Backend** - ~Mostly Complete
 - **Implementer**: Wunkolo (April-June 2024)
-- **Achievement**: Complete PowerPC → ARM64 JIT translation
+- **Achievement**: Comprehensive PowerPC → ARM64 JIT translation
 - **Performance**: Native ARM64 execution, no x86 translation overhead
-- **Status**: 1 remaining test failure out of thousands of CPU tests
+- **Status**: 1 remaining test failure in our fork; not yet merged to upstream Xenia for full testing
+- **Note**: Pending upstream PR review and integration into xenia-canary/master
 - **Architecture**: oaknut assembler, LSE atomics, comprehensive instruction support
 
 #### 2. **macOS Platform Integration** - Complete
@@ -24,12 +25,11 @@ The Xenia Xbox 360 emulator has been successfully ported to **macOS ARM64 (Apple
 - **Framework Integration**: Cocoa, Metal, MetalKit, CoreGraphics
 - **Status**: All base library tests passing, stable platform foundation
 
-#### 3. **Vulkan Graphics Backend** - Production Ready
-- **Implementation**: MoltenVK-based Vulkan → Metal translation
-- **Compatibility**: Full Xbox 360 game support matching upstream Xenia
-- **Features**: Complete EDRAM simulation, format conversion, shader translation
-- **Performance**: Optimized for Apple Silicon unified memory architecture
-- **Status**: Successfully running Xbox 360 games with high compatibility
+#### 3. **Vulkan Graphics Backend** - Abandoned on macOS
+- **Issue**: MoltenVK/Metal always treats 0xFFFF/0xFFFFFFFF as primitive restart indices
+- **Impact**: Cannot disable primitive restart, causing geometry corruption in Xbox 360 games
+- **Decision**: Abandoned in favor of native Metal backend development
+- **Solution**: Metal backend implements index buffer pre-processing to handle this correctly
 
 #### 4. **Audio & Media Support** - Complete
 - **FFmpeg Integration**: ARM64-native libraries for video/audio decoding
@@ -57,9 +57,9 @@ The Xenia Xbox 360 emulator has been successfully ported to **macOS ARM64 (Apple
 
 ## Architecture Achievements
 
-### **Dual Graphics Backend Strategy**
-- **Vulkan Backend (Production)**: Immediate Xbox 360 compatibility via MoltenVK
-- **Metal Backend (Future)**: Direct Apple Silicon optimization for maximum performance
+### **Graphics Backend Strategy**
+- **Vulkan Backend**: Abandoned due to MoltenVK primitive restart limitations
+- **Metal Backend**: Only viable GPU solution for macOS, currently 25% complete
 
 ### **Advanced Shader Translation**
 ```
@@ -96,29 +96,29 @@ Xbox 360 Microcode → DXBC (DxbcShaderTranslator) → DXIL (Wine/dxbc2dxil) →
 3. **Limited Formats**: Missing compressed textures (DXT, 3Dc, etc.)
 4. **No Copy Operations**: Post-processing effects and resolve operations not working
 
-### **Estimated Completion Timeline**
-- **Basic Functionality**: 6-12 months (EDRAM, presentation, basic formats)
-- **Production Ready**: 12-24 months (complete format support, optimization)
-- **Performance Parity**: 18-30 months (equal/exceed Vulkan backend performance)
+### **Completion Requirements**
+- **Basic Functionality**: EDRAM simulation, presentation pipeline, basic texture formats
+- **Production Ready**: Complete format support, optimization, Xbox 360 feature parity
+- **Performance Parity**: Match or exceed reference backend performance
 
 ## Development Roadmap
 
-### **Phase 1: Foundation (Q1-Q2 2025)**
+### **Phase 1: Foundation**
 **Goal**: Basic rendering with simple test cases
 
-#### 1.1 EDRAM Implementation (2-3 months)
+#### 1.1 EDRAM Implementation
 - Create 10MB Metal buffer for Xbox 360 EDRAM simulation
 - Implement tile addressing system (80 tiles × 16 samples)
 - Add render target aliasing and ownership transfer
-- Port EDRAM resolve operations from Vulkan backend
+- Port EDRAM resolve operations from reference backends
 
-#### 1.2 Presentation Pipeline (1-2 months)  
+#### 1.2 Presentation Pipeline
 - CAMetalLayer integration for native macOS presentation
 - Drawable management and frame synchronization
 - Basic blit operations from EDRAM to screen
 - Metal command buffer submission and completion handling
 
-#### 1.3 Copy Operations (1-2 months)
+#### 1.3 Copy Operations
 - Implement resolve operations (render target → shared memory)
 - Basic format conversion during copies
 - Texture-to-texture copy operations
@@ -126,16 +126,16 @@ Xbox 360 Microcode → DXBC (DxbcShaderTranslator) → DXIL (Wine/dxbc2dxil) →
 
 **Success Criteria**: Simple Xbox 360 geometry renders and displays correctly
 
-### **Phase 2: Format Support (Q2-Q3 2025)**
+### **Phase 2: Format Support**
 **Goal**: Support Xbox 360 textures and render targets
 
-#### 2.1 Texture Format Implementation (2-3 months)
+#### 2.1 Texture Format Implementation
 - DXT1/DXT3/DXT5 compressed texture support (most common Xbox 360 formats)
 - Xbox 360 signed/unsigned format variants  
 - Endian swapping for texture data
 - Format conversion compute shaders
 
-#### 2.2 Render Target Formats (1-2 months)
+#### 2.2 Render Target Formats
 - All Xbox 360 color render target formats
 - 24-bit depth format handling with proper precision
 - Gamma space conversion support
@@ -143,22 +143,22 @@ Xbox 360 Microcode → DXBC (DxbcShaderTranslator) → DXIL (Wine/dxbc2dxil) →
 
 **Success Criteria**: Textured Xbox 360 geometry renders with correct materials
 
-### **Phase 3: Advanced Features (Q3-Q4 2025)**
+### **Phase 3: Advanced Features**
 **Goal**: Support complex Xbox 360 rendering techniques
 
-#### 3.1 MSAA Implementation (1-2 months)
+#### 3.1 MSAA Implementation
 - 2x MSAA support (emulated as 4x on Metal)
 - Proper sample pattern generation matching Xbox 360
 - MSAA resolve operations with format conversion
 - Sample mask and coverage support
 
-#### 3.2 Advanced Rendering (2-3 months)
+#### 3.2 Advanced Rendering
 - Memory export from vertex shaders (Xbox 360-specific feature)
 - Predicated rendering support
 - Complex primitive types (rectangles, quads, points)
 - Tessellation shader integration where supported
 
-#### 3.3 Performance Optimization (1-2 months)
+#### 3.3 Performance Optimization
 - Metal argument buffers for bindless-like resource access
 - Persistent pipeline state caching to disk
 - Efficient memory management with Metal resource heaps
@@ -166,22 +166,22 @@ Xbox 360 Microcode → DXBC (DxbcShaderTranslator) → DXIL (Wine/dxbc2dxil) →
 
 **Success Criteria**: Most Xbox 360 games achieve basic functionality
 
-### **Phase 4: Production Ready (Q4 2025-Q1 2026)**
+### **Phase 4: Production Ready**
 **Goal**: High compatibility and optimal performance
 
-#### 4.1 Compatibility (1-2 months)
+#### 4.1 Compatibility
 - Edge case handling for complex EDRAM usage patterns
 - Advanced blend state and depth/stencil operation accuracy
 - Rare texture format support for specialized games
 - Game-specific workarounds and optimizations
 
-#### 4.2 Performance Tuning (1-2 months) 
+#### 4.2 Performance Tuning
 - GPU profiling and bottleneck identification
 - Memory bandwidth optimization for EDRAM simulation
 - Command submission optimization for Apple Silicon
 - Resource pooling and recycling for memory efficiency
 
-**Success Criteria**: Production-ready Xbox 360 compatibility matching Vulkan backend
+**Success Criteria**: Production-ready Xbox 360 compatibility matching reference backends
 
 ## Technical Challenges
 
@@ -215,10 +215,10 @@ Xbox 360 Microcode → DXBC (DxbcShaderTranslator) → DXIL (Wine/dxbc2dxil) →
 ## Success Metrics
 
 ### **Current Achievements**
-- ✅ **First Native ARM64 Xbox 360 Emulator**: No x86 translation required
-- ✅ **Production Xbox 360 Compatibility**: All games working via Vulkan backend
-- ✅ **Native Apple Silicon Performance**: ~30-40% CPU performance improvement
-- ✅ **Complete Platform Integration**: Threading, memory, graphics, audio all working
+- ✅ **First Native ARM64 Xbox 360 Emulator**: No x86 translation required (pending upstream merge)
+- ✅ **Native Apple Silicon Performance**: ~30-40% CPU performance improvement over Rosetta 2
+- ✅ **Complete Platform Integration**: Threading, memory, audio all working
+- 🔄 **GPU Backend**: Metal backend 25% complete, required for Xbox 360 game compatibility
 
 ### **Metal Backend Milestones**
 - **Basic Rendering**: Simple Xbox 360 geometry displays correctly
@@ -245,10 +245,9 @@ Xbox 360 Microcode → DXBC (DxbcShaderTranslator) → DXIL (Wine/dxbc2dxil) →
 
 ## Conclusion
 
-The macOS ARM64 port represents a **significant achievement in console emulation**, successfully bringing Xbox 360 games to Apple Silicon with native performance. The **production-ready Vulkan backend** provides immediate game compatibility, while the **advanced Metal backend architecture** promises future performance optimizations.
+The macOS ARM64 port represents a **significant achievement in console emulation**, with a complete ARM64 CPU backend and platform integration. The **Metal GPU backend** (currently 25% complete) is the only viable graphics solution for macOS and will enable Xbox 360 game compatibility once complete.
 
-**Current State**: Ready for Xbox 360 game emulation with high compatibility
-**Future State**: Native Metal backend will provide optimal Apple Silicon performance  
-**Timeline**: Metal backend production-ready within 12-24 months of focused development
+**Current State**: CPU and platform ready, Metal GPU backend 25% complete
+**Future State**: Native Metal backend will provide optimal Apple Silicon performance
 
 This port demonstrates that **modern ARM64 processors can effectively emulate Xbox 360's complex architecture**, opening new possibilities for console emulation on Apple's hardware platform.

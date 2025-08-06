@@ -17,11 +17,7 @@
 #include "xenia/gpu/xenos.h"
 #include "xenia/memory.h"
 
-#if XE_PLATFORM_MAC
-#ifdef METAL_CPP_AVAILABLE
 #include "third_party/metal-cpp/Metal/Metal.hpp"
-#endif  // METAL_CPP_AVAILABLE
-#endif  // XE_PLATFORM_MAC
 
 namespace xe {
 namespace gpu {
@@ -44,14 +40,15 @@ class MetalRenderTargetCache {
   bool SetRenderTargets(uint32_t rt_count, const uint32_t* color_targets,
                        uint32_t depth_target);
   
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
+  // Resolve (copy) render targets to shared memory
+  bool Resolve(Memory& memory, uint32_t& written_address, uint32_t& written_length);
+  
   // Get current render targets for Metal render pass
   MTL::Texture* GetColorTarget(uint32_t index) const;
   MTL::Texture* GetDepthTarget() const;
   
   // Get render pass descriptor for current targets
   MTL::RenderPassDescriptor* GetRenderPassDescriptor() const;
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 
  private:
   struct RenderTargetDescriptor {
@@ -69,7 +66,6 @@ class MetalRenderTargetCache {
     size_t operator()(const RenderTargetDescriptor& desc) const;
   };
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
   struct MetalRenderTarget {
     MTL::Texture* texture;
     MTL::Texture* resolve_texture;  // For MSAA resolve
@@ -101,13 +97,14 @@ class MetalRenderTargetCache {
   // Xbox 360 format conversion
   MTL::PixelFormat ConvertColorFormat(xenos::ColorRenderTargetFormat format);
   MTL::PixelFormat ConvertDepthFormat(xenos::DepthRenderTargetFormat format);
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 
   MetalCommandProcessor* command_processor_;
   const RegisterFile* register_file_;
   Memory* memory_;
 
-#if XE_PLATFORM_MAC && defined(METAL_CPP_AVAILABLE)
+  // EDRAM buffer - 10MB of embedded DRAM that Xbox 360 uses for render targets
+  MTL::Buffer* edram_buffer_;
+  
   // Current render targets
   std::unique_ptr<MetalRenderTarget> current_color_targets_[4];
   std::unique_ptr<MetalRenderTarget> current_depth_target_;
@@ -119,7 +116,6 @@ class MetalRenderTargetCache {
   // Cached render pass descriptor
   mutable MTL::RenderPassDescriptor* cached_render_pass_descriptor_;
   mutable bool render_pass_descriptor_dirty_;
-#endif  // XE_PLATFORM_MAC && METAL_CPP_AVAILABLE
 };
 
 }  // namespace metal

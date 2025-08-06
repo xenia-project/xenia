@@ -7,7 +7,7 @@ This document provides comprehensive information about the Xenia Xbox 360 emulat
 **Xenia** is an open-source Xbox 360 emulator. This fork implements a complete **native macOS ARM64 port** that runs Xbox 360 games directly on Apple Silicon without Rosetta 2 translation.
 
 ### Current Status
-- **ARM64 CPU Backend**: ✅ Production ready (99%+ compatibility)
+- **ARM64 CPU Backend**: ✅ ~Mostly complete (1 test failure remaining, pending upstream merge)
 - **Metal Graphics**: 🔄 In development (25% complete, see `src/xenia/gpu/metal/METAL_BACKEND_IMPLEMENTATION_STATUS.md`)
 - **Platform Integration**: ✅ Complete macOS support
 - **Vulkan Backend**: ❌ Abandoned on macOS due to MoltenVK primitive restart limitations
