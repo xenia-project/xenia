@@ -2,35 +2,32 @@
 
 ## Executive Summary
 
-The Metal GPU backend has reached a **significant milestone** with textures now loading and rendering correctly in Metal frame captures. The implementation successfully executes draw commands, manages Metal resources, performs Xbox 360 texture untiling, and shows readable game content in Metal debugger. However, PNG output capture still produces black images despite correct rendering. Current implementation is approximately **40% complete** compared to working Vulkan and D3D12 backends.
+The Metal GPU backend has made incremental progress with shader reflection integration for resource binding. While the implementation can execute draw commands and bind resources at correct offsets, actual rendering output remains non-functional (black screen). The backend is approximately **25% complete** compared to working Vulkan and D3D12 backends.
 
-**Latest Status (2025-01-07)**: Major breakthrough! Xbox 360 texture untiling implemented and working. Japanese text "起動中、しばらくお待ちください" (Loading, please wait) is now readable in Metal frame captures. Fixed BGRA/RGBA format issues. PNG capture still needs work.
+**Latest Status (2025-08-07)**: Implemented shader reflection API integration. Resources (textures, samplers, constants) now bind at correct argument buffer offsets as determined by Metal Shader Converter reflection data. Rendering still produces black output - needs real vertex data instead of dummy triangles.
 
 ## Current Capabilities vs Reality
 
 ### ✅ What Actually Works
 - Metal device and command queue initialization
 - Xbox 360 shader → Metal shader translation pipeline (DXBC→DXIL→Metal)
-- Pipeline state creation without validation errors (all GPU errors fixed!)
-- Vertex/index buffer binding with correct index mapping (30+ for Metal)
+- Pipeline state creation without validation errors
+- Basic vertex/index buffer binding
 - Draw command encoding and execution
-- Render target creation with format/MSAA support
-- Endian conversion for vertex and texture data
-- Metal object lifecycle (no leaks with proper tracking)
-- Command buffer submission flow with synchronization
-- **Xbox 360 texture untiling** ✅ NEW! - Morton order to linear conversion working
-- **Texture loading and binding** ✅ NEW! - Multiple textures visible in Metal captures
-- **BGRA format support** ✅ NEW! - Fixed color channel ordering
-- **Render target preservation** - Dummy target accumulates draws across passes
-- Frame capture shows actual game content (Japanese loading screen text)
+- Dummy render target creation 
+- Command buffer submission flow
+- **Shader reflection integration** - Resources bind at correct offsets
+- **Argument buffer creation** - Based on reflection data
+- **Resource binding** - Textures, samplers, and CBVs placed correctly
 
 ### ❌ What Doesn't Work
-- **PNG output still black** - Despite correct rendering in Metal capture
-- **Fragment shader output** - May not be writing correctly to render targets
-- **No EDRAM integration** - Buffer exists but not connected to render targets
-- **Most texture formats** - Only supporting ~15% of Xbox 360 formats
-- **No actual game rendering** - Only basic UI/loading screens work
-- **Missing most Xbox 360 features** - Blending, proper depth/stencil, tessellation, etc.
+- **Actual rendering** - Output is black, no visible content
+- **Vertex data** - Using dummy triangles instead of real Xbox 360 vertex data
+- **Fragment shader output** - Not writing to render targets correctly
+- **EDRAM integration** - Buffer exists but not connected
+- **Texture formats** - Limited format support
+- **Real game rendering** - No games are playable
+- **Most Xbox 360 GPU features** - Blending, depth/stencil, tessellation, etc.
 
 ## File Structure
 
