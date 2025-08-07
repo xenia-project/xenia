@@ -217,6 +217,11 @@ void MetalCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
   frame_count_++;
   XELOGI("Metal IssueSwap: Frame {} complete", frame_count_);
   
+  // Reset dummy target clear flag for new frame
+  if (render_target_cache_) {
+    render_target_cache_->BeginFrame();
+  }
+  
   // Capture the current frame for trace dumps (do this before presenter operations)
   // Note: CaptureColorTarget has its own autorelease pool management
   uint32_t capture_width, capture_height;
@@ -506,6 +511,28 @@ bool MetalCommandProcessor::CaptureColorTarget(uint32_t index, uint32_t& width, 
   } else {
     // Direct copy for color textures
     memcpy(data.data(), read_buffer->contents(), std::min(data_size, source_data_size));
+    
+    // Check if the data is all zeros (black)
+    bool all_zeros = true;
+    for (size_t i = 0; i < std::min(data_size, size_t(1000)); i++) {
+      if (data[i] != 0) {
+        all_zeros = false;
+        break;
+      }
+    }
+    if (all_zeros) {
+      XELOGW("Metal CaptureColorTarget: WARNING - Captured data is all zeros (black)!");
+    } else {
+      XELOGI("Metal CaptureColorTarget: Data contains non-zero values (not all black)");
+      // Log first few pixels for debugging
+      if (data.size() >= 16) {
+        XELOGI("  First 4 pixels (RGBA): [{},{},{},{}] [{},{},{},{}] [{},{},{},{}] [{},{},{},{}]",
+               data[0], data[1], data[2], data[3],
+               data[4], data[5], data[6], data[7],
+               data[8], data[9], data[10], data[11],
+               data[12], data[13], data[14], data[15]);
+      }
+    }
   }
   
   // Clean up
@@ -883,9 +910,6 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   uint32_t depth_target_info = depth_enabled ? rb_depth_info : 0;
   render_target_cache_->SetRenderTargets(rt_count, color_targets, depth_target_info);
   
-  // Load current render target contents from EDRAM buffer
-  render_target_cache_->LoadRenderTargetsFromEDRAM(current_command_buffer_);
-  
   // Create pipeline description with real shader hashes
   MetalPipelineCache::RenderPipelineDescription pipeline_desc = {};
   pipeline_desc.primitive_type = prim_type;
@@ -1008,13 +1032,14 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
         // IMPORTANT: We need to ensure the render pass uses the same sample count as the pipeline
         // Store the pipeline's sample count so we can use it if we need to create a dummy target
         uint32_t pipeline_sample_count = pipeline_desc.sample_count;
+        
         XELOGI("Metal IssueDraw: Getting render pass descriptor from cache (pipeline expects {} samples)...", 
                pipeline_sample_count);
         
         // Pass the pipeline's sample count to ensure dummy targets match
         MTL::RenderPassDescriptor* render_pass = render_target_cache_->GetRenderPassDescriptor(pipeline_sample_count);
         if (render_pass) {
-          // Retain the render pass to extend its lifetime
+          // Retain to prevent autorelease
           render_pass->retain();
         }
         XELOGI("Metal IssueDraw: Got render pass: {}", render_pass ? "valid" : "null");

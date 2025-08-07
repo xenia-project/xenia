@@ -52,6 +52,11 @@ class MetalRenderTargetCache {
   MTL::Texture* GetDepthTarget() const;
   MTL::Texture* GetDummyColorTarget() const;
   
+  // Reset for new frame (clears dummy target on next use)
+  void BeginFrame() {
+    dummy_color_target_needs_clear_ = true;
+  }
+  
   // Get render pass descriptor for current targets
   // expected_sample_count: The sample count expected by the pipeline (for dummy target creation)
   MTL::RenderPassDescriptor* GetRenderPassDescriptor(uint32_t expected_sample_count = 1);
