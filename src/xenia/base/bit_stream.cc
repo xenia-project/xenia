@@ -20,6 +20,9 @@ namespace xe {
 BitStream::BitStream(uint8_t* buffer, size_t size_in_bits)
     : buffer_(buffer), size_bits_(size_in_bits) {}
 
+BitStream::BitStream(const uint8_t* buffer, size_t size_in_bits)
+    : buffer_(const_cast<uint8_t*>(buffer)), size_bits_(size_in_bits) {}
+
 BitStream::~BitStream() = default;
 
 void BitStream::SetOffset(size_t offset_bits) {
