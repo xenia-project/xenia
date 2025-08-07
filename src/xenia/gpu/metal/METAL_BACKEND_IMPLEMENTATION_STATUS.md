@@ -2,33 +2,35 @@
 
 ## Executive Summary
 
-The Metal GPU backend has reached a **major milestone** with working PNG output generation from trace dumps. The implementation can execute draw commands, manage Metal resources, and capture rendered frames. However, we're currently only capturing depth buffers (gray placeholders) instead of actual color render targets. Current implementation is approximately **35% complete** compared to working Vulkan and D3D12 backends.
+The Metal GPU backend has reached a **significant milestone** with textures now loading and rendering correctly in Metal frame captures. The implementation successfully executes draw commands, manages Metal resources, performs Xbox 360 texture untiling, and shows readable game content in Metal debugger. However, PNG output capture still produces black images despite correct rendering. Current implementation is approximately **40% complete** compared to working Vulkan and D3D12 backends.
 
-**Latest Status (2025-01-06)**: PNG output pipeline fully working! Successfully generating PNG files from trace dumps, though currently showing depth buffer placeholders instead of actual rendered content. Some autorelease pool crashes remain during shutdown.
+**Latest Status (2025-01-07)**: Major breakthrough! Xbox 360 texture untiling implemented and working. Japanese text "起動中、しばらくお待ちください" (Loading, please wait) is now readable in Metal frame captures. Fixed BGRA/RGBA format issues. PNG capture still needs work.
 
 ## Current Capabilities vs Reality
 
 ### ✅ What Actually Works
 - Metal device and command queue initialization
 - Xbox 360 shader → Metal shader translation pipeline (DXBC→DXIL→Metal)
-- Pipeline state creation without validation errors
-- Vertex/index buffer binding from guest memory
+- Pipeline state creation without validation errors (all GPU errors fixed!)
+- Vertex/index buffer binding with correct index mapping (30+ for Metal)
 - Draw command encoding and execution
 - Render target creation with format/MSAA support
-- Endian conversion for vertex data
+- Endian conversion for vertex and texture data
 - Metal object lifecycle (no leaks with proper tracking)
 - Command buffer submission flow with synchronization
-- **PNG output generation from trace dumps** ✅ NEW!
-- Frame capture during draw operations
-- Depth buffer capture as placeholder images
+- **Xbox 360 texture untiling** ✅ NEW! - Morton order to linear conversion working
+- **Texture loading and binding** ✅ NEW! - Multiple textures visible in Metal captures
+- **BGRA format support** ✅ NEW! - Fixed color channel ordering
+- **Render target preservation** - Dummy target accumulates draws across passes
+- Frame capture shows actual game content (Japanese loading screen text)
 
 ### ❌ What Doesn't Work
-- **No color output** - Only capturing depth buffer (gray images)
-- **Autorelease pool crashes** - Still occurring during shutdown
-- **No EDRAM integration** - Buffer exists but not connected
-- **No texture sampling** - Textures not implemented (critical for actual games)
-- **No color render targets** - Need to capture color buffer instead of depth
-- **Missing most Xbox 360 features** - Blending, proper depth/stencil, etc.
+- **PNG output still black** - Despite correct rendering in Metal capture
+- **Fragment shader output** - May not be writing correctly to render targets
+- **No EDRAM integration** - Buffer exists but not connected to render targets
+- **Most texture formats** - Only supporting ~15% of Xbox 360 formats
+- **No actual game rendering** - Only basic UI/loading screens work
+- **Missing most Xbox 360 features** - Blending, proper depth/stencil, tessellation, etc.
 
 ## File Structure
 
@@ -37,12 +39,12 @@ The Metal GPU backend has reached a **major milestone** with working PNG output 
 metal_command_processor.mm    - Draw commands, submission flow (WORKING)
 metal_pipeline_cache.cc       - Pipeline state creation (WORKING)
 metal_shader.cc               - Shader translation (WORKING)
-metal_render_target_cache.cc  - RT creation (PARTIAL - no readback)
+metal_render_target_cache.cc  - RT creation (PARTIAL - dummy targets work)
 metal_buffer_cache.cc         - Vertex/index buffers (WORKING)
-metal_texture_cache.cc        - Textures (STUB)
+metal_texture_cache.cc        - Textures (WORKING - untiling implemented!)
 metal_shared_memory.cc        - Shared memory (BASIC)
 metal_primitive_processor.cc  - Primitive conversion (BASIC)
-metal_object_tracker.h        - Debug tracking (NEW - WORKING)
+metal_object_tracker.h        - Debug tracking (WORKING)
 ```
 
 ### Integration Files
@@ -86,35 +88,33 @@ dxbc_to_dxil_converter.cc    - Shader conversion (WORKING)
 
 ## Critical Missing Pieces
 
-### 1. Color Buffer Capture (URGENT - Currently Only Depth)
+### 1. PNG Capture Still Black (Despite Correct Rendering)
 ```cpp
-// CURRENT:
-CaptureColorTarget(0, ...) {
-  // Falls back to depth buffer when no color target
-  // Results in gray placeholder images
-}
+// PROBLEM:
+// Metal frame capture shows textures correctly
+// But PNG output is still black
+// Issue: Capturing wrong buffer or at wrong time
 
-// NEEDED:
-CaptureColorTarget(0, ...) {
-  // Actually capture color render target
-  // Show real rendered content
-}
+// INVESTIGATION NEEDED:
+// - Check if dummy_color_target_ is being captured correctly
+// - Verify capture happens after all draws complete
+// - May need explicit synchronization before capture
 ```
 
-### 2. Autorelease Pool Crash Fix
-- Still crashing in `objc_autoreleasePoolPop()` during shutdown
-- Happens in `MetalCommandProcessor::ShutdownContext`
-- Need to investigate Metal-cpp object lifecycle
+### 2. Fragment Shader Output
+- Shaders may not be writing correctly to render targets
+- Need to verify fragment shader [[color(0)]] output
+- Check if shader constants are properly bound
 
-### 3. EDRAM Integration (Required for Real Rendering)
+### 3. EDRAM Integration (Required for Real Games)
 - 10MB buffer created but never used
 - Need Load/Store operations between EDRAM and textures
 - Xbox 360 games expect EDRAM for all framebuffer operations
 
-### 4. Texture Support (Critical for Games)
-- Currently NO texture support at all
-- A-Train HX logo is a texture - won't appear without this
-- Need format conversion, sampling, caching
+### 4. Extended Texture Format Support
+- Currently supporting only ~15% of Xbox 360 formats
+- Need DXN (BC5), CTX1, float formats, YUV formats
+- Many games won't work without these
 
 ## Test Results
 

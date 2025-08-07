@@ -100,8 +100,21 @@ project("xenia-gpu-metal-trace-dump")
 
   files {
     "metal_trace_dump_main.cc",
-    path.join("..", "..", "base", "console_app_main_" .. platform_suffix .. ".cc"),
   }
+  
+  -- Check if mac-specific file exists, otherwise use posix
+  local mac_main = path.join("..", "..", "base", "console_app_main_mac.mm")
+  local posix_main = path.join("..", "..", "base", "console_app_main_posix.cc")
+  
+  filter "system:macosx"
+    if os.isfile(path.join(project_root, "src/xenia/base/console_app_main_mac.mm")) then
+      files { mac_main }
+    else
+      files { posix_main }
+    end
+  filter "not system:macosx"
+    files { path.join("..", "..", "base", "console_app_main_" .. platform_suffix .. ".cc") }
+  filter {}
 
   filter "architecture:ARM64"
     links { "xenia-cpu-backend-a64" }

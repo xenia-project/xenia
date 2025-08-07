@@ -440,6 +440,13 @@ MTL::Texture* MetalRenderTargetCache::GetDepthTarget() const {
   return current_depth_target_->texture;
 }
 
+MTL::Texture* MetalRenderTargetCache::GetDummyColorTarget() const {
+  if (!dummy_color_target_) {
+    return nullptr;
+  }
+  return dummy_color_target_->texture;
+}
+
 MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(uint32_t expected_sample_count) {
   if (!render_pass_descriptor_dirty_ && cached_render_pass_descriptor_) {
     return cached_render_pass_descriptor_;
@@ -472,7 +479,8 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(uint3
       color_attachment->setTexture(current_color_targets_[i]->texture);
       color_attachment->setLoadAction(MTL::LoadActionClear);
       color_attachment->setStoreAction(MTL::StoreActionStore);
-      color_attachment->setClearColor(MTL::ClearColor(0.0, 0.0, 0.0, 1.0));
+      // Use BLACK clear to see what the draw calls produce
+      color_attachment->setClearColor(MTL::ClearColor(0.0, 0.0, 0.0, 1.0));  // Black
       has_attachments = true;
     }
   }
@@ -502,22 +510,35 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(uint3
     
     if (!has_color_attachment) {
       XELOGW("Metal render target cache: Depth-only render pass - adding dummy color target for shader compatibility");
-      // Use the depth target's sample count for consistency
-      uint32_t sample_count = current_depth_target_->samples;
+      // CRITICAL: Use the expected sample count from pipeline to avoid Metal validation errors!
+      // The pipeline and render target MUST have matching sample counts
+      uint32_t sample_count = expected_sample_count ? expected_sample_count : 1;
       
-      // Create dummy texture if needed
-      if (!dummy_color_target_ || dummy_color_target_->samples != sample_count) {
+      // CRITICAL: Dummy target MUST match depth target dimensions to avoid scissor rect validation errors!
+      // Use the depth target's dimensions if available, otherwise use default Xbox 360 resolution
+      uint32_t width = current_depth_target_ ? current_depth_target_->width : 1280;
+      uint32_t height = current_depth_target_ ? current_depth_target_->height : 720;
+      
+      // Create dummy texture if it doesn't exist or properties changed
+      // Must recreate if sample count or dimensions change to match pipeline/depth target
+      if (!dummy_color_target_ || 
+          dummy_color_target_->samples != sample_count ||
+          dummy_color_target_->width != width ||
+          dummy_color_target_->height != height) {
         MTL::Texture* dummy_texture = CreateColorTarget(
-            256, 256, MTL::PixelFormatBGRA8Unorm, sample_count);
+            width, height, MTL::PixelFormatBGRA8Unorm, sample_count);
         if (dummy_texture) {
           dummy_color_target_ = std::make_unique<MetalRenderTarget>();
           dummy_color_target_->texture = dummy_texture;
-          dummy_color_target_->width = 256;
-          dummy_color_target_->height = 256;
+          dummy_color_target_->width = width;
+          dummy_color_target_->height = height;
           dummy_color_target_->format = MTL::PixelFormatBGRA8Unorm;
           dummy_color_target_->samples = sample_count;
           dummy_color_target_->is_depth = false;
           dummy_color_target_->edram_base = 0;  // Dummy target not in EDRAM
+          
+          XELOGI("Metal RenderTargetCache: Created dummy color target {}x{} - texture ptr: 0x{:016x}",
+                 width, height, reinterpret_cast<uintptr_t>(dummy_texture));
         }
       }
       
@@ -527,8 +548,12 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(uint3
         
         color_attachment->setTexture(dummy_color_target_->texture);
         color_attachment->setLoadAction(MTL::LoadActionClear);
-        color_attachment->setStoreAction(MTL::StoreActionDontCare);
-        color_attachment->setClearColor(MTL::ClearColor(0.0, 0.0, 0.0, 1.0));
+        color_attachment->setStoreAction(MTL::StoreActionStore);  // Store contents for capture
+        // Use BLACK clear to see what the draw calls produce
+      color_attachment->setClearColor(MTL::ClearColor(0.0, 0.0, 0.0, 1.0));  // Black
+        
+        XELOGI("Metal RenderTargetCache: Set dummy color target in render pass - texture ptr: 0x{:016x}",
+               reinterpret_cast<uintptr_t>(dummy_color_target_->texture));
       }
     }
   }
@@ -539,18 +564,28 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(uint3
     XELOGW("Metal render target cache: No render targets set, creating dummy target with {} samples", 
            expected_sample_count);
     
-    // Use the expected sample count from the pipeline to ensure consistency
-    uint32_t sample_count = expected_sample_count;
+    // CRITICAL: Use the expected sample count from pipeline to avoid Metal validation errors!
+    uint32_t sample_count = expected_sample_count ? expected_sample_count : 1;
     
-    // Create a small dummy texture if we haven't already or if sample count changed
-    if (!dummy_color_target_ || dummy_color_target_->samples != sample_count) {
+    // Get dimensions from RB_SURFACE_INFO register to match what the game expects
+    auto rb_surface_info = register_file_->values[XE_GPU_REG_RB_SURFACE_INFO];
+    uint32_t surface_pitch = rb_surface_info & 0x3FFF;
+    uint32_t width = surface_pitch ? surface_pitch : 1280;
+    uint32_t height = 720;  // Common Xbox 360 resolution
+    
+    // Create dummy texture if it doesn't exist or properties changed
+    // Must recreate if sample count or dimensions change to match pipeline requirements
+    if (!dummy_color_target_ || 
+        dummy_color_target_->samples != sample_count ||
+        dummy_color_target_->width != width ||
+        dummy_color_target_->height != height) {
       MTL::Texture* dummy_texture = CreateColorTarget(
-          256, 256, MTL::PixelFormatBGRA8Unorm, sample_count);
+          width, height, MTL::PixelFormatBGRA8Unorm, sample_count);
       if (dummy_texture) {
         dummy_color_target_ = std::make_unique<MetalRenderTarget>();
         dummy_color_target_->texture = dummy_texture;
-        dummy_color_target_->width = 256;
-        dummy_color_target_->height = 256;
+        dummy_color_target_->width = width;
+        dummy_color_target_->height = height;
         dummy_color_target_->format = MTL::PixelFormatBGRA8Unorm;
         dummy_color_target_->samples = sample_count;
         dummy_color_target_->is_depth = false;
@@ -563,9 +598,17 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(uint3
           cached_render_pass_descriptor_->colorAttachments()->object(0);
       
       color_attachment->setTexture(dummy_color_target_->texture);
-      color_attachment->setLoadAction(MTL::LoadActionClear);
-      color_attachment->setStoreAction(MTL::StoreActionDontCare);
-      color_attachment->setClearColor(MTL::ClearColor(0.0, 0.0, 0.0, 1.0));
+      
+      // Clear only on first use of the frame, then preserve contents
+      if (dummy_color_target_needs_clear_) {
+        color_attachment->setLoadAction(MTL::LoadActionClear);
+        color_attachment->setClearColor(MTL::ClearColor(0.0, 0.0, 0.0, 1.0));  // Black
+        dummy_color_target_needs_clear_ = false;
+      } else {
+        // Preserve previous render pass contents to accumulate all draws
+        color_attachment->setLoadAction(MTL::LoadActionLoad);
+      }
+      color_attachment->setStoreAction(MTL::StoreActionStore);  // Store contents for capture
     }
   }
 

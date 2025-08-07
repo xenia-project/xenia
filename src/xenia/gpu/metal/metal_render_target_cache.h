@@ -50,6 +50,7 @@ class MetalRenderTargetCache {
   // Get current render targets for Metal render pass
   MTL::Texture* GetColorTarget(uint32_t index) const;
   MTL::Texture* GetDepthTarget() const;
+  MTL::Texture* GetDummyColorTarget() const;
   
   // Get render pass descriptor for current targets
   // expected_sample_count: The sample count expected by the pipeline (for dummy target creation)
@@ -125,6 +126,7 @@ class MetalRenderTargetCache {
   
   // Dummy render target for when no render targets are bound
   mutable std::unique_ptr<MetalRenderTarget> dummy_color_target_;
+  mutable bool dummy_color_target_needs_clear_ = true;
 };
 
 }  // namespace metal

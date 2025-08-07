@@ -67,6 +67,9 @@ class MetalCommandProcessor : public CommandProcessor {
   bool BeginSubmission(bool is_guest_command);
   bool EndSubmission(bool is_swap);
   bool CanEndSubmissionImmediately() const;
+  
+  // Commit any pending command buffer (used by trace dump)
+  void CommitPendingCommandBuffer();
 
  protected:
   bool SetupContext() override;
@@ -117,11 +120,17 @@ class MetalCommandProcessor : public CommandProcessor {
   std::unique_ptr<MetalSharedMemory> shared_memory_;
   std::unique_ptr<MetalTextureCache> texture_cache_;
   
+  // Dummy render target for traces with no color buffers
+  MTL::Texture* dummy_color_target_ = nullptr;
+  
   // Frame tracking
   uint32_t frame_count_ = 0;
   
   // Draw batching to avoid too many in-flight command buffers
   int draws_in_current_batch_ = 0;
+  
+  // Active command buffer for draw commands (used in IssueDraw)
+  MTL::CommandBuffer* active_draw_command_buffer_ = nullptr;
   
   // Last captured frame for trace dumps
   std::vector<uint8_t> last_captured_frame_data_;

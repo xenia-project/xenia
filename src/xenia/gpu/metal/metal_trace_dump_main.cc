@@ -109,6 +109,10 @@ class MetalTraceDump : public TraceDump {
     auto* metal_graphics_system = static_cast<MetalGraphicsSystem*>(graphics_system_);
     auto* metal_cmd_processor = static_cast<MetalCommandProcessor*>(metal_graphics_system->command_processor());
     
+    // CRITICAL: Commit any pending command buffer so all draws are executed!
+    XELOGI("MetalTraceDump: Committing pending command buffer before capture");
+    metal_cmd_processor->CommitPendingCommandBuffer();
+    
     // Force a final capture if we haven't captured anything yet
     uint32_t width, height;
     std::vector<uint8_t> data;

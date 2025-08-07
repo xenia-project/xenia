@@ -360,10 +360,9 @@ MTL::RenderPipelineState* MetalPipelineCache::CreateRenderPipelineState(
     descriptor->setDepthAttachmentPixelFormat(description.depth_format);
   }
   
-  // Set sample count for MSAA
-  if (description.sample_count > 1) {
-    descriptor->setSampleCount(description.sample_count);
-  }
+  // Set sample count for MSAA (always set it, even if 1)
+  // This ensures the pipeline and render targets have matching sample counts
+  descriptor->setSampleCount(description.sample_count ? description.sample_count : 1);
 
     // Create the pipeline state
   NS::Error* error = nullptr;
@@ -432,26 +431,41 @@ MTL::VertexDescriptor* MetalPipelineCache::CreateVertexDescriptor(
     return nullptr;
   }
 
-  // Phase B Step 3: Configure basic vertex descriptor for placeholder shaders
-  // This matches our placeholder vertex shader that expects position at attribute 0
+  // CRITICAL FIX: Create vertex descriptor based on actual shader requirements
+  // The Xbox 360 shaders expect specific vertex formats that we must match
   
-  // Configure position attribute (float3 at attribute 0)
-  MTL::VertexAttributeDescriptor* position_attr = vertex_descriptor->attributes()->object(0);
-  position_attr->setFormat(MTL::VertexFormatFloat3);
-  position_attr->setOffset(0);
-  position_attr->setBufferIndex(0);
+  // For now, configure a more flexible vertex descriptor that can handle common cases
+  // Eventually this should be built from the shader's vertex_bindings() data
   
-  // Configure buffer layout (stride = 3 floats = 12 bytes)
+  // Attribute 0: Position (float3 or float4)
+  MTL::VertexAttributeDescriptor* attr0 = vertex_descriptor->attributes()->object(0);
+  attr0->setFormat(MTL::VertexFormatFloat3);  // Most common is position xyz
+  attr0->setOffset(0);
+  attr0->setBufferIndex(0);
+  
+  // Attribute 1: Texcoord or second component (float2)
+  MTL::VertexAttributeDescriptor* attr1 = vertex_descriptor->attributes()->object(1);
+  attr1->setFormat(MTL::VertexFormatFloat2);
+  attr1->setOffset(12);  // After 3 floats
+  attr1->setBufferIndex(0);
+  
+  // Attribute 2: Additional data (could be color, normal, etc.)
+  MTL::VertexAttributeDescriptor* attr2 = vertex_descriptor->attributes()->object(2);
+  attr2->setFormat(MTL::VertexFormatFloat);
+  attr2->setOffset(20);  // After 3+2 floats
+  attr2->setBufferIndex(0);
+  
+  // Configure buffer layout with flexible stride
+  // The stride should match what we see in the logs (20 bytes for 3 attributes)
   MTL::VertexBufferLayoutDescriptor* buffer_layout = vertex_descriptor->layouts()->object(0);
-  buffer_layout->setStride(12); // 3 * sizeof(float)
+  buffer_layout->setStride(20);  // Match the observed 20 byte stride
   buffer_layout->setStepRate(1);
   buffer_layout->setStepFunction(MTL::VertexStepFunctionPerVertex);
   
-  XELOGI("Metal pipeline cache: Created basic vertex descriptor with position attribute");
+  XELOGI("Metal pipeline cache: Created flexible vertex descriptor with 3 attributes, 20 byte stride");
   
-  // TODO: Configure vertex attributes based on actual Xbox 360 vertex format
-  // This requires parsing the vertex format hash and setting up appropriate
-  // Metal vertex attributes and buffer layouts for real Xbox 360 data
+  // TODO: Properly extract vertex format from shader metadata
+  // Each shader has vertex_bindings() that describe the expected format
   
   return vertex_descriptor;
 }

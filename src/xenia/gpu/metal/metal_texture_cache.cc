@@ -11,11 +11,15 @@
 
 #include <algorithm>
 #include <cstring>
+#include <vector>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/byte_order.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/metal/metal_command_processor.h"
+#include "xenia/gpu/texture_conversion.h"
+#include "xenia/gpu/texture_info.h"
 
 
 namespace xe {
@@ -60,15 +64,19 @@ void MetalTextureCache::ClearCache() {
 bool MetalTextureCache::UploadTexture2D(const TextureInfo& texture_info) {
   SCOPE_profile_cpu_f("gpu");
 
-  if (!texture_info.memory.base_address || !texture_info.width || !texture_info.height) {
+  if (!texture_info.memory.base_address) {
     return false;
   }
+  
+  // Xbox 360 stores dimensions as (actual_size - 1)
+  uint32_t actual_width = texture_info.width + 1;
+  uint32_t actual_height = texture_info.height + 1;
 
   // Create texture descriptor for cache lookup
   TextureDescriptor desc = {};
   desc.guest_base = texture_info.memory.base_address;
-  desc.width = texture_info.width;
-  desc.height = texture_info.height;
+  desc.width = texture_info.width;  // Use raw value for cache key
+  desc.height = texture_info.height;  // Use raw value for cache key
   desc.depth = 1;
   desc.format = static_cast<uint32_t>(texture_info.format_info()->format);
   desc.endian = static_cast<uint32_t>(texture_info.endianness);
@@ -90,9 +98,9 @@ bool MetalTextureCache::UploadTexture2D(const TextureInfo& texture_info) {
     return false;
   }
 
-  // Create Metal texture
+  // Create Metal texture with actual dimensions
   MTL::Texture* metal_texture = CreateTexture2D(
-      texture_info.width, texture_info.height, metal_format, texture_info.mip_levels());
+      actual_width, actual_height, metal_format, texture_info.mip_levels());
   if (!metal_texture) {
     XELOGE("Metal texture cache: Failed to create 2D texture");
     return false;
@@ -111,7 +119,7 @@ bool MetalTextureCache::UploadTexture2D(const TextureInfo& texture_info) {
   texture_cache_[desc] = std::move(metal_tex);
 
   XELOGD("Metal texture cache: Created 2D texture {}x{} format={} (total: {})",
-         texture_info.width, texture_info.height, 
+         actual_width, actual_height, 
          static_cast<uint32_t>(texture_info.format_info()->format),
          texture_cache_.size());
 
@@ -224,7 +232,8 @@ MTL::PixelFormat MetalTextureCache::ConvertXenosFormat(xenos::TextureFormat form
   // This is a simplified mapping - the full implementation would handle all Xbox 360 formats
   switch (format) {
     case xenos::TextureFormat::k_8_8_8_8:
-      return MTL::PixelFormatRGBA8Unorm;
+      // Xbox 360 stores as BGRA, Metal needs BGRA format
+      return MTL::PixelFormatBGRA8Unorm;
     case xenos::TextureFormat::k_1_5_5_5:
       return MTL::PixelFormatA1BGR5Unorm;
     case xenos::TextureFormat::k_5_6_5:
@@ -239,6 +248,24 @@ MTL::PixelFormat MetalTextureCache::ConvertXenosFormat(xenos::TextureFormat form
       return MTL::PixelFormatBC2_RGBA;
     case xenos::TextureFormat::k_DXT4_5:
       return MTL::PixelFormatBC3_RGBA;
+    case xenos::TextureFormat::k_16_16_16_16:
+      return MTL::PixelFormatRGBA16Unorm;
+    case xenos::TextureFormat::k_2_10_10_10:
+      return MTL::PixelFormatRGB10A2Unorm;
+    case xenos::TextureFormat::k_16_FLOAT:
+      return MTL::PixelFormatR16Float;
+    case xenos::TextureFormat::k_16_16_FLOAT:
+      return MTL::PixelFormatRG16Float;
+    case xenos::TextureFormat::k_16_16_16_16_FLOAT:
+      return MTL::PixelFormatRGBA16Float;
+    case xenos::TextureFormat::k_32_FLOAT:
+      return MTL::PixelFormatR32Float;
+    case xenos::TextureFormat::k_32_32_FLOAT:
+      return MTL::PixelFormatRG32Float;
+    case xenos::TextureFormat::k_32_32_32_32_FLOAT:
+      return MTL::PixelFormatRGBA32Float;
+    case xenos::TextureFormat::k_DXN:  // BC5
+      return MTL::PixelFormatBC5_RGUnorm;
     default:
       XELOGW("Metal texture cache: Unsupported Xbox 360 texture format {}", 
              static_cast<uint32_t>(format));
@@ -306,22 +333,113 @@ MTL::Texture* MetalTextureCache::CreateTextureCube(uint32_t width, MTL::PixelFor
 
 bool MetalTextureCache::UpdateTexture2D(MTL::Texture* texture, const TextureInfo& texture_info) {
   // Get guest data
-  const void* guest_data = memory_->TranslatePhysical(texture_info.memory.base_address);
+  const uint8_t* guest_data = static_cast<const uint8_t*>(
+      memory_->TranslatePhysical(texture_info.memory.base_address));
   if (!guest_data) {
     XELOGE("Metal texture cache: Invalid guest texture address 0x{:08X}", texture_info.memory.base_address);
     return false;
   }
 
-  // For now, assume simple format conversion or direct copy
-  // TODO: Implement proper Xbox 360 texture format conversion
+  const FormatInfo* format_info = texture_info.format_info();
+  if (!format_info) {
+    XELOGE("Metal texture cache: Invalid texture format");
+    return false;
+  }
+
+  // Calculate texture data layout
+  // Xbox 360 stores dimensions as (actual_size - 1)
+  uint32_t width = texture_info.width + 1;
+  uint32_t height = texture_info.height + 1;
+  uint32_t block_width = format_info->block_width;
+  uint32_t block_height = format_info->block_height;
+  uint32_t blocks_per_row = (width + block_width - 1) / block_width;
+  uint32_t blocks_per_column = (height + block_height - 1) / block_height;
+  uint32_t bytes_per_block = format_info->bytes_per_block();
+  uint32_t bytes_per_row = blocks_per_row * bytes_per_block;
+  uint32_t texture_size = bytes_per_row * blocks_per_column;
+
+  XELOGI("Metal texture cache: Uploading {}x{} texture, format {}, tiled={}, {} bytes",
+         width, height, static_cast<uint32_t>(format_info->format), 
+         texture_info.is_tiled, texture_size);
+
+  // Handle compressed formats (DXT/BC)
+  bool is_compressed = format_info->type == FormatType::kCompressed;
   
-  MTL::Region region = MTL::Region(0, 0, 0, texture_info.width, texture_info.height, 1);
+  MTL::Region region = MTL::Region(0, 0, 0, width, height, 1);
   
-  // Calculate bytes per row (simplified)
-  uint32_t bytes_per_pixel = 4;  // Assume RGBA8 for now
-  uint32_t bytes_per_row = texture_info.width * bytes_per_pixel;
-  
-  texture->replaceRegion(region, 0, guest_data, bytes_per_row);
+  // Check if texture is tiled (Xbox 360 uses 32x32 pixel tiles in Morton order)
+  if (texture_info.is_tiled) {
+    // Allocate buffer for untiled data
+    std::vector<uint8_t> untiled_data(texture_size);
+    
+    // Setup untiling parameters
+    texture_conversion::UntileInfo untile_info = {};
+    untile_info.offset_x = 0;
+    untile_info.offset_y = 0;
+    
+    // Width and height are in blocks (pixels for uncompressed, 4x4 blocks for compressed)
+    untile_info.width = blocks_per_row;
+    untile_info.height = blocks_per_column;
+    
+    // Pitch is also in blocks
+    // For tiled textures, the pitch field contains the pitch of the tiled layout
+    untile_info.input_pitch = texture_info.pitch;
+    untile_info.output_pitch = blocks_per_row;
+    
+    // Set format info for proper block handling
+    untile_info.input_format_info = format_info;
+    untile_info.output_format_info = format_info;
+    
+    // Use CopySwapBlock callback to handle endian swapping during untiling
+    // This is critical - the callback both copies AND swaps endianness
+    // We need to capture the endianness by value for the lambda
+    auto endian = texture_info.endianness;
+    untile_info.copy_callback = [endian](void* dst, const void* src, size_t size) {
+      texture_conversion::CopySwapBlock(endian, dst, src, size);
+    };
+    
+    // Perform untiling with endian swap
+    texture_conversion::Untile(untiled_data.data(), guest_data, &untile_info);
+    
+    // Upload the untiled data (already endian-swapped by callback)
+    texture->replaceRegion(region, 0, untiled_data.data(), bytes_per_row);
+    
+  } else {
+    // Linear texture - handle endianness then upload directly
+    if (texture_info.endianness != xenos::Endian::kNone && 
+        texture_info.endianness != xenos::Endian::k8in16) {
+      // Need to swap endianness - create a temporary buffer
+      std::vector<uint8_t> swapped_data(texture_size);
+      std::memcpy(swapped_data.data(), guest_data, texture_size);
+      
+      // Perform endian swap based on format
+      if (format_info->format == xenos::TextureFormat::k_8_8_8_8) {
+        // Swap 32-bit values for RGBA8
+        uint32_t* data32 = reinterpret_cast<uint32_t*>(swapped_data.data());
+        for (size_t i = 0; i < texture_size / 4; ++i) {
+          data32[i] = xe::byte_swap(data32[i]);
+        }
+      } else if (format_info->format == xenos::TextureFormat::k_5_6_5) {
+        // Swap 16-bit values for RGB565
+        uint16_t* data16 = reinterpret_cast<uint16_t*>(swapped_data.data());
+        for (size_t i = 0; i < texture_size / 2; ++i) {
+          data16[i] = xe::byte_swap(data16[i]);
+        }
+      } else if (format_info->format == xenos::TextureFormat::k_16_16_16_16) {
+        // Swap 16-bit values for each component of RGBA16
+        uint16_t* data16 = reinterpret_cast<uint16_t*>(swapped_data.data());
+        for (size_t i = 0; i < texture_size / 2; ++i) {
+          data16[i] = xe::byte_swap(data16[i]);
+        }
+      }
+      // TODO: Handle other formats
+      
+      texture->replaceRegion(region, 0, swapped_data.data(), bytes_per_row);
+    } else {
+      // No endian swap needed - upload directly
+      texture->replaceRegion(region, 0, guest_data, bytes_per_row);
+    }
+  }
   
   return true;
 }
