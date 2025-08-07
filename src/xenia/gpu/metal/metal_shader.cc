@@ -32,6 +32,10 @@
 
 // Include Metal Shader Converter headers
 #include "third_party/metal-shader-converter/include/metal_irconverter.h"
+// Include runtime header for IRDescriptorTableEntry
+// Define IR_RUNTIME_METALCPP to use metal-cpp types
+#define IR_RUNTIME_METALCPP 1
+#include "/usr/local/include/metal_irconverter_runtime/metal_irconverter_runtime.h"
 
 namespace xe {
 namespace gpu {
@@ -235,6 +239,12 @@ bool MetalShader::MetalTranslation::ConvertDxilToMetal(
     }
     return false;
   }
+  
+  // Capture reflection data after successful compilation
+  if (!CaptureReflectionData()) {
+    XELOGE("Metal shader: Failed to capture reflection data");
+    // Don't fail compilation - we can still try with default offsets
+  }
 
   return true;
 }
@@ -319,6 +329,88 @@ bool MetalShader::MetalTranslation::CreateMetalLibrary() {
   metal_function_ = function;
 
   device->release();
+  return true;
+}
+
+bool MetalShader::MetalTranslation::CaptureReflectionData() {
+  if (!ir_object_) {
+    XELOGE("Metal shader: No IR object for reflection");
+    return false;
+  }
+  
+  // Get shader stage
+  IRShaderStage stage = shader().type() == xenos::ShaderType::kVertex 
+                        ? IRShaderStageVertex : IRShaderStageFragment;
+  
+  // Create reflection object
+  IRShaderReflection* reflection = IRShaderReflectionCreate();
+  if (!IRObjectGetReflection(ir_object_, stage, reflection)) {
+    XELOGE("Metal shader: Failed to get shader reflection");
+    IRShaderReflectionDestroy(reflection);
+    return false;
+  }
+  
+  // Get resource count
+  size_t resource_count = IRShaderReflectionGetResourceCount(reflection);
+  XELOGI("Metal shader: Reflection found {} resources", resource_count);
+  
+  if (resource_count == 0) {
+    // No resources - this is valid for some shaders
+    IRShaderReflectionDestroy(reflection);
+    return true;
+  }
+  
+  // Allocate array for resource locations
+  IRResourceLocation* locations = new IRResourceLocation[resource_count];
+  
+  // Get actual resource locations
+  IRShaderReflectionGetResourceLocations(reflection, locations);
+  
+  // Clear existing mappings and reserve space
+  resource_mappings_.clear();
+  resource_mappings_.reserve(resource_count);
+  
+  // Store resource mappings
+  for (size_t i = 0; i < resource_count; i++) {
+    ResourceMapping mapping;
+    mapping.hlsl_slot = locations[i].slot;
+    mapping.hlsl_space = locations[i].space;
+    mapping.resource_type = locations[i].resourceType;  // Use correct field name
+    
+    // The topLevelOffset is in bytes into the argument buffer
+    // Convert to entry index (each entry is 3 uint64_t = 24 bytes)
+    mapping.arg_buffer_offset = locations[i].topLevelOffset / sizeof(IRDescriptorTableEntry);
+    
+    resource_mappings_.push_back(mapping);
+    
+    // Debug logging
+    const char* type_str = "Unknown";
+    switch (locations[i].resourceType) {
+      case IRResourceTypeTable: type_str = "Table"; break;
+      case IRResourceTypeConstant: type_str = "Constant"; break;
+      case IRResourceTypeCBV: type_str = "CBV"; break;
+      case IRResourceTypeSRV: type_str = "SRV/Texture"; break;
+      case IRResourceTypeUAV: type_str = "UAV"; break;
+      case IRResourceTypeSampler: type_str = "Sampler"; break;
+      case IRResourceTypeInvalid: type_str = "Invalid"; break;
+      default: type_str = "Unknown"; break;
+    }
+    
+    XELOGI("  Resource[{}]: type={} (raw={}), slot={}, space={}, offset_bytes={}, offset_entries={}",
+           i, type_str, (int)locations[i].resourceType, locations[i].slot, locations[i].space, 
+           locations[i].topLevelOffset, mapping.arg_buffer_offset);
+  }
+  
+  delete[] locations;
+  
+  // Also capture shader stage info for debugging
+  const char* stage_str = (stage == IRShaderStageVertex) ? "Vertex" : "Fragment";
+  XELOGI("Metal shader: {} shader reflection captured with {} resources",
+         stage_str, resource_count);
+  
+  // Clean up reflection object
+  IRShaderReflectionDestroy(reflection);
+  
   return true;
 }
 

@@ -572,6 +572,29 @@ size_t MetalPipelineCache::ComputePipelineDescriptionHasher::operator()(
   return hash;
 }
 
+std::pair<MetalShader::MetalTranslation*, MetalShader::MetalTranslation*>
+MetalPipelineCache::GetShaderTranslations(const RenderPipelineDescription& description) {
+  // Find the shaders in cache
+  auto vertex_it = shaders_.find(description.vertex_shader_hash);
+  auto pixel_it = shaders_.find(description.pixel_shader_hash);
+  
+  if (vertex_it == shaders_.end() || pixel_it == shaders_.end()) {
+    XELOGE("Metal pipeline cache: Shaders not found for translation retrieval");
+    return {nullptr, nullptr};
+  }
+  
+  MetalShader* vertex_shader = static_cast<MetalShader*>(vertex_it->second.get());
+  MetalShader* pixel_shader = static_cast<MetalShader*>(pixel_it->second.get());
+  
+  // Get the translations with the appropriate modifications
+  auto vertex_translation = static_cast<MetalShader::MetalTranslation*>(
+      vertex_shader->GetOrCreateTranslation(description.vertex_shader_modification));
+  auto pixel_translation = static_cast<MetalShader::MetalTranslation*>(
+      pixel_shader->GetOrCreateTranslation(description.pixel_shader_modification));
+  
+  return {vertex_translation, pixel_translation};
+}
+
 }  // namespace metal
 }  // namespace gpu
 }  // namespace xe

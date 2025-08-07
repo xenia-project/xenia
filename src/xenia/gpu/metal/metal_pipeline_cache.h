@@ -12,6 +12,7 @@
 
 #include <memory>
 #include <unordered_map>
+#include <utility>
 
 #include "xenia/base/hash.h"
 #include "xenia/gpu/gpu_flags.h"
@@ -19,6 +20,7 @@
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/shader.h"
 #include "xenia/gpu/xenos.h"
+#include "xenia/gpu/metal/metal_shader.h"
 
 #include "third_party/metal-cpp/Metal/Metal.hpp"
 
@@ -96,6 +98,11 @@ class MetalPipelineCache {
   // Get or create Metal compute pipeline state
   MTL::ComputePipelineState* GetComputePipelineState(
       const ComputePipelineDescription& description);
+  
+  // Get shader translations for accessing reflection data
+  // Returns pair of <vertex_translation, pixel_translation>
+  std::pair<MetalShader::MetalTranslation*, MetalShader::MetalTranslation*> 
+      GetShaderTranslations(const RenderPipelineDescription& description);
 
  protected:
   bool TranslateShader(DxbcShaderTranslator& translator, 

@@ -34,6 +34,14 @@ class MetalRenderTargetCache;
 class MetalSharedMemory;
 class MetalTextureCache;
 
+// Metal shader converter descriptor table entry format
+// Each resource (texture/sampler/buffer) is described by 3 uint64_t values
+struct IRDescriptorTableEntry {
+  uint64_t gpuVA;        // Buffer GPU address or 0 for textures/samplers
+  uint64_t textureID;    // Texture/sampler resource ID or 0 for buffers
+  uint64_t metadata;     // Flags and additional info (LOD clamp, LOD bias, etc.)
+};
+
 class MetalCommandProcessor : public CommandProcessor {
  public:
   MetalCommandProcessor(MetalGraphicsSystem* graphics_system,
