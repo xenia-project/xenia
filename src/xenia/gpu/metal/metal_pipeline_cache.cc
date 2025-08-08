@@ -358,6 +358,12 @@ MTL::RenderPipelineState* MetalPipelineCache::CreateRenderPipelineState(
   // Set depth format if present
   if (description.depth_format != MTL::PixelFormatInvalid) {
     descriptor->setDepthAttachmentPixelFormat(description.depth_format);
+    
+    // If depth format includes stencil, set stencil attachment format too
+    if (description.depth_format == MTL::PixelFormatDepth32Float_Stencil8 ||
+        description.depth_format == MTL::PixelFormatDepth24Unorm_Stencil8) {
+      descriptor->setStencilAttachmentPixelFormat(description.depth_format);
+    }
   }
   
   // Set sample count for MSAA (always set it, even if 1)
@@ -738,6 +744,12 @@ MTL::RenderPipelineState* MetalPipelineCache::GetRenderPipelineStateWithRedPS(
   // Set depth format if present
   if (description.depth_format != MTL::PixelFormatInvalid) {
     desc->setDepthAttachmentPixelFormat(description.depth_format);
+    
+    // If depth format includes stencil, set stencil attachment format too
+    if (description.depth_format == MTL::PixelFormatDepth32Float_Stencil8 ||
+        description.depth_format == MTL::PixelFormatDepth24Unorm_Stencil8) {
+      desc->setStencilAttachmentPixelFormat(description.depth_format);
+    }
   }
   
   // Set sample count
@@ -889,6 +901,12 @@ MTL::RenderPipelineState* MetalPipelineCache::GetRenderPipelineStateWithMinimalV
   // Configure depth attachment if present
   if (description.depth_format != MTL::PixelFormatInvalid) {
     desc->setDepthAttachmentPixelFormat(description.depth_format);
+    
+    // If depth format includes stencil, set stencil attachment format too
+    if (description.depth_format == MTL::PixelFormatDepth32Float_Stencil8 ||
+        description.depth_format == MTL::PixelFormatDepth24Unorm_Stencil8) {
+      desc->setStencilAttachmentPixelFormat(description.depth_format);
+    }
   }
   
   // Set sample count
@@ -1045,6 +1063,12 @@ MTL::RenderPipelineState* MetalPipelineCache::GetRenderPipelineStateWithViewport
   // Configure depth attachment if present
   if (description.depth_format != MTL::PixelFormatInvalid) {
     desc->setDepthAttachmentPixelFormat(description.depth_format);
+    
+    // If depth format includes stencil, set stencil attachment format too
+    if (description.depth_format == MTL::PixelFormatDepth32Float_Stencil8 ||
+        description.depth_format == MTL::PixelFormatDepth24Unorm_Stencil8) {
+      desc->setStencilAttachmentPixelFormat(description.depth_format);
+    }
   }
   
   // Set sample count
@@ -1146,6 +1170,12 @@ MTL::RenderPipelineState* MetalPipelineCache::GetRenderPipelineStateWithGreenPS(
   // Configure depth attachment if present
   if (description.depth_format != MTL::PixelFormatInvalid) {
     desc->setDepthAttachmentPixelFormat(description.depth_format);
+    
+    // If depth format includes stencil, set stencil attachment format too
+    if (description.depth_format == MTL::PixelFormatDepth32Float_Stencil8 ||
+        description.depth_format == MTL::PixelFormatDepth24Unorm_Stencil8) {
+      desc->setStencilAttachmentPixelFormat(description.depth_format);
+    }
   }
   
   // CRITICAL: Set sample count to match render target

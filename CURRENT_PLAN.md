@@ -23,11 +23,17 @@
 3. **Dummy target behavior is expected**: When RB_COLOR_INFO registers are zero, no targets are bound (normal for many draws)
 4. **Capture is working**: We're successfully reading pixel data from GPU (non-zero values confirmed)
 
+### ✅ Latest Progress
+
+- **Fixed capture to use real render targets** - Now tracking and capturing from last REAL render target
+- **Confirmed real RT binding** - 320x720 (key 0x00104000) and 1280x720 (key 0x00008000) targets are bound
+- **Capture working correctly** - Reading from actual game RT, not dummy target
+
 ### ❌ Remaining Issues
 
-1. **Capturing from dummy target** - The 1280x720 dummy RT is being captured instead of actual game RT (320x2048)
-   - This is because most draws have no bound targets (RB_COLOR_INFO = 0)
-   - Need to capture from the last REAL render target that was drawn to
+1. **Render targets are cleared but not drawn to** - Pink output indicates RT is cleared but draws aren't rendering
+   - The render target infrastructure is working correctly
+   - Issue is likely with shader execution, pipeline state, or draw commands
 2. **GPU capture file corruption** - Files generated but Xcode reports "index file does not exist"
 3. **Inefficient command buffer batching** - Arbitrarily committing every 5 draws
 4. **Need to implement ownership transfers** - Base class expects transfers for proper RT management
