@@ -667,17 +667,31 @@ bool MetalCommandProcessor::CaptureColorTarget(uint32_t index, uint32_t& width, 
   }
   
   if (!texture) {
-    XELOGI("Metal CaptureColorTarget: No color target {}, trying dummy color target from cache", index);
-    // Try the dummy color target from the render target cache first
+    XELOGI("Metal CaptureColorTarget: No current color target {}, trying last REAL render target", index);
+    // Try to get the last REAL render target that was rendered to
+    texture = render_target_cache_->GetLastRealColorTarget(index);
+    if (texture) {
+      XELOGI("Metal CaptureColorTarget: Using last REAL color target {} ({}x{}, format {})", 
+             index, texture->width(), texture->height(), static_cast<uint32_t>(texture->pixelFormat()));
+    }
+  }
+  
+  if (!texture) {
+    XELOGI("Metal CaptureColorTarget: No real targets, trying dummy color target from cache");
+    // Try the dummy color target from the render target cache
     texture = render_target_cache_->GetDummyColorTarget();
     if (!texture) {
-      XELOGI("Metal CaptureColorTarget: No dummy color target from cache, trying depth target", index);
-      // Last resort: try depth target as fallback
-      texture = render_target_cache_->GetDepthTarget();
+      XELOGI("Metal CaptureColorTarget: No dummy color target from cache, trying last real depth");
+      // Try last real depth target before giving up
+      texture = render_target_cache_->GetLastRealDepthTarget();
       if (!texture) {
-        XELOGW("Metal CaptureColorTarget: No render targets available at all");
-        AutoreleasePoolTracker::Pop(pool, "CaptureColorTarget");
-        return false;
+        XELOGI("Metal CaptureColorTarget: No last real depth, trying current depth");
+        texture = render_target_cache_->GetDepthTarget();
+        if (!texture) {
+          XELOGW("Metal CaptureColorTarget: No render targets available at all");
+          AutoreleasePoolTracker::Pop(pool, "CaptureColorTarget");
+          return false;
+        }
       }
       XELOGI("Metal CaptureColorTarget: Using depth target ({}x{}, format {})", 
              texture->width(), texture->height(), static_cast<uint32_t>(texture->pixelFormat()));
@@ -687,7 +701,7 @@ bool MetalCommandProcessor::CaptureColorTarget(uint32_t index, uint32_t& width, 
              reinterpret_cast<uintptr_t>(texture));
     }
   } else {
-    XELOGI("Metal CaptureColorTarget: Found color target ({}x{}, format {})", 
+    XELOGI("Metal CaptureColorTarget: Found current color target ({}x{}, format {})", 
            texture->width(), texture->height(), static_cast<uint32_t>(texture->pixelFormat()));
   }
   

@@ -79,6 +79,10 @@ class MetalRenderTargetCache final : public gpu::RenderTargetCache {
   MTL::Texture* GetDepthTarget() const;
   MTL::Texture* GetDummyColorTarget() const;
   
+  // Get the last REAL (non-dummy) render targets for capture
+  MTL::Texture* GetLastRealColorTarget(uint32_t index) const;
+  MTL::Texture* GetLastRealDepthTarget() const;
+  
   // Restore EDRAM contents from snapshot (for trace playback)
   void RestoreEdram(const void* snapshot);
   
@@ -108,6 +112,10 @@ class MetalRenderTargetCache final : public gpu::RenderTargetCache {
   // Current render targets - updated by base class Update() call
   MetalRenderTarget* current_color_targets_[4] = {};
   MetalRenderTarget* current_depth_target_ = nullptr;
+  
+  // Track the last REAL (non-dummy) render targets for capture
+  MetalRenderTarget* last_real_color_targets_[4] = {};
+  MetalRenderTarget* last_real_depth_target_ = nullptr;
   
   // Track all created render targets so we can find them
   std::unordered_map<uint32_t, MetalRenderTarget*> render_target_map_;

@@ -377,7 +377,11 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(
     }
     
     has_any_render_target = true;
-    XELOGD("MetalRenderTargetCache: Bound depth target to render pass");
+    
+    // Track this as a real render target for capture
+    last_real_depth_target_ = current_depth_target_;
+    
+    XELOGI("MetalRenderTargetCache: Bound depth target to render pass (REAL target)");
   }
   
   // Bind color targets
@@ -390,7 +394,14 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(
       color_attachment->setClearColor(MTL::ClearColor::Make(0.0, 0.0, 0.0, 1.0));
       
       has_any_render_target = true;
-      XELOGD("MetalRenderTargetCache: Bound color target {} to render pass", i);
+      
+      // Track this as a real render target for capture
+      last_real_color_targets_[i] = current_color_targets_[i];
+      
+      XELOGI("MetalRenderTargetCache: Bound color target {} to render pass (REAL target, {}x{}, key 0x{:08X})", 
+             i, current_color_targets_[i]->texture()->width(), 
+             current_color_targets_[i]->texture()->height(),
+             current_color_targets_[i]->key().key);
     }
   }
   
@@ -442,8 +453,24 @@ MTL::Texture* MetalRenderTargetCache::GetDepthTarget() const {
 }
 
 MTL::Texture* MetalRenderTargetCache::GetDummyColorTarget() const {
-  // TODO: Implement dummy target
+  if (dummy_color_target_ && dummy_color_target_->texture()) {
+    return dummy_color_target_->texture();
+  }
   return nullptr;
+}
+
+MTL::Texture* MetalRenderTargetCache::GetLastRealColorTarget(uint32_t index) const {
+  if (index >= 4 || !last_real_color_targets_[index]) {
+    return nullptr;
+  }
+  return last_real_color_targets_[index]->texture();
+}
+
+MTL::Texture* MetalRenderTargetCache::GetLastRealDepthTarget() const {
+  if (!last_real_depth_target_) {
+    return nullptr;
+  }
+  return last_real_depth_target_->texture();
 }
 
 void MetalRenderTargetCache::RestoreEdram(const void* snapshot) {
