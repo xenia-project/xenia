@@ -140,6 +140,10 @@ class MetalCommandProcessor : public CommandProcessor {
   // Active command buffer for draw commands (used in IssueDraw)
   MTL::CommandBuffer* active_draw_command_buffer_ = nullptr;
   
+  // Current render encoder - reused across multiple draws
+  MTL::RenderCommandEncoder* current_render_encoder_ = nullptr;
+  MTL::RenderPassDescriptor* current_render_pass_ = nullptr;
+  
   // Last captured frame for trace dumps
   std::vector<uint8_t> last_captured_frame_data_;
   uint32_t last_captured_frame_width_ = 0;

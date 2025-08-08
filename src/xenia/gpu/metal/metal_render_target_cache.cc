@@ -157,33 +157,43 @@ bool MetalRenderTargetCache::Update(bool is_rasterization_done,
     }
   }
   
-  // Clear current targets first
-  for (uint32_t i = 0; i < 4; ++i) {
-    current_color_targets_[i] = nullptr;
-  }
-  current_depth_target_ = nullptr;
+  // Check if render targets actually changed
+  bool targets_changed = false;
   
-  // Extract the depth target (index 0)
-  if (accumulated_targets[0]) {
-    current_depth_target_ = static_cast<MetalRenderTarget*>(accumulated_targets[0]);
-    XELOGD("MetalRenderTargetCache::Update - Depth target bound: key={:08X}",
-           current_depth_target_->key().key);
+  // Check depth target
+  MetalRenderTarget* new_depth_target = accumulated_targets[0] ? 
+      static_cast<MetalRenderTarget*>(accumulated_targets[0]) : nullptr;
+  if (new_depth_target != current_depth_target_) {
+    targets_changed = true;
+    current_depth_target_ = new_depth_target;
+    if (current_depth_target_) {
+      XELOGD("MetalRenderTargetCache::Update - Depth target changed: key={:08X}",
+             current_depth_target_->key().key);
+    }
   }
   
-  // Extract color targets (indices 1-4)
+  // Check color targets
   for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
-    if (accumulated_targets[i + 1]) {
-      current_color_targets_[i] = static_cast<MetalRenderTarget*>(accumulated_targets[i + 1]);
-      XELOGD("MetalRenderTargetCache::Update - Color target {} bound: key={:08X}",
-             i, current_color_targets_[i]->key().key);
+    MetalRenderTarget* new_color_target = accumulated_targets[i + 1] ? 
+        static_cast<MetalRenderTarget*>(accumulated_targets[i + 1]) : nullptr;
+    if (new_color_target != current_color_targets_[i]) {
+      targets_changed = true;
+      current_color_targets_[i] = new_color_target;
+      if (current_color_targets_[i]) {
+        XELOGD("MetalRenderTargetCache::Update - Color target {} changed: key={:08X}",
+               i, current_color_targets_[i]->key().key);
+      }
     }
   }
   
   // TODO: Handle ownership transfers if needed (see D3D12/Vulkan PerformTransfersAndResolveClears)
   // For now, we'll skip this as we're just trying to get basic rendering working
   
-  // Mark render pass descriptor as dirty so it gets recreated with the new targets
-  render_pass_descriptor_dirty_ = true;
+  // Only mark render pass descriptor as dirty if targets actually changed
+  if (targets_changed) {
+    render_pass_descriptor_dirty_ = true;
+    XELOGI("MetalRenderTargetCache::Update - Render targets changed, marking descriptor dirty");
+  }
   
   return true;
 }

@@ -198,6 +198,20 @@ void MetalCommandProcessor::ShutdownContext() {
   // NOTE: Do NOT use @autoreleasepool here - it causes crashes when destroyed
   // Metal-cpp manages its own autorelease pools internally
   
+  // End any active render encoder before shutting down
+  if (current_render_encoder_) {
+    XELOGI("Metal ShutdownContext: Ending active render encoder");
+    current_render_encoder_->endEncoding();
+    current_render_encoder_->release();
+    current_render_encoder_ = nullptr;
+  }
+  
+  // Release render pass reference
+  if (current_render_pass_) {
+    current_render_pass_->release();
+    current_render_pass_ = nullptr;
+  }
+  
   // Commit any outstanding draws before shutting down
   if (submission_open_ && draws_in_current_batch_ > 0) {
     XELOGI("Metal ShutdownContext: Committing final batch of {} draws", draws_in_current_batch_);
@@ -1489,55 +1503,91 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
           return false;
         }
         
-        // Create render command encoder
-        // DO NOT use autorelease pool here - the encoder is autoreleased and we need it to survive
-        XELOGI("Metal IssueDraw: Creating render command encoder...");
-        XELOGI("Metal IssueDraw: Command buffer valid: {}, render pass valid: {}", 
-               command_buffer != nullptr, render_pass != nullptr);
+        // Check if we need to create a new render encoder or can reuse the existing one
+        // Only create a new encoder if:
+        // 1. We don't have one yet
+        // 2. The render pass has changed (different render targets)
+        // 3. The command buffer has changed
         
-        if (!command_buffer) {
-          XELOGE("Metal IssueDraw: Command buffer is null!");
-          return false;
+        bool need_new_encoder = false;
+        if (!current_render_encoder_) {
+          XELOGI("Metal IssueDraw: Need new encoder - no current encoder");
+          need_new_encoder = true;
+        } else if (current_render_pass_ != render_pass) {
+          XELOGI("Metal IssueDraw: Need new encoder - render pass changed");
+          need_new_encoder = true;
+        } else if (active_draw_command_buffer_ != command_buffer) {
+          XELOGI("Metal IssueDraw: Need new encoder - command buffer changed");
+          need_new_encoder = true;
         }
-        if (!render_pass) {
-          XELOGE("Metal IssueDraw: Render pass is null!");
-          return false;
-        }
         
-        XELOGI("Metal IssueDraw: About to call renderCommandEncoder...");
-        XELOGI("Metal IssueDraw: command_buffer pointer = {}, render_pass pointer = {}", 
-               (void*)command_buffer, (void*)render_pass);
-        MTL::RenderCommandEncoder* encoder = nullptr;
+        MTL::RenderCommandEncoder* encoder = current_render_encoder_;
         
-        // Store the render pass descriptor for potential capture fallback
-        if (last_render_pass_descriptor_) {
-          last_render_pass_descriptor_->release();
-          last_render_pass_descriptor_ = nullptr;
-        }
-        last_render_pass_descriptor_ = render_pass->retain();
-        
-        // Wrap in Objective-C exception handling since Metal throws NSExceptions
-        @try {
-          encoder = command_buffer->renderCommandEncoder(render_pass);
-          XELOGI("Metal IssueDraw: renderCommandEncoder returned: {}", encoder ? "valid" : "null");
-          if (encoder) {
-            // Retain the encoder to prevent it from being autoreleased prematurely
-            encoder->retain();
-            XELOGI("Metal IssueDraw: Encoder retained successfully");
+        if (need_new_encoder) {
+          // End the previous encoder if it exists
+          if (current_render_encoder_) {
+            XELOGI("Metal IssueDraw: Ending previous render encoder");
+            current_render_encoder_->endEncoding();
+            current_render_encoder_->release();
+            current_render_encoder_ = nullptr;
           }
+          
+          // Release old render pass reference
+          if (current_render_pass_) {
+            current_render_pass_->release();
+            current_render_pass_ = nullptr;
+          }
+          
+          XELOGI("Metal IssueDraw: Creating new render command encoder...");
+          XELOGI("Metal IssueDraw: Command buffer valid: {}, render pass valid: {}", 
+                 command_buffer != nullptr, render_pass != nullptr);
+          
+          if (!command_buffer) {
+            XELOGE("Metal IssueDraw: Command buffer is null!");
+            return false;
+          }
+          if (!render_pass) {
+            XELOGE("Metal IssueDraw: Render pass is null!");
+            return false;
+          }
+          
+          // Store the render pass descriptor for potential capture fallback
+          if (last_render_pass_descriptor_) {
+            last_render_pass_descriptor_->release();
+            last_render_pass_descriptor_ = nullptr;
+          }
+          last_render_pass_descriptor_ = render_pass->retain();
+          
+          // Wrap in Objective-C exception handling since Metal throws NSExceptions
+          @try {
+            encoder = command_buffer->renderCommandEncoder(render_pass);
+            XELOGI("Metal IssueDraw: renderCommandEncoder returned: {}", encoder ? "valid" : "null");
+            if (encoder) {
+              // Retain the encoder to prevent it from being autoreleased prematurely
+              encoder->retain();
+              current_render_encoder_ = encoder;
+              current_render_pass_ = render_pass->retain();
+              active_draw_command_buffer_ = command_buffer;
+              XELOGI("Metal IssueDraw: New encoder created and stored for reuse");
+            }
+          }
+          @catch (NSException* exception) {
+            // Log the Objective-C exception details
+            XELOGE("Metal IssueDraw: NSException creating render encoder - Name: {}, Reason: {}",
+                   [[exception name] UTF8String],
+                   [[exception reason] UTF8String]);
+            encoder = nullptr;
+          }
+          @catch (...) {
+            XELOGE("Metal IssueDraw: Unknown exception creating render encoder");
+            encoder = nullptr;
+          }
+        } else {
+          XELOGI("Metal IssueDraw: Reusing existing render encoder");
         }
-        @catch (NSException* exception) {
-          // Log the Objective-C exception details
-          XELOGE("Metal IssueDraw: NSException creating render encoder - Name: {}, Reason: {}",
-                 [[exception name] UTF8String],
-                 [[exception reason] UTF8String]);
-          encoder = nullptr;
-        }
-        @catch (...) {
-          XELOGE("Metal IssueDraw: Unknown exception creating render encoder");
-          encoder = nullptr;
-        }
-        XELOGI("Metal IssueDraw: Render encoder created: {}", encoder ? "valid" : "null");
+        
+        XELOGI("Metal IssueDraw: Render encoder {}: {}", 
+               need_new_encoder ? "created" : "reused", encoder ? "valid" : "null");
         
         if (encoder) {
           // Track encoder creation
@@ -2884,14 +2934,12 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
           // Pop debug group
           encoder->popDebugGroup();
           
-          XELOGI("Metal IssueDraw: About to call endEncoding on encoder");
-          encoder->endEncoding();
-          XELOGI("Metal IssueDraw: endEncoding completed successfully");
-          
-          // Track encoder release
-          TRACK_METAL_RELEASE(encoder);
-          // Release our retained reference
-          encoder->release();
+          // DON'T end the encoder here - we'll reuse it for the next draw!
+          // The encoder will be ended when:
+          // 1. A new render pass is needed (different render targets)
+          // 2. The command buffer is being committed
+          // 3. ShutdownContext is called
+          XELOGI("Metal IssueDraw: Keeping encoder open for potential reuse");
           
           XELOGI("Metal IssueDraw: Metal frame debugging - Command buffer '{}' ready for capture", draw_label);
         }
@@ -3053,6 +3101,20 @@ bool MetalCommandProcessor::EndSubmission(bool is_swap) {
   if (!submission_open_) {
     return true;
   }
+  
+  // End any active render encoder before committing
+  if (current_render_encoder_) {
+    XELOGI("Metal EndSubmission: Ending render encoder before commit");
+    current_render_encoder_->endEncoding();
+    current_render_encoder_->release();
+    current_render_encoder_ = nullptr;
+  }
+  
+  // Release render pass reference
+  if (current_render_pass_) {
+    current_render_pass_->release();
+    current_render_pass_ = nullptr;
+  }
 
   bool is_closing_frame = is_swap && frame_open_;
   
@@ -3197,16 +3259,45 @@ void MetalCommandProcessor::WaitForIdle() {
   // First call base implementation to wait for command processing to complete
   CommandProcessor::WaitForIdle();
   
+  // End any active render encoder before flushing
+  if (current_render_encoder_) {
+    XELOGI("Metal WaitForIdle: Ending active render encoder");
+    current_render_encoder_->endEncoding();
+    current_render_encoder_->release();
+    current_render_encoder_ = nullptr;
+  }
+  
+  // Release render pass reference
+  if (current_render_pass_) {
+    current_render_pass_->release();
+    current_render_pass_ = nullptr;
+  }
+  
   // Then flush any pending Metal submissions
   if (submission_open_) {
-    XELOGI("Metal WaitForIdle: Flushing pending submission");
+    XELOGI("Metal WaitForIdle: Flushing pending submission with {} draws", draws_in_current_batch_);
     EndSubmission(false);
+    draws_in_current_batch_ = 0;
   }
 }
 
 void MetalCommandProcessor::CommitPendingCommandBuffer() {
   SCOPE_profile_cpu_f("gpu");
   XELOGI("MetalCommandProcessor::CommitPendingCommandBuffer called");
+  
+  // End any active render encoder before committing
+  if (current_render_encoder_) {
+    XELOGI("MetalCommandProcessor: Ending active render encoder before commit");
+    current_render_encoder_->endEncoding();
+    current_render_encoder_->release();
+    current_render_encoder_ = nullptr;
+  }
+  
+  // Release render pass reference
+  if (current_render_pass_) {
+    current_render_pass_->release();
+    current_render_pass_ = nullptr;
+  }
   
   // Commit the current command buffer if there is one
   if (current_command_buffer_) {
