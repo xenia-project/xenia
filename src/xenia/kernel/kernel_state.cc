@@ -838,7 +838,7 @@ void KernelState::OnThreadExecute(XThread* thread) {
     if (user_module->is_dll_module() && user_module->entry_point()) {
       uint64_t args[] = {
           user_module->handle(),
-          user_module->is_attached_
+          user_module->is_attached()
               ? static_cast<uint64_t>(2)   // DLL_THREAD_ATTACH - Used to call
                                            // DLL for each thread created.
               : static_cast<uint64_t>(1),  // DLL_PROCESS_ATTACH - Used only

@@ -66,6 +66,13 @@ class UserModule : public XModule {
 
   bool is_executable() const { return processor_module_->is_executable(); }
   bool is_dll_module() const { return is_dll_module_; }
+  bool is_attached() const {
+    // Special case for skipping real XAM initialization as it will fail.
+    if (name_ == "xam") {
+      return true;
+    }
+    return is_attached_;
+  }
 
   uint32_t entry_point() const { return entry_point_; }
   uint32_t stack_size() const { return stack_size_; }
