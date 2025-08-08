@@ -13,7 +13,9 @@
 #include <memory>
 #include <unordered_map>
 
+#include "xenia/gpu/render_target_cache.h"
 #include "xenia/gpu/register_file.h"
+#include "xenia/gpu/trace_writer.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/memory.h"
 
@@ -25,114 +27,124 @@ namespace metal {
 
 class MetalCommandProcessor;
 
-class MetalRenderTargetCache {
+class MetalRenderTargetCache final : public gpu::RenderTargetCache {
  public:
-  MetalRenderTargetCache(MetalCommandProcessor* command_processor,
-                         const RegisterFile* register_file,
-                         Memory* memory);
-  ~MetalRenderTargetCache();
+  // Metal-specific render target - defined inside cache class to access protected RenderTarget
+  class MetalRenderTarget final : public RenderTarget {
+   public:
+    ~MetalRenderTarget() override;
+    
+    MTL::Texture* texture() const { return texture_; }
+    MTL::Texture* msaa_texture() const { return msaa_texture_; }
+    
+    void SetTexture(MTL::Texture* texture) { texture_ = texture; }
+    void SetMsaaTexture(MTL::Texture* texture) { msaa_texture_ = texture; }
+    
+    // Public constructor for creating render targets
+    MetalRenderTarget(RenderTargetKey key) : RenderTarget(key) {}
+    
+   private:
+    MTL::Texture* texture_ = nullptr;
+    MTL::Texture* msaa_texture_ = nullptr;  // If MSAA is enabled
+  };
+
+ public:
+  MetalRenderTargetCache(const RegisterFile& register_file,
+                         const Memory& memory,
+                         TraceWriter* trace_writer,
+                         uint32_t draw_resolution_scale_x,
+                         uint32_t draw_resolution_scale_y,
+                         MetalCommandProcessor& command_processor);
+  ~MetalRenderTargetCache() override;
 
   bool Initialize();
-  void Shutdown();
-  void ClearCache();
+  void Shutdown(bool from_destructor = false);
 
-  // Render target management
-  bool SetRenderTargets(uint32_t rt_count, const uint32_t* color_targets,
-                       uint32_t depth_target);
+  // RenderTargetCache implementation
+  Path GetPath() const override { return Path::kHostRenderTargets; }
   
-  // Resolve (copy) render targets to shared memory
-  bool Resolve(Memory& memory, uint32_t& written_address, uint32_t& written_length);
+  void ClearCache() override;
+  void BeginFrame() override;
   
-  // Copy render targets to/from EDRAM buffer
-  void LoadRenderTargetsFromEDRAM(MTL::CommandBuffer* command_buffer = nullptr);
-  void StoreRenderTargetsToEDRAM(MTL::CommandBuffer* command_buffer = nullptr);
+  bool Update(bool is_rasterization_done,
+              reg::RB_DEPTHCONTROL normalized_depth_control,
+              uint32_t normalized_color_mask,
+              const Shader& vertex_shader) override;
+
+  // Metal-specific methods
+  MTL::RenderPassDescriptor* GetRenderPassDescriptor(uint32_t expected_sample_count = 1);
   
-  // Get current render targets for Metal render pass
+  // Get current render targets for capture
   MTL::Texture* GetColorTarget(uint32_t index) const;
   MTL::Texture* GetDepthTarget() const;
   MTL::Texture* GetDummyColorTarget() const;
   
-  // Reset for new frame (clears dummy target on next use)
-  void BeginFrame() {
-    dummy_color_target_needs_clear_ = true;
-  }
+  // Restore EDRAM contents from snapshot (for trace playback)
+  void RestoreEdram(const void* snapshot);
   
-  // Get render pass descriptor for current targets
-  // expected_sample_count: The sample count expected by the pipeline (for dummy target creation)
-  MTL::RenderPassDescriptor* GetRenderPassDescriptor(uint32_t expected_sample_count = 1);
+  // Resolve (copy) render targets to shared memory
+  bool Resolve(Memory& memory, uint32_t& written_address, uint32_t& written_length);
+
+ protected:
+  // Virtual methods from RenderTargetCache
+  uint32_t GetMaxRenderTargetWidth() const override;
+  uint32_t GetMaxRenderTargetHeight() const override;
+  
+  RenderTarget* CreateRenderTarget(RenderTargetKey key) override;
+  
+  bool IsHostDepthEncodingDifferent(
+      xenos::DepthRenderTargetFormat format) const override;
 
  private:
-  struct RenderTargetDescriptor {
-    uint32_t base_address;
-    uint32_t width;
-    uint32_t height;
-    uint32_t format;
-    uint32_t msaa_samples;
-    bool is_depth;
-    
-    bool operator==(const RenderTargetDescriptor& other) const;
-  };
+  MetalCommandProcessor& command_processor_;
+  TraceWriter* trace_writer_;
   
-  struct RenderTargetDescriptorHasher {
-    size_t operator()(const RenderTargetDescriptor& desc) const;
-  };
-
-  struct MetalRenderTarget {
-    MTL::Texture* texture;
-    MTL::Texture* resolve_texture;  // For MSAA resolve
-    uint32_t width;
-    uint32_t height;
-    MTL::PixelFormat format;
-    uint32_t samples;
-    bool is_depth;
-    uint32_t edram_base;  // EDRAM address offset for this render target
-    bool needs_clear;  // Track if this target needs initial clear
-    
-    MetalRenderTarget() : texture(nullptr), resolve_texture(nullptr),
-                         width(0), height(0), format(MTL::PixelFormatInvalid),
-                         samples(1), is_depth(false), edram_base(0), needs_clear(true) {}
-    ~MetalRenderTarget() {
-      if (texture) {
-        texture->release();
-      }
-      if (resolve_texture) {
-        resolve_texture->release();
-      }
-    }
-  };
-
-  // Metal render target creation helpers
-  MTL::Texture* CreateColorTarget(uint32_t width, uint32_t height,
-                                 MTL::PixelFormat format, uint32_t samples = 1);
-  MTL::Texture* CreateDepthTarget(uint32_t width, uint32_t height,
-                                 MTL::PixelFormat format, uint32_t samples = 1);
+  // Metal device reference
+  MTL::Device* device_ = nullptr;
   
-  // Xbox 360 format conversion
-  MTL::PixelFormat ConvertColorFormat(xenos::ColorRenderTargetFormat format);
-  MTL::PixelFormat ConvertDepthFormat(xenos::DepthRenderTargetFormat format);
-
-  MetalCommandProcessor* command_processor_;
-  const RegisterFile* register_file_;
-  Memory* memory_;
-
-  // EDRAM buffer - 10MB of embedded DRAM that Xbox 360 uses for render targets
-  MTL::Buffer* edram_buffer_;
+  // EDRAM buffer (10MB embedded DRAM)
+  MTL::Buffer* edram_buffer_ = nullptr;
   
-  // Current render targets (pointers to cached targets)
-  MetalRenderTarget* current_color_targets_[4];
-  MetalRenderTarget* current_depth_target_;
+  // Current render targets - updated by base class Update() call
+  MetalRenderTarget* current_color_targets_[4] = {};
+  MetalRenderTarget* current_depth_target_ = nullptr;
   
-  // Render target cache
-  std::unordered_map<RenderTargetDescriptor, std::unique_ptr<MetalRenderTarget>,
-                     RenderTargetDescriptorHasher> render_target_cache_;
-                     
-  // Cached render pass descriptor
-  mutable MTL::RenderPassDescriptor* cached_render_pass_descriptor_;
-  mutable bool render_pass_descriptor_dirty_;
+  // Track all created render targets so we can find them
+  std::unordered_map<uint32_t, MetalRenderTarget*> render_target_map_;
+  
+  // Render pass descriptor cache
+  MTL::RenderPassDescriptor* cached_render_pass_descriptor_ = nullptr;
+  bool render_pass_descriptor_dirty_ = true;
   
   // Dummy render target for when no render targets are bound
   mutable std::unique_ptr<MetalRenderTarget> dummy_color_target_;
   mutable bool dummy_color_target_needs_clear_ = true;
+  
+  // Helper methods
+  MTL::Texture* CreateColorTexture(uint32_t width, uint32_t height,
+                                   xenos::ColorRenderTargetFormat format,
+                                   uint32_t samples);
+  MTL::Texture* CreateDepthTexture(uint32_t width, uint32_t height,
+                                   xenos::DepthRenderTargetFormat format,
+                                   uint32_t samples);
+  
+  MTL::PixelFormat GetColorPixelFormat(xenos::ColorRenderTargetFormat format) const;
+  MTL::PixelFormat GetDepthPixelFormat(xenos::DepthRenderTargetFormat format) const;
+  
+  // EDRAM tile operations
+  void LoadTiledData(MTL::CommandBuffer* command_buffer,
+                     MTL::Texture* texture,
+                     uint32_t edram_base,
+                     uint32_t pitch_tiles,
+                     uint32_t height_tiles,
+                     bool is_depth);
+  
+  void StoreTiledData(MTL::CommandBuffer* command_buffer,
+                      MTL::Texture* texture,
+                      uint32_t edram_base,
+                      uint32_t pitch_tiles,
+                      uint32_t height_tiles,
+                      bool is_depth);
 };
 
 }  // namespace metal

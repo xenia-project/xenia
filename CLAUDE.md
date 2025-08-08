@@ -15,6 +15,7 @@ This document provides comprehensive information about the Xenia Xbox 360 emulat
 ## Development Memories
 
 - Remember to re-build our current target, xenia-gpu-metal-trace-dump before running.
+- Stop creating git commits that are over-exaggerated, like with the word "feat". They should be simple, reflect accurate progress and be professional sounding.
 
 ## Repository Structure
 
@@ -28,6 +29,7 @@ src/xenia/
 ├── cpu/
 │   └── backend/a64/         # ARM64 JIT backend (note: called "a64" not "arm64")
 ├── gpu/
+│   ├── d3d12/              # Direct3D12 fully functional reference/baseline implementation. (Only supported on Windows)
 │   ├── vulkan/             # Vulkan backend (not usable on macOS)
 │   └── metal/              # Native Metal backend (in development)
 ├── kernel/                 # Xbox 360 kernel emulation

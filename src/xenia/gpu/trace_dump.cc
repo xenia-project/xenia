@@ -139,6 +139,8 @@ int TraceDump::Run() {
     // Save framebuffer png.
     XELOGI("TraceDump::Run: Saving PNG");
     auto png_path = base_output_path_.replace_extension(".png");
+    auto absolute_path = std::filesystem::absolute(png_path);
+    XELOGI("TraceDump::Run: PNG will be saved to: {}", absolute_path.string());
     auto handle = filesystem::OpenFile(png_path, "wb");
     auto callback = [](void* context, void* data, int size) {
       fwrite(data, 1, size, (FILE*)context);

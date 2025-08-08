@@ -234,9 +234,11 @@ void MetalDebugUtils::DumpTexture(MTL::Texture* texture, const std::string& name
   texture->getBytes(data.data(), bytes_per_row,
                     MTL::Region::Make2D(0, 0, width, height), 0);
   
-  // Generate filename
-  std::string filename = fmt::format("/tmp/xenia_tex_{}_{:04d}_{}x{}.raw", 
-                                     name, captured_count_, width, height);
+  // Generate filename (check for debug directory from environment)
+  const char* texture_dir = std::getenv("XENIA_TEXTURE_DUMP_DIR");
+  std::string filename = texture_dir
+    ? fmt::format("{}/xenia_tex_{}_{:04d}_{}x{}.raw", texture_dir, name, captured_count_, width, height)
+    : fmt::format("/tmp/xenia_tex_{}_{:04d}_{}x{}.raw", name, captured_count_, width, height);
   
   // Write raw data
   FILE* file = std::fopen(filename.c_str(), "wb");

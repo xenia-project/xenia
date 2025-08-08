@@ -11,6 +11,7 @@
 #define XENIA_GPU_METAL_METAL_TEXTURE_CACHE_H_
 
 #include <memory>
+#include <string>
 #include <unordered_map>
 
 #include "xenia/gpu/register_file.h"
@@ -87,6 +88,8 @@ class MetalTextureCache {
                                   uint32_t mip_levels = 1);
   bool UpdateTexture2D(MTL::Texture* texture, const TextureInfo& texture_info);
   bool UpdateTextureCube(MTL::Texture* texture, const TextureInfo& texture_info);
+  void DumpTextureToFile(MTL::Texture* texture, const std::string& filename,
+                        uint32_t width, uint32_t height);
   
   // Format conversion helpers
   bool ConvertTextureData(const void* src_data, void* dst_data, 

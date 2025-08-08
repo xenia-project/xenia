@@ -245,9 +245,25 @@ bool TraceReader::DecompressMemory(MemoryEncodingFormat encoding_format,
       assert_true(src_size == dest_size);
       std::memcpy(dest, src, src_size);
       return true;
-    case MemoryEncodingFormat::kSnappy:
-      return snappy::RawUncompress(reinterpret_cast<const char*>(src), src_size,
-                                   reinterpret_cast<char*>(dest));
+    case MemoryEncodingFormat::kSnappy: {
+      size_t uncompressed_length = 0;
+      bool get_length_result = snappy::GetUncompressedLength(
+          reinterpret_cast<const char*>(src), src_size, &uncompressed_length);
+      if (!get_length_result) {
+        XELOGE("DecompressMemory: Failed to get snappy uncompressed length");
+        return false;
+      }
+      if (uncompressed_length != dest_size) {
+        XELOGE("DecompressMemory: Snappy uncompressed length {} != dest_size {}", 
+               uncompressed_length, dest_size);
+      }
+      bool result = snappy::RawUncompress(reinterpret_cast<const char*>(src), src_size,
+                                          reinterpret_cast<char*>(dest));
+      if (!result) {
+        XELOGE("DecompressMemory: Snappy decompression failed");
+      }
+      return result;
+    }
     default:
       assert_unhandled_case(encoding_format);
       return false;

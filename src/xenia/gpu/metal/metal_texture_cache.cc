@@ -18,6 +18,7 @@
 #include "xenia/base/logging.h"
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/metal/metal_command_processor.h"
+#include "third_party/stb/stb_image_write.h"
 #include "xenia/gpu/texture_conversion.h"
 #include "xenia/gpu/texture_info.h"
 
@@ -35,6 +36,37 @@ MetalTextureCache::MetalTextureCache(MetalCommandProcessor* command_processor,
 
 MetalTextureCache::~MetalTextureCache() {
   Shutdown();
+}
+
+void MetalTextureCache::DumpTextureToFile(MTL::Texture* texture, const std::string& filename,
+                                          uint32_t width, uint32_t height) {
+  if (!texture) {
+    XELOGE("DumpTextureToFile: null texture");
+    return;
+  }
+  
+  // Calculate bytes per row
+  size_t bytes_per_pixel = 4;  // Assuming BGRA8
+  size_t bytes_per_row = width * bytes_per_pixel;
+  
+  // Allocate buffer for texture data
+  std::vector<uint8_t> data(bytes_per_row * height);
+  
+  // Read texture data from GPU
+  MTL::Region region = MTL::Region::Make2D(0, 0, width, height);
+  texture->getBytes(data.data(), bytes_per_row, region, 0);
+  
+  // Convert BGRA to RGBA for stb_image_write
+  for (size_t i = 0; i < data.size(); i += 4) {
+    std::swap(data[i], data[i + 2]);  // Swap B and R
+  }
+  
+  // Write PNG file
+  if (stbi_write_png(filename.c_str(), width, height, 4, data.data(), bytes_per_row)) {
+    XELOGI("Dumped texture to: {}", filename);
+  } else {
+    XELOGE("Failed to write texture to: {}", filename);
+  }
 }
 
 bool MetalTextureCache::Initialize() {
@@ -67,6 +99,10 @@ bool MetalTextureCache::UploadTexture2D(const TextureInfo& texture_info) {
   if (!texture_info.memory.base_address) {
     return false;
   }
+  
+  // Check if texture dumping is enabled
+  static bool dump_textures = std::getenv("XENIA_GPU_METAL_DUMP_TEXTURES") != nullptr;
+  static int dump_count = 0;
   
   // Xbox 360 stores dimensions as (actual_size - 1)
   uint32_t actual_width = texture_info.width + 1;
@@ -122,6 +158,22 @@ bool MetalTextureCache::UploadTexture2D(const TextureInfo& texture_info) {
   metal_tex->texture = metal_texture;
   metal_tex->size = texture_info.memory.base_size;
   texture_cache_[desc] = std::move(metal_tex);
+
+  // Dump texture if enabled
+  if (dump_textures && metal_texture) {
+    const char* texture_dir = std::getenv("XENIA_TEXTURE_DUMP_DIR");
+    std::string filename = texture_dir
+      ? fmt::format("{}/texture_{:08X}_{}x{}_fmt{}.png", texture_dir, 
+                    texture_info.memory.base_address, actual_width, actual_height,
+                    static_cast<uint32_t>(texture_info.format_info()->format))
+      : fmt::format("/tmp/texture_{:08X}_{}x{}_fmt{}.png",
+                    texture_info.memory.base_address, actual_width, actual_height,
+                    static_cast<uint32_t>(texture_info.format_info()->format));
+    
+    // Actually dump the texture
+    DumpTextureToFile(metal_texture, filename, actual_width, actual_height);
+    dump_count++;
+  }
 
   XELOGD("Metal texture cache: Created 2D texture {}x{} format={} (total: {})",
          actual_width, actual_height, 

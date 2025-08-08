@@ -12,13 +12,16 @@
 #import <Foundation/Foundation.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <ctime>
+#include <thread>
 
 #include "third_party/stb/stb_image_write.h"
 #include "xenia/ui/metal/metal_presenter.h"
 #include "xenia/gpu/metal/metal_object_tracker.h"
 #include "xenia/gpu/metal/metal_debug_utils.h"
+#include "xenia/gpu/draw_util.h"
 
 // Forward declarations for Objective-C types
 #ifdef __OBJC__
@@ -99,8 +102,11 @@ bool MetalCommandProcessor::SetupContext() {
       this, register_file_, memory_);
   texture_cache_ = std::make_unique<MetalTextureCache>(
       this, register_file_, memory_);
+  // Create render target cache with new signature
   render_target_cache_ = std::make_unique<MetalRenderTargetCache>(
-      this, register_file_, memory_);
+      *register_file_, *memory_, &trace_writer_,
+      1, 1,  // No resolution scaling for now
+      *this);
   // Create shared memory
   shared_memory_ = std::make_unique<MetalSharedMemory>(
       *this, *memory_, trace_writer_);
@@ -192,10 +198,31 @@ void MetalCommandProcessor::ShutdownContext() {
   // NOTE: Do NOT use @autoreleasepool here - it causes crashes when destroyed
   // Metal-cpp manages its own autorelease pools internally
   
-  // End GPU capture if we're in trace dump mode
-  if (debug_utils_ && !graphics_system_->presenter()) {
+  // Commit any outstanding draws before shutting down
+  if (submission_open_ && draws_in_current_batch_ > 0) {
+    XELOGI("Metal ShutdownContext: Committing final batch of {} draws", draws_in_current_batch_);
+    EndSubmission(false);
+    draws_in_current_batch_ = 0;
+  }
+  
+  // Wait for all command buffers to complete before ending capture
+  if (GetMetalCommandQueue()) {
+    XELOGI("Metal ShutdownContext: Waiting for GPU to finish...");
+    // Create a command buffer and commit it to ensure all previous work completes
+    MTL::CommandBuffer* sync_buffer = GetMetalCommandQueue()->commandBuffer();
+    if (sync_buffer) {
+      sync_buffer->commit();
+      sync_buffer->waitUntilCompleted();
+    }
+  }
+  
+  // End GPU capture if we started one
+  if (debug_utils_) {
     debug_utils_->EndProgrammaticCapture();
     XELOGI("Ended programmatic GPU capture at shutdown");
+    
+    // Give the capture system time to finish writing
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
   
   // Clean up staging buffers
@@ -599,8 +626,18 @@ void MetalCommandProcessor::TracePlaybackWroteMemory(uint32_t base_ptr,
 }
 
 void MetalCommandProcessor::RestoreEdramSnapshot(const void* snapshot) {
-  // TODO(wmarti): Restore EDRAM state from snapshot
-  XELOGW("Metal RestoreEdramSnapshot not implemented");
+  if (!snapshot) {
+    XELOGW("Metal RestoreEdramSnapshot: No snapshot provided");
+    return;
+  }
+  
+  // Copy snapshot data to EDRAM buffer via render target cache
+  if (render_target_cache_) {
+    render_target_cache_->RestoreEdram(snapshot);
+    XELOGI("Metal RestoreEdramSnapshot: Restored EDRAM state to render target cache");
+  } else {
+    XELOGE("Metal RestoreEdramSnapshot: No render target cache available");
+  }
 }
 
 bool MetalCommandProcessor::CaptureColorTarget(uint32_t index, uint32_t& width, uint32_t& height,
@@ -634,23 +671,16 @@ bool MetalCommandProcessor::CaptureColorTarget(uint32_t index, uint32_t& width, 
     // Try the dummy color target from the render target cache first
     texture = render_target_cache_->GetDummyColorTarget();
     if (!texture) {
-      // Try our command processor's dummy color target
-      texture = dummy_color_target_;
+      XELOGI("Metal CaptureColorTarget: No dummy color target from cache, trying depth target", index);
+      // Last resort: try depth target as fallback
+      texture = render_target_cache_->GetDepthTarget();
       if (!texture) {
-        XELOGI("Metal CaptureColorTarget: No dummy color target, trying depth target", index);
-        // Last resort: try depth target as fallback
-        texture = render_target_cache_->GetDepthTarget();
-        if (!texture) {
-          XELOGW("Metal CaptureColorTarget: No render targets available at all");
-          AutoreleasePoolTracker::Pop(pool, "CaptureColorTarget");
-          return false;
-        }
-        XELOGI("Metal CaptureColorTarget: Using depth target ({}x{}, format {})", 
-               texture->width(), texture->height(), static_cast<uint32_t>(texture->pixelFormat()));
-      } else {
-        XELOGI("Metal CaptureColorTarget: Using command processor dummy target ({}x{}, format {})", 
-               texture->width(), texture->height(), static_cast<uint32_t>(texture->pixelFormat()));
+        XELOGW("Metal CaptureColorTarget: No render targets available at all");
+        AutoreleasePoolTracker::Pop(pool, "CaptureColorTarget");
+        return false;
       }
+      XELOGI("Metal CaptureColorTarget: Using depth target ({}x{}, format {})", 
+             texture->width(), texture->height(), static_cast<uint32_t>(texture->pixelFormat()));
     } else {
       XELOGI("Metal CaptureColorTarget: Using render cache dummy target ({}x{}, format {}) - texture ptr: 0x{:016x}", 
              texture->width(), texture->height(), static_cast<uint32_t>(texture->pixelFormat()),
@@ -1191,6 +1221,30 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   XELOGI("Metal IssueDraw: Using real Xbox 360 shaders - vertex: {:016x}, pixel: {:016x}",
          vertex_shader->ucode_data_hash(), pixel_shader->ucode_data_hash());
   
+  // REFACTOR: Use base RenderTargetCache infrastructure
+  // Calculate normalized color mask based on pixel shader outputs
+  uint32_t normalized_color_mask = pixel_shader ? 
+      draw_util::GetNormalizedColorMask(*register_file_, pixel_shader->writes_color_targets()) : 0;
+  
+  // Get normalized depth control
+  reg::RB_DEPTHCONTROL normalized_depth_control = 
+      draw_util::GetNormalizedDepthControl(*register_file_);
+  
+  // Determine if rasterization is done (not a memexport-only draw)
+  bool is_rasterization_done = true;  // For now, assume rasterization is always done
+  
+  // Call base RenderTargetCache::Update() - this handles:
+  // - EDRAM snapshot interpretation when registers are zero
+  // - Render target creation from EDRAM contents
+  // - Complex render target resolution
+  if (!render_target_cache_->Update(is_rasterization_done,
+                                    normalized_depth_control,
+                                    normalized_color_mask,
+                                    *vertex_shader)) {
+    XELOGE("Metal IssueDraw: RenderTargetCache::Update failed");
+    return false;
+  }
+  
   // IMPORTANT: Update render targets BEFORE creating pipeline so we get the correct formats
   // Parse RB_SURFACE_INFO and RB_COLOR_INFO registers to determine active render targets
   uint32_t rb_surface_info = register_file_->values[XE_GPU_REG_RB_SURFACE_INFO];
@@ -1223,22 +1277,8 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     }
   }
   
-  // TRACE DUMP FIX: Always ensure we have at least one color target for capture
-  // When no color targets are specified (depth-only pass), create a default one
-  // This allows us to capture any fragment shader output for debugging
-  if (rt_count == 0) {
-    XELOGI("Metal IssueDraw: No color targets specified, creating default for trace capture");
-    // Create a default color target with common settings
-    // Format: k_8_8_8_8 (RGBA8), common Xbox 360 format
-    // Use EDRAM address 0x00001000 to avoid conflicts with depth buffer at 0x00000000
-    // Format bits: 0x28 = k_8_8_8_8
-    // EDRAM pitch: (1280 * 4) / 80 = 64 tiles = 0x40 << 3 = 0x200
-    color_targets[0] = 0x00001000 | 0x00000200 | 0x00000028;  // EDRAM addr | pitch | format
-    rt_count = 1;
-    
-    // Also force the rb_color_info register so render target cache sees it
-    rb_color_info[0] = color_targets[0];
-  }
+  // The render target cache will automatically create a dummy color target
+  // when rt_count == 0, so we don't need to create a fake configuration here
   
   // Second pass: detect duplicates for special handling
   for (uint32_t i = 0; i < rt_count; ++i) {
@@ -1284,9 +1324,9 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // Check if depth is actually used - need to check RB_DEPTHCONTROL, not RB_DEPTH_INFO bit 0
   // RB_DEPTHCONTROL bit 1 = depth test enable, bit 2 = depth write enable
   uint32_t rb_depthcontrol = register_file_->values[XE_GPU_REG_RB_DEPTHCONTROL];
+  // NOTE: The base RenderTargetCache::Update() already set up render targets
+  // We don't need to call SetRenderTargets anymore
   bool depth_enabled = (rb_depthcontrol & 0x00000002) || (rb_depthcontrol & 0x00000004);
-  uint32_t depth_target_info = depth_enabled ? rb_depth_info : 0;
-  render_target_cache_->SetRenderTargets(rt_count, color_targets, depth_target_info);
   
   // Create pipeline description with real shader hashes
   MetalPipelineCache::RenderPipelineDescription pipeline_desc = {};
@@ -1431,41 +1471,8 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
         XELOGI("Metal IssueDraw: Got render pass: {}", render_pass ? "valid" : "null");
         
         if (!render_pass) {
-          // Fallback: Create a dummy render pass for testing
-          XELOGW("Metal IssueDraw: No render pass from cache, creating dummy render target with {} samples", 
-                 pipeline_sample_count);
-          render_pass = MTL::RenderPassDescriptor::alloc()->init();
-          TRACK_METAL_OBJECT(render_pass, "MTL::RenderPassDescriptor");
-          
-          MTL::TextureDescriptor* texture_desc = MTL::TextureDescriptor::alloc()->init();
-          TRACK_METAL_OBJECT(texture_desc, "MTL::TextureDescriptor");
-          texture_desc->setWidth(1280);
-          texture_desc->setHeight(720);
-          texture_desc->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
-          texture_desc->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
-          
-          // Set texture type and sample count to match pipeline
-          if (pipeline_sample_count > 1) {
-            texture_desc->setTextureType(MTL::TextureType2DMultisample);
-            texture_desc->setSampleCount(pipeline_sample_count);
-          } else {
-            texture_desc->setTextureType(MTL::TextureType2D);
-          }
-          
-          MTL::Texture* render_target = GetMetalDevice()->newTexture(texture_desc);
-          render_pass->colorAttachments()->object(0)->setTexture(render_target);
-          render_pass->colorAttachments()->object(0)->setLoadAction(MTL::LoadActionClear);
-          render_pass->colorAttachments()->object(0)->setStoreAction(MTL::StoreActionStore);
-          render_pass->colorAttachments()->object(0)->setClearColor(MTL::ClearColor(0.1, 0.0, 0.2, 1.0));
-          
-          // IMPORTANT: Store this dummy render target so we can capture from it
-          dummy_color_target_ = render_target;
-          XELOGI("Metal IssueDraw: Created dummy color target {}x{} for capture", 
-                 render_target->width(), render_target->height());
-          
-          TRACK_METAL_RELEASE(texture_desc);
-          texture_desc->release();
-          // Note: render_target will be released automatically when render pass is released
+          XELOGE("Metal IssueDraw: Failed to get render pass from cache!");
+          return false;
         }
         
         // Create render command encoder
@@ -2863,7 +2870,9 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
           // Pop debug group
           encoder->popDebugGroup();
           
+          XELOGI("Metal IssueDraw: About to call endEncoding on encoder");
           encoder->endEncoding();
+          XELOGI("Metal IssueDraw: endEncoding completed successfully");
           
           // Track encoder release
           TRACK_METAL_RELEASE(encoder);
@@ -2892,12 +2901,13 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
         
         // Batch multiple draws in one command buffer for better GPU capture
         // For trace dumps, don't commit until explicitly requested to allow GPU capture
-        bool is_trace_dump = !graphics_system_->presenter();
+        // Note: trace dumps have a MetalTraceDumpPresenter, so check the actual type
+        bool is_trace_dump = true;  // Always treat as trace dump for now to ensure commits
         
         if (is_trace_dump) {
-          // In trace dump mode, accumulate all draws without committing
-          // The command buffer will be committed at OnPrimaryBufferEnd or swap
-          XELOGI("Metal IssueDraw: Trace dump mode - Draw {} accumulated (not committing)", draws_in_current_batch_);
+          // In trace dump mode, accumulate all draws in a single command buffer
+          // They will be committed at the end of the trace playback
+          XELOGI("Metal IssueDraw: Trace dump mode - accumulated {} draws", draws_in_current_batch_);
         } else {
           // Normal mode: batch 20 draws together
           if (draws_in_current_batch_ >= 20) {  // Batch 20 draws together
@@ -2960,7 +2970,10 @@ bool MetalCommandProcessor::BeginSubmission(bool is_guest_command) {
   
   // Start GPU capture for first submission in trace dump mode
   static bool first_submission = true;
-  if (debug_utils_ && first_submission && !graphics_system_->presenter()) {
+  bool is_trace_dump = debug_utils_ && debug_utils_->IsCaptureEnabled();
+  XELOGI("GPU capture check: first={}, debug_utils={}, is_trace_dump={}", 
+         first_submission, (bool)debug_utils_, is_trace_dump);
+  if (is_trace_dump && first_submission) {
     debug_utils_->BeginProgrammaticCapture();
     first_submission = false;
     XELOGI("Started programmatic GPU capture for trace dump");

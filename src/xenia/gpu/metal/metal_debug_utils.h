@@ -73,6 +73,7 @@ class MetalDebugUtils {
   void SetDumpTexturesEnabled(bool enabled) { dump_textures_ = enabled; }
   void SetDumpStateEnabled(bool enabled) { dump_state_ = enabled; }
   void SetLabelResourcesEnabled(bool enabled) { label_resources_ = enabled; }
+  bool IsCaptureEnabled() const { return capture_enabled_; }
   
   // Helpers
   static std::string FormatTextureLabel(uint32_t width, uint32_t height, 

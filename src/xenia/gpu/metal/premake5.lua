@@ -20,7 +20,6 @@ project("xenia-gpu-metal")
     "xenia-ui",
     "fmt",
     "metal-cpp",
-    "metalirconverter",
   }
 
   filter "system:macosx"
@@ -48,14 +47,25 @@ project("xenia-gpu-metal")
       "dxbc_to_dxil_converter.h",
       "metal_shader_cache.cc",
       "metal_shader_cache.h",
+      "ir_runtime_impl.mm",   -- IR Runtime implementation
+      "metal_debug_utils.cc",
+      "metal_debug_utils.h",
     }
 
-    libdirs     { metal_converter_libdir }
-    runpathdirs { metal_converter_libdir }
+    includedirs {
+      path.join(project_root, "third_party/metal-shader-converter/include"),
+      "/usr/local/include/metal_irconverter_runtime"
+    }
+
+    defines { "METAL_SHADER_CONVERTER_AVAILABLE", "IR_RUNTIME_METALCPP" }
+
+    libdirs     { metal_converter_libdir, "/usr/local/lib" }
+    runpathdirs { metal_converter_libdir, "/usr/local/lib" }
 
     links {
       "Metal.framework",
       "MetalKit.framework",
+      "metalirconverter",
     }
   filter "not system:macosx"
     removefiles "**"
@@ -95,7 +105,6 @@ project("xenia-gpu-metal-trace-dump")
     "snappy",
     "xxhash",
     "metal-cpp",
-    "metalirconverter",
   }
 
   files {
@@ -120,9 +129,16 @@ project("xenia-gpu-metal-trace-dump")
     links { "xenia-cpu-backend-a64" }
 
   filter "system:macosx"
-    libdirs     { metal_converter_libdir }
-    runpathdirs { metal_converter_libdir }
-    links       { "Metal.framework", "MetalKit.framework" }
+    libdirs     { metal_converter_libdir, "/usr/local/lib" }
+    runpathdirs { metal_converter_libdir, "/usr/local/lib" }
+    includedirs {
+      path.join(project_root, "third_party/metal-shader-converter/include"),
+      "/usr/local/include/metal_irconverter_runtime"
+    }
+
+    defines { "METAL_SHADER_CONVERTER_AVAILABLE", "IR_RUNTIME_METALCPP" }
+
+    links       { "Metal.framework", "MetalKit.framework", "metalirconverter" }
   filter "not system:macosx"
     removefiles "**"
   filter {}

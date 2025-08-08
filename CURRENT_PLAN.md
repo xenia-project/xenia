@@ -1,104 +1,271 @@
-# Metal Backend Implementation Plan
+# Metal Backend Debug Plan - Issues to Fix
 
-## Current Status (2025-08-07)
+## Current Status (2025-08-08)
 
-Shader reflection is now fully integrated and resources are binding at correct offsets in the argument buffer. However, rendering still produces black output because we're using dummy triangles instead of real Xbox 360 vertex data.
+### ✅ Major Achievements
+- **Fixed texture dumping** - All textures are being captured correctly including the A-Train HX logo  
+- **Fixed vertex shader texture binding** - Textures are now uploaded and bound for vertex shaders
+- **Fixed command buffer commits** - Draws are being sent to GPU (though batching needs refinement)
+- **Fixed render encoder lifecycle** - endEncoding is being called properly
+- **Textures load correctly** - We can see the logo in texture dumps
+- **MAJOR: Refactored RenderTargetCache to inherit from base class** - Now properly using base class EDRAM management
+- **Connected base render targets to Metal** - Successfully retrieving targets via `last_update_accumulated_render_targets()`
+- **Output changed from black to pink** - Progress! We're capturing from a render target (though wrong one)
 
-## Immediate Next Steps
+### ❌ Remaining Critical Issues
 
-### 1. Replace Dummy Triangles with Real Vertex Data
+1. **Capturing wrong render target** - Getting pink output instead of actual rendered content
+2. **GPU capture file corruption** - Files generated but Xcode reports "index file does not exist"
+3. **Inefficient command buffer batching** - Arbitrarily committing every 5 draws
+4. **Need to implement ownership transfers** - Base class expects transfers for proper RT management
 
-**Problem**: Currently using hardcoded dummy triangles that don't match what the Xbox 360 game is trying to render.
+## Detailed Fix Plan
 
-**Solution**: Use the actual vertex data from Xbox 360 shared memory.
+### Issue 1: GPU Capture File Corruption
+**Problem**: GPU trace files report "The index file does not exist. The capture may be incomplete or corrupt."
 
-**Implementation**:
-1. **Fetch vertex buffers from shared memory**
-   - Read vertex fetch constants from GPU registers
-   - Get vertex buffer addresses and strides
-   - Access actual vertex data from shared memory
+**Root Cause**: Programmatic capture lifecycle issues - likely starting/stopping multiple times or not ending properly.
 
-2. **Parse vertex fetch descriptors**
-   - Extract vertex attribute formats
-   - Determine vertex layout and stride
-   - Handle endian conversion for vertex data
+**Solution**:
+```cpp
+// In BeginSubmission() - only start capture ONCE at beginning
+static bool capture_started = false;
+if (is_trace_dump && !capture_started && first_submission) {
+  debug_utils_->BeginProgrammaticCapture();
+  capture_started = true;
+}
 
-3. **Create Metal vertex buffers with real data**
-   - Allocate Metal buffers with correct size
-   - Copy and convert vertex data
-   - Handle Xbox 360 vertex format conversions
+// In ShutdownContext() - end capture ONCE at end
+if (is_trace_dump && capture_started) {
+  debug_utils_->EndProgrammaticCapture();
+  capture_started = false;
+}
+```
 
-4. **Bind real vertex buffers**
-   - Replace dummy triangle binding
-   - Use correct vertex buffer offsets
-   - Set proper vertex strides
+**Files to modify**:
+- `src/xenia/gpu/metal/metal_command_processor.mm`
+- `src/xenia/gpu/metal/metal_debug_utils.cc`
 
-### 2. Implement Proper Index Buffer Handling
+### Issue 2: Command Buffer Batching Strategy  
+**Problem**: Committing every 5 draws arbitrarily breaks GPU capture and is inefficient.
 
-**Problem**: Not using actual index data from Xbox 360.
+**Current broken code**:
+```cpp
+if (draws_in_current_batch_ >= 5) {
+  EndSubmission(false);
+  draws_in_current_batch_ = 0;
+  BeginSubmission(true);
+}
+```
 
-**Implementation**:
-1. Read index buffer info from GPU registers
-2. Fetch index data from shared memory  
-3. Handle 16-bit vs 32-bit indices
-4. Apply endian conversion
-5. Create and bind Metal index buffers
+**Solution**: Accumulate ALL draws in single command buffer, commit once at end:
+```cpp
+// In IssueDraw() for trace dump mode:
+if (is_trace_dump) {
+  // Just accumulate draws, don't commit
+  XELOGI("Trace dump: Accumulated draw {}", draws_in_current_batch_);
+}
 
-### 3. Fix Vertex Attribute Descriptors
+// In ShutdownContext() or after WaitOnPlayback():
+if (is_trace_dump && submission_open_) {
+  XELOGI("Trace dump: Committing all {} draws", draws_in_current_batch_);
+  EndSubmission(false);
+}
+```
 
-**Problem**: Metal vertex descriptor doesn't match Xbox 360 vertex format.
+**Files to modify**:
+- `src/xenia/gpu/metal/metal_command_processor.mm` - Remove 5-draw batching
 
-**Implementation**:
-1. Parse vertex shader's vertex_bindings() data
-2. Build MTLVertexDescriptor from actual format
-3. Map Xbox 360 formats to Metal formats
-4. Handle format conversions as needed
+### Issue 3: Redundant Default Render Target Creation
+**Problem**: Creating new default RT for every draw with no RT specified (11 times).
 
-### 4. Verify Render Target Setup
+**Current broken code**:
+```cpp
+if (rt_count == 0) {
+  // Creating NEW default RT every time!
+  color_targets[0] = 0x00001000 | 0x00000200 | 0x00000028;
+  rt_count = 1;
+}
+```
 
-**Problem**: May be rendering to wrong targets or not preserving content.
+**Solution**: Cache and reuse single default RT:
+```cpp
+// Class member:
+uint32_t default_trace_rt_edram_base_ = 0;
 
-**Implementation**:
-1. Check render target bindings match shader outputs
-2. Ensure load/store actions preserve content
-3. Verify render pass descriptors are correct
-4. Check if we need to resolve MSAA targets
+// In SetupContext():
+if (is_trace_dump) {
+  default_trace_rt_edram_base_ = 0x00001000;
+}
 
-## Code Locations
+// In IssueDraw():
+if (rt_count == 0 && default_trace_rt_edram_base_) {
+  color_targets[0] = default_trace_rt_edram_base_ | 0x00000200 | 0x00000028;
+  rt_count = 1;
+}
+```
 
-- Vertex fetching: `src/xenia/gpu/metal/metal_command_processor.mm` (IssueDraw)
-- Shared memory: `src/xenia/gpu/metal/metal_shared_memory.cc`
-- Vertex formats: `src/xenia/gpu/xenos.h` (VertexFormat enum)
-- Register reading: `register_file_->values[XE_GPU_REG_*]`
+**Files to modify**:
+- `src/xenia/gpu/metal/metal_command_processor.h` - Add member variable
+- `src/xenia/gpu/metal/metal_command_processor.mm` - Implement caching
 
-## Expected Outcome
+### Issue 4: Remove Hardcoded Warning
+**Problem**: "CRITICAL ISSUES DETECTED" always shown even with no issues.
 
-Once real vertex data is used instead of dummy triangles, we should see:
-1. Actual geometry being rendered
-2. Correct vertex positions and attributes
-3. Visible output in PNG (not black)
-4. Progress toward rendering actual game content
+**Solution**: Find and remove/conditionally show in script:
+```bash
+# Change from:
+echo "CRITICAL ISSUES DETECTED: Textures not being uploaded"
 
-## Technical Details
+# To:
+if grep -q "Failed to upload.*texture" "$LOG_FILE"; then
+  echo "CRITICAL: Texture upload failures detected"
+fi
+```
 
-### Xbox 360 Vertex Fetch
+**Files to modify**:
+- `tools/metal_debug/debug_metal.sh`
 
-The Xbox 360 uses vertex fetch constants to describe vertex buffers:
-- `VGT_DMA_*` registers control vertex fetching
-- `FETCH_*` constants describe vertex attributes
-- Vertex data is stored in big-endian format
-- Multiple vertex streams can be interleaved
+## Previous GPU Capture Analysis
 
-### Metal Requirements
+1. **ResourceDescriptorHeap is COMPLETELY EMPTY** (all zeros)
+   - Despite logs showing "setTexture 0x..." at heap slots
+   - IRDescriptorTableSetTexture is being called but not writing data
+   
+2. **IR_TopLevelAB_PS is TOO SMALL** (only 24 bytes)
+   - Should be 120 bytes for shader with T0, T1, CB0, CB1, S0
+   - Currently only has space for 1 entry (CB0)
+   
+3. **GPU Capture shows ONLY ONE DRAW CALL**
+   - 4 vertices at position (0,0,0,1) - likely a clear operation
+   - Later textured draws aren't being captured
+   - Command buffer might be committing too early
 
-Metal needs:
-- Vertex buffers bound at specific indices
-- Vertex descriptor matching shader expectations
-- Proper stride and offset calculations
-- Format conversions for unsupported Xbox 360 formats
+### ✅ What's Working
+- Texture upload (logs show "Uploaded untiled texture data")
+- Texture pointers are valid (0x000000010291B740 etc.)
+- Heap indices parsed correctly from reflection ([65535, 0, 1] for textures, [4] for samplers)
+- Shader compilation successful with texture sampling instructions
 
-## Testing
+### ❌ What's Broken
 
-Test with trace file: `testdata/reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace`
+#### 1. Descriptor Heap Population
+```cpp
+// PROBLEM: This is being called but heap remains empty
+::IRDescriptorTableSetTexture(&res_entries[heap_slot], texture, /*minLODClamp*/0.0f, /*flags*/0);
+```
+**Possible causes:**
+- IRDescriptorTableSetTexture might be a no-op or broken
+- The heap buffer might be getting cleared after population
+- The texture's gpuResourceID might be invalid
 
-Expected to see loading screen text instead of black output.
+#### 2. Argument Buffer Size Calculation
+```cpp
+// WRONG: Only allocates 24 bytes (1 entry)
+size_t ps_ab_size = kEntry; // Default size if no layout
+if (!ps_layout.empty()) {
+    ps_ab_size = ps_layout.back().elt_offset + kEntry;
+}
+```
+**Issue:** When ps_layout is populated, the size should be calculated correctly, but it's not.
+
+#### 3. Texture Binding Flow
+- Heap indices `[65535, 0, 1]` mean:
+  - 65535 = framebuffer fetch (skip)
+  - 0 = first texture at heap slot 0
+  - 1 = second texture at heap slot 1
+- We only have 1 texture binding from shader analysis
+- Using fallback to reuse texture at slot 0 for slot 1
+
+### 📊 Texture Binding Architecture (MSC Dynamic Resources)
+
+```
+Shader → [[buffer(2)]] Top-Level AB → Contains pointers to heaps
+                ↓
+         [[buffer(0)]] Resource Heap (textures)
+         [[buffer(1)]] Sampler Heap
+```
+
+**Top-Level AB Structure:**
+- Each entry is 24 bytes (IRDescriptorTableEntry)
+- For SRV/Sampler: Points to the heap buffer
+- For CBV: Contains direct buffer pointer
+
+**Resource/Sampler Heap Structure:**
+- Array of IRDescriptorTableEntry (24 bytes each)
+- Indexed by ShaderResourceViewIndices/SamplerIndices
+- Must be sparse (gaps allowed)
+
+## 🔧 DEBUGGING PLAN
+
+### Phase 1: Fix Command Buffer Capture
+1. **Find why only one draw is captured**
+   - Check when command buffers are committed
+   - Look for early EndSubmission calls
+   - Verify trace playback isn't ending prematurely
+
+2. **Add logging for command buffer lifecycle**
+   ```cpp
+   XELOGI("Creating command buffer");
+   XELOGI("Committing command buffer");
+   XELOGI("Starting new command buffer");
+   ```
+
+### Phase 2: Fix Descriptor Heap Population
+1. **Verify IRDescriptorTableSetTexture works**
+   - Log the descriptor contents after writing
+   - Check texture->gpuResourceID() is valid
+   - Verify heap buffer isn't being overwritten
+
+2. **Debug heap population timing**
+   - Ensure heaps are populated BEFORE draw
+   - Check if heaps persist across draws
+   - Verify heap buffers are marked resident
+
+### Phase 3: Fix Argument Buffer Sizes
+1. **Fix PS argument buffer allocation**
+   ```cpp
+   // Should be:
+   if (!ps_layout.empty()) {
+       ps_ab_size = ps_layout.size() * kEntry;
+       // OR
+       ps_ab_size = ps_layout.back().elt_offset + kEntry;
+   }
+   ```
+
+2. **Verify reflection parsing**
+   - Log all TopLevelAB entries
+   - Ensure layout matches shader expectations
+
+### Phase 4: Validate Texture Access
+1. **Check shader is accessing textures correctly**
+   - Decompile metallib to verify texture sampling code
+   - Check if indices match heap slots
+   - Verify sampler associations
+
+2. **Test with simplified case**
+   - Create a test with single texture
+   - Verify it appears in heap
+   - Check if shader can sample it
+
+## 🐛 Immediate Actions
+
+1. **Fix command buffer capture issue** - Most critical
+2. **Add heap content verification** after population
+3. **Fix PS argument buffer size calculation**
+4. **Add texture validation** before writing to heap
+
+## 📝 Code Locations
+
+- Heap population: `metal_command_processor.mm:2218-2250`
+- AB size calculation: `metal_command_processor.mm:2320-2330`
+- Texture collection: `metal_command_processor.mm:1890-2045`
+- Command buffer management: `metal_command_processor.mm` (BeginSubmission/EndSubmission)
+
+## 🎯 Success Criteria
+
+1. GPU capture shows multiple draw calls (not just one)
+2. ResourceDescriptorHeap has non-zero texture descriptors at slots 0 and 1
+3. IR_TopLevelAB_PS is correctly sized (120+ bytes for textured shaders)
+4. PNG output shows actual game graphics instead of black
+5. Metal debugger shows textures in argument buffers
