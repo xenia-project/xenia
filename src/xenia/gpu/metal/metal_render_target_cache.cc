@@ -153,8 +153,9 @@ bool MetalRenderTargetCache::SetRenderTargets(uint32_t rt_count, const uint32_t*
     auto it = render_target_cache_.find(desc);
     if (it != render_target_cache_.end()) {
       current_color_targets_[i] = it->second.get();
-      XELOGD("Metal render target cache: Reusing cached color target {} at EDRAM 0x{:08X}",
-             i, desc.base_address);
+      XELOGI("Metal render target cache: BINDING REAL color target {} - texture ptr: 0x{:016x}, size: {}x{}, EDRAM: 0x{:08X}",
+             i, reinterpret_cast<uintptr_t>(it->second->texture),
+             it->second->width, it->second->height, desc.base_address);
       continue;
     }
 
@@ -186,6 +187,9 @@ bool MetalRenderTargetCache::SetRenderTargets(uint32_t rt_count, const uint32_t*
     metal_rt->edram_base = desc.base_address;  // Store EDRAM address for later use
 
     current_color_targets_[i] = metal_rt.get();
+    XELOGI("Metal render target cache: CREATED AND BOUND REAL color target {} - texture ptr: 0x{:016x}, size: {}x{}, EDRAM: 0x{:08X}",
+           i, reinterpret_cast<uintptr_t>(texture),
+           desc.width, desc.height, desc.base_address);
     render_target_cache_[desc] = std::move(metal_rt);
   }
 
@@ -279,16 +283,20 @@ void MetalRenderTargetCache::LoadRenderTargetsFromEDRAM(MTL::CommandBuffer* comm
     if (target && target->texture) {
       uint32_t edram_offset = target->edram_base;
       uint32_t bytes_per_pixel = 4; // Assume RGBA8 for now
-      uint32_t stride = target->width * bytes_per_pixel;
-      uint32_t bytes_needed = stride * target->height;
       
-      XELOGD("Metal render target cache: Loading color target {} from EDRAM offset 0x{:08X} ({}x{}, {} bytes)",
-             i, edram_offset, target->width, target->height, bytes_needed);
+      // Use actual texture dimensions, not stored width/height which might be wrong
+      uint32_t actual_width = static_cast<uint32_t>(target->texture->width());
+      uint32_t actual_height = static_cast<uint32_t>(target->texture->height());
+      uint32_t stride = actual_width * bytes_per_pixel;
+      uint32_t bytes_needed = stride * actual_height;
+      
+      XELOGD("Metal render target cache: Loading color target {} from EDRAM offset 0x{:08X} (texture: {}x{}, stored: {}x{}, {} bytes)",
+             i, edram_offset, actual_width, actual_height, target->width, target->height, bytes_needed);
       
       // Copy from EDRAM buffer to texture
       blit_encoder->copyFromBuffer(
           edram_buffer_, edram_offset, stride, bytes_needed,
-          MTL::Size::Make(target->width, target->height, 1),
+          MTL::Size::Make(actual_width, actual_height, 1),
           target->texture, 0, 0, MTL::Origin::Make(0, 0, 0));
     }
   }
@@ -333,16 +341,20 @@ void MetalRenderTargetCache::StoreRenderTargetsToEDRAM(MTL::CommandBuffer* comma
     if (target && target->texture) {
       uint32_t edram_offset = target->edram_base;
       uint32_t bytes_per_pixel = 4; // Assume RGBA8 for now
-      uint32_t stride = target->width * bytes_per_pixel;
-      uint32_t bytes_needed = stride * target->height;
       
-      XELOGD("Metal render target cache: Storing color target {} to EDRAM offset 0x{:08X} ({}x{}, {} bytes)",
-             i, edram_offset, target->width, target->height, bytes_needed);
+      // Use actual texture dimensions, not stored width/height which might be wrong
+      uint32_t actual_width = static_cast<uint32_t>(target->texture->width());
+      uint32_t actual_height = static_cast<uint32_t>(target->texture->height());
+      uint32_t stride = actual_width * bytes_per_pixel;
+      uint32_t bytes_needed = stride * actual_height;
+      
+      XELOGD("Metal render target cache: Storing color target {} to EDRAM offset 0x{:08X} (texture: {}x{}, stored: {}x{}, {} bytes)",
+             i, edram_offset, actual_width, actual_height, target->width, target->height, bytes_needed);
       
       // Copy from texture to EDRAM buffer
       blit_encoder->copyFromTexture(
           target->texture, 0, 0, MTL::Origin::Make(0, 0, 0),
-          MTL::Size::Make(target->width, target->height, 1),
+          MTL::Size::Make(actual_width, actual_height, 1),
           edram_buffer_, edram_offset, stride, bytes_needed);
     }
   }
@@ -477,10 +489,16 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(uint3
           cached_render_pass_descriptor_->colorAttachments()->object(i);
       
       color_attachment->setTexture(current_color_targets_[i]->texture);
-      color_attachment->setLoadAction(MTL::LoadActionClear);
+      
+      // Clear on first use, then preserve contents between passes
+      if (current_color_targets_[i]->needs_clear) {
+        color_attachment->setLoadAction(MTL::LoadActionClear);
+        color_attachment->setClearColor(MTL::ClearColor(0.0, 0.0, 0.0, 1.0));  // Clear to black
+        current_color_targets_[i]->needs_clear = false;
+      } else {
+        color_attachment->setLoadAction(MTL::LoadActionLoad);
+      }
       color_attachment->setStoreAction(MTL::StoreActionStore);
-      // Use BLACK clear to see what the draw calls produce
-      color_attachment->setClearColor(MTL::ClearColor(0.0, 0.0, 0.0, 1.0));  // Black
       has_attachments = true;
     }
   }
@@ -491,9 +509,16 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(uint3
         cached_render_pass_descriptor_->depthAttachment();
     
     depth_attachment->setTexture(current_depth_target_->texture);
-    depth_attachment->setLoadAction(MTL::LoadActionClear);
+    
+    // Clear on first use, then preserve contents between passes
+    if (current_depth_target_->needs_clear) {
+      depth_attachment->setLoadAction(MTL::LoadActionClear);
+      depth_attachment->setClearDepth(1.0);
+      current_depth_target_->needs_clear = false;
+    } else {
+      depth_attachment->setLoadAction(MTL::LoadActionLoad);
+    }
     depth_attachment->setStoreAction(MTL::StoreActionStore);
-    depth_attachment->setClearDepth(1.0);
     has_attachments = true;
     
     // IMPORTANT: If we have a depth attachment but no color attachments,
@@ -594,6 +619,10 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(uint3
     }
     
     if (dummy_color_target_) {
+      XELOGI("Metal render target cache: NO REAL TARGETS - Using DUMMY target, texture ptr: 0x{:016x}, size: {}x{}",
+             reinterpret_cast<uintptr_t>(dummy_color_target_->texture),
+             dummy_color_target_->width, dummy_color_target_->height);
+      
       MTL::RenderPassColorAttachmentDescriptor* color_attachment = 
           cached_render_pass_descriptor_->colorAttachments()->object(0);
       

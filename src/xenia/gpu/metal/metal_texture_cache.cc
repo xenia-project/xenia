@@ -71,6 +71,11 @@ bool MetalTextureCache::UploadTexture2D(const TextureInfo& texture_info) {
   // Xbox 360 stores dimensions as (actual_size - 1)
   uint32_t actual_width = texture_info.width + 1;
   uint32_t actual_height = texture_info.height + 1;
+  
+  XELOGI("MetalTextureCache: UploadTexture2D called - {}x{} format {} @ 0x{:08X}", 
+         actual_width, actual_height, 
+         static_cast<uint32_t>(texture_info.format_info()->format), 
+         texture_info.memory.base_address);
 
   // Create texture descriptor for cache lookup
   TextureDescriptor desc = {};
@@ -401,8 +406,33 @@ bool MetalTextureCache::UpdateTexture2D(MTL::Texture* texture, const TextureInfo
     // Perform untiling with endian swap
     texture_conversion::Untile(untiled_data.data(), guest_data, &untile_info);
     
+    // Check if untiled data is all black
+    bool all_black = true;
+    for (size_t i = 0; i < std::min(size_t(1000), untiled_data.size()); i++) {
+      if (untiled_data[i] != 0) {
+        all_black = false;
+        break;
+      }
+    }
+    
+    if (all_black) {
+      XELOGW("Metal texture cache: WARNING - Untiled texture data is all black!");
+    } else {
+      // Log first few pixels to verify data
+      if (untiled_data.size() >= 16) {
+        XELOGI("Metal texture cache: First 4 pixels after untiling (BGRA): "
+               "[{:02X},{:02X},{:02X},{:02X}] [{:02X},{:02X},{:02X},{:02X}] "
+               "[{:02X},{:02X},{:02X},{:02X}] [{:02X},{:02X},{:02X},{:02X}]",
+               untiled_data[0], untiled_data[1], untiled_data[2], untiled_data[3],
+               untiled_data[4], untiled_data[5], untiled_data[6], untiled_data[7],
+               untiled_data[8], untiled_data[9], untiled_data[10], untiled_data[11],
+               untiled_data[12], untiled_data[13], untiled_data[14], untiled_data[15]);
+      }
+    }
+    
     // Upload the untiled data (already endian-swapped by callback)
     texture->replaceRegion(region, 0, untiled_data.data(), bytes_per_row);
+    XELOGI("MetalTextureCache: Uploaded untiled texture data");
     
   } else {
     // Linear texture - handle endianness then upload directly

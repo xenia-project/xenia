@@ -10,21 +10,27 @@
 #ifndef XENIA_GPU_METAL_METAL_COMMAND_PROCESSOR_H_
 #define XENIA_GPU_METAL_METAL_COMMAND_PROCESSOR_H_
 
+#include <memory>
 #include <string>
 
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/shader.h"
 #include "xenia/gpu/xenos.h"
 
-#ifdef METAL_SHADER_CONVERTER_AVAILABLE
-#include <metal_irconverter.h>
-#include <metal_irconverter_runtime.h>
-#endif  // METAL_SHADER_CONVERTER_AVAILABLE
 #include "third_party/metal-cpp/Metal/Metal.hpp"
+
+#ifdef METAL_SHADER_CONVERTER_AVAILABLE
+#include "third_party/metal-shader-converter/include/metal_irconverter.h"
+// Forward declarations only - actual definitions come from IR Runtime implementation
+struct IRDescriptorTableEntry;
+#endif  // METAL_SHADER_CONVERTER_AVAILABLE
 
 namespace xe {
 namespace gpu {
 namespace metal {
+
+// Forward declaration
+class MetalDebugUtils;
 
 class MetalGraphicsSystem;
 class MetalBufferCache;
@@ -34,13 +40,7 @@ class MetalRenderTargetCache;
 class MetalSharedMemory;
 class MetalTextureCache;
 
-// Metal shader converter descriptor table entry format
-// Each resource (texture/sampler/buffer) is described by 3 uint64_t values
-struct IRDescriptorTableEntry {
-  uint64_t gpuVA;        // Buffer GPU address or 0 for textures/samplers
-  uint64_t textureID;    // Texture/sampler resource ID or 0 for buffers
-  uint64_t metadata;     // Flags and additional info (LOD clamp, LOD bias, etc.)
-};
+// IRDescriptorTableEntry is defined in metal_irconverter_runtime.h
 
 class MetalCommandProcessor : public CommandProcessor {
  public:
@@ -144,6 +144,29 @@ class MetalCommandProcessor : public CommandProcessor {
   std::vector<uint8_t> last_captured_frame_data_;
   uint32_t last_captured_frame_width_ = 0;
   uint32_t last_captured_frame_height_ = 0;
+  
+  // Last render pass descriptor used in IssueDraw for capture fallback
+  MTL::RenderPassDescriptor* last_render_pass_descriptor_ = nullptr;
+  
+  // Debug red shader pipeline for testing
+  MTL::RenderPipelineState* debug_red_pipeline_ = nullptr;
+  
+  // Shader constant staging buffers
+  // Updated by WriteRegister during trace replay (LOAD_ALU_CONSTANT)
+  float* cb0_staging_ = nullptr;  // VS constants (256 vec4s)
+  float* cb1_staging_ = nullptr;  // PS constants (256 vec4s)
+  
+  // Descriptor heap argument buffers for Metal Shader Converter
+  MTL::ArgumentEncoder* res_heap_encoder_ = nullptr;   // [[buffer(3)]] - textures
+  MTL::Buffer*          res_heap_ab_ = nullptr;
+  MTL::ArgumentEncoder* smp_heap_encoder_ = nullptr;   // [[buffer(4)]] - samplers
+  MTL::Buffer*          smp_heap_ab_ = nullptr;
+  
+  // Helper to create debug pipeline
+  void CreateDebugRedPipeline();
+  
+  // Debug utilities (optional)
+  std::unique_ptr<MetalDebugUtils> debug_utils_;
   
 };
 

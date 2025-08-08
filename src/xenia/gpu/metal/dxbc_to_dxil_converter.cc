@@ -122,11 +122,20 @@ bool DxbcToDxilConverter::Convert(const std::vector<uint8_t>& dxbc_data,
     return false;
   }
 
-  // Create temporary files in current directory for Wine compatibility
-  std::string input_filename = "temp_shader_" + std::to_string(getpid()) + "_" + 
-                               std::to_string(rand()) + ".dxbc";
-  std::string output_filename = "temp_shader_" + std::to_string(getpid()) + "_" + 
-                                std::to_string(rand()) + ".dxil";
+  // Check for debug output directories from environment
+  const char* dxbc_dir = std::getenv("XENIA_DXBC_OUTPUT_DIR");
+  const char* dxil_dir = std::getenv("XENIA_DXIL_OUTPUT_DIR");
+  
+  // Generate unique shader ID
+  std::string shader_id = std::to_string(getpid()) + "_" + std::to_string(rand());
+  
+  // Create file paths (use debug directories if available, otherwise current dir)
+  std::string input_filename = dxbc_dir 
+    ? std::string(dxbc_dir) + "/shader_" + shader_id + ".dxbc"
+    : "temp_shader_" + shader_id + ".dxbc";
+  std::string output_filename = dxil_dir
+    ? std::string(dxil_dir) + "/shader_" + shader_id + ".dxil" 
+    : "temp_shader_" + shader_id + ".dxil";
   
   // Write input file
   if (!writeFile(input_filename, dxbc_data)) {
@@ -180,23 +189,29 @@ bool DxbcToDxilConverter::Convert(const std::vector<uint8_t>& dxbc_data,
 
   int exit_code = pclose(pipe);
   
-  // Clean up input file
-  unlink(input_path.c_str());
+  // Clean up input file (unless in debug mode)
+  if (!dxbc_dir) {
+    unlink(input_path.c_str());
+  }
 
   if (exit_code != 0) {
     if (error_message) {
       *error_message = "dxbc2dxil.exe failed: " + output;
     }
     printf("[DxbcToDxilConverter] Conversion failed: %s\n", output.c_str());
-    unlink(output_path.c_str());  // Clean up in case of partial output
+    if (!dxil_dir) {
+      unlink(output_path.c_str());  // Clean up in case of partial output
+    }
     return false;
   }
 
   // Read output file
   bool success = ReadFile(output_path, dxil_data_out);
   
-  // Clean up output file
-  unlink(output_path.c_str());
+  // Clean up output file (unless in debug mode)
+  if (!dxil_dir) {
+    unlink(output_path.c_str());
+  }
 
   if (!success) {
     if (error_message) {

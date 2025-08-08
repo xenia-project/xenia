@@ -328,6 +328,27 @@ bool MetalShader::MetalTranslation::CreateMetalLibrary() {
   metal_library_ = library;
   metal_function_ = function;
 
+  // DEBUG: Log function signature info
+  XELOGI("Metal shader: Successfully loaded {} function '{}'", 
+         shader().type() == xenos::ShaderType::kVertex ? "vertex" : "fragment",
+         function_name);
+  
+  // Save metallib for debugging (can be decompiled with xcrun metal-source)
+  // TODO: Add proper dump_shaders cvar
+  {
+    char filename[256];
+    snprintf(filename, sizeof(filename), "shader_%s_%016llx.metallib",
+             shader().type() == xenos::ShaderType::kVertex ? "vs" : "ps",
+             (unsigned long long)shader().ucode_data_hash());
+    FILE* f = fopen(filename, "wb");
+    if (f) {
+      fwrite(metallib_data, 1, metallib_size, f);
+      fclose(f);
+      XELOGI("Metal shader: Saved metallib to {} (decompile with: xcrun metal-source -o {}.metal {})",
+             filename, filename, filename);
+    }
+  }
+
   device->release();
   return true;
 }
@@ -399,6 +420,13 @@ bool MetalShader::MetalTranslation::CaptureReflectionData() {
     XELOGI("  Resource[{}]: type={} (raw={}), slot={}, space={}, offset_bytes={}, offset_entries={}",
            i, type_str, (int)locations[i].resourceType, locations[i].slot, locations[i].space, 
            locations[i].topLevelOffset, mapping.arg_buffer_offset);
+    
+    // Extra detail for understanding bindings
+    if (locations[i].resourceType == IRResourceTypeTable) {
+      XELOGI("    -> This is a descriptor table at argument buffer index 2");
+    } else if (locations[i].resourceType == IRResourceTypeConstant) {
+      XELOGI("    -> Constants expected at buffer index {}", locations[i].slot);
+    }
   }
   
   delete[] locations;
@@ -408,10 +436,235 @@ bool MetalShader::MetalTranslation::CaptureReflectionData() {
   XELOGI("Metal shader: {} shader reflection captured with {} resources",
          stage_str, resource_count);
   
+  // Get the entry point function name
+  const char* entry_point = IRShaderReflectionGetEntryPointFunctionName(reflection);
+  XELOGI("Metal shader: Entry point function name: '{}'", entry_point ? entry_point : "null");
+  
+  // Dump full reflection as JSON for debugging
+  const char* json = IRShaderReflectionCopyJSONString(reflection);
+  if (json) {
+    XELOGI("Metal shader: Full reflection JSON for {} shader (hash {:016x}):",
+           stage_str, shader().ucode_data_hash());
+    // Log the JSON line by line for readability
+    std::string json_str(json);
+    size_t pos = 0;
+    while (pos < json_str.length()) {
+      size_t end = json_str.find('\n', pos);
+      if (end == std::string::npos) end = json_str.length();
+      XELOGI("  {}", json_str.substr(pos, end - pos));
+      pos = end + 1;
+    }
+    
+    // Parse JSON to extract texture bindings
+    ParseTextureBindingsFromJSON(json_str);
+    
+    IRShaderReflectionReleaseString(json);
+  }
+  
   // Clean up reflection object
   IRShaderReflectionDestroy(reflection);
   
   return true;
+}
+
+void MetalShader::MetalTranslation::ParseTextureBindingsFromJSON(const std::string& json_str) {
+  // Parse TopLevelArgumentBuffer first to get the full layout
+  size_t tlab_pos = json_str.find("\"TopLevelArgumentBuffer\":");
+  if (tlab_pos != std::string::npos) {
+    size_t tlab_start = json_str.find('[', tlab_pos);
+    size_t tlab_end = json_str.find(']', tlab_start);
+    
+    if (tlab_start != std::string::npos && tlab_end != std::string::npos) {
+      // Clear existing layout
+      top_level_ab_layout_.clear();
+      
+      // Parse each entry in the array
+      size_t pos = tlab_start + 1;
+      while (pos < tlab_end) {
+        // Find next object start
+        size_t obj_start = json_str.find('{', pos);
+        if (obj_start == std::string::npos || obj_start >= tlab_end) break;
+        
+        // Find object end
+        size_t obj_end = json_str.find('}', obj_start);
+        if (obj_end == std::string::npos || obj_end >= tlab_end) break;
+        
+        std::string obj_str = json_str.substr(obj_start, obj_end - obj_start + 1);
+        
+        ABEntry entry;
+        
+        // Parse EltOffset
+        size_t offset_pos = obj_str.find("\"EltOffset\":");
+        if (offset_pos != std::string::npos) {
+          size_t num_start = obj_str.find(':', offset_pos) + 1;
+          size_t num_end = obj_str.find_first_of(",}", num_start);
+          entry.elt_offset = std::stoul(obj_str.substr(num_start, num_end - num_start));
+        }
+        
+        // Parse Name
+        size_t name_pos = obj_str.find("\"Name\":");
+        if (name_pos != std::string::npos) {
+          size_t quote_start = obj_str.find('"', name_pos + 7);
+          size_t quote_end = obj_str.find('"', quote_start + 1);
+          entry.name = obj_str.substr(quote_start + 1, quote_end - quote_start - 1);
+        }
+        
+        // Parse Slot
+        size_t slot_pos = obj_str.find("\"Slot\":");
+        if (slot_pos != std::string::npos) {
+          size_t num_start = obj_str.find(':', slot_pos) + 1;
+          size_t num_end = obj_str.find_first_of(",}", num_start);
+          entry.slot = std::stoul(obj_str.substr(num_start, num_end - num_start));
+        }
+        
+        // Parse Space
+        size_t space_pos = obj_str.find("\"Space\":");
+        if (space_pos != std::string::npos) {
+          size_t num_start = obj_str.find(':', space_pos) + 1;
+          size_t num_end = obj_str.find_first_of(",}", num_start);
+          entry.space = std::stoul(obj_str.substr(num_start, num_end - num_start));
+        }
+        
+        // Parse Type
+        size_t type_pos = obj_str.find("\"Type\":");
+        if (type_pos != std::string::npos) {
+          size_t quote_start = obj_str.find('"', type_pos + 7);
+          size_t quote_end = obj_str.find('"', quote_start + 1);
+          std::string type_str = obj_str.substr(quote_start + 1, quote_end - quote_start - 1);
+          
+          if (type_str == "SRV") {
+            entry.kind = ABEntry::Kind::SRV;
+          } else if (type_str == "UAV") {
+            entry.kind = ABEntry::Kind::UAV;
+          } else if (type_str == "CBV") {
+            entry.kind = ABEntry::Kind::CBV;
+          } else if (type_str == "Sampler") {
+            entry.kind = ABEntry::Kind::Sampler;
+          } else {
+            entry.kind = ABEntry::Kind::Unknown;
+          }
+        }
+        
+        top_level_ab_layout_.push_back(entry);
+        
+        XELOGI("Metal shader: TopLevelAB entry - name: {}, offset: {}, slot: {}, space: {}, kind: {}",
+               entry.name, entry.elt_offset, entry.slot, entry.space, 
+               entry.kind == ABEntry::Kind::SRV ? "SRV" :
+               entry.kind == ABEntry::Kind::UAV ? "UAV" :
+               entry.kind == ABEntry::Kind::CBV ? "CBV" :
+               entry.kind == ABEntry::Kind::Sampler ? "Sampler" : "Unknown");
+        
+        pos = obj_end + 1;
+      }
+      
+      XELOGI("Metal shader: Parsed {} top-level AB entries", top_level_ab_layout_.size());
+    }
+  }
+  
+  // Simple JSON parser to extract ShaderResourceViewIndices array
+  // Looking for: "ShaderResourceViewIndices":[0,1,2,...]
+  
+  size_t srv_pos = json_str.find("\"ShaderResourceViewIndices\":");
+  if (srv_pos == std::string::npos) {
+    XELOGI("Metal shader: No ShaderResourceViewIndices in reflection");
+    return;
+  }
+  
+  // Find the array start
+  size_t array_start = json_str.find('[', srv_pos);
+  if (array_start == std::string::npos) {
+    return;
+  }
+  
+  // Find the array end
+  size_t array_end = json_str.find(']', array_start);
+  if (array_end == std::string::npos) {
+    return;
+  }
+  
+  // Extract the array content
+  std::string array_content = json_str.substr(array_start + 1, array_end - array_start - 1);
+  
+  // Parse the texture slot indices
+  std::vector<uint32_t> texture_slots;
+  if (!array_content.empty()) {
+    size_t pos = 0;
+    while (pos < array_content.length()) {
+      // Skip whitespace
+      while (pos < array_content.length() && std::isspace(array_content[pos])) {
+        pos++;
+      }
+      
+      if (pos >= array_content.length()) break;
+      
+      // Parse number
+      size_t end = pos;
+      while (end < array_content.length() && std::isdigit(array_content[end])) {
+        end++;
+      }
+      
+      if (end > pos) {
+        uint32_t slot = std::stoul(array_content.substr(pos, end - pos));
+        texture_slots.push_back(slot);
+        XELOGI("Metal shader: Found texture slot {}", slot);
+      }
+      
+      // Find next comma or end
+      pos = array_content.find(',', end);
+      if (pos != std::string::npos) {
+        pos++; // Skip the comma
+      } else {
+        break;
+      }
+    }
+  }
+  
+  // Similarly parse SamplerIndices
+  std::vector<uint32_t> sampler_slots;
+  size_t smp_pos = json_str.find("\"SamplerIndices\":");
+  if (smp_pos != std::string::npos) {
+    size_t smp_array_start = json_str.find('[', smp_pos);
+    size_t smp_array_end = json_str.find(']', smp_array_start);
+    if (smp_array_start != std::string::npos && smp_array_end != std::string::npos) {
+      std::string smp_array_content = json_str.substr(smp_array_start + 1, 
+                                                      smp_array_end - smp_array_start - 1);
+      // Parse sampler indices similarly
+      size_t pos = 0;
+      while (pos < smp_array_content.length()) {
+        while (pos < smp_array_content.length() && std::isspace(smp_array_content[pos])) {
+          pos++;
+        }
+        if (pos >= smp_array_content.length()) break;
+        
+        size_t end = pos;
+        while (end < smp_array_content.length() && std::isdigit(smp_array_content[end])) {
+          end++;
+        }
+        
+        if (end > pos) {
+          uint32_t slot = std::stoul(smp_array_content.substr(pos, end - pos));
+          sampler_slots.push_back(slot);
+          XELOGI("Metal shader: Found sampler slot {}", slot);
+        }
+        
+        pos = smp_array_content.find(',', end);
+        if (pos != std::string::npos) {
+          pos++;
+        } else {
+          break;
+        }
+      }
+    }
+  }
+  
+  // Store the found texture/sampler slots for later use
+  // We'll use these to know which textures to bind
+  texture_slots_ = texture_slots;
+  sampler_slots_ = sampler_slots;
+  
+  // Log summary
+  XELOGI("Metal shader: Parsed {} texture bindings and {} sampler bindings from reflection",
+         texture_slots.size(), sampler_slots.size());
 }
 
 // Cleanup function to be called on shutdown

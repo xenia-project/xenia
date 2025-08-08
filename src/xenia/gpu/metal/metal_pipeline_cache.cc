@@ -70,11 +70,7 @@ void MetalPipelineCache::ClearCache() {
   SCOPE_profile_cpu_f("gpu");
 
   // Release all Metal render pipeline states
-  for (auto& pair : render_pipeline_cache_) {
-    if (pair.second) {
-      pair.second->release();
-    }
-  }
+  // CachedPipeline destructor handles cleanup
   render_pipeline_cache_.clear();
 
   // Release all Metal compute pipeline states
@@ -149,13 +145,13 @@ MTL::RenderPipelineState* MetalPipelineCache::GetRenderPipelineState(
   // Check if pipeline already exists in cache
   auto it = render_pipeline_cache_.find(description);
   if (it != render_pipeline_cache_.end()) {
-    return it->second;
+    return it->second->pipeline_state;
   }
 
   // Create new pipeline state
   MTL::RenderPipelineState* pipeline_state = CreateRenderPipelineState(description);
   if (pipeline_state) {
-    render_pipeline_cache_[description] = pipeline_state;
+    // Note: CreateRenderPipelineState now handles cache insertion
     XELOGI("Metal pipeline cache: Created new render pipeline (total: {})",
            render_pipeline_cache_.size());
   }
@@ -336,6 +332,10 @@ MTL::RenderPipelineState* MetalPipelineCache::CreateRenderPipelineState(
   descriptor->setVertexFunction(vertex_function);
   descriptor->setFragmentFunction(fragment_function);
   
+  // Retain functions for creating debug variants
+  vertex_function->retain();
+  fragment_function->retain();
+  
   XELOGI("Metal pipeline cache: Successfully set Xbox 360→Metal converted shader functions");
   
   // Configure blend state
@@ -376,8 +376,17 @@ MTL::RenderPipelineState* MetalPipelineCache::CreateRenderPipelineState(
                                    : NS::String::string("Unknown error", NS::UTF8StringEncoding);
     XELOGE("Metal pipeline cache: Failed to create render pipeline state: {}", 
            error_desc->utf8String());
+    vertex_function->release();
+    fragment_function->release();
     return nullptr;
   }
+
+  // Store in cache with functions
+  auto cached = std::make_unique<CachedPipeline>();
+  cached->pipeline_state = pipeline_state;
+  cached->vertex_function = vertex_function;
+  cached->fragment_function = fragment_function;
+  render_pipeline_cache_[description] = std::move(cached);
 
   return pipeline_state;
 }
@@ -399,13 +408,20 @@ void MetalPipelineCache::ConfigureBlendState(
       descriptor->colorAttachments()->object(0);
 
   // Set color write mask
+  // TEMPORARY: Force all color writes on to test if mask is the issue
+  color_attachment->setWriteMask(MTL::ColorWriteMaskAll);
+  /*
   uint32_t write_mask = MTL::ColorWriteMaskNone;
   if (description.color_mask[0] & 0x1) write_mask |= MTL::ColorWriteMaskRed;
   if (description.color_mask[0] & 0x2) write_mask |= MTL::ColorWriteMaskGreen;
   if (description.color_mask[0] & 0x4) write_mask |= MTL::ColorWriteMaskBlue;
   if (description.color_mask[0] & 0x8) write_mask |= MTL::ColorWriteMaskAlpha;
   color_attachment->setWriteMask(static_cast<MTL::ColorWriteMask>(write_mask));
+  */
 
+  // TEMPORARY: Disable blending to test if it's causing black output
+  color_attachment->setBlendingEnabled(false);
+  /*
   // Enable blending if needed
   if (description.blend_enable) {
     color_attachment->setBlendingEnabled(true);
@@ -422,6 +438,7 @@ void MetalPipelineCache::ConfigureBlendState(
   } else {
     color_attachment->setBlendingEnabled(false);
   }
+  */
 }
 
 MTL::VertexDescriptor* MetalPipelineCache::CreateVertexDescriptor(
@@ -431,41 +448,107 @@ MTL::VertexDescriptor* MetalPipelineCache::CreateVertexDescriptor(
     return nullptr;
   }
 
-  // CRITICAL FIX: Create vertex descriptor based on actual shader requirements
-  // The Xbox 360 shaders expect specific vertex formats that we must match
+  // Find the vertex shader to get its vertex bindings
+  MetalShader* vertex_shader = nullptr;
+  for (auto& shader_entry : shaders_) {
+    auto* shader = shader_entry.second.get();
+    if (shader->ucode_data_hash() == description.vertex_shader_hash && 
+        shader->type() == xenos::ShaderType::kVertex) {
+      vertex_shader = static_cast<MetalShader*>(shader);
+      break;
+    }
+  }
   
-  // For now, configure a more flexible vertex descriptor that can handle common cases
-  // Eventually this should be built from the shader's vertex_bindings() data
+  if (!vertex_shader) {
+    XELOGE("Metal pipeline cache: No vertex shader found for vertex descriptor creation");
+    // Fall back to a simple descriptor
+    // Attributes start at index 11 for Metal IR Converter
+    MTL::VertexAttributeDescriptor* attr0 = vertex_descriptor->attributes()->object(11);  // kIRStageInAttributeStartIndex
+    attr0->setFormat(MTL::VertexFormatFloat3);
+    attr0->setOffset(0);
+    attr0->setBufferIndex(6);  // kIRVertexBufferBindPoint = 6
+    
+    MTL::VertexBufferLayoutDescriptor* buffer_layout = vertex_descriptor->layouts()->object(6);
+    buffer_layout->setStride(12);
+    buffer_layout->setStepRate(1);
+    buffer_layout->setStepFunction(MTL::VertexStepFunctionPerVertex);
+    
+    return vertex_descriptor;
+  }
   
-  // Attribute 0: Position (float3 or float4)
-  MTL::VertexAttributeDescriptor* attr0 = vertex_descriptor->attributes()->object(0);
-  attr0->setFormat(MTL::VertexFormatFloat3);  // Most common is position xyz
-  attr0->setOffset(0);
-  attr0->setBufferIndex(0);
+  // Build vertex descriptor from shader's vertex bindings
+  const auto& vertex_bindings = vertex_shader->vertex_bindings();
+  XELOGI("Metal pipeline cache: Building vertex descriptor from {} vertex bindings", 
+         vertex_bindings.size());
   
-  // Attribute 1: Texcoord or second component (float2)
-  MTL::VertexAttributeDescriptor* attr1 = vertex_descriptor->attributes()->object(1);
-  attr1->setFormat(MTL::VertexFormatFloat2);
-  attr1->setOffset(12);  // After 3 floats
-  attr1->setBufferIndex(0);
+  // Attributes must start at index 11 for Metal IR Converter
+  uint32_t attribute_index = 11;  // kIRStageInAttributeStartIndex
+  for (const auto& binding : vertex_bindings) {
+    // Metal IR Converter expects vertex buffers starting at index 6
+    uint32_t buffer_index = 6 + binding.binding_index;  // kIRVertexBufferBindPoint = 6
+    
+    // Set up buffer layout for this binding
+    MTL::VertexBufferLayoutDescriptor* buffer_layout = 
+        vertex_descriptor->layouts()->object(buffer_index);
+    buffer_layout->setStride(binding.stride_words * 4);  // Convert words to bytes
+    buffer_layout->setStepRate(1);
+    buffer_layout->setStepFunction(MTL::VertexStepFunctionPerVertex);
+    
+    XELOGI("  Binding {}: buffer index {}, stride {} bytes", 
+           binding.binding_index, buffer_index, binding.stride_words * 4);
+    
+    // Process each attribute in this binding
+    for (const auto& attribute : binding.attributes) {
+      const auto& fetch = attribute.fetch_instr;
+      
+      // Map Xbox 360 vertex format to Metal format
+      MTL::VertexFormat metal_format = MTL::VertexFormatInvalid;
+      switch (fetch.attributes.data_format) {
+        case xenos::VertexFormat::k_32_FLOAT:
+          metal_format = MTL::VertexFormatFloat;
+          break;
+        case xenos::VertexFormat::k_32_32_FLOAT:
+          metal_format = MTL::VertexFormatFloat2;
+          break;
+        case xenos::VertexFormat::k_32_32_32_FLOAT:
+          metal_format = MTL::VertexFormatFloat3;
+          break;
+        case xenos::VertexFormat::k_32_32_32_32_FLOAT:
+          metal_format = MTL::VertexFormatFloat4;
+          break;
+        case xenos::VertexFormat::k_16_16_FLOAT:
+          metal_format = MTL::VertexFormatHalf2;
+          break;
+        case xenos::VertexFormat::k_16_16_16_16_FLOAT:
+          metal_format = MTL::VertexFormatHalf4;
+          break;
+        case xenos::VertexFormat::k_8_8_8_8:
+          metal_format = MTL::VertexFormatUChar4Normalized;
+          break;
+        default:
+          XELOGW("    Unsupported vertex format: {}", 
+                 static_cast<uint32_t>(fetch.attributes.data_format));
+          continue;
+      }
+      
+      if (metal_format != MTL::VertexFormatInvalid && attribute_index < 31) {
+        MTL::VertexAttributeDescriptor* attr = 
+            vertex_descriptor->attributes()->object(attribute_index);
+        attr->setFormat(metal_format);
+        attr->setOffset(fetch.attributes.offset * 4);  // Convert words to bytes
+        attr->setBufferIndex(buffer_index);
+        
+        XELOGI("    Attribute {}: format {}, offset {} bytes, buffer {}", 
+               attribute_index, static_cast<uint32_t>(metal_format), 
+               fetch.attributes.offset * 4, buffer_index);
+        
+        attribute_index++;
+      }
+    }
+  }
   
-  // Attribute 2: Additional data (could be color, normal, etc.)
-  MTL::VertexAttributeDescriptor* attr2 = vertex_descriptor->attributes()->object(2);
-  attr2->setFormat(MTL::VertexFormatFloat);
-  attr2->setOffset(20);  // After 3+2 floats
-  attr2->setBufferIndex(0);
-  
-  // Configure buffer layout with flexible stride
-  // The stride should match what we see in the logs (20 bytes for 3 attributes)
-  MTL::VertexBufferLayoutDescriptor* buffer_layout = vertex_descriptor->layouts()->object(0);
-  buffer_layout->setStride(20);  // Match the observed 20 byte stride
-  buffer_layout->setStepRate(1);
-  buffer_layout->setStepFunction(MTL::VertexStepFunctionPerVertex);
-  
-  XELOGI("Metal pipeline cache: Created flexible vertex descriptor with 3 attributes, 20 byte stride");
-  
-  // TODO: Properly extract vertex format from shader metadata
-  // Each shader has vertex_bindings() that describe the expected format
+  XELOGI("Metal pipeline cache: Created vertex descriptor with {} attributes", 
+         attribute_index);
   
   return vertex_descriptor;
 }
@@ -572,6 +655,121 @@ size_t MetalPipelineCache::ComputePipelineDescriptionHasher::operator()(
   return hash;
 }
 
+MTL::RenderPipelineState* MetalPipelineCache::GetRenderPipelineStateWithRedPS(
+    const RenderPipelineDescription& description) {
+  SCOPE_profile_cpu_f("gpu");
+  
+  // First ensure the normal pipeline exists and is cached
+  auto it = render_pipeline_cache_.find(description);
+  if (it == render_pipeline_cache_.end()) {
+    // Create the normal pipeline first
+    GetRenderPipelineState(description);
+    it = render_pipeline_cache_.find(description);
+    if (it == render_pipeline_cache_.end()) {
+      XELOGE("Metal pipeline cache: Failed to create base pipeline for red PS variant");
+      return nullptr;
+    }
+  }
+  
+  auto* cached = it->second.get();
+  if (!cached || !cached->vertex_function) {
+    XELOGE("Metal pipeline cache: No vertex function available for red PS variant");
+    return nullptr;
+  }
+  
+  // Create a simple red fragment shader
+  static const char* kRedPS = R"(
+    #include <metal_stdlib>
+    using namespace metal;
+    fragment float4 debug_fragment_red() { 
+      return float4(1.0, 0.0, 0.0, 1.0);  // Solid red
+    }
+  )";
+  
+  MTL::Device* device = command_processor_->GetMetalDevice();
+  if (!device) {
+    XELOGE("Metal pipeline cache: No Metal device for red PS variant");
+    return nullptr;
+  }
+  
+  // Compile red fragment shader
+  NS::Error* error = nullptr;
+  MTL::CompileOptions* options = MTL::CompileOptions::alloc()->init();
+  MTL::Library* library = device->newLibrary(
+    NS::String::string(kRedPS, NS::UTF8StringEncoding),
+    options,
+    &error
+  );
+  
+  if (!library) {
+    XELOGE("Metal pipeline cache: Failed to compile red fragment shader: {}", 
+           error ? error->localizedDescription()->utf8String() : "unknown");
+    if (error) error->release();
+    options->release();
+    return nullptr;
+  }
+  
+  MTL::Function* red_function = library->newFunction(
+    NS::String::string("debug_fragment_red", NS::UTF8StringEncoding)
+  );
+  
+  if (!red_function) {
+    XELOGE("Metal pipeline cache: Failed to get red fragment function");
+    library->release();
+    options->release();
+    return nullptr;
+  }
+  
+  // Create pipeline descriptor with real VS and red PS
+  MTL::RenderPipelineDescriptor* desc = MTL::RenderPipelineDescriptor::alloc()->init();
+  desc->setVertexFunction(cached->vertex_function);
+  desc->setFragmentFunction(red_function);
+  
+  // Copy render target configuration from original
+  for (uint32_t i = 0; i < description.num_color_attachments; ++i) {
+    if (description.color_formats[i] != MTL::PixelFormatInvalid) {
+      auto* ca = desc->colorAttachments()->object(i);
+      ca->setPixelFormat(description.color_formats[i]);
+      ca->setWriteMask(MTL::ColorWriteMaskAll);  // Force all writes
+      ca->setBlendingEnabled(false);
+    }
+  }
+  
+  // Set depth format if present
+  if (description.depth_format != MTL::PixelFormatInvalid) {
+    desc->setDepthAttachmentPixelFormat(description.depth_format);
+  }
+  
+  // Set sample count
+  desc->setSampleCount(description.sample_count ? description.sample_count : 1);
+  
+  // Configure vertex descriptor (same as original)
+  MTL::VertexDescriptor* vertex_descriptor = CreateVertexDescriptor(description);
+  if (vertex_descriptor) {
+    desc->setVertexDescriptor(vertex_descriptor);
+    vertex_descriptor->release();
+  }
+  
+  // Create the pipeline
+  MTL::RenderPipelineState* red_pipeline = device->newRenderPipelineState(desc, &error);
+  
+  if (!red_pipeline) {
+    XELOGE("Metal pipeline cache: Failed to create red PS pipeline: {}",
+           error ? error->localizedDescription()->utf8String() : "unknown");
+  } else {
+    XELOGI("Metal pipeline cache: Created real VS + red PS debug pipeline");
+  }
+  
+  // Clean up
+  if (error) error->release();
+  desc->release();
+  red_function->release();
+  library->release();
+  options->release();
+  
+  return red_pipeline;
+}
+
 std::pair<MetalShader::MetalTranslation*, MetalShader::MetalTranslation*>
 MetalPipelineCache::GetShaderTranslations(const RenderPipelineDescription& description) {
   // Find the shaders in cache
@@ -593,6 +791,384 @@ MetalPipelineCache::GetShaderTranslations(const RenderPipelineDescription& descr
       pixel_shader->GetOrCreateTranslation(description.pixel_shader_modification));
   
   return {vertex_translation, pixel_translation};
+}
+
+MTL::RenderPipelineState* MetalPipelineCache::GetRenderPipelineStateWithMinimalVSRealPS(
+    const RenderPipelineDescription& description) {
+  SCOPE_profile_cpu_f("gpu");
+  
+  // First ensure the normal pipeline exists and is cached
+  auto it = render_pipeline_cache_.find(description);
+  if (it == render_pipeline_cache_.end()) {
+    // Create the normal pipeline first
+    GetRenderPipelineState(description);
+    it = render_pipeline_cache_.find(description);
+    if (it == render_pipeline_cache_.end()) {
+      XELOGE("Metal pipeline cache: Failed to create base pipeline for minimal VS variant");
+      return nullptr;
+    }
+  }
+  
+  auto* cached = it->second.get();
+  if (!cached || !cached->fragment_function) {
+    XELOGE("Metal pipeline cache: No fragment function available for minimal VS variant");
+    return nullptr;
+  }
+  
+  // Create a minimal vertex shader that outputs a fullscreen triangle in clip space
+  static const char* kMinimalVS = R"(
+    #include <metal_stdlib>
+    using namespace metal;
+    
+    struct VertexOut {
+      float4 position [[position]];
+      float2 texcoord;
+    };
+    
+    vertex VertexOut debug_vertex_minimal(uint vid [[vertex_id]]) {
+      VertexOut out;
+      // Generate fullscreen triangle
+      float2 positions[3] = {
+        float2(-1.0, -1.0),
+        float2( 3.0, -1.0),
+        float2(-1.0,  3.0)
+      };
+      float2 texcoords[3] = {
+        float2(0.0, 1.0),
+        float2(2.0, 1.0),
+        float2(0.0, -1.0)
+      };
+      
+      out.position = float4(positions[vid], 0.0, 1.0);
+      out.texcoord = texcoords[vid];
+      return out;
+    }
+  )";
+  
+  MTL::Device* device = command_processor_->GetMetalDevice();
+  if (!device) {
+    XELOGE("Metal pipeline cache: No Metal device for minimal VS variant");
+    return nullptr;
+  }
+  
+  // Compile minimal vertex shader
+  NS::Error* error = nullptr;
+  MTL::CompileOptions* options = MTL::CompileOptions::alloc()->init();
+  MTL::Library* library = device->newLibrary(
+      NS::String::string(kMinimalVS, NS::UTF8StringEncoding),
+      options, &error);
+  
+  if (!library) {
+    XELOGE("Metal pipeline cache: Failed to compile minimal VS: {}",
+           error ? error->localizedDescription()->utf8String() : "unknown");
+    if (error) error->release();
+    options->release();
+    return nullptr;
+  }
+  
+  MTL::Function* minimal_vs = library->newFunction(NS::String::string("debug_vertex_minimal", NS::UTF8StringEncoding));
+  if (!minimal_vs) {
+    XELOGE("Metal pipeline cache: Failed to get minimal VS function");
+    library->release();
+    options->release();
+    return nullptr;
+  }
+  
+  // Create pipeline descriptor with minimal VS + real PS
+  MTL::RenderPipelineDescriptor* desc = MTL::RenderPipelineDescriptor::alloc()->init();
+  desc->setVertexFunction(minimal_vs);
+  desc->setFragmentFunction(cached->fragment_function);  // Use real PS
+  
+  // Configure color attachments (same as original)
+  for (uint32_t i = 0; i < description.num_color_attachments; ++i) {
+    auto* color_attachment = desc->colorAttachments()->object(i);
+    color_attachment->setPixelFormat(description.color_formats[i]);
+    // TODO: Set blend state based on description
+  }
+  
+  // Configure depth attachment if present
+  if (description.depth_format != MTL::PixelFormatInvalid) {
+    desc->setDepthAttachmentPixelFormat(description.depth_format);
+  }
+  
+  // Set sample count
+  desc->setSampleCount(description.sample_count ? description.sample_count : 1);
+  
+  // No vertex descriptor needed for minimal VS
+  
+  // Create the pipeline
+  MTL::RenderPipelineState* minimal_pipeline = device->newRenderPipelineState(desc, &error);
+  
+  if (!minimal_pipeline) {
+    XELOGE("Metal pipeline cache: Failed to create minimal VS pipeline: {}",
+           error ? error->localizedDescription()->utf8String() : "unknown");
+  } else {
+    XELOGI("Metal pipeline cache: Created minimal VS + real PS debug pipeline");
+  }
+  
+  // Clean up
+  minimal_vs->release();
+  options->release();
+  library->release();
+  desc->release();
+  if (error) error->release();
+  
+  return minimal_pipeline;
+}
+
+MTL::RenderPipelineState* MetalPipelineCache::GetRenderPipelineStateWithViewportShim(
+    const RenderPipelineDescription& description) {
+  SCOPE_profile_cpu_f("gpu");
+  
+  // First ensure the normal pipeline exists and is cached
+  auto it = render_pipeline_cache_.find(description);
+  if (it == render_pipeline_cache_.end()) {
+    // Create the normal pipeline first
+    GetRenderPipelineState(description);
+    it = render_pipeline_cache_.find(description);
+    if (it == render_pipeline_cache_.end()) {
+      XELOGE("Metal pipeline cache: Failed to create base pipeline for viewport shim");
+      return nullptr;
+    }
+  }
+  
+  auto* cached = it->second.get();
+  if (!cached || !cached->vertex_function || !cached->fragment_function) {
+    XELOGE("Metal pipeline cache: No functions available for viewport shim");
+    return nullptr;
+  }
+  
+  // Get the original vertex shader's metallib
+  MetalShader* vertex_shader = static_cast<MetalShader*>(
+      shaders_.find(description.vertex_shader_hash)->second.get());
+  if (!vertex_shader) {
+    XELOGE("Metal pipeline cache: Failed to find vertex shader for shim");
+    return nullptr;
+  }
+  
+  auto* vertex_translation = static_cast<MetalShader::MetalTranslation*>(
+      vertex_shader->GetOrCreateTranslation(description.vertex_shader_modification));
+  if (!vertex_translation) {
+    XELOGE("Metal pipeline cache: No vertex translation for shim");
+    return nullptr;
+  }
+  
+  // Create a shim vertex shader that wraps the original and transforms coordinates
+  // This shader will:
+  // 1. Call the original vertex shader
+  // 2. Transform the output from screen space to clip space
+  static const char* kViewportShimVS = R"(
+    #include <metal_stdlib>
+    using namespace metal;
+    
+    // Match the original VS output structure
+    struct VertexOut {
+      float4 position [[position]];
+      // Additional interpolants would go here
+    };
+    
+    // System constants we inject at CB0
+    struct SystemConstants {
+      float2 ndc_scale;      // (2.0/width, -2.0/height)
+      float2 ndc_offset;     // (-1.0, 1.0)
+      float2 rt_size;        // (width, height)
+      float2 rt_size_inv;    // (1.0/width, 1.0/height)
+      float4 viewport_scale; // From registers
+      float4 viewport_offset;
+    };
+    
+    vertex VertexOut viewport_shim_vs(
+        uint vertex_id [[vertex_id]],
+        uint instance_id [[instance_id]],
+        constant SystemConstants& sys [[buffer(6)]]  // Our uniforms buffer
+    ) {
+      VertexOut out;
+      
+      // Generate a large triangle that covers the whole screen
+      // Already in clip space coordinates
+      float2 positions[3] = {
+        float2(-1.0, -1.0),
+        float2( 3.0, -1.0),
+        float2(-1.0,  3.0)
+      };
+      
+      // Already in clip space, just use directly
+      float2 clip_xy = positions[vertex_id % 3];
+      
+      out.position = float4(clip_xy, 0.0, 1.0);
+      
+      return out;
+    }
+  )";
+  
+  MTL::Device* device = command_processor_->GetMetalDevice();
+  if (!device) {
+    XELOGE("Metal pipeline cache: No Metal device for viewport shim");
+    return nullptr;
+  }
+  
+  // Compile shim vertex shader
+  NS::Error* error = nullptr;
+  MTL::CompileOptions* options = MTL::CompileOptions::alloc()->init();
+  MTL::Library* shim_library = device->newLibrary(
+      NS::String::string(kViewportShimVS, NS::UTF8StringEncoding),
+      options, &error);
+  
+  if (!shim_library) {
+    XELOGE("Metal pipeline cache: Failed to compile viewport shim: {}",
+           error ? error->localizedDescription()->utf8String() : "unknown");
+    if (error) error->release();
+    options->release();
+    return nullptr;
+  }
+  
+  MTL::Function* shim_vs = shim_library->newFunction(
+      NS::String::string("viewport_shim_vs", NS::UTF8StringEncoding));
+  if (!shim_vs) {
+    XELOGE("Metal pipeline cache: Failed to get viewport shim function");
+    shim_library->release();
+    options->release();
+    return nullptr;
+  }
+  
+  // Create pipeline descriptor with shim VS + real PS
+  MTL::RenderPipelineDescriptor* desc = MTL::RenderPipelineDescriptor::alloc()->init();
+  desc->setVertexFunction(shim_vs);
+  desc->setFragmentFunction(cached->fragment_function);  // Use the real fragment shader
+  
+  // Configure color attachments (same as original)
+  for (uint32_t i = 0; i < description.num_color_attachments; ++i) {
+    auto* color_attachment = desc->colorAttachments()->object(i);
+    color_attachment->setPixelFormat(description.color_formats[i]);
+  }
+  
+  // Configure depth attachment if present
+  if (description.depth_format != MTL::PixelFormatInvalid) {
+    desc->setDepthAttachmentPixelFormat(description.depth_format);
+  }
+  
+  // Set sample count
+  desc->setSampleCount(description.sample_count ? description.sample_count : 1);
+  
+  // Create the pipeline
+  MTL::RenderPipelineState* shim_pipeline = device->newRenderPipelineState(desc, &error);
+  
+  if (!shim_pipeline) {
+    XELOGE("Metal pipeline cache: Failed to create viewport shim pipeline: {}",
+           error ? error->localizedDescription()->utf8String() : "unknown");
+  } else {
+    XELOGI("Metal pipeline cache: Created viewport transform shim pipeline");
+  }
+  
+  // Clean up
+  shim_vs->release();
+  options->release();
+  shim_library->release();
+  desc->release();
+  if (error) error->release();
+  
+  return shim_pipeline;
+}
+
+MTL::RenderPipelineState* MetalPipelineCache::GetRenderPipelineStateWithGreenPS(
+    const RenderPipelineDescription& description) {
+  XELOGI("Metal pipeline cache: Creating debug pipeline with real VS + solid green PS");
+  
+  // Find the cached pipeline with the real vertex shader
+  auto it = render_pipeline_cache_.find(description);
+  if (it == render_pipeline_cache_.end()) {
+    XELOGE("Metal pipeline cache: No cached pipeline found for green PS variant");
+    return nullptr;
+  }
+  
+  auto* cached = it->second.get();
+  if (!cached || !cached->vertex_function) {
+    XELOGE("Metal pipeline cache: No vertex function available for green PS variant");
+    return nullptr;
+  }
+  
+  MTL::Device* device = command_processor_->GetMetalDevice();
+  
+  // Create a simple solid green fragment shader
+  static const char* kGreenPS = R"(
+    #include <metal_stdlib>
+    using namespace metal;
+    
+    struct FragmentOut {
+      float4 color [[color(0)]];
+    };
+    
+    fragment FragmentOut test_fragment_green() {
+      FragmentOut out;
+      out.color = float4(0.0, 1.0, 0.0, 1.0);  // Solid green
+      return out;
+    }
+  )";
+  
+  NS::Error* error = nullptr;
+  MTL::CompileOptions* options = MTL::CompileOptions::alloc()->init();
+  
+  MTL::Library* ps_library = device->newLibrary(
+      NS::String::string(kGreenPS, NS::UTF8StringEncoding),
+      options, &error);
+  
+  if (!ps_library) {
+    XELOGE("Metal pipeline cache: Failed to compile green PS: {}",
+           error ? error->localizedDescription()->utf8String() : "unknown");
+    if (error) error->release();
+    options->release();
+    return nullptr;
+  }
+  
+  MTL::Function* green_ps = ps_library->newFunction(
+      NS::String::string("test_fragment_green", NS::UTF8StringEncoding));
+  
+  if (!green_ps) {
+    XELOGE("Metal pipeline cache: Failed to get green PS function");
+    ps_library->release();
+    options->release();
+    return nullptr;
+  }
+  
+  // Create pipeline descriptor with real VS + green PS
+  MTL::RenderPipelineDescriptor* desc = MTL::RenderPipelineDescriptor::alloc()->init();
+  desc->setVertexFunction(cached->vertex_function);
+  desc->setFragmentFunction(green_ps);
+  
+  // Configure color attachments (same as original)
+  for (uint32_t i = 0; i < description.num_color_attachments; ++i) {
+    auto* color_attachment = desc->colorAttachments()->object(i);
+    color_attachment->setPixelFormat(description.color_formats[i]);
+    // Force color writes on for testing
+    color_attachment->setWriteMask(MTL::ColorWriteMaskAll);
+  }
+  
+  // Configure depth attachment if present
+  if (description.depth_format != MTL::PixelFormatInvalid) {
+    desc->setDepthAttachmentPixelFormat(description.depth_format);
+  }
+  
+  // CRITICAL: Set sample count to match render target
+  desc->setSampleCount(description.sample_count ? description.sample_count : 1);
+  
+  // Create the pipeline
+  MTL::RenderPipelineState* green_pipeline = device->newRenderPipelineState(desc, &error);
+  
+  if (!green_pipeline) {
+    XELOGE("Metal pipeline cache: Failed to create green PS pipeline: {}",
+           error ? error->localizedDescription()->utf8String() : "unknown");
+  } else {
+    XELOGI("Metal pipeline cache: Created green PS debug pipeline successfully");
+  }
+  
+  // Clean up
+  green_ps->release();
+  ps_library->release();
+  options->release();
+  desc->release();
+  if (error) error->release();
+  
+  return green_pipeline;
 }
 
 }  // namespace metal

@@ -103,6 +103,22 @@ class MetalPipelineCache {
   // Returns pair of <vertex_translation, pixel_translation>
   std::pair<MetalShader::MetalTranslation*, MetalShader::MetalTranslation*> 
       GetShaderTranslations(const RenderPipelineDescription& description);
+  
+  // Get debug pipeline with real vertex shader but red fragment shader
+  MTL::RenderPipelineState* GetRenderPipelineStateWithRedPS(
+      const RenderPipelineDescription& description);
+  
+  // Get debug pipeline with minimal VS (fullscreen tri) but real PS  
+  MTL::RenderPipelineState* GetRenderPipelineStateWithMinimalVSRealPS(
+      const RenderPipelineDescription& description);
+  
+  // Get pipeline with viewport transform shim wrapping the real VS
+  MTL::RenderPipelineState* GetRenderPipelineStateWithViewportShim(
+      const RenderPipelineDescription& description);
+  
+  // Get debug pipeline with real VS but solid green PS (no textures)
+  MTL::RenderPipelineState* GetRenderPipelineStateWithGreenPS(
+      const RenderPipelineDescription& description);
 
  protected:
   bool TranslateShader(DxbcShaderTranslator& translator, 
@@ -114,11 +130,25 @@ class MetalPipelineCache {
   const RegisterFile* register_file_;
   bool edram_rov_used_;
 
+  // Cached pipeline with vertex function for debug variants
+  struct CachedPipeline {
+    MTL::RenderPipelineState* pipeline_state;
+    MTL::Function* vertex_function;  // Retained for creating debug variants
+    MTL::Function* fragment_function;  // Retained for debugging
+    
+    CachedPipeline() : pipeline_state(nullptr), vertex_function(nullptr), fragment_function(nullptr) {}
+    ~CachedPipeline() {
+      if (pipeline_state) pipeline_state->release();
+      if (vertex_function) vertex_function->release();
+      if (fragment_function) fragment_function->release();
+    }
+  };
+
   // Shader translator for Xbox 360 → DXIL conversion
   std::unique_ptr<DxbcShaderTranslator> shader_translator_;
 
   // Metal pipeline state caches
-  std::unordered_map<RenderPipelineDescription, MTL::RenderPipelineState*,
+  std::unordered_map<RenderPipelineDescription, std::unique_ptr<CachedPipeline>,
                      RenderPipelineDescriptionHasher> render_pipeline_cache_;
   
   std::unordered_map<ComputePipelineDescription, MTL::ComputePipelineState*,

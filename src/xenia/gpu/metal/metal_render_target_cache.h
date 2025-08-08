@@ -86,10 +86,11 @@ class MetalRenderTargetCache {
     uint32_t samples;
     bool is_depth;
     uint32_t edram_base;  // EDRAM address offset for this render target
+    bool needs_clear;  // Track if this target needs initial clear
     
     MetalRenderTarget() : texture(nullptr), resolve_texture(nullptr),
                          width(0), height(0), format(MTL::PixelFormatInvalid),
-                         samples(1), is_depth(false), edram_base(0) {}
+                         samples(1), is_depth(false), edram_base(0), needs_clear(true) {}
     ~MetalRenderTarget() {
       if (texture) {
         texture->release();

@@ -34,6 +34,15 @@ class MetalShader : public DxbcShader {
     uint32_t resource_type;      // IRResourceType from metal_irconverter.h
     size_t arg_buffer_offset;    // Offset in argument buffer (in entries, not bytes!)
   };
+  
+  // Top-level argument buffer entry from reflection
+  struct ABEntry {
+    uint32_t elt_offset;     // Offset in bytes
+    enum class Kind { SRV, UAV, CBV, Sampler, Unknown } kind;
+    uint32_t slot;           // Reflection "Slot"
+    uint32_t space;          // Reflection "Space"
+    std::string name;        // Resource name for logging
+  };
 
   class MetalTranslation : public DxbcTranslation {
    public:
@@ -51,6 +60,13 @@ class MetalShader : public DxbcShader {
     const std::vector<ResourceMapping>& GetResourceMappings() const { 
       return resource_mappings_; 
     }
+    
+    // Get texture and sampler slots from reflection
+    const std::vector<uint32_t>& GetTextureSlots() const { return texture_slots_; }
+    const std::vector<uint32_t>& GetSamplerSlots() const { return sampler_slots_; }
+    
+    // Get top-level argument buffer layout from reflection
+    const std::vector<ABEntry>& GetTopLevelABLayout() const { return top_level_ab_layout_; }
 
    private:
     MetalShader& metal_shader_;
@@ -66,6 +82,13 @@ class MetalShader : public DxbcShader {
     
     // Resource mappings from shader reflection
     std::vector<ResourceMapping> resource_mappings_;
+    
+    // Texture and sampler slots extracted from reflection
+    std::vector<uint32_t> texture_slots_;
+    std::vector<uint32_t> sampler_slots_;
+    
+    // Top-level argument buffer layout from reflection
+    std::vector<ABEntry> top_level_ab_layout_;
 
     // Convert DXIL bytecode to Metal IR using Metal Shader Converter
     bool ConvertDxilToMetal(const std::vector<uint8_t>& dxil_bytecode);
@@ -75,6 +98,9 @@ class MetalShader : public DxbcShader {
     
     // Capture reflection data after compilation
     bool CaptureReflectionData();
+    
+    // Parse texture bindings from JSON reflection data
+    void ParseTextureBindingsFromJSON(const std::string& json_str);
   };
 
   MetalShader(xenos::ShaderType shader_type, uint64_t data_hash,
