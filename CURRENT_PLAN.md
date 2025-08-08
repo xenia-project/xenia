@@ -29,14 +29,22 @@
 - **Confirmed real RT binding** - 320x720 (key 0x00104000) and 1280x720 (key 0x00008000) targets are bound
 - **Capture working correctly** - Reading from actual game RT, not dummy target
 
-### ❌ Remaining Issues
+### ❌ Critical Issue Found
 
-1. **Render targets are cleared but not drawn to** - Pink output indicates RT is cleared but draws aren't rendering
-   - The render target infrastructure is working correctly
-   - Issue is likely with shader execution, pipeline state, or draw commands
-2. **GPU capture file corruption** - Files generated but Xcode reports "index file does not exist"
-3. **Inefficient command buffer batching** - Arbitrarily committing every 5 draws
-4. **Need to implement ownership transfers** - Base class expects transfers for proper RT management
+**BROKEN ENCODER LIFECYCLE** - Creating new render encoder for EACH draw!
+- Currently: Create encoder → Draw → End encoder → Release (for every single draw)
+- Should be: Create encoder → Draw → Draw → Draw → ... → End encoder (reuse for batch)
+- This causes:
+  - Render target state reset between draws (explains pink output)
+  - Metal warning: "separate command encoders which can be combined"
+  - Terrible performance due to encoder creation overhead
+  - Prevents Metal from optimizing draw batching
+
+### ❌ Other Remaining Issues
+
+1. **GPU capture file corruption** - Files generated but Xcode reports "index file does not exist"
+2. **Inefficient command buffer batching** - Arbitrarily committing every 5 draws
+3. **Need to implement ownership transfers** - Base class expects transfers for proper RT management
 
 ## Detailed Fix Plan
 
