@@ -350,6 +350,153 @@ void GTKWindow::EndBatchedSizeUpdate(
   }
 }
 
+VirtualKey GTKWindow::TranslateVirtualKey(guint keyval) {
+  switch (keyval) {
+    case GDK_KEY_a:
+      return VirtualKey::kA;
+    case GDK_KEY_A:
+      return VirtualKey::kA;
+    case GDK_KEY_b:
+      return VirtualKey::kB;
+    case GDK_KEY_B:
+      return VirtualKey::kB;
+    case GDK_KEY_c:
+      return VirtualKey::kC;
+    case GDK_KEY_C:
+      return VirtualKey::kC;
+    case GDK_KEY_d:
+      return VirtualKey::kD;
+    case GDK_KEY_D:
+      return VirtualKey::kD;
+    case GDK_KEY_e:
+      return VirtualKey::kE;
+    case GDK_KEY_E:
+      return VirtualKey::kE;
+    case GDK_KEY_f:
+      return VirtualKey::kF;
+    case GDK_KEY_F:
+      return VirtualKey::kF;
+    case GDK_KEY_g:
+      return VirtualKey::kG;
+    case GDK_KEY_G:
+      return VirtualKey::kG;
+    case GDK_KEY_h:
+      return VirtualKey::kH;
+    case GDK_KEY_H:
+      return VirtualKey::kH;
+    case GDK_KEY_i:
+      return VirtualKey::kI;
+    case GDK_KEY_I:
+      return VirtualKey::kI;
+    case GDK_KEY_j:
+      return VirtualKey::kJ;
+    case GDK_KEY_J:
+      return VirtualKey::kJ;
+    case GDK_KEY_k:
+      return VirtualKey::kK;
+    case GDK_KEY_K:
+      return VirtualKey::kK;
+    case GDK_KEY_l:
+      return VirtualKey::kL;
+    case GDK_KEY_L:
+      return VirtualKey::kL;
+    case GDK_KEY_m:
+      return VirtualKey::kM;
+    case GDK_KEY_M:
+      return VirtualKey::kM;
+    case GDK_KEY_n:
+      return VirtualKey::kN;
+    case GDK_KEY_N:
+      return VirtualKey::kN;
+    case GDK_KEY_o:
+      return VirtualKey::kO;
+    case GDK_KEY_O:
+      return VirtualKey::kO;
+    case GDK_KEY_p:
+      return VirtualKey::kP;
+    case GDK_KEY_P:
+      return VirtualKey::kP;
+    case GDK_KEY_q:
+      return VirtualKey::kQ;
+    case GDK_KEY_Q:
+      return VirtualKey::kQ;
+    case GDK_KEY_r:
+      return VirtualKey::kR;
+    case GDK_KEY_R:
+      return VirtualKey::kR;
+    case GDK_KEY_s:
+      return VirtualKey::kS;
+    case GDK_KEY_S:
+      return VirtualKey::kS;
+    case GDK_KEY_t:
+      return VirtualKey::kT;
+    case GDK_KEY_T:
+      return VirtualKey::kT;
+    case GDK_KEY_u:
+      return VirtualKey::kU;
+    case GDK_KEY_U:
+      return VirtualKey::kU;
+    case GDK_KEY_v:
+      return VirtualKey::kV;
+    case GDK_KEY_V:
+      return VirtualKey::kV;
+    case GDK_KEY_w:
+      return VirtualKey::kW;
+    case GDK_KEY_W:
+      return VirtualKey::kW;
+    case GDK_KEY_x:
+      return VirtualKey::kX;
+    case GDK_KEY_X:
+      return VirtualKey::kX;
+    case GDK_KEY_y:
+      return VirtualKey::kY;
+    case GDK_KEY_Y:
+      return VirtualKey::kY;
+    case GDK_KEY_z:
+      return VirtualKey::kZ;
+    case GDK_KEY_Z:
+      return VirtualKey::kZ;
+    case GDK_KEY_0:
+      return VirtualKey::k0;
+    case GDK_KEY_1:
+      return VirtualKey::k1;
+    case GDK_KEY_2:
+      return VirtualKey::k2;
+    case GDK_KEY_3:
+      return VirtualKey::k3;
+    case GDK_KEY_4:
+      return VirtualKey::k4;
+    case GDK_KEY_5:
+      return VirtualKey::k5;
+    case GDK_KEY_6:
+      return VirtualKey::k6;
+    case GDK_KEY_7:
+      return VirtualKey::k7;
+    case GDK_KEY_8:
+      return VirtualKey::k8;
+    case GDK_KEY_9:
+      return VirtualKey::k9;
+    case GDK_KEY_semicolon:
+      return VirtualKey::kOem1;
+    case GDK_KEY_apostrophe:
+      return VirtualKey::kOem7;
+    case GDK_KEY_comma:
+      return VirtualKey::kOemComma;
+    case GDK_KEY_period:
+      return VirtualKey::kOemPeriod;
+    case GDK_KEY_Up:
+      return VirtualKey::kUp;
+    case GDK_KEY_Down:
+      return VirtualKey::kDown;
+    case GDK_KEY_Left:
+      return VirtualKey::kLeft;
+    case GDK_KEY_Right:
+      return VirtualKey::kRight;
+    default:
+      return VirtualKey(keyval);
+  }
+}
+
 bool GTKWindow::HandleMouse(GdkEvent* event,
                             WindowDestructionReceiver& destruction_receiver) {
   MouseEvent::Button button = MouseEvent::Button::kNone;
@@ -433,7 +580,7 @@ bool GTKWindow::HandleKeyboard(
   bool super_pressed = modifiers & GDK_SUPER_MASK;
   uint32_t key_char = gdk_keyval_to_unicode(event->keyval);
   // TODO(Triang3l): event->hardware_keycode to VirtualKey translation.
-  KeyEvent e(this, VirtualKey(event->hardware_keycode), 1,
+  KeyEvent e(this, TranslateVirtualKey(event->keyval), 1,
              event->type == GDK_KEY_RELEASE, shift_pressed, ctrl_pressed,
              alt_pressed, super_pressed);
   switch (event->type) {
