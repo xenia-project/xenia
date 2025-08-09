@@ -29,16 +29,21 @@
 - **Confirmed real RT binding** - 320x720 (key 0x00104000) and 1280x720 (key 0x00008000) targets are bound
 - **Capture working correctly** - Reading from actual game RT, not dummy target
 
-### ❌ Critical Issue Found
+### ✅ Fixed Issues
 
-**BROKEN ENCODER LIFECYCLE** - Creating new render encoder for EACH draw!
-- Currently: Create encoder → Draw → End encoder → Release (for every single draw)
-- Should be: Create encoder → Draw → Draw → Draw → ... → End encoder (reuse for batch)
-- This causes:
-  - Render target state reset between draws (explains pink output)
-  - Metal warning: "separate command encoders which can be combined"
-  - Terrible performance due to encoder creation overhead
-  - Prevents Metal from optimizing draw batching
+**ENCODER LIFECYCLE** - Fixed! Now properly reusing encoders across draws
+- Encoder is created once and reused for multiple draws with same render state
+- Only creates new encoder when render targets or command buffer changes
+- Properly ends encoder before command buffer commit
+
+### ❌ ROOT CAUSE IDENTIFIED
+
+**MISSING NDC TRANSFORMATION** - Xbox 360 vertices not transformed to Metal NDC!
+- Xbox 360 vertex shaders output in custom coordinate system (NOT standard NDC)
+- D3D12 and Vulkan backends apply NDC scale/offset transformation
+- **Metal backend is passing vertices through unchanged** - THIS IS THE BUG!
+- Vertices appear to have swizzled coordinates: `[-0.5, -0.5, 1279.5]` where 1279.5 is actually screen X
+- Need to apply same transformation as Vulkan: `position.xyz = position.xyz * ndc_scale + ndc_offset * position.w`
 
 ### ❌ Other Remaining Issues
 

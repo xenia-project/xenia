@@ -1438,6 +1438,23 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     XELOGI("  Color attachment {}: format {}", i, static_cast<uint32_t>(pipeline_desc.color_formats[i]));
   }
   
+  // Get viewport information and NDC transformation values
+  // This needs to be calculated here so it's available for the encoder setup
+  draw_util::ViewportInfo viewport_info;
+  draw_util::GetHostViewportInfo(
+      *register_file_, 1, 1, false,  // No resolution scaling, top-left origin
+      2560, 2560,  // Max viewport dimensions (conservative)
+      true,  // Allow reverse Z
+      normalized_depth_control,
+      false,  // Don't convert Z to float24
+      true,   // Host render targets used
+      pixel_shader && pixel_shader->writes_depth(),  // Check if pixel shader writes depth
+      viewport_info);
+  
+  XELOGI("Metal IssueDraw: Viewport NDC transform - scale: [{}, {}, {}], offset: [{}, {}, {}]",
+         viewport_info.ndc_scale[0], viewport_info.ndc_scale[1], viewport_info.ndc_scale[2],
+         viewport_info.ndc_offset[0], viewport_info.ndc_offset[1], viewport_info.ndc_offset[2]);
+  
   // Request pipeline state from cache (this will create it if needed)
   MTL::RenderPipelineState* pipeline_state = nullptr;
   {
@@ -1655,17 +1672,18 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
           float originY = static_cast<float>(rt_height) - (rect_topTL + rect_height);
           
           MTL::Viewport viewport;
-          // HACK: For testing, use full render target size since our shaders output screen coords
-          viewport.originX = 0;
-          viewport.originY = 0;
-          viewport.width = 1280;
-          viewport.height = 720;
-          viewport.znear = 0.0;
-          viewport.zfar = 1.0;
+          // Use the calculated viewport_info from GetHostViewportInfo
+          viewport.originX = static_cast<double>(viewport_info.xy_offset[0]);
+          viewport.originY = static_cast<double>(viewport_info.xy_offset[1]);
+          viewport.width = static_cast<double>(viewport_info.xy_extent[0]);
+          viewport.height = static_cast<double>(viewport_info.xy_extent[1]);
+          viewport.znear = static_cast<double>(viewport_info.z_min);
+          viewport.zfar = static_cast<double>(viewport_info.z_max);
           
           encoder->setViewport(viewport);
-          XELOGI("Metal IssueDraw: Set viewport ({}, {}, {}, {})",
-                 viewport.originX, viewport.originY, viewport.width, viewport.height);
+          XELOGI("Metal IssueDraw: Set viewport ({}, {}, {}, {}, znear={}, zfar={})",
+                 viewport.originX, viewport.originY, viewport.width, viewport.height,
+                 viewport.znear, viewport.zfar);
           
           // Set scissor rect from Xbox 360 registers
           uint32_t window_scissor_tl = rf.values[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL];
@@ -1904,8 +1922,40 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                         }
                         case xenos::VertexFormat::k_32_32_32_FLOAT: {
                           float* p = reinterpret_cast<float*>(elem);
-                          to_clip(p[0], p[1]);
-                          // p[2] left as-is (already 0..1 depth or whatever the game wrote)
+                          // Quick test: Just transform the first two components normally
+                          // regardless of what's in Z
+                          float x = p[0];
+                          float y = p[1];
+                          float z = p[2];
+                          
+                          // Log what we're seeing
+                          if (v == 0) {
+                            XELOGI("CPU viewport transform: Raw vertex[0] = ({:.2f}, {:.2f}, {:.2f})",
+                                   x, y, z);
+                          }
+                          
+                          // If Z looks like a screen coordinate (> 100), maybe it's X?
+                          if (std::abs(z) > 100.0f) {
+                            // Z contains screen X coordinate
+                            float screen_x = z;
+                            float screen_y = y;
+                            to_clip(screen_x, screen_y);
+                            p[0] = screen_x;
+                            p[1] = screen_y;
+                            p[2] = 0.5f;
+                            if (v == 0) {
+                              XELOGI("CPU viewport transform: Interpreted as swizzled (Z->X)");
+                            }
+                          } else {
+                            // Normal layout
+                            to_clip(x, y);
+                            p[0] = x;
+                            p[1] = y;
+                            // Leave Z as-is
+                            if (v == 0) {
+                              XELOGI("CPU viewport transform: Interpreted as normal layout");
+                            }
+                          }
                           break;
                         }
                         case xenos::VertexFormat::k_32_32_32_32_FLOAT: {
