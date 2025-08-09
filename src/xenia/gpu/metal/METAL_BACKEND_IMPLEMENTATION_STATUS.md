@@ -37,14 +37,20 @@ The Metal GPU backend has achieved significant architectural improvements with p
 - **GPU capture corruption** - Capture files report "index file does not exist"
 - **Most Xbox 360 GPU features** - Blending, depth/stencil, tessellation, etc.
 
-## Critical Next Steps
+## NDC Transformation Status
 
-### 1. Fix NDC Transformation (HIGHEST PRIORITY)
-The core issue is that Xbox 360 vertex shaders output positions in a custom coordinate system that needs transformation to Metal's NDC space. Options:
-- **Option A**: Modify shader translation to inject NDC transformation
+### Current Implementation (VERIFIED CORRECT)
+- ✅ Using `origin_bottom_left = true` for Metal's Y-up NDC system
+- ✅ NDC range: (-1,-1) at bottom-left to (1,1) at top-right (Metal spec compliant)
+- ✅ Z range: 0.0 to 1.0 (Metal's clip space)
+- ✅ GetHostViewportInfo() calculates correct scale/offset values
+- ✅ Values logged: scale ~[1/1280, 1/1280, 1.0], offset ~[-1, -1, 0]
+
+### Remaining Issue: Shader Application
+The NDC transformation values are calculated correctly but NOT applied to vertex positions:
+- **Option A**: Modify shader translation to inject NDC transformation (BEST)
 - **Option B**: Use compute shader for vertex post-processing
-- **Option C**: Pass NDC values as push constants and modify in shader
-- **Current approach**: Viewport set correctly but vertices not transformed
+- **Option C**: Pass NDC values as system constants in CB0
 
 ### 2. Debug Logging Improvements
 Add to capture/debug output:

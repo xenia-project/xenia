@@ -1440,9 +1440,16 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   
   // Get viewport information and NDC transformation values
   // This needs to be calculated here so it's available for the encoder setup
+  // 
+  // Metal Coordinate Systems (per Metal Specification):
+  // - NDC: Left-handed, (-1,-1) at bottom-left, (1,1) at top-right, Z: 0 to 1
+  // - Viewport: Origin at top-left, Y+ down, measured in pixels
+  // 
+  // Xbox 360 outputs vertices in screen space (0 to width/height)
+  // We need to transform these to Metal's NDC (-1 to 1)
   draw_util::ViewportInfo viewport_info;
   draw_util::GetHostViewportInfo(
-      *register_file_, 1, 1, true,  // No resolution scaling, Metal has bottom-left NDC origin
+      *register_file_, 1, 1, true,  // origin_bottom_left=true for Metal's NDC Y-up system
       2560, 2560,  // Max viewport dimensions (conservative)
       true,  // Allow reverse Z
       normalized_depth_control,
