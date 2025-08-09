@@ -101,7 +101,7 @@ void ParseLaunchArguments(int& argc, char**& argv,
   }
 }
 
-namespace toml {
+namespace toml_internal {
 
 std::string EscapeBasicString(const std::string_view view) {
   std::string result;
@@ -202,7 +202,7 @@ std::string EscapeString(const std::string_view view) {
     if (xe::utf8::find_any_of(view, escape_chars) == std::string_view::npos) {
       return "'" + std::string(view) + "'";
     } else {
-      return "\"" + toml::EscapeBasicString(view) + "\"";
+      return "\"" + toml_internal::EscapeBasicString(view) + "\"";
     }
   } else {
     // multi line
@@ -210,11 +210,12 @@ std::string EscapeString(const std::string_view view) {
         xe::utf8::find_first_of(view, u8"'''") == std::string_view::npos) {
       return "'''\n" + std::string(view) + "'''";
     } else {
-      return u8"\"\"\"\n" + toml::EscapeMultilineBasicString(view) + u8"\"\"\"";
+      return u8"\"\"\"\n" + toml_internal::EscapeMultilineBasicString(view) +
+             u8"\"\"\"";
     }
   }
 }
 
-}  // namespace toml
+}  // namespace toml_internal
 
 }  // namespace cvar
