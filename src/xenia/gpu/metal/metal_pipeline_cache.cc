@@ -369,6 +369,30 @@ MTL::RenderPipelineState* MetalPipelineCache::CreateRenderPipelineState(
   // Set sample count for MSAA (always set it, even if 1)
   // This ensures the pipeline and render targets have matching sample counts
   descriptor->setSampleCount(description.sample_count ? description.sample_count : 1);
+  
+  // Set input primitive topology based on the primitive type
+  // This tells Metal how to assemble vertices into primitives
+  MTL::PrimitiveTopologyClass topology_class = MTL::PrimitiveTopologyClassTriangle;
+  switch (description.primitive_type) {
+    case xenos::PrimitiveType::kPointList:
+      topology_class = MTL::PrimitiveTopologyClassPoint;
+      break;
+    case xenos::PrimitiveType::kLineList:
+    case xenos::PrimitiveType::kLineStrip:
+    case xenos::PrimitiveType::kLineLoop:
+      topology_class = MTL::PrimitiveTopologyClassLine;
+      break;
+    case xenos::PrimitiveType::kTriangleList:
+    case xenos::PrimitiveType::kTriangleStrip:
+    case xenos::PrimitiveType::kTriangleFan:
+      topology_class = MTL::PrimitiveTopologyClassTriangle;
+      break;
+    default:
+      // Default to triangles for unknown types
+      topology_class = MTL::PrimitiveTopologyClassTriangle;
+      break;
+  }
+  descriptor->setInputPrimitiveTopology(topology_class);
 
     // Create the pipeline state
   NS::Error* error = nullptr;
@@ -755,6 +779,10 @@ MTL::RenderPipelineState* MetalPipelineCache::GetRenderPipelineStateWithRedPS(
   // Set sample count
   desc->setSampleCount(description.sample_count ? description.sample_count : 1);
   
+  // Set input primitive topology - required for Metal to assemble vertices correctly
+  // Default to triangles as that's the most common
+  desc->setInputPrimitiveTopology(MTL::PrimitiveTopologyClassTriangle);
+  
   // Configure vertex descriptor (same as original)
   MTL::VertexDescriptor* vertex_descriptor = CreateVertexDescriptor(description);
   if (vertex_descriptor) {
@@ -911,6 +939,23 @@ MTL::RenderPipelineState* MetalPipelineCache::GetRenderPipelineStateWithMinimalV
   
   // Set sample count
   desc->setSampleCount(description.sample_count ? description.sample_count : 1);
+  
+  // Set input primitive topology based on the primitive type
+  MTL::PrimitiveTopologyClass topology_class = MTL::PrimitiveTopologyClassTriangle;
+  switch (description.primitive_type) {
+    case xenos::PrimitiveType::kPointList:
+      topology_class = MTL::PrimitiveTopologyClassPoint;
+      break;
+    case xenos::PrimitiveType::kLineList:
+    case xenos::PrimitiveType::kLineStrip:
+    case xenos::PrimitiveType::kLineLoop:
+      topology_class = MTL::PrimitiveTopologyClassLine;
+      break;
+    default:
+      topology_class = MTL::PrimitiveTopologyClassTriangle;
+      break;
+  }
+  desc->setInputPrimitiveTopology(topology_class);
   
   // No vertex descriptor needed for minimal VS
   
@@ -1199,6 +1244,202 @@ MTL::RenderPipelineState* MetalPipelineCache::GetRenderPipelineStateWithGreenPS(
   if (error) error->release();
   
   return green_pipeline;
+}
+
+MTL::RenderPipelineState* MetalPipelineCache::GetRenderPipelineStateWithNDCTransform(
+    const RenderPipelineDescription& description) {
+  XELOGI("Metal pipeline cache: Creating NDC transformation test pipeline");
+  
+  // Get the normal pipeline to ensure shaders are compiled
+  auto it = render_pipeline_cache_.find(description);
+  if (it == render_pipeline_cache_.end()) {
+    GetRenderPipelineState(description);
+    it = render_pipeline_cache_.find(description);
+    if (it == render_pipeline_cache_.end()) {
+      XELOGE("Metal pipeline cache: Failed to create base pipeline for NDC transform");
+      return nullptr;
+    }
+  }
+  
+  auto* cached = it->second.get();
+  if (!cached || !cached->fragment_function) {
+    XELOGE("Metal pipeline cache: No fragment function for NDC transform pipeline");
+    return nullptr;
+  }
+  
+  MTL::Device* device = command_processor_->GetMetalDevice();
+  
+  // Create a test vertex shader that applies NDC transformation
+  // This reads position from vertex buffer and transforms it using CB0 constants
+  static const char* kNDCTransformVS = R"(
+    #include <metal_stdlib>
+    #include <metal_matrix>
+    using namespace metal;
+    
+    // Match MSC's runtime structure
+    struct IRDescriptorTableEntry {
+      uint64_t gpuVA;
+      uint32_t textureViewID;
+      uint32_t metadata;
+    };
+    
+    // Vertex output structure
+    struct VertexOut {
+      float4 position [[position]];
+      float4 color;
+    };
+    
+    // System constants from CB0 (injected by command processor)
+    struct SystemConstants {
+      float4 ndc_scale;     // CB0[0]: (x_scale, y_scale, z_scale, unused)
+      float4 ndc_offset;    // CB0[1]: (x_offset, y_offset, z_offset, unused)
+      float4 viewport_dims; // CB0[2]: (width, height, 1/width, 1/height)
+    };
+    
+    vertex VertexOut ndc_transform_vs(
+        uint vertex_id [[vertex_id]],
+        constant IRDescriptorTableEntry* top_level_ab [[buffer(2)]],
+        constant void* uniforms [[buffer(6)]]  // Direct uniforms buffer access
+    ) {
+      VertexOut out;
+      
+      // Access system constants from the uniforms buffer at CB0
+      constant SystemConstants* sys = (constant SystemConstants*)uniforms;
+      
+      // Generate test triangle vertices in screen space (Xbox 360 style)
+      float2 screen_positions[3] = {
+        float2(100.0, 100.0),   // Top-left in screen space
+        float2(700.0, 100.0),   // Top-right 
+        float2(400.0, 500.0)    // Bottom-center
+      };
+      
+      float2 screen_pos = screen_positions[vertex_id % 3];
+      
+      // Apply NDC transformation using the injected constants
+      // Transform from Xbox 360 screen space to Metal NDC
+      float3 ndc_pos;
+      ndc_pos.x = screen_pos.x * sys->ndc_scale.x + sys->ndc_offset.x;
+      ndc_pos.y = screen_pos.y * sys->ndc_scale.y + sys->ndc_offset.y;
+      ndc_pos.z = 0.0; // Keep at near plane for now
+      
+      out.position = float4(ndc_pos, 1.0);
+      
+      // Debug colors for each vertex
+      if (vertex_id % 3 == 0) {
+        out.color = float4(1.0, 0.0, 0.0, 1.0); // Red
+      } else if (vertex_id % 3 == 1) {
+        out.color = float4(0.0, 1.0, 0.0, 1.0); // Green
+      } else {
+        out.color = float4(0.0, 0.0, 1.0, 1.0); // Blue
+      }
+      
+      return out;
+    }
+  )";
+  
+  // Create a simple pass-through fragment shader that uses vertex colors
+  static const char* kPassthroughPS = R"(
+    #include <metal_stdlib>
+    using namespace metal;
+    
+    struct VertexOut {
+      float4 position [[position]];
+      float4 color;
+    };
+    
+    fragment float4 passthrough_ps(VertexOut in [[stage_in]]) {
+      return in.color; // Use vertex color
+    }
+  )";
+  
+  NS::Error* error = nullptr;
+  MTL::CompileOptions* options = MTL::CompileOptions::alloc()->init();
+  
+  // Compile vertex shader
+  MTL::Library* vs_library = device->newLibrary(
+      NS::String::string(kNDCTransformVS, NS::UTF8StringEncoding),
+      options, &error);
+  
+  if (!vs_library) {
+    XELOGE("Metal pipeline cache: Failed to compile NDC transform VS: {}",
+           error ? error->localizedDescription()->utf8String() : "unknown");
+    if (error) error->release();
+    options->release();
+    return nullptr;
+  }
+  
+  MTL::Function* ndc_vs = vs_library->newFunction(
+      NS::String::string("ndc_transform_vs", NS::UTF8StringEncoding));
+  
+  // Compile fragment shader
+  MTL::Library* ps_library = device->newLibrary(
+      NS::String::string(kPassthroughPS, NS::UTF8StringEncoding),
+      options, &error);
+  
+  if (!ps_library) {
+    XELOGE("Metal pipeline cache: Failed to compile passthrough PS: {}",
+           error ? error->localizedDescription()->utf8String() : "unknown");
+    if (error) error->release();
+    options->release();
+    vs_library->release();
+    return nullptr;
+  }
+  
+  MTL::Function* passthrough_ps = ps_library->newFunction(
+      NS::String::string("passthrough_ps", NS::UTF8StringEncoding));
+  
+  if (!ndc_vs || !passthrough_ps) {
+    XELOGE("Metal pipeline cache: Failed to get NDC transform functions");
+    vs_library->release();
+    ps_library->release();
+    options->release();
+    return nullptr;
+  }
+  
+  // Create pipeline descriptor
+  MTL::RenderPipelineDescriptor* desc = MTL::RenderPipelineDescriptor::alloc()->init();
+  desc->setVertexFunction(ndc_vs);
+  desc->setFragmentFunction(passthrough_ps);
+  
+  // Configure color attachments
+  for (uint32_t i = 0; i < description.num_color_attachments; ++i) {
+    auto* color_attachment = desc->colorAttachments()->object(i);
+    color_attachment->setPixelFormat(description.color_formats[i]);
+  }
+  
+  // Configure depth if present
+  if (description.depth_format != MTL::PixelFormatInvalid) {
+    desc->setDepthAttachmentPixelFormat(description.depth_format);
+    if (description.depth_format == MTL::PixelFormatDepth32Float_Stencil8 ||
+        description.depth_format == MTL::PixelFormatDepth24Unorm_Stencil8) {
+      desc->setStencilAttachmentPixelFormat(description.depth_format);
+    }
+  }
+  
+  desc->setSampleCount(description.sample_count ? description.sample_count : 1);
+  
+  // Create the pipeline
+  MTL::RenderPipelineState* ndc_pipeline = device->newRenderPipelineState(desc, &error);
+  
+  if (!ndc_pipeline) {
+    XELOGE("Metal pipeline cache: Failed to create NDC transform pipeline: {}",
+           error ? error->localizedDescription()->utf8String() : "unknown");
+  } else {
+    XELOGI("Metal pipeline cache: Successfully created NDC transformation test pipeline");
+    XELOGI("  - Will transform screen space vertices to NDC using CB0 constants");
+    XELOGI("  - Should render a colored triangle if NDC transform works");
+  }
+  
+  // Clean up
+  desc->release();
+  ndc_vs->release();
+  passthrough_ps->release();
+  vs_library->release();
+  ps_library->release();
+  options->release();
+  if (error) error->release();
+  
+  return ndc_pipeline;
 }
 
 }  // namespace metal

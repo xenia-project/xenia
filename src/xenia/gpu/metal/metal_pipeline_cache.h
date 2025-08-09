@@ -119,6 +119,10 @@ class MetalPipelineCache {
   // Get debug pipeline with real VS but solid green PS (no textures)
   MTL::RenderPipelineState* GetRenderPipelineStateWithGreenPS(
       const RenderPipelineDescription& description);
+  
+  // Get pipeline with NDC transformation applied to vertex output
+  MTL::RenderPipelineState* GetRenderPipelineStateWithNDCTransform(
+      const RenderPipelineDescription& description);
 
  protected:
   bool TranslateShader(DxbcShaderTranslator& translator, 
