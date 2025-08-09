@@ -2379,72 +2379,58 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 }
               }
               
-              // CRITICAL FIX: Inject system constants for viewport transformation
-              // Xbox 360 shaders output screen space, we need to transform to clip space
-              if (nonzero_count == 0) {
-                XELOGW("Uniforms are all zeros - injecting SYSTEM CONSTANTS for viewport transform");
+              // CRITICAL FIX: ALWAYS inject system constants for viewport transformation
+              // Xbox 360 shaders output screen space, we need to transform to Metal NDC
+              // Use the properly calculated viewport_info values
+              {
+                XELOGI("Injecting NDC transformation constants into CB0");
                 
-                // Get render target dimensions (from current render pass)
-                uint32_t rt_w = rt_width;   // Should be 1280
-                uint32_t rt_h = rt_height;  // Should be 720
-                
-                // Calculate NDC transformation constants
-                // Xbox 360 outputs (0..width, 0..height) -> Metal needs (-1..1, -1..1)
-                float ndc_scale_x = 2.0f / float(rt_w);
-                float ndc_scale_y = -2.0f / float(rt_h);  // Negative to flip Y
-                float ndc_offset_x = -1.0f;
-                float ndc_offset_y = 1.0f;
-                
-                // Apply pixel center adjustment (D3D9 vs D3D10+ difference)
-                ndc_offset_x += ndc_scale_x * 0.5f;
-                ndc_offset_y += ndc_scale_y * 0.5f;
+                // Use the viewport_info we calculated with GetHostViewportInfo
+                // These are the CORRECT values for Metal's coordinate system
+                float ndc_scale_x = viewport_info.ndc_scale[0];
+                float ndc_scale_y = viewport_info.ndc_scale[1];
+                float ndc_scale_z = viewport_info.ndc_scale[2];
+                float ndc_offset_x = viewport_info.ndc_offset[0];
+                float ndc_offset_y = viewport_info.ndc_offset[1];
+                float ndc_offset_z = viewport_info.ndc_offset[2];
                 
                 // System constants layout (matching D3D12/Vulkan approach)
-                // CB0[0]: ndc_scale_offset (sx, sy, ox, oy)
-                // CB0[1]: rt_size (width, height, 1/width, 1/height)
-                // CB0[2]: viewport_scale from registers
-                // CB0[3]: viewport_offset from registers
+                // IMPORTANT: These go in SYSTEM CONSTANT slots, not user constants
+                // We reserve CB0[0-3] for system constants
+                // CB0[0]: ndc_scale (x, y, z, unused)
+                // CB0[1]: ndc_offset (x, y, z, unused)
+                // CB0[2]: viewport info (width, height, 1/width, 1/height)
                 
-                // Write system constants to CB0
+                // Write NDC transformation to reserved system constant slots
+                // These are ALWAYS needed for Xbox 360 -> Metal coordinate transformation
                 uniforms_data[0] = ndc_scale_x;
                 uniforms_data[1] = ndc_scale_y;
-                uniforms_data[2] = ndc_offset_x;
-                uniforms_data[3] = ndc_offset_y;
+                uniforms_data[2] = ndc_scale_z;
+                uniforms_data[3] = 0.0f;  // Padding
                 
-                uniforms_data[4] = float(rt_w);
-                uniforms_data[5] = float(rt_h);
-                uniforms_data[6] = 1.0f / float(rt_w);
-                uniforms_data[7] = 1.0f / float(rt_h);
+                uniforms_data[4] = ndc_offset_x;
+                uniforms_data[5] = ndc_offset_y;
+                uniforms_data[6] = ndc_offset_z;
+                uniforms_data[7] = 0.0f;  // Padding
                 
-                // Get viewport scale/offset from Xbox registers
-                float vp_scale_x = rf.Get<float>(XE_GPU_REG_PA_CL_VPORT_XSCALE);
-                float vp_scale_y = rf.Get<float>(XE_GPU_REG_PA_CL_VPORT_YSCALE);
-                float vp_offset_x = rf.Get<float>(XE_GPU_REG_PA_CL_VPORT_XOFFSET);
-                float vp_offset_y = rf.Get<float>(XE_GPU_REG_PA_CL_VPORT_YOFFSET);
+                // Viewport dimensions for pixel-to-NDC conversion
+                uniforms_data[8] = float(rt_width);
+                uniforms_data[9] = float(rt_height);
+                uniforms_data[10] = 1.0f / float(rt_width);
+                uniforms_data[11] = 1.0f / float(rt_height);
                 
-                uniforms_data[8] = vp_scale_x;
-                uniforms_data[9] = vp_scale_y;
-                uniforms_data[10] = vp_offset_x;
-                uniforms_data[11] = vp_offset_y;
-                
-                // Identity matrix at CB0[4-7] in case shaders expect it
-                uniforms_data[16] = 1.0f; uniforms_data[17] = 0.0f; uniforms_data[18] = 0.0f; uniforms_data[19] = 0.0f;
-                uniforms_data[20] = 0.0f; uniforms_data[21] = 1.0f; uniforms_data[22] = 0.0f; uniforms_data[23] = 0.0f;
-                uniforms_data[24] = 0.0f; uniforms_data[25] = 0.0f; uniforms_data[26] = 1.0f; uniforms_data[27] = 0.0f;
-                uniforms_data[28] = 0.0f; uniforms_data[29] = 0.0f; uniforms_data[30] = 0.0f; uniforms_data[31] = 1.0f;
-                
-                // Also copy to PS constants (CB1) at offset 256*4
-                memcpy(&uniforms_data[256 * 4], uniforms_data, 32 * sizeof(float));
-                
-                XELOGI("Injected system constants:");
-                XELOGI("  CB0[0]: ndc_scale_offset = [{:.4f}, {:.4f}, {:.4f}, {:.4f}]", 
+                XELOGI("Injected NDC transformation constants:");
+                XELOGI("  CB0[0]: ndc_scale = [{:.6f}, {:.6f}, {:.6f}, {:.6f}]", 
                        uniforms_data[0], uniforms_data[1], uniforms_data[2], uniforms_data[3]);
-                XELOGI("  CB0[1]: rt_size = [{:.0f}, {:.0f}, {:.6f}, {:.6f}]",
+                XELOGI("  CB0[1]: ndc_offset = [{:.6f}, {:.6f}, {:.6f}, {:.6f}]",
                        uniforms_data[4], uniforms_data[5], uniforms_data[6], uniforms_data[7]);
-                XELOGI("  CB0[2]: viewport_scale = [{:.1f}, {:.1f}, {:.1f}, {:.1f}]",
+                XELOGI("  CB0[2]: viewport_dims = [{:.0f}, {:.0f}, {:.6f}, {:.6f}]",
                        uniforms_data[8], uniforms_data[9], uniforms_data[10], uniforms_data[11]);
-              } else {
-                XELOGI("Found {} non-zero constants - using data from trace", nonzero_count);
+              }
+              
+              // Log if we found non-zero constants from the game
+              if (nonzero_count > 0) {
+                XELOGI("Found {} non-zero constants from game - preserved after system constants", nonzero_count);
                 // Log ALL non-zero constants to understand what we're getting
                 XELOGI("Non-zero constants from trace:");
                 for (int i = 0; i < 512; i++) {
