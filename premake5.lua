@@ -302,6 +302,10 @@ workspace("xenia")
     include("src/xenia/hid/sdl")
   end
 
+  if not os.istarget("windows") then
+    include("src/xenia/hid/keyboard")
+  end
+  
   if os.istarget("windows") then
     include("src/xenia/apu/xaudio2")
     include("src/xenia/gpu/d3d12")
