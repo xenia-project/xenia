@@ -2,9 +2,13 @@
 
 ## Executive Summary
 
-The Metal GPU backend has made incremental progress with shader reflection integration for resource binding. While the implementation can execute draw commands and bind resources at correct offsets, actual rendering output remains non-functional (black screen). The backend is approximately **25% complete** compared to working Vulkan and D3D12 backends.
+The Metal GPU backend has achieved significant architectural improvements with proper RenderTargetCache inheritance and NDC viewport transformation. While rendering output remains pink/magenta (indicating shader execution but incorrect vertex transformation), the backend is now architecturally aligned with D3D12/Vulkan. The backend is approximately **30% complete** compared to working backends.
 
-**Latest Status (2025-08-07)**: Implemented shader reflection API integration. Resources (textures, samplers, constants) now bind at correct argument buffer offsets as determined by Metal Shader Converter reflection data. Rendering still produces black output - needs real vertex data instead of dummy triangles.
+**Latest Status (2025-08-08)**: 
+- Refactored to inherit from base gpu::RenderTargetCache class (major architectural fix)
+- Implemented GetHostViewportInfo() for NDC transformation 
+- Fixed render encoder lifecycle (proper reuse across draws)
+- Rendering produces pink output (shaders executing but vertices in wrong coordinate space)
 
 ## Current Capabilities vs Reality
 
@@ -12,31 +16,51 @@ The Metal GPU backend has made incremental progress with shader reflection integ
 - Metal device and command queue initialization
 - Xbox 360 shader → Metal shader translation pipeline (DXBC→DXIL→Metal)
 - Pipeline state creation without validation errors
-- Basic vertex/index buffer binding
-- Draw command encoding and execution
-- Dummy render target creation 
-- Command buffer submission flow
+- **RenderTargetCache inheritance** - Properly inherits from base class like D3D12/Vulkan
+- **Render target creation from EDRAM** - Base class creates targets with correct keys
+- **Encoder lifecycle management** - Reuses encoders across draws (efficiency)
+- **Texture untiling** - Converts Xbox 360 tiled textures to linear
 - **Shader reflection integration** - Resources bind at correct offsets
 - **Argument buffer creation** - Based on reflection data
 - **Resource binding** - Textures, samplers, and CBVs placed correctly
+- **Viewport calculation** - GetHostViewportInfo() provides NDC transformation values
 
-### ❌ What Doesn't Work
-- **Actual rendering** - Output is black, no visible content
-- **Vertex data** - Using dummy triangles instead of real Xbox 360 vertex data
-- **Fragment shader output** - Not writing to render targets correctly
-- **EDRAM integration** - Buffer exists but not connected
-- **Texture formats** - Limited format support
-- **Real game rendering** - No games are playable
+### ❌ What Doesn't Work (Critical Issues)
+- **NDC vertex transformation** - Vertices output in Xbox 360 space, not transformed to Metal NDC
+  - Xbox 360: Custom coordinate system with screen-space output
+  - Metal NDC: Y-up, (-1,-1) at bottom-left, needs transformation
+  - Issue: Shaders compiled without NDC transformation injection
+- **Shader constant application** - NDC scale/offset calculated but not applied to vertices
+  - GetHostViewportInfo() provides correct values
+  - Need to inject transformation: `position.xyz = position.xyz * ndc_scale + ndc_offset * position.w`
+- **Fragment shader output** - Pink output indicates vertices outside viewport
+- **GPU capture corruption** - Capture files report "index file does not exist"
 - **Most Xbox 360 GPU features** - Blending, depth/stencil, tessellation, etc.
+
+## Critical Next Steps
+
+### 1. Fix NDC Transformation (HIGHEST PRIORITY)
+The core issue is that Xbox 360 vertex shaders output positions in a custom coordinate system that needs transformation to Metal's NDC space. Options:
+- **Option A**: Modify shader translation to inject NDC transformation
+- **Option B**: Use compute shader for vertex post-processing
+- **Option C**: Pass NDC values as push constants and modify in shader
+- **Current approach**: Viewport set correctly but vertices not transformed
+
+### 2. Debug Logging Improvements
+Add to capture/debug output:
+- NDC transformation values from GetHostViewportInfo()
+- Actual vertex positions before/after transformation
+- Render target dimensions and formats
+- Pipeline state details
 
 ## File Structure
 
 ### Core Implementation Files
 ```
-metal_command_processor.mm    - Draw commands, submission flow (WORKING)
+metal_command_processor.mm    - Draw commands, NDC viewport (PARTIAL)
 metal_pipeline_cache.cc       - Pipeline state creation (WORKING)
-metal_shader.cc               - Shader translation (WORKING)
-metal_render_target_cache.cc  - RT creation (PARTIAL - dummy targets work)
+metal_shader.cc               - Shader translation (NEEDS NDC INJECTION)
+metal_render_target_cache.cc  - RT creation (WORKING - inherits from base)
 metal_buffer_cache.cc         - Vertex/index buffers (WORKING)
 metal_texture_cache.cc        - Textures (WORKING - untiling implemented!)
 metal_shared_memory.cc        - Shared memory (BASIC)

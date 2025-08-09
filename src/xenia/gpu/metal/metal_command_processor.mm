@@ -1442,7 +1442,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // This needs to be calculated here so it's available for the encoder setup
   draw_util::ViewportInfo viewport_info;
   draw_util::GetHostViewportInfo(
-      *register_file_, 1, 1, false,  // No resolution scaling, top-left origin
+      *register_file_, 1, 1, true,  // No resolution scaling, Metal has bottom-left NDC origin
       2560, 2560,  // Max viewport dimensions (conservative)
       true,  // Allow reverse Z
       normalized_depth_control,
