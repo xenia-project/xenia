@@ -147,11 +147,20 @@ bool MetalRenderTargetCache::Update(bool is_rasterization_done,
   
   XELOGI("MetalRenderTargetCache::Update - Got accumulated targets from base class");
   
-  // Debug: Check what we actually got
+  // Debug: Check what we actually got AND verify textures exist
   for (uint32_t i = 0; i < 5; ++i) {
     if (accumulated_targets[i]) {
-      XELOGI("  accumulated_targets[{}] = {:p} (key 0x{:08X})", 
-             i, (void*)accumulated_targets[i], accumulated_targets[i]->key().key);
+      MetalRenderTarget* metal_rt = static_cast<MetalRenderTarget*>(accumulated_targets[i]);
+      MTL::Texture* tex = metal_rt->texture();
+      XELOGI("  accumulated_targets[{}] = {:p} (key 0x{:08X}, texture={:p}, {}x{})", 
+             i, (void*)accumulated_targets[i], accumulated_targets[i]->key().key,
+             (void*)tex, tex ? tex->width() : 0, tex ? tex->height() : 0);
+      
+      // CRITICAL FIX: Ensure texture exists
+      if (!tex) {
+        XELOGE("  ERROR: MetalRenderTarget has no texture! Need to create it.");
+        // TODO: Create texture here if missing
+      }
     } else {
       XELOGI("  accumulated_targets[{}] = nullptr", i);
     }
@@ -345,6 +354,9 @@ MTL::PixelFormat MetalRenderTargetCache::GetDepthPixelFormat(
 MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(
     uint32_t expected_sample_count) {
   
+  XELOGI("MetalRenderTargetCache::GetRenderPassDescriptor - dirty={}, cached={:p}",
+         render_pass_descriptor_dirty_, (void*)cached_render_pass_descriptor_);
+  
   if (!render_pass_descriptor_dirty_ && cached_render_pass_descriptor_) {
     return cached_render_pass_descriptor_;
   }
@@ -364,6 +376,20 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(
   cached_render_pass_descriptor_->retain();
   
   bool has_any_render_target = false;
+  
+  // Debug: Log current targets
+  XELOGI("GetRenderPassDescriptor: Current targets state:");
+  XELOGI("  current_depth_target_ = {:p}", (void*)current_depth_target_);
+  for (uint32_t i = 0; i < 4; ++i) {
+    if (current_color_targets_[i]) {
+      MTL::Texture* tex = current_color_targets_[i]->texture();
+      XELOGI("  current_color_targets_[{}] = {:p}, texture={:p} ({}x{})",
+             i, (void*)current_color_targets_[i], (void*)tex,
+             tex ? tex->width() : 0, tex ? tex->height() : 0);
+    } else {
+      XELOGI("  current_color_targets_[{}] = nullptr", i);
+    }
+  }
   
   // Bind the actual render targets retrieved from base class in Update()
   

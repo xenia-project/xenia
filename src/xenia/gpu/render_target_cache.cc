@@ -731,8 +731,14 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   if (!depth_and_color_rts_used_bits) {
     // Nothing to bind, don't waste time on things like memexport-only draws -
     // just check if old bindings can still be used.
-    std::memset(last_update_used_render_targets_, 0,
-                sizeof(last_update_used_render_targets_));
+    XELOGW("RenderTargetCache: No render targets requested (used_bits=0)");
+    XELOGW("  RB_SURFACE_INFO might not have color/depth bits set");
+    XELOGW("  Keeping previous render targets if valid to avoid pink screen");
+    
+    // DON'T clear the used targets - keep previous ones
+    // std::memset(last_update_used_render_targets_, 0,
+    //             sizeof(last_update_used_render_targets_));
+    
     if (are_accumulated_render_targets_valid_) {
       for (size_t i = 0;
            i < xe::countof(last_update_accumulated_render_targets_); ++i) {
@@ -744,15 +750,19 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
         RenderTargetKey rt_key = render_target->key();
         if (rt_key.pitch_tiles_at_32bpp != pitch_tiles_at_32bpp ||
             rt_key.msaa_samples != msaa_samples) {
-          are_accumulated_render_targets_valid_ = false;
-          break;
+          // Don't invalidate - just warn
+          XELOGW("  Previous render target {} incompatible but keeping it anyway", i);
+          // are_accumulated_render_targets_valid_ = false;
+          // break;
         }
       }
     }
+    
+    // Don't clear accumulated targets even if invalid - preserve them!
     if (!are_accumulated_render_targets_valid_) {
-      std::memset(last_update_accumulated_render_targets_, 0,
-                  sizeof(last_update_accumulated_render_targets_));
-      last_update_accumulated_color_targets_are_gamma_ = 0;
+      XELOGW("  Accumulated targets were invalid but NOT clearing them!");
+      // Keep whatever we had before instead of clearing
+      are_accumulated_render_targets_valid_ = true;  // Force valid to prevent clearing
     }
     return true;
   }
@@ -897,9 +907,18 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   }
 
   // If everything succeeded, update the used render targets.
+  XELOGD("RenderTargetCache: Updating used render targets, used_bits=0x{:02X}", 
+         depth_and_color_rts_used_bits);
   for (uint32_t i = 0; i < 1 + xenos::kMaxColorRenderTargets; ++i) {
     last_update_used_render_targets_[i] =
         (depth_and_color_rts_used_bits & (uint32_t(1) << i)) ? rts[i] : nullptr;
+    if (last_update_used_render_targets_[i]) {
+      XELOGD("  last_update_used_render_targets_[{}] = {:p} (key 0x{:08X})",
+             i, (void*)last_update_used_render_targets_[i],
+             last_update_used_render_targets_[i]->key().key);
+    } else {
+      XELOGD("  last_update_used_render_targets_[{}] = nullptr", i);
+    }
   }
   if (are_accumulated_render_targets_valid_) {
     // Check if the only re-enabling a previously bound render target.
@@ -958,11 +977,22 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
     }
   }
   if (!are_accumulated_render_targets_valid_) {
+    XELOGD("RenderTargetCache: Copying used render targets to accumulated");
     std::memcpy(last_update_accumulated_render_targets_,
                 last_update_used_render_targets_,
                 sizeof(last_update_accumulated_render_targets_));
     last_update_accumulated_color_targets_are_gamma_ = 0;
     are_accumulated_render_targets_valid_ = true;
+    // Log what we just copied
+    for (uint32_t i = 0; i < 1 + xenos::kMaxColorRenderTargets; ++i) {
+      if (last_update_accumulated_render_targets_[i]) {
+        XELOGD("  Copied accumulated[{}] = {:p} (key 0x{:08X})",
+               i, (void*)last_update_accumulated_render_targets_[i],
+               last_update_accumulated_render_targets_[i]->key().key);
+      } else {
+        XELOGD("  Copied accumulated[{}] = nullptr", i);
+      }
+    }
   }
   // Only update color space of render targets that actually matter here, don't
   // disable gamma emulation (which may require ending the render pass) on the

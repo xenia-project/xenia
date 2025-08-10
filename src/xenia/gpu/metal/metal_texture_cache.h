@@ -49,6 +49,9 @@ class MetalTextureCache {
   // Pixel format conversion
   MTL::PixelFormat ConvertXenosFormat(xenos::TextureFormat format, 
                                       xenos::Endian endian = xenos::Endian::k8in32);
+  
+  // Debug texture creation
+  MTL::Texture* CreateDebugTexture(uint32_t width = 256, uint32_t height = 256);
 
  private:
   struct TextureDescriptor {

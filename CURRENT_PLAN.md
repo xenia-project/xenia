@@ -1,132 +1,124 @@
-# Current Plan - Metal Backend Implementation
+# Xenia Metal Backend Debug Plan
 
-## Executive Summary
+## LATEST DISCOVERY: Pink Output is Uninitialized Dummy Target
 
-We're debugging why the Metal backend renders pink (magenta) output instead of proper graphics. Through extensive investigation, we've identified that the issue stems from texture binding problems in the Metal Shader Converter pipeline.
+### The Real Issue Chain:
+1. **Render targets ARE being preserved** - logs show targets stay at 0xb9ad1d400, 0xb9ad1d3e0
+2. **Dummy target is created** when no real targets exist (as fallback)
+3. **Pink color (255,0,255)** is Metal's default uninitialized texture color
+4. **Xbox 360 shaders never render to dummy** - they expect real targets
+5. **CaptureColorTarget captures dummy** instead of real rendered content
 
-## Key Observations So Far
+### Evidence:
+- Render target preservation fix IS working (targets no longer null)
+- GetRenderPassDescriptor creates dummy when has_any_render_target=false
+- CaptureColorTarget falls back to dummy, logs: "Using render cache dummy target"
+- Pink is not hardcoded anywhere - it's uninitialized Metal texture
 
-### 1. Metal Shader Converter Architecture
-- Uses programmatic vertex fetching (T0/U0 buffers instead of vertex attributes)
-- Expects direct resource pointers in top-level argument buffers
-- Uses automatic layout mode with IRDescriptorTableEntry structures (24 bytes each)
-- Shaders access resources via indices into the top-level argument buffer
+### Root Problems:
+1. **Real render targets not properly bound** to render pass descriptor
+2. **Shaders render to wrong location** or not at all
+3. **Capture system gets dummy** instead of actual rendered content
 
-### 2. Resource Binding Model
-```
-Top-Level Argument Buffer (buffer[2]):
-├── T0 (SRV) - offset 0, slot 1
-├── T1 (SRV) - offset 24, slot 2  
-├── CB0 (CBV) - offset 48
-├── CB1 (CBV) - offset 72
-└── S0 (Sampler) - offset 96, slot 0
-```
+## Comprehensive Solution Plan
 
-### 3. Critical Findings
+### Phase 1: Fix Render Target Persistence ✅ COMPLETED
+- Modified base class to preserve targets when none requested
+- Added logic to keep `are_accumulated_render_targets_valid_ = true`
+- Result: Targets ARE preserved (0xb9ad1d400, 0xb9ad1d3e0 stay valid)
 
-#### ✅ Fixed Issues:
-1. **Vertex Buffer Binding** - T0/U0 now correctly bound for programmatic fetch
-2. **Direct Resource Binding** - Changed from heap pointers to direct resource pointers
-3. **Slot Mapping** - Fixed off-by-one issue (T0→slot 1, T1→slot 2)
-4. **Resource Residency** - Added useResource calls for textures
-5. **Texture Duplication** - Removed harmful texture reuse logic
+### Phase 2: Fix Shader Rendering to Real Targets 🔄 IN PROGRESS
 
-#### ❌ Remaining Issues:
-1. **Missing Texture Data** - Only 1 texture binding available, shader expects 2
-2. **Pink Output** - RGB(255, 0, 255) indicates missing/invalid texture sampling
-3. **Fetch Constant 1 Empty** - No texture data at fetch constant 1
-4. **Depth/Stencil Issues** - Invalid attachments for some draws
+#### Problem: Shaders Not Writing to Bound Targets
+1. **Verify render pass setup**:
+   - Check if real targets properly attached to MTLRenderPassDescriptor
+   - Ensure loadAction/storeAction correct (Load/Store not Clear/DontCare)
+   - Validate texture formats match pipeline expectations
 
-### 4. Texture Binding Analysis
+2. **Debug shader execution**:
+   - Add GPU counter to verify fragment shader runs
+   - Check if discard_fragment being called
+   - Verify viewport/scissor not culling everything
 
-From our debugging:
-- **Pixel Shader Expectations**: Needs T0 and T1 textures
-- **Available Bindings**: Only 1 texture binding (fetch_constant=0)
-- **Heap Slot 0**: Has valid texture from fetch_constant=0
-- **Heap Slot 1**: No texture binding, fetch_constant=1 has no data
-- **Current Behavior**: T1 falls back to using T0's texture
+3. **Fix render target binding**:
+   - Ensure targets from base class properly cast to MetalRenderTarget*
+   - Check texture() returns valid MTLTexture
+   - Verify sample count matches between targets and pipeline
 
-## Root Cause Hypothesis
+## Testing Status
 
-The pink output occurs because:
-1. Shader samples two textures (T0 and T1) and combines them
-2. Both T0 and T1 are getting the same texture (or T1 is invalid)
-3. The shader's texture combination logic produces magenta when textures are missing/invalid
-4. This is likely a default error color in the shader
+### Current Behavior
+- Pink screen from uninitialized dummy render target
+- Real targets ARE preserved (0xb9ad1d400, 0xb9ad1d3e0) 
+- Shaders execute (AIR shows texture sampling, calculations)
+- But output goes to wrong place or gets discarded
 
-## Debug Plan
-
-### Phase 1: Texture Data Investigation
-- [ ] Check all 32 fetch constants to find any additional texture data
-- [ ] Log texture addresses and formats for all fetch constants
-- [ ] Verify if game actually provides 2 textures in different fetch constants
-- [ ] Check if texture binding indices are being calculated correctly
-
-### Phase 2: Shader Analysis
-- [ ] Examine shader bytecode to understand texture sampling logic
-- [ ] Check if shader has fallback paths for missing textures
-- [ ] Verify texture coordinate generation
-- [ ] Analyze how shader combines T0 and T1
-
-### Phase 3: Texture Upload Verification
-- [ ] Confirm texture data is correctly uploaded to GPU
-- [ ] Verify texture format conversion (Xbox 360 → Metal)
-- [ ] Check texture dimensions and mip levels
-- [ ] Test with debug textures of known patterns
-
-### Phase 4: Alternative Solutions
-- [ ] Create a default/debug texture for missing slots
-- [ ] Try binding different fetch constants to heap slot 1
-- [ ] Implement texture aliasing if game reuses textures
-- [ ] Check if texture should come from vertex shader output
-
-## Implementation Strategy
-
-### Immediate Actions:
-1. **Comprehensive Fetch Constant Scan**
-   ```cpp
-   for (uint32_t i = 0; i < 32; i++) {
-     auto fetch = register_file_->GetTextureFetch(i);
-     if (fetch.base_address) {
-       // Log this texture's details
-     }
-   }
-   ```
-
-2. **Debug Texture Creation**
-   - Create a checkerboard pattern texture
-   - Use for missing texture slots
-   - Will help identify if issue is missing data vs bad sampling
-
-3. **Enhanced Logging**
-   - Log all texture fetch constants at draw time
-   - Show texture format details
-   - Track texture cache hits/misses
-
-### Long-term Fixes:
-1. Implement proper texture binding discovery
-2. Handle missing textures gracefully
-3. Add texture format validation
-4. Improve shader reflection accuracy
-
-## Test Cases
-
-1. **Single Texture Test**: Force both T0 and T1 to use different textures
-2. **Debug Texture Test**: Replace missing textures with debug patterns
-3. **Format Test**: Verify texture format conversions
-4. **Sampling Test**: Check sampler state configuration
-
-## Success Criteria
-
-- No pink/magenta output
-- Proper texture rendering
-- All textures correctly bound to their slots
-- No shader sampling errors
+### Key Observations
+- GetRenderPassDescriptor logs: "No render targets bound, creating dummy"
+- This means current_color_targets_[i] or texture() returning null
+- Yet base class has valid accumulated_render_targets_
+- **Gap between base class state and Metal binding**
 
 ## Next Steps
 
-1. Implement comprehensive fetch constant scanning
-2. Create debug texture system
-3. Add detailed texture logging
-4. Test with modified texture bindings
-5. Analyze shader disassembly for texture usage patterns
+### Immediate Actions:
+
+1. **Fix GetRenderPassDescriptor logic** ✨ PRIORITY
+   ```cpp
+   // In MetalRenderTargetCache::Update():
+   // After getting accumulated_targets from base class
+   // Properly store them as current_color_targets_[]
+   // So GetRenderPassDescriptor finds them
+   ```
+
+2. **Add validation in Update()**:
+   - Log texture() for each MetalRenderTarget
+   - Verify cast from RenderTarget* to MetalRenderTarget* works
+   - Check if textures are actually created
+
+3. **Debug shader output**:
+   - Add color write validation
+   - Check blend state not discarding
+   - Verify fragment shader return values
+
+4. **Fix capture path**:
+   - Ensure CaptureColorTarget gets real rendered target
+   - Not dummy fallback
+
+### Phase 3: Validate Rendering Pipeline
+- Confirm vertices transformed correctly
+- Check primitive assembly
+- Verify rasterization produces fragments
+
+## Implementation Details
+
+### The Missing Link: MetalRenderTarget Texture Creation
+Looking at logs, the issue is likely:
+1. Base class creates RenderTarget objects
+2. MetalRenderTargetCache::CreateRenderTarget called
+3. But texture() might return null if creation failed
+4. GetRenderPassDescriptor sees null texture → creates dummy
+
+### Fix Strategy:
+```cpp
+// In MetalRenderTargetCache::Update()
+RenderTarget* const* accumulated_targets = last_update_accumulated_render_targets();
+
+// THIS IS THE KEY FIX:
+for (int i = 0; i < 5; i++) {
+  if (accumulated_targets[i]) {
+    MetalRenderTarget* metal_rt = static_cast<MetalRenderTarget*>(accumulated_targets[i]);
+    if (!metal_rt->texture()) {
+      // Texture was never created! Create it now
+      CreateTextureForRenderTarget(metal_rt);
+    }
+  }
+}
+```
+
+## Success Criteria
+- Real render targets stay bound throughout frame
+- No dummy target creation
+- Shaders write to real targets
+- CaptureColorTarget gets actual rendered content
+- Output shows game graphics, not pink

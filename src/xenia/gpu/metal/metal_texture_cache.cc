@@ -589,6 +589,37 @@ size_t MetalTextureCache::TextureDescriptorHasher::operator()(const TextureDescr
   return hash;
 }
 
+MTL::Texture* MetalTextureCache::CreateDebugTexture(uint32_t width, uint32_t height) {
+  MTL::Texture* texture = CreateTexture2D(width, height, MTL::PixelFormatRGBA8Unorm);
+  if (!texture) {
+    XELOGE("Failed to create debug texture");
+    return nullptr;
+  }
+  
+  // Create checkerboard pattern data
+  std::vector<uint32_t> pixels(width * height);
+  uint32_t checker_size = 32;  // Size of each checker square
+  
+  for (uint32_t y = 0; y < height; y++) {
+    for (uint32_t x = 0; x < width; x++) {
+      bool is_white = ((x / checker_size) + (y / checker_size)) % 2 == 0;
+      // Use green/purple pattern to distinguish from pink error color
+      if (is_white) {
+        pixels[y * width + x] = 0xFF00FF00;  // Green (RGBA)
+      } else {
+        pixels[y * width + x] = 0xFF8000FF;  // Purple (RGBA)
+      }
+    }
+  }
+  
+  // Upload texture data
+  MTL::Region region = MTL::Region::Make2D(0, 0, width, height);
+  texture->replaceRegion(region, 0, pixels.data(), width * 4);
+  
+  XELOGI("Created debug checkerboard texture {}x{} (green/purple pattern)", width, height);
+  return texture;
+}
+
 }  // namespace metal
 }  // namespace gpu
 }  // namespace xe

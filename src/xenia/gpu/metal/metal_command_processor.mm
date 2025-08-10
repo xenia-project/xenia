@@ -2385,6 +2385,23 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                   // DO NOT reuse textures - each slot needs its own texture or nothing
                   XELOGW("Metal IssueDraw: Fetch constant {} has no base address for heap slot {}, skipping", 
                          fetch_constant, heap_slot);
+                  
+                  // DEBUG: Comprehensive fetch constant scan to find any available textures
+                  if (heap_slot == 0 || heap_slot == 1) {
+                    XELOGI("===== COMPREHENSIVE FETCH CONSTANT SCAN FOR HEAP SLOT {} =====", heap_slot);
+                    for (uint32_t scan_i = 0; scan_i < 32; scan_i++) {
+                      auto scan_fetch = register_file_->GetTextureFetch(scan_i);
+                      if (scan_fetch.base_address) {
+                        XELOGI("Fetch constant {}: base_address=0x{:08X}, type={}, format={}, size={}x{}x{}", 
+                               scan_i, scan_fetch.base_address, scan_fetch.type, scan_fetch.format,
+                               scan_fetch.size_2d.width + 1, scan_fetch.size_2d.height + 1, 
+                               scan_fetch.size_3d.depth + 1);
+                      }
+                    }
+                    XELOGI("No texture found at fetch_constant={} for heap_slot={}", fetch_constant, heap_slot);
+                    XELOGI("===== END FETCH CONSTANT SCAN =====");
+                  }
+                  
                   // Leave this heap slot empty - the shader will handle missing textures
                   continue;
                 }
@@ -2922,12 +2939,20 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                             texture_for_slot = it->second;
                             XELOGI("Metal IssueDraw: Mapped T1 to heap slot 1 texture");
                           } else {
-                            // If no texture at heap slot 1, use heap slot 0 as fallback
-                            // Some shaders may intentionally use the same texture for multiple slots
+                            // Use the same texture as T0 since game only provides one texture
                             it = bound_textures_by_heap_slot.find(0);
                             if (it != bound_textures_by_heap_slot.end()) {
                               texture_for_slot = it->second;
-                              XELOGI("Metal IssueDraw: No texture at heap slot 1 for T1, using heap slot 0 (may be intentional)");
+                              XELOGI("Metal IssueDraw: No texture at heap slot 1 for T1, using same texture as T0 (heap slot 0)");
+                            } else {
+                              // Create a debug texture if even T0 is missing
+                              XELOGI("Metal IssueDraw: No textures available, creating debug texture for T1");
+                              texture_for_slot = texture_cache_->CreateDebugTexture(256, 256);
+                              if (texture_for_slot) {
+                                XELOGI("Metal IssueDraw: Using debug checkerboard texture for T1");
+                                // Store it so we can use it consistently
+                                bound_textures_by_heap_slot[1] = texture_for_slot;
+                              }
                             }
                           }
                         } else if (entry.name.size() > 0 && entry.name[0] == 'T') {
