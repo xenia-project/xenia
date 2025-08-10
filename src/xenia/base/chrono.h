@@ -13,8 +13,6 @@
 #include <chrono>
 #include <cstdint>
 
-// https://github.com/HowardHinnant/date/commit/5ba1c1ad8514362dba596f228eb20eb13f63d948#r33275526
-#define HAS_UNCAUGHT_EXCEPTIONS 1
 #include "third_party/date/include/date/tz.h"
 
 #include "xenia/base/clock.h"

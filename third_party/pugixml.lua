@@ -4,7 +4,5 @@ project("pugixml")
   kind("StaticLib")
   language("C++")
   files({
-    "pugixml/src/pugiconfig.hpp",
     "pugixml/src/pugixml.cpp",
-    "pugixml/src/pugixml.hpp",
   })
