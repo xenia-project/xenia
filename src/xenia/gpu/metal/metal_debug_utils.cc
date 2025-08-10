@@ -132,6 +132,8 @@ void MetalDebugUtils::ValidateDrawState(uint32_t draw_index, RegisterFile* regis
 void MetalDebugUtils::ValidateDescriptorHeap(MTL::Buffer* heap, const std::string& name) {
   if (!validation_enabled_ || !heap) return;
   
+  XELOGI("ValidateDescriptorHeap: Checking {} heap at buffer {:p}", name, (void*)heap);
+  
   auto* heap_data = (IRDescriptorTableEntry*)heap->contents();
   bool has_valid_entry = false;
   uint32_t valid_count = 0;

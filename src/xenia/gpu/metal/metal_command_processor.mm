@@ -2668,8 +2668,13 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               std::memset(res_heap_ab_->contents(), 0, res_heap_ab_->length());
               auto* res_entries = reinterpret_cast<IRDescriptorTableEntry*>(res_heap_ab_->contents());
               
-              XELOGI("Metal IssueDraw: About to populate resource heap with {} textures", 
-                     bound_textures_by_heap_slot.size());
+              XELOGI("Metal IssueDraw: About to populate resource heap with {} textures at buffer {:p}", 
+                     bound_textures_by_heap_slot.size(), (void*)res_heap_ab_);
+              
+              // Debug: Check if we actually have textures
+              if (bound_textures_by_heap_slot.empty()) {
+                XELOGW("Metal IssueDraw: bound_textures_by_heap_slot is EMPTY! No textures to populate.");
+              }
               
               // Write textures at their exact heap indices from reflection
               for (const auto& [heap_slot, texture] : bound_textures_by_heap_slot) {
@@ -2697,6 +2702,18 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                   XELOGI("    Descriptor contents: gpuVA=0x{:016X}, textureViewID=0x{:016X}, metadata=0x{:016X}",
                          entry_data[0], entry_data[1], entry_data[2]);
                 }
+              }
+              
+              // Final validation: Check if heap has any valid entries
+              bool has_any_valid = false;
+              for (int i = 0; i < 32; i++) {
+                if (res_entries[i].textureViewID != 0) {
+                  has_any_valid = true;
+                  XELOGI("  Heap slot {} has valid texture ID: 0x{:016X}", i, res_entries[i].textureViewID);
+                }
+              }
+              if (!has_any_valid) {
+                XELOGE("Metal IssueDraw: Resource heap has NO valid entries after population!");
               }
             }
 
@@ -2980,10 +2997,14 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                           ::IRDescriptorTableSetTexture(dst, texture_for_slot, /*minLODClamp*/0.0f, /*flags*/0);
                           // Mark texture as resident for indirect access through argument buffer
                           encoder->useResource(texture_for_slot, MTL::ResourceUsageRead, MTL::RenderStageFragment);
-                          XELOGI("Metal IssueDraw: Set PS texture {} at offset {} (slot {})", 
-                                 entry.name, entry.elt_offset, entry.slot);
+                          
+                          // Debug: Verify texture properties
+                          auto resID = texture_for_slot->gpuResourceID();
+                          XELOGI("Metal IssueDraw: Set PS texture {} at offset {} (slot {}), gpuResourceID=0x{:x}, size={}x{}", 
+                                 entry.name, entry.elt_offset, entry.slot, resID._impl,
+                                 texture_for_slot->width(), texture_for_slot->height());
                         } else {
-                          XELOGW("ERROR - No texture available for PS {} at slot {}", entry.name, entry.slot);
+                          XELOGE("ERROR - No texture available for PS {} at slot {} - THIS WILL CAUSE PINK OUTPUT!", entry.name, entry.slot);
                         }
                       }
                       break;
