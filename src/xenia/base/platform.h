@@ -150,13 +150,8 @@
 #define XE_UNLIKELY_IF(...) if (XE_UNLIKELY(__VA_ARGS__))
 #define XE_MAYBE_UNUSED __attribute__((unused))
 #else
-#if __cplusplus >= 202002
 #define XE_LIKELY_IF(...) if (!!(__VA_ARGS__)) [[likely]]
 #define XE_UNLIKELY_IF(...) if (!!(__VA_ARGS__)) [[unlikely]]
-#else
-#define XE_LIKELY_IF(...) if (!!(__VA_ARGS__))
-#define XE_UNLIKELY_IF(...) if (!!(__VA_ARGS__))
-#endif
 #define XE_MAYBE_UNUSED
 #endif
 // only use __restrict if MSVC, for clang/gcc we can use -fstrict-aliasing which
