@@ -1,124 +1,137 @@
-# Xenia Metal Backend Debug Plan
+# Xenia Metal Backend Debug Plan - FINAL DIAGNOSIS
 
-## LATEST DISCOVERY: Pink Output is Uninitialized Dummy Target
+## 🎯 ROOT CAUSE IDENTIFIED: Empty Descriptor Heaps
 
-### The Real Issue Chain:
-1. **Render targets ARE being preserved** - logs show targets stay at 0xb9ad1d400, 0xb9ad1d3e0
-2. **Dummy target is created** when no real targets exist (as fallback)
-3. **Pink color (255,0,255)** is Metal's default uninitialized texture color
-4. **Xbox 360 shaders never render to dummy** - they expect real targets
-5. **CaptureColorTarget captures dummy** instead of real rendered content
+### The Complete Issue Chain:
+1. ✅ Render targets are properly created and bound (320x720, 1280x720)
+2. ✅ Shaders are compiled and execute correctly
+3. ✅ Textures are found and validated (1280x720, 1024x256, etc.)
+4. ❌ **Descriptor heaps are EMPTY** - textures never make it to GPU
+5. ❌ Shaders sample from empty texture slots → Metal returns pink (255,0,255)
+6. ✅ Pink color is captured correctly from render targets
 
-### Evidence:
-- Render target preservation fix IS working (targets no longer null)
-- GetRenderPassDescriptor creates dummy when has_any_render_target=false
-- CaptureColorTarget falls back to dummy, logs: "Using render cache dummy target"
-- Pink is not hardcoded anywhere - it's uninitialized Metal texture
+### Critical Evidence:
+```
+❌ Empty descriptor heaps detected:
+w> F8000004 Resource descriptor heap is empty!
+w> F8000004 Sampler descriptor heap is empty!
 
-### Root Problems:
-1. **Real render targets not properly bound** to render pass descriptor
-2. **Shaders render to wrong location** or not at all
-3. **Capture system gets dummy** instead of actual rendered content
+✓ Textures ARE being found:
+i> F8000004 Metal IssueDraw: Found valid texture at fetch constant 0
 
-## Comprehensive Solution Plan
+❌ Textures found but NOT uploaded:
+i> F8000004 Metal IssueDraw: Prepared 0 textures and 0 samplers for argument buffer
+```
 
-### Phase 1: Fix Render Target Persistence ✅ COMPLETED
-- Modified base class to preserve targets when none requested
-- Added logic to keep `are_accumulated_render_targets_valid_ = true`
-- Result: Targets ARE preserved (0xb9ad1d400, 0xb9ad1d3e0 stay valid)
+## The Real Problem
 
-### Phase 2: Fix Shader Rendering to Real Targets 🔄 IN PROGRESS
+The issue is NOT:
+- ❌ Render target management (working correctly)
+- ❌ Shader compilation (working correctly)
+- ❌ Texture loading (textures are found)
+- ❌ Hardcoded pink in shaders (not present)
 
-#### Problem: Shaders Not Writing to Bound Targets
-1. **Verify render pass setup**:
-   - Check if real targets properly attached to MTLRenderPassDescriptor
-   - Ensure loadAction/storeAction correct (Load/Store not Clear/DontCare)
-   - Validate texture formats match pipeline expectations
+The issue IS:
+- ✅ **Descriptor heaps remain empty despite finding textures**
+- ✅ **Textures never get uploaded to argument buffers**
+- ✅ **Shaders sample from empty slots → pink default**
 
-2. **Debug shader execution**:
-   - Add GPU counter to verify fragment shader runs
-   - Check if discard_fragment being called
-   - Verify viewport/scissor not culling everything
+## Solution Plan
 
-3. **Fix render target binding**:
-   - Ensure targets from base class properly cast to MetalRenderTarget*
-   - Check texture() returns valid MTLTexture
-   - Verify sample count matches between targets and pipeline
+### Phase 1: Fix Descriptor Heap Population 🔧 CRITICAL
 
-## Testing Status
-
-### Current Behavior
-- Pink screen from uninitialized dummy render target
-- Real targets ARE preserved (0xb9ad1d400, 0xb9ad1d3e0) 
-- Shaders execute (AIR shows texture sampling, calculations)
-- But output goes to wrong place or gets discarded
-
-### Key Observations
-- GetRenderPassDescriptor logs: "No render targets bound, creating dummy"
-- This means current_color_targets_[i] or texture() returning null
-- Yet base class has valid accumulated_render_targets_
-- **Gap between base class state and Metal binding**
-
-## Next Steps
-
-### Immediate Actions:
-
-1. **Fix GetRenderPassDescriptor logic** ✨ PRIORITY
-   ```cpp
-   // In MetalRenderTargetCache::Update():
-   // After getting accumulated_targets from base class
-   // Properly store them as current_color_targets_[]
-   // So GetRenderPassDescriptor finds them
-   ```
-
-2. **Add validation in Update()**:
-   - Log texture() for each MetalRenderTarget
-   - Verify cast from RenderTarget* to MetalRenderTarget* works
-   - Check if textures are actually created
-
-3. **Debug shader output**:
-   - Add color write validation
-   - Check blend state not discarding
-   - Verify fragment shader return values
-
-4. **Fix capture path**:
-   - Ensure CaptureColorTarget gets real rendered target
-   - Not dummy fallback
-
-### Phase 3: Validate Rendering Pipeline
-- Confirm vertices transformed correctly
-- Check primitive assembly
-- Verify rasterization produces fragments
-
-## Implementation Details
-
-### The Missing Link: MetalRenderTarget Texture Creation
-Looking at logs, the issue is likely:
-1. Base class creates RenderTarget objects
-2. MetalRenderTargetCache::CreateRenderTarget called
-3. But texture() might return null if creation failed
-4. GetRenderPassDescriptor sees null texture → creates dummy
-
-### Fix Strategy:
+The problem is in `MetalCommandProcessor::PopulateDescriptorHeaps()`:
 ```cpp
-// In MetalRenderTargetCache::Update()
-RenderTarget* const* accumulated_targets = last_update_accumulated_render_targets();
+// Current broken flow:
+1. Find texture at fetch constant
+2. Try to add to descriptor heap
+3. FAIL: Heap remains empty
+4. Pass empty heap to shader
+```
 
-// THIS IS THE KEY FIX:
-for (int i = 0; i < 5; i++) {
-  if (accumulated_targets[i]) {
-    MetalRenderTarget* metal_rt = static_cast<MetalRenderTarget*>(accumulated_targets[i]);
-    if (!metal_rt->texture()) {
-      // Texture was never created! Create it now
-      CreateTextureForRenderTarget(metal_rt);
-    }
-  }
+#### Fix Implementation:
+```cpp
+// In MetalCommandProcessor::IssueDraw() around line 2900:
+if (texture_for_slot) {
+  // CURRENT CODE: Just logs but doesn't add to heap
+  XELOGI("Found texture for slot {}", slot);
+  
+  // MISSING: Actually add to descriptor heap!
+  IRDescriptorTableEntry entry;
+  entry.gpuVA = texture_gpu_address;
+  entry.textureViewID = texture_for_slot;
+  entry.metadata = packed_metadata;
+  
+  // Write to heap at correct offset
+  memcpy(res_heap_ab_ + slot * sizeof(IRDescriptorTableEntry), 
+         &entry, sizeof(entry));
 }
 ```
 
+### Phase 2: Verify Argument Buffer Setup
+
+1. **Check heap allocation**:
+   - Ensure res_heap_ab_ is allocated
+   - Verify size is sufficient for all texture slots
+   - Confirm alignment requirements
+
+2. **Fix useResource calls**:
+   ```cpp
+   // Must call for EVERY texture in heap
+   encoder->useResource(texture_for_slot, MTL::ResourceUsageSample);
+   ```
+
+3. **Bind heaps to encoder**:
+   ```cpp
+   // Ensure heaps are bound at correct indices
+   encoder->setFragmentBuffer(res_heap_ab_, 0, kIRArgumentBufferBindPoint);
+   encoder->setVertexBuffer(res_heap_ab_, 0, kIRArgumentBufferBindPoint);
+   ```
+
+### Phase 3: Test and Validate
+
+1. **Add validation logging**:
+   ```cpp
+   XELOGI("Heap contents after population:");
+   for (int i = 0; i < num_entries; i++) {
+     IRDescriptorTableEntry* entry = (IRDescriptorTableEntry*)(res_heap_ab_ + i * 24);
+     XELOGI("  Slot {}: gpuVA={:016x}, textureViewID={:p}", 
+            i, entry->gpuVA, entry->textureViewID);
+   }
+   ```
+
+2. **Verify in shader**:
+   - Check T0/T1 texture access returns valid data
+   - Confirm sampling returns actual texture colors
+
 ## Success Criteria
-- Real render targets stay bound throughout frame
-- No dummy target creation
-- Shaders write to real targets
-- CaptureColorTarget gets actual rendered content
-- Output shows game graphics, not pink
+
+- ✅ Descriptor heaps contain texture entries
+- ✅ "Prepared N textures" shows N > 0
+- ✅ No "heap is empty" warnings
+- ✅ Shaders sample real texture data
+- ✅ Output shows game graphics, not pink
+
+## Implementation Checklist
+
+- [ ] Fix PopulateDescriptorHeaps to actually write entries
+- [ ] Ensure heap memory is properly allocated
+- [ ] Add useResource for all textures
+- [ ] Bind heaps at correct buffer indices
+- [ ] Add comprehensive heap validation
+- [ ] Test with trace dump
+- [ ] Verify proper graphics output
+
+## Code Locations
+
+- **Descriptor heap population**: `metal_command_processor.mm:2800-3000`
+- **Heap allocation**: `metal_command_processor.mm:BeginSubmission()`
+- **Argument buffer binding**: `metal_command_processor.mm:IssueDraw()`
+- **Texture lookup**: `metal_command_processor.mm:2400-2500`
+
+## Final Notes
+
+This is the last major blocker for basic rendering. Once descriptor heaps work:
+1. Textures will reach shaders
+2. Pink output will be replaced with actual game graphics
+3. Can move on to fixing smaller issues (depth, blending, etc.)
