@@ -9,7 +9,10 @@
 
 #include "xenia/base/cvar.h"
 #include <iostream>
-#define UTF_CPP_CPLUSPLUS 202002L
+// https://github.com/nemtrif/utfcpp/issues/85
+#if defined(_MSVC_LANG) && _MSVC_LANG > __cplusplus
+#define UTF_CPP_CPLUSPLUS _MSVC_LANG
+#endif
 #include "third_party/utfcpp/source/utf8.h"
 
 #include "xenia/base/console.h"
