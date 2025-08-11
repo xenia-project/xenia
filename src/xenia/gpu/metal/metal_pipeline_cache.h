@@ -182,6 +182,10 @@ class MetalPipelineCache {
   
   // Translate Xbox 360 shader to DXIL
   bool TranslateAnalyzedShader(MetalShader* shader);
+
+  // Augment texture bindings using MSC reflection data
+  void AugmentTextureBindings(MetalShader* shader, 
+                              MetalShader::MetalTranslation* translation);
 };
 
 }  // namespace metal

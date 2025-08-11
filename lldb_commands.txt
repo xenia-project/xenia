@@ -1,9 +1,0 @@
-run
-# Wait for it to hang, then press Ctrl+C
-# Then run these commands:
-process interrupt
-thread backtrace all
-thread list
-frame info
-register read
-quit

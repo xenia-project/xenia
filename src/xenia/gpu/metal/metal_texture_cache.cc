@@ -134,7 +134,7 @@ bool MetalTextureCache::UploadTexture2D(const TextureInfo& texture_info) {
   MTL::PixelFormat metal_format = ConvertXenosFormat(
       texture_info.format_info()->format, texture_info.endianness);
   if (metal_format == MTL::PixelFormatInvalid) {
-    XELOGE("Metal texture cache: Unsupported texture format {}", 
+    XELOGE("Metal texture cache: Unsupported Xbox 360 texture format {}",
            static_cast<uint32_t>(texture_info.format_info()->format));
     return false;
   }
@@ -324,8 +324,7 @@ MTL::PixelFormat MetalTextureCache::ConvertXenosFormat(xenos::TextureFormat form
     case xenos::TextureFormat::k_DXN:  // BC5
       return MTL::PixelFormatBC5_RGUnorm;
     default:
-      XELOGW("Metal texture cache: Unsupported Xbox 360 texture format {}", 
-             static_cast<uint32_t>(format));
+      // Don't log here - caller will log the error with more context
       return MTL::PixelFormatInvalid;
   }
 }

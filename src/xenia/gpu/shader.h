@@ -882,6 +882,11 @@ class Shader {
     return texture_bindings_;
   }
 
+  // Add mutable accessor for Metal backend to augment bindings
+  std::vector<TextureBinding>& mutable_texture_bindings() {
+    return texture_bindings_;
+  }
+
   // Bitmaps of all constant registers accessed by the shader.
   const ConstantRegisterMap& constant_register_map() const {
     return constant_register_map_;

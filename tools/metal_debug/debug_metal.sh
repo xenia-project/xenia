@@ -161,24 +161,38 @@ else
     print_warning "No programmatic capture attempts found in log"
 fi
 
-# Check multiple locations for GPU captures
-echo "  Searching for GPU captures..."
-for location in \
-    /tmp/xenia_gpu_capture_*.gputrace \
-    ~/Documents/*.gputrace \
-    *.gputrace \
-    /tmp/*.gputrace \
-    "$HOME/Library/Developer/Xcode/DerivedData"/*/*.gputrace
-do
-    for file in $location; do
-        if [ -f "$file" ]; then
-            cp "$file" "$OUTPUT_DIR/captures/" 2>/dev/null && {
-                ((GPU_CAPTURE_COUNT++))
-                echo "  Found: $(basename $file) ($(stat -f%z "$file") bytes)"
-            }
+# Check for GPU captures created during this session
+echo "  Searching for GPU captures from this session..."
+# Since we set XENIA_GPU_CAPTURE_DIR, captures should be directly in our output dir
+for capture in "$OUTPUT_DIR/captures"/*.gputrace; do
+    if [ -e "$capture" ]; then  # Use -e to check for either file or directory
+        ((GPU_CAPTURE_COUNT++))
+        if [ -d "$capture" ]; then
+            # Get directory size for directories
+            SIZE=$(du -sh "$capture" | cut -f1)
+            echo "  Found: $(basename $capture) ($SIZE)"
+        else
+            echo "  Found: $(basename $capture) ($(stat -f%z "$capture") bytes)"
+        fi
+    fi
+done
+
+# Also check if trace dump created one in /tmp (only if not already found)
+if [ $GPU_CAPTURE_COUNT -eq 0 ]; then
+    echo "  No captures in output dir, checking /tmp for this session..."
+    # Only look for captures created after we started (using timestamp)
+    for capture in /tmp/xenia_gpu_capture_*.gputrace /tmp/gpu_capture_*.gputrace; do
+        if [ -e "$capture" ]; then
+            # Check if this capture is newer than our session start
+            if [ "$capture" -nt "$OUTPUT_DIR" ]; then
+                cp -r "$capture" "$OUTPUT_DIR/captures/" 2>/dev/null && {
+                    ((GPU_CAPTURE_COUNT++))
+                    echo "  Found and copied: $(basename $capture) from /tmp"
+                }
+            fi
         fi
     done
-done
+fi
 
 if [ $GPU_CAPTURE_COUNT -gt 0 ]; then
     print_success "Collected $GPU_CAPTURE_COUNT GPU capture(s)"
@@ -306,7 +320,7 @@ grep -E "buffer contents|Buffer\[|Memory:|Uniforms|CB0|CB1" \
     > "$OUTPUT_DIR/analysis/buffer_contents.txt" 2>/dev/null || true
 
 # Draw calls
-grep -E "IssueDraw|Drew.*primitives|Draw.*state|viewport|scissor" \
+grep -E "Metal IssueDraw: Starting draw call|Drew.*primitives|Draw.*state|viewport|scissor" \
     "$OUTPUT_DIR/logs/full_output.log" \
     > "$OUTPUT_DIR/analysis/draw_calls.txt" 2>/dev/null || true
 
@@ -357,7 +371,7 @@ print_section "Creating Analysis Report"
     
     echo "=== Execution Statistics ==="
     TOTAL_LINES=$(wc -l < "$OUTPUT_DIR/logs/full_output.log")
-    DRAW_CALLS=$(grep -c "IssueDraw" "$OUTPUT_DIR/logs/full_output.log" 2>/dev/null || echo "0")
+    DRAW_CALLS=$(grep -c "Metal IssueDraw: Starting draw call" "$OUTPUT_DIR/logs/full_output.log" 2>/dev/null || echo "0")
     SHADER_COMPILES=$(grep -c "Converting.*shader" "$OUTPUT_DIR/logs/full_output.log" 2>/dev/null || echo "0")
     TEXTURE_UPLOADS=$(grep -c "Uploaded.*texture" "$OUTPUT_DIR/logs/full_output.log" 2>/dev/null || echo "0")
     ERRORS=$(grep -c "ERROR" "$OUTPUT_DIR/logs/full_output.log" 2>/dev/null || echo "0")
@@ -649,23 +663,39 @@ fi
 echo "🔍 Key Commands:"
 echo "  • Find textures: grep 'Found valid texture' $OUTPUT_DIR/logs/full_output.log"
 echo "  • Check heaps: grep 'heap\\[' $OUTPUT_DIR/logs/full_output.log"
-echo "  • View draws: grep 'IssueDraw' $OUTPUT_DIR/logs/full_output.log | head"
+echo "  • View draws: grep 'Metal IssueDraw: Starting draw call' $OUTPUT_DIR/logs/full_output.log | head"
 echo ""
 echo -e "${BLUE}================================================${NC}"
 
 # Check for critical issues and provide recommendations
-if grep -q "descriptor heap is empty" "$OUTPUT_DIR/logs/full_output.log" 2>/dev/null && \
-   grep -q "Found valid texture" "$OUTPUT_DIR/logs/full_output.log" 2>/dev/null && \
-   grep -q "Prepared 0 textures" "$OUTPUT_DIR/logs/full_output.log" 2>/dev/null; then
+UNSUPPORTED_FORMATS=$(grep -c "Unsupported.*format" "$OUTPUT_DIR/logs/full_output.log" 2>/dev/null || echo "0")
+TEXTURES_BOUND=$(grep -c "Bound.*texture at heap slot" "$OUTPUT_DIR/logs/full_output.log" 2>/dev/null || echo "0")
+TEXTURES_SET=$(grep -c "MSC res-heap: setTexture" "$OUTPUT_DIR/logs/full_output.log" 2>/dev/null || echo "0")
+
+if [ $UNSUPPORTED_FORMATS -gt 0 ]; then
+    echo ""
+    echo -e "${YELLOW}⚠️  UNSUPPORTED TEXTURE FORMATS:${NC}"
+    echo "Found $UNSUPPORTED_FORMATS unsupported texture format(s):"
+    grep "Unsupported.*format" "$OUTPUT_DIR/logs/full_output.log" | head -3
+    echo ""
+    if [ $TEXTURES_BOUND -gt 0 ]; then
+        echo "However, $TEXTURES_BOUND other texture(s) were successfully bound."
+    fi
+fi
+
+if [ $TEXTURES_BOUND -eq 0 ] && grep -q "Found valid texture" "$OUTPUT_DIR/logs/full_output.log" 2>/dev/null; then
     echo ""
     echo -e "${RED}⚠️  CRITICAL ISSUE DETECTED:${NC}"
-    echo "Textures are being found but not uploaded to descriptor heaps."
-    echo "This is why the output is black. The texture upload path needs to be fixed."
+    echo "Textures are being found but NONE are being bound to descriptor heaps."
     echo ""
     echo "Recommended fix location:"
     echo "  src/xenia/gpu/metal/metal_command_processor.mm"
-    echo "  Look for: 'Found valid texture at fetch constant'"
-    echo "  Add: Texture upload and heap binding code"
+    echo "  Look for texture upload and binding code"
+elif [ $TEXTURES_SET -gt 0 ]; then
+    echo ""
+    echo -e "${GREEN}✓ Texture binding is working:${NC}"
+    echo "  • $TEXTURES_BOUND texture(s) bound to heap slots"
+    echo "  • $TEXTURES_SET texture(s) set in descriptor heaps"
 fi
 
 exit 0

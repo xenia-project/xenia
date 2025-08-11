@@ -290,6 +290,14 @@ MTL::RenderPipelineState* MetalPipelineCache::CreateRenderPipelineState(
     return nullptr;
   }
   
+  // DEBUG: Check if vertex shader texture bindings are populated after translation
+  const auto& vs_texture_bindings = vertex_shader->texture_bindings();
+  XELOGI("Metal pipeline cache: Vertex shader after translation has {} texture bindings", vs_texture_bindings.size());
+  for (size_t i = 0; i < vs_texture_bindings.size(); ++i) {
+    XELOGI("  VS texture binding[{}]: fetch_constant={}", 
+           i, vs_texture_bindings[i].fetch_constant);
+  }
+  
   // Convert to Metal
   XELOGI("Metal pipeline cache: Converting vertex shader DXBC → DXIL → Metal...");
   auto* vertex_metal_translation = static_cast<MetalShader::MetalTranslation*>(vertex_translation);
@@ -298,6 +306,10 @@ MTL::RenderPipelineState* MetalPipelineCache::CreateRenderPipelineState(
     descriptor->release();
     return nullptr;
   }
+
+  // NEW: Augment texture bindings with MSC reflection data
+  AugmentTextureBindings(vertex_shader, vertex_metal_translation);
+
   XELOGI("Metal pipeline cache: Vertex shader successfully converted to Metal");
   
   // Get or create DXIL translation for pixel shader
@@ -308,6 +320,14 @@ MTL::RenderPipelineState* MetalPipelineCache::CreateRenderPipelineState(
     return nullptr;
   }
   
+  // DEBUG: Check if pixel shader texture bindings are populated after translation
+  const auto& ps_texture_bindings = pixel_shader->texture_bindings();
+  XELOGI("Metal pipeline cache: Pixel shader after translation has {} texture bindings", ps_texture_bindings.size());
+  for (size_t i = 0; i < ps_texture_bindings.size(); ++i) {
+    XELOGI("  PS texture binding[{}]: fetch_constant={}", 
+           i, ps_texture_bindings[i].fetch_constant);
+  }
+  
   // Convert to Metal
   XELOGI("Metal pipeline cache: Converting pixel shader DXBC → DXIL → Metal...");
   auto* pixel_metal_translation = static_cast<MetalShader::MetalTranslation*>(pixel_translation);
@@ -316,6 +336,10 @@ MTL::RenderPipelineState* MetalPipelineCache::CreateRenderPipelineState(
     descriptor->release();
     return nullptr;
   }
+
+  // NEW: Augment texture bindings with MSC reflection data
+  AugmentTextureBindings(pixel_shader, pixel_metal_translation);
+
   XELOGI("Metal pipeline cache: Pixel shader successfully converted to Metal");
   
   // Phase D.1 Step 3: Get Metal functions from converted shaders
@@ -632,6 +656,115 @@ bool MetalPipelineCache::TranslateAnalyzedShader(MetalShader* shader) {
   XELOGI("Metal pipeline cache: DxbcShaderTranslator succeeded, translation valid: {}", 
          translation->is_valid());
   return translation->is_valid();
+}
+
+void MetalPipelineCache::AugmentTextureBindings(MetalShader* shader, 
+                                                MetalShader::MetalTranslation* translation) {
+  // Get MSC's understanding of required texture slots
+  const auto& msc_texture_slots = translation->GetTextureSlots();
+  
+  // Get mutable access to shader's texture bindings
+  auto& shader_bindings = shader->mutable_texture_bindings();
+  
+  XELOGI("Metal: Augmenting texture bindings - MSC reports {} slots, shader has {} bindings",
+         msc_texture_slots.size(), shader_bindings.size());
+  
+  // Ensure we have bindings for all MSC-identified texture slots
+  for (size_t slot_index = 0; slot_index < msc_texture_slots.size(); ++slot_index) {
+    uint32_t heap_slot = msc_texture_slots[slot_index];
+    
+    // Skip sentinel values (0xFFFF indicates framebuffer fetch)
+    if (heap_slot == 0xFFFF) {
+      XELOGI("  Skipping sentinel at slot {}", slot_index);
+      continue;
+    }
+    
+    // Check if we already have a binding for this fetch constant
+    bool found = false;
+    for (const auto& binding : shader_bindings) {
+      if (binding.fetch_constant == slot_index) {
+        found = true;
+        XELOGI("  Slot {} already has binding (fetch_constant={})", 
+               slot_index, binding.fetch_constant);
+        break;
+      }
+    }
+    
+    if (!found) {
+      // Get actual fetch constant data from Xbox 360 registers
+      xenos::xe_gpu_texture_fetch_t fetch = register_file_->GetTextureFetch(static_cast<uint32_t>(slot_index));
+      
+      // Only create synthetic binding if there's valid texture data
+      if (!fetch.base_address) {
+        XELOGI("  Slot {} has no valid texture data (base_address=0), skipping synthetic binding", slot_index);
+        continue;
+      }
+      
+      // Create synthetic binding with full fetch constant data
+      Shader::TextureBinding new_binding = {};
+      new_binding.fetch_constant = static_cast<uint32_t>(slot_index);
+      new_binding.binding_index = shader_bindings.size();
+      
+      // Populate the fetch instruction with actual data from the fetch constant
+      auto& fetch_instr = new_binding.fetch_instr;
+      
+      // Set dimension based on fetch type
+      switch (fetch.dimension) {
+        case xenos::DataDimension::k1D:
+          fetch_instr.dimension = xenos::FetchOpDimension::k1D;
+          break;
+        case xenos::DataDimension::k2DOrStacked:
+          // For stacked textures, use k3DOrStacked, otherwise k2D
+          fetch_instr.dimension = fetch.stacked ? 
+            xenos::FetchOpDimension::k3DOrStacked : xenos::FetchOpDimension::k2D;
+          break;
+        case xenos::DataDimension::k3D:
+          fetch_instr.dimension = xenos::FetchOpDimension::k3DOrStacked;
+          break;
+        case xenos::DataDimension::kCube:
+          fetch_instr.dimension = xenos::FetchOpDimension::kCube;
+          break;
+        default:
+          fetch_instr.dimension = xenos::FetchOpDimension::k2D;  // Default to 2D
+          break;
+      }
+      
+      // Set opcode for texture fetch
+      fetch_instr.opcode = ucode::FetchOpcode::kTextureFetch;
+      fetch_instr.opcode_name = "tfetch";
+      
+      // Set texture attributes based on fetch constant
+      fetch_instr.attributes.mag_filter = fetch.mag_filter;
+      fetch_instr.attributes.min_filter = fetch.min_filter;
+      fetch_instr.attributes.mip_filter = fetch.mip_filter;
+      fetch_instr.attributes.aniso_filter = fetch.aniso_filter;
+      fetch_instr.attributes.vol_mag_filter = static_cast<xenos::TextureFilter>(fetch.vol_mag_filter);
+      fetch_instr.attributes.vol_min_filter = static_cast<xenos::TextureFilter>(fetch.vol_min_filter);
+      fetch_instr.attributes.use_computed_lod = true;
+      fetch_instr.attributes.use_register_lod = false;
+      fetch_instr.attributes.use_register_gradients = false;
+      fetch_instr.attributes.lod_bias = 0.0f;
+      fetch_instr.attributes.offset_x = 0.0f;
+      fetch_instr.attributes.offset_y = 0.0f;
+      
+      shader_bindings.push_back(new_binding);
+      XELOGI("  Added synthetic binding for slot {} (fetch_constant={}, base_address=0x{:08X}, dimension={})", 
+             slot_index, new_binding.fetch_constant, fetch.base_address, 
+             static_cast<uint32_t>(fetch_instr.dimension));
+    }
+  }
+  
+  // Log final state of all texture bindings after augmentation
+  XELOGI("Metal: After augmentation, shader has {} texture bindings:",
+         shader_bindings.size());
+  for (size_t i = 0; i < shader_bindings.size(); ++i) {
+    const auto& binding = shader_bindings[i];
+    // Try to get fetch constant data to see if it's valid
+    xenos::xe_gpu_texture_fetch_t fetch = register_file_->GetTextureFetch(binding.fetch_constant);
+    XELOGI("  Binding[{}]: fetch_constant={}, base_address=0x{:08X}, dimension={}",
+           i, binding.fetch_constant, fetch.base_address, 
+           static_cast<uint32_t>(binding.fetch_instr.dimension));
+  }
 }
 
 // Pipeline description comparison operators

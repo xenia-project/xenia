@@ -1215,6 +1215,10 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // NOTE: No autorelease pool here - too broad, causes accumulation
   // We'll add focused pools around specific Metal operations instead
   
+  // Log draw call for debugging scripts to count
+  XELOGI("Metal IssueDraw: Starting draw call with primitive type {} and {} indices", 
+         static_cast<uint32_t>(prim_type), index_count);
+  
   // Phase B Step 2: Pipeline state object creation and caching
   
   const char* prim_type_name = "unknown";
@@ -1587,6 +1591,17 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     
     if (!vertex_translation || !pixel_translation) {
       XELOGW("Metal IssueDraw: Failed to get shader translations for reflection");
+    } else {
+      // DEBUG: Log shader expectations vs reality
+      XELOGI("SHADER EXPECTATIONS:");
+      if (vertex_translation) {
+        XELOGI("  VS expects {} textures", vertex_translation->GetTextureSlots().size());
+      }
+      if (pixel_translation) {
+        XELOGI("  PS expects {} textures", pixel_translation->GetTextureSlots().size());
+      }
+      XELOGI("  VS has {} bindings", vertex_shader->texture_bindings().size());
+      XELOGI("  PS has {} bindings", pixel_shader->texture_bindings().size());
     }
     
     // Phase C Step 1: Metal Command Buffer and Render Pass Encoding
@@ -2337,10 +2352,15 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             const auto& heap_texture_indices = pixel_translation->GetTextureSlots();
             const auto& heap_sampler_indices = pixel_translation->GetSamplerSlots();
             XELOGI("Metal IssueDraw: Pixel shader uses {} texture heap indices from reflection", heap_texture_indices.size());
+            
+            // Debug: Log all heap texture indices
+            for (size_t i = 0; i < heap_texture_indices.size(); ++i) {
+              XELOGI("  heap_texture_indices[{}] = 0x{:04X}", i, heap_texture_indices[i]);
+            }
             XELOGI("Metal IssueDraw: Pixel shader uses {} sampler heap indices from reflection", heap_sampler_indices.size());
             
             // Use the shader's texture bindings to get the actual fetch constants
-            const auto& texture_bindings = pixel_shader->texture_bindings();
+            auto texture_bindings = pixel_shader->texture_bindings(); // Make a copy for potential modification
             XELOGI("Metal IssueDraw: Pixel shader has {} texture bindings", texture_bindings.size());
             
             // Log all texture bindings for debugging
@@ -2382,8 +2402,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 xenos::xe_gpu_texture_fetch_t test_fetch = register_file_->GetTextureFetch(fetch_constant);
                 if (!test_fetch.base_address) {
                   // No valid texture at this fetch constant
-                  // DO NOT reuse textures - each slot needs its own texture or nothing
-                  XELOGW("Metal IssueDraw: Fetch constant {} has no base address for heap slot {}, skipping", 
+                  XELOGW("Metal IssueDraw: Fetch constant {} has no base address for heap slot {}", 
                          fetch_constant, heap_slot);
                   
                   // DEBUG: Comprehensive fetch constant scan to find any available textures
@@ -2402,7 +2421,16 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                     XELOGI("===== END FETCH CONSTANT SCAN =====");
                   }
                   
-                  // Leave this heap slot empty - the shader will handle missing textures
+                  // If no texture data for this slot but shader expects it, try to reuse texture from slot 0
+                  // This is common when games use the same texture for multiple texture units
+                  if (heap_slot > 0 && bound_textures_by_heap_slot.find(0) != bound_textures_by_heap_slot.end()) {
+                    MTL::Texture* texture_0 = bound_textures_by_heap_slot[0];
+                    bound_textures_by_heap_slot[heap_slot] = texture_0;
+                    XELOGI("Metal IssueDraw: No texture data for heap slot {}, reusing texture from slot 0", heap_slot);
+                  } else {
+                    // Leave this heap slot empty - the shader will handle missing textures
+                    XELOGI("Metal IssueDraw: No texture available for heap slot {}, leaving empty", heap_slot);
+                  }
                   continue;
                 }
               }
@@ -2498,10 +2526,11 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               bound_samplers_by_heap_slot[heap_slot] = sampler;
               XELOGI("Metal IssueDraw: Prepared sampler at heap slot {} for argument buffer", heap_slot);
             }
-            
-            XELOGI("Metal IssueDraw: Prepared {} textures and {} samplers for argument buffer", 
-                   bound_textures_by_heap_slot.size(), bound_samplers_by_heap_slot.size());
           }
+          
+          // Log total textures/samplers from BOTH vertex and pixel shaders
+          XELOGI("Metal IssueDraw: Prepared {} textures and {} samplers for argument buffer", 
+                 bound_textures_by_heap_slot.size(), bound_samplers_by_heap_slot.size());
           
           // If no vertex buffers were bound, create a fallback triangle
           if (vertex_buffers_to_release.empty()) {

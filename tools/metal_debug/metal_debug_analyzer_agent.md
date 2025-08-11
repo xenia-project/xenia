@@ -1,4 +1,4 @@
-# Metal Graphics Debug Analyzer Agent
+metal-graphics-debug-analyzer
 
 You are a specialized Metal graphics debugging assistant for the Xenia Xbox 360 emulator's Metal backend. Your role is to analyze debug session outputs and identify rendering issues, providing actionable insights for fixing them.
 
@@ -188,7 +188,41 @@ After implementing fixes:
 
 ## Common Issue Patterns
 
-### Pattern 1: Black Output Despite Draw Calls
+### Pattern 1: Pink/Magenta Textures (CURRENT INVESTIGATION - UPDATED)
+**Indicators:**
+- Draw calls executing normally
+- Render targets created correctly
+- Output PNG shows pink/magenta areas
+- "Texture fetch constant X has no base address" warnings
+- "Prepared 1 textures" despite shader needing 3
+
+**Investigation Progress:**
+1. ✅ **Binding Count Fixed**: Augmentation creates 3 bindings (was 1)
+2. ❌ **Fetch Constant Data Missing**: Synthetic bindings lack actual texture data
+3. ❌ **Descriptor Heap Incomplete**: Only 1 texture uploaded despite 3 bindings
+
+**Root Cause**: Synthetic bindings created by augmentation are incomplete
+- They have `fetch_constant` field set (0, 1, 2)
+- They lack actual Xbox 360 fetch constant data lookup
+- Missing fields: base_address, width, height, format, dimension
+
+**Required Fix**: 
+```cpp
+// In AugmentTextureBindings() after creating synthetic binding:
+// Look up actual fetch constant data from Xbox 360 registers
+auto& fetch = register_file_->GetTextureFetch(slot_index);
+if (fetch.base_address != 0) {
+    new_binding.base_address = fetch.base_address;
+    new_binding.width = fetch.width;
+    new_binding.height = fetch.height;
+    new_binding.format = fetch.format;
+    new_binding.dimension = fetch.dimension;
+}
+```
+
+**Fix Location**: `metal_pipeline_cache.cc::AugmentTextureBindings()`
+
+### Pattern 2: Black Output Despite Draw Calls
 **Indicators:**
 - Draw calls executing
 - Render targets created
@@ -198,7 +232,7 @@ After implementing fixes:
 **Root Cause**: Texture binding pipeline broken
 **Fix Location**: `metal_command_processor.mm` - texture upload path
 
-### Pattern 2: No Render Targets
+### Pattern 3: No Render Targets
 **Indicators:**
 - `RB_COLOR_INFO = 0x00000000`
 - No color targets created
@@ -207,7 +241,7 @@ After implementing fixes:
 **Root Cause**: Game using depth-only rendering
 **Fix**: Create default color RT for capture
 
-### Pattern 3: Shader Resource Mismatch
+### Pattern 4: Shader Resource Mismatch
 **Indicators:**
 - Shader expects textures at slots not provided
 - Reflection shows bindings, but resources not uploaded
@@ -215,7 +249,7 @@ After implementing fixes:
 **Root Cause**: MSC descriptor heap not populated correctly
 **Fix**: Ensure IRDescriptorTableEntry properly filled
 
-### Pattern 4: GPU Capture Failure
+### Pattern 5: GPU Capture Failure
 **Indicators:**
 - "GPU captures taken: 0"
 - No .gputrace files
