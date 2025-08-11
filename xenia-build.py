@@ -146,9 +146,9 @@ def main():
     # Grab Visual Studio version and execute shell to set up environment.
     if sys.platform == "win32" and not vs_version:
         print("WARNING: Visual Studio not found!"
-               "Building for Windows will not be supported."
-               "Please refer to the building guide:"
-               f"https://github.com/xenia-canary/xenia-canary/blob/{default_branch}/docs/building.md")
+              "\nBuilding for Windows will not be supported."
+              " Please refer to the building guide:"
+              f"\nhttps://github.com/xenia-canary/xenia-canary/blob/{default_branch}/docs/building.md")
 
     # Setup main argument parser and common arguments.
     parser = ArgumentParser(prog="xenia-build.py")
@@ -448,19 +448,20 @@ def get_clang_format_binary():
         "clang-format",
         ]
     if sys.platform == "win32":
-        attempts.append(os.path.join(os.environ["ProgramFiles"], "LLVM", "bin", "clang-format.exe"))
-        attempts.append(os.path.join(os.environ["ProgramFiles(x86)"], "LLVM", "bin", "clang-format.exe"))
         if "VCINSTALLDIR" in os.environ:
-            attempts.append(os.path.join(os.environ["VCINSTALLDIR"], "Tools", "Llvm", "bin", "clang-format.exe"))
+            attempts.append(os.path.join(os.environ["VCINSTALLDIR"], "Tools", "Llvm", "x64", "bin", "clang-format.exe"))
+            attempts.append(os.path.join(os.environ["VCINSTALLDIR"], "Tools", "Llvm", "arm64", "bin", "clang-format.exe"))
+        attempts.append(os.path.join(os.environ["ProgramFiles"], "LLVM", "bin", "clang-format.exe"))
     for binary in attempts:
         if has_bin(binary):
-            clang_format_out = subprocess.check_output([binary, "--version"], text=True)
+            try:
+                clang_format_out = subprocess.check_output([binary, "--version"], text=True)
+            except:
+                continue
             if int(clang_format_out.split("version ")[1].split(".")[0]) == int(clang_format_version_req):
                 print(clang_format_out)
                 return binary
-    print("ERROR: clang-format is not on PATH"
-          f"Version {clang_format_version_req} is required."
-          "See docs/style_guide.md for instructions on how to get it.")
+    print(f"ERROR: clang-format {clang_format_version_req} is not on PATH")
     sys.exit(1)
 
 
@@ -1420,9 +1421,8 @@ class CleanCommand(Command):
             help="Target OS passed to premake, for cross-compilation")
 
     def execute(self, args, pass_args, cwd):
-        print("Cleaning build artifacts...\n")
-
-        print("- premake clean...")
+        print("Cleaning build artifacts...\n"
+              "- premake clean...")
         run_premake(get_premake_target_os(args["target_os"]), "clean")
 
         print("\nSuccess!")
@@ -1444,9 +1444,8 @@ class NukeCommand(Command):
             help="Target OS passed to premake, for cross-compilation")
 
     def execute(self, args, pass_args, cwd):
-        print("Cleaning build artifacts...\n")
-
-        print("- removing build/...")
+        print("Cleaning build artifacts...\n"
+              "- removing build/...")
         if os.path.isdir("build/"):
             rmtree("build/")
 
@@ -1537,12 +1536,11 @@ class LintCommand(Command):
                     if os.path.exists(difftemp):
                         os.remove(difftemp)
                     print("")
-            print("")
             if any_errors:
-                print("ERROR: 1+ diffs. Stage changes and run 'xb format' to fix.")
+                print("\nERROR: 1+ diffs. Stage changes and run 'xb format' to fix.")
                 return 1
             else:
-                print("Linting completed successfully.")
+                print("\nLinting completed successfully.")
                 return 0
         else:
             print("- git-clang-format --diff")
@@ -1615,7 +1613,7 @@ class FormatCommand(Command):
                     any_errors = True
             if any_errors:
                 print("\nERROR: 1+ clang-format calls failed."
-                      "Ensure all files are staged.")
+                      " Ensure all files are staged.")
                 return 1
             else:
                 print("\nFormatting completed successfully.")
