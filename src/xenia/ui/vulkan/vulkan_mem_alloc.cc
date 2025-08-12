@@ -14,25 +14,24 @@
 #include <cstring>
 
 #include "xenia/base/logging.h"
-#include "xenia/ui/vulkan/vulkan_provider.h"
 
 namespace xe {
 namespace ui {
 namespace vulkan {
 
-VmaAllocator CreateVmaAllocator(const VulkanProvider& provider,
-                                bool externally_synchronized) {
-  const VulkanProvider::LibraryFunctions& lfn = provider.lfn();
-  const VulkanProvider::InstanceFunctions& ifn = provider.ifn();
-  const VulkanProvider::DeviceFunctions& dfn = provider.dfn();
-  const VulkanProvider::InstanceExtensions& instance_extensions =
-      provider.instance_extensions();
-  const VulkanProvider::DeviceInfo& device_info = provider.device_info();
+VmaAllocator CreateVmaAllocator(const VulkanDevice* const vulkan_device,
+                                const bool externally_synchronized) {
+  assert_not_null(vulkan_device);
+
+  const VulkanInstance* const vulkan_instance =
+      vulkan_device->vulkan_instance();
+  const VulkanInstance::Functions& ifn = vulkan_instance->functions();
+  const VulkanDevice::Functions& dfn = vulkan_device->functions();
 
   VmaVulkanFunctions vma_vulkan_functions = {};
   VmaAllocatorCreateInfo allocator_create_info = {};
 
-  vma_vulkan_functions.vkGetInstanceProcAddr = lfn.vkGetInstanceProcAddr;
+  vma_vulkan_functions.vkGetInstanceProcAddr = ifn.vkGetInstanceProcAddr;
   vma_vulkan_functions.vkGetDeviceProcAddr = ifn.vkGetDeviceProcAddr;
   vma_vulkan_functions.vkGetPhysicalDeviceProperties =
       ifn.vkGetPhysicalDeviceProperties;
@@ -57,29 +56,30 @@ VmaAllocator CreateVmaAllocator(const VulkanProvider& provider,
   vma_vulkan_functions.vkCreateImage = dfn.vkCreateImage;
   vma_vulkan_functions.vkDestroyImage = dfn.vkDestroyImage;
   vma_vulkan_functions.vkCmdCopyBuffer = dfn.vkCmdCopyBuffer;
-  if (device_info.ext_1_1_VK_KHR_get_memory_requirements2) {
+  if (vulkan_device->extensions().ext_1_1_KHR_get_memory_requirements2) {
     vma_vulkan_functions.vkGetBufferMemoryRequirements2KHR =
         dfn.vkGetBufferMemoryRequirements2;
     vma_vulkan_functions.vkGetImageMemoryRequirements2KHR =
         dfn.vkGetImageMemoryRequirements2;
-    if (device_info.ext_1_1_VK_KHR_dedicated_allocation) {
+    if (vulkan_device->extensions().ext_1_1_KHR_dedicated_allocation) {
       allocator_create_info.flags |=
           VMA_ALLOCATOR_CREATE_KHR_DEDICATED_ALLOCATION_BIT;
     }
   }
-  if (device_info.ext_1_1_VK_KHR_bind_memory2) {
+  if (vulkan_device->extensions().ext_1_1_KHR_bind_memory2) {
     vma_vulkan_functions.vkBindBufferMemory2KHR = dfn.vkBindBufferMemory2;
     vma_vulkan_functions.vkBindImageMemory2KHR = dfn.vkBindImageMemory2;
     allocator_create_info.flags |= VMA_ALLOCATOR_CREATE_KHR_BIND_MEMORY2_BIT;
   }
-  if (instance_extensions.khr_get_physical_device_properties2) {
+  if (vulkan_instance->extensions()
+          .ext_1_1_KHR_get_physical_device_properties2) {
     vma_vulkan_functions.vkGetPhysicalDeviceMemoryProperties2KHR =
         ifn.vkGetPhysicalDeviceMemoryProperties2;
-    if (device_info.ext_VK_EXT_memory_budget) {
+    if (vulkan_device->extensions().ext_EXT_memory_budget) {
       allocator_create_info.flags |= VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT;
     }
   }
-  if (device_info.ext_1_3_VK_KHR_maintenance4) {
+  if (vulkan_device->extensions().ext_1_3_KHR_maintenance4) {
     vma_vulkan_functions.vkGetDeviceBufferMemoryRequirements =
         dfn.vkGetDeviceBufferMemoryRequirements;
     vma_vulkan_functions.vkGetDeviceImageMemoryRequirements =
@@ -90,11 +90,12 @@ VmaAllocator CreateVmaAllocator(const VulkanProvider& provider,
     allocator_create_info.flags |=
         VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT;
   }
-  allocator_create_info.physicalDevice = provider.physical_device();
-  allocator_create_info.device = provider.device();
+  allocator_create_info.physicalDevice = vulkan_device->physical_device();
+  allocator_create_info.device = vulkan_device->device();
   allocator_create_info.pVulkanFunctions = &vma_vulkan_functions;
-  allocator_create_info.instance = provider.instance();
-  allocator_create_info.vulkanApiVersion = device_info.apiVersion;
+  allocator_create_info.instance = vulkan_instance->instance();
+  allocator_create_info.vulkanApiVersion =
+      vulkan_device->properties().apiVersion;
   VmaAllocator allocator;
   if (vmaCreateAllocator(&allocator_create_info, &allocator) != VK_SUCCESS) {
     XELOGE("Failed to create a Vulkan Memory Allocator instance");

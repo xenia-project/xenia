@@ -15,7 +15,8 @@
 #include <utility>
 #include <vector>
 
-#include "xenia/ui/vulkan/vulkan_provider.h"
+#include "xenia/base/assert.h"
+#include "xenia/ui/vulkan/vulkan_device.h"
 
 namespace xe {
 namespace ui {
@@ -87,11 +88,16 @@ class VulkanSubmissionTracker {
     bool signal_failed_ = false;
   };
 
-  VulkanSubmissionTracker(VulkanProvider& provider) : provider_(provider) {}
+  VulkanSubmissionTracker(const VulkanDevice* vulkan_device)
+      : vulkan_device_(vulkan_device) {
+    assert_not_null(vulkan_device);
+  }
+
   VulkanSubmissionTracker(const VulkanSubmissionTracker& submission_tracker) =
       delete;
   VulkanSubmissionTracker& operator=(
       const VulkanSubmissionTracker& submission_tracker) = delete;
+
   ~VulkanSubmissionTracker() { Shutdown(); }
 
   void Shutdown();
@@ -112,7 +118,7 @@ class VulkanSubmissionTracker {
   [[nodiscard]] FenceAcquisition AcquireFenceToAdvanceSubmission();
 
  private:
-  VulkanProvider& provider_;
+  const VulkanDevice* vulkan_device_;
   uint64_t submission_current_ = 1;
   // Last submission with a successful fence signal as well as a successful
   // fence wait / query.

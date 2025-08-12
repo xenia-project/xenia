@@ -13,7 +13,7 @@
 // Make sure vulkan.h is included from third_party (rather than from the system
 // include directory) before vk_mem_alloc.h.
 
-#include "xenia/ui/vulkan/vulkan_provider.h"
+#include "xenia/ui/vulkan/vulkan_device.h"
 
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 // Work around the pointer nullability completeness warnings on Clang.
@@ -29,7 +29,7 @@ namespace xe {
 namespace ui {
 namespace vulkan {
 
-VmaAllocator CreateVmaAllocator(const VulkanProvider& provider,
+VmaAllocator CreateVmaAllocator(const VulkanDevice* vulkan_device,
                                 bool externally_synchronized);
 
 }  // namespace vulkan

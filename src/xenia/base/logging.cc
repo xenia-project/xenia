@@ -467,7 +467,7 @@ void ShutdownLogging() {
   memory::AlignedFree(logger);
 }
 
-bool logging::internal::ShouldLog(LogLevel log_level) {
+bool logging::ShouldLog(LogLevel log_level) {
   return logger_ != nullptr &&
          static_cast<int32_t>(log_level) <= cvars::log_level;
 }
@@ -487,7 +487,7 @@ void logging::internal::AppendLogLine(LogLevel log_level,
 
 void logging::AppendLogLine(LogLevel log_level, const char prefix_char,
                             const std::string_view str) {
-  if (!internal::ShouldLog(log_level) || !str.size()) {
+  if (!ShouldLog(log_level) || !str.size()) {
     return;
   }
   logger_->AppendLine(xe::threading::current_thread_id(), prefix_char,

@@ -16,6 +16,7 @@
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
+#include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/vulkan/vulkan_command_processor.h"
 
 namespace xe {
@@ -31,12 +32,12 @@ DeferredCommandBuffer::DeferredCommandBuffer(
 void DeferredCommandBuffer::Reset() { command_stream_.clear(); }
 
 void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
-#if XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
+#if XE_GPU_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
-#endif  // XE_UI_VULKAN_FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
-  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn =
-      command_processor_.GetVulkanProvider().dfn();
+  const ui::vulkan::VulkanDevice::Functions& dfn =
+      command_processor_.GetVulkanDevice()->functions();
   const uintmax_t* stream = command_stream_.data();
   size_t stream_remaining = command_stream_.size();
   while (stream_remaining) {

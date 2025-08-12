@@ -27,24 +27,24 @@ class VulkanTraceDump : public TraceDump {
   }
 
   void BeginHostCapture() override {
-    const RENDERDOC_API_1_0_0* renderdoc_api =
+    const ui::RenderDocAPI* const renderdoc_api =
         static_cast<const ui::vulkan::VulkanProvider*>(
             graphics_system_->provider())
-            ->renderdoc_api()
-            .api_1_0_0();
-    if (renderdoc_api && !renderdoc_api->IsFrameCapturing()) {
-      renderdoc_api->StartFrameCapture(nullptr, nullptr);
+            ->vulkan_instance()
+            ->renderdoc_api();
+    if (renderdoc_api && !renderdoc_api->api_1_0_0()->IsFrameCapturing()) {
+      renderdoc_api->api_1_0_0()->StartFrameCapture(nullptr, nullptr);
     }
   }
 
   void EndHostCapture() override {
-    const RENDERDOC_API_1_0_0* renderdoc_api =
+    const ui::RenderDocAPI* const renderdoc_api =
         static_cast<const ui::vulkan::VulkanProvider*>(
             graphics_system_->provider())
-            ->renderdoc_api()
-            .api_1_0_0();
-    if (renderdoc_api && renderdoc_api->IsFrameCapturing()) {
-      renderdoc_api->EndFrameCapture(nullptr, nullptr);
+            ->vulkan_instance()
+            ->renderdoc_api();
+    if (renderdoc_api && renderdoc_api->api_1_0_0()->IsFrameCapturing()) {
+      renderdoc_api->api_1_0_0()->EndFrameCapture(nullptr, nullptr);
     }
   }
 };

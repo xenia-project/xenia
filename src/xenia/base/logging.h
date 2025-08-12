@@ -70,9 +70,16 @@ void InitializeLogging(const std::string_view app_name);
 void ShutdownLogging();
 
 namespace logging {
-namespace internal {
+
+constexpr char kPrefixCharError = '!';
+constexpr char kPrefixCharWarning = 'w';
+constexpr char kPrefixCharInfo = 'i';
+constexpr char kPrefixCharDebug = 'd';
 
 bool ShouldLog(LogLevel log_level);
+
+namespace internal {
+
 std::pair<char*, size_t> GetThreadBuffer();
 
 void AppendLogLine(LogLevel log_level, const char prefix_char, size_t written);
@@ -83,7 +90,7 @@ void AppendLogLine(LogLevel log_level, const char prefix_char, size_t written);
 template <typename... Args>
 void AppendLogLineFormat(LogLevel log_level, const char prefix_char,
                          const char* format, const Args&... args) {
-  if (!internal::ShouldLog(log_level)) {
+  if (!ShouldLog(log_level)) {
     return;
   }
   auto target = internal::GetThreadBuffer();
@@ -106,22 +113,26 @@ void FatalError(const std::string_view str);
 
 template <typename... Args>
 void XELOGE(const char* format, const Args&... args) {
-  xe::logging::AppendLogLineFormat(xe::LogLevel::Error, '!', format, args...);
+  xe::logging::AppendLogLineFormat(
+      xe::LogLevel::Error, xe::logging::kPrefixCharError, format, args...);
 }
 
 template <typename... Args>
 void XELOGW(const char* format, const Args&... args) {
-  xe::logging::AppendLogLineFormat(xe::LogLevel::Warning, 'w', format, args...);
+  xe::logging::AppendLogLineFormat(
+      xe::LogLevel::Warning, xe::logging::kPrefixCharWarning, format, args...);
 }
 
 template <typename... Args>
 void XELOGI(const char* format, const Args&... args) {
-  xe::logging::AppendLogLineFormat(xe::LogLevel::Info, 'i', format, args...);
+  xe::logging::AppendLogLineFormat(
+      xe::LogLevel::Info, xe::logging::kPrefixCharInfo, format, args...);
 }
 
 template <typename... Args>
 void XELOGD(const char* format, const Args&... args) {
-  xe::logging::AppendLogLineFormat(xe::LogLevel::Debug, 'd', format, args...);
+  xe::logging::AppendLogLineFormat(
+      xe::LogLevel::Debug, xe::logging::kPrefixCharDebug, format, args...);
 }
 
 template <typename... Args>

@@ -15,8 +15,6 @@
 #include "xenia/ui/d3d12/d3d12_api.h"
 #include "xenia/ui/graphics_provider.h"
 
-#define XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES 1
-
 namespace xe {
 namespace ui {
 namespace d3d12 {

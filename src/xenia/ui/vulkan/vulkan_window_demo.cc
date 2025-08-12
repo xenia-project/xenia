@@ -34,7 +34,7 @@ class VulkanWindowDemoApp final : public WindowDemoApp {
 
 std::unique_ptr<GraphicsProvider> VulkanWindowDemoApp::CreateGraphicsProvider()
     const {
-  return VulkanProvider::Create(true);
+  return VulkanProvider::Create(false, true);
 }
 
 }  // namespace vulkan

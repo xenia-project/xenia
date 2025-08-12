@@ -17,13 +17,14 @@ namespace ui {
 namespace vulkan {
 
 SingleLayoutDescriptorSetPool::SingleLayoutDescriptorSetPool(
-    const VulkanProvider& provider, uint32_t pool_set_count,
-    uint32_t set_layout_descriptor_counts_count,
-    const VkDescriptorPoolSize* set_layout_descriptor_counts,
-    VkDescriptorSetLayout set_layout)
-    : provider_(provider),
+    const VulkanDevice* const vulkan_device, const uint32_t pool_set_count,
+    const uint32_t set_layout_descriptor_counts_count,
+    const VkDescriptorPoolSize* const set_layout_descriptor_counts,
+    const VkDescriptorSetLayout set_layout)
+    : vulkan_device_(vulkan_device),
       pool_set_count_(pool_set_count),
       set_layout_(set_layout) {
+  assert_not_null(vulkan_device);
   assert_not_zero(pool_set_count);
   pool_descriptor_counts_.resize(set_layout_descriptor_counts_count);
   for (uint32_t i = 0; i < set_layout_descriptor_counts_count; ++i) {
@@ -38,8 +39,8 @@ SingleLayoutDescriptorSetPool::SingleLayoutDescriptorSetPool(
 }
 
 SingleLayoutDescriptorSetPool::~SingleLayoutDescriptorSetPool() {
-  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
-  VkDevice device = provider_.device();
+  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
+  const VkDevice device = vulkan_device_->device();
   if (current_pool_ != VK_NULL_HANDLE) {
     dfn.vkDestroyDescriptorPool(device, current_pool_, nullptr);
   }
@@ -55,8 +56,8 @@ size_t SingleLayoutDescriptorSetPool::Allocate() {
     return free_index;
   }
 
-  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
-  VkDevice device = provider_.device();
+  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
+  const VkDevice device = vulkan_device_->device();
 
   // Two iterations so if vkAllocateDescriptorSets fails even with a non-zero
   // current_pool_sets_remaining_, another attempt will be made in a new pool.

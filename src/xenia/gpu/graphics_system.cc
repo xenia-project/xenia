@@ -55,13 +55,13 @@ GraphicsSystem::~GraphicsSystem() = default;
 X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
                                kernel::KernelState* kernel_state,
                                ui::WindowedAppContext* app_context,
-                               [[maybe_unused]] bool is_surface_required) {
+                               bool with_presentation) {
   memory_ = processor->memory();
   processor_ = processor;
   kernel_state_ = kernel_state;
   app_context_ = app_context;
 
-  if (provider_) {
+  if (with_presentation && provider_) {
     // Safe if either the UI thread call or the presenter creation fails.
     if (app_context_) {
       app_context_->CallInUIThreadSynchronous([this]() {

@@ -26,4 +26,6 @@ DECLARE_bool(half_pixel_offset);
 
 DECLARE_int32(query_occlusion_fake_sample_count);
 
+#define XE_GPU_FINE_GRAINED_DRAW_SCOPES 1
+
 #endif  // XENIA_GPU_GPU_FLAGS_H_

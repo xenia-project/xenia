@@ -207,14 +207,15 @@ VulkanRenderTargetCache::VulkanRenderTargetCache(
 VulkanRenderTargetCache::~VulkanRenderTargetCache() { Shutdown(true); }
 
 bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
-  const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanProvider();
-  const ui::vulkan::VulkanProvider::InstanceFunctions& ifn = provider.ifn();
-  VkPhysicalDevice physical_device = provider.physical_device();
-  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
-  VkDevice device = provider.device();
-  const ui::vulkan::VulkanProvider::DeviceInfo& device_info =
-      provider.device_info();
+  const ui::vulkan::VulkanDevice* const vulkan_device =
+      command_processor_.GetVulkanDevice();
+  const ui::vulkan::VulkanInstance::Functions& ifn =
+      vulkan_device->vulkan_instance()->functions();
+  const VkPhysicalDevice physical_device = vulkan_device->physical_device();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
+  const ui::vulkan::VulkanDevice::Properties& device_properties =
+      vulkan_device->properties();
 
   if (cvars::render_target_path_vulkan == "fsi") {
     path_ = Path::kPixelShaderInterlock;
@@ -243,13 +244,13 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
     // between, for instance, the ability to vfetch and memexport in fragment
     // shaders, and the usage of fragment shader interlock, prefer the former
     // for simplicity.
-    if (!(device_info.fragmentShaderSampleInterlock ||
-          device_info.fragmentShaderPixelInterlock) ||
-        !device_info.fragmentStoresAndAtomics ||
-        !device_info.sampleRateShading ||
-        !device_info.standardSampleLocations ||
+    if (!(device_properties.fragmentShaderSampleInterlock ||
+          device_properties.fragmentShaderPixelInterlock) ||
+        !device_properties.fragmentStoresAndAtomics ||
+        !device_properties.sampleRateShading ||
+        !device_properties.standardSampleLocations ||
         shared_memory_binding_count >=
-            device_info.maxPerStageDescriptorStorageBuffers) {
+            device_properties.maxPerStageDescriptorStorageBuffers) {
       path_ = Path::kHostRenderTargets;
     }
   }
@@ -271,17 +272,18 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
   if (cvars::native_2x_msaa) {
     // Multisampled integer sampled images are optional in Vulkan and in Xenia.
     msaa_2x_attachments_supported_ =
-        (device_info.framebufferColorSampleCounts &
-         device_info.framebufferDepthSampleCounts &
-         device_info.framebufferStencilSampleCounts &
-         device_info.sampledImageColorSampleCounts &
-         device_info.sampledImageDepthSampleCounts &
-         device_info.sampledImageStencilSampleCounts & VK_SAMPLE_COUNT_2_BIT) &&
-        (device_info.sampledImageIntegerSampleCounts &
+        (device_properties.framebufferColorSampleCounts &
+         device_properties.framebufferDepthSampleCounts &
+         device_properties.framebufferStencilSampleCounts &
+         device_properties.sampledImageColorSampleCounts &
+         device_properties.sampledImageDepthSampleCounts &
+         device_properties.sampledImageStencilSampleCounts &
+         VK_SAMPLE_COUNT_2_BIT) &&
+        (device_properties.sampledImageIntegerSampleCounts &
          (VK_SAMPLE_COUNT_2_BIT | VK_SAMPLE_COUNT_4_BIT)) !=
             VK_SAMPLE_COUNT_4_BIT;
     msaa_2x_no_attachments_supported_ =
-        (device_info.framebufferNoAttachmentsSampleCounts &
+        (device_properties.framebufferNoAttachmentsSampleCounts &
          VK_SAMPLE_COUNT_2_BIT) != 0;
   } else {
     msaa_2x_attachments_supported_ = false;
@@ -349,19 +351,19 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
   descriptor_set_layout_size.descriptorCount = 1;
   descriptor_set_pool_sampled_image_ =
       std::make_unique<ui::vulkan::SingleLayoutDescriptorSetPool>(
-          provider, 256, 1, &descriptor_set_layout_size,
+          vulkan_device, 256, 1, &descriptor_set_layout_size,
           descriptor_set_layout_sampled_image_);
   descriptor_set_layout_size.descriptorCount = 2;
   descriptor_set_pool_sampled_image_x2_ =
       std::make_unique<ui::vulkan::SingleLayoutDescriptorSetPool>(
-          provider, 256, 1, &descriptor_set_layout_size,
+          vulkan_device, 256, 1, &descriptor_set_layout_size,
           descriptor_set_layout_sampled_image_x2_);
 
   // EDRAM contents reinterpretation buffer.
   // 90 MB with 9x resolution scaling - within the minimum
   // maxStorageBufferRange.
   if (!ui::vulkan::util::CreateDedicatedAllocationBuffer(
-          provider,
+          vulkan_device,
           VkDeviceSize(xenos::kEdramSizeBytes *
                        (draw_resolution_scale_x() * draw_resolution_scale_y())),
           VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
@@ -498,7 +500,7 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
                 resolve_copy_shader_code.scaled &&
                 resolve_copy_shader_code.scaled_size_bytes);
     VkPipeline resolve_copy_pipeline = ui::vulkan::util::CreateComputePipeline(
-        provider, resolve_copy_pipeline_layout_,
+        vulkan_device, resolve_copy_pipeline_layout_,
         draw_resolution_scaled ? resolve_copy_shader_code.scaled
                                : resolve_copy_shader_code.unscaled,
         draw_resolution_scaled ? resolve_copy_shader_code.scaled_size_bytes
@@ -511,7 +513,7 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
       Shutdown();
       return false;
     }
-    provider.SetDeviceObjectName(VK_OBJECT_TYPE_PIPELINE, resolve_copy_pipeline,
+    vulkan_device->SetObjectName(VK_OBJECT_TYPE_PIPELINE, resolve_copy_pipeline,
                                  resolve_copy_shader_info.debug_name);
     resolve_copy_pipelines_[i] = resolve_copy_pipeline;
   }
@@ -569,7 +571,7 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
           host_depth_store_shaders[i];
       VkPipeline host_depth_store_pipeline =
           ui::vulkan::util::CreateComputePipeline(
-              provider, host_depth_store_pipeline_layout_,
+              vulkan_device, host_depth_store_pipeline_layout_,
               host_depth_store_shader.first, host_depth_store_shader.second);
       if (host_depth_store_pipeline == VK_NULL_HANDLE) {
         XELOGE(
@@ -585,7 +587,7 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
     // Transfer and clear vertex buffer, for quads of up to tile granularity.
     transfer_vertex_buffer_pool_ =
         std::make_unique<ui::vulkan::VulkanUploadBufferPool>(
-            provider, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            vulkan_device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
             std::max(ui::vulkan::VulkanUploadBufferPool::kDefaultPageSize,
                      sizeof(float) * 2 * 6 *
                          Transfer::kMaxCutoutBorderRectangles *
@@ -593,7 +595,7 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
 
     // Transfer vertex shader.
     transfer_passthrough_vertex_shader_ = ui::vulkan::util::CreateShaderModule(
-        provider, shaders::passthrough_position_xy_vs,
+        vulkan_device, shaders::passthrough_position_xy_vs,
         sizeof(shaders::passthrough_position_xy_vs));
     if (transfer_passthrough_vertex_shader_ == VK_NULL_HANDLE) {
       XELOGE(
@@ -757,7 +759,7 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
       return false;
     }
     resolve_fsi_clear_32bpp_pipeline_ = ui::vulkan::util::CreateComputePipeline(
-        provider, resolve_fsi_clear_pipeline_layout_,
+        vulkan_device, resolve_fsi_clear_pipeline_layout_,
         draw_resolution_scaled ? shaders::resolve_clear_32bpp_scaled_cs
                                : shaders::resolve_clear_32bpp_cs,
         draw_resolution_scaled ? sizeof(shaders::resolve_clear_32bpp_scaled_cs)
@@ -770,7 +772,7 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
       return false;
     }
     resolve_fsi_clear_64bpp_pipeline_ = ui::vulkan::util::CreateComputePipeline(
-        provider, resolve_fsi_clear_pipeline_layout_,
+        vulkan_device, resolve_fsi_clear_pipeline_layout_,
         draw_resolution_scaled ? shaders::resolve_clear_64bpp_scaled_cs
                                : shaders::resolve_clear_64bpp_cs,
         draw_resolution_scaled ? sizeof(shaders::resolve_clear_64bpp_scaled_cs)
@@ -838,10 +840,10 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
     fsi_framebuffer_create_info.pAttachments = nullptr;
     fsi_framebuffer_create_info.width = std::min(
         xenos::kTexture2DCubeMaxWidthHeight * draw_resolution_scale_x(),
-        device_info.maxFramebufferWidth);
+        device_properties.maxFramebufferWidth);
     fsi_framebuffer_create_info.height = std::min(
         xenos::kTexture2DCubeMaxWidthHeight * draw_resolution_scale_y(),
-        device_info.maxFramebufferHeight);
+        device_properties.maxFramebufferHeight);
     fsi_framebuffer_create_info.layers = 1;
     if (dfn.vkCreateFramebuffer(device, &fsi_framebuffer_create_info, nullptr,
                                 &fsi_framebuffer_.framebuffer) != VK_SUCCESS) {
@@ -873,10 +875,10 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
 }
 
 void VulkanRenderTargetCache::Shutdown(bool from_destructor) {
-  const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanProvider();
-  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
-  VkDevice device = provider.device();
+  const ui::vulkan::VulkanDevice* const vulkan_device =
+      command_processor_.GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
 
   // Destroy all render targets before the descriptor set pool is destroyed -
   // may happen if shutting down the VulkanRenderTargetCache by destroying it,
@@ -985,10 +987,10 @@ void VulkanRenderTargetCache::Shutdown(bool from_destructor) {
 }
 
 void VulkanRenderTargetCache::ClearCache() {
-  const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanProvider();
-  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
-  VkDevice device = provider.device();
+  const ui::vulkan::VulkanDevice* const vulkan_device =
+      command_processor_.GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
 
   // Framebuffer objects must be destroyed because they reference views of
   // attachment images, which may be removed by the common ClearCache.
@@ -1044,10 +1046,10 @@ bool VulkanRenderTargetCache::Resolve(const Memory& memory,
     return true;
   }
 
-  const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanProvider();
-  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
-  VkDevice device = provider.device();
+  const ui::vulkan::VulkanDevice* const vulkan_device =
+      command_processor_.GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
   DeferredCommandBuffer& command_buffer =
       command_processor_.deferred_command_buffer();
 
@@ -1554,10 +1556,10 @@ VkRenderPass VulkanRenderTargetCache::GetHostRenderTargetsRenderPass(
                                : 0;
   render_pass_create_info.pDependencies = subpass_dependencies;
 
-  const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanProvider();
-  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
-  VkDevice device = provider.device();
+  const ui::vulkan::VulkanDevice* const vulkan_device =
+      command_processor_.GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
   VkRenderPass render_pass;
   if (dfn.vkCreateRenderPass(device, &render_pass_create_info, nullptr,
                              &render_pass) != VK_SUCCESS) {
@@ -1644,10 +1646,10 @@ VkFormat VulkanRenderTargetCache::GetColorOwnershipTransferVulkanFormat(
 }
 
 VulkanRenderTargetCache::VulkanRenderTarget::~VulkanRenderTarget() {
-  const ui::vulkan::VulkanProvider& provider =
-      render_target_cache_.command_processor_.GetVulkanProvider();
-  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
-  VkDevice device = provider.device();
+  const ui::vulkan::VulkanDevice* const vulkan_device =
+      render_target_cache_.command_processor_.GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
   ui::vulkan::SingleLayoutDescriptorSetPool& descriptor_set_pool =
       key().is_depth
           ? *render_target_cache_.descriptor_set_pool_sampled_image_x2_
@@ -1671,25 +1673,25 @@ VulkanRenderTargetCache::VulkanRenderTarget::~VulkanRenderTarget() {
 }
 
 uint32_t VulkanRenderTargetCache::GetMaxRenderTargetWidth() const {
-  const ui::vulkan::VulkanProvider::DeviceInfo& device_info =
-      command_processor_.GetVulkanProvider().device_info();
-  return std::min(device_info.maxFramebufferWidth,
-                  device_info.maxImageDimension2D);
+  const ui::vulkan::VulkanDevice::Properties& device_properties =
+      command_processor_.GetVulkanDevice()->properties();
+  return std::min(device_properties.maxFramebufferWidth,
+                  device_properties.maxImageDimension2D);
 }
 
 uint32_t VulkanRenderTargetCache::GetMaxRenderTargetHeight() const {
-  const ui::vulkan::VulkanProvider::DeviceInfo& device_info =
-      command_processor_.GetVulkanProvider().device_info();
-  return std::min(device_info.maxFramebufferHeight,
-                  device_info.maxImageDimension2D);
+  const ui::vulkan::VulkanDevice::Properties& device_properties =
+      command_processor_.GetVulkanDevice()->properties();
+  return std::min(device_properties.maxFramebufferHeight,
+                  device_properties.maxImageDimension2D);
 }
 
 RenderTargetCache::RenderTarget* VulkanRenderTargetCache::CreateRenderTarget(
     RenderTargetKey key) {
-  const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanProvider();
-  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
-  VkDevice device = provider.device();
+  const ui::vulkan::VulkanDevice* const vulkan_device =
+      command_processor_.GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
 
   // Create the image.
 
@@ -1745,7 +1747,7 @@ RenderTargetCache::RenderTarget* VulkanRenderTargetCache::CreateRenderTarget(
   VkImage image;
   VkDeviceMemory memory;
   if (!ui::vulkan::util::CreateDedicatedAllocationImage(
-          provider, image_create_info,
+          vulkan_device, image_create_info,
           ui::vulkan::util::MemoryPurpose::kDeviceLocal, image, memory)) {
     XELOGE(
         "VulkanRenderTarget: Failed to create a {}x{} {}xMSAA {} render target "
@@ -2071,12 +2073,12 @@ VulkanRenderTargetCache::GetHostRenderTargetsFramebuffer(
     return &it->second;
   }
 
-  const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanProvider();
-  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
-  VkDevice device = provider.device();
-  const ui::vulkan::VulkanProvider::DeviceInfo& device_info =
-      provider.device_info();
+  const ui::vulkan::VulkanDevice* const vulkan_device =
+      command_processor_.GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
+  const ui::vulkan::VulkanDevice::Properties& device_properties =
+      vulkan_device->properties();
 
   VkRenderPass render_pass = GetHostRenderTargetsRenderPass(render_pass_key);
   if (render_pass == VK_NULL_HANDLE) {
@@ -2125,9 +2127,9 @@ VulkanRenderTargetCache::GetHostRenderTargetsFramebuffer(
   // there's no limit imposed by the sizes of the attachments that have been
   // created successfully.
   host_extent.width = std::min(host_extent.width * draw_resolution_scale_x(),
-                               device_info.maxFramebufferWidth);
+                               device_properties.maxFramebufferWidth);
   host_extent.height = std::min(host_extent.height * draw_resolution_scale_y(),
-                                device_info.maxFramebufferHeight);
+                                device_properties.maxFramebufferHeight);
   framebuffer_create_info.width = host_extent.width;
   framebuffer_create_info.height = host_extent.height;
   framebuffer_create_info.layers = 1;
@@ -2150,10 +2152,10 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
     return shader_it->second;
   }
 
-  const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanProvider();
-  const ui::vulkan::VulkanProvider::DeviceInfo& device_info =
-      provider.device_info();
+  const ui::vulkan::VulkanDevice* const vulkan_device =
+      command_processor_.GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Properties& device_properties =
+      vulkan_device->properties();
 
   std::vector<spv::Id> id_vector_temp;
   std::vector<unsigned int> uint_vector_temp;
@@ -2241,7 +2243,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
   // Outputs.
   bool shader_uses_stencil_reference_output =
       mode.output == TransferOutput::kDepth &&
-      provider.device_info().ext_VK_EXT_shader_stencil_export;
+      vulkan_device->extensions().ext_EXT_shader_stencil_export;
   bool dest_color_is_uint = false;
   uint32_t dest_color_component_count = 0;
   spv::Id type_fragment_data_component = spv::NoResult;
@@ -2477,7 +2479,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
   spv::Id input_sample_id = spv::NoResult;
   spv::Id spec_const_sample_id = spv::NoResult;
   if (key.dest_msaa_samples != xenos::MsaaSamples::k1X) {
-    if (device_info.sampleRateShading) {
+    if (device_properties.sampleRateShading) {
       // One draw for all samples.
       builder.addCapability(spv::CapabilitySampleRateShading);
       input_sample_id = builder.createVariable(
@@ -2571,7 +2573,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
   // Load the destination sample index.
   spv::Id dest_sample_id = spv::NoResult;
   if (key.dest_msaa_samples != xenos::MsaaSamples::k1X) {
-    if (device_info.sampleRateShading) {
+    if (device_properties.sampleRateShading) {
       assert_true(input_sample_id != spv::NoResult);
       dest_sample_id = builder.createUnaryOp(
           spv::OpBitcast, type_uint,
@@ -4194,7 +4196,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
   // Create the shader module, and store the handle even if creation fails not
   // to try to create it again later.
   VkShaderModule shader_module = ui::vulkan::util::CreateShaderModule(
-      provider, reinterpret_cast<const uint32_t*>(shader_code.data()),
+      vulkan_device, reinterpret_cast<const uint32_t*>(shader_code.data()),
       sizeof(uint32_t) * shader_code.size());
   if (shader_module == VK_NULL_HANDLE) {
     XELOGE(
@@ -4225,17 +4227,17 @@ VkPipeline const* VulkanRenderTargetCache::GetTransferPipelines(
 
   const TransferModeInfo& mode = kTransferModes[size_t(key.shader_key.mode)];
 
-  const ui::vulkan::VulkanProvider& provider =
-      command_processor_.GetVulkanProvider();
-  const ui::vulkan::VulkanProvider::DeviceFunctions& dfn = provider.dfn();
-  VkDevice device = provider.device();
-  const ui::vulkan::VulkanProvider::DeviceInfo& device_info =
-      provider.device_info();
+  const ui::vulkan::VulkanDevice* const vulkan_device =
+      command_processor_.GetVulkanDevice();
+  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+  const VkDevice device = vulkan_device->device();
+  const ui::vulkan::VulkanDevice::Properties& device_properties =
+      vulkan_device->properties();
 
   uint32_t dest_sample_count = uint32_t(1)
                                << uint32_t(key.shader_key.dest_msaa_samples);
   bool dest_is_masked_sample =
-      dest_sample_count > 1 && !device_info.sampleRateShading;
+      dest_sample_count > 1 && !device_properties.sampleRateShading;
 
   VkPipelineShaderStageCreateInfo shader_stages[2];
   shader_stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -4327,7 +4329,7 @@ VkPipeline const* VulkanRenderTargetCache::GetTransferPipelines(
           ? VK_SAMPLE_COUNT_4_BIT
           : VkSampleCountFlagBits(dest_sample_count);
   if (dest_sample_count > 1) {
-    if (device_info.sampleRateShading) {
+    if (device_properties.sampleRateShading) {
       multisample_state.sampleShadingEnable = VK_TRUE;
       multisample_state.minSampleShading = 1.0f;
       if (dest_sample_count == 2 && !msaa_2x_attachments_supported_) {
@@ -4358,7 +4360,7 @@ VkPipeline const* VulkanRenderTargetCache::GetTransferPipelines(
                                              : VK_COMPARE_OP_ALWAYS;
   }
   if ((mode.output == TransferOutput::kDepth &&
-       provider.device_info().ext_VK_EXT_shader_stencil_export) ||
+       vulkan_device->extensions().ext_EXT_shader_stencil_export) ||
       mode.output == TransferOutput::kStencilBit) {
     depth_stencil_state.stencilTestEnable = VK_TRUE;
     depth_stencil_state.front.failOp = VK_STENCIL_OP_KEEP;
@@ -4386,21 +4388,10 @@ VkPipeline const* VulkanRenderTargetCache::GetTransferPipelines(
       32 - xe::lzcnt(key.render_pass_key.depth_and_color_used >> 1);
   color_blend_state.pAttachments = color_blend_attachments;
   if (mode.output == TransferOutput::kColor) {
-    if (device_info.independentBlend) {
-      // State the intention more explicitly.
-      color_blend_attachments[key.shader_key.dest_color_rt_index]
-          .colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
-                            VK_COLOR_COMPONENT_G_BIT |
-                            VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    } else {
-      // The blend state for all attachments must be identical, but other render
-      // targets are not written to by the shader.
-      for (uint32_t i = 0; i < color_blend_state.attachmentCount; ++i) {
-        color_blend_attachments[i].colorWriteMask =
-            VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-            VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-      }
-    }
+    assert_true(device_properties.independentBlend);
+    color_blend_attachments[key.shader_key.dest_color_rt_index].colorWriteMask =
+        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
   }
 
   std::array<VkDynamicState, 3> dynamic_states;
@@ -4493,8 +4484,8 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
     const Transfer::Rectangle* resolve_clear_rectangle) {
   assert_true(GetPath() == Path::kHostRenderTargets);
 
-  const ui::vulkan::VulkanProvider::DeviceInfo& device_info =
-      command_processor_.GetVulkanProvider().device_info();
+  const ui::vulkan::VulkanDevice* const vulkan_device =
+      command_processor_.GetVulkanDevice();
   uint64_t current_submission = command_processor_.GetCurrentSubmission();
   DeferredCommandBuffer& command_buffer =
       command_processor_.deferred_command_buffer();
@@ -4809,7 +4800,8 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
       // Gather shader keys and sort to reduce pipeline state and binding
       // switches. Also gather stencil rectangles to clear if needed.
       bool need_stencil_bit_draws =
-          dest_rt_key.is_depth && !device_info.ext_VK_EXT_shader_stencil_export;
+          dest_rt_key.is_depth &&
+          !vulkan_device->extensions().ext_EXT_shader_stencil_export;
       current_transfer_invocations_.clear();
       current_transfer_invocations_.reserve(
           current_transfers.size() << uint32_t(need_stencil_bit_draws));
@@ -5001,10 +4993,10 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
       transfer_viewport.y = 0.0f;
       transfer_viewport.width =
           float(std::min(xe::next_pow2(transfer_framebuffer->host_extent.width),
-                         device_info.maxViewportDimensions[0]));
+                         vulkan_device->properties().maxViewportDimensions[0]));
       transfer_viewport.height = float(
           std::min(xe::next_pow2(transfer_framebuffer->host_extent.height),
-                   device_info.maxViewportDimensions[1]));
+                   vulkan_device->properties().maxViewportDimensions[1]));
       transfer_viewport.minDepth = 0.0f;
       transfer_viewport.maxDepth = 1.0f;
       command_processor_.SetViewport(transfer_viewport);
@@ -5055,7 +5047,7 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
             kTransferPipelineLayoutInfos[size_t(
                 transfer_pipeline_layout_index)];
         uint32_t transfer_sample_pipeline_count =
-            device_info.sampleRateShading
+            vulkan_device->properties().sampleRateShading
                 ? 1
                 : uint32_t(1) << uint32_t(dest_rt_key.msaa_samples);
         bool transfer_is_stencil_bit =
@@ -5922,7 +5914,7 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
   // Create the pipeline, and store the handle even if creation fails not to try
   // to create it again later.
   VkPipeline pipeline = ui::vulkan::util::CreateComputePipeline(
-      command_processor_.GetVulkanProvider(),
+      command_processor_.GetVulkanDevice(),
       key.is_depth ? dump_pipeline_layout_depth_ : dump_pipeline_layout_color_,
       reinterpret_cast<const uint32_t*>(shader_code.data()),
       sizeof(uint32_t) * shader_code.size());

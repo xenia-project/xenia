@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "xenia/ui/immediate_drawer.h"
+#include "xenia/ui/vulkan/ui_samplers.h"
 #include "xenia/ui/vulkan/vulkan_upload_buffer_pool.h"
 
 namespace xe {
@@ -26,14 +27,7 @@ namespace vulkan {
 class VulkanImmediateDrawer : public ImmediateDrawer {
  public:
   static std::unique_ptr<VulkanImmediateDrawer> Create(
-      const VulkanProvider& provider) {
-    auto immediate_drawer = std::unique_ptr<VulkanImmediateDrawer>(
-        new VulkanImmediateDrawer(provider));
-    if (!immediate_drawer->Initialize()) {
-      return nullptr;
-    }
-    return std::move(immediate_drawer);
-  }
+      const VulkanDevice* vulkan_device, const UISamplers* ui_samplers);
 
   ~VulkanImmediateDrawer();
 
@@ -96,7 +90,8 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
     TextureDescriptorPool* recycled_next;
   };
 
-  VulkanImmediateDrawer(const VulkanProvider& provider) : provider_(provider) {}
+  explicit VulkanImmediateDrawer(const VulkanDevice* vulkan_device,
+                                 const UISamplers* ui_samplers);
   bool Initialize();
 
   bool EnsurePipelinesCreatedForCurrentRenderPass();
@@ -117,7 +112,8 @@ class VulkanImmediateDrawer : public ImmediateDrawer {
   void DestroyTextureResource(VulkanImmediateTexture::Resource& resource);
   void OnImmediateTextureDestroyed(VulkanImmediateTexture& texture);
 
-  const VulkanProvider& provider_;
+  const VulkanDevice* vulkan_device_;
+  const UISamplers* ui_samplers_;
 
   // Combined image sampler pools for textures.
   VkDescriptorSetLayout texture_descriptor_set_layout_;

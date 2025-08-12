@@ -15,7 +15,6 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/gpu/primitive_processor.h"
-#include "xenia/ui/vulkan/vulkan_provider.h"
 #include "xenia/ui/vulkan/vulkan_upload_buffer_pool.h"
 
 namespace xe {
