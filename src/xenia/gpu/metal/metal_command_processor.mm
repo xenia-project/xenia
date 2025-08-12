@@ -2840,22 +2840,29 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               }
             }
 
-            // Bind the populated heaps at the MSC-defined heap bind points for BOTH stages
+            // Bind the populated heaps at the ROOT PARAMETER INDICES defined in root signature
+            // With root signature:
+            // - Parameter 0-3: Individual CBVs (b0-b3)
+            // - Parameter 4: SRV descriptor table (textures) 
+            // - Parameter 5: UAV descriptor table
+            // - Parameter 6: Sampler descriptor table
+            // The old kIRDescriptorHeapBindPoint (0) and kIRSamplerHeapBindPoint (1) are WRONG with root signature!
             if (res_heap_ab_) {
-              encoder->setVertexBuffer(res_heap_ab_, 0, (NS::UInteger)kIRDescriptorHeapBindPoint);
-              encoder->setFragmentBuffer(res_heap_ab_, 0, (NS::UInteger)kIRDescriptorHeapBindPoint);
+              // SRV descriptor table is at root parameter 4
+              encoder->setVertexBuffer(res_heap_ab_, 0, 4);  // Root parameter 4 for SRVs
+              encoder->setFragmentBuffer(res_heap_ab_, 0, 4);  // Root parameter 4 for SRVs
               encoder->useResource(res_heap_ab_, MTL::ResourceUsageRead,
                                    MTL::RenderStageVertex | MTL::RenderStageFragment);
             }
             if (smp_heap_ab_) {
-              encoder->setVertexBuffer(smp_heap_ab_, 0, (NS::UInteger)kIRSamplerHeapBindPoint);
-              encoder->setFragmentBuffer(smp_heap_ab_, 0, (NS::UInteger)kIRSamplerHeapBindPoint);
+              // Sampler descriptor table is at root parameter 6
+              encoder->setVertexBuffer(smp_heap_ab_, 0, 6);  // Root parameter 6 for samplers
+              encoder->setFragmentBuffer(smp_heap_ab_, 0, 6);  // Root parameter 6 for samplers
               encoder->useResource(smp_heap_ab_, MTL::ResourceUsageRead,
                                    MTL::RenderStageVertex | MTL::RenderStageFragment);
             }
 
-            XELOGI("Metal IssueDraw: Bound MSC descriptor heaps (res/smp) at indices {}, {}",
-                   (uint32_t)kIRDescriptorHeapBindPoint, (uint32_t)kIRSamplerHeapBindPoint);
+            XELOGI("Metal IssueDraw: Bound MSC descriptor heaps at ROOT PARAMETER indices - SRVs at 4, samplers at 6");
             
             // --- Build & bind top-level argument buffers (MSC) ---
             // With root signature, we have a predictable layout:

@@ -75,6 +75,7 @@ class MetalShader : public DxbcShader {
     IRCompiler* ir_compiler_ = nullptr;
     IRObject* ir_object_ = nullptr;
     IRMetalLibBinary* metal_lib_binary_ = nullptr;
+    IRRootSignature* root_signature_ = nullptr;  // Must remain valid during compilation
     
     // Metal library and function (using metal-cpp)
     MTL::Library* metal_library_ = nullptr;

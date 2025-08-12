@@ -90,6 +90,11 @@ MetalShader::MetalTranslation::~MetalTranslation() {
     IRObjectDestroy(ir_object_);
     ir_object_ = nullptr;
   }
+  // Root signature must be destroyed before compiler
+  if (root_signature_) {
+    IRRootSignatureDestroy(root_signature_);
+    root_signature_ = nullptr;
+  }
   if (ir_compiler_) {
     IRCompilerDestroy(ir_compiler_);
     ir_compiler_ = nullptr;
@@ -193,7 +198,9 @@ bool MetalShader::MetalTranslation::ConvertDxilToMetal(
   // Set minimum deployment target for Metal features
   IRCompilerSetMinimumDeploymentTarget(ir_compiler_, IROperatingSystem_macOS, "14.0");
   
-  // Create and set root signature to avoid CB0/T0 conflicts
+  // Create and set root signature for consistent resource layout
+  // This fixes the issue where shaders were looking for t0 in space 0
+  // but the root signature was putting SRVs in space 1
   if (!CreateAndSetRootSignature()) {
     XELOGE("Metal shader: Failed to create root signature");
     // Continue without root signature - MSC will use automatic layout
@@ -679,23 +686,51 @@ bool MetalShader::MetalTranslation::CreateAndSetRootSignature() {
   // Create descriptor ranges for resources
   // We need:
   // - CBVs (b0-b3) in register space 0
-  // - SRVs (t0-t31) in register space 1 (to avoid conflicts with CBVs)
+  // - SRVs (t0-t31) in register space 0 (matching DXBC expectations)
+  //   - t0: Special shared memory/EDRAM texture (read)
+  //   - t1-t31: Regular game textures
+  // - UAVs (u0) in register space 0
+  //   - u0: Shared memory/EDRAM (read-write)
   // - Samplers (s0-s31) in register space 0
   
   // Define descriptor ranges
   std::vector<IRDescriptorRange1> srv_ranges;
+  std::vector<IRDescriptorRange1> uav_ranges;
   std::vector<IRDescriptorRange1> cbv_ranges;
   std::vector<IRDescriptorRange1> sampler_ranges;
   
-  // SRV range for textures (t0-t31 in space 1)
-  IRDescriptorRange1 srv_range = {};
-  srv_range.RangeType = IRDescriptorRangeTypeSRV;
-  srv_range.NumDescriptors = 32;  // Support up to 32 textures
-  srv_range.BaseShaderRegister = 0;  // t0
-  srv_range.RegisterSpace = 1;  // Use space 1 to avoid conflicts with CBVs
-  srv_range.OffsetInDescriptorsFromTableStart = 0;
-  srv_range.Flags = IRDescriptorRangeFlagNone;
-  srv_ranges.push_back(srv_range);
+  // SRV range for shared memory texture (t0 in space 0)
+  // Xbox 360 uses t0 in space 0 for shared memory/EDRAM access
+  IRDescriptorRange1 srv_range_space0 = {};
+  srv_range_space0.RangeType = IRDescriptorRangeTypeSRV;
+  srv_range_space0.NumDescriptors = 1;  // Just t0 for shared memory
+  srv_range_space0.BaseShaderRegister = 0;  // t0
+  srv_range_space0.RegisterSpace = 0;  // Space 0 for shared memory
+  srv_range_space0.OffsetInDescriptorsFromTableStart = 0;
+  srv_range_space0.Flags = IRDescriptorRangeFlagNone;
+  srv_ranges.push_back(srv_range_space0);
+  
+  // SRV range for regular textures (t1-t31 in space 0)
+  // Keep other textures in space 0 as well for simplicity
+  IRDescriptorRange1 srv_range_textures = {};
+  srv_range_textures.RangeType = IRDescriptorRangeTypeSRV;
+  srv_range_textures.NumDescriptors = 31;  // t1-t31 for regular textures
+  srv_range_textures.BaseShaderRegister = 1;  // Start at t1
+  srv_range_textures.RegisterSpace = 0;  // Use space 0 to match DXBC expectations
+  srv_range_textures.OffsetInDescriptorsFromTableStart = 1;
+  srv_range_textures.Flags = IRDescriptorRangeFlagNone;
+  srv_ranges.push_back(srv_range_textures);
+  
+  // UAV range for shared memory write access (u0 in space 0)
+  // Xbox 360 can write to shared memory/EDRAM
+  IRDescriptorRange1 uav_range = {};
+  uav_range.RangeType = IRDescriptorRangeTypeUAV;
+  uav_range.NumDescriptors = 1;  // Just u0 for shared memory writes
+  uav_range.BaseShaderRegister = 0;  // u0
+  uav_range.RegisterSpace = 0;  // Space 0 for shared memory
+  uav_range.OffsetInDescriptorsFromTableStart = 0;
+  uav_range.Flags = IRDescriptorRangeFlagNone;
+  uav_ranges.push_back(uav_range);
   
   // CBV ranges for constant buffers (b0-b3 in space 0)
   for (uint32_t i = 0; i < 4; i++) {
@@ -740,7 +775,15 @@ bool MetalShader::MetalTranslation::CreateAndSetRootSignature() {
   srv_table.ShaderVisibility = IRShaderVisibilityAll;
   root_parameters.push_back(srv_table);
   
-  // Parameter 5: Descriptor table for samplers
+  // Parameter 5: Descriptor table for UAVs (shared memory write)
+  IRRootParameter1 uav_table = {};
+  uav_table.ParameterType = IRRootParameterTypeDescriptorTable;
+  uav_table.DescriptorTable.NumDescriptorRanges = uav_ranges.size();
+  uav_table.DescriptorTable.pDescriptorRanges = uav_ranges.data();
+  uav_table.ShaderVisibility = IRShaderVisibilityAll;
+  root_parameters.push_back(uav_table);
+  
+  // Parameter 6: Descriptor table for samplers
   IRRootParameter1 sampler_table = {};
   sampler_table.ParameterType = IRRootParameterTypeDescriptorTable;
   sampler_table.DescriptorTable.NumDescriptorRanges = sampler_ranges.size();
@@ -763,9 +806,9 @@ bool MetalShader::MetalTranslation::CreateAndSetRootSignature() {
   
   // Create root signature
   IRError* error = nullptr;
-  IRRootSignature* root_signature = IRRootSignatureCreateFromDescriptor(&versioned_desc, &error);
+  root_signature_ = IRRootSignatureCreateFromDescriptor(&versioned_desc, &error);
   
-  if (!root_signature) {
+  if (!root_signature_) {
     if (error) {
       uint32_t error_code = IRErrorGetCode(error);
       const char* error_msg = (const char*)IRErrorGetPayload(error);
@@ -779,15 +822,20 @@ bool MetalShader::MetalTranslation::CreateAndSetRootSignature() {
   }
   
   // Set the root signature on the compiler
-  IRCompilerSetGlobalRootSignature(ir_compiler_, root_signature);
+  // NOTE: The compiler does NOT make a copy - we must keep root_signature_ alive!
+  IRCompilerSetGlobalRootSignature(ir_compiler_, root_signature_);
   
   XELOGI("Metal shader: Successfully created and set root signature with:");
   XELOGI("  - 4 CBVs (b0-b3) in space 0");
-  XELOGI("  - 32 SRVs (t0-t31) in space 1");
+  XELOGI("  - 32 SRVs (t0-t31) in space 0");
+  XELOGI("    - t0: Shared memory/EDRAM texture (read)");
+  XELOGI("    - t1-t31: Regular game textures");
+  XELOGI("  - 1 UAV (u0) in space 0");
+  XELOGI("    - u0: Shared memory/EDRAM (read-write)");
   XELOGI("  - 32 Samplers (s0-s31) in space 0");
   
-  // Clean up root signature (compiler has made a copy)
-  IRRootSignatureDestroy(root_signature);
+  // DO NOT destroy the root signature here - it must remain valid until compilation is done!
+  // It will be cleaned up in the destructor
   
   return true;
 }
