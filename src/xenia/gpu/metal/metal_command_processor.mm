@@ -2840,29 +2840,28 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               }
             }
 
-            // Bind the populated heaps at the ROOT PARAMETER INDICES defined in root signature
-            // With root signature:
-            // - Parameter 0-3: Individual CBVs (b0-b3)
-            // - Parameter 4: SRV descriptor table (textures) 
-            // - Parameter 5: UAV descriptor table
-            // - Parameter 6: Sampler descriptor table
-            // The old kIRDescriptorHeapBindPoint (0) and kIRSamplerHeapBindPoint (1) are WRONG with root signature!
+            // Bind the populated heaps at MSC's REQUIRED indices
+            // IMPORTANT: MSC runtime ALWAYS expects descriptor heaps at specific indices:
+            // - kIRDescriptorHeapBindPoint = 0 (for resource descriptors/textures)
+            // - kIRSamplerHeapBindPoint = 1 (for samplers)
+            // These are HARDCODED in MSC runtime and cannot be changed by root signatures!
+            // The root signature only affects how resources are organized WITHIN the heaps,
+            // not where the heaps themselves are bound.
             if (res_heap_ab_) {
-              // SRV descriptor table is at root parameter 4
-              encoder->setVertexBuffer(res_heap_ab_, 0, 4);  // Root parameter 4 for SRVs
-              encoder->setFragmentBuffer(res_heap_ab_, 0, 4);  // Root parameter 4 for SRVs
+              encoder->setVertexBuffer(res_heap_ab_, 0, (NS::UInteger)kIRDescriptorHeapBindPoint);
+              encoder->setFragmentBuffer(res_heap_ab_, 0, (NS::UInteger)kIRDescriptorHeapBindPoint);
               encoder->useResource(res_heap_ab_, MTL::ResourceUsageRead,
                                    MTL::RenderStageVertex | MTL::RenderStageFragment);
             }
             if (smp_heap_ab_) {
-              // Sampler descriptor table is at root parameter 6
-              encoder->setVertexBuffer(smp_heap_ab_, 0, 6);  // Root parameter 6 for samplers
-              encoder->setFragmentBuffer(smp_heap_ab_, 0, 6);  // Root parameter 6 for samplers
+              encoder->setVertexBuffer(smp_heap_ab_, 0, (NS::UInteger)kIRSamplerHeapBindPoint);
+              encoder->setFragmentBuffer(smp_heap_ab_, 0, (NS::UInteger)kIRSamplerHeapBindPoint);
               encoder->useResource(smp_heap_ab_, MTL::ResourceUsageRead,
                                    MTL::RenderStageVertex | MTL::RenderStageFragment);
             }
 
-            XELOGI("Metal IssueDraw: Bound MSC descriptor heaps at ROOT PARAMETER indices - SRVs at 4, samplers at 6");
+            XELOGI("Metal IssueDraw: Bound MSC descriptor heaps at REQUIRED indices - resources at {}, samplers at {}",
+                   (uint32_t)kIRDescriptorHeapBindPoint, (uint32_t)kIRSamplerHeapBindPoint);
             
             // --- Build & bind top-level argument buffers (MSC) ---
             // With root signature, we have a predictable layout:
@@ -2881,8 +2880,8 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             if (vertex_translation) {
               XELOGI("Building VS top-level AB using root signature layout");
               
-              // With root signature: 6 parameters (4 CBVs + 1 SRV table + 1 sampler table)
-              size_t vs_ab_size = kEntry * 6;
+              // With root signature: 7 parameters (4 CBVs + 1 SRV table + 1 UAV table + 1 sampler table)
+              size_t vs_ab_size = kEntry * 7;
               
               top_level_vs_ab = GetMetalDevice()->newBuffer(vs_ab_size, MTL::ResourceStorageModeShared);
               top_level_vs_ab->setLabel(NS::String::string("IR_TopLevelAB_VS", NS::UTF8StringEncoding));
@@ -2914,11 +2913,14 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                   XELOGI("VS root signature layout: Set SRV descriptor table at parameter 4");
                 }
                 
-                // Parameter 5: Sampler descriptor table pointer
+                // Parameter 5: UAV descriptor table (currently not used, but must be present)
+                // UAVs are at parameter 5 in our root signature, so samplers go at parameter 6
+                
+                // Parameter 6: Sampler descriptor table pointer
                 if (smp_heap_ab_) {
-                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[5], smp_heap_ab_->gpuAddress(),
+                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[6], smp_heap_ab_->gpuAddress(),
                                               (uint64_t)smp_heap_ab_->length());
-                  XELOGI("VS root signature layout: Set sampler descriptor table at parameter 5");
+                  XELOGI("VS root signature layout: Set sampler descriptor table at parameter 6 (UAVs at 5)");
                 }
                 
                 // Special handling for vertex buffer as T0 (programmatic vertex fetch)
@@ -3048,8 +3050,8 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             if (pixel_translation) {
               XELOGI("Building PS top-level AB using root signature layout");
               
-              // With root signature: 6 parameters (4 CBVs + 1 SRV table + 1 sampler table)
-              size_t ps_ab_size = kEntry * 6;
+              // With root signature: 7 parameters (4 CBVs + 1 SRV table + 1 UAV table + 1 sampler table)
+              size_t ps_ab_size = kEntry * 7;
               
               top_level_ps_ab = GetMetalDevice()->newBuffer(ps_ab_size, MTL::ResourceStorageModeShared);
               top_level_ps_ab->setLabel(NS::String::string("IR_TopLevelAB_PS", NS::UTF8StringEncoding));
@@ -3081,11 +3083,14 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                   XELOGI("PS root signature layout: Set SRV descriptor table at parameter 4");
                 }
                 
-                // Parameter 5: Sampler descriptor table pointer
+                // Parameter 5: UAV descriptor table (currently not used, but must be present)
+                // UAVs are at parameter 5 in our root signature, so samplers go at parameter 6
+                
+                // Parameter 6: Sampler descriptor table pointer
                 if (smp_heap_ab_) {
-                  ::IRDescriptorTableSetBuffer(&ps_entries_typed[5], smp_heap_ab_->gpuAddress(),
+                  ::IRDescriptorTableSetBuffer(&ps_entries_typed[6], smp_heap_ab_->gpuAddress(),
                                               (uint64_t)smp_heap_ab_->length());
-                  XELOGI("PS root signature layout: Set sampler descriptor table at parameter 5");
+                  XELOGI("PS root signature layout: Set sampler descriptor table at parameter 6 (UAVs at 5)");
                 }
                 
               } else if (!pixel_translation->GetTopLevelABLayout().empty()) {
