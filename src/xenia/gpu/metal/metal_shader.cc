@@ -192,6 +192,12 @@ bool MetalShader::MetalTranslation::ConvertDxilToMetal(
 
   // Set minimum deployment target for Metal features
   IRCompilerSetMinimumDeploymentTarget(ir_compiler_, IROperatingSystem_macOS, "14.0");
+  
+  // Create and set root signature to avoid CB0/T0 conflicts
+  if (!CreateAndSetRootSignature()) {
+    XELOGE("Metal shader: Failed to create root signature");
+    // Continue without root signature - MSC will use automatic layout
+  }
     
 
   // Create IR object from DXIL bytecode
@@ -665,6 +671,125 @@ void MetalShader::MetalTranslation::ParseTextureBindingsFromJSON(const std::stri
   // Log summary
   XELOGI("Metal shader: Parsed {} texture bindings and {} sampler bindings from reflection",
          texture_slots.size(), sampler_slots.size());
+}
+
+bool MetalShader::MetalTranslation::CreateAndSetRootSignature() {
+  XELOGI("Metal shader: Creating root signature for consistent resource layout");
+  
+  // Create descriptor ranges for resources
+  // We need:
+  // - CBVs (b0-b3) in register space 0
+  // - SRVs (t0-t31) in register space 1 (to avoid conflicts with CBVs)
+  // - Samplers (s0-s31) in register space 0
+  
+  // Define descriptor ranges
+  std::vector<IRDescriptorRange1> srv_ranges;
+  std::vector<IRDescriptorRange1> cbv_ranges;
+  std::vector<IRDescriptorRange1> sampler_ranges;
+  
+  // SRV range for textures (t0-t31 in space 1)
+  IRDescriptorRange1 srv_range = {};
+  srv_range.RangeType = IRDescriptorRangeTypeSRV;
+  srv_range.NumDescriptors = 32;  // Support up to 32 textures
+  srv_range.BaseShaderRegister = 0;  // t0
+  srv_range.RegisterSpace = 1;  // Use space 1 to avoid conflicts with CBVs
+  srv_range.OffsetInDescriptorsFromTableStart = 0;
+  srv_range.Flags = IRDescriptorRangeFlagNone;
+  srv_ranges.push_back(srv_range);
+  
+  // CBV ranges for constant buffers (b0-b3 in space 0)
+  for (uint32_t i = 0; i < 4; i++) {
+    IRDescriptorRange1 cbv_range = {};
+    cbv_range.RangeType = IRDescriptorRangeTypeCBV;
+    cbv_range.NumDescriptors = 1;
+    cbv_range.BaseShaderRegister = i;  // b0, b1, b2, b3
+    cbv_range.RegisterSpace = 0;  // Default space
+    cbv_range.OffsetInDescriptorsFromTableStart = i;
+    cbv_range.Flags = IRDescriptorRangeFlagNone;
+    cbv_ranges.push_back(cbv_range);
+  }
+  
+  // Sampler range (s0-s31 in space 0)
+  IRDescriptorRange1 sampler_range = {};
+  sampler_range.RangeType = IRDescriptorRangeTypeSampler;
+  sampler_range.NumDescriptors = 32;  // Support up to 32 samplers
+  sampler_range.BaseShaderRegister = 0;  // s0
+  sampler_range.RegisterSpace = 0;
+  sampler_range.OffsetInDescriptorsFromTableStart = 0;
+  sampler_range.Flags = IRDescriptorRangeFlagNone;
+  sampler_ranges.push_back(sampler_range);
+  
+  // Create root parameters
+  std::vector<IRRootParameter1> root_parameters;
+  
+  // Parameter 0-3: Individual CBVs (b0-b3)
+  for (uint32_t i = 0; i < 4; i++) {
+    IRRootParameter1 cbv_param = {};
+    cbv_param.ParameterType = IRRootParameterTypeCBV;
+    cbv_param.Descriptor.ShaderRegister = i;  // b0, b1, b2, b3
+    cbv_param.Descriptor.RegisterSpace = 0;
+    cbv_param.ShaderVisibility = IRShaderVisibilityAll;
+    root_parameters.push_back(cbv_param);
+  }
+  
+  // Parameter 4: Descriptor table for SRVs (textures)
+  IRRootParameter1 srv_table = {};
+  srv_table.ParameterType = IRRootParameterTypeDescriptorTable;
+  srv_table.DescriptorTable.NumDescriptorRanges = srv_ranges.size();
+  srv_table.DescriptorTable.pDescriptorRanges = srv_ranges.data();
+  srv_table.ShaderVisibility = IRShaderVisibilityAll;
+  root_parameters.push_back(srv_table);
+  
+  // Parameter 5: Descriptor table for samplers
+  IRRootParameter1 sampler_table = {};
+  sampler_table.ParameterType = IRRootParameterTypeDescriptorTable;
+  sampler_table.DescriptorTable.NumDescriptorRanges = sampler_ranges.size();
+  sampler_table.DescriptorTable.pDescriptorRanges = sampler_ranges.data();
+  sampler_table.ShaderVisibility = IRShaderVisibilityAll;
+  root_parameters.push_back(sampler_table);
+  
+  // Create root signature descriptor
+  IRRootSignatureDescriptor1 root_desc = {};
+  root_desc.NumParameters = root_parameters.size();
+  root_desc.pParameters = root_parameters.data();
+  root_desc.NumStaticSamplers = 0;
+  root_desc.pStaticSamplers = nullptr;
+  root_desc.Flags = IRRootSignatureFlagNone;
+  
+  // Create versioned descriptor
+  IRVersionedRootSignatureDescriptor versioned_desc = {};
+  versioned_desc.version = IRRootSignatureVersion_1_1;
+  versioned_desc.desc_1_1 = root_desc;
+  
+  // Create root signature
+  IRError* error = nullptr;
+  IRRootSignature* root_signature = IRRootSignatureCreateFromDescriptor(&versioned_desc, &error);
+  
+  if (!root_signature) {
+    if (error) {
+      uint32_t error_code = IRErrorGetCode(error);
+      const char* error_msg = (const char*)IRErrorGetPayload(error);
+      XELOGE("Metal shader: Failed to create root signature. Error code: {}, Message: {}",
+             error_code, error_msg ? error_msg : "Unknown");
+      IRErrorDestroy(error);
+    } else {
+      XELOGE("Metal shader: Failed to create root signature (unknown error)");
+    }
+    return false;
+  }
+  
+  // Set the root signature on the compiler
+  IRCompilerSetGlobalRootSignature(ir_compiler_, root_signature);
+  
+  XELOGI("Metal shader: Successfully created and set root signature with:");
+  XELOGI("  - 4 CBVs (b0-b3) in space 0");
+  XELOGI("  - 32 SRVs (t0-t31) in space 1");
+  XELOGI("  - 32 Samplers (s0-s31) in space 0");
+  
+  // Clean up root signature (compiler has made a copy)
+  IRRootSignatureDestroy(root_signature);
+  
+  return true;
 }
 
 // Cleanup function to be called on shutdown

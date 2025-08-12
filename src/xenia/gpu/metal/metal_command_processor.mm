@@ -2858,28 +2858,73 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                    (uint32_t)kIRDescriptorHeapBindPoint, (uint32_t)kIRSamplerHeapBindPoint);
             
             // --- Build & bind top-level argument buffers (MSC) ---
-            // Use reflection-based layout for proper resource binding
+            // With root signature, we have a predictable layout:
+            // - Parameters 0-3: CBVs (b0-b3) 
+            // - Parameter 4: SRV descriptor table (textures)
+            // - Parameter 5: Sampler descriptor table
             const size_t kEntry = sizeof(IRDescriptorTableEntry);
             const uint32_t kCBBytes = 256u * 4u * sizeof(float);
             
-            // Build VS top-level AB from reflection layout
+            // Check if we have a root signature (new consistent layout)
+            // For now, we'll detect this based on whether reflection data matches expected pattern
+            bool use_root_signature_layout = true; // Always use new layout with root signature
+            
+            // Build VS top-level AB with root signature layout
             MTL::Buffer* top_level_vs_ab = nullptr;
             if (vertex_translation) {
-              XELOGI("Building VS top-level AB using reflection layout");
-              const auto& vs_layout = vertex_translation->GetTopLevelABLayout();
-              size_t vs_ab_size = kEntry * 4; // Default size if no layout
-              if (!vs_layout.empty()) {
-                // Get actual size from last entry
-                vs_ab_size = vs_layout.back().elt_offset + kEntry;
-              }
+              XELOGI("Building VS top-level AB using root signature layout");
+              
+              // With root signature: 6 parameters (4 CBVs + 1 SRV table + 1 sampler table)
+              size_t vs_ab_size = kEntry * 6;
               
               top_level_vs_ab = GetMetalDevice()->newBuffer(vs_ab_size, MTL::ResourceStorageModeShared);
               top_level_vs_ab->setLabel(NS::String::string("IR_TopLevelAB_VS", NS::UTF8StringEncoding));
               auto* vs_entries = reinterpret_cast<uint8_t*>(top_level_vs_ab->contents());
               std::memset(vs_entries, 0, vs_ab_size);
               
-              if (!vs_layout.empty()) {
-                // Use reflection layout
+              if (use_root_signature_layout) {
+                // Root signature layout - predictable offsets
+                auto* vs_entries_typed = reinterpret_cast<IRDescriptorTableEntry*>(vs_entries);
+                
+                // Parameters 0-3: CBVs (b0-b3)
+                if (uniforms_buffer) {
+                  // b0: System constants (VS)
+                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[0], uniforms_buffer->gpuAddress(), kCBBytes);
+                  // b1: Float constants (VS) 
+                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[1], uniforms_buffer->gpuAddress() + kCBBytes, kCBBytes);
+                  // b2: Bool/Loop constants (VS)
+                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[2], uniforms_buffer->gpuAddress() + kCBBytes * 2, kCBBytes);
+                  // b3: Fetch constants (VS)
+                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[3], uniforms_buffer->gpuAddress() + kCBBytes * 3, kCBBytes);
+                  
+                  XELOGI("VS root signature layout: Set CBVs b0-b3 at parameters 0-3");
+                }
+                
+                // Parameter 4: SRV descriptor table pointer (textures in space 1)
+                if (res_heap_ab_) {
+                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[4], res_heap_ab_->gpuAddress(), 
+                                              (uint64_t)res_heap_ab_->length());
+                  XELOGI("VS root signature layout: Set SRV descriptor table at parameter 4");
+                }
+                
+                // Parameter 5: Sampler descriptor table pointer
+                if (smp_heap_ab_) {
+                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[5], smp_heap_ab_->gpuAddress(),
+                                              (uint64_t)smp_heap_ab_->length());
+                  XELOGI("VS root signature layout: Set sampler descriptor table at parameter 5");
+                }
+                
+                // Special handling for vertex buffer as T0 (programmatic vertex fetch)
+                // This may need to be in the descriptor heap instead
+                if (first_bound_vertex_buffer) {
+                  // Add vertex buffer to resource descriptor heap at slot 0
+                  // This is handled elsewhere in the heap population
+                  XELOGI("VS: Vertex buffer will be accessed through descriptor heap");
+                }
+                
+              } else if (!vertex_translation->GetTopLevelABLayout().empty()) {
+                // Fallback to reflection layout (old path)
+                const auto& vs_layout = vertex_translation->GetTopLevelABLayout();
                 for (const auto& entry : vs_layout) {
                   auto* dst = reinterpret_cast<IRDescriptorTableEntry*>(vs_entries + entry.elt_offset);
                   
@@ -2991,27 +3036,54 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               }
             }
             
-            // Build PS top-level AB from reflection layout
+            // Build PS top-level AB with root signature layout
             MTL::Buffer* top_level_ps_ab = nullptr;
             if (pixel_translation) {
-              const auto& ps_layout = pixel_translation->GetTopLevelABLayout();
-              size_t ps_ab_size = kEntry; // Default size if no layout
-              if (!ps_layout.empty()) {
-                // Calculate total size needed for all entries
-                size_t max_offset = 0;
-                for (const auto& entry : ps_layout) {
-                  max_offset = std::max(max_offset, static_cast<size_t>(entry.elt_offset + kEntry));
-                }
-                ps_ab_size = max_offset;
-                XELOGI("PS top-level AB size: {} bytes for {} entries", ps_ab_size, ps_layout.size());
-              }
+              XELOGI("Building PS top-level AB using root signature layout");
+              
+              // With root signature: 6 parameters (4 CBVs + 1 SRV table + 1 sampler table)
+              size_t ps_ab_size = kEntry * 6;
               
               top_level_ps_ab = GetMetalDevice()->newBuffer(ps_ab_size, MTL::ResourceStorageModeShared);
               top_level_ps_ab->setLabel(NS::String::string("IR_TopLevelAB_PS", NS::UTF8StringEncoding));
               auto* ps_entries = reinterpret_cast<uint8_t*>(top_level_ps_ab->contents());
               std::memset(ps_entries, 0, ps_ab_size);
               
-              if (!ps_layout.empty()) {
+              if (use_root_signature_layout) {
+                // Root signature layout - predictable offsets
+                auto* ps_entries_typed = reinterpret_cast<IRDescriptorTableEntry*>(ps_entries);
+                
+                // Parameters 0-3: CBVs (b0-b3)
+                if (uniforms_buffer) {
+                  // b0: System constants (PS) - offset by VS constants
+                  ::IRDescriptorTableSetBuffer(&ps_entries_typed[0], uniforms_buffer->gpuAddress() + kCBBytes * 4, kCBBytes);
+                  // b1: Float constants (PS)
+                  ::IRDescriptorTableSetBuffer(&ps_entries_typed[1], uniforms_buffer->gpuAddress() + kCBBytes * 5, kCBBytes);
+                  // b2: Bool/Loop constants (PS)
+                  ::IRDescriptorTableSetBuffer(&ps_entries_typed[2], uniforms_buffer->gpuAddress() + kCBBytes * 6, kCBBytes);
+                  // b3: Fetch constants (PS)
+                  ::IRDescriptorTableSetBuffer(&ps_entries_typed[3], uniforms_buffer->gpuAddress() + kCBBytes * 7, kCBBytes);
+                  
+                  XELOGI("PS root signature layout: Set CBVs b0-b3 at parameters 0-3");
+                }
+                
+                // Parameter 4: SRV descriptor table pointer (textures in space 1)
+                if (res_heap_ab_) {
+                  ::IRDescriptorTableSetBuffer(&ps_entries_typed[4], res_heap_ab_->gpuAddress(), 
+                                              (uint64_t)res_heap_ab_->length());
+                  XELOGI("PS root signature layout: Set SRV descriptor table at parameter 4");
+                }
+                
+                // Parameter 5: Sampler descriptor table pointer
+                if (smp_heap_ab_) {
+                  ::IRDescriptorTableSetBuffer(&ps_entries_typed[5], smp_heap_ab_->gpuAddress(),
+                                              (uint64_t)smp_heap_ab_->length());
+                  XELOGI("PS root signature layout: Set sampler descriptor table at parameter 5");
+                }
+                
+              } else if (!pixel_translation->GetTopLevelABLayout().empty()) {
+                // Fallback to reflection layout (old path)
+                const auto& ps_layout = pixel_translation->GetTopLevelABLayout();
                 // Use reflection layout - CRITICAL: Must populate ALL entries
                 for (const auto& entry : ps_layout) {
                   auto* dst = reinterpret_cast<IRDescriptorTableEntry*>(ps_entries + entry.elt_offset);
@@ -3295,17 +3367,18 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
           }          // Phase E: Draw parameters are now handled by IRRuntimeDrawPrimitives/IRRuntimeDrawIndexedPrimitives
           // which automatically bind the correct structures at indices 4 (draw args) and 5 (uniforms)
             
-          // Phase F: HYBRID TEXTURE BINDING - Direct binding for MSC shaders
-          // The key issue: MSC compiles shaders for direct texture binding but we're using heap-based binding
-          // Shader reflection shows descriptor heaps marked as "unused": true
-          // This means the shader expects textures directly via setFragmentTexture(), not through descriptor heaps
+          // Phase F: Texture binding via top-level argument buffer
+          // CRITICAL DISCOVERY from HLSL decompiler and AIR analysis:
+          // MSC compiles shaders to load textures from the TOP-LEVEL ARGUMENT BUFFER,
+          // NOT from descriptor heaps (marked unused) and NOT from direct Metal texture slots.
+          // The shader AIR shows: %T0 = load from %struct.top_level_global_ab (parameter %2)
+          // We populate the argument buffer correctly above, so we should NOT also do direct binding.
           
-          XELOGI("Metal IssueDraw: Implementing direct texture binding approach");
+          // DISABLE direct binding - it conflicts with argument buffer approach
+          bool use_direct_binding = false; // Set to true only if we detect a shader that needs it
           
-          // FIRST PASS: Hard-code ALWAYS use direct binding to test if it fixes the issue
-          // Check if we have textures to bind
-          if (!bound_textures_by_heap_slot.empty()) {
-            XELOGI("Metal IssueDraw: Setting textures via DIRECT binding (bypassing descriptor heaps)");
+          if (use_direct_binding && !bound_textures_by_heap_slot.empty()) {
+            XELOGI("Metal IssueDraw: Setting textures via DIRECT binding (bypassing argument buffer)");
             
             // For pixel shader: T0 goes to slot 1, T1 to slot 2, etc. (texture_index + 1)
             size_t fragment_texture_index = 0;
@@ -3339,7 +3412,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             XELOGI("Metal IssueDraw: Direct binding complete - {} textures, {} samplers", 
                    fragment_texture_index, bound_samplers_by_heap_slot.size());
           } else {
-            XELOGI("Metal IssueDraw: No textures bound, skipping direct binding");
+            XELOGI("Metal IssueDraw: Using argument buffer for texture binding (MSC default mode)");
           }
           
           // Clean up samplers after direct binding is complete

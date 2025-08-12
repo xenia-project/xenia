@@ -101,6 +101,9 @@ class MetalShader : public DxbcShader {
     
     // Parse texture bindings from JSON reflection data
     void ParseTextureBindingsFromJSON(const std::string& json_str);
+    
+    // Create and set root signature for consistent resource layout
+    bool CreateAndSetRootSignature();
   };
 
   MetalShader(xenos::ShaderType shader_type, uint64_t data_hash,
