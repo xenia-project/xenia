@@ -3300,6 +3300,53 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
           }          // Phase E: Draw parameters are now handled by IRRuntimeDrawPrimitives/IRRuntimeDrawIndexedPrimitives
           // which automatically bind the correct structures at indices 4 (draw args) and 5 (uniforms)
             
+          // Phase F: HYBRID TEXTURE BINDING - Direct binding for MSC shaders
+          // The key issue: MSC compiles shaders for direct texture binding but we're using heap-based binding
+          // Shader reflection shows descriptor heaps marked as "unused": true
+          // This means the shader expects textures directly via setFragmentTexture(), not through descriptor heaps
+          
+          XELOGI("Metal IssueDraw: Implementing direct texture binding approach");
+          
+          // FIRST PASS: Hard-code ALWAYS use direct binding to test if it fixes the issue
+          // Check if we have textures to bind
+          if (!bound_textures_by_heap_slot.empty()) {
+            XELOGI("Metal IssueDraw: Setting textures via DIRECT binding (bypassing descriptor heaps)");
+            
+            // For pixel shader: T0 goes to slot 1, T1 to slot 2, etc. (texture_index + 1)
+            size_t fragment_texture_index = 0;
+            for (const auto& [heap_slot, texture] : bound_textures_by_heap_slot) {
+              if (texture && fragment_texture_index < 8) { // Metal supports up to 31 textures, limit to 8 for safety
+                size_t metal_slot = fragment_texture_index + 1; // T0 -> slot 1, T1 -> slot 2
+                encoder->setFragmentTexture(texture, metal_slot);
+                encoder->useResource(texture, MTL::ResourceUsageRead, MTL::RenderStageFragment);
+                XELOGI("Direct binding: Set texture {} at fragment slot {} (was heap slot {})", 
+                       fragment_texture_index, metal_slot, heap_slot);
+                fragment_texture_index++;
+              }
+            }
+            
+            // Also handle samplers with setFragmentSamplerState()
+            if (!bound_samplers_by_heap_slot.empty()) {
+              XELOGI("Metal IssueDraw: Setting samplers via DIRECT binding");
+              size_t fragment_sampler_index = 0;
+              for (const auto& [heap_slot, sampler] : bound_samplers_by_heap_slot) {
+                if (sampler && fragment_sampler_index < 8) { // Limit to 8 samplers for safety
+                  encoder->setFragmentSamplerState(sampler, fragment_sampler_index);
+                  XELOGI("Direct binding: Set sampler {} at fragment slot {} (was heap slot {})", 
+                         fragment_sampler_index, fragment_sampler_index, heap_slot);
+                  fragment_sampler_index++;
+                }
+              }
+            }
+            
+            // For vertex shader: Similar pattern if vertex shader uses textures
+            // For now, vertex shaders typically don't use many textures, so we'll focus on fragment first
+            XELOGI("Metal IssueDraw: Direct binding complete - {} textures, {} samplers", 
+                   fragment_texture_index, bound_samplers_by_heap_slot.size());
+          } else {
+            XELOGI("Metal IssueDraw: No textures bound, skipping direct binding");
+          }
+            
           // Encode the actual draw call
           // Convert processed primitive type to Metal primitive type
           MTL::PrimitiveType metal_prim_type = MTL::PrimitiveTypeTriangle; // Default
