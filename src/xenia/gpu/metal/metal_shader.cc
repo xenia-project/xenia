@@ -458,15 +458,27 @@ bool MetalShader::MetalTranslation::CaptureReflectionData() {
   if (json) {
     XELOGI("Metal shader: Full reflection JSON for {} shader (hash {:016x}):",
            stage_str, shader().ucode_data_hash());
+    
+    // CRITICAL: With root signature, reflection format may be different!
+    XELOGI("===== START REFLECTION JSON =====");
+    
     // Log the JSON line by line for readability
     std::string json_str(json);
     size_t pos = 0;
-    while (pos < json_str.length()) {
+    int line_count = 0;
+    while (pos < json_str.length() && line_count < 100) { // Limit to first 100 lines
       size_t end = json_str.find('\n', pos);
       if (end == std::string::npos) end = json_str.length();
       XELOGI("  {}", json_str.substr(pos, end - pos));
       pos = end + 1;
+      line_count++;
     }
+    
+    if (line_count >= 100) {
+      XELOGI("  ... (truncated, JSON too long)");
+    }
+    
+    XELOGI("===== END REFLECTION JSON =====");
     
     // Parse JSON to extract texture bindings
     ParseTextureBindingsFromJSON(json_str);
@@ -579,7 +591,38 @@ void MetalShader::MetalTranslation::ParseTextureBindingsFromJSON(const std::stri
   
   size_t srv_pos = json_str.find("\"ShaderResourceViewIndices\":");
   if (srv_pos == std::string::npos) {
-    XELOGI("Metal shader: No ShaderResourceViewIndices in reflection");
+    XELOGE("Metal shader: WARNING - No ShaderResourceViewIndices in reflection!");
+    XELOGE("This means NO texture slots will be available for binding!");
+    XELOGE("This is likely due to root signature changing how MSC generates reflection.");
+    
+    // Try to find what keys ARE present
+    XELOGI("Metal shader: Searching for alternative texture binding info...");
+    if (json_str.find("\"Textures\":") != std::string::npos) {
+      XELOGI("  Found 'Textures' key in reflection");
+    }
+    if (json_str.find("\"Resources\":") != std::string::npos) {
+      XELOGI("  Found 'Resources' key in reflection");
+    }
+    if (json_str.find("\"DescriptorTables\":") != std::string::npos) {
+      XELOGI("  Found 'DescriptorTables' key in reflection");
+    }
+    
+    // WITH ROOT SIGNATURE: Textures are accessed through descriptor tables
+    // We need to manually populate texture slots based on our knowledge
+    // of the shader's texture bindings from DXBC analysis
+    XELOGI("Metal shader: WITH ROOT SIGNATURE - using manual texture slot assignment");
+    
+    // For now, assume textures start at slot 0 and go sequentially
+    // This matches how we populate the descriptor heap
+    const auto& bindings = shader().texture_bindings();
+    for (size_t i = 0; i < bindings.size(); i++) {
+      texture_slots.push_back(i);
+      XELOGI("  Manual texture slot {} for binding {}", i, i);
+    }
+    
+    // Store the manually created slots
+    texture_slots_ = texture_slots;
+    XELOGI("Metal shader: Created {} manual texture slots for root signature mode", texture_slots.size());
     return;
   }
   

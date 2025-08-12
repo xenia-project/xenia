@@ -2913,8 +2913,21 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                   XELOGI("VS root signature layout: Set SRV descriptor table at parameter 4");
                 }
                 
-                // Parameter 5: UAV descriptor table (currently not used, but must be present)
-                // UAVs are at parameter 5 in our root signature, so samplers go at parameter 6
+                // Parameter 5: UAV descriptor table (MUST be present even if empty)
+                // Create a dummy UAV descriptor heap to avoid shader access violations
+                // The shader might check for UAVs even if not using them
+                // For UAVs, we need to at least set a valid (but empty) descriptor table entry
+                // Otherwise the shader might crash trying to access parameter 5
+                if (res_heap_ab_) {
+                  // Point to the resource heap but at an offset where no textures are
+                  // This prevents crashes while not actually providing UAV functionality
+                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[5], res_heap_ab_->gpuAddress() + 4096, 0);
+                  XELOGI("VS root signature layout: Set dummy UAV descriptor table at parameter 5");
+                } else {
+                  // If no resource heap, just set to null
+                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[5], 0, 0);
+                  XELOGI("VS root signature layout: Set NULL UAV descriptor table at parameter 5");
+                }
                 
                 // Parameter 6: Sampler descriptor table pointer
                 if (smp_heap_ab_) {
@@ -3083,8 +3096,21 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                   XELOGI("PS root signature layout: Set SRV descriptor table at parameter 4");
                 }
                 
-                // Parameter 5: UAV descriptor table (currently not used, but must be present)
-                // UAVs are at parameter 5 in our root signature, so samplers go at parameter 6
+                // Parameter 5: UAV descriptor table (MUST be present even if empty)
+                // Create a dummy UAV descriptor heap to avoid shader access violations
+                // The shader might check for UAVs even if not using them
+                // For UAVs, we need to at least set a valid (but empty) descriptor table entry
+                // Otherwise the shader might crash trying to access parameter 5
+                if (res_heap_ab_) {
+                  // Point to the resource heap but at an offset where no textures are
+                  // This prevents crashes while not actually providing UAV functionality
+                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[5], res_heap_ab_->gpuAddress() + 4096, 0);
+                  XELOGI("VS root signature layout: Set dummy UAV descriptor table at parameter 5");
+                } else {
+                  // If no resource heap, just set to null
+                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[5], 0, 0);
+                  XELOGI("VS root signature layout: Set NULL UAV descriptor table at parameter 5");
+                }
                 
                 // Parameter 6: Sampler descriptor table pointer
                 if (smp_heap_ab_) {
