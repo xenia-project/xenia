@@ -2099,9 +2099,9 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
                                       uint32_t index_count,
                                       IndexBufferInfo* index_buffer_info,
                                       bool major_mode_explicit) {
-#if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
+#if XE_GPU_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
-#endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   ID3D12Device* device = GetD3D12Provider().GetDevice();
   const RegisterFile& regs = *register_file_;
@@ -2594,9 +2594,9 @@ void D3D12CommandProcessor::InitializeTrace() {
 }
 
 bool D3D12CommandProcessor::IssueCopy() {
-#if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
+#if XE_GPU_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
-#endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
   if (!BeginSubmission(true)) {
     return false;
   }
@@ -2733,9 +2733,9 @@ void D3D12CommandProcessor::CheckSubmissionFence(uint64_t await_submission) {
 }
 
 bool D3D12CommandProcessor::BeginSubmission(bool is_guest_command) {
-#if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
+#if XE_GPU_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
-#endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   if (device_removed_) {
     return false;
@@ -3023,9 +3023,9 @@ void D3D12CommandProcessor::UpdateFixedFunctionState(
     const draw_util::ViewportInfo& viewport_info,
     const draw_util::Scissor& scissor, bool primitive_polygonal,
     reg::RB_DEPTHCONTROL normalized_depth_control) {
-#if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
+#if XE_GPU_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
-#endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   // Viewport.
   D3D12_VIEWPORT viewport;
@@ -3093,9 +3093,9 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
     const draw_util::ViewportInfo& viewport_info, uint32_t used_texture_mask,
     reg::RB_DEPTHCONTROL normalized_depth_control,
     uint32_t normalized_color_mask) {
-#if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
+#if XE_GPU_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
-#endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   const RegisterFile& regs = *register_file_;
   auto pa_cl_clip_cntl = regs.Get<reg::PA_CL_CLIP_CNTL>();
@@ -3595,9 +3595,9 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
   ID3D12Device* device = provider.GetDevice();
   const RegisterFile& regs = *register_file_;
 
-#if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
+#if XE_GPU_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
-#endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
 
   // Set the new root signature.
   if (current_graphics_root_signature_ != root_signature) {

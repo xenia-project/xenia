@@ -24,12 +24,13 @@ namespace vulkan {
 // or flush range must be clamped to the actual allocation size as a special
 // case, but it's still unlikely that the allocation won't be aligned to it), so
 // try not to waste that padding.
-VulkanUploadBufferPool::VulkanUploadBufferPool(const VulkanProvider& provider,
-                                               VkBufferUsageFlags usage,
-                                               size_t page_size)
+VulkanUploadBufferPool::VulkanUploadBufferPool(
+    const VulkanDevice* const vulkan_device, const VkBufferUsageFlags usage,
+    const size_t page_size)
     : GraphicsUploadBufferPool(size_t(
-          util::GetMappableMemorySize(provider, VkDeviceSize(page_size)))),
-      provider_(provider),
+          xe::round_up(VkDeviceSize(page_size),
+                       vulkan_device->properties().nonCoherentAtomSize))),
+      vulkan_device_(vulkan_device),
       usage_(usage) {}
 
 uint8_t* VulkanUploadBufferPool::Request(uint64_t submission_index, size_t size,
@@ -72,8 +73,8 @@ VulkanUploadBufferPool::CreatePageImplementation() {
     return nullptr;
   }
 
-  const VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
-  VkDevice device = provider_.device();
+  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
+  const VkDevice device = vulkan_device_->device();
 
   VkBufferCreateInfo buffer_create_info;
   buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -94,8 +95,9 @@ VulkanUploadBufferPool::CreatePageImplementation() {
   if (memory_type_ == kMemoryTypeUnknown) {
     VkMemoryRequirements memory_requirements;
     dfn.vkGetBufferMemoryRequirements(device, buffer, &memory_requirements);
-    memory_type_ = util::ChooseHostMemoryType(
-        provider_, memory_requirements.memoryTypeBits, false);
+    memory_type_ =
+        util::ChooseHostMemoryType(vulkan_device_->memory_types(),
+                                   memory_requirements.memoryTypeBits, false);
     if (memory_type_ == UINT32_MAX) {
       XELOGE(
           "No host-visible memory types can store an Vulkan upload buffer with "
@@ -117,7 +119,8 @@ VulkanUploadBufferPool::CreatePageImplementation() {
         dfn.vkGetBufferMemoryRequirements(device, buffer_expanded,
                                           &memory_requirements_expanded);
         uint32_t memory_type_expanded = util::ChooseHostMemoryType(
-            provider_, memory_requirements.memoryTypeBits, false);
+            vulkan_device_->memory_types(), memory_requirements.memoryTypeBits,
+            false);
         if (memory_requirements_expanded.size <= allocation_size_ &&
             memory_type_expanded != UINT32_MAX) {
           page_size_ = size_t(allocation_size_);
@@ -139,7 +142,7 @@ VulkanUploadBufferPool::CreatePageImplementation() {
   memory_allocate_info.allocationSize = allocation_size_;
   memory_allocate_info.memoryTypeIndex = memory_type_;
   VkMemoryDedicatedAllocateInfo memory_dedicated_allocate_info;
-  if (provider_.device_info().ext_1_1_VK_KHR_dedicated_allocation) {
+  if (vulkan_device_->extensions().ext_1_1_KHR_dedicated_allocation) {
     memory_allocate_info_last->pNext = &memory_dedicated_allocate_info;
     memory_allocate_info_last = reinterpret_cast<VkMemoryAllocateInfo*>(
         &memory_dedicated_allocate_info);
@@ -176,19 +179,19 @@ VulkanUploadBufferPool::CreatePageImplementation() {
     return nullptr;
   }
 
-  return new VulkanPage(provider_, buffer, memory, mapping);
+  return new VulkanPage(vulkan_device_, buffer, memory, mapping);
 }
 
 void VulkanUploadBufferPool::FlushPageWrites(Page* page, size_t offset,
                                              size_t size) {
   util::FlushMappedMemoryRange(
-      provider_, static_cast<const VulkanPage*>(page)->memory_, memory_type_,
-      VkDeviceSize(offset), allocation_size_, VkDeviceSize(size));
+      vulkan_device_, static_cast<const VulkanPage*>(page)->memory_,
+      memory_type_, VkDeviceSize(offset), allocation_size_, VkDeviceSize(size));
 }
 
 VulkanUploadBufferPool::VulkanPage::~VulkanPage() {
-  const VulkanProvider::DeviceFunctions& dfn = provider_.dfn();
-  VkDevice device = provider_.device();
+  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
+  const VkDevice device = vulkan_device_->device();
   dfn.vkDestroyBuffer(device, buffer_, nullptr);
   // Unmapping is done implicitly when the memory is freed.
   dfn.vkFreeMemory(device, memory_, nullptr);

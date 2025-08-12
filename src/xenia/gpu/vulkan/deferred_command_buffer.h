@@ -13,10 +13,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <vector>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/math.h"
-#include "xenia/ui/vulkan/vulkan_provider.h"
+#include "xenia/ui/vulkan/vulkan_api.h"
 
 namespace xe {
 namespace gpu {

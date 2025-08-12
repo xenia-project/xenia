@@ -13,6 +13,7 @@
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/d3d12/d3d12_command_processor.h"
+#include "xenia/gpu/gpu_flags.h"
 
 namespace xe {
 namespace gpu {
@@ -28,9 +29,9 @@ void DeferredCommandList::Reset() { command_stream_.clear(); }
 
 void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
                                   ID3D12GraphicsCommandList1* command_list_1) {
-#if XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
+#if XE_GPU_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
-#endif  // XE_UI_D3D12_FINE_GRAINED_DRAW_SCOPES
+#endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
   const uintmax_t* stream = command_stream_.data();
   size_t stream_remaining = command_stream_.size();
   ID3D12PipelineState* current_pipeline_state = nullptr;

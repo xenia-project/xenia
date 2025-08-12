@@ -9,7 +9,6 @@
 
 #include "xenia/ui/renderdoc_api.h"
 
-#include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/platform.h"
 
@@ -22,54 +21,57 @@
 namespace xe {
 namespace ui {
 
-bool RenderdocApi::Initialize() {
-  Shutdown();
+std::unique_ptr<RenderDocAPI> RenderDocAPI::CreateIfConnected() {
+  std::unique_ptr<RenderDocAPI> renderdoc_api(new RenderDocAPI());
+
   pRENDERDOC_GetAPI get_api = nullptr;
-  // The RenderDoc library should be already loaded into the process if
+
+  // The RenderDoc library should already be loaded into the process if
   // RenderDoc is attached - this is why RTLD_NOLOAD or GetModuleHandle instead
   // of LoadLibrary.
 #if XE_PLATFORM_LINUX
 #if XE_PLATFORM_ANDROID
-  const char* librenderdoc_name = "libVkLayer_GLES_RenderDoc.so";
+  const char* const library_name = "libVkLayer_GLES_RenderDoc.so";
 #else
-  const char* librenderdoc_name = "librenderdoc.so";
+  const char* const library_name = "librenderdoc.so";
 #endif
-  library_ = dlopen(librenderdoc_name, RTLD_NOW | RTLD_NOLOAD);
-  if (library_) {
-    get_api = pRENDERDOC_GetAPI(dlsym(library_, "RENDERDOC_GetAPI"));
+  renderdoc_api->library_ = dlopen(library_name, RTLD_NOW | RTLD_NOLOAD);
+  if (!renderdoc_api->library_) {
+    return nullptr;
   }
+  get_api =
+      pRENDERDOC_GetAPI(dlsym(renderdoc_api->library_, "RENDERDOC_GetAPI"));
 #elif XE_PLATFORM_WIN32
-  library_ = GetModuleHandleA("renderdoc.dll");
-  if (library_) {
-    get_api = pRENDERDOC_GetAPI(
-        GetProcAddress(HMODULE(library_), "RENDERDOC_GetAPI"));
+  renderdoc_api->library_ = GetModuleHandleW(L"renderdoc.dll");
+  if (!renderdoc_api->library_) {
+    return nullptr;
   }
+  get_api = pRENDERDOC_GetAPI(
+      GetProcAddress(renderdoc_api->library_, "RENDERDOC_GetAPI"));
 #endif
-  if (!get_api) {
-    Shutdown();
-    return false;
-  }
-  // get_api will be null if RenderDoc is not attached, or the API isn't
+
+  // get_api will be null if RenderDoc is not connected, or the API isn't
   // available on this platform, or there was an error.
-  if (!get_api || !get_api(eRENDERDOC_API_Version_1_0_0, (void**)&api_1_0_0_) ||
-      !api_1_0_0_) {
-    Shutdown();
-    return false;
+  if (!get_api ||
+      !get_api(eRENDERDOC_API_Version_1_0_0,
+               (void**)&renderdoc_api->api_1_0_0_) ||
+      !renderdoc_api->api_1_0_0_) {
+    return nullptr;
   }
+
   XELOGI("RenderDoc API initialized");
-  return true;
+
+  return renderdoc_api;
 }
 
-void RenderdocApi::Shutdown() {
-  api_1_0_0_ = nullptr;
-  if (library_) {
+RenderDocAPI::~RenderDocAPI() {
 #if XE_PLATFORM_LINUX
+  if (library_) {
     dlclose(library_);
-#endif
-    // Not calling FreeLibrary on Windows as GetModuleHandle doesn't increment
-    // the reference count.
-    library_ = nullptr;
   }
+#endif
+  // Not calling FreeLibrary on Windows as GetModuleHandle doesn't increment
+  // the reference count.
 }
 
 }  // namespace ui

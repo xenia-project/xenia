@@ -14,7 +14,7 @@
 
 #include "xenia/gpu/spirv_shader.h"
 #include "xenia/gpu/xenos.h"
-#include "xenia/ui/vulkan/vulkan_provider.h"
+#include "xenia/ui/vulkan/vulkan_device.h"
 
 namespace xe {
 namespace gpu {
@@ -35,7 +35,7 @@ class VulkanShader : public SpirvShader {
     VkShaderModule shader_module_ = VK_NULL_HANDLE;
   };
 
-  explicit VulkanShader(const ui::vulkan::VulkanProvider& provider,
+  explicit VulkanShader(const ui::vulkan::VulkanDevice* vulkan_device,
                         xenos::ShaderType shader_type, uint64_t ucode_data_hash,
                         const uint32_t* ucode_dwords, size_t ucode_dword_count,
                         std::endian ucode_source_endian = std::endian::big);
@@ -67,7 +67,7 @@ class VulkanShader : public SpirvShader {
   Translation* CreateTranslationInstance(uint64_t modification) override;
 
  private:
-  const ui::vulkan::VulkanProvider& provider_;
+  const ui::vulkan::VulkanDevice* vulkan_device_;
 
   std::atomic_flag binding_layout_user_uids_set_up_ = ATOMIC_FLAG_INIT;
   size_t texture_binding_layout_user_uid_ = 0;
