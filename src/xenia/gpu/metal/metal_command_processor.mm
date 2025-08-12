@@ -2406,9 +2406,12 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               
               // Check if we have a texture binding for this non-sentinel heap slot
               uint32_t fetch_constant;
+              const Shader::TextureBinding* current_binding = nullptr;
               if (texture_binding_index < texture_bindings.size()) {
-                const auto& binding = texture_bindings[texture_binding_index];
-                fetch_constant = binding.fetch_constant;
+                current_binding = &texture_bindings[texture_binding_index];
+                fetch_constant = current_binding->fetch_constant;
+                XELOGI("Metal IssueDraw: Heap slot {} using binding[{}] with fetch_constant={}", 
+                       heap_slot, texture_binding_index, fetch_constant);
                 texture_binding_index++; // Move to next texture binding for next non-sentinel heap slot
               } else {
                 // No texture binding available, try various fallback strategies
@@ -2420,12 +2423,14 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                   XELOGW("Metal IssueDraw: Heap slot {} is out of range for fetch constants", heap_slot);
                   fetch_constant = 0; // Fall through to try fetch constant 0
                 }
-                
-                // Check if this fetch constant has valid data first
-                xenos::xe_gpu_texture_fetch_t test_fetch = register_file_->GetTextureFetch(fetch_constant);
-                if (!test_fetch.base_address) {
+              }
+              
+              // Check if this fetch constant has valid data
+              // This needs to be outside the else block so it runs for all bindings
+              xenos::xe_gpu_texture_fetch_t test_fetch = register_file_->GetTextureFetch(fetch_constant);
+              if (!test_fetch.base_address) {
                   // No valid texture at this fetch constant
-                  XELOGW("Metal IssueDraw: Fetch constant {} has no base address for argument slot {}", 
+                  XELOGI("Metal IssueDraw: Fetch constant {} has no base address for heap slot {}, will use null texture", 
                          fetch_constant, heap_slot);
                   
                   // DEBUG: Comprehensive fetch constant scan to find any available textures
@@ -2444,22 +2449,40 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                     XELOGI("===== END FETCH CONSTANT SCAN =====");
                   }
                   
-                  // If no texture data for this slot but shader expects it, try duplicating texture 0
-                  // This is a workaround until proper texture binding is fixed
-                  if (bound_textures_by_heap_slot.find(0) != bound_textures_by_heap_slot.end()) {
-                    MTL::Texture* texture_0 = bound_textures_by_heap_slot[0];
-                    if (texture_0) {
-                      bound_textures_by_heap_slot[heap_slot] = texture_0;
-                      XELOGI("Metal IssueDraw: No texture data for argument slot {}, duplicating texture 0", 
-                             heap_slot);
-                      continue;
+                  // Use null texture for missing fetch constant data
+                  // Get appropriate null texture from texture cache based on binding dimension
+                  auto* metal_texture_cache = static_cast<MetalTextureCache*>(texture_cache_.get());
+                  MTL::Texture* null_texture = nullptr;
+                  
+                  // Use the current binding we looked up above to determine dimension
+                  if (current_binding) {
+                    // We have binding information, use the dimension from fetch instruction
+                    if (current_binding->fetch_instr.dimension == xenos::FetchOpDimension::k3DOrStacked) {
+                      null_texture = metal_texture_cache->GetNullTexture3D();
+                      XELOGI("Metal IssueDraw: Using null 3D texture for heap slot {} (missing fetch constant data)", heap_slot);
+                    } else if (current_binding->fetch_instr.dimension == xenos::FetchOpDimension::kCube) {
+                      null_texture = metal_texture_cache->GetNullTextureCube();
+                      XELOGI("Metal IssueDraw: Using null cube texture for heap slot {} (missing fetch constant data)", heap_slot);
+                    } else {
+                      null_texture = metal_texture_cache->GetNullTexture2D();
+                      XELOGI("Metal IssueDraw: Using null 2D texture for heap slot {} (missing fetch constant data)", heap_slot);
                     }
+                  } else {
+                    // No binding information, default to 2D
+                    null_texture = metal_texture_cache->GetNullTexture2D();
+                    XELOGI("Metal IssueDraw: Using default null 2D texture for heap slot {} (no binding info)", heap_slot);
                   }
                   
-                  // No texture 0 to duplicate, skip this slot
-                  XELOGW("Metal IssueDraw: No texture data for argument slot {} and no texture 0 to duplicate", heap_slot);
+                  if (null_texture) {
+                    bound_textures_by_heap_slot[heap_slot] = null_texture;
+                    XELOGI("Metal IssueDraw: Added null texture 0x{:x} to heap slot {}", 
+                           reinterpret_cast<uintptr_t>(null_texture), heap_slot);
+                    continue;
+                  }
+                  
+                  // If null texture creation failed, skip this slot
+                  XELOGW("Metal IssueDraw: Failed to get null texture for heap slot {}", heap_slot);
                   continue;
-                }
               }
               
               // Ensure fetch constant is valid
@@ -2471,10 +2494,18 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               // Get texture fetch constant for this slot
               xenos::xe_gpu_texture_fetch_t fetch = register_file_->GetTextureFetch(fetch_constant);
               
-              // Skip if no texture address
+              // Check if we already handled this as a null texture
+              // If we did, the texture is already in bound_textures_by_heap_slot
               if (!fetch.base_address) {
-                XELOGW("Metal IssueDraw: Texture fetch constant {} has no base address", fetch_constant);
-                continue;
+                if (bound_textures_by_heap_slot.find(heap_slot) != bound_textures_by_heap_slot.end()) {
+                  // Already added null texture for this slot
+                  XELOGI("Metal IssueDraw: Using null texture for heap slot {} (already added)", heap_slot);
+                  continue;
+                } else {
+                  // This shouldn't happen if null texture logic above worked
+                  XELOGW("Metal IssueDraw: Texture fetch constant {} has no base address and no null texture was added!", fetch_constant);
+                  continue;
+                }
               }
               
               // Parse texture info from fetch constant
@@ -3024,19 +3055,8 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                             texture_for_slot = it->second;
                             XELOGI("Metal IssueDraw: Mapped T1 to heap slot 1 texture");
                           } else {
-                            // Try duplicating texture from slot 0 if slot 1 is missing
-                            XELOGI("Metal IssueDraw: No texture at heap slot 1 for T1, trying to duplicate slot 0");
-                            if (bound_textures_by_heap_slot.find(0) != bound_textures_by_heap_slot.end()) {
-                              texture_for_slot = bound_textures_by_heap_slot[0];
-                              if (texture_for_slot) {
-                                XELOGI("Metal IssueDraw: Duplicating texture from slot 0 for T1");
-                                // Store it so we can use it consistently
-                                bound_textures_by_heap_slot[1] = texture_for_slot;
-                              }
-                            }
-                            if (!texture_for_slot) {
-                              XELOGW("Metal IssueDraw: No texture available for T1 and cannot duplicate from slot 0");
-                            }
+                            // Slot 1 should have a null texture if no real texture was available
+                            XELOGW("Metal IssueDraw: No texture found at heap slot 1 for T1 (should have null texture)");
                           }
                         } else if (entry.name.size() > 0 && entry.name[0] == 'T') {
                           // Generic texture mapping - extract number from name

@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/autorelease_pool.h"
 #include "xenia/base/byte_order.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/profiling.h"
@@ -71,8 +72,19 @@ void MetalTextureCache::DumpTextureToFile(MTL::Texture* texture, const std::stri
 
 bool MetalTextureCache::Initialize() {
   SCOPE_profile_cpu_f("gpu");
+  XE_SCOPED_AUTORELEASE_POOL("MetalTextureCache::Initialize");
 
-  XELOGD("Metal texture cache: Initialized successfully");
+  // Create null textures following existing factory pattern
+  null_texture_2d_ = CreateNullTexture2D();
+  null_texture_3d_ = CreateNullTexture3D();
+  null_texture_cube_ = CreateNullTextureCube();
+
+  if (!null_texture_2d_ || !null_texture_3d_ || !null_texture_cube_) {
+    XELOGE("Failed to create null textures");
+    return false;
+  }
+
+  XELOGD("Metal texture cache: Initialized successfully (with null textures)");
   
   return true;
 }
@@ -81,6 +93,20 @@ void MetalTextureCache::Shutdown() {
   SCOPE_profile_cpu_f("gpu");
 
   ClearCache();
+
+  // Follow existing shutdown pattern - explicit null checks and release
+  if (null_texture_2d_) {
+    null_texture_2d_->release();
+    null_texture_2d_ = nullptr;
+  }
+  if (null_texture_3d_) {
+    null_texture_3d_->release();
+    null_texture_3d_ = nullptr;
+  }
+  if (null_texture_cube_) {
+    null_texture_cube_->release();
+    null_texture_cube_ = nullptr;
+  }
 
   XELOGD("Metal texture cache: Shutdown complete");
 }
@@ -617,6 +643,108 @@ MTL::Texture* MetalTextureCache::CreateDebugTexture(uint32_t width, uint32_t hei
   
   XELOGI("Created debug checkerboard texture {}x{} (green/purple pattern)", width, height);
   return texture;
+}
+
+MTL::Texture* MetalTextureCache::CreateNullTexture2D() {
+  SCOPE_profile_cpu_f("gpu");
+
+  MTL::Device* device = command_processor_->GetMetalDevice();
+  if (!device) {
+    XELOGE("Metal texture cache: Failed to get Metal device for null texture");
+    return nullptr;
+  }
+
+  MTL::TextureDescriptor* descriptor = MTL::TextureDescriptor::alloc()->init();
+  descriptor->setTextureType(MTL::TextureType2D);
+  descriptor->setPixelFormat(MTL::PixelFormatRGBA8Unorm);
+  descriptor->setWidth(1);
+  descriptor->setHeight(1);
+  descriptor->setUsage(MTL::TextureUsageShaderRead);
+  descriptor->setStorageMode(MTL::StorageModeShared);
+
+  MTL::Texture* texture = device->newTexture(descriptor);
+  descriptor->release();  // Immediate release following pattern
+
+  if (texture) {
+    // Initialize with black color (0xFF000000 for RGBA8)
+    uint32_t default_color = 0xFF000000;
+    MTL::Region region = MTL::Region::Make2D(0, 0, 1, 1);
+    texture->replaceRegion(region, 0, &default_color, 4);
+    XELOGI("Created null 2D texture (1x1 black)");
+  } else {
+    XELOGE("Failed to create null 2D texture");
+  }
+
+  return texture;  // No retain needed - newTexture returns retained object
+}
+
+MTL::Texture* MetalTextureCache::CreateNullTexture3D() {
+  SCOPE_profile_cpu_f("gpu");
+
+  MTL::Device* device = command_processor_->GetMetalDevice();
+  if (!device) {
+    XELOGE("Metal texture cache: Failed to get Metal device for null 3D texture");
+    return nullptr;
+  }
+
+  MTL::TextureDescriptor* descriptor = MTL::TextureDescriptor::alloc()->init();
+  descriptor->setTextureType(MTL::TextureType3D);
+  descriptor->setPixelFormat(MTL::PixelFormatRGBA8Unorm);
+  descriptor->setWidth(1);
+  descriptor->setHeight(1);
+  descriptor->setDepth(1);
+  descriptor->setUsage(MTL::TextureUsageShaderRead);
+  descriptor->setStorageMode(MTL::StorageModeShared);
+
+  MTL::Texture* texture = device->newTexture(descriptor);
+  descriptor->release();  // Immediate release following pattern
+
+  if (texture) {
+    // Initialize with black color (0xFF000000 for RGBA8)
+    uint32_t default_color = 0xFF000000;
+    MTL::Region region = MTL::Region::Make3D(0, 0, 0, 1, 1, 1);
+    texture->replaceRegion(region, 0, 0, &default_color, 4, 4);
+    XELOGI("Created null 3D texture (1x1x1 black)");
+  } else {
+    XELOGE("Failed to create null 3D texture");
+  }
+
+  return texture;  // No retain needed - newTexture returns retained object
+}
+
+MTL::Texture* MetalTextureCache::CreateNullTextureCube() {
+  SCOPE_profile_cpu_f("gpu");
+
+  MTL::Device* device = command_processor_->GetMetalDevice();
+  if (!device) {
+    XELOGE("Metal texture cache: Failed to get Metal device for null cube texture");
+    return nullptr;
+  }
+
+  MTL::TextureDescriptor* descriptor = MTL::TextureDescriptor::alloc()->init();
+  descriptor->setTextureType(MTL::TextureTypeCube);
+  descriptor->setPixelFormat(MTL::PixelFormatRGBA8Unorm);
+  descriptor->setWidth(1);
+  descriptor->setHeight(1);
+  descriptor->setUsage(MTL::TextureUsageShaderRead);
+  descriptor->setStorageMode(MTL::StorageModeShared);
+
+  MTL::Texture* texture = device->newTexture(descriptor);
+  descriptor->release();  // Immediate release following pattern
+
+  if (texture) {
+    // Initialize all 6 faces with black color (0xFF000000 for RGBA8)
+    uint32_t default_color = 0xFF000000;
+    MTL::Region region = MTL::Region::Make2D(0, 0, 1, 1);
+    for (uint32_t face = 0; face < 6; ++face) {
+      texture->replaceRegion(region, 0, face, &default_color, 4, 0);
+    }
+    XELOGI("Created null cube texture (1x1 black on all 6 faces)");
+  } else {
+    XELOGE("Failed to create null cube texture");
+  }
+
+  return texture;  // No retain needed - newTexture returns retained object
 }
 
 }  // namespace metal

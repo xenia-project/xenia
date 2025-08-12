@@ -694,13 +694,11 @@ void MetalPipelineCache::AugmentTextureBindings(MetalShader* shader,
       // Get actual fetch constant data from Xbox 360 registers
       xenos::xe_gpu_texture_fetch_t fetch = register_file_->GetTextureFetch(static_cast<uint32_t>(slot_index));
       
-      // Only create synthetic binding if there's valid texture data
-      if (!fetch.base_address) {
-        XELOGI("  Slot {} has no valid texture data (base_address=0), skipping synthetic binding", slot_index);
-        continue;
-      }
+      // CRITICAL: Always create synthetic binding even if there's no texture data
+      // The null texture system will handle empty slots in the command processor
+      // MSC expects bindings for ALL declared texture slots, not just populated ones
       
-      // Create synthetic binding with full fetch constant data
+      // Create synthetic binding with fetch constant data (or defaults if empty)
       Shader::TextureBinding new_binding = {};
       new_binding.fetch_constant = static_cast<uint32_t>(slot_index);
       new_binding.binding_index = shader_bindings.size();
@@ -748,9 +746,14 @@ void MetalPipelineCache::AugmentTextureBindings(MetalShader* shader,
       fetch_instr.attributes.offset_y = 0.0f;
       
       shader_bindings.push_back(new_binding);
-      XELOGI("  Added synthetic binding for slot {} (fetch_constant={}, base_address=0x{:08X}, dimension={})", 
-             slot_index, new_binding.fetch_constant, fetch.base_address, 
-             static_cast<uint32_t>(fetch_instr.dimension));
+      if (fetch.base_address) {
+        XELOGI("  Added synthetic binding for slot {} (fetch_constant={}, base_address=0x{:08X}, dimension={})", 
+               slot_index, new_binding.fetch_constant, fetch.base_address, 
+               static_cast<uint32_t>(fetch_instr.dimension));
+      } else {
+        XELOGI("  Added synthetic binding for EMPTY slot {} (fetch_constant={}, no texture data - will use null texture)", 
+               slot_index, new_binding.fetch_constant);
+      }
     }
   }
   

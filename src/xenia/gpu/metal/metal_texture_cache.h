@@ -53,6 +53,11 @@ class MetalTextureCache {
   // Debug texture creation
   MTL::Texture* CreateDebugTexture(uint32_t width = 256, uint32_t height = 256);
 
+  // Null texture accessors for invalid bindings (following D3D12/Vulkan pattern)
+  MTL::Texture* GetNullTexture2D() const { return null_texture_2d_; }
+  MTL::Texture* GetNullTexture3D() const { return null_texture_3d_; }
+  MTL::Texture* GetNullTextureCube() const { return null_texture_cube_; }
+
  private:
   struct TextureDescriptor {
     uint32_t guest_base;
@@ -100,9 +105,19 @@ class MetalTextureCache {
                          xenos::TextureFormat src_format, 
                          MTL::PixelFormat dst_format);
 
+  // Null texture factory methods (following existing CreateTexture pattern)
+  MTL::Texture* CreateNullTexture2D();
+  MTL::Texture* CreateNullTexture3D();
+  MTL::Texture* CreateNullTextureCube();
+
   MetalCommandProcessor* command_processor_;
   const RegisterFile* register_file_;
   Memory* memory_;
+
+  // Pre-created null textures for invalid bindings (following existing patterns)
+  MTL::Texture* null_texture_2d_ = nullptr;
+  MTL::Texture* null_texture_3d_ = nullptr;
+  MTL::Texture* null_texture_cube_ = nullptr;
 
   // Texture cache
   std::unordered_map<TextureDescriptor, std::unique_ptr<MetalTexture>,
