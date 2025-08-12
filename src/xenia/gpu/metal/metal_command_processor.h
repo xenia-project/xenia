@@ -172,6 +172,9 @@ class MetalCommandProcessor : public CommandProcessor {
   // Debug utilities (optional)
   std::unique_ptr<MetalDebugUtils> debug_utils_;
   
+  // REMOVED: Null texture code was causing autorelease pool crashes
+  // When textures are missing, we'll skip binding them or duplicate texture 0
+  
 };
 
 }  // namespace metal
