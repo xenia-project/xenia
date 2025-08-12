@@ -3276,12 +3276,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               XELOGI("Marked sampler heap argument buffer as resident");
             }
             
-            // Clean up samplers after marking as resident
-            for (const auto& [heap_slot, sampler] : bound_samplers_by_heap_slot) {
-              if (sampler) {
-                sampler->release();
-              }
-            }
+            // Note: Sampler cleanup moved to after direct binding to avoid use-after-free
             
             // Clean up top-level argument buffers
             if (top_level_vs_ab) {
@@ -3345,6 +3340,13 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                    fragment_texture_index, bound_samplers_by_heap_slot.size());
           } else {
             XELOGI("Metal IssueDraw: No textures bound, skipping direct binding");
+          }
+          
+          // Clean up samplers after direct binding is complete
+          for (const auto& [heap_slot, sampler] : bound_samplers_by_heap_slot) {
+            if (sampler) {
+              sampler->release();
+            }
           }
             
           // Encode the actual draw call
