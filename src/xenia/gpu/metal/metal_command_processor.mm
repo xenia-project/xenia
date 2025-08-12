@@ -2384,27 +2384,25 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             }
             
             // Process textures - map from binding index to heap slot
-            // CRITICAL FIX: Use sequential argument positions, not heap_slot values
-            // After skipping sentinels, T0 goes to position 0, T1 to position 1, etc.
+            // CRITICAL FIX: Use the actual heap slot values from MSC reflection
+            // heap_texture_indices contains the exact heap slots where the shader expects textures
             size_t texture_binding_index = 0;
-            size_t argument_position = 0;  // Sequential counter for argument buffer positions
             
             for (size_t i = 0; i < heap_texture_indices.size(); ++i) {
-              uint32_t heap_value = heap_texture_indices[i];  // Renamed for clarity
+              uint32_t heap_slot = heap_texture_indices[i];  // This IS the heap slot where shader expects the texture
               
               // Skip sentinel values (framebuffer fetch)
-              if (heap_value == 0xFFFF) {
+              if (heap_slot == 0xFFFF) {
                 XELOGI("Metal IssueDraw: Skipping framebuffer fetch sentinel at index {}", i);
                 continue;
               }
               
-              // For non-sentinel entries, we use sequential argument positions
-              // T0 = argument position 0, T1 = argument position 1, etc.
-              uint32_t argument_slot = argument_position;
-              argument_position++;  // Increment for next texture
-              
-              XELOGI("Metal IssueDraw: Processing heap_texture_indices[{}] = 0x{:04X} -> argument slot {} (T{})",
-                     i, heap_value, argument_slot, argument_slot);
+              // The heap_slot value IS where the shader expects to find this texture in the descriptor heap
+              // e.g., if heap_texture_indices = [0xFFFF, 0, 1], then:
+              //   - T0 should be placed at heap slot 0
+              //   - T1 should be placed at heap slot 1
+              XELOGI("Metal IssueDraw: Processing heap_texture_indices[{}] = {} -> placing texture at heap slot {}",
+                     i, heap_slot, heap_slot);
               
               // Check if we have a texture binding for this non-sentinel heap slot
               uint32_t fetch_constant;
@@ -2414,12 +2412,12 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 texture_binding_index++; // Move to next texture binding for next non-sentinel heap slot
               } else {
                 // No texture binding available, try various fallback strategies
-                XELOGW("Metal IssueDraw: No texture binding for argument slot {}, trying fallbacks", argument_slot);
+                XELOGW("Metal IssueDraw: No texture binding for heap slot {}, trying fallbacks", heap_slot);
                 
-                // Strategy 1: Try using heap value as fetch constant
-                fetch_constant = heap_value;
+                // Strategy 1: Try using heap slot as fetch constant
+                fetch_constant = heap_slot;
                 if (fetch_constant >= 32) {
-                  XELOGW("Metal IssueDraw: Heap value {} is out of range for fetch constants", heap_value);
+                  XELOGW("Metal IssueDraw: Heap slot {} is out of range for fetch constants", heap_slot);
                   fetch_constant = 0; // Fall through to try fetch constant 0
                 }
                 
@@ -2428,11 +2426,11 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 if (!test_fetch.base_address) {
                   // No valid texture at this fetch constant
                   XELOGW("Metal IssueDraw: Fetch constant {} has no base address for argument slot {}", 
-                         fetch_constant, argument_slot);
+                         fetch_constant, heap_slot);
                   
                   // DEBUG: Comprehensive fetch constant scan to find any available textures
-                  if (argument_slot == 0 || argument_slot == 1) {
-                    XELOGI("===== COMPREHENSIVE FETCH CONSTANT SCAN FOR ARGUMENT SLOT {} =====", argument_slot);
+                  if (heap_slot == 0 || heap_slot == 1) {
+                    XELOGI("===== COMPREHENSIVE FETCH CONSTANT SCAN FOR ARGUMENT SLOT {} =====", heap_slot);
                     for (uint32_t scan_i = 0; scan_i < 32; scan_i++) {
                       auto scan_fetch = register_file_->GetTextureFetch(scan_i);
                       if (scan_fetch.base_address) {
@@ -2442,7 +2440,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                                scan_fetch.size_3d.depth + 1);
                       }
                     }
-                    XELOGI("No texture found at fetch_constant={} for argument_slot={}", fetch_constant, argument_slot);
+                    XELOGI("No texture found at fetch_constant={} for heap_slot={}", fetch_constant, heap_slot);
                     XELOGI("===== END FETCH CONSTANT SCAN =====");
                   }
                   
@@ -2451,15 +2449,15 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                   if (bound_textures_by_heap_slot.find(0) != bound_textures_by_heap_slot.end()) {
                     MTL::Texture* texture_0 = bound_textures_by_heap_slot[0];
                     if (texture_0) {
-                      bound_textures_by_heap_slot[argument_slot] = texture_0;
+                      bound_textures_by_heap_slot[heap_slot] = texture_0;
                       XELOGI("Metal IssueDraw: No texture data for argument slot {}, duplicating texture 0", 
-                             argument_slot);
+                             heap_slot);
                       continue;
                     }
                   }
                   
                   // No texture 0 to duplicate, skip this slot
-                  XELOGW("Metal IssueDraw: No texture data for argument slot {} and no texture 0 to duplicate", argument_slot);
+                  XELOGW("Metal IssueDraw: No texture data for argument slot {} and no texture 0 to duplicate", heap_slot);
                   continue;
                 }
               }
@@ -2491,14 +2489,14 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               uint32_t actual_height = texture_info.height + 1;
               
               XELOGI("Metal IssueDraw: Texture argument slot {} (fetch {}) - {}x{} format {} @ 0x{:08X}",
-                     argument_slot, fetch_constant, actual_width, actual_height,
+                     heap_slot, fetch_constant, actual_width, actual_height,
                      static_cast<uint32_t>(texture_info.format_info()->format),
                      texture_info.memory.base_address);
               
               // Upload texture if not in cache
               if (texture_info.dimension == xenos::DataDimension::k2DOrStacked) {
                 if (!texture_cache_->UploadTexture2D(texture_info)) {
-                  XELOGW("Metal IssueDraw: Failed to upload 2D texture for argument slot {} (fetch {})", argument_slot, fetch_constant);
+                  XELOGW("Metal IssueDraw: Failed to upload 2D texture for argument slot {} (fetch {})", heap_slot, fetch_constant);
                   continue;
                 }
                 
@@ -2506,38 +2504,42 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 MTL::Texture* metal_texture = texture_cache_->GetTexture2D(texture_info);
                 if (metal_texture) {
                   // Store texture at its argument slot position
-                  bound_textures_by_heap_slot[argument_slot] = metal_texture;
+                  bound_textures_by_heap_slot[heap_slot] = metal_texture;
                   XELOGI("Metal IssueDraw: Got texture ptr 0x{:016X} at argument slot {} for argument buffer", 
-                         reinterpret_cast<uintptr_t>(metal_texture), argument_slot);
+                         reinterpret_cast<uintptr_t>(metal_texture), heap_slot);
                 }
               } else if (texture_info.dimension == xenos::DataDimension::kCube) {
                 if (!texture_cache_->UploadTextureCube(texture_info)) {
-                  XELOGW("Metal IssueDraw: Failed to upload cube texture for argument slot {} (fetch {})", argument_slot, fetch_constant);
+                  XELOGW("Metal IssueDraw: Failed to upload cube texture for argument slot {} (fetch {})", heap_slot, fetch_constant);
                   continue;
                 }
                 
                 MTL::Texture* metal_texture = texture_cache_->GetTextureCube(texture_info);
                 if (metal_texture) {
                   // Store texture at its argument slot position
-                  bound_textures_by_heap_slot[argument_slot] = metal_texture;
-                  XELOGI("Metal IssueDraw: Prepared cube texture at argument slot {} for argument buffer", argument_slot);
+                  bound_textures_by_heap_slot[heap_slot] = metal_texture;
+                  XELOGI("Metal IssueDraw: Prepared cube texture at argument slot {} for argument buffer", heap_slot);
                 }
               }
             }
             
-            // Process samplers - use sequential argument positions like textures
-            // Match sampler heap indices with texture bindings
-            size_t sampler_argument_position = 0;
-            for (size_t i = 0; i < heap_sampler_indices.size() && i < texture_bindings.size(); ++i) {
-              uint32_t heap_value = heap_sampler_indices[i];
+            // Process samplers - use heap slot values from MSC reflection
+            // The heap_sampler_indices contains exact heap slots where shader expects samplers
+            size_t sampler_binding_index = 0;
+            for (size_t i = 0; i < heap_sampler_indices.size(); ++i) {
+              uint32_t heap_slot = heap_sampler_indices[i];  // This IS the heap slot where shader expects the sampler
               
               // Skip sentinel values if any
-              if (heap_value == 0xFFFF) {
+              if (heap_slot == 0xFFFF) {
                 continue;
               }
               
-              uint32_t argument_slot = sampler_argument_position++;
-              const auto& binding = texture_bindings[i];
+              // Get the texture binding for this sampler
+              if (sampler_binding_index >= texture_bindings.size()) {
+                XELOGW("Metal IssueDraw: No texture binding for sampler at heap slot {}", heap_slot);
+                continue;
+              }
+              const auto& binding = texture_bindings[sampler_binding_index++];
               uint32_t fetch_constant = binding.fetch_constant;
               
               // Ensure fetch constant is valid
@@ -2559,9 +2561,9 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               MTL::SamplerState* sampler = GetMetalDevice()->newSamplerState(sampler_desc);
               sampler_desc->release();
               
-              // Store sampler at its argument slot position
-              bound_samplers_by_heap_slot[argument_slot] = sampler;
-              XELOGI("Metal IssueDraw: Prepared sampler at argument slot {} for argument buffer", argument_slot);
+              // Store sampler at its heap slot position
+              bound_samplers_by_heap_slot[heap_slot] = sampler;
+              XELOGI("Metal IssueDraw: Prepared sampler at heap slot {} for descriptor heap", heap_slot);
             }
           }
           
