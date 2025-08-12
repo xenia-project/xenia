@@ -191,9 +191,10 @@ bool MetalShader::MetalTranslation::ConvertDxilToMetal(
   IRCompilerSetEntryPointName(ir_compiler_, entry_point);
 
   // Configure Metal Shader Converter for Xbox 360 compatibility
-  // Enable texture array compatibility for Metal Shader Converter 2.x compatibility
-  IRCompilerSetCompatibilityFlags(ir_compiler_, 
-                                  IRCompatibilityFlagForceTextureArray);
+  // REMOVED ForceTextureArray - it requires all textures to be 2DArray which doesn't match our TextureType2D
+  // Using default MSC 3.0 behavior for proper texture type matching
+  // IRCompilerSetCompatibilityFlags(ir_compiler_, 
+  //                                 IRCompatibilityFlagForceTextureArray);
 
   // Set minimum deployment target for Metal features
   IRCompilerSetMinimumDeploymentTarget(ir_compiler_, IROperatingSystem_macOS, "14.0");
@@ -204,6 +205,8 @@ bool MetalShader::MetalTranslation::ConvertDxilToMetal(
   if (!CreateAndSetRootSignature()) {
     XELOGE("Metal shader: Failed to create root signature");
     // Continue without root signature - MSC will use automatic layout
+  } else {
+    XELOGI("Metal shader: Root signature enabled - using defined resource layout");
   }
     
 
@@ -226,9 +229,11 @@ bool MetalShader::MetalTranslation::ConvertDxilToMetal(
   XELOGD("Metal shader: Successfully created IR object from DXIL");
 
   // Compile DXIL to Metal IR
+  XELOGD("Metal shader: About to call IRCompilerAllocCompileAndLink...");
   IRError* error = nullptr;
   ir_object_ = IRCompilerAllocCompileAndLink(ir_compiler_, nullptr, 
                                              dxil_object, &error);
+  XELOGD("Metal shader: IRCompilerAllocCompileAndLink returned");
   
   // Clean up the temporary DXIL object
   IRObjectDestroy(dxil_object);
@@ -743,15 +748,15 @@ bool MetalShader::MetalTranslation::CreateAndSetRootSignature() {
   std::vector<IRDescriptorRange1> cbv_ranges;
   std::vector<IRDescriptorRange1> sampler_ranges;
   
-  // CRITICAL FIX: Updated descriptor counts to match increased heap sizes
-  // Total SRVs = 256 slots to prevent "Invalid device load at offset 4096" error
+  // CRITICAL FIX: Use reasonable descriptor counts that won't cause MSC to hang
+  // Xbox 360 typically uses up to 32 textures, but we'll use 64 for safety
   
-  // SRV range for all textures and shared memory (t0-t255 in space 0)
-  // This matches our resource heap size of 256 slots
+  // SRV range for all textures and shared memory (t0-t63 in space 0)
+  // This should be enough for Xbox 360 games while avoiding MSC hangs
   IRDescriptorRange1 srv_range_all = {};
   srv_range_all.RangeType = IRDescriptorRangeTypeSRV;
-  srv_range_all.NumDescriptors = 256;  // Match resource heap size
-  srv_range_all.BaseShaderRegister = 0;  // t0-t255
+  srv_range_all.NumDescriptors = 64;  // Reasonable count that won't hang MSC
+  srv_range_all.BaseShaderRegister = 0;  // t0-t63
   srv_range_all.RegisterSpace = 0;  // Space 0 for all SRVs
   srv_range_all.OffsetInDescriptorsFromTableStart = 0;
   srv_range_all.Flags = IRDescriptorRangeFlagNone;
@@ -781,12 +786,12 @@ bool MetalShader::MetalTranslation::CreateAndSetRootSignature() {
     cbv_ranges.push_back(cbv_range);
   }
   
-  // Sampler range (s0-s127 in space 0)
-  // CRITICAL FIX: Increased to 128 to match sampler heap size
+  // Sampler range (s0-s31 in space 0)
+  // Xbox 360 supports up to 32 samplers per shader
   IRDescriptorRange1 sampler_range = {};
   sampler_range.RangeType = IRDescriptorRangeTypeSampler;
-  sampler_range.NumDescriptors = 128;  // Match sampler heap size
-  sampler_range.BaseShaderRegister = 0;  // s0-s127
+  sampler_range.NumDescriptors = 32;  // Xbox 360 max
+  sampler_range.BaseShaderRegister = 0;  // s0-s31
   sampler_range.RegisterSpace = 0;
   sampler_range.OffsetInDescriptorsFromTableStart = 0;
   sampler_range.Flags = IRDescriptorRangeFlagNone;
@@ -865,11 +870,11 @@ bool MetalShader::MetalTranslation::CreateAndSetRootSignature() {
   
   XELOGI("Metal shader: Successfully created and set root signature with:");
   XELOGI("  - 4 CBVs (b0-b3) in space 0");
-  XELOGI("  - 32 SRVs (t0-t31) in space 0");
+  XELOGI("  - 64 SRVs (t0-t63) in space 0");
   XELOGI("    - t0: Shared memory/EDRAM texture (read)");
-  XELOGI("    - t1-t31: Regular game textures");
-  XELOGI("  - 1 UAV (u0) in space 0");
-  XELOGI("    - u0: Shared memory/EDRAM (read-write)");
+  XELOGI("    - t1-t63: Regular game textures");
+  XELOGI("  - 2 UAVs (u0-u1) in space 0");
+  XELOGI("    - u0-u1: Shared memory/EDRAM (read-write)");
   XELOGI("  - 32 Samplers (s0-s31) in space 0");
   
   // DO NOT destroy the root signature here - it must remain valid until compilation is done!

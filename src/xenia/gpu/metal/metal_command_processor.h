@@ -166,6 +166,7 @@ class MetalCommandProcessor : public CommandProcessor {
   MTL::ArgumentEncoder* smp_heap_encoder_ = nullptr;   // [[buffer(4)]] - samplers
   MTL::Buffer*          smp_heap_ab_ = nullptr;
   MTL::Buffer*          uav_heap_ab_ = nullptr;        // UAV descriptor heap
+  MTL::Buffer*          uniforms_buffer_ = nullptr;    // Cached uniforms buffer for CBVs
   
   // Helper to create debug pipeline
   void CreateDebugRedPipeline();

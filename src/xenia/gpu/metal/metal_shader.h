@@ -65,6 +65,11 @@ class MetalShader : public DxbcShader {
     const std::vector<uint32_t>& GetTextureSlots() const { return texture_slots_; }
     const std::vector<uint32_t>& GetSamplerSlots() const { return sampler_slots_; }
     
+    // Update texture slots (used after augmentation with root signature)
+    void UpdateTextureSlots(const std::vector<uint32_t>& new_slots) { 
+      texture_slots_ = new_slots; 
+    }
+    
     // Get top-level argument buffer layout from reflection
     const std::vector<ABEntry>& GetTopLevelABLayout() const { return top_level_ab_layout_; }
 

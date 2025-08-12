@@ -778,6 +778,18 @@ void MetalPipelineCache::AugmentTextureBindings(MetalShader* shader,
            i, binding.fetch_constant, fetch.base_address, 
            static_cast<uint32_t>(binding.fetch_instr.dimension));
   }
+  
+  // CRITICAL: If using root signature, update the texture slots to match augmented bindings
+  // Root signature mode creates manual texture slots based on shader bindings,
+  // but that happens BEFORE augmentation. We need to update them after.
+  if (shader_bindings.size() > msc_texture_slots.size()) {
+    std::vector<uint32_t> updated_slots;
+    for (size_t i = 0; i < shader_bindings.size(); i++) {
+      updated_slots.push_back(static_cast<uint32_t>(i));
+    }
+    translation->UpdateTextureSlots(updated_slots);
+    XELOGI("Metal: Updated texture slots for root signature mode - now {} slots", updated_slots.size());
+  }
 }
 
 // Pipeline description comparison operators

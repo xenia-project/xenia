@@ -171,10 +171,10 @@ bool MetalCommandProcessor::SetupContext() {
   {
     XE_SCOPED_AUTORELEASE_POOL("CreateDescriptorHeaps");
 
-    // CRITICAL FIX: Increased heap sizes to prevent "Invalid device load at offset 4096" error
-    // Shader was accessing offset 4096 = slot 170, so we need 256 slots for resources
-    const size_t kResourceHeapSlots = 256;  // Increased from 64 to support all texture slots
-    const size_t kSamplerHeapSlots = 128;   // Increased from 64 for sampler slots
+    // Descriptor heap sizes must match root signature in metal_shader.cc
+    // Reduced to reasonable values that won't cause MSC to hang
+    const size_t kResourceHeapSlots = 64;   // t0-t63 for textures
+    const size_t kSamplerHeapSlots = 32;    // s0-s31 for samplers
     const size_t kResourceHeapBytes = kResourceHeapSlots * sizeof(IRDescriptorTableEntry);
     const size_t kSamplerHeapBytes = kSamplerHeapSlots * sizeof(IRDescriptorTableEntry);
 
@@ -195,6 +195,14 @@ bool MetalCommandProcessor::SetupContext() {
     uav_heap_ab_ = GetMetalDevice()->newBuffer(kUAVHeapBytes, MTL::ResourceStorageModeShared);
     uav_heap_ab_->setLabel(NS::String::string("UAVDescriptorHeap", NS::UTF8StringEncoding));
     std::memset(uav_heap_ab_->contents(), 0, kUAVHeapBytes);
+    
+    // Create cached uniforms buffer for constant buffers (b0-b3)
+    // Each CB is 256 vec4s = 4096 bytes, total 16KB for 4 CBs
+    // Need space for: b0(4KB) + b1(8KB for 512 constants!) + b2(4KB) + b3(4KB) = 20KB
+    const size_t kUniformsSize = (256 * 4 * sizeof(float)) * 5;  // 20480 bytes (20KB)
+    uniforms_buffer_ = GetMetalDevice()->newBuffer(kUniformsSize, MTL::ResourceStorageModeShared);
+    uniforms_buffer_->setLabel(NS::String::string("CachedUniformsBuffer", NS::UTF8StringEncoding));
+    XELOGI("Metal SetupContext: Created cached uniforms buffer ({} bytes)", kUniformsSize);
 
     // These encoders are not used with the MSC runtime path
     res_heap_encoder_ = nullptr;
@@ -274,6 +282,10 @@ void MetalCommandProcessor::ShutdownContext() {
   if (smp_heap_ab_) {
     smp_heap_ab_->release();
     smp_heap_ab_ = nullptr;
+  }
+  if (uniforms_buffer_) {
+    uniforms_buffer_->release();
+    uniforms_buffer_ = nullptr;
   }
   if (uav_heap_ab_) {
     uav_heap_ab_->release();
@@ -2650,25 +2662,58 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
           // [[buffer(5)]] - Draw arguments (handled by IRRuntime)
           // [[buffer(6)]] - Uniforms buffer (CBVs)
           {
-            // First, create uniforms buffer with all constants
+            // Use the cached uniforms buffer instead of creating a new one
             const uint32_t* regs = register_file_->values;
-            const int total_constants = 512;
-            size_t uniforms_size = total_constants * 4 * sizeof(float);
-            MTL::Buffer* uniforms_buffer = GetMetalDevice()->newBuffer(uniforms_size, MTL::ResourceStorageModeShared);
-            TRACK_METAL_OBJECT(uniforms_buffer, "MTL::Buffer[Uniforms]");
+            const int total_constants = 512;  // This is just for the initial copy
+            const size_t kCBSize = 256 * 4 * sizeof(float);  // Size of one constant buffer
             
-            if (uniforms_buffer) {
-              uniforms_buffer->setLabel(NS::String::string("UniformsBuffer", NS::UTF8StringEncoding));
-              float* uniforms_data = (float*)uniforms_buffer->contents();
+            if (uniforms_buffer_) {
+              float* uniforms_data = (float*)uniforms_buffer_->contents();
               
-              // Copy constants - ALWAYS read from register file like D3D12/Vulkan do
-              XELOGI("Metal IssueDraw: Reading VS constants from register file");
+              // Match D3D12/HLSL standard constant buffer layout:
+              // b0: System constants at offset 0 (4KB max)
+              // b1: Float constants at offset 4KB (4KB max - 256 vec4s)
+              // b2: Bool/Loop constants at offset 8KB (4KB max)
+              // b3: Fetch constants at offset 12KB (4KB max)
+              
+              // b0: System constants (reserved for NDC transformation)
+              float* b0_data = uniforms_data;  // Offset 0
+              std::memset(b0_data, 0, kCBSize);  // Clear first
+              
+              // b1: Float constants - D3D12 style (only 256 vec4s in b1)
+              // VS constants go here (0-255), PS would use a separate buffer in D3D12
+              // But for simplicity, we'll put PS constants (256-511) in the same buffer
+              XELOGI("Metal IssueDraw: Reading float constants from register file to b1");
+              float* b1_data = uniforms_data + 1024;  // Offset by 256 vec4s (4KB)
               for (int i = 0; i < 256; i++) {
+                // For now, read VS constants (0-255) into b1
                 int base_reg = XE_GPU_REG_SHADER_CONSTANT_000_X + (i * 4);
-                uniforms_data[i * 4 + 0] = *reinterpret_cast<const float*>(&regs[base_reg + 0]);
-                uniforms_data[i * 4 + 1] = *reinterpret_cast<const float*>(&regs[base_reg + 1]);
-                uniforms_data[i * 4 + 2] = *reinterpret_cast<const float*>(&regs[base_reg + 2]);
-                uniforms_data[i * 4 + 3] = *reinterpret_cast<const float*>(&regs[base_reg + 3]);
+                b1_data[i * 4 + 0] = *reinterpret_cast<const float*>(&regs[base_reg + 0]);
+                b1_data[i * 4 + 1] = *reinterpret_cast<const float*>(&regs[base_reg + 1]);
+                b1_data[i * 4 + 2] = *reinterpret_cast<const float*>(&regs[base_reg + 2]);
+                b1_data[i * 4 + 3] = *reinterpret_cast<const float*>(&regs[base_reg + 3]);
+              }
+              
+              // b2: Bool/Loop constants at offset 8KB (2048 floats)
+              // TODO: Properly fill from register file
+              float* b2_data = uniforms_data + 2048;  // Offset by 512 vec4s (8KB)
+              std::memset(b2_data, 0, kCBSize);
+              
+              // b3: Fetch constants at offset 12KB (3072 floats)
+              // TODO: Properly fill from register file
+              float* b3_data = uniforms_data + 3072;  // Offset by 768 vec4s (12KB)
+              std::memset(b3_data, 0, kCBSize);
+              
+              // b1 for PS: PS float constants (256-511) at offset 16KB
+              // D3D12 uses separate buffers for VS and PS constants
+              float* b1_ps_data = uniforms_data + 4096;  // Offset by 1024 vec4s (16KB)
+              for (int i = 256; i < 512; i++) {
+                int local_i = i - 256;
+                int base_reg = XE_GPU_REG_SHADER_CONSTANT_000_X + (i * 4);
+                b1_ps_data[local_i * 4 + 0] = *reinterpret_cast<const float*>(&regs[base_reg + 0]);
+                b1_ps_data[local_i * 4 + 1] = *reinterpret_cast<const float*>(&regs[base_reg + 1]);
+                b1_ps_data[local_i * 4 + 2] = *reinterpret_cast<const float*>(&regs[base_reg + 2]);
+                b1_ps_data[local_i * 4 + 3] = *reinterpret_cast<const float*>(&regs[base_reg + 3]);
               }
               
               // Debug: check if register file has non-zero values
@@ -2686,15 +2731,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 }
               }
               
-              // Copy PS constants - ALWAYS read from register file like D3D12/Vulkan do
-              XELOGI("Metal IssueDraw: Reading PS constants from register file");
-              for (int i = 256; i < 512; i++) {
-                int base_reg = XE_GPU_REG_SHADER_CONSTANT_000_X + (i * 4);
-                uniforms_data[i * 4 + 0] = *reinterpret_cast<const float*>(&regs[base_reg + 0]);
-                uniforms_data[i * 4 + 1] = *reinterpret_cast<const float*>(&regs[base_reg + 1]);
-                uniforms_data[i * 4 + 2] = *reinterpret_cast<const float*>(&regs[base_reg + 2]);
-                uniforms_data[i * 4 + 3] = *reinterpret_cast<const float*>(&regs[base_reg + 3]);
-              }
+              // PS constants already copied to b1 above
               
               // Check if all constants are zero
               int nonzero_count = 0;
@@ -2708,7 +2745,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               // Xbox 360 shaders output screen space, we need to transform to Metal NDC
               // Use the properly calculated viewport_info values
               {
-                XELOGI("Injecting NDC transformation constants into CB0");
+                XELOGI("Injecting NDC transformation constants into b0 (system constants)");
                 
                 // Use the viewport_info we calculated with GetHostViewportInfo
                 // These are the CORRECT values for Metal's coordinate system
@@ -2720,54 +2757,57 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 float ndc_offset_z = viewport_info.ndc_offset[2];
                 
                 // System constants layout (matching D3D12/Vulkan approach)
-                // IMPORTANT: These go in SYSTEM CONSTANT slots, not user constants
-                // We reserve CB0[0-3] for system constants
+                // These go in b0 (system constants buffer), NOT in user constants
+                // Following the SystemConstants structure from dxbc_shader_translator.h
                 // CB0[0]: ndc_scale (x, y, z, unused)
                 // CB0[1]: ndc_offset (x, y, z, unused)
                 // CB0[2]: viewport info (width, height, 1/width, 1/height)
                 
-                // Write NDC transformation to the CORRECT offsets where shader expects them
-                // The shader reads NDC constants from CB0 at specific byte offsets:
-                // - Bytes 128-136: NDC scale (floats 32, 33, 34)
-                // - Bytes 144-152: NDC offset (floats 36, 37, 38)
-                uniforms_data[32] = ndc_scale_x;   // Byte 128
-                uniforms_data[33] = ndc_scale_y;   // Byte 132
-                uniforms_data[34] = ndc_scale_z;   // Byte 136
-                uniforms_data[35] = 0.0f;          // Padding
+                // Write NDC transformation to b0 (system constants)
+                // Based on SystemConstants structure from dxbc_shader_translator.h:
+                // - ndc_scale[3] is at offset 296 bytes (floats 74-76)
+                // - ndc_offset[3] is at offset 312 bytes (floats 78-80)
+                // But these are the D3D12 offsets. For simplicity, let's put them at the beginning of b0
                 
-                uniforms_data[36] = ndc_offset_x;  // Byte 144
-                uniforms_data[37] = ndc_offset_y;  // Byte 148
-                uniforms_data[38] = ndc_offset_z;  // Byte 152
-                uniforms_data[39] = 0.0f;          // Padding
+                // Put NDC constants at the beginning of b0 for easy access
+                b0_data[0] = ndc_scale_x;    // b0[0].x
+                b0_data[1] = ndc_scale_y;    // b0[0].y
+                b0_data[2] = ndc_scale_z;    // b0[0].z
+                b0_data[3] = 0.0f;           // b0[0].w - padding
                 
-                // Keep viewport dimensions at original location for now
-                uniforms_data[8] = float(rt_width);
-                uniforms_data[9] = float(rt_height);
-                uniforms_data[10] = 1.0f / float(rt_width);
-                uniforms_data[11] = 1.0f / float(rt_height);
+                b0_data[4] = ndc_offset_x;   // b0[1].x
+                b0_data[5] = ndc_offset_y;   // b0[1].y
+                b0_data[6] = ndc_offset_z;   // b0[1].z
+                b0_data[7] = 0.0f;           // b0[1].w - padding
                 
-                XELOGI("Injected NDC transformation constants at CORRECT offsets:");
-                XELOGI("  CB0[32-34] (bytes 128-136): ndc_scale = [{:.6f}, {:.6f}, {:.6f}]", 
-                       uniforms_data[32], uniforms_data[33], uniforms_data[34]);
-                XELOGI("  CB0[36-38] (bytes 144-152): ndc_offset = [{:.6f}, {:.6f}, {:.6f}]",
-                       uniforms_data[36], uniforms_data[37], uniforms_data[38]);
-                XELOGI("  CB0[2]: viewport_dims = [{:.0f}, {:.0f}, {:.6f}, {:.6f}]",
-                       uniforms_data[8], uniforms_data[9], uniforms_data[10], uniforms_data[11]);
+                // Viewport dimensions at b0[2]
+                b0_data[8] = float(rt_width);        // b0[2].x
+                b0_data[9] = float(rt_height);       // b0[2].y
+                b0_data[10] = 1.0f / float(rt_width);  // b0[2].z
+                b0_data[11] = 1.0f / float(rt_height); // b0[2].w
+                
+                XELOGI("Injected NDC transformation constants in b0 (system constants):");
+                XELOGI("  b0[0] (ndc_scale): [{:.6f}, {:.6f}, {:.6f}, {:.6f}]", 
+                       b0_data[0], b0_data[1], b0_data[2], b0_data[3]);
+                XELOGI("  b0[1] (ndc_offset): [{:.6f}, {:.6f}, {:.6f}, {:.6f}]",
+                       b0_data[4], b0_data[5], b0_data[6], b0_data[7]);
+                XELOGI("  b0[2] (viewport_dims): [{:.0f}, {:.0f}, {:.6f}, {:.6f}]",
+                       b0_data[8], b0_data[9], b0_data[10], b0_data[11]);
               }
               
               // Log if we found non-zero constants from the game
               if (nonzero_count > 0) {
-                XELOGI("Found {} non-zero constants from game - preserved after system constants", nonzero_count);
+                XELOGI("Found {} non-zero constants from game in b1 (float constants)", nonzero_count);
                 // Log ALL non-zero constants to understand what we're getting
-                XELOGI("Non-zero constants from trace:");
+                XELOGI("Non-zero constants from trace (b1):");
                 for (int i = 0; i < 512; i++) {
-                  if (uniforms_data[i * 4] != 0.0f || uniforms_data[i * 4 + 1] != 0.0f ||
-                      uniforms_data[i * 4 + 2] != 0.0f || uniforms_data[i * 4 + 3] != 0.0f) {
+                  if (b1_data[i * 4] != 0.0f || b1_data[i * 4 + 1] != 0.0f ||
+                      b1_data[i * 4 + 2] != 0.0f || b1_data[i * 4 + 3] != 0.0f) {
                     XELOGI("  C{}[{}]: [{:.6f}, {:.6f}, {:.6f}, {:.6f}]", 
                            i < 256 ? i : i - 256,
                            i < 256 ? "(VS)" : "(PS)",
-                           uniforms_data[i*4], uniforms_data[i*4+1], 
-                           uniforms_data[i*4+2], uniforms_data[i*4+3]);
+                           b1_data[i*4], b1_data[i*4+1], 
+                           b1_data[i*4+2], b1_data[i*4+3]);
                   }
                 }
               }
@@ -2916,17 +2956,18 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 auto* vs_entries_typed = reinterpret_cast<IRDescriptorTableEntry*>(vs_entries);
                 
                 // Parameters 0-3: CBVs (b0-b3)
-                if (uniforms_buffer) {
-                  // b0: System constants (VS)
-                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[0], uniforms_buffer->gpuAddress(), kCBBytes);
-                  // b1: Float constants (VS) 
-                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[1], uniforms_buffer->gpuAddress() + kCBBytes, kCBBytes);
-                  // b2: Bool/Loop constants (VS)
-                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[2], uniforms_buffer->gpuAddress() + kCBBytes * 2, kCBBytes);
-                  // b3: Fetch constants (VS)
-                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[3], uniforms_buffer->gpuAddress() + kCBBytes * 3, kCBBytes);
+                // Standard HLSL layout: each buffer is 4KB (256 vec4s)
+                if (uniforms_buffer_) {
+                  // b0: System constants at offset 0 (4KB)
+                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[0], uniforms_buffer_->gpuAddress(), kCBBytes);
+                  // b1: Float constants at offset 4KB (4KB size - 256 vec4s)
+                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[1], uniforms_buffer_->gpuAddress() + kCBBytes, kCBBytes);
+                  // b2: Bool/Loop constants at offset 8KB (4KB size)
+                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[2], uniforms_buffer_->gpuAddress() + kCBBytes * 2, kCBBytes);
+                  // b3: Fetch constants at offset 12KB (4KB size)
+                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[3], uniforms_buffer_->gpuAddress() + kCBBytes * 3, kCBBytes);
                   
-                  XELOGI("VS root signature layout: Set CBVs b0-b3 at parameters 0-3");
+                  XELOGI("VS root signature: b0@0KB, b1@4KB, b2@8KB, b3@12KB (all 4KB each)");
                 }
                 
                 // Parameter 4: SRV descriptor table pointer (textures in space 1)
@@ -3000,11 +3041,11 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                       break;
                     case MetalShader::ABEntry::Kind::CBV:
                       // Constant buffer
-                      if (uniforms_buffer) {
+                      if (uniforms_buffer_) {
                         if (entry.slot == 0) {
-                          ::IRDescriptorTableSetBuffer(dst, uniforms_buffer->gpuAddress(), kCBBytes);
+                          ::IRDescriptorTableSetBuffer(dst, uniforms_buffer_->gpuAddress(), kCBBytes);
                         } else if (entry.slot == 3) {
-                          ::IRDescriptorTableSetBuffer(dst, uniforms_buffer->gpuAddress() + kCBBytes, kCBBytes);
+                          ::IRDescriptorTableSetBuffer(dst, uniforms_buffer_->gpuAddress() + kCBBytes, kCBBytes);
                         }
                       }
                       break;
@@ -3070,9 +3111,9 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                                               (uint64_t)res_heap_ab_->length());
                 }
                 
-                if (uniforms_buffer) {
-                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[2], uniforms_buffer->gpuAddress(), kCBBytes);
-                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[3], uniforms_buffer->gpuAddress() + kCBBytes, kCBBytes);
+                if (uniforms_buffer_) {
+                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[2], uniforms_buffer_->gpuAddress(), kCBBytes);
+                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[3], uniforms_buffer_->gpuAddress() + kCBBytes, kCBBytes);
                 }
               }
             }
@@ -3095,17 +3136,19 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 auto* ps_entries_typed = reinterpret_cast<IRDescriptorTableEntry*>(ps_entries);
                 
                 // Parameters 0-3: CBVs (b0-b3)
-                if (uniforms_buffer) {
-                  // b0: System constants (PS) - offset by VS constants
-                  ::IRDescriptorTableSetBuffer(&ps_entries_typed[0], uniforms_buffer->gpuAddress() + kCBBytes * 4, kCBBytes);
-                  // b1: Float constants (PS)
-                  ::IRDescriptorTableSetBuffer(&ps_entries_typed[1], uniforms_buffer->gpuAddress() + kCBBytes * 5, kCBBytes);
-                  // b2: Bool/Loop constants (PS)
-                  ::IRDescriptorTableSetBuffer(&ps_entries_typed[2], uniforms_buffer->gpuAddress() + kCBBytes * 6, kCBBytes);
-                  // b3: Fetch constants (PS)
-                  ::IRDescriptorTableSetBuffer(&ps_entries_typed[3], uniforms_buffer->gpuAddress() + kCBBytes * 7, kCBBytes);
+                // Standard HLSL layout: each buffer is 4KB (256 vec4s)
+                if (uniforms_buffer_) {
+                  // b0: System constants at offset 0 (4KB)
+                  ::IRDescriptorTableSetBuffer(&ps_entries_typed[0], uniforms_buffer_->gpuAddress(), kCBBytes);
+                  // b1: Float constants - PS uses constants 256-511 but we put them in same b1 location
+                  // We'll need to copy PS constants to b1 for PS shaders
+                  ::IRDescriptorTableSetBuffer(&ps_entries_typed[1], uniforms_buffer_->gpuAddress() + kCBBytes * 4, kCBBytes);
+                  // b2: Bool/Loop constants at offset 8KB (4KB size)
+                  ::IRDescriptorTableSetBuffer(&ps_entries_typed[2], uniforms_buffer_->gpuAddress() + kCBBytes * 2, kCBBytes);
+                  // b3: Fetch constants at offset 12KB (4KB size)
+                  ::IRDescriptorTableSetBuffer(&ps_entries_typed[3], uniforms_buffer_->gpuAddress() + kCBBytes * 3, kCBBytes);
                   
-                  XELOGI("PS root signature layout: Set CBVs b0-b3 at parameters 0-3");
+                  XELOGI("PS root signature: b0@0KB, b1@4KB, b2@8KB, b3@12KB (all 4KB each)");
                 }
                 
                 // Parameter 4: SRV descriptor table pointer (textures in space 1)
@@ -3224,8 +3267,8 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                       break;
                     case MetalShader::ABEntry::Kind::CBV:
                       // Constant buffer - PS CB0 is typically after VS CB0
-                      if (uniforms_buffer) {
-                        ::IRDescriptorTableSetBuffer(dst, uniforms_buffer->gpuAddress() + kCBBytes, kCBBytes);
+                      if (uniforms_buffer_) {
+                        ::IRDescriptorTableSetBuffer(dst, uniforms_buffer_->gpuAddress() + kCBBytes, kCBBytes);
                         XELOGI("Metal IssueDraw: Set PS CBV at offset {}", entry.elt_offset);
                       }
                       break;
@@ -3287,8 +3330,8 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               } else {
                 // Fallback to hardcoded layout
                 auto* ps_entries_typed = reinterpret_cast<IRDescriptorTableEntry*>(ps_entries);
-                if (uniforms_buffer) {
-                  ::IRDescriptorTableSetBuffer(&ps_entries_typed[0], uniforms_buffer->gpuAddress() + kCBBytes, kCBBytes);
+                if (uniforms_buffer_) {
+                  ::IRDescriptorTableSetBuffer(&ps_entries_typed[0], uniforms_buffer_->gpuAddress() + kCBBytes, kCBBytes);
                 }
               }
             }
@@ -3331,8 +3374,8 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             
             // Copy NDC constants from uniforms_buffer to ir_uniforms_buffer
             // The shader expects them at bytes 128-152 (floats 32-38)
-            if (uniforms_buffer) {
-              float* src_uniforms = (float*)uniforms_buffer->contents();
+            if (uniforms_buffer_) {
+              float* src_uniforms = (float*)uniforms_buffer_->contents();
               float* dst_uniforms = (float*)ir_uniforms_buffer->contents();
               
               // Copy NDC scale (floats 32-34)
@@ -3355,14 +3398,32 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             // Bind MSC runtime buffers at their expected indices
             encoder->setVertexBuffer(ir_draw_args_buffer, 0, (NS::UInteger)kIRArgumentBufferDrawArgumentsBindPoint);
             encoder->setFragmentBuffer(ir_draw_args_buffer, 0, (NS::UInteger)kIRArgumentBufferDrawArgumentsBindPoint);
-            encoder->setVertexBuffer(ir_uniforms_buffer, 0, (NS::UInteger)kIRArgumentBufferUniformsBindPoint);
-            encoder->setFragmentBuffer(ir_uniforms_buffer, 0, (NS::UInteger)kIRArgumentBufferUniformsBindPoint);
+            
+            // CRITICAL FIX: Bind the main uniforms buffer (20KB) at slot 5, not the small ir_uniforms_buffer
+            // The shader expects to access constant buffers (b0-b3) directly through buffer slot 5
+            // b0 at offset 0, b1 at offset 4KB, b2 at offset 8KB, b3 at offset 12KB
+            if (uniforms_buffer_) {
+              encoder->setVertexBuffer(uniforms_buffer_, 0, (NS::UInteger)kIRArgumentBufferUniformsBindPoint);
+              encoder->setFragmentBuffer(uniforms_buffer_, 0, (NS::UInteger)kIRArgumentBufferUniformsBindPoint);
+              XELOGI("Metal IssueDraw: Bound main uniforms buffer (20KB) at slot 5 for direct CB access");
+            } else {
+              // Fallback to the small buffer if main uniforms buffer doesn't exist
+              encoder->setVertexBuffer(ir_uniforms_buffer, 0, (NS::UInteger)kIRArgumentBufferUniformsBindPoint);
+              encoder->setFragmentBuffer(ir_uniforms_buffer, 0, (NS::UInteger)kIRArgumentBufferUniformsBindPoint);
+              XELOGW("Metal IssueDraw: WARNING - Using small ir_uniforms_buffer at slot 5 (may cause OOB)");
+            }
             
             // Mark MSC runtime buffers as resident
             encoder->useResource(ir_draw_args_buffer, MTL::ResourceUsageRead,
                                MTL::RenderStageVertex | MTL::RenderStageFragment);
-            encoder->useResource(ir_uniforms_buffer, MTL::ResourceUsageRead,
-                               MTL::RenderStageVertex | MTL::RenderStageFragment);
+            // Use the buffer we actually bound at slot 5
+            if (uniforms_buffer_) {
+              encoder->useResource(uniforms_buffer_, MTL::ResourceUsageRead,
+                                 MTL::RenderStageVertex | MTL::RenderStageFragment);
+            } else {
+              encoder->useResource(ir_uniforms_buffer, MTL::ResourceUsageRead,
+                                 MTL::RenderStageVertex | MTL::RenderStageFragment);
+            }
             
             XELOGI("Metal IssueDraw: Bound MSC runtime buffers (DrawArgs and Uniforms)");
             
@@ -3370,11 +3431,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             
             // CRITICAL: Mark ALL resources as resident for indirect access
             // This is required by Metal Shader Converter - without this, textures show as black
-            if (uniforms_buffer) {
-              encoder->useResource(uniforms_buffer, MTL::ResourceUsageRead, 
-                                 MTL::RenderStageVertex | MTL::RenderStageFragment);
-              XELOGI("Marked uniforms buffer as resident");
-            }
+            // Note: uniforms_buffer_ is already marked as resident above when bound at slot 5
             
             // Mark all textures as resident
             for (const auto& [heap_slot, texture] : bound_textures_by_heap_slot) {
