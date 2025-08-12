@@ -418,6 +418,16 @@ MTL::RenderPipelineState* MetalPipelineCache::CreateRenderPipelineState(
   }
   descriptor->setInputPrimitiveTopology(topology_class);
 
+  // CRITICAL FIX: Ensure rasterization is enabled (Metal enables it by default, but be explicit)
+  descriptor->setRasterizationEnabled(true);
+  
+  // CRITICAL FIX: Force all color writes to be enabled
+  // This ensures fragments are written to the render target
+  for (uint32_t i = 0; i < 4; ++i) {
+    auto* color_attachment = descriptor->colorAttachments()->object(i);
+    color_attachment->setWriteMask(MTL::ColorWriteMaskAll);
+  }
+
     // Create the pipeline state
   NS::Error* error = nullptr;
   MTL::RenderPipelineState* pipeline_state = device->newRenderPipelineState(descriptor, &error);

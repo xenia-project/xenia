@@ -615,8 +615,9 @@ void MetalShader::MetalTranslation::ParseTextureBindingsFromJSON(const std::stri
     // For now, assume textures start at slot 0 and go sequentially
     // This matches how we populate the descriptor heap
     const auto& bindings = shader().texture_bindings();
+    std::vector<uint32_t> texture_slots;  // Declare the vector properly
     for (size_t i = 0; i < bindings.size(); i++) {
-      texture_slots.push_back(i);
+      texture_slots.push_back(static_cast<uint32_t>(i));
       XELOGI("  Manual texture slot {} for binding {}", i, i);
     }
     
@@ -742,33 +743,26 @@ bool MetalShader::MetalTranslation::CreateAndSetRootSignature() {
   std::vector<IRDescriptorRange1> cbv_ranges;
   std::vector<IRDescriptorRange1> sampler_ranges;
   
-  // SRV range for shared memory texture (t0 in space 0)
-  // Xbox 360 uses t0 in space 0 for shared memory/EDRAM access
-  IRDescriptorRange1 srv_range_space0 = {};
-  srv_range_space0.RangeType = IRDescriptorRangeTypeSRV;
-  srv_range_space0.NumDescriptors = 1;  // Just t0 for shared memory
-  srv_range_space0.BaseShaderRegister = 0;  // t0
-  srv_range_space0.RegisterSpace = 0;  // Space 0 for shared memory
-  srv_range_space0.OffsetInDescriptorsFromTableStart = 0;
-  srv_range_space0.Flags = IRDescriptorRangeFlagNone;
-  srv_ranges.push_back(srv_range_space0);
+  // CRITICAL FIX: Updated descriptor counts to match increased heap sizes
+  // Total SRVs = 256 slots to prevent "Invalid device load at offset 4096" error
   
-  // SRV range for regular textures (t1-t31 in space 0)
-  // Keep other textures in space 0 as well for simplicity
-  IRDescriptorRange1 srv_range_textures = {};
-  srv_range_textures.RangeType = IRDescriptorRangeTypeSRV;
-  srv_range_textures.NumDescriptors = 31;  // t1-t31 for regular textures
-  srv_range_textures.BaseShaderRegister = 1;  // Start at t1
-  srv_range_textures.RegisterSpace = 0;  // Use space 0 to match DXBC expectations
-  srv_range_textures.OffsetInDescriptorsFromTableStart = 1;
-  srv_range_textures.Flags = IRDescriptorRangeFlagNone;
-  srv_ranges.push_back(srv_range_textures);
+  // SRV range for all textures and shared memory (t0-t255 in space 0)
+  // This matches our resource heap size of 256 slots
+  IRDescriptorRange1 srv_range_all = {};
+  srv_range_all.RangeType = IRDescriptorRangeTypeSRV;
+  srv_range_all.NumDescriptors = 256;  // Match resource heap size
+  srv_range_all.BaseShaderRegister = 0;  // t0-t255
+  srv_range_all.RegisterSpace = 0;  // Space 0 for all SRVs
+  srv_range_all.OffsetInDescriptorsFromTableStart = 0;
+  srv_range_all.Flags = IRDescriptorRangeFlagNone;
+  srv_ranges.push_back(srv_range_all);
   
-  // UAV range for shared memory write access (u0 in space 0)
+  // UAV range for shared memory write access (u0-u1 in space 0)
   // Xbox 360 can write to shared memory/EDRAM
+  // Using 2 slots as recommended in Phase 22
   IRDescriptorRange1 uav_range = {};
   uav_range.RangeType = IRDescriptorRangeTypeUAV;
-  uav_range.NumDescriptors = 1;  // Just u0 for shared memory writes
+  uav_range.NumDescriptors = 2;  // u0-u1 for shared memory writes
   uav_range.BaseShaderRegister = 0;  // u0
   uav_range.RegisterSpace = 0;  // Space 0 for shared memory
   uav_range.OffsetInDescriptorsFromTableStart = 0;
@@ -787,11 +781,12 @@ bool MetalShader::MetalTranslation::CreateAndSetRootSignature() {
     cbv_ranges.push_back(cbv_range);
   }
   
-  // Sampler range (s0-s31 in space 0)
+  // Sampler range (s0-s127 in space 0)
+  // CRITICAL FIX: Increased to 128 to match sampler heap size
   IRDescriptorRange1 sampler_range = {};
   sampler_range.RangeType = IRDescriptorRangeTypeSampler;
-  sampler_range.NumDescriptors = 32;  // Support up to 32 samplers
-  sampler_range.BaseShaderRegister = 0;  // s0
+  sampler_range.NumDescriptors = 128;  // Match sampler heap size
+  sampler_range.BaseShaderRegister = 0;  // s0-s127
   sampler_range.RegisterSpace = 0;
   sampler_range.OffsetInDescriptorsFromTableStart = 0;
   sampler_range.Flags = IRDescriptorRangeFlagNone;

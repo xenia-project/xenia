@@ -171,24 +171,37 @@ bool MetalCommandProcessor::SetupContext() {
   {
     XE_SCOPED_AUTORELEASE_POOL("CreateDescriptorHeaps");
 
-    const size_t kHeapSlots = 64;
-    const size_t kHeapBytes = kHeapSlots * sizeof(IRDescriptorTableEntry);
+    // CRITICAL FIX: Increased heap sizes to prevent "Invalid device load at offset 4096" error
+    // Shader was accessing offset 4096 = slot 170, so we need 256 slots for resources
+    const size_t kResourceHeapSlots = 256;  // Increased from 64 to support all texture slots
+    const size_t kSamplerHeapSlots = 128;   // Increased from 64 for sampler slots
+    const size_t kResourceHeapBytes = kResourceHeapSlots * sizeof(IRDescriptorTableEntry);
+    const size_t kSamplerHeapBytes = kSamplerHeapSlots * sizeof(IRDescriptorTableEntry);
 
     // Resource heap: textures
-    res_heap_ab_ = GetMetalDevice()->newBuffer(kHeapBytes, MTL::ResourceStorageModeShared);
+    res_heap_ab_ = GetMetalDevice()->newBuffer(kResourceHeapBytes, MTL::ResourceStorageModeShared);
     res_heap_ab_->setLabel(NS::String::string("ResourceDescriptorHeap", NS::UTF8StringEncoding));
-    std::memset(res_heap_ab_->contents(), 0, kHeapBytes);
+    std::memset(res_heap_ab_->contents(), 0, kResourceHeapBytes);
 
     // Sampler heap
-    smp_heap_ab_ = GetMetalDevice()->newBuffer(kHeapBytes, MTL::ResourceStorageModeShared);
+    smp_heap_ab_ = GetMetalDevice()->newBuffer(kSamplerHeapBytes, MTL::ResourceStorageModeShared);
     smp_heap_ab_->setLabel(NS::String::string("SamplerDescriptorHeap", NS::UTF8StringEncoding));
-    std::memset(smp_heap_ab_->contents(), 0, kHeapBytes);
+    std::memset(smp_heap_ab_->contents(), 0, kSamplerHeapBytes);
+    
+    // CRITICAL FIX: Create proper UAV heap instead of using hacky offset
+    // Even if mostly unused, shaders compiled with root signature expect it
+    const size_t kUAVHeapSlots = 2;  // u0-u1 for shared memory writes
+    const size_t kUAVHeapBytes = kUAVHeapSlots * sizeof(IRDescriptorTableEntry);
+    uav_heap_ab_ = GetMetalDevice()->newBuffer(kUAVHeapBytes, MTL::ResourceStorageModeShared);
+    uav_heap_ab_->setLabel(NS::String::string("UAVDescriptorHeap", NS::UTF8StringEncoding));
+    std::memset(uav_heap_ab_->contents(), 0, kUAVHeapBytes);
 
     // These encoders are not used with the MSC runtime path
     res_heap_encoder_ = nullptr;
     smp_heap_encoder_ = nullptr;
 
-    XELOGI("Metal SetupContext: Created MSC heaps ({} entries)", (int)kHeapSlots);
+    XELOGI("Metal SetupContext: Created MSC heaps (resources: {} entries, samplers: {} entries, UAVs: {} entries)", 
+           (int)kResourceHeapSlots, (int)kSamplerHeapSlots, (int)kUAVHeapSlots);
   }
   
   return CommandProcessor::SetupContext();
@@ -261,6 +274,10 @@ void MetalCommandProcessor::ShutdownContext() {
   if (smp_heap_ab_) {
     smp_heap_ab_->release();
     smp_heap_ab_ = nullptr;
+  }
+  if (uav_heap_ab_) {
+    uav_heap_ab_->release();
+    uav_heap_ab_ = nullptr;
   }
   XELOGI("MetalCommandProcessor: Beginning clean shutdown");
   
@@ -2777,7 +2794,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               
               // Write textures at their exact heap indices from reflection
               for (const auto& [heap_slot, texture] : bound_textures_by_heap_slot) {
-                if (texture && heap_slot < 64) { // Ensure within heap bounds
+                if (texture && heap_slot < 256) { // Ensure within heap bounds (updated to match new heap size)
                   ::IRDescriptorTableSetTexture(&res_entries[heap_slot], texture, /*minLODClamp*/0.0f, /*flags*/0);
                   encoder->useResource(texture, MTL::ResourceUsageRead,
                                        MTL::RenderStageVertex | MTL::RenderStageFragment);
@@ -2822,7 +2839,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               
               // Write samplers at their exact heap indices from reflection
               for (const auto& [heap_slot, sampler] : bound_samplers_by_heap_slot) {
-                if (sampler && heap_slot < 64) { // Ensure within heap bounds
+                if (sampler && heap_slot < 128) { // Ensure within heap bounds (updated to match new heap size)
                   ::IRDescriptorTableSetSampler(&smp_entries[heap_slot], sampler, /*lodBias*/0.0f);
                   
                   // Debug: Verify sampler descriptor was written
@@ -2857,6 +2874,12 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               encoder->setVertexBuffer(smp_heap_ab_, 0, (NS::UInteger)kIRSamplerHeapBindPoint);
               encoder->setFragmentBuffer(smp_heap_ab_, 0, (NS::UInteger)kIRSamplerHeapBindPoint);
               encoder->useResource(smp_heap_ab_, MTL::ResourceUsageRead,
+                                   MTL::RenderStageVertex | MTL::RenderStageFragment);
+            }
+            
+            // CRITICAL FIX: Mark UAV heap as resident even though it's accessed through the top-level AB
+            if (uav_heap_ab_) {
+              encoder->useResource(uav_heap_ab_, MTL::ResourceUsageRead | MTL::ResourceUsageWrite,
                                    MTL::RenderStageVertex | MTL::RenderStageFragment);
             }
 
@@ -2914,19 +2937,15 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 }
                 
                 // Parameter 5: UAV descriptor table (MUST be present even if empty)
-                // Create a dummy UAV descriptor heap to avoid shader access violations
-                // The shader might check for UAVs even if not using them
-                // For UAVs, we need to at least set a valid (but empty) descriptor table entry
-                // Otherwise the shader might crash trying to access parameter 5
-                if (res_heap_ab_) {
-                  // Point to the resource heap but at an offset where no textures are
-                  // This prevents crashes while not actually providing UAV functionality
-                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[5], res_heap_ab_->gpuAddress() + 4096, 0);
-                  XELOGI("VS root signature layout: Set dummy UAV descriptor table at parameter 5");
+                // CRITICAL FIX: Use proper UAV heap instead of hacky offset
+                if (uav_heap_ab_) {
+                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[5], uav_heap_ab_->gpuAddress(),
+                                              (uint64_t)uav_heap_ab_->length());
+                  XELOGI("VS root signature layout: Set proper UAV descriptor table at parameter 5");
                 } else {
-                  // If no resource heap, just set to null
+                  // Fallback if UAV heap creation failed
                   ::IRDescriptorTableSetBuffer(&vs_entries_typed[5], 0, 0);
-                  XELOGI("VS root signature layout: Set NULL UAV descriptor table at parameter 5");
+                  XELOGI("VS root signature layout: WARNING - No UAV heap available at parameter 5");
                 }
                 
                 // Parameter 6: Sampler descriptor table pointer
@@ -3097,19 +3116,15 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 }
                 
                 // Parameter 5: UAV descriptor table (MUST be present even if empty)
-                // Create a dummy UAV descriptor heap to avoid shader access violations
-                // The shader might check for UAVs even if not using them
-                // For UAVs, we need to at least set a valid (but empty) descriptor table entry
-                // Otherwise the shader might crash trying to access parameter 5
-                if (res_heap_ab_) {
-                  // Point to the resource heap but at an offset where no textures are
-                  // This prevents crashes while not actually providing UAV functionality
-                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[5], res_heap_ab_->gpuAddress() + 4096, 0);
-                  XELOGI("VS root signature layout: Set dummy UAV descriptor table at parameter 5");
+                // CRITICAL FIX: Use proper UAV heap instead of hacky offset
+                if (uav_heap_ab_) {
+                  ::IRDescriptorTableSetBuffer(&ps_entries_typed[5], uav_heap_ab_->gpuAddress(),
+                                              (uint64_t)uav_heap_ab_->length());
+                  XELOGI("PS root signature layout: Set proper UAV descriptor table at parameter 5");
                 } else {
-                  // If no resource heap, just set to null
-                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[5], 0, 0);
-                  XELOGI("VS root signature layout: Set NULL UAV descriptor table at parameter 5");
+                  // Fallback if UAV heap creation failed
+                  ::IRDescriptorTableSetBuffer(&ps_entries_typed[5], 0, 0);
+                  XELOGI("PS root signature layout: WARNING - No UAV heap available at parameter 5");
                 }
                 
                 // Parameter 6: Sampler descriptor table pointer
