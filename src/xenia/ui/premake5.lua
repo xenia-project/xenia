@@ -10,8 +10,10 @@ project("xenia-ui")
     "xenia-base",
   })
   local_platform_files()
-  removefiles({"*_demo.cc"})
-  removefiles({"windowed_app_main_*.cc"})
+  removefiles({
+    "*_demo.cc",
+    "windowed_app_main_*.cc",
+  })
   filter("platforms:Android-*")
     -- Exports JNI functions.
     wholelib("On")
