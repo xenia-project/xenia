@@ -174,6 +174,15 @@ class MetalCommandProcessor : public CommandProcessor {
   // Debug utilities (optional)
   std::unique_ptr<MetalDebugUtils> debug_utils_;
   
+  // Render state tracking to avoid redundant state setting
+  struct RenderStateCache {
+    MTL::CullMode current_cull_mode = MTL::CullModeNone;
+    MTL::Winding current_winding = MTL::WindingClockwise;
+    bool current_depth_write_enabled = true;
+    MTL::CompareFunction current_depth_compare = MTL::CompareFunctionAlways;
+    // Add more state as needed
+  } render_state_cache_;
+  
   // REMOVED: Null texture code was causing autorelease pool crashes
   // When textures are missing, we'll skip binding them or duplicate texture 0
   

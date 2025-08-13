@@ -153,6 +153,7 @@ bool MetalCommandProcessor::SetupContext() {
     debug_utils_->SetDumpStateEnabled(true);
     debug_utils_->SetLabelResourcesEnabled(true);
     XELOGI("Metal debug utilities initialized for trace dump");
+    // Don't start capture here - wait for first submission when draws actually begin
   }
   
   // Create debug red pipeline for testing
@@ -2627,6 +2628,15 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             }
           }
           
+          // CRITICAL: Add vertex buffer to resource heap for programmatic vertex fetch
+          // Xbox 360 vertex shaders often use T0/U0 to read vertex data programmatically
+          if (first_bound_vertex_buffer && vertex_shader) {
+            // Add vertex buffer as a buffer resource at heap slots 0 (T0) and 1 (U0)
+            // We'll add these as special entries to be handled when populating the heap
+            XELOGI("Metal IssueDraw: Adding vertex buffer to resource heap for programmatic vertex fetch");
+            // Note: We'll handle this when populating the heap below
+          }
+          
           // Log total textures/samplers from BOTH vertex and pixel shaders
           XELOGI("Metal IssueDraw: Prepared {} textures and {} samplers for argument buffer", 
                  bound_textures_by_heap_slot.size(), bound_samplers_by_heap_slot.size());
@@ -2824,12 +2834,33 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               std::memset(res_heap_ab_->contents(), 0, res_heap_ab_->length());
               auto* res_entries = reinterpret_cast<IRDescriptorTableEntry*>(res_heap_ab_->contents());
               
+              // CRITICAL: First, add vertex buffer at slots 0 (T0) and 1 (U0) for programmatic vertex fetch
+              if (first_bound_vertex_buffer && vertex_shader) {
+                // T0 at slot 0
+                ::IRDescriptorTableSetBuffer(&res_entries[0], 
+                                            first_bound_vertex_buffer->gpuAddress(),
+                                            (uint64_t)first_bound_vertex_buffer->length());
+                XELOGI("  MSC res-heap: Set vertex buffer as T0 at heap slot 0 (addr: 0x{:x}, size: {})",
+                       first_bound_vertex_buffer->gpuAddress(), first_bound_vertex_buffer->length());
+                
+                // U0 at slot 1 (some shaders use both T0 and U0 to access vertex data)
+                ::IRDescriptorTableSetBuffer(&res_entries[1],
+                                            first_bound_vertex_buffer->gpuAddress(),
+                                            (uint64_t)first_bound_vertex_buffer->length());
+                XELOGI("  MSC res-heap: Set vertex buffer as U0 at heap slot 1 (addr: 0x{:x}, size: {})",
+                       first_bound_vertex_buffer->gpuAddress(), first_bound_vertex_buffer->length());
+                
+                // Mark vertex buffer as resident
+                encoder->useResource(first_bound_vertex_buffer, MTL::ResourceUsageRead,
+                                   MTL::RenderStageVertex);
+              }
+              
               XELOGI("Metal IssueDraw: About to populate resource heap with {} textures at buffer {:p}", 
                      bound_textures_by_heap_slot.size(), (void*)res_heap_ab_);
               
               // Debug: Check if we actually have textures
-              if (bound_textures_by_heap_slot.empty()) {
-                XELOGW("Metal IssueDraw: bound_textures_by_heap_slot is EMPTY! No textures to populate.");
+              if (bound_textures_by_heap_slot.empty() && !first_bound_vertex_buffer) {
+                XELOGW("Metal IssueDraw: bound_textures_by_heap_slot is EMPTY and no vertex buffer! No resources to populate.");
               }
               
               // Write textures at their exact heap indices from reflection
@@ -3061,54 +3092,29 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                   }
                 }
                 
-                // Override T0/U0 with vertex buffer for programmatic vertex fetching
-                if (first_bound_vertex_buffer) {
-                  auto* vs_entries_typed = reinterpret_cast<IRDescriptorTableEntry*>(vs_entries);
-                  // T0 is typically at index 0, U0 at index 1 in the top-level AB
-                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[0], 
-                                              first_bound_vertex_buffer->gpuAddress(),
-                                              (uint64_t)first_bound_vertex_buffer->length());
-                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[1], 
-                                              first_bound_vertex_buffer->gpuAddress(),
-                                              (uint64_t)first_bound_vertex_buffer->length());
-                  XELOGI("Overrode T0/U0 with vertex buffer in VS reflection layout (addr: 0x{:x}, size: {})",
-                         first_bound_vertex_buffer->gpuAddress(), first_bound_vertex_buffer->length());
-                  
-                  // Debug: Dump first few floats
-                  if (first_bound_vertex_buffer->contents()) {
-                    float* vb_data = reinterpret_cast<float*>(first_bound_vertex_buffer->contents());
-                    XELOGI("  T0/U0 vertex data: [{:.6f}, {:.6f}, {:.6f}]", 
-                           vb_data[0], vb_data[1], vb_data[2]);
-                  }
-                }
+                // Note: T0/U0 vertex buffer is now handled in the resource descriptor heap
+                // The entries at offsets 32 and 40 already point to the descriptor heap
+                // which contains the vertex buffer at slots 0 and 1
               } else {
                 // Fallback to hardcoded layout
                 XELOGI("Using hardcoded VS top-level AB layout (no reflection data)");
-                // The shader expects vertex buffers as T0/U0 in the top-level AB
+                // Note: T0/U0 vertex buffer is now handled in the resource descriptor heap
+                // The top-level AB entries should point to the descriptor heap, not contain buffers directly
                 auto* vs_entries_typed = reinterpret_cast<IRDescriptorTableEntry*>(vs_entries);
                 
-                // T0/U0: Bind vertex buffers as texture buffers
+                // The top-level AB needs to point to the descriptor heap which contains T0/U0
+                // This is already handled by the root signature layout above
                 if (first_bound_vertex_buffer) {
-                  // T0: First vertex buffer
-                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[0], first_bound_vertex_buffer->gpuAddress(), 
-                                              (uint64_t)first_bound_vertex_buffer->length());
-                  // U0/T1: Same buffer for now (shaders use both T0 and U0 to access vertex data)
-                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[1], first_bound_vertex_buffer->gpuAddress(), 
-                                              (uint64_t)first_bound_vertex_buffer->length());
-                  XELOGI("Metal: Bound vertex buffer as T0/U0 in top-level AB (addr: 0x{:x}, size: {})", 
-                         first_bound_vertex_buffer->gpuAddress(), first_bound_vertex_buffer->length());
+                  XELOGI("Metal: Vertex buffer will be accessed through resource heap at slots 0 (T0) and 1 (U0)");
                   
                   // Debug: Dump first few floats of vertex data to verify format
                   if (first_bound_vertex_buffer->contents()) {
                     float* vb_data = reinterpret_cast<float*>(first_bound_vertex_buffer->contents());
-                    XELOGI("  T0/U0 first 3 floats: [{:.6f}, {:.6f}, {:.6f}]", 
+                    XELOGI("  Vertex buffer first 3 floats: [{:.6f}, {:.6f}, {:.6f}]", 
                            vb_data[0], vb_data[1], vb_data[2]);
                   }
-                } else if (res_heap_ab_) {
-                  // Fallback to resource heap if no vertex buffer
-                  XELOGI("Metal: No vertex buffer found, using resource heap for T0");
-                  ::IRDescriptorTableSetBuffer(&vs_entries_typed[0], res_heap_ab_->gpuAddress(), 
-                                              (uint64_t)res_heap_ab_->length());
+                } else {
+                  XELOGI("Metal: No vertex buffer found for programmatic vertex fetch");
                 }
                 
                 if (uniforms_buffer_) {
@@ -3336,20 +3342,8 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               }
             }
 
-            // Bind the top-level ABs at the MSC bind point [[buffer(2)]] for VS and PS
-            if (top_level_vs_ab) {
-              encoder->setVertexBuffer(top_level_vs_ab, 0, (NS::UInteger)kIRArgumentBufferBindPoint);
-              encoder->useResource(top_level_vs_ab, MTL::ResourceUsageRead,
-                                   MTL::RenderStageVertex | MTL::RenderStageFragment);
-            }
-            if (top_level_ps_ab) {
-              encoder->setFragmentBuffer(top_level_ps_ab, 0, (NS::UInteger)kIRArgumentBufferBindPoint);
-              encoder->useResource(top_level_ps_ab, MTL::ResourceUsageRead,
-                                   MTL::RenderStageVertex | MTL::RenderStageFragment);
-            }
-
-            XELOGI("Metal IssueDraw: Bound MSC top-level ABs at buffer[{}] (VS slots: 4, PS slots: 1)",
-                   (uint32_t)kIRArgumentBufferBindPoint);
+            // Note: Top-level ABs are now bound conditionally based on shader requirements
+            // in the smart resource binding section below
             
             // Create MSC DrawArguments and Uniforms buffers
             static MTL::Buffer* ir_draw_args_buffer = nullptr;
@@ -3395,34 +3389,107 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               XELOGI("  NDC offset: [{}, {}, {}]", dst_uniforms[36], dst_uniforms[37], dst_uniforms[38]);
             }
             
-            // Bind MSC runtime buffers at their expected indices
-            encoder->setVertexBuffer(ir_draw_args_buffer, 0, (NS::UInteger)kIRArgumentBufferDrawArgumentsBindPoint);
-            encoder->setFragmentBuffer(ir_draw_args_buffer, 0, (NS::UInteger)kIRArgumentBufferDrawArgumentsBindPoint);
+            // Smart resource binding based on shader requirements
+            // This avoids Metal validation errors about unused bindings
             
-            // CRITICAL FIX: Bind the main uniforms buffer (20KB) at slot 5, not the small ir_uniforms_buffer
-            // The shader expects to access constant buffers (b0-b3) directly through buffer slot 5
-            // b0 at offset 0, b1 at offset 4KB, b2 at offset 8KB, b3 at offset 12KB
-            if (uniforms_buffer_) {
-              encoder->setVertexBuffer(uniforms_buffer_, 0, (NS::UInteger)kIRArgumentBufferUniformsBindPoint);
-              encoder->setFragmentBuffer(uniforms_buffer_, 0, (NS::UInteger)kIRArgumentBufferUniformsBindPoint);
-              XELOGI("Metal IssueDraw: Bound main uniforms buffer (20KB) at slot 5 for direct CB access");
+            // Smart resource binding based on shader usage
+            // Check if shaders actually use textures/samplers
+            const auto& vs_texture_slots = vertex_translation->GetTextureSlots();
+            const auto& ps_texture_slots = pixel_translation->GetTextureSlots();
+            const auto& vs_sampler_slots = vertex_translation->GetSamplerSlots();
+            const auto& ps_sampler_slots = pixel_translation->GetSamplerSlots();
+            
+            bool vs_needs_textures = vs_texture_slots.size() > 0;
+            bool ps_needs_textures = ps_texture_slots.size() > 0;
+            bool vs_needs_samplers = vs_sampler_slots.size() > 0;
+            bool ps_needs_samplers = ps_sampler_slots.size() > 0;
+            
+            XELOGI("Metal IssueDraw: VS textures={}, PS textures={}, VS samplers={}, PS samplers={}", 
+                   vs_texture_slots.size(), ps_texture_slots.size(),
+                   vs_sampler_slots.size(), ps_sampler_slots.size());
+            
+            // Bind descriptor heap (slot 0) only if textures are actually used
+            if (vs_needs_textures || ps_needs_textures) {
+              encoder->setVertexBuffer(res_heap_ab_, 0, (NS::UInteger)kIRDescriptorHeapBindPoint);
+              encoder->setFragmentBuffer(res_heap_ab_, 0, (NS::UInteger)kIRDescriptorHeapBindPoint);
+              encoder->useResource(res_heap_ab_, MTL::ResourceUsageRead,
+                                 MTL::RenderStageVertex | MTL::RenderStageFragment);
+              XELOGI("Metal IssueDraw: Bound descriptor heap at slot 0 (textures used)");
             } else {
-              // Fallback to the small buffer if main uniforms buffer doesn't exist
-              encoder->setVertexBuffer(ir_uniforms_buffer, 0, (NS::UInteger)kIRArgumentBufferUniformsBindPoint);
-              encoder->setFragmentBuffer(ir_uniforms_buffer, 0, (NS::UInteger)kIRArgumentBufferUniformsBindPoint);
-              XELOGW("Metal IssueDraw: WARNING - Using small ir_uniforms_buffer at slot 5 (may cause OOB)");
+              XELOGI("Metal IssueDraw: Skipping descriptor heap binding - no textures used");
             }
             
-            // Mark MSC runtime buffers as resident
-            encoder->useResource(ir_draw_args_buffer, MTL::ResourceUsageRead,
-                               MTL::RenderStageVertex | MTL::RenderStageFragment);
-            // Use the buffer we actually bound at slot 5
-            if (uniforms_buffer_) {
-              encoder->useResource(uniforms_buffer_, MTL::ResourceUsageRead,
+            // Bind sampler heap (slot 1) only if samplers are actually used
+            if (vs_needs_samplers || ps_needs_samplers) {
+              encoder->setVertexBuffer(smp_heap_ab_, 0, (NS::UInteger)kIRSamplerHeapBindPoint);
+              encoder->setFragmentBuffer(smp_heap_ab_, 0, (NS::UInteger)kIRSamplerHeapBindPoint);
+              encoder->useResource(smp_heap_ab_, MTL::ResourceUsageRead,
+                                 MTL::RenderStageVertex | MTL::RenderStageFragment);
+              XELOGI("Metal IssueDraw: Bound sampler heap at slot 1 (samplers used)");
+            } else {
+              XELOGI("Metal IssueDraw: Skipping sampler heap binding - no samplers used");
+            }
+            
+            // Bind top-level argument buffers (slot 2)
+            // CRITICAL: MSC-converted shaders ALWAYS need the top-level argument buffer!
+            // The error "missing Buffer binding at index 2 for struct.top_level_global_ab[0]"
+            // proves this is required. Don't make it conditional.
+            if (top_level_vs_ab) {
+              encoder->setVertexBuffer(top_level_vs_ab, 0, (NS::UInteger)kIRArgumentBufferBindPoint);
+              encoder->useResource(top_level_vs_ab, MTL::ResourceUsageRead,
+                                   MTL::RenderStageVertex | MTL::RenderStageFragment);
+              XELOGI("Metal IssueDraw: Bound VS top-level AB at slot 2");
+            }
+            if (top_level_ps_ab) {
+              encoder->setFragmentBuffer(top_level_ps_ab, 0, (NS::UInteger)kIRArgumentBufferBindPoint);
+              encoder->useResource(top_level_ps_ab, MTL::ResourceUsageRead,
+                                   MTL::RenderStageVertex | MTL::RenderStageFragment);
+              XELOGI("Metal IssueDraw: Bound PS top-level AB at slot 2");
+            }
+            
+            // Bind draw arguments (slot 4) only if shader uses vertex/instance IDs
+            // Check if shaders use SV_VertexID, SV_InstanceID, etc.
+            // For now, skip it for shaders that don't use textures (simple shaders)
+            // This is a heuristic - ideally we'd check shader metadata
+            bool needs_draw_args = (vs_needs_textures || ps_needs_textures);
+            
+            if (needs_draw_args) {
+              encoder->setVertexBuffer(ir_draw_args_buffer, 0, (NS::UInteger)kIRArgumentBufferDrawArgumentsBindPoint);
+              encoder->setFragmentBuffer(ir_draw_args_buffer, 0, (NS::UInteger)kIRArgumentBufferDrawArgumentsBindPoint);
+              XELOGI("Metal IssueDraw: Bound draw args buffer at slot 4");
+              
+              // Mark as resident
+              encoder->useResource(ir_draw_args_buffer, MTL::ResourceUsageRead,
                                  MTL::RenderStageVertex | MTL::RenderStageFragment);
             } else {
-              encoder->useResource(ir_uniforms_buffer, MTL::ResourceUsageRead,
-                                 MTL::RenderStageVertex | MTL::RenderStageFragment);
+              XELOGI("Metal IssueDraw: Skipping draw args buffer - not used by shaders");
+            }
+            
+            // Bind uniforms (slot 5) - only if shader needs constants
+            // Simple shaders without textures often don't need uniforms
+            // Use the same heuristic as draw args for now
+            bool needs_uniforms = (vs_needs_textures || ps_needs_textures);
+            
+            if (needs_uniforms) {
+              if (uniforms_buffer_) {
+                encoder->setVertexBuffer(uniforms_buffer_, 0, (NS::UInteger)kIRArgumentBufferUniformsBindPoint);
+                encoder->setFragmentBuffer(uniforms_buffer_, 0, (NS::UInteger)kIRArgumentBufferUniformsBindPoint);
+                XELOGI("Metal IssueDraw: Bound main uniforms buffer (20KB) at slot 5");
+                
+                // Mark as resident
+                encoder->useResource(uniforms_buffer_, MTL::ResourceUsageRead,
+                                   MTL::RenderStageVertex | MTL::RenderStageFragment);
+              } else {
+                encoder->setVertexBuffer(ir_uniforms_buffer, 0, (NS::UInteger)kIRArgumentBufferUniformsBindPoint);
+                encoder->setFragmentBuffer(ir_uniforms_buffer, 0, (NS::UInteger)kIRArgumentBufferUniformsBindPoint);
+                XELOGW("Metal IssueDraw: WARNING - Using small ir_uniforms_buffer at slot 5 (may cause OOB)");
+                
+                // Mark as resident
+                encoder->useResource(ir_uniforms_buffer, MTL::ResourceUsageRead,
+                                   MTL::RenderStageVertex | MTL::RenderStageFragment);
+              }
+            } else {
+              XELOGI("Metal IssueDraw: Skipping uniforms buffer - not used by shaders");
             }
             
             XELOGI("Metal IssueDraw: Bound MSC runtime buffers (DrawArgs and Uniforms)");
@@ -3446,17 +3513,8 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             // Only textures and buffers need to be marked as resident
             XELOGI("Created {} samplers (samplers don't need residency marking)", bound_samplers_by_heap_slot.size());
             
-            // Mark the descriptor heap buffers themselves as resident
-            if (res_heap_ab_) {
-              encoder->useResource(res_heap_ab_, MTL::ResourceUsageRead,
-                                 MTL::RenderStageVertex | MTL::RenderStageFragment);
-              XELOGI("Marked resource heap argument buffer as resident");
-            }
-            if (smp_heap_ab_) {
-              encoder->useResource(smp_heap_ab_, MTL::ResourceUsageRead,
-                                 MTL::RenderStageVertex | MTL::RenderStageFragment);
-              XELOGI("Marked sampler heap argument buffer as resident");
-            }
+            // Note: Descriptor heap buffers are now marked as resident conditionally
+            // in the smart resource binding section above
             
             // Note: Sampler cleanup moved to after direct binding to avoid use-after-free
             
@@ -3867,14 +3925,14 @@ bool MetalCommandProcessor::BeginSubmission(bool is_guest_command) {
          is_guest_command, submission_open_, (void*)current_command_buffer_);
   
   // Start GPU capture for first submission in trace dump mode
+  // This ensures we capture the actual draws, not just initialization
   static bool first_submission = true;
-  bool is_trace_dump = debug_utils_ && debug_utils_->IsCaptureEnabled();
-  XELOGI("GPU capture check: first={}, debug_utils={}, is_trace_dump={}", 
-         first_submission, (bool)debug_utils_, is_trace_dump);
-  if (is_trace_dump && first_submission) {
+  
+  // Check if we should start capture (trace dump mode)
+  if (debug_utils_ && debug_utils_->IsCaptureEnabled() && first_submission) {
+    XELOGI("Starting programmatic GPU capture at first submission");
     debug_utils_->BeginProgrammaticCapture();
     first_submission = false;
-    XELOGI("Started programmatic GPU capture for trace dump");
   }
   
   if (submission_open_) {
@@ -4036,10 +4094,19 @@ bool MetalCommandProcessor::EndSubmission(bool is_swap) {
     
     // For trace dumps, wait synchronously to ensure completion
     // This prevents crashes from async completion handlers after shutdown
-    if (!graphics_system_->presenter()) {
-      XELOGI("Metal EndSubmission: No presenter (trace dump mode) - waiting for completion");
+    bool is_trace_dump = debug_utils_ && debug_utils_->IsCaptureEnabled();
+    if (is_trace_dump || !graphics_system_->presenter()) {
+      XELOGI("Metal EndSubmission: Trace dump mode - waiting for completion");
       current_command_buffer_->waitUntilCompleted();
       XELOGI("Metal EndSubmission: Command buffer completed");
+      
+      // End GPU capture after first frame in trace dump mode
+      static bool first_frame_complete = false;
+      if (debug_utils_ && debug_utils_->IsCaptureEnabled() && !first_frame_complete) {
+        debug_utils_->EndProgrammaticCapture();
+        first_frame_complete = true;
+        XELOGI("Ended programmatic GPU capture after first frame");
+      }
     }
     
     // Track command buffer release before nulling

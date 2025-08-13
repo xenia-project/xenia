@@ -54,6 +54,12 @@ filter("configurations:Checked")
   defines({
     "DEBUG",
   })
+filter({"configurations:Checked", "platforms:Mac"})
+  defines({
+    "MTL_DEBUG_LAYER=1",
+    "METAL_DEVICE_WRAPPER_TYPE=1",
+    "METAL_SHADER_VALIDATION=1",
+  })
 filter({"configurations:Checked", "platforms:Windows-*"})
   buildoptions({
     "/RTCsu",           -- Full Run-Time Checks.
@@ -69,6 +75,12 @@ filter("configurations:Debug")
   defines({
     "DEBUG",
     "_NO_DEBUG_HEAP=1",
+  })
+filter({"configurations:Debug", "platforms:Mac"})
+  defines({
+    "MTL_DEBUG_LAYER=1",
+    "METAL_DEVICE_WRAPPER_TYPE=1",
+    "METAL_SHADER_VALIDATION=1",
   })
 filter({"configurations:Debug", "platforms:Linux"})
   defines({

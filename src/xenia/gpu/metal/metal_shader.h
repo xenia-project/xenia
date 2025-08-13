@@ -43,6 +43,24 @@ class MetalShader : public DxbcShader {
     uint32_t space;          // Reflection "Space"
     std::string name;        // Resource name for logging
   };
+  
+  // Resource requirements for smart binding - avoids validation errors
+  struct ShaderResourceRequirements {
+    // Buffer slot requirements (what the shader actually uses)
+    bool uses_descriptor_heap = false;      // Slot 0 - resource descriptors
+    bool uses_sampler_heap = false;         // Slot 1 - sampler descriptors  
+    bool uses_top_level_ab = false;         // Slot 2 - top-level argument buffer
+    bool uses_hull_domain = false;          // Slot 3 - tessellation (unused on Xbox 360)
+    bool uses_draw_arguments = false;       // Slot 4 - draw instance data
+    bool uses_uniforms_direct = false;      // Slot 5 - direct constant buffer access
+    bool uses_vertex_buffers[8] = {false};  // Slots 6-13 - vertex data
+    
+    // Top-level AB resource indices (which entries are used)
+    std::vector<uint32_t> used_cbv_indices;     // Constant buffer indices
+    std::vector<uint32_t> used_srv_indices;     // Texture/SRV indices
+    std::vector<uint32_t> used_uav_indices;     // UAV indices (rare on Xbox 360)
+    std::vector<uint32_t> used_sampler_indices; // Sampler indices
+  };
 
   class MetalTranslation : public DxbcTranslation {
    public:
@@ -72,6 +90,11 @@ class MetalShader : public DxbcShader {
     
     // Get top-level argument buffer layout from reflection
     const std::vector<ABEntry>& GetTopLevelABLayout() const { return top_level_ab_layout_; }
+    
+    // Get resource requirements for smart binding
+    const ShaderResourceRequirements& GetResourceRequirements() const { 
+      return resource_requirements_; 
+    }
 
    private:
     MetalShader& metal_shader_;
@@ -95,6 +118,9 @@ class MetalShader : public DxbcShader {
     
     // Top-level argument buffer layout from reflection
     std::vector<ABEntry> top_level_ab_layout_;
+    
+    // Resource requirements parsed from reflection
+    ShaderResourceRequirements resource_requirements_;
 
     // Convert DXIL bytecode to Metal IR using Metal Shader Converter
     bool ConvertDxilToMetal(const std::vector<uint8_t>& dxil_bytecode);
@@ -107,6 +133,9 @@ class MetalShader : public DxbcShader {
     
     // Parse texture bindings from JSON reflection data
     void ParseTextureBindingsFromJSON(const std::string& json_str);
+    
+    // Parse resource requirements from JSON reflection data
+    void ParseResourceRequirementsFromJSON(const std::string& json_str);
     
     // Create and set root signature for consistent resource layout
     bool CreateAndSetRootSignature();

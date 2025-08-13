@@ -11,6 +11,8 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <map>
+#include <set>
 #include <utility>
 
 #include "xenia/base/assert.h"
@@ -545,23 +547,24 @@ MTL::VertexDescriptor* MetalPipelineCache::CreateVertexDescriptor(
   XELOGI("Metal pipeline cache: Building vertex descriptor from {} vertex bindings", 
          vertex_bindings.size());
   
+  // Track which buffer indices actually have attributes
+  std::set<uint32_t> used_buffer_indices;
+  std::map<uint32_t, uint32_t> buffer_strides;  // buffer_index -> stride
+  
   // Attributes must start at index 11 for Metal IR Converter
   uint32_t attribute_index = 11;  // kIRStageInAttributeStartIndex
   for (const auto& binding : vertex_bindings) {
     // Metal IR Converter expects vertex buffers starting at index 6
     uint32_t buffer_index = 6 + binding.binding_index;  // kIRVertexBufferBindPoint = 6
     
-    // Set up buffer layout for this binding
-    MTL::VertexBufferLayoutDescriptor* buffer_layout = 
-        vertex_descriptor->layouts()->object(buffer_index);
-    buffer_layout->setStride(binding.stride_words * 4);  // Convert words to bytes
-    buffer_layout->setStepRate(1);
-    buffer_layout->setStepFunction(MTL::VertexStepFunctionPerVertex);
+    // Track buffer info, but don't configure layout yet
+    buffer_strides[buffer_index] = binding.stride_words * 4;
     
     XELOGI("  Binding {}: buffer index {}, stride {} bytes", 
            binding.binding_index, buffer_index, binding.stride_words * 4);
     
     // Process each attribute in this binding
+    bool has_valid_attributes = false;
     for (const auto& attribute : binding.attributes) {
       const auto& fetch = attribute.fetch_instr;
       
@@ -606,8 +609,26 @@ MTL::VertexDescriptor* MetalPipelineCache::CreateVertexDescriptor(
                attribute_index, static_cast<uint32_t>(metal_format), 
                fetch.attributes.offset * 4, buffer_index);
         
+        // Mark this buffer as used since it has a valid attribute
+        used_buffer_indices.insert(buffer_index);
+        has_valid_attributes = true;
+        
         attribute_index++;
       }
+    }
+    
+    // Only configure buffer layout if it has valid attributes
+    if (has_valid_attributes) {
+      MTL::VertexBufferLayoutDescriptor* buffer_layout = 
+          vertex_descriptor->layouts()->object(buffer_index);
+      buffer_layout->setStride(buffer_strides[buffer_index]);
+      buffer_layout->setStepRate(1);
+      buffer_layout->setStepFunction(MTL::VertexStepFunctionPerVertex);
+      
+      XELOGI("  Configured layout for buffer {}: stride {} bytes", 
+             buffer_index, buffer_strides[buffer_index]);
+    } else {
+      XELOGI("  Skipping layout for buffer {} (no valid attributes)", buffer_index);
     }
   }
   

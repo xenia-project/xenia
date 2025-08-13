@@ -488,6 +488,9 @@ bool MetalShader::MetalTranslation::CaptureReflectionData() {
     // Parse JSON to extract texture bindings
     ParseTextureBindingsFromJSON(json_str);
     
+    // Parse JSON to extract resource requirements for smart binding
+    ParseResourceRequirementsFromJSON(json_str);
+    
     IRShaderReflectionReleaseString(json);
   }
   
@@ -528,7 +531,12 @@ void MetalShader::MetalTranslation::ParseTextureBindingsFromJSON(const std::stri
         if (offset_pos != std::string::npos) {
           size_t num_start = obj_str.find(':', offset_pos) + 1;
           size_t num_end = obj_str.find_first_of(",}", num_start);
-          entry.elt_offset = std::stoul(obj_str.substr(num_start, num_end - num_start));
+          std::string offset_str = obj_str.substr(num_start, num_end - num_start);
+          try {
+            entry.elt_offset = std::stoul(offset_str);
+          } catch (const std::exception& e) {
+            entry.elt_offset = 0;
+          }
         }
         
         // Parse Name
@@ -544,7 +552,12 @@ void MetalShader::MetalTranslation::ParseTextureBindingsFromJSON(const std::stri
         if (slot_pos != std::string::npos) {
           size_t num_start = obj_str.find(':', slot_pos) + 1;
           size_t num_end = obj_str.find_first_of(",}", num_start);
-          entry.slot = std::stoul(obj_str.substr(num_start, num_end - num_start));
+          std::string slot_str = obj_str.substr(num_start, num_end - num_start);
+          try {
+            entry.slot = std::stoul(slot_str);
+          } catch (const std::exception& e) {
+            entry.slot = 0;
+          }
         }
         
         // Parse Space
@@ -552,7 +565,12 @@ void MetalShader::MetalTranslation::ParseTextureBindingsFromJSON(const std::stri
         if (space_pos != std::string::npos) {
           size_t num_start = obj_str.find(':', space_pos) + 1;
           size_t num_end = obj_str.find_first_of(",}", num_start);
-          entry.space = std::stoul(obj_str.substr(num_start, num_end - num_start));
+          std::string space_str = obj_str.substr(num_start, num_end - num_start);
+          try {
+            entry.space = std::stoul(space_str);
+          } catch (const std::exception& e) {
+            entry.space = 0;
+          }
         }
         
         // Parse Type
@@ -881,6 +899,164 @@ bool MetalShader::MetalTranslation::CreateAndSetRootSignature() {
   // It will be cleaned up in the destructor
   
   return true;
+}
+
+void MetalShader::MetalTranslation::ParseResourceRequirementsFromJSON(const std::string& json_str) {
+  // Reset requirements to defaults
+  resource_requirements_ = ShaderResourceRequirements();
+  
+  // Parse "UsedResources" array to determine what the shader actually uses
+  // This is critical for avoiding Metal validation errors about unused bindings
+  size_t used_res_pos = json_str.find("\"UsedResources\":");
+  if (used_res_pos != std::string::npos) {
+    size_t array_start = json_str.find('[', used_res_pos);
+    size_t array_end = json_str.find(']', array_start);
+    
+    if (array_start != std::string::npos && array_end != std::string::npos) {
+      std::string array_content = json_str.substr(array_start + 1, array_end - array_start - 1);
+      
+      // Parse each resource object in the array
+      size_t pos = 0;
+      while (pos < array_content.length()) {
+        // Find next object
+        size_t obj_start = array_content.find('{', pos);
+        if (obj_start == std::string::npos) break;
+        
+        size_t obj_end = array_content.find('}', obj_start);
+        if (obj_end == std::string::npos) break;
+        
+        std::string obj_str = array_content.substr(obj_start, obj_end - obj_start + 1);
+        
+        // Parse bindingIndex to determine which buffer slot is used
+        size_t binding_pos = obj_str.find("\"bindingIndex\":");
+        if (binding_pos != std::string::npos) {
+          size_t num_start = obj_str.find(':', binding_pos) + 1;
+          size_t num_end = obj_str.find_first_of(",}", num_start);
+          // Trim whitespace and safely parse the integer
+          std::string num_str = obj_str.substr(num_start, num_end - num_start);
+          // Trim leading/trailing whitespace
+          size_t first = num_str.find_first_not_of(" \t\n\r");
+          size_t last = num_str.find_last_not_of(" \t\n\r");
+          if (first != std::string::npos && last != std::string::npos) {
+            num_str = num_str.substr(first, last - first + 1);
+          }
+          int binding_index = 0;
+          try {
+            binding_index = std::stoi(num_str);
+          } catch (const std::exception& e) {
+            XELOGW("Failed to parse bindingIndex: {}", num_str);
+            continue;
+          }
+          
+          // Map binding index to buffer slot requirements
+          // Based on MSC runtime buffer layout:
+          switch (binding_index) {
+            case 0:  // kIRDescriptorHeapBindPoint
+              resource_requirements_.uses_descriptor_heap = true;
+              XELOGI("Shader uses descriptor heap (slot 0)");
+              break;
+            case 1:  // kIRSamplerHeapBindPoint
+              resource_requirements_.uses_sampler_heap = true;
+              XELOGI("Shader uses sampler heap (slot 1)");
+              break;
+            case 2:  // kIRArgumentBufferBindPoint
+              resource_requirements_.uses_top_level_ab = true;
+              XELOGI("Shader uses top-level argument buffer (slot 2)");
+              break;
+            case 3:  // kIRArgumentBufferHullDomainBindPoint
+              resource_requirements_.uses_hull_domain = true;
+              XELOGI("Shader uses hull/domain (slot 3) - unexpected for Xbox 360");
+              break;
+            case 4:  // kIRArgumentBufferDrawArgumentsBindPoint
+              resource_requirements_.uses_draw_arguments = true;
+              XELOGI("Shader uses draw arguments (slot 4)");
+              break;
+            case 5:  // kIRArgumentBufferUniformsBindPoint
+              resource_requirements_.uses_uniforms_direct = true;
+              XELOGI("Shader uses uniforms direct access (slot 5)");
+              break;
+            default:
+              if (binding_index >= 6 && binding_index <= 13) {
+                resource_requirements_.uses_vertex_buffers[binding_index - 6] = true;
+                XELOGI("Shader uses vertex buffer at slot {}", binding_index);
+              }
+              break;
+          }
+        }
+        
+        pos = obj_end + 1;
+      }
+    }
+  } else {
+    XELOGW("No UsedResources found in reflection - defaulting to minimal requirements");
+    // If no UsedResources info, only enable what we know is commonly needed
+    // The top-level AB is usually needed for constant buffers
+    resource_requirements_.uses_top_level_ab = true;
+    // Don't assume descriptor/sampler heaps are needed unless we find evidence
+    resource_requirements_.uses_descriptor_heap = false;
+    resource_requirements_.uses_sampler_heap = false;
+  }
+  
+  // Check for "needs_draw_params" in state info
+  if (json_str.find("\"needs_draw_params\":true") != std::string::npos ||
+      json_str.find("\"needs_draw_params\": true") != std::string::npos) {
+    resource_requirements_.uses_draw_arguments = true;
+    XELOGI("Shader needs draw params (from state)");
+  }
+  
+  // Parse top-level AB entries to determine which resources are accessed
+  // This helps understand if CBVs are accessed directly or through top-level AB
+  for (const auto& entry : top_level_ab_layout_) {
+    switch (entry.kind) {
+      case ABEntry::Kind::CBV:
+        resource_requirements_.used_cbv_indices.push_back(entry.slot);
+        // If we have CBVs in top-level AB, shader might access them directly too
+        if (!resource_requirements_.used_cbv_indices.empty()) {
+          // Some shaders access CBVs both ways for performance
+          resource_requirements_.uses_uniforms_direct = true;
+        }
+        break;
+      case ABEntry::Kind::SRV:
+        resource_requirements_.used_srv_indices.push_back(entry.slot);
+        // If we have SRVs, we need the descriptor heap
+        resource_requirements_.uses_descriptor_heap = true;
+        break;
+      case ABEntry::Kind::UAV:
+        resource_requirements_.used_uav_indices.push_back(entry.slot);
+        // UAVs also use the descriptor heap
+        resource_requirements_.uses_descriptor_heap = true;
+        break;
+      case ABEntry::Kind::Sampler:
+        resource_requirements_.used_sampler_indices.push_back(entry.slot);
+        // If we have samplers, we need the sampler heap
+        resource_requirements_.uses_sampler_heap = true;
+        break;
+      default:
+        break;
+    }
+  }
+  
+  // Special handling for vertex shaders - they often need uniforms for transformation
+  if (shader().type() == xenos::ShaderType::kVertex) {
+    // Vertex shaders typically need system constants for NDC transformation
+    if (!resource_requirements_.used_cbv_indices.empty() || 
+        resource_requirements_.uses_top_level_ab) {
+      resource_requirements_.uses_uniforms_direct = true;
+      XELOGI("Vertex shader - enabling direct uniforms access for NDC transform");
+    }
+  }
+  
+  // Log summary of resource requirements
+  XELOGI("Shader resource requirements summary:");
+  XELOGI("  Descriptor heap (slot 0): {}", resource_requirements_.uses_descriptor_heap);
+  XELOGI("  Sampler heap (slot 1): {}", resource_requirements_.uses_sampler_heap);
+  XELOGI("  Top-level AB (slot 2): {}", resource_requirements_.uses_top_level_ab);
+  XELOGI("  Draw arguments (slot 4): {}", resource_requirements_.uses_draw_arguments);
+  XELOGI("  Uniforms direct (slot 5): {}", resource_requirements_.uses_uniforms_direct);
+  XELOGI("  CBV count: {}, SRV count: {}, Sampler count: {}",
+         resource_requirements_.used_cbv_indices.size(),
+         resource_requirements_.used_srv_indices.size(), 
+         resource_requirements_.used_sampler_indices.size());
 }
 
 // Cleanup function to be called on shutdown

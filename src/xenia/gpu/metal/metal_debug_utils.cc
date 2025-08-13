@@ -54,7 +54,7 @@ void MetalDebugUtils::BeginProgrammaticCapture() {
   const char* capture_dir = std::getenv("XENIA_GPU_CAPTURE_DIR");
   std::string filename = capture_dir 
     ? fmt::format("{}/gpu_capture_{:04d}.gputrace", capture_dir, captured_count_++)
-    : fmt::format("/tmp/xenia_gpu_capture_{:04d}.gputrace", captured_count_++);
+    : fmt::format("./gpu_capture_{:04d}.gputrace", captured_count_++);
   
   auto* url = NS::URL::fileURLWithPath(
       NS::String::string(filename.c_str(), NS::UTF8StringEncoding));
