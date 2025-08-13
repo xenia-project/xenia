@@ -130,6 +130,9 @@ bool MetalBufferCache::UploadIndexBuffer(uint32_t guest_base, uint32_t guest_len
   // Copy data to dynamic buffer
   uint8_t* buffer_data = static_cast<uint8_t*>(dynamic_index_buffer_->buffer->contents());
   std::memcpy(buffer_data + dynamic_index_buffer_offset_, guest_data, buffer_size);
+  
+  // Note: didModifyRange is only for MTLResourceStorageModeManaged buffers
+  // Since we're using MTLResourceStorageModeShared, the CPU/GPU synchronization is automatic
 
   dynamic_index_buffer_offset_ += xe::align(buffer_size, uint32_t(16));  // 16-byte alignment
 
@@ -168,6 +171,9 @@ bool MetalBufferCache::UploadVertexBuffer(uint32_t guest_base, uint32_t guest_le
   // Copy data to dynamic buffer
   uint8_t* buffer_data = static_cast<uint8_t*>(dynamic_vertex_buffer_->buffer->contents());
   std::memcpy(buffer_data + dynamic_vertex_buffer_offset_, guest_data, guest_length);
+  
+  // Note: didModifyRange is only for MTLResourceStorageModeManaged buffers
+  // Since we're using MTLResourceStorageModeShared, the CPU/GPU synchronization is automatic
 
   dynamic_vertex_buffer_offset_ += xe::align(guest_length, uint32_t(16));  // 16-byte alignment
 

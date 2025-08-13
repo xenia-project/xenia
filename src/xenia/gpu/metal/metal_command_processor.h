@@ -180,6 +180,11 @@ class MetalCommandProcessor : public CommandProcessor {
     MTL::Winding current_winding = MTL::WindingClockwise;
     bool current_depth_write_enabled = true;
     MTL::CompareFunction current_depth_compare = MTL::CompareFunctionAlways;
+    MTL::Viewport current_viewport = {0, 0, 0, 0, 0, 0};
+    MTL::ScissorRect current_scissor = {0, 0, 0, 0};
+    bool viewport_initialized = false;
+    bool scissor_initialized = false;
+    MTL::RenderPipelineState* current_pipeline_state = nullptr;
     // Add more state as needed
   } render_state_cache_;
   

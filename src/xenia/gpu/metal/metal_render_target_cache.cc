@@ -69,6 +69,12 @@ bool MetalRenderTargetCache::Initialize() {
   }
   edram_buffer_->setLabel(NS::String::string("EDRAM Buffer", NS::UTF8StringEncoding));
   
+  // Initialize EDRAM compute shaders
+  if (!InitializeEdramComputeShaders()) {
+    XELOGE("MetalRenderTargetCache: Failed to initialize EDRAM compute shaders");
+    return false;
+  }
+  
   // Initialize base class
   InitializeCommon();
   
@@ -90,6 +96,9 @@ void MetalRenderTargetCache::Shutdown(bool from_destructor) {
     cached_render_pass_descriptor_->release();
     cached_render_pass_descriptor_ = nullptr;
   }
+  
+  // Clean up EDRAM compute shaders
+  ShutdownEdramComputeShaders();
   
   if (edram_buffer_) {
     edram_buffer_->release();
@@ -113,6 +122,9 @@ void MetalRenderTargetCache::ClearCache() {
   current_depth_target_ = nullptr;
   render_pass_descriptor_dirty_ = true;
   
+  // Clear the tracking of which render targets have been cleared
+  cleared_render_targets_this_frame_.clear();
+  
   // Call base implementation
   RenderTargetCache::ClearCache();
 }
@@ -120,6 +132,9 @@ void MetalRenderTargetCache::ClearCache() {
 void MetalRenderTargetCache::BeginFrame() {
   // Reset dummy target clear flag
   dummy_color_target_needs_clear_ = true;
+  
+  // Clear the tracking of which render targets have been cleared this frame
+  cleared_render_targets_this_frame_.clear();
   
   // Call base implementation
   RenderTargetCache::BeginFrame();
@@ -224,10 +239,14 @@ RenderTargetCache::RenderTarget* MetalRenderTargetCache::CreateRenderTarget(
   
   // Calculate dimensions
   uint32_t width = key.GetWidth();
-  uint32_t height = 0;  // Will be determined by viewport
+  uint32_t height = GetRenderTargetHeight(key.pitch_tiles_at_32bpp, key.msaa_samples);
   
   // Apply resolution scaling
   width *= draw_resolution_scale_x();
+  height *= draw_resolution_scale_y();
+  
+  XELOGI("MetalRenderTargetCache: Creating render target with calculated dimensions {}x{} (before scaling: {}x{})", 
+         width, height, key.GetWidth(), GetRenderTargetHeight(key.pitch_tiles_at_32bpp, key.msaa_samples));
   
   // Create Metal render target
   auto* render_target = new MetalRenderTarget(key);
@@ -248,6 +267,27 @@ RenderTargetCache::RenderTarget* MetalRenderTargetCache::CreateRenderTarget(
   }
   
   render_target->SetTexture(texture);
+  
+  // Load existing EDRAM data into the render target
+  // Get command buffer from command processor for EDRAM operations
+  MTL::CommandQueue* queue = command_processor_.GetMetalCommandQueue();
+  if (queue) {
+    MTL::CommandBuffer* cmd = queue->commandBuffer();
+    if (cmd) {
+      // Calculate EDRAM parameters
+      uint32_t edram_base = key.base_tiles;
+      uint32_t pitch_tiles = key.pitch_tiles_at_32bpp;
+      uint32_t height_tiles = (height + xenos::kEdramTileHeightSamples - 1) / xenos::kEdramTileHeightSamples;
+      
+      LoadTiledData(cmd, texture, edram_base, pitch_tiles, height_tiles, key.is_depth);
+      
+      cmd->commit();
+      cmd->waitUntilCompleted();
+      
+      XELOGI("MetalRenderTargetCache: Loaded EDRAM data for render target - base={}, pitch={}, height={}",
+             edram_base, pitch_tiles, height_tiles);
+    }
+  }
   
   // Store in our map for later retrieval
   render_target_map_[key.key] = render_target;
@@ -277,7 +317,7 @@ MTL::Texture* MetalRenderTargetCache::CreateColorTexture(
   desc->setPixelFormat(GetColorPixelFormat(format));
   desc->setTextureType(samples > 1 ? MTL::TextureType2DMultisample : MTL::TextureType2D);
   desc->setSampleCount(samples);
-  desc->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
+  desc->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead | MTL::TextureUsageShaderWrite);
   desc->setStorageMode(MTL::StorageModePrivate);
   
   MTL::Texture* texture = device_->newTexture(desc);
@@ -297,7 +337,7 @@ MTL::Texture* MetalRenderTargetCache::CreateDepthTexture(
   desc->setPixelFormat(GetDepthPixelFormat(format));
   desc->setTextureType(samples > 1 ? MTL::TextureType2DMultisample : MTL::TextureType2D);
   desc->setSampleCount(samples);
-  desc->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead);
+  desc->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead | MTL::TextureUsageShaderWrite);
   desc->setStorageMode(MTL::StorageModePrivate);
   
   MTL::Texture* texture = device_->newTexture(desc);
@@ -397,9 +437,23 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(
   if (current_depth_target_ && current_depth_target_->texture()) {
     auto* depth_attachment = cached_render_pass_descriptor_->depthAttachment();
     depth_attachment->setTexture(current_depth_target_->texture());
-    depth_attachment->setLoadAction(MTL::LoadActionLoad);
+    
+    // Check if this render target has been cleared this frame
+    uint32_t depth_key = current_depth_target_->key().key;
+    bool needs_clear = cleared_render_targets_this_frame_.find(depth_key) == 
+                       cleared_render_targets_this_frame_.end();
+    
+    if (needs_clear) {
+      depth_attachment->setLoadAction(MTL::LoadActionClear);
+      depth_attachment->setClearDepth(1.0);
+      cleared_render_targets_this_frame_.insert(depth_key);
+      XELOGI("MetalRenderTargetCache: Clearing depth target 0x{:08X} on first use", depth_key);
+    } else {
+      depth_attachment->setLoadAction(MTL::LoadActionLoad);
+      XELOGI("MetalRenderTargetCache: Loading depth target 0x{:08X} on subsequent use", depth_key);
+    }
+    
     depth_attachment->setStoreAction(MTL::StoreActionStore);
-    depth_attachment->setClearDepth(1.0);
     
     // Check if this format has stencil
     xenos::DepthRenderTargetFormat depth_format = 
@@ -407,9 +461,15 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(
     if (depth_format == xenos::DepthRenderTargetFormat::kD24S8) {
       auto* stencil_attachment = cached_render_pass_descriptor_->stencilAttachment();
       stencil_attachment->setTexture(current_depth_target_->texture());
-      stencil_attachment->setLoadAction(MTL::LoadActionLoad);
+      
+      if (needs_clear) {
+        stencil_attachment->setLoadAction(MTL::LoadActionClear);
+        stencil_attachment->setClearStencil(0);
+      } else {
+        stencil_attachment->setLoadAction(MTL::LoadActionLoad);
+      }
+      
       stencil_attachment->setStoreAction(MTL::StoreActionStore);
-      stencil_attachment->setClearStencil(0);
     }
     
     has_any_render_target = true;
@@ -425,9 +485,23 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(
     if (current_color_targets_[i] && current_color_targets_[i]->texture()) {
       auto* color_attachment = cached_render_pass_descriptor_->colorAttachments()->object(i);
       color_attachment->setTexture(current_color_targets_[i]->texture());
-      color_attachment->setLoadAction(MTL::LoadActionLoad);
+      
+      // Check if this render target has been cleared this frame
+      uint32_t color_key = current_color_targets_[i]->key().key;
+      bool needs_clear = cleared_render_targets_this_frame_.find(color_key) == 
+                         cleared_render_targets_this_frame_.end();
+      
+      if (needs_clear) {
+        color_attachment->setLoadAction(MTL::LoadActionClear);
+        color_attachment->setClearColor(MTL::ClearColor::Make(0.0, 0.0, 0.0, 0.0));  // Transparent black
+        cleared_render_targets_this_frame_.insert(color_key);
+        XELOGI("MetalRenderTargetCache: Clearing color target {} (0x{:08X}) on first use", i, color_key);
+      } else {
+        color_attachment->setLoadAction(MTL::LoadActionLoad);
+        XELOGI("MetalRenderTargetCache: Loading color target {} (0x{:08X}) on subsequent use", i, color_key);
+      }
+      
       color_attachment->setStoreAction(MTL::StoreActionStore);
-      color_attachment->setClearColor(MTL::ClearColor::Make(0.0, 0.0, 0.0, 1.0));
       
       has_any_render_target = true;
       
@@ -555,13 +629,273 @@ bool MetalRenderTargetCache::Resolve(Memory& memory, uint32_t& written_address,
   return false;
 }
 
+bool MetalRenderTargetCache::InitializeEdramComputeShaders() {
+  // Metal shader source for EDRAM operations
+  static const char* edram_shader_source = R"(
+#include <metal_stdlib>
+using namespace metal;
+
+// Xbox 360 EDRAM tile constants
+constant uint kTileWidthSamples = 80;
+constant uint kTileHeightSamples = 16;
+
+// Load shader: Copy from tiled EDRAM to linear texture
+kernel void edram_load_32bpp(
+    device uint* edram_buffer [[ buffer(0) ]],
+    texture2d<float, access::write> output_texture [[ texture(0) ]],
+    constant uint& edram_base [[ buffer(1) ]],
+    constant uint& pitch_tiles [[ buffer(2) ]],
+    uint2 tid [[ thread_position_in_grid ]]
+) {
+    uint2 texture_size = uint2(output_texture.get_width(), output_texture.get_height());
+    if (tid.x >= texture_size.x || tid.y >= texture_size.y) return;
+    
+    // Calculate tile coordinates
+    uint tile_x = tid.x / kTileWidthSamples;
+    uint tile_y = tid.y / kTileHeightSamples;
+    uint sample_x = tid.x % kTileWidthSamples;
+    uint sample_y = tid.y % kTileHeightSamples;
+    
+    // Calculate EDRAM offset (circular addressing)
+    uint tile_index = (edram_base + tile_y * pitch_tiles + tile_x) % 2048;
+    uint sample_offset = sample_y * kTileWidthSamples + sample_x;
+    uint edram_offset = tile_index * kTileWidthSamples * kTileHeightSamples + sample_offset;
+    
+    // Read from EDRAM and write to texture
+    uint32_t pixel_data = edram_buffer[edram_offset];
+    float4 color = float4(
+        float((pixel_data >> 16) & 0xFF) / 255.0f,  // R
+        float((pixel_data >> 8) & 0xFF) / 255.0f,   // G
+        float(pixel_data & 0xFF) / 255.0f,          // B
+        float((pixel_data >> 24) & 0xFF) / 255.0f   // A
+    );
+    
+    output_texture.write(color, tid);
+}
+
+// Store shader: Copy from linear texture to tiled EDRAM
+kernel void edram_store_32bpp(
+    texture2d<float, access::read> input_texture [[ texture(0) ]],
+    device uint* edram_buffer [[ buffer(0) ]],
+    constant uint& edram_base [[ buffer(1) ]],
+    constant uint& pitch_tiles [[ buffer(2) ]],
+    uint2 tid [[ thread_position_in_grid ]]
+) {
+    uint2 texture_size = uint2(input_texture.get_width(), input_texture.get_height());
+    if (tid.x >= texture_size.x || tid.y >= texture_size.y) return;
+    
+    // Calculate tile coordinates
+    uint tile_x = tid.x / kTileWidthSamples;
+    uint tile_y = tid.y / kTileHeightSamples;
+    uint sample_x = tid.x % kTileWidthSamples;
+    uint sample_y = tid.y % kTileHeightSamples;
+    
+    // Calculate EDRAM offset (circular addressing)
+    uint tile_index = (edram_base + tile_y * pitch_tiles + tile_x) % 2048;
+    uint sample_offset = sample_y * kTileWidthSamples + sample_x;
+    uint edram_offset = tile_index * kTileWidthSamples * kTileHeightSamples + sample_offset;
+    
+    // Read from texture and write to EDRAM
+    float4 color = input_texture.read(tid);
+    uint32_t pixel_data = 
+        (uint32_t(color.a * 255.0f) << 24) |  // A
+        (uint32_t(color.r * 255.0f) << 16) |  // R
+        (uint32_t(color.g * 255.0f) << 8)  |  // G
+        uint32_t(color.b * 255.0f);           // B
+    
+    edram_buffer[edram_offset] = pixel_data;
+}
+)";
+
+  NS::Error* error = nullptr;
+  
+  // Create library from source
+  MTL::Library* library = device_->newLibrary(
+      NS::String::string(edram_shader_source, NS::UTF8StringEncoding), nullptr, &error);
+  
+  if (!library) {
+    if (error) {
+      NS::String* error_desc = error->localizedDescription();
+      XELOGE("MetalRenderTargetCache: Failed to compile EDRAM shaders: {}", 
+             error_desc ? error_desc->utf8String() : "Unknown error");
+      error->release();
+    }
+    return false;
+  }
+  
+  // Create compute functions
+  MTL::Function* load_function = library->newFunction(
+      NS::String::string("edram_load_32bpp", NS::UTF8StringEncoding));
+  MTL::Function* store_function = library->newFunction(
+      NS::String::string("edram_store_32bpp", NS::UTF8StringEncoding));
+  
+  library->release();
+  
+  if (!load_function || !store_function) {
+    XELOGE("MetalRenderTargetCache: Failed to get EDRAM shader functions");
+    if (load_function) load_function->release();
+    if (store_function) store_function->release();
+    return false;
+  }
+  
+  // Create compute pipeline states
+  edram_load_pipeline_ = device_->newComputePipelineState(load_function, &error);
+  if (!edram_load_pipeline_) {
+    if (error) {
+      NS::String* error_desc = error->localizedDescription();
+      XELOGE("MetalRenderTargetCache: Failed to create EDRAM load pipeline: {}", 
+             error_desc ? error_desc->utf8String() : "Unknown error");
+      error->release();
+    }
+    load_function->release();
+    store_function->release();
+    return false;
+  }
+  
+  edram_store_pipeline_ = device_->newComputePipelineState(store_function, &error);
+  if (!edram_store_pipeline_) {
+    if (error) {
+      NS::String* error_desc = error->localizedDescription();
+      XELOGE("MetalRenderTargetCache: Failed to create EDRAM store pipeline: {}", 
+             error_desc ? error_desc->utf8String() : "Unknown error");
+      error->release();
+    }
+    edram_load_pipeline_->release();
+    edram_load_pipeline_ = nullptr;
+    load_function->release();
+    store_function->release();
+    return false;
+  }
+  
+  load_function->release();
+  store_function->release();
+  
+  XELOGI("MetalRenderTargetCache: EDRAM compute shaders initialized successfully");
+  return true;
+}
+
+void MetalRenderTargetCache::ShutdownEdramComputeShaders() {
+  if (edram_load_pipeline_) {
+    edram_load_pipeline_->release();
+    edram_load_pipeline_ = nullptr;
+  }
+  
+  if (edram_store_pipeline_) {
+    edram_store_pipeline_->release();
+    edram_store_pipeline_ = nullptr;
+  }
+}
+
 void MetalRenderTargetCache::LoadTiledData(MTL::CommandBuffer* command_buffer,
                                            MTL::Texture* texture,
                                            uint32_t edram_base,
                                            uint32_t pitch_tiles,
                                            uint32_t height_tiles,
                                            bool is_depth) {
-  // TODO: Implement tile loading from EDRAM
+  if (!command_buffer || !texture || !edram_load_pipeline_) {
+    return;
+  }
+  
+  XELOGI("MetalRenderTargetCache::LoadTiledData - texture {}x{}, base={}, pitch={}, height={}, depth={}",
+         texture->width(), texture->height(), edram_base, pitch_tiles, height_tiles, is_depth);
+  
+  MTL::Texture* target_texture = texture;
+  MTL::Texture* temp_texture = nullptr;
+  
+  // If texture is multisample, create a temporary non-multisample texture for EDRAM operations
+  if (texture->textureType() == MTL::TextureType2DMultisample) {
+    XELOGI("MetalRenderTargetCache::LoadTiledData - Creating temporary non-multisample texture for EDRAM operation");
+    
+    MTL::TextureDescriptor* desc = MTL::TextureDescriptor::alloc()->init();
+    desc->setWidth(texture->width());
+    desc->setHeight(texture->height());
+    desc->setPixelFormat(texture->pixelFormat());
+    desc->setTextureType(MTL::TextureType2D);  // Regular 2D texture
+    desc->setSampleCount(1);  // Non-multisample
+    desc->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead | MTL::TextureUsageShaderWrite);
+    desc->setStorageMode(MTL::StorageModePrivate);
+    
+    temp_texture = device_->newTexture(desc);
+    desc->release();
+    
+    if (!temp_texture) {
+      XELOGE("MetalRenderTargetCache::LoadTiledData - Failed to create temporary texture");
+      return;
+    }
+    
+    target_texture = temp_texture;
+  }
+  
+  // Create compute encoder
+  MTL::ComputeCommandEncoder* encoder = command_buffer->computeCommandEncoder();
+  if (!encoder) {
+    if (temp_texture) temp_texture->release();
+    return;
+  }
+  
+  // Set compute pipeline
+  encoder->setComputePipelineState(edram_load_pipeline_);
+  
+  // Bind EDRAM buffer
+  encoder->setBuffer(edram_buffer_, 0, 0);
+  
+  // Bind output texture (either original or temporary)
+  encoder->setTexture(target_texture, 0);
+  
+  // Create parameter buffers
+  uint32_t params[2] = { edram_base, pitch_tiles };
+  MTL::Buffer* param_buffer = device_->newBuffer(&params, sizeof(params), MTL::ResourceStorageModeShared);
+  encoder->setBuffer(param_buffer, 0, 1);
+  encoder->setBuffer(param_buffer, sizeof(uint32_t), 2);
+  
+  // Calculate thread group sizes
+  MTL::Size threads_per_threadgroup = MTL::Size::Make(8, 8, 1);
+  MTL::Size threadgroups = MTL::Size::Make(
+      (target_texture->width() + 7) / 8,
+      (target_texture->height() + 7) / 8,
+      1);
+  
+  // Dispatch compute
+  encoder->dispatchThreadgroups(threadgroups, threads_per_threadgroup);
+  encoder->endEncoding();
+  
+  // If we used a temporary texture, we need to handle the multisample case
+  if (temp_texture) {
+    XELOGI("MetalRenderTargetCache::LoadTiledData - Handling multisample texture");
+    
+    // For multisample textures, we can't directly copy from a non-multisample texture.
+    // The best approach is to clear the multisample texture to a default value since
+    // we've already loaded the EDRAM data into the temporary texture.
+    // In a real implementation, we'd need a proper resolve shader to expand single
+    // samples to all samples in the multisample texture.
+    
+    // For now, just clear the multisample texture to avoid validation errors
+    MTL::RenderPassDescriptor* clear_desc = MTL::RenderPassDescriptor::renderPassDescriptor();
+    if (clear_desc) {
+      auto* color_attachment = clear_desc->colorAttachments()->object(0);
+      color_attachment->setTexture(texture);  // Multisample target
+      color_attachment->setLoadAction(MTL::LoadActionClear);
+      color_attachment->setClearColor(MTL::ClearColor::Make(0.0, 0.0, 0.0, 0.0));
+      color_attachment->setStoreAction(MTL::StoreActionStore);
+      
+      // Create a render encoder just to clear - no draw calls needed for clear
+      MTL::RenderCommandEncoder* clear_encoder = command_buffer->renderCommandEncoder(clear_desc);
+      if (clear_encoder) {
+        // The clear happens automatically with LoadActionClear
+        clear_encoder->endEncoding();
+      }
+      clear_desc->release();
+    }
+    
+    // Note: In a complete implementation, we would:
+    // 1. Create a fullscreen triangle shader that samples from temp_texture
+    // 2. Render it to all samples of the multisample texture
+    // For now, clearing prevents the validation error and allows progress
+    
+    temp_texture->release();
+  }
+  
+  param_buffer->release();
 }
 
 void MetalRenderTargetCache::StoreTiledData(MTL::CommandBuffer* command_buffer,
@@ -570,7 +904,94 @@ void MetalRenderTargetCache::StoreTiledData(MTL::CommandBuffer* command_buffer,
                                             uint32_t pitch_tiles,
                                             uint32_t height_tiles,
                                             bool is_depth) {
-  // TODO: Implement tile storing to EDRAM
+  if (!command_buffer || !texture || !edram_store_pipeline_) {
+    return;
+  }
+  
+  XELOGI("MetalRenderTargetCache::StoreTiledData - texture {}x{}, base={}, pitch={}, height={}, depth={}",
+         texture->width(), texture->height(), edram_base, pitch_tiles, height_tiles, is_depth);
+  
+  MTL::Texture* source_texture = texture;
+  MTL::Texture* temp_texture = nullptr;
+  
+  // If texture is multisample, create a temporary non-multisample texture and resolve to it first
+  if (texture->textureType() == MTL::TextureType2DMultisample) {
+    XELOGI("MetalRenderTargetCache::StoreTiledData - Creating temporary non-multisample texture for EDRAM operation");
+    
+    MTL::TextureDescriptor* desc = MTL::TextureDescriptor::alloc()->init();
+    desc->setWidth(texture->width());
+    desc->setHeight(texture->height());
+    desc->setPixelFormat(texture->pixelFormat());
+    desc->setTextureType(MTL::TextureType2D);  // Regular 2D texture
+    desc->setSampleCount(1);  // Non-multisample
+    desc->setUsage(MTL::TextureUsageRenderTarget | MTL::TextureUsageShaderRead | MTL::TextureUsageShaderWrite);
+    desc->setStorageMode(MTL::StorageModePrivate);
+    
+    temp_texture = device_->newTexture(desc);
+    desc->release();
+    
+    if (!temp_texture) {
+      XELOGE("MetalRenderTargetCache::StoreTiledData - Failed to create temporary texture");
+      return;
+    }
+    
+    // Resolve multisample texture to temporary texture
+    MTL::RenderPassDescriptor* resolve_desc = MTL::RenderPassDescriptor::renderPassDescriptor();
+    if (resolve_desc) {
+      auto* color_attachment = resolve_desc->colorAttachments()->object(0);
+      color_attachment->setTexture(texture);  // Multisample source
+      color_attachment->setResolveTexture(temp_texture);  // Resolved output
+      color_attachment->setLoadAction(MTL::LoadActionLoad);
+      color_attachment->setStoreAction(MTL::StoreActionMultisampleResolve);
+      
+      MTL::RenderCommandEncoder* render_encoder = command_buffer->renderCommandEncoder(resolve_desc);
+      if (render_encoder) {
+        render_encoder->endEncoding();
+      }
+      resolve_desc->release();
+    }
+    
+    source_texture = temp_texture;
+  }
+  
+  // Create compute encoder
+  MTL::ComputeCommandEncoder* encoder = command_buffer->computeCommandEncoder();
+  if (!encoder) {
+    if (temp_texture) temp_texture->release();
+    return;
+  }
+  
+  // Set compute pipeline
+  encoder->setComputePipelineState(edram_store_pipeline_);
+  
+  // Bind input texture (either original or resolved)
+  encoder->setTexture(source_texture, 0);
+  
+  // Bind EDRAM buffer
+  encoder->setBuffer(edram_buffer_, 0, 0);
+  
+  // Create parameter buffers
+  uint32_t params[2] = { edram_base, pitch_tiles };
+  MTL::Buffer* param_buffer = device_->newBuffer(&params, sizeof(params), MTL::ResourceStorageModeShared);
+  encoder->setBuffer(param_buffer, 0, 1);
+  encoder->setBuffer(param_buffer, sizeof(uint32_t), 2);
+  
+  // Calculate thread group sizes
+  MTL::Size threads_per_threadgroup = MTL::Size::Make(8, 8, 1);
+  MTL::Size threadgroups = MTL::Size::Make(
+      (source_texture->width() + 7) / 8,
+      (source_texture->height() + 7) / 8,
+      1);
+  
+  // Dispatch compute
+  encoder->dispatchThreadgroups(threadgroups, threads_per_threadgroup);
+  encoder->endEncoding();
+  
+  if (temp_texture) {
+    temp_texture->release();
+  }
+  
+  param_buffer->release();
 }
 
 }  // namespace metal

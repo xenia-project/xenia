@@ -314,7 +314,7 @@ void MetalPresenter::BlitTexture(MTL::Texture* source, MTL::Texture* destination
     if (blit_pipeline_) {
       // Set pipeline and draw fullscreen quad
       render_encoder->setRenderPipelineState(blit_pipeline_);
-      render_encoder->setVertexBuffer(fullscreen_quad_buffer_, 0, 0);
+      render_encoder->setVertexBuffer(fullscreen_quad_buffer_, NS::UInteger(0), NS::UInteger(0));
       render_encoder->setFragmentTexture(source, 0);
       
       // Draw triangle strip (4 vertices for quad)

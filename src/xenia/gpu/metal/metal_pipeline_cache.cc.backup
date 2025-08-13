@@ -700,190 +700,92 @@ void MetalPipelineCache::AugmentTextureBindings(MetalShader* shader,
   XELOGI("Metal: Augmenting texture bindings - MSC reports {} slots, shader has {} bindings",
          msc_texture_slots.size(), shader_bindings.size());
   
-  // CRITICAL FIX: When MSC reports 0 slots but we detect valid Xbox 360 textures,
-  // we need to proactively create synthetic bindings for those textures.
-  // This is essential for Xbox 360 vertex fetch patterns where MSC's automatic
-  // layout mode doesn't detect texture usage in vertex shaders properly.
-  
-  bool msc_detected_textures = !msc_texture_slots.empty();
-  bool shader_has_bindings = !shader_bindings.empty();
-  
-  // If MSC detected texture slots, process them normally
-  if (msc_detected_textures) {
-    XELOGI("Metal: Processing MSC-detected texture slots");
-    // Ensure we have bindings for all MSC-identified texture slots
-    for (size_t slot_index = 0; slot_index < msc_texture_slots.size(); ++slot_index) {
-      uint32_t heap_slot = msc_texture_slots[slot_index];
-      
-      // Skip sentinel values (0xFFFF indicates framebuffer fetch)
-      if (heap_slot == 0xFFFF) {
-        XELOGI("  Skipping sentinel at slot {}", slot_index);
-        continue;
+  // Ensure we have bindings for all MSC-identified texture slots
+  for (size_t slot_index = 0; slot_index < msc_texture_slots.size(); ++slot_index) {
+    uint32_t heap_slot = msc_texture_slots[slot_index];
+    
+    // Skip sentinel values (0xFFFF indicates framebuffer fetch)
+    if (heap_slot == 0xFFFF) {
+      XELOGI("  Skipping sentinel at slot {}", slot_index);
+      continue;
+    }
+    
+    // Check if we already have a binding for this fetch constant
+    bool found = false;
+    for (const auto& binding : shader_bindings) {
+      if (binding.fetch_constant == slot_index) {
+        found = true;
+        XELOGI("  Slot {} already has binding (fetch_constant={})", 
+               slot_index, binding.fetch_constant);
+        break;
       }
+    }
+    
+    if (!found) {
+      // Get actual fetch constant data from Xbox 360 registers
+      xenos::xe_gpu_texture_fetch_t fetch = register_file_->GetTextureFetch(static_cast<uint32_t>(slot_index));
       
-      // Check if we already have a binding for this fetch constant
-      bool found = false;
-      for (const auto& binding : shader_bindings) {
-        if (binding.fetch_constant == slot_index) {
-          found = true;
-          XELOGI("  Slot {} already has binding (fetch_constant={})", 
-                 slot_index, binding.fetch_constant);
+      // CRITICAL: Always create synthetic binding even if there's no texture data
+      // The null texture system will handle empty slots in the command processor
+      // MSC expects bindings for ALL declared texture slots, not just populated ones
+      
+      // Create synthetic binding with fetch constant data (or defaults if empty)
+      Shader::TextureBinding new_binding = {};
+      new_binding.fetch_constant = static_cast<uint32_t>(slot_index);
+      new_binding.binding_index = shader_bindings.size();
+      
+      // Populate the fetch instruction with actual data from the fetch constant
+      auto& fetch_instr = new_binding.fetch_instr;
+      
+      // Set dimension based on fetch type
+      switch (fetch.dimension) {
+        case xenos::DataDimension::k1D:
+          fetch_instr.dimension = xenos::FetchOpDimension::k1D;
           break;
-        }
-      }
-      
-      if (!found) {
-        // Get actual fetch constant data from Xbox 360 registers
-        xenos::xe_gpu_texture_fetch_t fetch = register_file_->GetTextureFetch(static_cast<uint32_t>(slot_index));
-        
-        // CRITICAL: Always create synthetic binding even if there's no texture data
-        // The null texture system will handle empty slots in the command processor
-        // MSC expects bindings for ALL declared texture slots, not just populated ones
-        
-        // Create synthetic binding with fetch constant data (or defaults if empty)
-        Shader::TextureBinding new_binding = {};
-        new_binding.fetch_constant = static_cast<uint32_t>(slot_index);
-        new_binding.binding_index = shader_bindings.size();
-        
-        // Populate the fetch instruction with actual data from the fetch constant
-        auto& fetch_instr = new_binding.fetch_instr;
-        
-        // Set dimension based on fetch type
-        switch (fetch.dimension) {
-          case xenos::DataDimension::k1D:
-            fetch_instr.dimension = xenos::FetchOpDimension::k1D;
-            break;
-          case xenos::DataDimension::k2DOrStacked:
-            // For stacked textures, use k3DOrStacked, otherwise k2D
-            fetch_instr.dimension = fetch.stacked ? 
-              xenos::FetchOpDimension::k3DOrStacked : xenos::FetchOpDimension::k2D;
-            break;
-          case xenos::DataDimension::k3D:
-            fetch_instr.dimension = xenos::FetchOpDimension::k3DOrStacked;
-            break;
-          case xenos::DataDimension::kCube:
-            fetch_instr.dimension = xenos::FetchOpDimension::kCube;
-            break;
-          default:
-            fetch_instr.dimension = xenos::FetchOpDimension::k2D;  // Default to 2D
-            break;
-        }
-        
-        // Set opcode for texture fetch
-        fetch_instr.opcode = ucode::FetchOpcode::kTextureFetch;
-        fetch_instr.opcode_name = "tfetch";
-        
-        // Set texture attributes based on fetch constant
-        fetch_instr.attributes.mag_filter = fetch.mag_filter;
-        fetch_instr.attributes.min_filter = fetch.min_filter;
-        fetch_instr.attributes.mip_filter = fetch.mip_filter;
-        fetch_instr.attributes.aniso_filter = fetch.aniso_filter;
-        fetch_instr.attributes.vol_mag_filter = static_cast<xenos::TextureFilter>(fetch.vol_mag_filter);
-        fetch_instr.attributes.vol_min_filter = static_cast<xenos::TextureFilter>(fetch.vol_min_filter);
-        fetch_instr.attributes.use_computed_lod = true;
-        fetch_instr.attributes.use_register_lod = false;
-        fetch_instr.attributes.use_register_gradients = false;
-        fetch_instr.attributes.lod_bias = 0.0f;
-        fetch_instr.attributes.offset_x = 0.0f;
-        fetch_instr.attributes.offset_y = 0.0f;
-        
-        shader_bindings.push_back(new_binding);
-        if (fetch.base_address) {
-          XELOGI("  Added synthetic binding for slot {} (fetch_constant={}, base_address=0x{:08X}, dimension={})", 
-                 slot_index, new_binding.fetch_constant, fetch.base_address, 
-                 static_cast<uint32_t>(fetch_instr.dimension));
-        } else {
-          XELOGI("  Added synthetic binding for EMPTY slot {} (fetch_constant={}, no texture data - will use null texture)", 
-                 slot_index, new_binding.fetch_constant);
-        }
-      }
-    }
-  } else {
-    // MSC didn't detect any texture slots - scan Xbox 360 fetch constants proactively
-    XELOGI("Metal: MSC detected 0 texture slots - scanning Xbox 360 fetch constants");
-    
-    // Scan all possible Xbox 360 fetch constants (0-31) to find valid textures
-    std::vector<uint32_t> detected_fetch_constants;
-    for (uint32_t fc = 0; fc < 32; fc++) {
-      xenos::xe_gpu_texture_fetch_t fetch = register_file_->GetTextureFetch(fc);
-      if (fetch.base_address != 0) {
-        detected_fetch_constants.push_back(fc);
-        XELOGI("  Found valid texture at fetch constant {} (base_address=0x{:08X})", 
-               fc, fetch.base_address);
-      }
-    }
-    
-    // Create synthetic bindings for all detected textures
-    for (uint32_t fc : detected_fetch_constants) {
-      // Check if we already have a binding for this fetch constant
-      bool found = false;
-      for (const auto& binding : shader_bindings) {
-        if (binding.fetch_constant == fc) {
-          found = true;
-          XELOGI("  Fetch constant {} already has binding", fc);
+        case xenos::DataDimension::k2DOrStacked:
+          // For stacked textures, use k3DOrStacked, otherwise k2D
+          fetch_instr.dimension = fetch.stacked ? 
+            xenos::FetchOpDimension::k3DOrStacked : xenos::FetchOpDimension::k2D;
           break;
-        }
+        case xenos::DataDimension::k3D:
+          fetch_instr.dimension = xenos::FetchOpDimension::k3DOrStacked;
+          break;
+        case xenos::DataDimension::kCube:
+          fetch_instr.dimension = xenos::FetchOpDimension::kCube;
+          break;
+        default:
+          fetch_instr.dimension = xenos::FetchOpDimension::k2D;  // Default to 2D
+          break;
       }
       
-      if (!found) {
-        // Get the actual fetch constant data
-        xenos::xe_gpu_texture_fetch_t fetch = register_file_->GetTextureFetch(fc);
-        
-        // Create synthetic binding with real fetch constant data
-        Shader::TextureBinding new_binding = {};
-        new_binding.fetch_constant = fc;
-        new_binding.binding_index = shader_bindings.size();
-        
-        // Populate the fetch instruction with actual data from the fetch constant
-        auto& fetch_instr = new_binding.fetch_instr;
-        
-        // Set dimension based on fetch type
-        switch (fetch.dimension) {
-          case xenos::DataDimension::k1D:
-            fetch_instr.dimension = xenos::FetchOpDimension::k1D;
-            break;
-          case xenos::DataDimension::k2DOrStacked:
-            // For stacked textures, use k3DOrStacked, otherwise k2D
-            fetch_instr.dimension = fetch.stacked ? 
-              xenos::FetchOpDimension::k3DOrStacked : xenos::FetchOpDimension::k2D;
-            break;
-          case xenos::DataDimension::k3D:
-            fetch_instr.dimension = xenos::FetchOpDimension::k3DOrStacked;
-            break;
-          case xenos::DataDimension::kCube:
-            fetch_instr.dimension = xenos::FetchOpDimension::kCube;
-            break;
-          default:
-            fetch_instr.dimension = xenos::FetchOpDimension::k2D;  // Default to 2D
-            break;
-        }
-        
-        // Set opcode for texture fetch
-        fetch_instr.opcode = ucode::FetchOpcode::kTextureFetch;
-        fetch_instr.opcode_name = "tfetch";
-        
-        // Set texture attributes based on fetch constant
-        fetch_instr.attributes.mag_filter = fetch.mag_filter;
-        fetch_instr.attributes.min_filter = fetch.min_filter;
-        fetch_instr.attributes.mip_filter = fetch.mip_filter;
-        fetch_instr.attributes.aniso_filter = fetch.aniso_filter;
-        fetch_instr.attributes.vol_mag_filter = static_cast<xenos::TextureFilter>(fetch.vol_mag_filter);
-        fetch_instr.attributes.vol_min_filter = static_cast<xenos::TextureFilter>(fetch.vol_min_filter);
-        fetch_instr.attributes.use_computed_lod = true;
-        fetch_instr.attributes.use_register_lod = false;
-        fetch_instr.attributes.use_register_gradients = false;
-        fetch_instr.attributes.lod_bias = 0.0f;
-        fetch_instr.attributes.offset_x = 0.0f;
-        fetch_instr.attributes.offset_y = 0.0f;
-        
-        shader_bindings.push_back(new_binding);
-        XELOGI("  Added synthetic binding for fetch constant {} (base_address=0x{:08X}, dimension={})", 
-               fc, fetch.base_address, static_cast<uint32_t>(fetch_instr.dimension));
+      // Set opcode for texture fetch
+      fetch_instr.opcode = ucode::FetchOpcode::kTextureFetch;
+      fetch_instr.opcode_name = "tfetch";
+      
+      // Set texture attributes based on fetch constant
+      fetch_instr.attributes.mag_filter = fetch.mag_filter;
+      fetch_instr.attributes.min_filter = fetch.min_filter;
+      fetch_instr.attributes.mip_filter = fetch.mip_filter;
+      fetch_instr.attributes.aniso_filter = fetch.aniso_filter;
+      fetch_instr.attributes.vol_mag_filter = static_cast<xenos::TextureFilter>(fetch.vol_mag_filter);
+      fetch_instr.attributes.vol_min_filter = static_cast<xenos::TextureFilter>(fetch.vol_min_filter);
+      fetch_instr.attributes.use_computed_lod = true;
+      fetch_instr.attributes.use_register_lod = false;
+      fetch_instr.attributes.use_register_gradients = false;
+      fetch_instr.attributes.lod_bias = 0.0f;
+      fetch_instr.attributes.offset_x = 0.0f;
+      fetch_instr.attributes.offset_y = 0.0f;
+      
+      shader_bindings.push_back(new_binding);
+      if (fetch.base_address) {
+        XELOGI("  Added synthetic binding for slot {} (fetch_constant={}, base_address=0x{:08X}, dimension={})", 
+               slot_index, new_binding.fetch_constant, fetch.base_address, 
+               static_cast<uint32_t>(fetch_instr.dimension));
+      } else {
+        XELOGI("  Added synthetic binding for EMPTY slot {} (fetch_constant={}, no texture data - will use null texture)", 
+               slot_index, new_binding.fetch_constant);
       }
     }
-    
-    XELOGI("Metal: Proactive scan found {} valid textures, created {} synthetic bindings",
-           detected_fetch_constants.size(), detected_fetch_constants.size() - (shader_bindings.size() - detected_fetch_constants.size()));
   }
   
   // Log final state of all texture bindings after augmentation
@@ -898,15 +800,16 @@ void MetalPipelineCache::AugmentTextureBindings(MetalShader* shader,
            static_cast<uint32_t>(binding.fetch_instr.dimension));
   }
   
-  // CRITICAL: Update the texture slots to match augmented bindings
-  // This ensures MSC's runtime system knows about all the texture slots we created
-  if (!shader_bindings.empty()) {
+  // CRITICAL: If using root signature, update the texture slots to match augmented bindings
+  // Root signature mode creates manual texture slots based on shader bindings,
+  // but that happens BEFORE augmentation. We need to update them after.
+  if (shader_bindings.size() > msc_texture_slots.size()) {
     std::vector<uint32_t> updated_slots;
     for (size_t i = 0; i < shader_bindings.size(); i++) {
       updated_slots.push_back(static_cast<uint32_t>(i));
     }
     translation->UpdateTextureSlots(updated_slots);
-    XELOGI("Metal: Updated texture slots to match {} synthetic bindings", updated_slots.size());
+    XELOGI("Metal: Updated texture slots for root signature mode - now {} slots", updated_slots.size());
   }
 }
 

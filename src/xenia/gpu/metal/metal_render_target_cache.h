@@ -12,6 +12,7 @@
 
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "xenia/gpu/render_target_cache.h"
 #include "xenia/gpu/register_file.h"
@@ -109,6 +110,10 @@ class MetalRenderTargetCache final : public gpu::RenderTargetCache {
   // EDRAM buffer (10MB embedded DRAM)
   MTL::Buffer* edram_buffer_ = nullptr;
   
+  // EDRAM compute shaders for tile operations
+  MTL::ComputePipelineState* edram_load_pipeline_ = nullptr;   // Tiled → Linear
+  MTL::ComputePipelineState* edram_store_pipeline_ = nullptr;  // Linear → Tiled
+  
   // Current render targets - updated by base class Update() call
   MetalRenderTarget* current_color_targets_[4] = {};
   MetalRenderTarget* current_depth_target_ = nullptr;
@@ -128,6 +133,9 @@ class MetalRenderTargetCache final : public gpu::RenderTargetCache {
   mutable std::unique_ptr<MetalRenderTarget> dummy_color_target_;
   mutable bool dummy_color_target_needs_clear_ = true;
   
+  // Track which render targets have been cleared this frame
+  std::unordered_set<uint32_t> cleared_render_targets_this_frame_;
+  
   // Helper methods
   MTL::Texture* CreateColorTexture(uint32_t width, uint32_t height,
                                    xenos::ColorRenderTargetFormat format,
@@ -138,6 +146,10 @@ class MetalRenderTargetCache final : public gpu::RenderTargetCache {
   
   MTL::PixelFormat GetColorPixelFormat(xenos::ColorRenderTargetFormat format) const;
   MTL::PixelFormat GetDepthPixelFormat(xenos::DepthRenderTargetFormat format) const;
+  
+  // EDRAM compute shader setup
+  bool InitializeEdramComputeShaders();
+  void ShutdownEdramComputeShaders();
   
   // EDRAM tile operations
   void LoadTiledData(MTL::CommandBuffer* command_buffer,

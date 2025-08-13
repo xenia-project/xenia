@@ -15,6 +15,7 @@
 #include <unordered_map>
 
 #include "xenia/gpu/register_file.h"
+#include "xenia/gpu/texture_cache.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/xenos.h"
 #include "xenia/memory.h"
@@ -26,12 +27,15 @@ namespace gpu {
 namespace metal {
 
 class MetalCommandProcessor;
+class MetalSharedMemory;
 
-class MetalTextureCache {
+class MetalTextureCache : public TextureCache {
  public:
   MetalTextureCache(MetalCommandProcessor* command_processor,
-                    const RegisterFile* register_file,
-                    Memory* memory);
+                    const RegisterFile& register_file,
+                    MetalSharedMemory& shared_memory,
+                    uint32_t draw_resolution_scale_x,
+                    uint32_t draw_resolution_scale_y);
   ~MetalTextureCache();
 
   bool Initialize();
@@ -58,6 +62,26 @@ class MetalTextureCache {
   MTL::Texture* GetNullTexture3D() const { return null_texture_3d_; }
   MTL::Texture* GetNullTextureCube() const { return null_texture_cube_; }
 
+  // TextureCache virtual method overrides
+  void RequestTextures(uint32_t used_texture_mask) override;
+  uint32_t GetHostFormatSwizzle(TextureKey key) const override;
+  uint32_t GetMaxHostTextureWidthHeight(xenos::DataDimension dimension) const override;
+  uint32_t GetMaxHostTextureDepthOrArraySize(xenos::DataDimension dimension) const override;
+  std::unique_ptr<Texture> CreateTexture(TextureKey key) override;
+  bool LoadTextureDataFromResidentMemoryImpl(Texture& texture, bool load_base, bool load_mips) override;
+
+  // Metal-specific Texture implementation
+  class MetalTexture : public Texture {
+   public:
+    MetalTexture(MetalTextureCache& texture_cache, const TextureKey& key, MTL::Texture* metal_texture);
+    ~MetalTexture() override;
+
+    MTL::Texture* metal_texture() const { return metal_texture_; }
+
+   private:
+    MTL::Texture* metal_texture_;
+  };
+
  private:
   struct TextureDescriptor {
     uint32_t guest_base;
@@ -74,19 +98,6 @@ class MetalTextureCache {
   
   struct TextureDescriptorHasher {
     size_t operator()(const TextureDescriptor& desc) const;
-  };
-
-  struct MetalTexture {
-    MTL::Texture* texture;
-    uint32_t size;
-    bool is_dynamic;
-    
-    MetalTexture() : texture(nullptr), size(0), is_dynamic(false) {}
-    ~MetalTexture() {
-      if (texture) {
-        texture->release();
-      }
-    }
   };
 
   // Metal texture creation helpers
@@ -111,17 +122,14 @@ class MetalTextureCache {
   MTL::Texture* CreateNullTextureCube();
 
   MetalCommandProcessor* command_processor_;
-  const RegisterFile* register_file_;
-  Memory* memory_;
+  
+  // Legacy texture cache for old methods (will be migrated to base class)
+  std::unordered_map<TextureDescriptor, std::unique_ptr<MetalTexture>, TextureDescriptorHasher> texture_cache_;
 
   // Pre-created null textures for invalid bindings (following existing patterns)
   MTL::Texture* null_texture_2d_ = nullptr;
   MTL::Texture* null_texture_3d_ = nullptr;
   MTL::Texture* null_texture_cube_ = nullptr;
-
-  // Texture cache
-  std::unordered_map<TextureDescriptor, std::unique_ptr<MetalTexture>,
-                     TextureDescriptorHasher> texture_cache_;
 };
 
 }  // namespace metal

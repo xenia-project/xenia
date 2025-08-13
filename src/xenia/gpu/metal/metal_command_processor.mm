@@ -101,7 +101,7 @@ bool MetalCommandProcessor::SetupContext() {
   buffer_cache_ = std::make_unique<MetalBufferCache>(
       this, register_file_, memory_);
   texture_cache_ = std::make_unique<MetalTextureCache>(
-      this, register_file_, memory_);
+      this, *register_file_, *shared_memory_, 1, 1);  // No resolution scaling for now
   // Create render target cache with new signature
   render_target_cache_ = std::make_unique<MetalRenderTargetCache>(
       *register_file_, *memory_, &trace_writer_,
@@ -173,9 +173,10 @@ bool MetalCommandProcessor::SetupContext() {
     XE_SCOPED_AUTORELEASE_POOL("CreateDescriptorHeaps");
 
     // Descriptor heap sizes must match root signature in metal_shader.cc
-    // Reduced to reasonable values that won't cause MSC to hang
-    const size_t kResourceHeapSlots = 64;   // t0-t63 for textures
-    const size_t kSamplerHeapSlots = 32;    // s0-s31 for samplers
+    // Increased to handle all possible heap slots from shader reflection
+    // Shaders can use heap indices up to 255 for resources and 127 for samplers
+    const size_t kResourceHeapSlots = 256;   // t0-t255 for textures (max heap slot index)
+    const size_t kSamplerHeapSlots = 128;    // s0-s127 for samplers (max heap slot index)
     const size_t kResourceHeapBytes = kResourceHeapSlots * sizeof(IRDescriptorTableEntry);
     const size_t kSamplerHeapBytes = kSamplerHeapSlots * sizeof(IRDescriptorTableEntry);
 
@@ -832,17 +833,7 @@ bool MetalCommandProcessor::CaptureColorTarget(uint32_t index, uint32_t& width, 
     XELOGI("Metal CaptureColorTarget: Created resolve texture for MSAA");
   }
   
-  // Create a blit encoder to copy the texture to a buffer
-  MTL::BlitCommandEncoder* blit_encoder = command_buffer->blitCommandEncoder();
-  if (!blit_encoder) {
-    XELOGE("Metal CaptureColorTarget: Failed to create blit encoder");
-    if (resolved_texture) resolved_texture->release();
-    // command_buffer is autoreleased, don't release manually
-    AutoreleasePoolTracker::Pop(pool, "CaptureColorTarget");
-    return false;
-  }
-  
-  // Resolve MSAA if needed
+  // Resolve MSAA if needed (before creating blit encoder)
   if (sample_count > 1) {
     XELOGI("Metal CaptureColorTarget: Resolving MSAA texture");
     // For color textures, use resolveTexture which handles MSAA resolve
@@ -855,21 +846,21 @@ bool MetalCommandProcessor::CaptureColorTarget(uint32_t index, uint32_t& width, 
       resolve_pass->colorAttachments()->object(0)->setLoadAction(MTL::LoadActionClear);
       resolve_pass->colorAttachments()->object(0)->setStoreAction(MTL::StoreActionMultisampleResolve);
       
-      // End blit encoder and create render encoder for resolve
-      blit_encoder->endEncoding();
+      // Create render encoder for resolve
       MTL::RenderCommandEncoder* resolve_encoder = command_buffer->renderCommandEncoder(resolve_pass);
       resolve_encoder->endEncoding();
       resolve_pass->release();
-      
-      // Create new blit encoder for the copy
-      blit_encoder = command_buffer->blitCommandEncoder();
-      if (!blit_encoder) {
-        XELOGE("Metal CaptureColorTarget: Failed to create blit encoder after resolve");
-        resolved_texture->release();
-        AutoreleasePoolTracker::Pop(pool, "CaptureColorTarget");
-        return false;
-      }
     }
+  }
+  
+  // Now create a blit encoder to copy the texture to a buffer
+  MTL::BlitCommandEncoder* blit_encoder = command_buffer->blitCommandEncoder();
+  if (!blit_encoder) {
+    XELOGE("Metal CaptureColorTarget: Failed to create blit encoder");
+    if (resolved_texture) resolved_texture->release();
+    // command_buffer is autoreleased, don't release manually
+    AutoreleasePoolTracker::Pop(pool, "CaptureColorTarget");
+    return false;
   }
   
   // Create a temporary buffer to read the texture data (use source data size for reading)
@@ -1594,6 +1585,8 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
     max_rt_height = static_cast<uint32_t>(depth_target->height());
   }
   
+  XELOGI("Metal IssueDraw: Using render target dimensions {}x{} for viewport calculation", max_rt_width, max_rt_height);
+  
   draw_util::ViewportInfo viewport_info;
   draw_util::GetHostViewportInfo(
       *register_file_, 1, 1, true,  // origin_bottom_left=true for Metal's NDC Y-up system
@@ -1772,24 +1765,52 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                need_new_encoder ? "created" : "reused", encoder ? "valid" : "null");
         
         if (encoder) {
-          // Track encoder creation
-          TRACK_METAL_OBJECT(encoder, "MTL::RenderCommandEncoder");
+          // Track encoder creation - only set label when creating new encoder
           char encoder_label[256];
           snprintf(encoder_label, sizeof(encoder_label), "Xbox360RenderPass_%s_hash_0x%llx_0x%llx", 
                   prim_type_name, pipeline_desc.vertex_shader_hash, pipeline_desc.pixel_shader_hash);
-          encoder->setLabel(NS::String::string(encoder_label, NS::UTF8StringEncoding));
+          
+          if (need_new_encoder) {
+            TRACK_METAL_OBJECT(encoder, "MTL::RenderCommandEncoder");
+            encoder->setLabel(NS::String::string(encoder_label, NS::UTF8StringEncoding));
+            
+            // Reset render state cache when creating new encoder
+            render_state_cache_.current_cull_mode = MTL::CullModeNone;
+            render_state_cache_.current_winding = MTL::WindingClockwise;
+            render_state_cache_.current_depth_write_enabled = true;
+            render_state_cache_.current_depth_compare = MTL::CompareFunctionAlways;
+            render_state_cache_.viewport_initialized = false;
+            render_state_cache_.scissor_initialized = false;
+            render_state_cache_.current_pipeline_state = nullptr;
+          }
           
           // TEMPORARY: Force disable culling and depth test to prove fragments can hit the RT
-          encoder->setCullMode(MTL::CullModeNone);
+          // Only set if different from cached state
+          MTL::CullMode desired_cull_mode = MTL::CullModeNone;
+          if (render_state_cache_.current_cull_mode != desired_cull_mode) {
+            encoder->setCullMode(desired_cull_mode);
+            render_state_cache_.current_cull_mode = desired_cull_mode;
+            XELOGI("Metal IssueDraw: Set cull mode to None");
+          }
           
-          MTL::DepthStencilDescriptor* ds_desc = MTL::DepthStencilDescriptor::alloc()->init();
-          ds_desc->setDepthCompareFunction(MTL::CompareFunctionAlways);
-          ds_desc->setDepthWriteEnabled(false);
-          MTL::DepthStencilState* ds = GetMetalDevice()->newDepthStencilState(ds_desc);
-          ds_desc->release();
-          encoder->setDepthStencilState(ds);
-          ds->release();
-          XELOGI("Metal IssueDraw: Forced CullNone + DepthAlways for testing");
+          // Only create and set depth stencil state if it changed
+          MTL::CompareFunction desired_depth_compare = MTL::CompareFunctionAlways;
+          bool desired_depth_write = false;
+          
+          if (render_state_cache_.current_depth_compare != desired_depth_compare ||
+              render_state_cache_.current_depth_write_enabled != desired_depth_write) {
+            MTL::DepthStencilDescriptor* ds_desc = MTL::DepthStencilDescriptor::alloc()->init();
+            ds_desc->setDepthCompareFunction(desired_depth_compare);
+            ds_desc->setDepthWriteEnabled(desired_depth_write);
+            MTL::DepthStencilState* ds = GetMetalDevice()->newDepthStencilState(ds_desc);
+            ds_desc->release();
+            encoder->setDepthStencilState(ds);
+            ds->release();
+            
+            render_state_cache_.current_depth_compare = desired_depth_compare;
+            render_state_cache_.current_depth_write_enabled = desired_depth_write;
+            XELOGI("Metal IssueDraw: Set depth state - compare: Always, write: disabled");
+          }
           
           // Phase C Step 2: Pipeline State and Draw Call Encoding
           
@@ -1805,14 +1826,23 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               XELOGI("Metal IssueDraw: TESTING NDC TRANSFORMATION");
               XELOGI("  - Using test pipeline that transforms screen space to NDC");
               XELOGI("  - Should render a colored triangle if transformation works");
-              encoder->setRenderPipelineState(ndc_test_pipeline);
+              if (ndc_test_pipeline != render_state_cache_.current_pipeline_state) {
+                encoder->setRenderPipelineState(ndc_test_pipeline);
+                render_state_cache_.current_pipeline_state = ndc_test_pipeline;
+              }
               pipeline_state = ndc_test_pipeline; // Update for later use
             } else {
               XELOGE("Metal IssueDraw: Failed to create NDC test pipeline, using original");
-              encoder->setRenderPipelineState(pipeline_state);
+              if (pipeline_state != render_state_cache_.current_pipeline_state) {
+                encoder->setRenderPipelineState(pipeline_state);
+                render_state_cache_.current_pipeline_state = pipeline_state;
+              }
             }
           } else {
-            encoder->setRenderPipelineState(pipeline_state);
+            if (pipeline_state != render_state_cache_.current_pipeline_state) {
+              encoder->setRenderPipelineState(pipeline_state);
+              render_state_cache_.current_pipeline_state = pipeline_state;
+            }
           }
           
           // Set viewport to match our render target dimensions
@@ -1868,9 +1898,22 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
           viewport.znear = static_cast<double>(viewport_info.z_min);
           viewport.zfar = static_cast<double>(viewport_info.z_max);
           
-          encoder->setViewport(viewport);
-          XELOGI("Metal IssueDraw: Set viewport to full framebuffer (0, 0, {}, {}, znear={}, zfar={})",
-                 rt_width, rt_height, viewport.znear, viewport.zfar);
+          // Only set viewport if it changed or is uninitialized  
+          bool viewport_changed = !render_state_cache_.viewport_initialized ||
+                                  render_state_cache_.current_viewport.originX != viewport.originX ||
+                                  render_state_cache_.current_viewport.originY != viewport.originY ||
+                                  render_state_cache_.current_viewport.width != viewport.width ||
+                                  render_state_cache_.current_viewport.height != viewport.height ||
+                                  render_state_cache_.current_viewport.znear != viewport.znear ||
+                                  render_state_cache_.current_viewport.zfar != viewport.zfar;
+          
+          if (viewport_changed) {
+            encoder->setViewport(viewport);
+            render_state_cache_.current_viewport = viewport;
+            render_state_cache_.viewport_initialized = true;
+            XELOGI("Metal IssueDraw: Set viewport to full framebuffer (0, 0, {}, {}, znear={}, zfar={})",
+                   rt_width, rt_height, viewport.znear, viewport.zfar);
+          }
           
           // Set scissor rect from Xbox 360 registers
           uint32_t window_scissor_tl = rf.values[XE_GPU_REG_PA_SC_WINDOW_SCISSOR_TL];
@@ -1897,9 +1940,20 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
           if (scissor.x + scissor.width > rt_width) scissor.width = rt_width - scissor.x;
           if (scissor.y + scissor.height > rt_height) scissor.height = rt_height - scissor.y;
           
-          encoder->setScissorRect(scissor);
-          XELOGI("Metal IssueDraw: Set scissor rect ({}, {}, {}, {})",
-                 scissor.x, scissor.y, scissor.width, scissor.height);
+          // Only set scissor rect if it changed or is uninitialized
+          bool scissor_changed = !render_state_cache_.scissor_initialized ||
+                                 render_state_cache_.current_scissor.x != scissor.x ||
+                                 render_state_cache_.current_scissor.y != scissor.y ||
+                                 render_state_cache_.current_scissor.width != scissor.width ||
+                                 render_state_cache_.current_scissor.height != scissor.height;
+          
+          if (scissor_changed) {
+            encoder->setScissorRect(scissor);
+            render_state_cache_.current_scissor = scissor;
+            render_state_cache_.scissor_initialized = true;
+            XELOGI("Metal IssueDraw: Set scissor rect ({}, {}, {}, {})",
+                   scissor.x, scissor.y, scissor.width, scissor.height);
+          }
           
           XELOGI("Metal IssueDraw: Set pipeline state and created render encoder");
           XELOGI("Metal IssueDraw: Render pass label: {}", encoder_label);
@@ -2052,6 +2106,15 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 // Map Xbox 360 binding index to Metal buffer index
                 // Metal IR Converter expects vertex buffers starting at index 6
                 uint32_t metal_buffer_index = static_cast<uint32_t>(kIRVertexBufferBindPoint) + binding.binding_index;
+                
+                // CRITICAL: Validate buffer index is within Metal's limits (0-30)
+                if (metal_buffer_index >= 31) {
+                  XELOGE("Metal IssueDraw: ERROR - Vertex buffer index {} exceeds Metal limit of 30! (Xbox binding {})",
+                         metal_buffer_index, binding.binding_index);
+                  // Clamp to a valid range to avoid crash
+                  metal_buffer_index = 30;  // Use the last valid index
+                  XELOGE("Metal IssueDraw: Clamping to index 30 to prevent validation error");
+                }
                 
                 // Debug: Log vertex data from the processed buffer
                 if (binding.stride_words > 0 && size >= binding.stride_words * 4) {
@@ -2228,10 +2291,32 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               }
                 // --- end DEBUG viewport transform ---
                 
-                // NOW bind the (possibly transformed) vertex buffer to the encoder
-                encoder->setVertexBuffer(vertex_buffer, 0, metal_buffer_index);
+                // ALWAYS bind the vertex buffer to the encoder for compatibility
+                // Even with programmatic vertex fetch, the pipeline may expect it
+                
+                // CRITICAL: Validate buffer before binding to avoid Metal validation errors
+                if (!vertex_buffer) {
+                  XELOGE("Metal IssueDraw: ERROR - vertex_buffer is nil! Cannot bind nil buffer.");
+                  // Create a dummy buffer to prevent crash
+                  float dummy_data[16] = {0};  // 64 bytes
+                  vertex_buffer = GetMetalDevice()->newBuffer(dummy_data, sizeof(dummy_data), 
+                                                              MTL::ResourceStorageModeShared);
+                  XELOGE("Metal IssueDraw: Created dummy buffer to prevent validation error");
+                }
+                
+                // Additional validation: Check buffer size
+                if (vertex_buffer->length() == 0) {
+                  XELOGE("Metal IssueDraw: ERROR - vertex_buffer has zero length!");
+                }
+                
+                // CRITICAL: Ensure we call the 3-parameter version by explicit casting
+                // Call the 3-parameter version: setVertexBuffer(buffer, offset, index)
+                // NOT the 4-parameter version: setVertexBuffer(buffer, offset, stride, index)
+                encoder->setVertexBuffer(vertex_buffer, NS::UInteger(0), NS::UInteger(metal_buffer_index));
                 XELOGI("Metal IssueDraw: Bound vertex buffer at Metal indices {} and 0 (Xbox binding {}, {} bytes) from guest address 0x{:08X}", 
                        metal_buffer_index, binding.binding_index, size, address);
+                
+                // Note: For programmatic vertex fetch, the buffer is ALSO added to the resource heap at T0/U0
                 
                 // Log vertex attributes for debugging
                 if (!binding.attributes.empty() && size >= binding.stride_words * 4) {
@@ -2274,10 +2359,65 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 // Save first vertex buffer for T0/U0 binding
                 if (!first_bound_vertex_buffer) {
                   first_bound_vertex_buffer = vertex_buffer;
+                  XELOGI("Metal IssueDraw: Saved first_bound_vertex_buffer from binding {}", binding.binding_index);
                 }
               } else {
                 XELOGW("Metal IssueDraw: Failed to create vertex buffer for binding {}", 
                        binding.binding_index);
+              }
+            }
+          }
+          
+          // CRITICAL FIX: Handle programmatic vertex fetch when no traditional vertex bindings exist
+          // Xbox 360 shaders often use T0/U0 to read vertex data programmatically
+          if (vertex_shader && !first_bound_vertex_buffer) {
+            const auto& shader_vertex_bindings = vertex_shader->vertex_bindings();
+            if (shader_vertex_bindings.empty()) {
+              // No traditional vertex bindings, but shader may use programmatic vertex fetch
+              // Check vertex fetch constants 0-2 for vertex buffer addresses
+              XELOGI("Metal IssueDraw: No vertex bindings found, checking for programmatic vertex fetch");
+              
+              for (uint32_t fetch_idx = 0; fetch_idx < 3; fetch_idx++) {
+                auto vfetch_constant = register_file_->GetVertexFetch(fetch_idx);
+                if (vfetch_constant.address == 0 || vfetch_constant.type != xenos::FetchConstantType::kVertex) {
+                  continue; // No vertex buffer at this fetch constant
+                }
+                
+                uint32_t address = vfetch_constant.address << 2; // address is in dwords, convert to bytes
+                uint32_t size = vfetch_constant.size * 4; // size is in words, convert to bytes
+              
+              XELOGI("Metal IssueDraw: Found vertex data at fetch constant {} - address: 0x{:08X}, size: {} bytes",
+                     fetch_idx, address, size);
+              
+              // Get the vertex data from guest memory
+              const void* vertex_data = memory_->TranslatePhysical(address);
+              if (!vertex_data) {
+                XELOGW("Metal IssueDraw: Failed to translate vertex buffer address 0x{:08X}", address);
+                continue;
+              }
+              
+              // Create vertex buffer
+              MTL::Buffer* vertex_buffer = GetMetalDevice()->newBuffer(
+                  vertex_data, 
+                  size, 
+                  MTL::ResourceStorageModeShared);
+              TRACK_METAL_OBJECT(vertex_buffer, "MTL::Buffer[ProgrammaticVertexFetch]");
+              
+              if (vertex_buffer) {
+                // Label the buffer for debugging
+                char label[256];
+                snprintf(label, sizeof(label), "Xbox360ProgrammaticVertexBuffer_%d_0x%08X", 
+                        fetch_idx, address);
+                vertex_buffer->setLabel(NS::String::string(label, NS::UTF8StringEncoding));
+                
+                vertex_buffers_to_release.push_back(vertex_buffer);
+                
+                // Save first vertex buffer for T0/U0 binding in resource heap
+                if (!first_bound_vertex_buffer) {
+                  first_bound_vertex_buffer = vertex_buffer;
+                  XELOGI("Metal IssueDraw: Set programmatic vertex buffer for T0/U0 binding (fetch constant {})", fetch_idx);
+                }
+                }
               }
             }
           }
@@ -2300,25 +2440,22 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             const auto& vs_texture_bindings = vertex_shader->texture_bindings();
             XELOGI("Metal IssueDraw: Vertex shader has {} texture bindings", vs_texture_bindings.size());
             
-            // Process vertex shader textures - use sequential argument positions
+            // Process vertex shader textures - use actual heap slot values from reflection
             size_t texture_binding_index = 0;
-            size_t vs_argument_position = 0;  // Sequential counter for VS argument buffer positions
             
             for (size_t i = 0; i < vs_heap_texture_indices.size(); ++i) {
-              uint32_t heap_value = vs_heap_texture_indices[i];  // Renamed for clarity
+              uint32_t heap_slot = vs_heap_texture_indices[i];  // This IS the heap slot where shader expects the texture
               
               // Skip sentinel values (framebuffer fetch)
-              if (heap_value == 0xFFFF) {
+              if (heap_slot == 0xFFFF) {
                 XELOGI("Metal IssueDraw: Skipping framebuffer fetch sentinel at index {}", i);
                 continue;
               }
               
-              // For non-sentinel entries, use sequential argument positions
-              uint32_t argument_slot = vs_argument_position;
-              vs_argument_position++;  // Increment for next texture
-              
-              XELOGI("Metal IssueDraw: VS heap_texture_indices[{}] = 0x{:04X} -> argument slot {} (T{})",
-                     i, heap_value, argument_slot, argument_slot);
+              // Use the actual heap slot value from reflection, NOT a sequential counter
+              // The heap_slot value tells us exactly where in the descriptor heap this texture should be placed
+              XELOGI("Metal IssueDraw: VS heap_texture_indices[{}] = {} -> placing texture at heap slot {} (T{})",
+                     i, heap_slot, heap_slot, heap_slot);
               
               // Get fetch constant for this texture
               uint32_t fetch_constant;
@@ -2328,21 +2465,21 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 texture_binding_index++;
               } else {
                 // No texture bindings - try to find a valid texture by scanning fetch constants
-                XELOGI("Metal IssueDraw: No texture bindings for VS, scanning fetch constants for argument slot {}", argument_slot);
+                XELOGI("Metal IssueDraw: No texture bindings for VS, scanning fetch constants for heap slot {}", heap_slot);
                 fetch_constant = 0xFFFF; // Invalid by default
                 
                 // Try common fetch constant indices (0-31)
                 for (uint32_t fc = 0; fc < 32; fc++) {
                   xenos::xe_gpu_texture_fetch_t test_fetch = register_file_->GetTextureFetch(fc);
                   if (test_fetch.base_address) {
-                    XELOGI("Metal IssueDraw: Found valid texture at fetch constant {} for VS argument slot {}", fc, argument_slot);
+                    XELOGI("Metal IssueDraw: Found valid texture at fetch constant {} for VS heap slot {}", fc, heap_slot);
                     fetch_constant = fc;
                     break;
                   }
                 }
                 
                 if (fetch_constant == 0xFFFF) {
-                  XELOGW("Metal IssueDraw: No valid texture found for VS argument slot {}", argument_slot);
+                  XELOGW("Metal IssueDraw: No valid texture found for VS heap slot {}", heap_slot);
                   continue;
                 }
               }
@@ -2365,29 +2502,89 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               MTL::Texture* metal_texture = nullptr;
               if (texture_info.dimension == xenos::DataDimension::kCube) {
                 // Upload cube texture first, then get it
+                XELOGI("Metal IssueDraw: Uploading VS cube texture for heap slot {}", heap_slot);
                 if (!texture_cache_->UploadTextureCube(texture_info)) {
-                  XELOGW("Metal IssueDraw: Failed to upload VS cube texture for argument slot {}", argument_slot);
-                  continue;
+                  XELOGW("Metal IssueDraw: Failed to upload VS cube texture for heap slot {}", heap_slot);
+                  // Create null texture instead
+                  auto* metal_texture_cache = static_cast<MetalTextureCache*>(texture_cache_.get());
+                  metal_texture = metal_texture_cache->GetNullTextureCube();
+                  XELOGI("Metal IssueDraw: Using null cube texture for failed upload at heap slot {}", heap_slot);
+                } else {
+                  metal_texture = texture_cache_->GetTextureCube(texture_info);
+                  XELOGI("Metal IssueDraw: Successfully got cube texture 0x{:x} for heap slot {}",
+                         reinterpret_cast<uintptr_t>(metal_texture), heap_slot);
                 }
-                metal_texture = texture_cache_->GetTextureCube(texture_info);
               } else {
                 // Upload 2D texture first, then get it (same as pixel shader path)
+                XELOGI("Metal IssueDraw: Uploading VS 2D texture for heap slot {}", heap_slot);
                 if (!texture_cache_->UploadTexture2D(texture_info)) {
-                  XELOGW("Metal IssueDraw: Failed to upload VS 2D texture for argument slot {}", argument_slot);
-                  continue;
+                  XELOGW("Metal IssueDraw: Failed to upload VS 2D texture for heap slot {}", heap_slot);
+                  // Create null texture instead
+                  auto* metal_texture_cache = static_cast<MetalTextureCache*>(texture_cache_.get());
+                  metal_texture = metal_texture_cache->GetNullTexture2D();
+                  XELOGI("Metal IssueDraw: Using null 2D texture for failed upload at heap slot {}", heap_slot);
+                } else {
+                  metal_texture = texture_cache_->GetTexture2D(texture_info);
+                  XELOGI("Metal IssueDraw: Successfully got 2D texture 0x{:x} for heap slot {}",
+                         reinterpret_cast<uintptr_t>(metal_texture), heap_slot);
                 }
-                metal_texture = texture_cache_->GetTexture2D(texture_info);
               }
               
               if (metal_texture) {
-                bound_textures_by_heap_slot[argument_slot] = metal_texture;
-                XELOGI("Metal IssueDraw: Bound VS texture at argument slot {} for argument buffer", argument_slot);
+                bound_textures_by_heap_slot[heap_slot] = metal_texture;
+                XELOGI("Metal IssueDraw: Bound VS texture 0x{:x} at heap slot {} for descriptor heap",
+                       reinterpret_cast<uintptr_t>(metal_texture), heap_slot);
+              } else {
+                XELOGE("Metal IssueDraw: No texture (not even null) for VS heap slot {}!", heap_slot);
               }
             }
             
-            // Process vertex shader samplers - for now just skip
-            // TODO: Implement proper sampler support
-            XELOGI("Metal IssueDraw: Skipping VS sampler processing for now");
+            // Process vertex shader samplers - use actual heap slot values from reflection
+            size_t vs_sampler_binding_index = 0;
+            for (size_t i = 0; i < vs_heap_sampler_indices.size(); ++i) {
+              uint32_t heap_slot = vs_heap_sampler_indices[i];  // This IS the heap slot where shader expects the sampler
+              
+              // Skip sentinel values if any
+              if (heap_slot == 0xFFFF) {
+                XELOGI("Metal IssueDraw: Skipping VS sampler sentinel at index {}", i);
+                continue;
+              }
+              
+              XELOGI("Metal IssueDraw: VS heap_sampler_indices[{}] = {} -> placing sampler at heap slot {}",
+                     i, heap_slot, heap_slot);
+              
+              // Get the texture binding for this sampler
+              if (vs_sampler_binding_index >= vs_texture_bindings.size()) {
+                XELOGW("Metal IssueDraw: No texture binding for VS sampler at heap slot {}", heap_slot);
+                vs_sampler_binding_index++;
+                continue;
+              }
+              const auto& binding = vs_texture_bindings[vs_sampler_binding_index++];
+              uint32_t fetch_constant = binding.fetch_constant;
+              
+              // Ensure fetch constant is valid
+              if (fetch_constant >= 32) {
+                XELOGW("Metal IssueDraw: Invalid fetch constant {} for VS sampler binding {}", fetch_constant, i);
+                continue;
+              }
+              
+              // Get sampler info from register
+              xenos::xe_gpu_texture_fetch_t fetch = register_file_->GetTextureFetch(fetch_constant);
+              
+              // Create sampler state based on fetch settings
+              MTL::SamplerDescriptor* sampler_desc = MTL::SamplerDescriptor::alloc()->init();
+              sampler_desc->setMinFilter(MTL::SamplerMinMagFilterLinear);
+              sampler_desc->setMagFilter(MTL::SamplerMinMagFilterLinear);
+              sampler_desc->setSAddressMode(MTL::SamplerAddressModeRepeat);
+              sampler_desc->setTAddressMode(MTL::SamplerAddressModeRepeat);
+              sampler_desc->setSupportArgumentBuffers(true);  // Required for AB access
+              MTL::SamplerState* sampler = GetMetalDevice()->newSamplerState(sampler_desc);
+              sampler_desc->release();
+              
+              // Store sampler at its heap slot position
+              bound_samplers_by_heap_slot[heap_slot] = sampler;
+              XELOGI("Metal IssueDraw: Prepared VS sampler at heap slot {} for descriptor heap", heap_slot);
+            }
           }
           
           // Then check pixel shader (keeping existing code)
@@ -2555,31 +2752,50 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                      texture_info.memory.base_address);
               
               // Upload texture if not in cache
+              MTL::Texture* metal_texture = nullptr;
               if (texture_info.dimension == xenos::DataDimension::k2DOrStacked) {
+                XELOGI("Metal IssueDraw: Uploading PS 2D texture for heap slot {} (fetch {})", heap_slot, fetch_constant);
                 if (!texture_cache_->UploadTexture2D(texture_info)) {
-                  XELOGW("Metal IssueDraw: Failed to upload 2D texture for argument slot {} (fetch {})", heap_slot, fetch_constant);
-                  continue;
-                }
-                
-                // Get Metal texture from cache
-                MTL::Texture* metal_texture = texture_cache_->GetTexture2D(texture_info);
-                if (metal_texture) {
-                  // Store texture at its argument slot position
-                  bound_textures_by_heap_slot[heap_slot] = metal_texture;
-                  XELOGI("Metal IssueDraw: Got texture ptr 0x{:016X} at argument slot {} for argument buffer", 
+                  XELOGW("Metal IssueDraw: Failed to upload 2D texture for heap slot {} (fetch {})", heap_slot, fetch_constant);
+                  // Use null texture for failed upload
+                  auto* metal_texture_cache = static_cast<MetalTextureCache*>(texture_cache_.get());
+                  metal_texture = metal_texture_cache->GetNullTexture2D();
+                  XELOGI("Metal IssueDraw: Using null 2D texture for failed upload at heap slot {}", heap_slot);
+                } else {
+                  // Get Metal texture from cache
+                  metal_texture = texture_cache_->GetTexture2D(texture_info);
+                  XELOGI("Metal IssueDraw: Successfully got 2D texture 0x{:x} for heap slot {}",
                          reinterpret_cast<uintptr_t>(metal_texture), heap_slot);
                 }
-              } else if (texture_info.dimension == xenos::DataDimension::kCube) {
-                if (!texture_cache_->UploadTextureCube(texture_info)) {
-                  XELOGW("Metal IssueDraw: Failed to upload cube texture for argument slot {} (fetch {})", heap_slot, fetch_constant);
-                  continue;
-                }
                 
-                MTL::Texture* metal_texture = texture_cache_->GetTextureCube(texture_info);
                 if (metal_texture) {
                   // Store texture at its argument slot position
                   bound_textures_by_heap_slot[heap_slot] = metal_texture;
-                  XELOGI("Metal IssueDraw: Prepared cube texture at argument slot {} for argument buffer", heap_slot);
+                  XELOGI("Metal IssueDraw: Bound PS texture 0x{:016X} at heap slot {} for descriptor heap", 
+                         reinterpret_cast<uintptr_t>(metal_texture), heap_slot);
+                } else {
+                  XELOGE("Metal IssueDraw: No texture (not even null) for PS heap slot {}!", heap_slot);
+                }
+              } else if (texture_info.dimension == xenos::DataDimension::kCube) {
+                XELOGI("Metal IssueDraw: Uploading PS cube texture for heap slot {} (fetch {})", heap_slot, fetch_constant);
+                if (!texture_cache_->UploadTextureCube(texture_info)) {
+                  XELOGW("Metal IssueDraw: Failed to upload cube texture for heap slot {} (fetch {})", heap_slot, fetch_constant);
+                  // Use null texture for failed upload
+                  auto* metal_texture_cache = static_cast<MetalTextureCache*>(texture_cache_.get());
+                  metal_texture = metal_texture_cache->GetNullTextureCube();
+                  XELOGI("Metal IssueDraw: Using null cube texture for failed upload at heap slot {}", heap_slot);
+                } else {
+                  metal_texture = texture_cache_->GetTextureCube(texture_info);
+                  XELOGI("Metal IssueDraw: Successfully got cube texture 0x{:x} for heap slot {}",
+                         reinterpret_cast<uintptr_t>(metal_texture), heap_slot);
+                }
+                
+                if (metal_texture) {
+                  // Store texture at its argument slot position
+                  bound_textures_by_heap_slot[heap_slot] = metal_texture;
+                  XELOGI("Metal IssueDraw: Bound PS cube texture at heap slot {} for descriptor heap", heap_slot);
+                } else {
+                  XELOGE("Metal IssueDraw: No texture (not even null) for PS heap slot {}!", heap_slot);
                 }
               }
             }
@@ -2643,25 +2859,16 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
           
           // If no vertex buffers were bound, create a fallback triangle
           if (vertex_buffers_to_release.empty()) {
-            XELOGW("Metal IssueDraw: No vertex buffers bound, using fallback triangle");
-            float triangle_vertices[] = {
-                // position (x, y, z)
-                -0.5f, -0.5f, 0.0f,   // bottom left
-                 0.5f, -0.5f, 0.0f,   // bottom right  
-                 0.0f,  0.5f, 0.0f    // top center
-          };
+            // CRITICAL FIX: For programmatic vertex fetch shaders (Xbox 360 vfetch), 
+            // the vertex descriptor doesn't expect any traditional vertex buffers.
+            // Binding at index 0 causes Metal validation error: "unused binding in encoder"
+            // Since vertex data comes from textures T0/U0 in the resource heap, skip fallback binding.
+            XELOGI("Metal IssueDraw: No vertex buffers bound - programmatic vertex fetch via resource heap (T0/U0)");
+            XELOGI("Metal IssueDraw: Skipping fallback triangle to avoid Metal validation error");
             
-          MTL::Buffer* vertex_buffer = GetMetalDevice()->newBuffer(
-                triangle_vertices, sizeof(triangle_vertices), MTL::ResourceStorageModeShared);
-          TRACK_METAL_OBJECT(vertex_buffer, "MTL::Buffer[TriangleTest]");
-            
-            if (vertex_buffer) {
-              vertex_buffer->setLabel(NS::String::string("FallbackTriangleBuffer", NS::UTF8StringEncoding));
-            encoder->setVertexBuffer(vertex_buffer, 0, 0);
-            XELOGI("Metal IssueDraw: Created and bound fallback triangle buffer ({} bytes)", 
-                     sizeof(triangle_vertices));
-              vertex_buffers_to_release.push_back(vertex_buffer);
-          }
+            // Note: Vertex data will be accessed via texture bindings in resource heap,
+            // not through traditional vertex buffer bindings. This is expected behavior
+            // for Xbox 360 shaders that use vfetch instructions.
           }
           
           // Phase D: Create and bind argument buffers with proper descriptor heaps
@@ -2695,13 +2902,45 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               // But for simplicity, we'll put PS constants (256-511) in the same buffer
               XELOGI("Metal IssueDraw: Reading float constants from register file to b1");
               float* b1_data = uniforms_data + 1024;  // Offset by 256 vec4s (4KB)
-              for (int i = 0; i < 256; i++) {
-                // For now, read VS constants (0-255) into b1
-                int base_reg = XE_GPU_REG_SHADER_CONSTANT_000_X + (i * 4);
-                b1_data[i * 4 + 0] = *reinterpret_cast<const float*>(&regs[base_reg + 0]);
-                b1_data[i * 4 + 1] = *reinterpret_cast<const float*>(&regs[base_reg + 1]);
-                b1_data[i * 4 + 2] = *reinterpret_cast<const float*>(&regs[base_reg + 2]);
-                b1_data[i * 4 + 3] = *reinterpret_cast<const float*>(&regs[base_reg + 3]);
+              
+              // CRITICAL FIX #2: Use staging buffers if they have been updated by WriteRegister
+              // During trace replay, LOAD_ALU_CONSTANT packets update cb0_staging_ and cb1_staging_
+              // These contain the actual shader constants from the game, not the register file
+              bool use_staging_for_vs = false;
+              bool use_staging_for_ps = false;
+              
+              // Check if VS staging buffer has non-zero data
+              if (cb0_staging_) {
+                for (int i = 0; i < 256 * 4; i++) {
+                  if (cb0_staging_[i] != 0.0f) {
+                    use_staging_for_vs = true;
+                    XELOGI("Metal IssueDraw: Using cb0_staging_ for VS constants (has non-zero data)");
+                    break;
+                  }
+                }
+              }
+              
+              // Copy VS constants (0-255) from staging or register file
+              if (use_staging_for_vs && cb0_staging_) {
+                // Copy from staging buffer that was updated by WriteRegister
+                std::memcpy(b1_data, cb0_staging_, 256 * 4 * sizeof(float));
+                XELOGI("Metal IssueDraw: Copied VS constants from cb0_staging_ to b1");
+                
+                // Log first few constants for debugging
+                for (int i = 0; i < 4; i++) {
+                  XELOGI("  VS C{}: [{:.3f}, {:.3f}, {:.3f}, {:.3f}]",
+                         i, b1_data[i*4], b1_data[i*4+1], b1_data[i*4+2], b1_data[i*4+3]);
+                }
+              } else {
+                // Fall back to reading from register file
+                for (int i = 0; i < 256; i++) {
+                  // For now, read VS constants (0-255) into b1
+                  int base_reg = XE_GPU_REG_SHADER_CONSTANT_000_X + (i * 4);
+                  b1_data[i * 4 + 0] = *reinterpret_cast<const float*>(&regs[base_reg + 0]);
+                  b1_data[i * 4 + 1] = *reinterpret_cast<const float*>(&regs[base_reg + 1]);
+                  b1_data[i * 4 + 2] = *reinterpret_cast<const float*>(&regs[base_reg + 2]);
+                  b1_data[i * 4 + 3] = *reinterpret_cast<const float*>(&regs[base_reg + 3]);
+                }
               }
               
               // b2: Bool/Loop constants at offset 8KB (2048 floats)
@@ -2717,13 +2956,39 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               // b1 for PS: PS float constants (256-511) at offset 16KB
               // D3D12 uses separate buffers for VS and PS constants
               float* b1_ps_data = uniforms_data + 4096;  // Offset by 1024 vec4s (16KB)
-              for (int i = 256; i < 512; i++) {
-                int local_i = i - 256;
-                int base_reg = XE_GPU_REG_SHADER_CONSTANT_000_X + (i * 4);
-                b1_ps_data[local_i * 4 + 0] = *reinterpret_cast<const float*>(&regs[base_reg + 0]);
-                b1_ps_data[local_i * 4 + 1] = *reinterpret_cast<const float*>(&regs[base_reg + 1]);
-                b1_ps_data[local_i * 4 + 2] = *reinterpret_cast<const float*>(&regs[base_reg + 2]);
-                b1_ps_data[local_i * 4 + 3] = *reinterpret_cast<const float*>(&regs[base_reg + 3]);
+              
+              // Check if PS staging buffer has non-zero data
+              if (cb1_staging_) {
+                for (int i = 0; i < 256 * 4; i++) {
+                  if (cb1_staging_[i] != 0.0f) {
+                    use_staging_for_ps = true;
+                    XELOGI("Metal IssueDraw: Using cb1_staging_ for PS constants (has non-zero data)");
+                    break;
+                  }
+                }
+              }
+              
+              // Copy PS constants (256-511) from staging or register file
+              if (use_staging_for_ps && cb1_staging_) {
+                // Copy from staging buffer that was updated by WriteRegister
+                std::memcpy(b1_ps_data, cb1_staging_, 256 * 4 * sizeof(float));
+                XELOGI("Metal IssueDraw: Copied PS constants from cb1_staging_ to b1_ps");
+                
+                // Log first few constants for debugging
+                for (int i = 0; i < 4; i++) {
+                  XELOGI("  PS C{}: [{:.3f}, {:.3f}, {:.3f}, {:.3f}]",
+                         i, b1_ps_data[i*4], b1_ps_data[i*4+1], b1_ps_data[i*4+2], b1_ps_data[i*4+3]);
+                }
+              } else {
+                // Fall back to reading from register file
+                for (int i = 256; i < 512; i++) {
+                  int local_i = i - 256;
+                  int base_reg = XE_GPU_REG_SHADER_CONSTANT_000_X + (i * 4);
+                  b1_ps_data[local_i * 4 + 0] = *reinterpret_cast<const float*>(&regs[base_reg + 0]);
+                  b1_ps_data[local_i * 4 + 1] = *reinterpret_cast<const float*>(&regs[base_reg + 1]);
+                  b1_ps_data[local_i * 4 + 2] = *reinterpret_cast<const float*>(&regs[base_reg + 2]);
+                  b1_ps_data[local_i * 4 + 3] = *reinterpret_cast<const float*>(&regs[base_reg + 3]);
+                }
               }
               
               // Debug: check if register file has non-zero values
@@ -2779,16 +3044,18 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 // - ndc_offset[3] is at offset 312 bytes (floats 78-80)
                 // But these are the D3D12 offsets. For simplicity, let's put them at the beginning of b0
                 
-                // Put NDC constants at the beginning of b0 for easy access
-                b0_data[0] = ndc_scale_x;    // b0[0].x
-                b0_data[1] = ndc_scale_y;    // b0[0].y
-                b0_data[2] = ndc_scale_z;    // b0[0].z
-                b0_data[3] = 0.0f;           // b0[0].w - padding
+                // FIXED: Store NDC constants at correct SystemConstants offsets
+                // ndc_scale at byte offset 128 (float index 32)
+                b0_data[32] = ndc_scale_x;   // SystemConstants.ndc_scale[0]
+                b0_data[33] = ndc_scale_y;   // SystemConstants.ndc_scale[1]  
+                b0_data[34] = ndc_scale_z;   // SystemConstants.ndc_scale[2]
+                b0_data[35] = 0.0f;          // SystemConstants.point_vertex_diameter_min (padding)
                 
-                b0_data[4] = ndc_offset_x;   // b0[1].x
-                b0_data[5] = ndc_offset_y;   // b0[1].y
-                b0_data[6] = ndc_offset_z;   // b0[1].z
-                b0_data[7] = 0.0f;           // b0[1].w - padding
+                // ndc_offset at byte offset 144 (float index 36)
+                b0_data[36] = ndc_offset_x;  // SystemConstants.ndc_offset[0]
+                b0_data[37] = ndc_offset_y;  // SystemConstants.ndc_offset[1]
+                b0_data[38] = ndc_offset_z;  // SystemConstants.ndc_offset[2]
+                b0_data[39] = 0.0f;          // SystemConstants.point_vertex_diameter_max (padding)
                 
                 // Viewport dimensions at b0[2]
                 b0_data[8] = float(rt_width);        // b0[2].x
@@ -2797,11 +3064,11 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 b0_data[11] = 1.0f / float(rt_height); // b0[2].w
                 
                 XELOGI("Injected NDC transformation constants in b0 (system constants):");
-                XELOGI("  b0[0] (ndc_scale): [{:.6f}, {:.6f}, {:.6f}, {:.6f}]", 
-                       b0_data[0], b0_data[1], b0_data[2], b0_data[3]);
-                XELOGI("  b0[1] (ndc_offset): [{:.6f}, {:.6f}, {:.6f}, {:.6f}]",
-                       b0_data[4], b0_data[5], b0_data[6], b0_data[7]);
-                XELOGI("  b0[2] (viewport_dims): [{:.0f}, {:.0f}, {:.6f}, {:.6f}]",
+                XELOGI("  SystemConstants.ndc_scale[32-34]: [{:.6f}, {:.6f}, {:.6f}]", 
+                       b0_data[32], b0_data[33], b0_data[34]);
+                XELOGI("  SystemConstants.ndc_offset[36-38]: [{:.6f}, {:.6f}, {:.6f}]",
+                       b0_data[36], b0_data[37], b0_data[38]);
+                XELOGI("  Extra viewport_dims[8-11]: [{:.0f}, {:.0f}, {:.6f}, {:.6f}]",
                        b0_data[8], b0_data[9], b0_data[10], b0_data[11]);
               }
               
@@ -2826,6 +3093,11 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               // encoder->setVertexBuffer(uniforms_buffer, 0, 6);  // REMOVED - incorrect
               // encoder->setFragmentBuffer(uniforms_buffer, 0, 6);  // REMOVED - incorrect
               XELOGI("Uniforms buffer will be accessed through argument buffer CBV entries");
+              
+              // CRITICAL: Synchronize uniforms buffer after all modifications
+              // Note: didModifyRange is only for MTLResourceStorageModeManaged buffers
+              // Since we're using MTLResourceStorageModeShared, the CPU/GPU synchronization is automatic
+              XELOGI("  Uniforms buffer updated (shared memory, auto-synchronized)");
             }
             
             // --- Populate and bind MSC descriptor heaps (arrays of IRDescriptorTableEntry) ---
@@ -2835,6 +3107,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               auto* res_entries = reinterpret_cast<IRDescriptorTableEntry*>(res_heap_ab_->contents());
               
               // CRITICAL: First, add vertex buffer at slots 0 (T0) and 1 (U0) for programmatic vertex fetch
+              XELOGI("Metal IssueDraw: Checking first_bound_vertex_buffer: {}", first_bound_vertex_buffer ? "EXISTS" : "NULL");
               if (first_bound_vertex_buffer && vertex_shader) {
                 // T0 at slot 0
                 ::IRDescriptorTableSetBuffer(&res_entries[0], 
@@ -2861,11 +3134,16 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               // Debug: Check if we actually have textures
               if (bound_textures_by_heap_slot.empty() && !first_bound_vertex_buffer) {
                 XELOGW("Metal IssueDraw: bound_textures_by_heap_slot is EMPTY and no vertex buffer! No resources to populate.");
+                XELOGW("  This will result in an empty descriptor heap!");
+              } else {
+                XELOGI("Metal IssueDraw: Ready to populate {} texture entries + {} vertex buffer entries",
+                       bound_textures_by_heap_slot.size(), first_bound_vertex_buffer ? 2 : 0);
               }
               
               // Write textures at their exact heap indices from reflection
+              XELOGI("Metal IssueDraw: Writing {} textures to resource heap", bound_textures_by_heap_slot.size());
               for (const auto& [heap_slot, texture] : bound_textures_by_heap_slot) {
-                if (texture && heap_slot < 256) { // Ensure within heap bounds (updated to match new heap size)
+                if (texture && heap_slot < 256) { // Ensure within heap bounds (256 = max resource heap slots)
                   ::IRDescriptorTableSetTexture(&res_entries[heap_slot], texture, /*minLODClamp*/0.0f, /*flags*/0);
                   encoder->useResource(texture, MTL::ResourceUsageRead,
                                        MTL::RenderStageVertex | MTL::RenderStageFragment);
@@ -2893,15 +3171,32 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               
               // Final validation: Check if heap has any valid entries
               bool has_any_valid = false;
-              for (int i = 0; i < 32; i++) {
+              int valid_count = 0;
+              const size_t kResourceHeapSlots = 256; // Local constant for validation
+              for (size_t i = 0; i < kResourceHeapSlots; i++) {
                 if (res_entries[i].textureViewID != 0) {
                   has_any_valid = true;
-                  XELOGI("  Heap slot {} has valid texture ID: 0x{:016X}", i, res_entries[i].textureViewID);
+                  valid_count++;
+                  if (valid_count <= 10) { // Only log first 10 to avoid spam
+                    XELOGI("  Heap slot {} has valid texture ID: 0x{:016X}", i, res_entries[i].textureViewID);
+                  }
                 }
               }
               if (!has_any_valid) {
                 XELOGE("Metal IssueDraw: Resource heap has NO valid entries after population!");
+                XELOGE("  bound_textures_by_heap_slot.size() = {}", bound_textures_by_heap_slot.size());
+                XELOGE("  first_bound_vertex_buffer = {}", first_bound_vertex_buffer ? "valid" : "null");
+                // Log what textures we tried to bind
+                for (const auto& [slot, tex] : bound_textures_by_heap_slot) {
+                  XELOGE("    Attempted to bind texture at slot {}: {}", slot, tex ? "valid" : "null");
+                }
+              } else {
+                XELOGI("Metal IssueDraw: Resource heap populated with {} valid entries", valid_count);
               }
+              
+              // CRITICAL: Resource heap is auto-synchronized (using shared memory)
+              // Note: didModifyRange is only for MTLResourceStorageModeManaged buffers
+              XELOGI("  Resource heap updated (shared memory, auto-synchronized)");
             }
 
             if (smp_heap_ab_) {
@@ -2909,8 +3204,9 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               auto* smp_entries = reinterpret_cast<IRDescriptorTableEntry*>(smp_heap_ab_->contents());
               
               // Write samplers at their exact heap indices from reflection
+              XELOGI("Metal IssueDraw: Writing {} samplers to sampler heap", bound_samplers_by_heap_slot.size());
               for (const auto& [heap_slot, sampler] : bound_samplers_by_heap_slot) {
-                if (sampler && heap_slot < 128) { // Ensure within heap bounds (updated to match new heap size)
+                if (sampler && heap_slot < 128) { // Ensure within heap bounds (128 = max sampler heap slots)
                   ::IRDescriptorTableSetSampler(&smp_entries[heap_slot], sampler, /*lodBias*/0.0f);
                   
                   // Debug: Verify sampler descriptor was written
@@ -2926,6 +3222,28 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                          smp_desc_bytes[20], smp_desc_bytes[21], smp_desc_bytes[22], smp_desc_bytes[23]);
                 }
               }
+              
+              // Validate sampler heap entries
+              bool has_any_sampler = false;
+              int sampler_count = 0;
+              const size_t kSamplerHeapSlots = 128; // Local constant for validation
+              for (size_t i = 0; i < kSamplerHeapSlots; i++) {
+                if (smp_entries[i].gpuVA != 0 || smp_entries[i].textureViewID != 0) { // Check if sampler descriptor has been written
+                  has_any_sampler = true;
+                  sampler_count++;
+                }
+              }
+              if (bound_samplers_by_heap_slot.size() > 0 && !has_any_sampler) {
+                XELOGE("Metal IssueDraw: Sampler heap has NO valid entries despite {} samplers to bind!", 
+                       bound_samplers_by_heap_slot.size());
+              } else if (sampler_count > 0) {
+                XELOGI("Metal IssueDraw: Sampler heap populated with {} valid entries", sampler_count);
+              }
+              
+              // CRITICAL: Synchronize sampler heap after all modifications
+              // Note: didModifyRange is only for MTLResourceStorageModeManaged buffers
+              // Since we're using MTLResourceStorageModeShared, the CPU/GPU synchronization is automatic
+              XELOGI("  Sampler heap updated (shared memory, auto-synchronized)");
             }
 
             // Bind the populated heaps at MSC's REQUIRED indices
@@ -2936,16 +3254,57 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             // The root signature only affects how resources are organized WITHIN the heaps,
             // not where the heaps themselves are bound.
             if (res_heap_ab_) {
-              encoder->setVertexBuffer(res_heap_ab_, 0, (NS::UInteger)kIRDescriptorHeapBindPoint);
-              encoder->setFragmentBuffer(res_heap_ab_, 0, (NS::UInteger)kIRDescriptorHeapBindPoint);
-              encoder->useResource(res_heap_ab_, MTL::ResourceUsageRead,
-                                   MTL::RenderStageVertex | MTL::RenderStageFragment);
+              // Verify heap content before binding
+              auto* res_check = reinterpret_cast<IRDescriptorTableEntry*>(res_heap_ab_->contents());
+              int valid_entries = 0;
+              for (size_t i = 0; i < 256; i++) {
+                if (res_check[i].textureViewID != 0) {
+                  valid_entries++;
+                }
+              }
+              XELOGI("Metal IssueDraw: Resource heap has {} valid entries at slot {}",
+                     valid_entries, kIRDescriptorHeapBindPoint);
+              
+              // CRITICAL FIX: Only bind resource heap if it has valid entries
+              // Binding empty heap causes Metal validation error: "unused binding in encoder at Buffer index 0"
+              if (valid_entries > 0) {
+                // Validate buffer before binding
+                if (res_heap_ab_->length() == 0) {
+                  XELOGE("Metal IssueDraw: ERROR - res_heap_ab_ has zero length!");
+                } else {
+                  encoder->setVertexBuffer(res_heap_ab_, NS::UInteger(0), NS::UInteger(kIRDescriptorHeapBindPoint));
+                  encoder->setFragmentBuffer(res_heap_ab_, 0, (NS::UInteger)kIRDescriptorHeapBindPoint);
+                  encoder->useResource(res_heap_ab_, MTL::ResourceUsageRead,
+                                       MTL::RenderStageVertex | MTL::RenderStageFragment);
+                  XELOGI("Metal IssueDraw: Bound resource heap with {} valid entries", valid_entries);
+                }
+              } else {
+                XELOGI("Metal IssueDraw: Skipping resource heap binding - no valid entries (avoids Metal validation error)");
+              }
             }
             if (smp_heap_ab_) {
-              encoder->setVertexBuffer(smp_heap_ab_, 0, (NS::UInteger)kIRSamplerHeapBindPoint);
-              encoder->setFragmentBuffer(smp_heap_ab_, 0, (NS::UInteger)kIRSamplerHeapBindPoint);
-              encoder->useResource(smp_heap_ab_, MTL::ResourceUsageRead,
-                                   MTL::RenderStageVertex | MTL::RenderStageFragment);
+              // Verify sampler heap content before binding
+              auto* smp_check = reinterpret_cast<IRDescriptorTableEntry*>(smp_heap_ab_->contents());
+              int valid_samplers = 0;
+              for (size_t i = 0; i < 128; i++) {
+                if (smp_check[i].gpuVA != 0 || smp_check[i].textureViewID != 0) {
+                  valid_samplers++;
+                }
+              }
+              XELOGI("Metal IssueDraw: Sampler heap has {} valid entries at slot {}",
+                     valid_samplers, kIRSamplerHeapBindPoint);
+              
+              // CRITICAL FIX: Only bind sampler heap if it has valid entries
+              // Binding empty heap causes Metal validation error: "unused binding in encoder"
+              if (valid_samplers > 0) {
+                encoder->setVertexBuffer(smp_heap_ab_, NS::UInteger(0), NS::UInteger(kIRSamplerHeapBindPoint));
+                encoder->setFragmentBuffer(smp_heap_ab_, 0, (NS::UInteger)kIRSamplerHeapBindPoint);
+                encoder->useResource(smp_heap_ab_, MTL::ResourceUsageRead,
+                                     MTL::RenderStageVertex | MTL::RenderStageFragment);
+                XELOGI("Metal IssueDraw: Bound sampler heap with {} valid entries", valid_samplers);
+              } else {
+                XELOGI("Metal IssueDraw: Skipping sampler heap binding - no valid entries (avoids Metal validation error)");
+              }
             }
             
             // CRITICAL FIX: Mark UAV heap as resident even though it's accessed through the top-level AB
@@ -3121,6 +3480,12 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                   ::IRDescriptorTableSetBuffer(&vs_entries_typed[2], uniforms_buffer_->gpuAddress(), kCBBytes);
                   ::IRDescriptorTableSetBuffer(&vs_entries_typed[3], uniforms_buffer_->gpuAddress() + kCBBytes, kCBBytes);
                 }
+              }
+              
+              // Note: didModifyRange is only for MTLResourceStorageModeManaged buffers
+              // Since we're using MTLResourceStorageModeShared, the CPU/GPU synchronization is automatic
+              if (top_level_vs_ab) {
+                XELOGI("  VS top-level argument buffer updated (shared memory, auto-synchronized)");
               }
             }
             
@@ -3340,6 +3705,12 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                   ::IRDescriptorTableSetBuffer(&ps_entries_typed[0], uniforms_buffer_->gpuAddress() + kCBBytes, kCBBytes);
                 }
               }
+              
+              // Note: didModifyRange is only for MTLResourceStorageModeManaged buffers
+              // Since we're using MTLResourceStorageModeShared, the CPU/GPU synchronization is automatic
+              if (top_level_ps_ab) {
+                XELOGI("  PS top-level argument buffer updated (shared memory, auto-synchronized)");
+              }
             }
 
             // Note: Top-level ABs are now bound conditionally based on shader requirements
@@ -3367,26 +3738,31 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             std::memset(ir_uniforms_buffer->contents(), 0, ir_uniforms_buffer->length());
             
             // Copy NDC constants from uniforms_buffer to ir_uniforms_buffer
-            // The shader expects them at bytes 128-152 (floats 32-38)
+            // FIXED: NDC constants are stored at offsets 0-7 in main buffer, copy to standard MSC offsets
             if (uniforms_buffer_) {
               float* src_uniforms = (float*)uniforms_buffer_->contents();
               float* dst_uniforms = (float*)ir_uniforms_buffer->contents();
               
-              // Copy NDC scale (floats 32-34)
-              dst_uniforms[32] = src_uniforms[32];  // ndc_scale_x
-              dst_uniforms[33] = src_uniforms[33];  // ndc_scale_y
-              dst_uniforms[34] = src_uniforms[34];  // ndc_scale_z
-              dst_uniforms[35] = 0.0f;              // padding
+              // Copy NDC constants from SystemConstants offsets to standard MSC offsets
+              dst_uniforms[32] = src_uniforms[32]; // ndc_scale_x from SystemConstants.ndc_scale[0]
+              dst_uniforms[33] = src_uniforms[33]; // ndc_scale_y from SystemConstants.ndc_scale[1]
+              dst_uniforms[34] = src_uniforms[34]; // ndc_scale_z from SystemConstants.ndc_scale[2]
+              dst_uniforms[35] = 0.0f;             // padding
               
-              // Copy NDC offset (floats 36-38)
-              dst_uniforms[36] = src_uniforms[36];  // ndc_offset_x
-              dst_uniforms[37] = src_uniforms[37];  // ndc_offset_y
-              dst_uniforms[38] = src_uniforms[38];  // ndc_offset_z
-              dst_uniforms[39] = 0.0f;              // padding
+              // Copy NDC offset from SystemConstants offsets to standard MSC offsets
+              dst_uniforms[36] = src_uniforms[36]; // ndc_offset_x from SystemConstants.ndc_offset[0]
+              dst_uniforms[37] = src_uniforms[37]; // ndc_offset_y from SystemConstants.ndc_offset[1]
+              dst_uniforms[38] = src_uniforms[38]; // ndc_offset_z from SystemConstants.ndc_offset[2]
+              dst_uniforms[39] = 0.0f;             // padding
               
               XELOGI("Copied NDC constants to ir_uniforms_buffer");
-              XELOGI("  NDC scale: [{}, {}, {}]", dst_uniforms[32], dst_uniforms[33], dst_uniforms[34]);
-              XELOGI("  NDC offset: [{}, {}, {}]", dst_uniforms[36], dst_uniforms[37], dst_uniforms[38]);
+              XELOGI("  NDC scale[32-34]: [{}, {}, {}]", dst_uniforms[32], dst_uniforms[33], dst_uniforms[34]);
+              XELOGI("  NDC offset[36-38]: [{}, {}, {}]", dst_uniforms[36], dst_uniforms[37], dst_uniforms[38]);
+              
+              // CRITICAL: Synchronize IR uniforms buffer after NDC constant copy
+              // Note: didModifyRange is only for MTLResourceStorageModeManaged buffers
+              // Since we're using MTLResourceStorageModeShared, the CPU/GPU synchronization is automatic
+              XELOGI("  Synchronized IR uniforms buffer with GPU");
             }
             
             // Smart resource binding based on shader requirements
@@ -3408,24 +3784,50 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                    vs_texture_slots.size(), ps_texture_slots.size(),
                    vs_sampler_slots.size(), ps_sampler_slots.size());
             
-            // Bind descriptor heap (slot 0) only if textures are actually used
+            // Smart binding - only bind descriptor heap if textures are used AND heap has valid entries
             if (vs_needs_textures || ps_needs_textures) {
-              encoder->setVertexBuffer(res_heap_ab_, 0, (NS::UInteger)kIRDescriptorHeapBindPoint);
-              encoder->setFragmentBuffer(res_heap_ab_, 0, (NS::UInteger)kIRDescriptorHeapBindPoint);
-              encoder->useResource(res_heap_ab_, MTL::ResourceUsageRead,
-                                 MTL::RenderStageVertex | MTL::RenderStageFragment);
-              XELOGI("Metal IssueDraw: Bound descriptor heap at slot 0 (textures used)");
+              // Double-check that the heap actually has valid entries
+              auto* res_check = reinterpret_cast<IRDescriptorTableEntry*>(res_heap_ab_->contents());
+              int valid_entries = 0;
+              for (size_t i = 0; i < 256; i++) {
+                if (res_check[i].textureViewID != 0) {
+                  valid_entries++;
+                }
+              }
+              
+              if (valid_entries > 0) {
+                encoder->setVertexBuffer(res_heap_ab_, NS::UInteger(0), NS::UInteger(kIRDescriptorHeapBindPoint));
+                encoder->setFragmentBuffer(res_heap_ab_, 0, (NS::UInteger)kIRDescriptorHeapBindPoint);
+                encoder->useResource(res_heap_ab_, MTL::ResourceUsageRead,
+                                   MTL::RenderStageVertex | MTL::RenderStageFragment);
+                XELOGI("Metal IssueDraw: Smart-bound descriptor heap at slot 0 ({} valid entries)", valid_entries);
+              } else {
+                XELOGI("Metal IssueDraw: Skipping descriptor heap binding - textures used but heap empty");
+              }
             } else {
               XELOGI("Metal IssueDraw: Skipping descriptor heap binding - no textures used");
             }
             
-            // Bind sampler heap (slot 1) only if samplers are actually used
+            // Smart binding - only bind sampler heap if samplers are used AND heap has valid entries
             if (vs_needs_samplers || ps_needs_samplers) {
-              encoder->setVertexBuffer(smp_heap_ab_, 0, (NS::UInteger)kIRSamplerHeapBindPoint);
-              encoder->setFragmentBuffer(smp_heap_ab_, 0, (NS::UInteger)kIRSamplerHeapBindPoint);
-              encoder->useResource(smp_heap_ab_, MTL::ResourceUsageRead,
-                                 MTL::RenderStageVertex | MTL::RenderStageFragment);
-              XELOGI("Metal IssueDraw: Bound sampler heap at slot 1 (samplers used)");
+              // Double-check that the heap actually has valid entries
+              auto* smp_check = reinterpret_cast<IRDescriptorTableEntry*>(smp_heap_ab_->contents());
+              int valid_samplers = 0;
+              for (size_t i = 0; i < 128; i++) {
+                if (smp_check[i].gpuVA != 0 || smp_check[i].textureViewID != 0) {
+                  valid_samplers++;
+                }
+              }
+              
+              if (valid_samplers > 0) {
+                encoder->setVertexBuffer(smp_heap_ab_, NS::UInteger(0), NS::UInteger(kIRSamplerHeapBindPoint));
+                encoder->setFragmentBuffer(smp_heap_ab_, 0, (NS::UInteger)kIRSamplerHeapBindPoint);
+                encoder->useResource(smp_heap_ab_, MTL::ResourceUsageRead,
+                                   MTL::RenderStageVertex | MTL::RenderStageFragment);
+                XELOGI("Metal IssueDraw: Smart-bound sampler heap at slot 1 ({} valid entries)", valid_samplers);
+              } else {
+                XELOGI("Metal IssueDraw: Skipping sampler heap binding - samplers used but heap empty");
+              }
             } else {
               XELOGI("Metal IssueDraw: Skipping sampler heap binding - no samplers used");
             }
@@ -3435,7 +3837,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             // The error "missing Buffer binding at index 2 for struct.top_level_global_ab[0]"
             // proves this is required. Don't make it conditional.
             if (top_level_vs_ab) {
-              encoder->setVertexBuffer(top_level_vs_ab, 0, (NS::UInteger)kIRArgumentBufferBindPoint);
+              encoder->setVertexBuffer(top_level_vs_ab, NS::UInteger(0), NS::UInteger(kIRArgumentBufferBindPoint));
               encoder->useResource(top_level_vs_ab, MTL::ResourceUsageRead,
                                    MTL::RenderStageVertex | MTL::RenderStageFragment);
               XELOGI("Metal IssueDraw: Bound VS top-level AB at slot 2");
@@ -3454,7 +3856,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             bool needs_draw_args = (vs_needs_textures || ps_needs_textures);
             
             if (needs_draw_args) {
-              encoder->setVertexBuffer(ir_draw_args_buffer, 0, (NS::UInteger)kIRArgumentBufferDrawArgumentsBindPoint);
+              encoder->setVertexBuffer(ir_draw_args_buffer, NS::UInteger(0), NS::UInteger(kIRArgumentBufferDrawArgumentsBindPoint));
               encoder->setFragmentBuffer(ir_draw_args_buffer, 0, (NS::UInteger)kIRArgumentBufferDrawArgumentsBindPoint);
               XELOGI("Metal IssueDraw: Bound draw args buffer at slot 4");
               
@@ -3472,7 +3874,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             
             if (needs_uniforms) {
               if (uniforms_buffer_) {
-                encoder->setVertexBuffer(uniforms_buffer_, 0, (NS::UInteger)kIRArgumentBufferUniformsBindPoint);
+                encoder->setVertexBuffer(uniforms_buffer_, NS::UInteger(0), NS::UInteger(kIRArgumentBufferUniformsBindPoint));
                 encoder->setFragmentBuffer(uniforms_buffer_, 0, (NS::UInteger)kIRArgumentBufferUniformsBindPoint);
                 XELOGI("Metal IssueDraw: Bound main uniforms buffer (20KB) at slot 5");
                 
@@ -3480,7 +3882,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 encoder->useResource(uniforms_buffer_, MTL::ResourceUsageRead,
                                    MTL::RenderStageVertex | MTL::RenderStageFragment);
               } else {
-                encoder->setVertexBuffer(ir_uniforms_buffer, 0, (NS::UInteger)kIRArgumentBufferUniformsBindPoint);
+                encoder->setVertexBuffer(ir_uniforms_buffer, NS::UInteger(0), NS::UInteger(kIRArgumentBufferUniformsBindPoint));
                 encoder->setFragmentBuffer(ir_uniforms_buffer, 0, (NS::UInteger)kIRArgumentBufferUniformsBindPoint);
                 XELOGW("Metal IssueDraw: WARNING - Using small ir_uniforms_buffer at slot 5 (may cause OOB)");
                 
@@ -3776,7 +4178,10 @@ after_normal_draw:
             auto* green_ps_pipeline = pipeline_cache_->GetRenderPipelineStateWithGreenPS(pipeline_desc);
             if (green_ps_pipeline) {
               XELOGI("Metal IssueDraw: Testing real VS + green PS (no texture dependencies)");
-              encoder->setRenderPipelineState(green_ps_pipeline);
+              if (green_ps_pipeline != render_state_cache_.current_pipeline_state) {
+                encoder->setRenderPipelineState(green_ps_pipeline);
+                render_state_cache_.current_pipeline_state = green_ps_pipeline;
+              }
               
               // Simply repeat the same draw with green PS
               if (primitive_processing_result.index_buffer_type != PrimitiveProcessor::ProcessedIndexBufferType::kNone 
@@ -3810,7 +4215,10 @@ after_normal_draw:
           /*
           if (debug_red_pipeline_) {
             XELOGI("Metal IssueDraw: Adding debug red triangle overlay");
-            encoder->setRenderPipelineState(debug_red_pipeline_);
+            if (debug_red_pipeline_ != render_state_cache_.current_pipeline_state) {
+              encoder->setRenderPipelineState(debug_red_pipeline_);
+              render_state_cache_.current_pipeline_state = debug_red_pipeline_;
+            }
             // Draw fallback triangle using IRRuntime helper
             IRRuntimeDrawPrimitives(encoder, MTL::PrimitiveTypeTriangle, NS::UInteger(0), NS::UInteger(3));
             XELOGI("Metal IssueDraw: Debug red triangle drawn");
