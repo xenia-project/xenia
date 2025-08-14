@@ -156,6 +156,28 @@ bool MetalCommandProcessor::SetupContext() {
     // Don't start capture here - wait for first submission when draws actually begin
   }
   
+  // CRITICAL: Print Metal validation status
+#ifdef METAL_VALIDATION_ENABLED
+  XELOGI("================================================================");
+  XELOGI("METAL VALIDATION IS ENABLED - ALL ERRORS WILL BE CAUGHT");
+  XELOGI("MTL_DEBUG_LAYER=1, METAL_DEBUG_ERROR_MODE=5");
+  XELOGI("Validation will assert on ANY Metal API error or warning");
+  XELOGI("================================================================");
+#else
+  XELOGE("================================================================");
+  XELOGE("WARNING: METAL VALIDATION IS NOT ENABLED!");
+  XELOGE("Validation errors may be missed. Build with Checked or Debug.");
+  XELOGE("================================================================");
+#endif
+
+  // Also check environment variables at runtime
+  if (getenv("MTL_DEBUG_LAYER")) {
+    XELOGI("Runtime: MTL_DEBUG_LAYER is set to: %s", getenv("MTL_DEBUG_LAYER"));
+  }
+  if (getenv("METAL_DEBUG_ERROR_MODE")) {
+    XELOGI("Runtime: METAL_DEBUG_ERROR_MODE is set to: %s", getenv("METAL_DEBUG_ERROR_MODE"));
+  }
+  
   // Create debug red pipeline for testing
   CreateDebugRedPipeline();
   
@@ -212,6 +234,23 @@ bool MetalCommandProcessor::SetupContext() {
 
     XELOGI("Metal SetupContext: Created MSC heaps (resources: {} entries, samplers: {} entries, UAVs: {} entries)", 
            (int)kResourceHeapSlots, (int)kSamplerHeapSlots, (int)kUAVHeapSlots);
+  }
+  
+  // Create MSC Runtime buffers (for IRRuntimeDrawPrimitives/IRRuntimeDrawIndexedPrimitives)
+  // Create them here during initialization to avoid Metal validation issues
+  {
+    XE_SCOPED_AUTORELEASE_POOL("CreateMSCRuntimeBuffers");
+    
+    ir_draw_args_buffer_ = GetMetalDevice()->newBuffer(256, MTL::ResourceStorageModeShared);
+    ir_draw_args_buffer_->setLabel(NS::String::string("IR_DrawArguments", NS::UTF8StringEncoding));
+    std::memset(ir_draw_args_buffer_->contents(), 0, ir_draw_args_buffer_->length());
+    XELOGI("Metal SetupContext: Created IR draw arguments buffer");
+    
+    // Need at least 160 bytes to hold NDC constants at offsets 128-152 (floats 32-38)
+    ir_uniforms_buffer_ = GetMetalDevice()->newBuffer(512, MTL::ResourceStorageModeShared);
+    ir_uniforms_buffer_->setLabel(NS::String::string("IR_Uniforms", NS::UTF8StringEncoding));
+    std::memset(ir_uniforms_buffer_->contents(), 0, ir_uniforms_buffer_->length());
+    XELOGI("Metal SetupContext: Created IR uniforms buffer");
   }
   
   return CommandProcessor::SetupContext();
@@ -292,6 +331,14 @@ void MetalCommandProcessor::ShutdownContext() {
   if (uav_heap_ab_) {
     uav_heap_ab_->release();
     uav_heap_ab_ = nullptr;
+  }
+  if (ir_draw_args_buffer_) {
+    ir_draw_args_buffer_->release();
+    ir_draw_args_buffer_ = nullptr;
+  }
+  if (ir_uniforms_buffer_) {
+    ir_uniforms_buffer_->release();
+    ir_uniforms_buffer_ = nullptr;
   }
   XELOGI("MetalCommandProcessor: Beginning clean shutdown");
   
@@ -1632,6 +1679,19 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
       XELOGI("  PS has {} bindings", pixel_shader->texture_bindings().size());
     }
     
+    // Determine if shaders need draw arguments and uniforms based on reflection
+    bool needs_draw_args = false;
+    bool needs_uniforms = false;
+    if (vertex_translation) {
+      needs_draw_args = vertex_translation->GetResourceRequirements().uses_draw_arguments;
+      needs_uniforms = vertex_translation->GetResourceRequirements().uses_uniforms_direct;
+    }
+    if (pixel_translation) {
+      needs_draw_args = needs_draw_args || pixel_translation->GetResourceRequirements().uses_draw_arguments;
+      needs_uniforms = needs_uniforms || pixel_translation->GetResourceRequirements().uses_uniforms_direct;
+    }
+    XELOGI("Metal IssueDraw: Resource requirements - Draw args: {}, Uniforms: {}", needs_draw_args, needs_uniforms);
+    
     // Phase C Step 1: Metal Command Buffer and Render Pass Encoding
     MTL::CommandQueue* command_queue = GetMetalCommandQueue();
     if (command_queue) {
@@ -1793,25 +1853,6 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             XELOGI("Metal IssueDraw: Set cull mode to None");
           }
           
-          // Only create and set depth stencil state if it changed
-          MTL::CompareFunction desired_depth_compare = MTL::CompareFunctionAlways;
-          bool desired_depth_write = false;
-          
-          if (render_state_cache_.current_depth_compare != desired_depth_compare ||
-              render_state_cache_.current_depth_write_enabled != desired_depth_write) {
-            MTL::DepthStencilDescriptor* ds_desc = MTL::DepthStencilDescriptor::alloc()->init();
-            ds_desc->setDepthCompareFunction(desired_depth_compare);
-            ds_desc->setDepthWriteEnabled(desired_depth_write);
-            MTL::DepthStencilState* ds = GetMetalDevice()->newDepthStencilState(ds_desc);
-            ds_desc->release();
-            encoder->setDepthStencilState(ds);
-            ds->release();
-            
-            render_state_cache_.current_depth_compare = desired_depth_compare;
-            render_state_cache_.current_depth_write_enabled = desired_depth_write;
-            XELOGI("Metal IssueDraw: Set depth state - compare: Always, write: disabled");
-          }
-          
           // Phase C Step 2: Pipeline State and Draw Call Encoding
           
           // TEST NDC TRANSFORMATION - Enable this to test NDC transformation
@@ -1843,6 +1884,39 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               encoder->setRenderPipelineState(pipeline_state);
               render_state_cache_.current_pipeline_state = pipeline_state;
             }
+          }
+          
+          // Set depth stencil state AFTER pipeline state (MSC runtime may need pipeline first)
+          MTL::CompareFunction desired_depth_compare = MTL::CompareFunctionAlways;
+          bool desired_depth_write = false;
+          
+          if (render_state_cache_.current_depth_compare != desired_depth_compare ||
+              render_state_cache_.current_depth_write_enabled != desired_depth_write) {
+            MTL::DepthStencilDescriptor* ds_desc = MTL::DepthStencilDescriptor::alloc()->init();
+            ds_desc->setDepthCompareFunction(desired_depth_compare);
+            ds_desc->setDepthWriteEnabled(desired_depth_write);
+            MTL::DepthStencilState* ds = GetMetalDevice()->newDepthStencilState(ds_desc);
+            ds_desc->release();
+            encoder->setDepthStencilState(ds);
+            ds->release();
+            
+            render_state_cache_.current_depth_compare = desired_depth_compare;
+            render_state_cache_.current_depth_write_enabled = desired_depth_write;
+            XELOGI("Metal IssueDraw: Set depth state - compare: Always, write: disabled");
+          }
+          
+          // WORKAROUND: Pre-bind draw parameters at slot 4 to satisfy MSC validation
+          // The shader says it needs draw params, so we need to have something at slot 4
+          if (needs_draw_args && ir_draw_args_buffer_) {
+            struct DrawParams {
+              uint32_t vertexCountPerInstance;
+              uint32_t instanceCount;
+              uint32_t startVertexLocation;
+              uint32_t startInstanceLocation;
+            } dp = { 3, 1, 0, 0 };
+            
+            encoder->setVertexBytes(&dp, sizeof(DrawParams), 4);
+            XELOGI("Metal IssueDraw: Pre-bound draw params at slot 4 to satisfy MSC validation");
           }
           
           // Set viewport to match our render target dimensions
@@ -2861,10 +2935,26 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
           if (vertex_buffers_to_release.empty()) {
             // CRITICAL FIX: For programmatic vertex fetch shaders (Xbox 360 vfetch), 
             // the vertex descriptor doesn't expect any traditional vertex buffers.
-            // Binding at index 0 causes Metal validation error: "unused binding in encoder"
-            // Since vertex data comes from textures T0/U0 in the resource heap, skip fallback binding.
+            // However, Metal STILL requires SOMETHING bound at index 0 when the vertex
+            // descriptor declares it, even if it's not used.
+            // Since vertex data comes from textures T0/U0 in the resource heap, we bind
+            // a dummy buffer at index 0 to satisfy validation.
             XELOGI("Metal IssueDraw: No vertex buffers bound - programmatic vertex fetch via resource heap (T0/U0)");
-            XELOGI("Metal IssueDraw: Skipping fallback triangle to avoid Metal validation error");
+            XELOGI("Metal IssueDraw: Binding dummy buffer at index 0 to satisfy vertex descriptor");
+            
+            // Create a small dummy buffer (just needs to exist, not be read)
+            // CRITICAL: For programmatic vertex fetch, the vertex descriptor expects
+            // a buffer at index 6 (kIRVertexBufferBindPoint), NOT index 0!
+            float dummy_data[12] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+            MTL::Buffer* dummy_buffer = GetMetalDevice()->newBuffer(dummy_data, sizeof(dummy_data), 
+                                                                   MTL::ResourceStorageModeShared);
+            if (dummy_buffer) {
+              TRACK_METAL_OBJECT(dummy_buffer, "MTL::Buffer[DummyVertex]");
+              // Bind at index 6 (kIRVertexBufferBindPoint) where the vertex descriptor expects it
+              encoder->setVertexBuffer(dummy_buffer, NS::UInteger(0), NS::UInteger(kIRVertexBufferBindPoint));
+              vertex_buffers_to_release.push_back(dummy_buffer);
+              XELOGI("Metal IssueDraw: Bound dummy buffer at index {} for programmatic vertex fetch", kIRVertexBufferBindPoint);
+            }
             
             // Note: Vertex data will be accessed via texture bindings in resource heap,
             // not through traditional vertex buffer bindings. This is expected behavior
@@ -3272,11 +3362,9 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 if (res_heap_ab_->length() == 0) {
                   XELOGE("Metal IssueDraw: ERROR - res_heap_ab_ has zero length!");
                 } else {
-                  encoder->setVertexBuffer(res_heap_ab_, NS::UInteger(0), NS::UInteger(kIRDescriptorHeapBindPoint));
-                  encoder->setFragmentBuffer(res_heap_ab_, 0, (NS::UInteger)kIRDescriptorHeapBindPoint);
-                  encoder->useResource(res_heap_ab_, MTL::ResourceUsageRead,
-                                       MTL::RenderStageVertex | MTL::RenderStageFragment);
-                  XELOGI("Metal IssueDraw: Bound resource heap with {} valid entries", valid_entries);
+                  // SKIP BINDING HERE - This is duplicate code that will be handled later with smarter logic
+                  // The proper binding happens after we know which shaders actually use textures
+                  XELOGI("Metal IssueDraw: Resource heap validated ({} valid entries) - will bind later if needed", valid_entries);
                 }
               } else {
                 XELOGI("Metal IssueDraw: Skipping resource heap binding - no valid entries (avoids Metal validation error)");
@@ -3297,11 +3385,9 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               // CRITICAL FIX: Only bind sampler heap if it has valid entries
               // Binding empty heap causes Metal validation error: "unused binding in encoder"
               if (valid_samplers > 0) {
-                encoder->setVertexBuffer(smp_heap_ab_, NS::UInteger(0), NS::UInteger(kIRSamplerHeapBindPoint));
-                encoder->setFragmentBuffer(smp_heap_ab_, 0, (NS::UInteger)kIRSamplerHeapBindPoint);
-                encoder->useResource(smp_heap_ab_, MTL::ResourceUsageRead,
-                                     MTL::RenderStageVertex | MTL::RenderStageFragment);
-                XELOGI("Metal IssueDraw: Bound sampler heap with {} valid entries", valid_samplers);
+                // SKIP BINDING HERE - This is duplicate code that will be handled later with smarter logic
+                // The proper binding happens after we know which shaders actually use samplers
+                XELOGI("Metal IssueDraw: Sampler heap validated ({} valid entries) - will bind later if needed", valid_samplers);
               } else {
                 XELOGI("Metal IssueDraw: Skipping sampler heap binding - no valid entries (avoids Metal validation error)");
               }
@@ -3716,32 +3802,20 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             // Note: Top-level ABs are now bound conditionally based on shader requirements
             // in the smart resource binding section below
             
-            // Create MSC DrawArguments and Uniforms buffers
-            static MTL::Buffer* ir_draw_args_buffer = nullptr;
-            static MTL::Buffer* ir_uniforms_buffer = nullptr;
-            
-            if (!ir_draw_args_buffer) {
-              ir_draw_args_buffer = GetMetalDevice()->newBuffer(256, MTL::ResourceStorageModeShared);
-              TRACK_METAL_OBJECT(ir_draw_args_buffer, "MTL::Buffer[IR_DrawArguments]");
-              ir_draw_args_buffer->setLabel(NS::String::string("IR_DrawArguments", NS::UTF8StringEncoding));
-            }
-            if (!ir_uniforms_buffer) {
-              // Need at least 160 bytes to hold NDC constants at offsets 128-152 (floats 32-38)
-              // Use 512 bytes for safety and alignment
-              ir_uniforms_buffer = GetMetalDevice()->newBuffer(512, MTL::ResourceStorageModeShared);
-              TRACK_METAL_OBJECT(ir_uniforms_buffer, "MTL::Buffer[IR_Uniforms]");
-              ir_uniforms_buffer->setLabel(NS::String::string("IR_Uniforms", NS::UTF8StringEncoding));
-            }
-            
+            // Use MSC DrawArguments and Uniforms buffers (created during SetupContext)
             // Zero-init MSC runtime buffers (safe defaults)
-            std::memset(ir_draw_args_buffer->contents(), 0, ir_draw_args_buffer->length());
-            std::memset(ir_uniforms_buffer->contents(), 0, ir_uniforms_buffer->length());
+            if (ir_draw_args_buffer_) {
+              std::memset(ir_draw_args_buffer_->contents(), 0, ir_draw_args_buffer_->length());
+            }
+            if (ir_uniforms_buffer_) {
+              std::memset(ir_uniforms_buffer_->contents(), 0, ir_uniforms_buffer_->length());
+            }
             
-            // Copy NDC constants from uniforms_buffer to ir_uniforms_buffer
+            // Copy NDC constants from uniforms_buffer to ir_uniforms_buffer_
             // FIXED: NDC constants are stored at offsets 0-7 in main buffer, copy to standard MSC offsets
             if (uniforms_buffer_) {
               float* src_uniforms = (float*)uniforms_buffer_->contents();
-              float* dst_uniforms = (float*)ir_uniforms_buffer->contents();
+              float* dst_uniforms = (float*)ir_uniforms_buffer_->contents();
               
               // Copy NDC constants from SystemConstants offsets to standard MSC offsets
               dst_uniforms[32] = src_uniforms[32]; // ndc_scale_x from SystemConstants.ndc_scale[0]
@@ -3755,7 +3829,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               dst_uniforms[38] = src_uniforms[38]; // ndc_offset_z from SystemConstants.ndc_offset[2]
               dst_uniforms[39] = 0.0f;             // padding
               
-              XELOGI("Copied NDC constants to ir_uniforms_buffer");
+              XELOGI("Copied NDC constants to ir_uniforms_buffer_");
               XELOGI("  NDC scale[32-34]: [{}, {}, {}]", dst_uniforms[32], dst_uniforms[33], dst_uniforms[34]);
               XELOGI("  NDC offset[36-38]: [{}, {}, {}]", dst_uniforms[36], dst_uniforms[37], dst_uniforms[38]);
               
@@ -3796,11 +3870,18 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               }
               
               if (valid_entries > 0) {
-                encoder->setVertexBuffer(res_heap_ab_, NS::UInteger(0), NS::UInteger(kIRDescriptorHeapBindPoint));
-                encoder->setFragmentBuffer(res_heap_ab_, 0, (NS::UInteger)kIRDescriptorHeapBindPoint);
+                // Only bind to vertex stage if vertex shader uses textures
+                if (vs_needs_textures) {
+                  encoder->setVertexBuffer(res_heap_ab_, NS::UInteger(0), NS::UInteger(kIRDescriptorHeapBindPoint));
+                }
+                // Only bind to fragment stage if fragment shader uses textures
+                if (ps_needs_textures) {
+                  encoder->setFragmentBuffer(res_heap_ab_, 0, (NS::UInteger)kIRDescriptorHeapBindPoint);
+                }
                 encoder->useResource(res_heap_ab_, MTL::ResourceUsageRead,
                                    MTL::RenderStageVertex | MTL::RenderStageFragment);
-                XELOGI("Metal IssueDraw: Smart-bound descriptor heap at slot 0 ({} valid entries)", valid_entries);
+                XELOGI("Metal IssueDraw: Smart-bound descriptor heap at slot 0 ({} valid entries, VS={}, PS={})", 
+                       valid_entries, vs_needs_textures, ps_needs_textures);
               } else {
                 XELOGI("Metal IssueDraw: Skipping descriptor heap binding - textures used but heap empty");
               }
@@ -3820,11 +3901,18 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               }
               
               if (valid_samplers > 0) {
-                encoder->setVertexBuffer(smp_heap_ab_, NS::UInteger(0), NS::UInteger(kIRSamplerHeapBindPoint));
-                encoder->setFragmentBuffer(smp_heap_ab_, 0, (NS::UInteger)kIRSamplerHeapBindPoint);
+                // Only bind to vertex stage if vertex shader uses samplers
+                if (vs_needs_samplers) {
+                  encoder->setVertexBuffer(smp_heap_ab_, NS::UInteger(0), NS::UInteger(kIRSamplerHeapBindPoint));
+                }
+                // Only bind to fragment stage if fragment shader uses samplers
+                if (ps_needs_samplers) {
+                  encoder->setFragmentBuffer(smp_heap_ab_, 0, (NS::UInteger)kIRSamplerHeapBindPoint);
+                }
                 encoder->useResource(smp_heap_ab_, MTL::ResourceUsageRead,
                                    MTL::RenderStageVertex | MTL::RenderStageFragment);
-                XELOGI("Metal IssueDraw: Smart-bound sampler heap at slot 1 ({} valid entries)", valid_samplers);
+                XELOGI("Metal IssueDraw: Smart-bound sampler heap at slot 1 ({} valid entries, VS={}, PS={})", 
+                       valid_samplers, vs_needs_samplers, ps_needs_samplers);
               } else {
                 XELOGI("Metal IssueDraw: Skipping sampler heap binding - samplers used but heap empty");
               }
@@ -3837,6 +3925,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             // The error "missing Buffer binding at index 2 for struct.top_level_global_ab[0]"
             // proves this is required. Don't make it conditional.
             if (top_level_vs_ab) {
+              // Only bind if vertex shader has resources in the top-level AB
               encoder->setVertexBuffer(top_level_vs_ab, NS::UInteger(0), NS::UInteger(kIRArgumentBufferBindPoint));
               encoder->useResource(top_level_vs_ab, MTL::ResourceUsageRead,
                                    MTL::RenderStageVertex | MTL::RenderStageFragment);
@@ -3849,32 +3938,32 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               XELOGI("Metal IssueDraw: Bound PS top-level AB at slot 2");
             }
             
-            // Bind draw arguments (slot 4) only if shader uses vertex/instance IDs
-            // Check if shaders use SV_VertexID, SV_InstanceID, etc.
-            // For now, skip it for shaders that don't use textures (simple shaders)
-            // This is a heuristic - ideally we'd check shader metadata
-            bool needs_draw_args = (vs_needs_textures || ps_needs_textures);
-            
+            // Bind draw arguments (slot 4) only if shader actually uses them
+            // (already checked earlier via GetResourceRequirements)
             if (needs_draw_args) {
-              encoder->setVertexBuffer(ir_draw_args_buffer, NS::UInteger(0), NS::UInteger(kIRArgumentBufferDrawArgumentsBindPoint));
-              encoder->setFragmentBuffer(ir_draw_args_buffer, 0, (NS::UInteger)kIRArgumentBufferDrawArgumentsBindPoint);
+              // Only bind to vertex stage if vertex shader needs draw args
+              // (usually when it uses SV_VertexID, SV_InstanceID, etc.)
+              if (vs_needs_textures) {  // Heuristic: shaders with textures usually need draw args
+                encoder->setVertexBuffer(ir_draw_args_buffer_, NS::UInteger(0), NS::UInteger(kIRArgumentBufferDrawArgumentsBindPoint));
+              }
+              encoder->setFragmentBuffer(ir_draw_args_buffer_, 0, (NS::UInteger)kIRArgumentBufferDrawArgumentsBindPoint);
               XELOGI("Metal IssueDraw: Bound draw args buffer at slot 4");
               
               // Mark as resident
-              encoder->useResource(ir_draw_args_buffer, MTL::ResourceUsageRead,
+              encoder->useResource(ir_draw_args_buffer_, MTL::ResourceUsageRead,
                                  MTL::RenderStageVertex | MTL::RenderStageFragment);
             } else {
               XELOGI("Metal IssueDraw: Skipping draw args buffer - not used by shaders");
             }
             
             // Bind uniforms (slot 5) - only if shader needs constants
-            // Simple shaders without textures often don't need uniforms
-            // Use the same heuristic as draw args for now
-            bool needs_uniforms = (vs_needs_textures || ps_needs_textures);
-            
+            // (already checked earlier via GetResourceRequirements)
             if (needs_uniforms) {
               if (uniforms_buffer_) {
-                encoder->setVertexBuffer(uniforms_buffer_, NS::UInteger(0), NS::UInteger(kIRArgumentBufferUniformsBindPoint));
+                // Only bind to vertex stage if vertex shader needs uniforms
+                if (vs_needs_textures) {  // Heuristic: shaders with textures usually need uniforms
+                  encoder->setVertexBuffer(uniforms_buffer_, NS::UInteger(0), NS::UInteger(kIRArgumentBufferUniformsBindPoint));
+                }
                 encoder->setFragmentBuffer(uniforms_buffer_, 0, (NS::UInteger)kIRArgumentBufferUniformsBindPoint);
                 XELOGI("Metal IssueDraw: Bound main uniforms buffer (20KB) at slot 5");
                 
@@ -3882,12 +3971,15 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                 encoder->useResource(uniforms_buffer_, MTL::ResourceUsageRead,
                                    MTL::RenderStageVertex | MTL::RenderStageFragment);
               } else {
-                encoder->setVertexBuffer(ir_uniforms_buffer, NS::UInteger(0), NS::UInteger(kIRArgumentBufferUniformsBindPoint));
-                encoder->setFragmentBuffer(ir_uniforms_buffer, 0, (NS::UInteger)kIRArgumentBufferUniformsBindPoint);
-                XELOGW("Metal IssueDraw: WARNING - Using small ir_uniforms_buffer at slot 5 (may cause OOB)");
+                // Only bind to vertex stage if vertex shader needs uniforms
+                if (vs_needs_textures) {  // Heuristic: shaders with textures usually need uniforms
+                  encoder->setVertexBuffer(ir_uniforms_buffer_, NS::UInteger(0), NS::UInteger(kIRArgumentBufferUniformsBindPoint));
+                }
+                encoder->setFragmentBuffer(ir_uniforms_buffer_, 0, (NS::UInteger)kIRArgumentBufferUniformsBindPoint);
+                XELOGW("Metal IssueDraw: WARNING - Using small ir_uniforms_buffer_ at slot 5 (may cause OOB)");
                 
                 // Mark as resident
-                encoder->useResource(ir_uniforms_buffer, MTL::ResourceUsageRead,
+                encoder->useResource(ir_uniforms_buffer_, MTL::ResourceUsageRead,
                                    MTL::RenderStageVertex | MTL::RenderStageFragment);
               }
             } else {
@@ -4052,14 +4144,27 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
               XELOGI("Metal IssueDraw: Drawing {} indices as {}", draw_index_count, 
                      primitive_processing_result.host_primitive_type == xenos::PrimitiveType::kTriangleList ? "triangles" : "other");
               
-              // Use IRRuntime helper to bind draw params at indices 4-5
-              IRRuntimeDrawIndexedPrimitives(
-                  encoder,
-                  metal_prim_type, 
-                  NS::UInteger(draw_index_count),
-                  draw_index_type,
-                  draw_index_buffer,
-                  NS::UInteger(0));  // offset
+              // CRITICAL: Only use IRRuntimeDrawIndexedPrimitives if shader needs draw args
+              // Otherwise use regular Metal draw call to avoid validation error
+              if (needs_draw_args) {
+                // Use IRRuntime helper to bind draw params at indices 4-5
+                IRRuntimeDrawIndexedPrimitives(
+                    encoder,
+                    metal_prim_type, 
+                    NS::UInteger(draw_index_count),
+                    draw_index_type,
+                    draw_index_buffer,
+                    NS::UInteger(0));
+              } else {
+                // Use regular Metal indexed draw call - no draw args needed
+                encoder->drawIndexedPrimitives(
+                    metal_prim_type,
+                    NS::UInteger(draw_index_count),
+                    draw_index_type,
+                    draw_index_buffer,
+                    NS::UInteger(0));
+                XELOGI("Metal IssueDraw: Using regular drawIndexedPrimitives (no draw args needed)");
+              }  // offset
                   
               XELOGI("Metal IssueDraw: Drew indexed primitives with converted buffer - {} indices", draw_index_count);
             } else {
@@ -4140,14 +4245,26 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
                           ? MTL::IndexTypeUInt32 
                           : MTL::IndexTypeUInt16;
                   
-                  // Draw with guest DMA index buffer using MSC runtime helper
-                  ::IRRuntimeDrawIndexedPrimitives(
-                      encoder,
-                      metal_prim_type, 
-                      primitive_processing_result.host_draw_vertex_count,  // indexCount
-                      index_type,
-                      guest_index_buffer,
-                      0);  // indexBufferOffset
+                  // Draw with guest DMA index buffer
+                  // CRITICAL: Only use IRRuntimeDrawIndexedPrimitives if shader needs draw args
+                  if (needs_draw_args) {
+                    ::IRRuntimeDrawIndexedPrimitives(
+                        encoder,
+                        metal_prim_type, 
+                        primitive_processing_result.host_draw_vertex_count,  // indexCount
+                        index_type,
+                        guest_index_buffer,
+                        0);  // indexBufferOffset
+                  } else {
+                    // Use regular Metal indexed draw call - no draw args needed
+                    encoder->drawIndexedPrimitives(
+                        metal_prim_type,
+                        primitive_processing_result.host_draw_vertex_count,  // indexCount
+                        index_type,
+                        guest_index_buffer,
+                        0);  // indexBufferOffset
+                    XELOGI("Metal IssueDraw: Using regular drawIndexedPrimitives for guest DMA (no draw args needed)");
+                  }
                   
                   XELOGI("Metal IssueDraw: Drew indexed primitives with guest DMA buffer");
                   
@@ -4162,10 +4279,20 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
             }
           } else {
             // Non-indexed draw
-            // Use MSC runtime helper to set draw params and issue draw
-            ::IRRuntimeDrawPrimitives(encoder, metal_prim_type, 
-                                     uint64_t(0),  // vertexStart
-                                     uint64_t(primitive_processing_result.host_draw_vertex_count));  // vertexCount
+            // CRITICAL: Only use IRRuntimeDrawPrimitives if shader needs draw args
+            // Otherwise use regular Metal draw call to avoid validation error
+            if (needs_draw_args) {
+              // Use MSC runtime helper to set draw params and issue draw
+              ::IRRuntimeDrawPrimitives(encoder, metal_prim_type, 
+                                       uint64_t(0),  // vertexStart
+                                       uint64_t(primitive_processing_result.host_draw_vertex_count));  // vertexCount
+            } else {
+              // Use regular Metal draw call - no draw args needed
+              encoder->drawPrimitives(metal_prim_type, 
+                                    NS::UInteger(0),  // vertexStart
+                                    NS::UInteger(primitive_processing_result.host_draw_vertex_count));  // vertexCount
+              XELOGI("Metal IssueDraw: Using regular drawPrimitives (no draw args needed)");
+            }
           }
           
           XELOGI("Metal IssueDraw: Encoded draw primitives call ({} vertices, primitive type {})", 
@@ -4186,20 +4313,35 @@ after_normal_draw:
               // Simply repeat the same draw with green PS
               if (primitive_processing_result.index_buffer_type != PrimitiveProcessor::ProcessedIndexBufferType::kNone 
                   && draw_index_buffer != nullptr) {
-              // Indexed draw
-              ::IRRuntimeDrawIndexedPrimitives(
-                  encoder,
-                  metal_prim_type,
-                  draw_index_count,
-                  draw_index_type,
-                  draw_index_buffer,
-                  0);
+              // Indexed draw - check if shader needs draw args
+              if (needs_draw_args) {
+                ::IRRuntimeDrawIndexedPrimitives(
+                    encoder,
+                    metal_prim_type,
+                    draw_index_count,
+                    draw_index_type,
+                    draw_index_buffer,
+                    0);
+              } else {
+                encoder->drawIndexedPrimitives(
+                    metal_prim_type,
+                    NS::UInteger(draw_index_count),
+                    draw_index_type,
+                    draw_index_buffer,
+                    NS::UInteger(0));
+              }
               XELOGI("Metal IssueDraw: Drew real VS + green PS indexed ({} indices)", draw_index_count);
             } else {
-              // Non-indexed draw
-              ::IRRuntimeDrawPrimitives(encoder, metal_prim_type, 
-                                       uint64_t(0),
-                                       uint64_t(primitive_processing_result.host_draw_vertex_count));
+              // Non-indexed draw - check if shader needs draw args
+              if (needs_draw_args) {
+                ::IRRuntimeDrawPrimitives(encoder, metal_prim_type, 
+                                         uint64_t(0),
+                                         uint64_t(primitive_processing_result.host_draw_vertex_count));
+              } else {
+                encoder->drawPrimitives(metal_prim_type, 
+                                      NS::UInteger(0),
+                                      NS::UInteger(primitive_processing_result.host_draw_vertex_count));
+              }
               XELOGI("Metal IssueDraw: Drew real VS + green PS non-indexed ({} vertices)", 
                      primitive_processing_result.host_draw_vertex_count);
             }

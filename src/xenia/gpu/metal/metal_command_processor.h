@@ -168,6 +168,10 @@ class MetalCommandProcessor : public CommandProcessor {
   MTL::Buffer*          uav_heap_ab_ = nullptr;        // UAV descriptor heap
   MTL::Buffer*          uniforms_buffer_ = nullptr;    // Cached uniforms buffer for CBVs
   
+  // MSC Runtime buffers
+  MTL::Buffer*          ir_draw_args_buffer_ = nullptr;  // Draw arguments for IRRuntime
+  MTL::Buffer*          ir_uniforms_buffer_ = nullptr;   // Uniforms for IRRuntime
+  
   // Helper to create debug pipeline
   void CreateDebugRedPipeline();
   

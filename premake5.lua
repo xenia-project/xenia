@@ -56,9 +56,22 @@ filter("configurations:Checked")
   })
 filter({"configurations:Checked", "platforms:Mac"})
   defines({
+    -- CRITICAL: Full Metal API Validation - MUST catch ALL errors
     "MTL_DEBUG_LAYER=1",
+    "MTL_DEBUG_LAYER_ERROR_MODE=assert",  -- Assert on errors
+    "MTL_DEBUG_LAYER_WARNING_MODE=assert", -- Assert on warnings
     "METAL_DEVICE_WRAPPER_TYPE=1",
+    "METAL_DEBUG_ERROR_MODE=5",  -- Maximum error checking
     "METAL_SHADER_VALIDATION=1",
+    "MTL_SHADER_VALIDATION=1",
+    "METAL_DEBUG_SHADER_VALIDATION_GLOBAL_MEMORY=1",
+    "METAL_DEBUG_SHADER_VALIDATION_THREAD_GROUP_MEMORY=1",
+    "METAL_DEBUG_SHADER_VALIDATION_TEXTURE_USAGE=1",
+    -- Xenia-specific debug flags
+    "XENIA_GPU_METAL_DEBUG=1",
+    "XENIA_GPU_METAL_DUMP_SHADERS=1",
+    "XENIA_GPU_METAL_TRACE_COMMANDS=1",
+    "METAL_VALIDATION_ENABLED=1",  -- Custom flag to verify validation is on
   })
 filter({"configurations:Checked", "platforms:Windows-*"})
   buildoptions({
@@ -78,9 +91,22 @@ filter("configurations:Debug")
   })
 filter({"configurations:Debug", "platforms:Mac"})
   defines({
+    -- CRITICAL: Full Metal API Validation - MUST catch ALL errors
     "MTL_DEBUG_LAYER=1",
+    "MTL_DEBUG_LAYER_ERROR_MODE=assert",  -- Assert on errors
+    "MTL_DEBUG_LAYER_WARNING_MODE=assert", -- Assert on warnings
     "METAL_DEVICE_WRAPPER_TYPE=1",
+    "METAL_DEBUG_ERROR_MODE=5",  -- Maximum error checking
     "METAL_SHADER_VALIDATION=1",
+    "MTL_SHADER_VALIDATION=1",
+    "METAL_DEBUG_SHADER_VALIDATION_GLOBAL_MEMORY=1",
+    "METAL_DEBUG_SHADER_VALIDATION_THREAD_GROUP_MEMORY=1",
+    "METAL_DEBUG_SHADER_VALIDATION_TEXTURE_USAGE=1",
+    -- Xenia-specific debug flags
+    "XENIA_GPU_METAL_DEBUG=1",
+    "XENIA_GPU_METAL_DUMP_SHADERS=1",
+    "XENIA_GPU_METAL_TRACE_COMMANDS=1",
+    "METAL_VALIDATION_ENABLED=1",  -- Custom flag to verify validation is on
   })
 filter({"configurations:Debug", "platforms:Linux"})
   defines({

@@ -748,15 +748,9 @@ void MetalShader::MetalTranslation::ParseTextureBindingsFromJSON(const std::stri
 }
 
 bool MetalShader::MetalTranslation::CreateAndSetRootSignature() {
-  XELOGI("Metal shader: DISABLING root signature to test automatic layout");
+  XELOGI("Metal shader: Root signature enabled - using defined resource layout");
   
-  // TESTING: Disable root signature creation to see if automatic layout fixes texture binding
-  // When no root signature is set, MSC should use its automatic layout mode
-  // which might populate ShaderResourceViewIndices properly
-  XELOGI("Metal shader: Skipping root signature creation - using MSC automatic layout");
-  return true;  // Return true to continue compilation without root signature
-  
-  // ORIGINAL CODE (temporarily disabled):
+  // ORIGINAL CODE:
   // Create descriptor ranges for resources
   // We need:
   // - CBVs (b0-b3) in register space 0

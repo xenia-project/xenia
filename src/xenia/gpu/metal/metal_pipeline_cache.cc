@@ -632,6 +632,22 @@ MTL::VertexDescriptor* MetalPipelineCache::CreateVertexDescriptor(
     }
   }
   
+  // NOTE: We do NOT configure buffer layout for MSC runtime buffers (indices 0-5)
+  // unless attributes actually reference them. Metal requires that buffer layouts
+  // only be configured for buffers that have corresponding attributes.
+  
+  // For programmatic vertex fetch (when vertex_bindings.empty()), we also need index 6
+  if (vertex_bindings.empty()) {
+    XELOGI("Metal pipeline cache: Configuring dummy vertex buffer for programmatic fetch");
+    // Configure layout for vertex buffer (index 6) - dummy buffer for programmatic fetch
+    MTL::VertexBufferLayoutDescriptor* vertex_layout = 
+        vertex_descriptor->layouts()->object(6);  // kIRVertexBufferBindPoint
+    vertex_layout->setStride(12);  // 3 floats * 4 bytes = 12 bytes
+    vertex_layout->setStepRate(1);
+    vertex_layout->setStepFunction(MTL::VertexStepFunctionPerVertex);
+    XELOGI("  Configured layout for dummy vertex buffer at index 6");
+  }
+  
   XELOGI("Metal pipeline cache: Created vertex descriptor with {} attributes", 
          attribute_index);
   
