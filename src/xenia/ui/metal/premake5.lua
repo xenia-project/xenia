@@ -73,10 +73,13 @@ project("xenia-ui-window-metal-demo")
       "metal_api.cc",
       "metal_immediate_drawer.mm",  -- Objective-C++ file for Metal command encoding
       "metal_immediate_drawer.h",
+      "metal_ir_runtime.cc",
       "metal_presenter.mm",  -- Objective-C++ file for Metal layer configuration
       "metal_presenter.h",
       "metal_provider.cc",
       "metal_provider.h",
+      "metal_util.cc",
+      "metal_util.h"
     })
     files({
       "Info.plist",

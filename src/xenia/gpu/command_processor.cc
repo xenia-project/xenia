@@ -11,7 +11,7 @@
 
 #if XE_PLATFORM_MAC
 #include "xenia/base/autorelease_pool.h"
-#include "xenia/gpu/metal/metal_object_tracker.h"
+// #include "xenia/gpu/metal/metal_object_tracker.h"
 #endif
 
 #include <algorithm>
@@ -338,21 +338,21 @@ void CommandProcessor::WorkerThreadMain() {
     // but no games seem to actually use it.
 
 #if XE_PLATFORM_MAC
-    // Always drain per-loop autorelease pool at the end of each iteration
-    // This ensures we clean up even if we're about to exit the loop
-    if (loop_pool) {
-      // Check if we're about to exit the loop
-      if (!worker_running_) {
-        XELOGI("CommandProcessor: Draining pool before loop exit");
-      } else if (xe::gpu::metal::MetalObjectTracker::Instance().GetAliveCount() > 0) {
-        XELOGI("CommandProcessor: {} Metal objects alive before pool drain",
-               xe::gpu::metal::MetalObjectTracker::Instance().GetAliveCount());
-      }
-      THREAD_MONITOR_EVENT(kPoolDrained, "About to drain per-loop autorelease pool");
-      XE_AUTORELEASE_POOL_POP(loop_pool, "WorkerLoop");
-      loop_pool = nullptr;  // Clear to avoid double-pop
-      THREAD_MONITOR_EVENT(kPoolDrained, "Per-loop autorelease pool drained");
-    }
+    // // Always drain per-loop autorelease pool at the end of each iteration
+    // // This ensures we clean up even if we're about to exit the loop
+    // if (loop_pool) {
+    //   // Check if we're about to exit the loop
+    //   if (!worker_running_) {
+    //     XELOGI("CommandProcessor: Draining pool before loop exit");
+    //   } else if (xe::gpu::metal::MetalObjectTracker::Instance().GetAliveCount() > 0) {
+    //     XELOGI("CommandProcessor: {} Metal objects alive before pool drain",
+    //            xe::gpu::metal::MetalObjectTracker::Instance().GetAliveCount());
+    //   }
+    //   THREAD_MONITOR_EVENT(kPoolDrained, "About to drain per-loop autorelease pool");
+    //   XE_AUTORELEASE_POOL_POP(loop_pool, "WorkerLoop");
+    //   loop_pool = nullptr;  // Clear to avoid double-pop
+    //   THREAD_MONITOR_EVENT(kPoolDrained, "Per-loop autorelease pool drained");
+    // }
 #endif
   }
 
@@ -375,7 +375,7 @@ void CommandProcessor::WorkerThreadMain() {
   
 #if XE_PLATFORM_MAC
   // Report any leaked Metal objects before thread exit
-  xe::gpu::metal::MetalObjectTracker::Instance().PrintReport();
+  // xe::gpu::metal::MetalObjectTracker::Instance().PrintReport();
 #endif
   
   THREAD_MONITOR_EVENT(kExiting, "WorkerThreadMain about to return");

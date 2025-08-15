@@ -10,154 +10,70 @@
 #ifndef XENIA_GPU_METAL_METAL_SHADER_H_
 #define XENIA_GPU_METAL_METAL_SHADER_H_
 
-#include <memory>
-#include <string>
-#include <vector>
-
 #include "xenia/gpu/dxbc_shader.h"
-#include "xenia/gpu/dxbc_shader_translator.h"
-#include "xenia/gpu/xenos.h"
-
-#include "third_party/metal-shader-converter/include/metal_irconverter.h"
-#include "third_party/metal-cpp/Metal/Metal.hpp"
+#include "xenia/ui/metal/metal_api.h"
 
 namespace xe {
 namespace gpu {
 namespace metal {
 
+class DxbcToDxilConverter;
+    
 class MetalShader : public DxbcShader {
  public:
-  // Resource mapping from reflection data
-  struct ResourceMapping {
-    uint32_t hlsl_slot;          // HLSL register slot (t0, s0, b0, etc.)
-    uint32_t hlsl_space;         // HLSL register space
-    uint32_t resource_type;      // IRResourceType from metal_irconverter.h
-    size_t arg_buffer_offset;    // Offset in argument buffer (in entries, not bytes!)
-  };
-  
-  // Top-level argument buffer entry from reflection
-  struct ABEntry {
-    uint32_t elt_offset;     // Offset in bytes
-    enum class Kind { SRV, UAV, CBV, Sampler, Unknown } kind;
-    uint32_t slot;           // Reflection "Slot"
-    uint32_t space;          // Reflection "Space"
-    std::string name;        // Resource name for logging
-  };
-  
-  // Resource requirements for smart binding - avoids validation errors
-  struct ShaderResourceRequirements {
-    // Buffer slot requirements (what the shader actually uses)
-    bool uses_descriptor_heap = false;      // Slot 0 - resource descriptors
-    bool uses_sampler_heap = false;         // Slot 1 - sampler descriptors  
-    bool uses_top_level_ab = false;         // Slot 2 - top-level argument buffer
-    bool uses_hull_domain = false;          // Slot 3 - tessellation (unused on Xbox 360)
-    bool uses_draw_arguments = false;       // Slot 4 - draw instance data
-    bool uses_uniforms_direct = false;      // Slot 5 - direct constant buffer access
-    bool uses_vertex_buffers[8] = {false};  // Slots 6-13 - vertex data
-    
-    // Top-level AB resource indices (which entries are used)
-    std::vector<uint32_t> used_cbv_indices;     // Constant buffer indices
-    std::vector<uint32_t> used_srv_indices;     // Texture/SRV indices
-    std::vector<uint32_t> used_uav_indices;     // UAV indices (rare on Xbox 360)
-    std::vector<uint32_t> used_sampler_indices; // Sampler indices
-  };
-
   class MetalTranslation : public DxbcTranslation {
    public:
-    MetalTranslation(MetalShader& shader, uint64_t modification);
-    ~MetalTranslation() override;
+    MetalTranslation(MetalShader& shader, uint64_t modification)
+        : DxbcTranslation(shader, modification) {}
 
-    // Convert DXIL to Metal (called by the Metal backend when needed)
-    bool ConvertToMetal();
+    // Convert DXBC -> DXIL -> Metal IR
+    bool TranslateToMetalIR(DxbcToDxilConverter& converter,
+                            IRCompiler* compiler,
+                            IRRootSignature* root_signature);
 
-    // Get the compiled Metal library for pipeline creation
-    MTL::Library* GetMetalLibrary() const { return metal_library_; }
-    MTL::Function* GetMetalFunction() const { return metal_function_; }
-    
-    // Get resource mappings from reflection data
-    const std::vector<ResourceMapping>& GetResourceMappings() const { 
-      return resource_mappings_; 
-    }
-    
-    // Get texture and sampler slots from reflection
-    const std::vector<uint32_t>& GetTextureSlots() const { return texture_slots_; }
-    const std::vector<uint32_t>& GetSamplerSlots() const { return sampler_slots_; }
-    
-    // Update texture slots (used after augmentation with root signature)
-    void UpdateTextureSlots(const std::vector<uint32_t>& new_slots) { 
-      texture_slots_ = new_slots; 
-    }
-    
-    // Get top-level argument buffer layout from reflection
-    const std::vector<ABEntry>& GetTopLevelABLayout() const { return top_level_ab_layout_; }
-    
-    // Get resource requirements for smart binding
-    const ShaderResourceRequirements& GetResourceRequirements() const { 
-      return resource_requirements_; 
-    }
-
-   private:
-    MetalShader& metal_shader_;
-
-    // Metal Shader Converter objects
-    IRCompiler* ir_compiler_ = nullptr;
-    IRObject* ir_object_ = nullptr;
-    IRMetalLibBinary* metal_lib_binary_ = nullptr;
-    IRRootSignature* root_signature_ = nullptr;  // Must remain valid during compilation
-    
-    // Metal library and function (using metal-cpp)
-    MTL::Library* metal_library_ = nullptr;
+    IRObject* metal_ir_ = nullptr;
     MTL::Function* metal_function_ = nullptr;
-    
-    // Resource mappings from shader reflection
-    std::vector<ResourceMapping> resource_mappings_;
-    
-    // Texture and sampler slots extracted from reflection
-    std::vector<uint32_t> texture_slots_;
-    std::vector<uint32_t> sampler_slots_;
-    
-    // Top-level argument buffer layout from reflection
-    std::vector<ABEntry> top_level_ab_layout_;
-    
-    // Resource requirements parsed from reflection
-    ShaderResourceRequirements resource_requirements_;
-
-    // Convert DXIL bytecode to Metal IR using Metal Shader Converter
-    bool ConvertDxilToMetal(const std::vector<uint8_t>& dxil_bytecode);
-    
-    // Create Metal library from Metal IR
-    bool CreateMetalLibrary();
-    
-    // Capture reflection data after compilation
-    bool CaptureReflectionData();
-    
-    // Parse texture bindings from JSON reflection data
-    void ParseTextureBindingsFromJSON(const std::string& json_str);
-    
-    // Parse resource requirements from JSON reflection data
-    void ParseResourceRequirementsFromJSON(const std::string& json_str);
-    
-    // Create and set root signature for consistent resource layout
-    bool CreateAndSetRootSignature();
+    std::vector<uint8_t> dxil_data_;
   };
 
-  MetalShader(xenos::ShaderType shader_type, uint64_t data_hash,
-              const uint32_t* dword_ptr, uint32_t dword_count);
-  ~MetalShader() override;
+  MetalShader(xenos::ShaderType shader_type, uint64_t ucode_data_hash,
+              const uint32_t* ucode_dwords, size_t ucode_dword_count,
+              std::endian ucode_source_endian = std::endian::big);
 
-  // Create a new translation for the given modification
+  // For owning subsystem like the pipeline cache, accessors for unique
+  // identifiers (used instead of hashes to make sure collisions can't happen)
+  // of binding layouts used by the shader, for invalidation if a shader with an
+  // incompatible layout was bound.
+  size_t GetTextureBindingLayoutUserUID() const {
+    return texture_binding_layout_user_uid_;
+  }
+  size_t GetSamplerBindingLayoutUserUID() const {
+    return sampler_binding_layout_user_uid_;
+  }
+  // Modifications of the same shader can be translated on different threads.
+  // The "set" function must only be called if "enter" returned true - these are
+  // set up only once.
+  bool EnterBindingLayoutUserUIDSetup() {
+    return !binding_layout_user_uids_set_up_.test_and_set();
+  }
+  void SetTextureBindingLayoutUserUID(size_t uid) {
+    texture_binding_layout_user_uid_ = uid;
+  }
+  void SetSamplerBindingLayoutUserUID(size_t uid) {
+    sampler_binding_layout_user_uid_ = uid;
+  }
+
+ protected:
   Translation* CreateTranslationInstance(uint64_t modification) override;
 
  private:
-  // Metal-specific shader configuration
-  void ConfigureMetalShaderConverter();
+  std::atomic_flag binding_layout_user_uids_set_up_ = ATOMIC_FLAG_INIT;
+  size_t texture_binding_layout_user_uid_ = 0;
+  size_t sampler_binding_layout_user_uid_ = 0;
 };
-
-// Cleanup function to be called on shutdown
-void CleanupMetalShaderResources();
 
 }  // namespace metal
 }  // namespace gpu
 }  // namespace xe
 
-#endif  // XENIA_GPU_METAL_METAL_SHADER_H_
+#endif

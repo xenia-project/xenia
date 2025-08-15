@@ -12,12 +12,9 @@
 
 #include <memory>
 
+#include "xenia/ui/metal/metal_api.h"
 #include "xenia/ui/graphics_provider.h"
 
-// Forward declarations for Metal types
-namespace MTL {
-class Device;
-}
 
 namespace xe {
 namespace ui {
@@ -37,12 +34,17 @@ class MetalProvider : public GraphicsProvider {
 
   MTL::Device* GetDevice() const { return device_; }
 
+  MTL::CommandQueue* GetCommandQueue() const { return command_queue_; }
+
+  static bool IsMetalAPIAvailable();
+
  private:
   MetalProvider();
 
   bool Initialize();
 
   MTL::Device* device_ = nullptr;
+  MTL::CommandQueue* command_queue_ = nullptr;
 };
 
 }  // namespace metal

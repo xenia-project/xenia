@@ -12,15 +12,9 @@
 
 #include <array>
 
+#include "xenia/ui/metal/metal_provider.h"
 #include "xenia/ui/presenter.h"
 #include "xenia/ui/surface.h"
-
-// Forward declarations for Metal types
-namespace MTL {
-class Device;
-class CommandQueue;
-class Texture;
-}
 
 // Forward declaration for CAMetalLayer
 #ifdef __OBJC__

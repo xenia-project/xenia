@@ -7,13 +7,23 @@
  ******************************************************************************
  */
 
-// This file provides the single implementation point for metal-cpp to avoid
-// duplicate symbol errors. It should be linked by all Metal backend files 
-// that need Metal API access.
+#ifndef XENIA_UI_METAL_METAL_UTIL_H_
+#define XENIA_UI_METAL_METAL_UTIL_H_
 
-#define NS_PRIVATE_IMPLEMENTATION
-#define MTL_PRIVATE_IMPLEMENTATION
-#define CA_PRIVATE_IMPLEMENTATION
-#include "third_party/metal-cpp/Foundation/Foundation.hpp"
-#include "third_party/metal-cpp/Metal/Metal.hpp"
-#include "third_party/metal-cpp/QuartzCore/QuartzCore.hpp"
+#include <utility>
+
+#include "xenia/ui/metal/metal_provider.h"
+
+namespace xe {
+namespace ui {
+namespace metal {
+namespace util {
+
+const MTL::ResourceOptions kStorageModePrivate = MTL::ResourceStorageModePrivate;
+
+}
+}
+}
+}
+
+#endif

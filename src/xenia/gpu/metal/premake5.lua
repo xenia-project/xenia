@@ -24,32 +24,16 @@ project("xenia-gpu-metal")
 
   filter "system:macosx"
     files {
-      "metal_command_processor.mm",
+      "dxbc_to_dxil_converter.cc",
+      "dxbc_to_dxil_converter.h",
+      "metal_command_processor.cc",
       "metal_command_processor.h",
       "metal_graphics_system.cc",
       "metal_graphics_system.h",
       "metal_shader.cc",
       "metal_shader.h",
-      "metal_pipeline_cache.cc",
-      "metal_pipeline_cache.h",
-      "metal_buffer_cache.cc",
-      "metal_buffer_cache.h",
-      "metal_texture_cache.cc",
-      "metal_texture_cache.h",
-      "metal_render_target_cache.cc",
-      "metal_render_target_cache.h",
-      "metal_presenter.cc",
-      "metal_presenter.h",
-      "metal_primitive_processor.cc",
-      "metal_primitive_processor.h",
+      "metal_shared_memory.cc",
       "metal_shared_memory.h",
-      "dxbc_to_dxil_converter.cc",
-      "dxbc_to_dxil_converter.h",
-      "metal_shader_cache.cc",
-      "metal_shader_cache.h",
-      "ir_runtime_impl.mm",   -- IR Runtime implementation
-      "metal_debug_utils.cc",
-      "metal_debug_utils.h",
     }
 
     includedirs {
@@ -57,7 +41,7 @@ project("xenia-gpu-metal")
       "/usr/local/include/metal_irconverter_runtime"
     }
 
-    defines { "METAL_SHADER_CONVERTER_AVAILABLE", "IR_RUNTIME_METALCPP" }
+    defines { "METAL_SHADER_CONVERTER_AVAILABLE" }
 
     libdirs     { metal_converter_libdir, "/usr/local/lib" }
     runpathdirs { metal_converter_libdir, "/usr/local/lib" }
@@ -136,7 +120,7 @@ project("xenia-gpu-metal-trace-dump")
       "/usr/local/include/metal_irconverter_runtime"
     }
 
-    defines { "METAL_SHADER_CONVERTER_AVAILABLE", "IR_RUNTIME_METALCPP" }
+    defines { "METAL_SHADER_CONVERTER_AVAILABLE" }
 
     links       { "Metal.framework", "MetalKit.framework", "metalirconverter" }
   filter "not system:macosx"

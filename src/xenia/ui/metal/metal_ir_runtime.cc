@@ -7,13 +7,9 @@
  ******************************************************************************
  */
 
-// This file provides the single implementation point for metal-cpp to avoid
-// duplicate symbol errors. It should be linked by all Metal backend files 
-// that need Metal API access.
-
-#define NS_PRIVATE_IMPLEMENTATION
-#define MTL_PRIVATE_IMPLEMENTATION
-#define CA_PRIVATE_IMPLEMENTATION
-#include "third_party/metal-cpp/Foundation/Foundation.hpp"
+// Metal Shader Converter implementation file
 #include "third_party/metal-cpp/Metal/Metal.hpp"
-#include "third_party/metal-cpp/QuartzCore/QuartzCore.hpp"
+#define IR_RUNTIME_METALCPP
+#define IR_PRIVATE_IMPLEMENTATION
+
+#include "third_party/metal-shader-converter/include/metal_irconverter_runtime/metal_irconverter_runtime.h"

@@ -19,9 +19,23 @@ namespace xe {
 namespace ui {
 namespace metal {
 
+bool MetalProvider::IsMetalAPIAvailable() {
+  MTL::Device* device = MTL::CreateSystemDefaultDevice();
+  bool available = (device != nullptr);
+  if (device) {
+    device->release();
+  }
+  return available;
+}
+
 std::unique_ptr<MetalProvider> MetalProvider::Create() {
   auto provider = std::unique_ptr<MetalProvider>(new MetalProvider());
   if (!provider->Initialize()) {
+    xe::FatalError(
+      "Unable to Initialize Metal Graphics Subsystem.\n"
+      "\n"
+      "Ensure you have the latest OS your device supports\n"
+    );
     return nullptr;
   }
   return provider;
@@ -30,6 +44,9 @@ std::unique_ptr<MetalProvider> MetalProvider::Create() {
 MetalProvider::MetalProvider() = default;
 
 MetalProvider::~MetalProvider() {
+  if (command_queue_) {
+    command_queue_->release();
+  }
   if (device_) {
     device_->release();
   }
@@ -42,8 +59,20 @@ bool MetalProvider::Initialize() {
     XELOGE("Failed to create Metal device");
     return false;
   }
-
   XELOGI("Metal device created: {}", device_->name()->utf8String());
+  command_queue_ = device_->newCommandQueue();
+  if (!command_queue_) {
+    XELOGE("Failed to create Metal Command Queue");
+    return false;
+  }
+
+    // Enable Metal validation layer in Debug and Checked builds
+  #if !defined(NDEBUG) || defined(MTL_DEBUG_LAYER)
+    // Set environment variable for Metal validation
+    setenv("METAL_DEVICE_WRAPPER_TYPE", "1", 1);
+    setenv("METAL_DEBUG_ERROR_MODE", "assert", 1);
+    XELOGI("Metal validation layer enabled");
+  #endif
   return true;
 }
 

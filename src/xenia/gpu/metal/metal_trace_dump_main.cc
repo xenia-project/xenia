@@ -14,7 +14,7 @@
 #include "xenia/gpu/trace_dump.h"
 #include "xenia/gpu/metal/metal_command_processor.h"
 #include "xenia/gpu/metal/metal_graphics_system.h"
-#include "xenia/gpu/metal/metal_render_target_cache.h"
+//#include "xenia/gpu/metal/metal_render_target_cache.h"
 #include "xenia/ui/metal/metal_presenter.h"
 #include "xenia/ui/presenter.h"
 #include "third_party/stb/stb_image_write.h"
@@ -38,7 +38,8 @@ class MetalTraceDumpPresenter : public ui::Presenter {
   bool CaptureGuestOutput(ui::RawImage& raw_image) override {
     XELOGI("MetalTraceDumpPresenter::CaptureGuestOutput called");
     // Use the graphics system's implementation which handles command processor
-    return graphics_system_->CaptureGuestOutput(raw_image);
+    //    return graphics_system_->CaptureGuestOutput(raw_image);
+      return false;
   }
   
  protected:
@@ -86,17 +87,17 @@ class MetalTraceDump : public TraceDump {
     // or through Metal Performance Shaders frame capture API
     // For now, we'll add a log message indicating capture should be started
     // manually through Xcode GPU debugging tools
-    XELOGI("Metal frame capture: Start capture manually through Xcode GPU debugging tools");
-    
-    // Install dummy presenter for trace dump capture  
-    XELOGI("MetalTraceDump: Checking presenter, current={}", 
-           graphics_system_->presenter() ? "yes" : "no");
-    if (!graphics_system_->presenter()) {
-      dummy_presenter_ = std::make_unique<MetalTraceDumpPresenter>(metal_graphics_system_);
-      metal_graphics_system_->SetPresenterForTesting(dummy_presenter_.get());
-      XELOGI("MetalTraceDump: Dummy presenter installed, now={}", 
-             metal_graphics_system_->presenter() ? "yes" : "no");
-    }
+//    XELOGI("Metal frame capture: Start capture manually through Xcode GPU debugging tools");
+//    
+//    // Install dummy presenter for trace dump capture  
+//    XELOGI("MetalTraceDump: Checking presenter, current={}", 
+//           graphics_system_->presenter() ? "yes" : "no");
+//    if (!graphics_system_->presenter()) {
+//      dummy_presenter_ = std::make_unique<MetalTraceDumpPresenter>(metal_graphics_system_);
+//      metal_graphics_system_->SetPresenterForTesting(dummy_presenter_.get());
+//      XELOGI("MetalTraceDump: Dummy presenter installed, now={}", 
+//             metal_graphics_system_->presenter() ? "yes" : "no");
+//    }
   }
 
   void EndHostCapture() override {
@@ -106,25 +107,25 @@ class MetalTraceDump : public TraceDump {
     // HACK: After playback is complete, force capture of the last frame
     // This works around the issue where TraceDump::Run() only tries presenter
     XELOGI("MetalTraceDump: Forcing frame capture after playback");
-    auto* metal_graphics_system = static_cast<MetalGraphicsSystem*>(graphics_system_);
-    auto* metal_cmd_processor = static_cast<MetalCommandProcessor*>(metal_graphics_system->command_processor());
+    // auto* metal_graphics_system = static_cast<MetalGraphicsSystem*>(graphics_system_);
+    // auto* metal_cmd_processor = static_cast<MetalCommandProcessor*>(metal_graphics_system->command_processor());
     
     // CRITICAL: Commit any pending command buffer so all draws are executed!
-    XELOGI("MetalTraceDump: Committing pending command buffer before capture");
-    metal_cmd_processor->CommitPendingCommandBuffer();
+    // XELOGI("MetalTraceDump: Committing pending command buffer before capture");
+    // metal_cmd_processor->CommitPendingCommandBuffer();
     
     // Force a final capture if we haven't captured anything yet
-    uint32_t width, height;
-    std::vector<uint8_t> data;
-    if (!metal_cmd_processor->GetLastCapturedFrame(width, height, data)) {
-      XELOGW("MetalTraceDump: No frame captured during playback, attempting manual capture");
-      if (metal_cmd_processor->CaptureColorTarget(0, width, height, data)) {
-        // Save it for later retrieval
-        XELOGI("MetalTraceDump: Manual capture successful");
-      }
-    } else {
-      XELOGI("MetalTraceDump: Frame already captured during playback ({}x{})", width, height);
-    }
+    // uint32_t width, height;
+    // std::vector<uint8_t> data;
+    // if (!metal_cmd_processor->GetLastCapturedFrame(width, height, data)) {
+    //   XELOGW("MetalTraceDump: No frame captured during playback, attempting manual capture");
+    //   if (metal_cmd_processor->CaptureColorTarget(0, width, height, data)) {
+    //     // Save it for later retrieval
+    //     XELOGI("MetalTraceDump: Manual capture successful");
+    //   }
+    // } else {
+    //   XELOGI("MetalTraceDump: Frame already captured during playback ({}x{})", width, height);
+    // }
   }
   
  private:
