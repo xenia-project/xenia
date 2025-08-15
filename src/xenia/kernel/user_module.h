@@ -61,6 +61,7 @@ class UserModule : public XModule {
   uint32_t guest_xex_header() const { return guest_xex_header_; }
   // The title ID in the xex header or 0 if this is not a xex.
   uint32_t title_id() const;
+  std::string bounding_filename() const;
   uint32_t disc_number() const;
   bool is_multi_disc_title() const;
 
@@ -68,7 +69,7 @@ class UserModule : public XModule {
   bool is_dll_module() const { return is_dll_module_; }
   bool is_attached() const {
     // Special case for skipping real XAM initialization as it will fail.
-    if (name_ == "xam" || name_ == "$flash_xam") {
+    if (bounding_filename() == "xam") {
       return true;
     }
     return is_attached_;
