@@ -59,7 +59,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(
   vulkan_instance->loader_ = dlopen(loader_library_name, RTLD_NOW | RTLD_LOCAL);
   if (!vulkan_instance->loader_) {
     XELOGE("Failed to load {}", loader_library_name);
-    return false;
+    return nullptr;
   }
 #define XE_VULKAN_LOAD_LOADER_FUNCTION(name)                             \
   functions_loaded &=                                                    \
@@ -69,7 +69,7 @@ std::unique_ptr<VulkanInstance> VulkanInstance::Create(
   vulkan_instance->loader_ = LoadLibraryW(L"vulkan-1.dll");
   if (!vulkan_instance->loader_) {
     XELOGE("Failed to load vulkan-1.dll");
-    return false;
+    return nullptr;
   }
 #define XE_VULKAN_LOAD_LOADER_FUNCTION(name)                 \
   functions_loaded &= (ifn.name = PFN_##name(GetProcAddress( \
