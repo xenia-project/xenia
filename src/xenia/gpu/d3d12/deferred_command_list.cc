@@ -32,8 +32,8 @@ void DeferredCommandList::Execute(ID3D12GraphicsCommandList* command_list,
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
-  const uintmax_t* stream = command_stream_.data();
-  size_t stream_remaining = command_stream_.size();
+  const uintmax_t* stream = (const uintmax_t*)command_stream_.data();
+  size_t stream_remaining = command_stream_.size() / sizeof(uintmax_t);
   ID3D12PipelineState* current_pipeline_state = nullptr;
   while (stream_remaining != 0) {
     const CommandHeader& header =

@@ -131,14 +131,14 @@ union alignas(uint32_t) SQ_PROGRAM_CNTL {
     // Ignore the Freedreno a2xx.xml note about the bit 7 for zero registers,
     // the fields are 6-bit, not 8-bit, in yamato_registers.h, and games never
     // set the bits 7:6.
-    uint32_t vs_num_reg : 6;                           // +0, value minus 1
-    uint32_t _pad_6 : 2;                               // +6
-    uint32_t ps_num_reg : 6;                           // +8, value minus 1
-    uint32_t _pad_14 : 2;                              // +14
-    uint32_t vs_resource : 1;                          // +16
-    uint32_t ps_resource : 1;                          // +17
-    uint32_t param_gen : 1;                            // +18
-    uint32_t gen_index_pix : 1;                        // +19
+    uint32_t vs_num_reg : 6;     // +0, value minus 1
+    uint32_t _pad_6 : 2;         // +6
+    uint32_t ps_num_reg : 6;     // +8, value minus 1
+    uint32_t _pad_14 : 2;        // +14
+    uint32_t vs_resource : 1;    // +16
+    uint32_t ps_resource : 1;    // +17
+    uint32_t param_gen : 1;      // +18
+    uint32_t gen_index_pix : 1;  // +19
     // Interpolator output count minus 1.
     uint32_t vs_export_count : 4;                      // +20, value minus 1
     xenos::VertexShaderExportMode vs_export_mode : 3;  // +24
@@ -319,12 +319,12 @@ union alignas(uint32_t) VGT_DRAW_INITIATOR {
     // R600, it's set to the explicit mode mainly for tessellated draws in games
     // (because VGT_OUTPUT_PATH_CNTL where tessellation is enabled is ignored in
     // the implicit major mode).
-    xenos::MajorMode major_mode : 2;        // +8
-    uint32_t _pad_10 : 1;                   // +10
-    xenos::IndexFormat index_size : 1;      // +11
-    uint32_t not_eop : 1;                   // +12
-    uint32_t _pad_13 : 3;                   // +13
-    uint32_t num_indices : 16;              // +16
+    xenos::MajorMode major_mode : 2;    // +8
+    uint32_t _pad_10 : 1;               // +10
+    xenos::IndexFormat index_size : 1;  // +11
+    uint32_t not_eop : 1;               // +12
+    uint32_t _pad_13 : 3;               // +13
+    uint32_t num_indices : 16;          // +16
   };
   static constexpr Register register_index = XE_GPU_REG_VGT_DRAW_INITIATOR;
 };
@@ -496,7 +496,7 @@ union alignas(uint32_t) PA_SU_VTX_CNTL {
     xenos::PixelCenter pix_center : 1;         // +0
     xenos::VertexRounding round_mode : 2;      // +1
     xenos::VertexQuantization quant_mode : 3;  // +3
-    uint32_t _pad_6 : 26;     // +6
+    uint32_t _pad_6 : 26;                      // +6
   };
   static constexpr Register register_index = XE_GPU_REG_PA_SU_VTX_CNTL;
 };

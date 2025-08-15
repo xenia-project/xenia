@@ -1809,7 +1809,7 @@ EmulatorWindow::ControllerHotKey EmulatorWindow::ProcessControllerHotkey(
       selected_title_index--;
       break;
     case ButtonFunctions::ToggleLogging: {
-      logging::internal::ToggleLogLevel();
+      logging::ToggleLogLevel();
 
       notificationTitle = "Toggle Logging";
 

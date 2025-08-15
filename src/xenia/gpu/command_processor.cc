@@ -397,7 +397,7 @@ void CommandProcessor::EnableReadPointerWriteBack(uint32_t ptr,
 XE_NOINLINE XE_COLD void CommandProcessor::LogKickoffInitator(uint32_t value) {
   cpu::backend::GuestPseudoStackTrace st;
 
-  if (logging::internal::ShouldLog(LogLevel::Debug) &&
+  if (logging::ShouldLog(LogLevel::Debug) &&
       kernel_state_->processor()->backend()->PopulatePseudoStacktrace(&st)) {
     logging::LoggerBatch<LogLevel::Debug> log_initiator{};
 

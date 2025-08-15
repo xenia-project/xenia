@@ -89,7 +89,6 @@ constexpr char kPrefixCharInfo = 'i';
 constexpr char kPrefixCharDebug = 'd';
 
 void ToggleLogLevel();
-//bool ShouldLog(LogLevel log_level);
 bool ShouldLog(LogLevel log_level,
                uint32_t log_mask = xe::LogSrc::Uncategorized);
 namespace internal {
@@ -124,7 +123,7 @@ XE_FORCEINLINE static void AppendLogLineFormat(uint32_t log_src_mask,
                                                const char prefix_char,
                                                std::string_view format,
                                                const Args&... args) noexcept {
-  if (!internal::ShouldLog(log_level, log_src_mask)) {
+  if (!ShouldLog(log_level, log_src_mask)) {
     return;
   }
   AppendLogLineFormat_Impl(log_level, prefix_char, format, args...);
@@ -175,25 +174,29 @@ struct LoggerBatch {
 
 template <typename... Args>
 XE_COLD void XELOGE(std::string_view format, const Args&... args) {
-  xe::logging::AppendLogLineFormat(xe::LogSrc::Uncategorized, xe::LogLevel::Error,
+  xe::logging::AppendLogLineFormat(
+      xe::LogSrc::Uncategorized, xe::LogLevel::Error,
       xe::logging::kPrefixCharError, format, args...);
 }
 
 template <typename... Args>
 XE_COLD void XELOGW(std::string_view format, const Args&... args) {
-  xe::logging::AppendLogLineFormat(xe::LogSrc::Uncategorized, xe::LogLevel::Warning,
+  xe::logging::AppendLogLineFormat(
+      xe::LogSrc::Uncategorized, xe::LogLevel::Warning,
       xe::logging::kPrefixCharWarning, format, args...);
 }
 
 template <typename... Args>
 void XELOGI(std::string_view format, const Args&... args) {
-  xe::logging::AppendLogLineFormat(xe::LogSrc::Uncategorized, xe::LogLevel::Info,
+  xe::logging::AppendLogLineFormat(
+      xe::LogSrc::Uncategorized, xe::LogLevel::Info,
       xe::logging::kPrefixCharInfo, format, args...);
 }
 
 template <typename... Args>
 void XELOGD(std::string_view format, const Args&... args) {
-  xe::logging::AppendLogLineFormat(xe::LogSrc::Uncategorized, xe::LogLevel::Debug,
+  xe::logging::AppendLogLineFormat(
+      xe::LogSrc::Uncategorized, xe::LogLevel::Debug,
       xe::logging::kPrefixCharDebug, format, args...);
 }
 
