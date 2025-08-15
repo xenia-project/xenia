@@ -28,7 +28,7 @@ namespace xam {
 
 bool UserTracker::AddUser(uint64_t xuid) {
   if (IsUserTracked(xuid)) {
-    XELOGW("{}: User is already on tracking list!");
+    XELOGW("{}: User is already on tracking list!", __func__);
     return false;
   }
 
@@ -42,7 +42,7 @@ bool UserTracker::AddUser(uint64_t xuid) {
 
 bool UserTracker::RemoveUser(uint64_t xuid) {
   if (!IsUserTracked(xuid)) {
-    XELOGW("{}: User is not on tracking list!");
+    XELOGW("{}: User is not on tracking list!", __func__);
     return false;
   }
 
@@ -206,7 +206,7 @@ bool UserTracker::IsUserTracked(uint64_t xuid) const {
 std::optional<TitleInfo> UserTracker::GetUserTitleInfo(
     uint64_t xuid, uint32_t title_id) const {
   if (!IsUserTracked(xuid)) {
-    XELOGW("{}: User is not on tracking list!");
+    XELOGW("{}: User is not on tracking list!", __func__);
     return std::nullopt;
   }
 
