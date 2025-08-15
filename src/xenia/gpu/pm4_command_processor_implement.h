@@ -267,7 +267,7 @@ void COMMAND_PROCESSOR::DisassembleCurrentPacket() XE_RESTRICT {
 }
 bool COMMAND_PROCESSOR::ExecutePacket() {
 #if XE_ENABLE_PM4_DISASM == 1
-  if (cvars::disassemble_pm4 && logging::internal::ShouldLog(LogLevel::Debug)) {
+  if (cvars::disassemble_pm4 && logging::ShouldLog(LogLevel::Debug)) {
     COMMAND_PROCESSOR::DisassembleCurrentPacket();
   }
 #endif

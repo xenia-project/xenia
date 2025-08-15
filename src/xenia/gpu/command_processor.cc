@@ -427,7 +427,7 @@ void CommandProcessor::UpdateWritePointer(uint32_t value) {
 void CommandProcessor::LogRegisterSet(uint32_t register_index, uint32_t value) {
 #if XE_ENABLE_GPU_REG_WRITE_LOGGING == 1
   if (cvars::log_guest_driven_gpu_register_written_values &&
-      logging::internal::ShouldLog(LogLevel::Debug)) {
+      logging::ShouldLog(LogLevel::Debug)) {
     const RegisterInfo* reginfo = RegisterFile::GetRegisterInfo(register_index);
 
     if (!reginfo) {
@@ -444,7 +444,7 @@ void CommandProcessor::LogRegisterSets(uint32_t base_register_index,
                                        uint32_t n_values) {
 #if XE_ENABLE_GPU_REG_WRITE_LOGGING == 1
   if (cvars::log_guest_driven_gpu_register_written_values &&
-      logging::internal::ShouldLog(LogLevel::Debug)) {
+      logging::ShouldLog(LogLevel::Debug)) {
     auto target = logging::internal::GetThreadBuffer();
 
     auto target_ptr = target.first;
