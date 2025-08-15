@@ -11,7 +11,7 @@
 #define XENIA_UI_VULKAN_VULKAN_UPLOAD_BUFFER_POOL_H_
 
 #include "xenia/ui/graphics_upload_buffer_pool.h"
-#include "xenia/ui/vulkan/vulkan_provider.h"
+#include "xenia/ui/vulkan/vulkan_device.h"
 
 namespace xe {
 namespace ui {
@@ -19,7 +19,7 @@ namespace vulkan {
 
 class VulkanUploadBufferPool : public GraphicsUploadBufferPool {
  public:
-  VulkanUploadBufferPool(const VulkanProvider& provider,
+  VulkanUploadBufferPool(const VulkanDevice* vulkan_device,
                          VkBufferUsageFlags usage,
                          size_t page_size = kDefaultPageSize);
 
@@ -37,20 +37,20 @@ class VulkanUploadBufferPool : public GraphicsUploadBufferPool {
  private:
   struct VulkanPage : public Page {
     // Takes ownership of the buffer and its memory and mapping.
-    VulkanPage(const VulkanProvider& provider, VkBuffer buffer,
+    VulkanPage(const VulkanDevice* vulkan_device, VkBuffer buffer,
                VkDeviceMemory memory, void* mapping)
-        : provider_(provider),
+        : vulkan_device_(vulkan_device),
           buffer_(buffer),
           memory_(memory),
           mapping_(mapping) {}
     ~VulkanPage() override;
-    const VulkanProvider& provider_;
+    const VulkanDevice* vulkan_device_;
     VkBuffer buffer_;
     VkDeviceMemory memory_;
     void* mapping_;
   };
 
-  const VulkanProvider& provider_;
+  const VulkanDevice* vulkan_device_;
 
   VkDeviceSize allocation_size_;
   static constexpr uint32_t kMemoryTypeUnknown = UINT32_MAX;

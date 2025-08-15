@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "xenia/base/assert.h"
-#include "xenia/ui/vulkan/vulkan_provider.h"
+#include "xenia/ui/vulkan/vulkan_device.h"
 
 namespace xe {
 namespace ui {
@@ -54,13 +54,15 @@ class LinkedTypeDescriptorSetAllocator {
   // Multiple descriptor sizes for the same descriptor type, and zero sizes, are
   // not allowed.
   explicit LinkedTypeDescriptorSetAllocator(
-      const ui::vulkan::VulkanProvider& provider,
-      const VkDescriptorPoolSize* descriptor_sizes,
-      uint32_t descriptor_size_count, uint32_t descriptor_sets_per_page)
-      : provider_(provider),
+      const VulkanDevice* const vulkan_device,
+      const VkDescriptorPoolSize* const descriptor_sizes,
+      const uint32_t descriptor_size_count,
+      const uint32_t descriptor_sets_per_page)
+      : vulkan_device_(vulkan_device),
         descriptor_pool_sizes_(new VkDescriptorPoolSize[descriptor_size_count]),
         descriptor_pool_size_count_(descriptor_size_count),
         descriptor_sets_per_page_(descriptor_sets_per_page) {
+    assert_not_null(vulkan_device);
     assert_not_zero(descriptor_size_count);
     assert_not_zero(descriptor_sets_per_page_);
 #ifndef NDEBUG
@@ -94,7 +96,7 @@ class LinkedTypeDescriptorSetAllocator {
     uint32_t descriptor_sets_remaining;
   };
 
-  const ui::vulkan::VulkanProvider& provider_;
+  const VulkanDevice* vulkan_device_;
 
   std::unique_ptr<VkDescriptorPoolSize[]> descriptor_pool_sizes_;
   uint32_t descriptor_pool_size_count_;

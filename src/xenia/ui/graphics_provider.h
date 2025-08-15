@@ -36,6 +36,11 @@ class GraphicsProvider {
     kQualcomm = 0x5143,
   };
 
+  GraphicsProvider(const GraphicsProvider&) = delete;
+  GraphicsProvider& operator=(const GraphicsProvider&) = delete;
+  GraphicsProvider(GraphicsProvider&&) = delete;
+  GraphicsProvider& operator=(GraphicsProvider&&) = delete;
+
   virtual ~GraphicsProvider() = default;
 
   // It's safe to reinitialize the presenter in the host GPU loss callback if it

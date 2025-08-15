@@ -32,4 +32,6 @@ DECLARE_int32(query_occlusion_sample_upper_threshold);
 
 DECLARE_bool(disassemble_pm4);
 
+#define XE_GPU_FINE_GRAINED_DRAW_SCOPES 1
+
 #endif  // XENIA_GPU_GPU_FLAGS_H_

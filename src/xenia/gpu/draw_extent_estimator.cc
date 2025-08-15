@@ -251,7 +251,8 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
   // so it's safe to add both - adding it will neither move the 16p8 clamping
   // bounds -32768 and 32767+255/256 into the 0...8192 screen space range, nor
   // cause 24p8 overflow.
-  if (!regs.Get<reg::PA_SU_VTX_CNTL>().pix_center) {
+  if (regs.Get<reg::PA_SU_VTX_CNTL>().pix_center ==
+      xenos::PixelCenter::kD3DZero) {
     max_y_24p8 += 128;
   }
   if (pa_su_sc_mode_cntl.vtx_window_offset_enable) {
@@ -321,37 +322,24 @@ uint32_t DrawExtentEstimator::EstimateMaxY(bool try_to_estimate_vertex_max_y,
     // scissor (it's set by Direct3D 9 when a viewport is used), on hosts, it
     // usually exists and can't be disabled.
     auto pa_cl_vte_cntl = regs.Get<reg::PA_CL_VTE_CNTL>();
-
     float viewport_bottom = 0.0f;
-    uint32_t enable_window_offset =
-        regs.Get<reg::PA_SU_SC_MODE_CNTL>().vtx_window_offset_enable;
-
-    bool not_pix_center = !regs.Get<reg::PA_SU_VTX_CNTL>().pix_center;
-
-    float window_y_offset_f = float(window_y_offset);
-
-    float yoffset = regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_YOFFSET);
-
     // First calculate all the integer.0 or integer.5 offsetting exactly at full
     // precision.
-    // chrispy: branch mispredicts here causing some pain according to vtune
-    float sm1 = .0f, sm2 = .0f, sm3 = .0f, sm4 = .0f;
-
-    if (enable_window_offset) {
-      sm1 = window_y_offset_f;
+    if (regs.Get<reg::PA_SU_SC_MODE_CNTL>().vtx_window_offset_enable) {
+      viewport_bottom += float(window_y_offset);
     }
-    if (not_pix_center) {
-      sm2 = 0.5f;
+    if (regs.Get<reg::PA_SU_VTX_CNTL>().pix_center ==
+        xenos::PixelCenter::kD3DZero) {
+      viewport_bottom += 0.5f;
     }
     // Then apply the floating-point viewport offset.
     if (pa_cl_vte_cntl.vport_y_offset_ena) {
-      sm3 = yoffset;
+      viewport_bottom += regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_YOFFSET);
     }
-    sm4 = pa_cl_vte_cntl.vport_y_scale_ena
-              ? std::abs(regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_YSCALE))
-              : 1.0f;
-
-    viewport_bottom = sm1 + sm2 + sm3 + sm4;
+    viewport_bottom +=
+        pa_cl_vte_cntl.vport_y_scale_ena
+            ? std::abs(regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_YSCALE))
+            : 1.0f;
     // Using floor, or, rather, truncation (because maxing with zero anyway)
     // similar to how viewport scissoring behaves on real AMD, Intel and Nvidia
     // GPUs on Direct3D 12 (but not WARP), also like in

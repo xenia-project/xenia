@@ -33,10 +33,10 @@ std::string VulkanGraphicsSystem::name() const {
 X_STATUS VulkanGraphicsSystem::Setup(cpu::Processor* processor,
                                      kernel::KernelState* kernel_state,
                                      ui::WindowedAppContext* app_context,
-                                     bool is_surface_required) {
-  provider_ = xe::ui::vulkan::VulkanProvider::Create(is_surface_required);
+                                     bool with_presentation) {
+  provider_ = xe::ui::vulkan::VulkanProvider::Create(true, with_presentation);
   return GraphicsSystem::Setup(processor, kernel_state, app_context,
-                               is_surface_required);
+                               with_presentation);
 }
 
 std::unique_ptr<CommandProcessor>

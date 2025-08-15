@@ -32,12 +32,12 @@ namespace draw_util {
 
 bool IsRasterizationPotentiallyDone(const RegisterFile& regs,
                                     bool primitive_polygonal) {
-  // TODO(Triang3l): Investigate ModeControl::kIgnore better, with respect to
+  // TODO(Triang3l): Investigate EdramMode::kNoOperation better, with respect to
   // sample counting. Let's assume sample counting is a part of depth / stencil,
   // thus disabled too.
-  xenos::ModeControl edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
-  if (edram_mode != xenos::ModeControl::kColorDepth &&
-      edram_mode != xenos::ModeControl::kDepth) {
+  xenos::EdramMode edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
+  if (edram_mode != xenos::EdramMode::kColorDepth &&
+      edram_mode != xenos::EdramMode::kDepthOnly) {
     return false;
   }
   if (regs.Get<reg::SQ_PROGRAM_CNTL>().vs_export_mode ==
@@ -56,9 +56,9 @@ bool IsRasterizationPotentiallyDone(const RegisterFile& regs,
 }
 
 reg::RB_DEPTHCONTROL GetNormalizedDepthControl(const RegisterFile& regs) {
-  xenos::ModeControl edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
-  if (edram_mode != xenos::ModeControl::kColorDepth &&
-      edram_mode != xenos::ModeControl::kDepth) {
+  xenos::EdramMode edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
+  if (edram_mode != xenos::EdramMode::kColorDepth &&
+      edram_mode != xenos::EdramMode::kDepthOnly) {
     // Both depth and stencil disabled (EDRAM depth and stencil ignored).
     reg::RB_DEPTHCONTROL disabled;
     disabled.value = 0;
@@ -117,10 +117,10 @@ bool IsPixelShaderNeededWithRasterization(const Shader& shader,
   assert_true(shader.type() == xenos::ShaderType::kPixel);
   assert_true(shader.is_ucode_analyzed());
 
-  // See xenos::ModeControl for explanation why the pixel shader is only used
-  // when it's kColorDepth here.
+  // See xenos::EdramMode for explanation why the pixel shader is only used when
+  // it's kColorDepth here.
   if (regs.Get<reg::RB_MODECONTROL>().edram_mode !=
-      xenos::ModeControl::kColorDepth) {
+      xenos::EdramMode::kColorDepth) {
     return false;
   }
 
@@ -324,7 +324,8 @@ void GetHostViewportInfo(GetViewportInfoArgs* XE_RESTRICT args,
     offset_add_xy[0] += float(pa_sc_window_offset.window_x_offset);
     offset_add_xy[1] += float(pa_sc_window_offset.window_y_offset);
   }
-  if (cvars::half_pixel_offset && !pa_su_vtx_cntl.pix_center) {
+  if (cvars::half_pixel_offset &&
+      pa_su_vtx_cntl.pix_center == xenos::PixelCenter::kD3DZero) {
     offset_add_xy[0] += 0.5f;
     offset_add_xy[1] += 0.5f;
   }
@@ -724,7 +725,7 @@ void GetScissor(const RegisterFile& XE_RESTRICT regs,
 uint32_t GetNormalizedColorMask(const RegisterFile& regs,
                                 uint32_t pixel_shader_writes_color_targets) {
   if (regs.Get<reg::RB_MODECONTROL>().edram_mode !=
-      xenos::ModeControl::kColorDepth) {
+      xenos::EdramMode::kColorDepth) {
     return 0;
   }
   uint32_t normalized_color_mask = 0;
@@ -959,7 +960,9 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
       memory.TranslatePhysical(fetch.address * sizeof(uint32_t)));
   // Most vertices have a negative half-pixel offset applied, which we reverse.
   float half_pixel_offset =
-      regs.Get<reg::PA_SU_VTX_CNTL>().pix_center ? 0.0f : 0.5f;
+      regs.Get<reg::PA_SU_VTX_CNTL>().pix_center == xenos::PixelCenter::kD3DZero
+          ? 0.5f
+          : 0.0f;
   int32_t vertices_fixed[6];
   for (size_t i = 0; i < xe::countof(vertices_fixed); ++i) {
     vertices_fixed[i] = ui::FloatToD3D11Fixed16p8(
@@ -1220,7 +1223,9 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
   bool fill_half_pixel_offset =
       (draw_resolution_scale_x > 1 || draw_resolution_scale_y > 1) &&
       cvars::resolve_resolution_scale_fill_half_pixel_offset &&
-      cvars::half_pixel_offset && !regs.Get<reg::PA_SU_VTX_CNTL>().pix_center;
+      cvars::half_pixel_offset &&
+      regs.Get<reg::PA_SU_VTX_CNTL>().pix_center ==
+          xenos::PixelCenter::kD3DZero;
   int32_t exp_bias = is_depth ? 0 : rb_copy_dest_info.copy_dest_exp_bias;
   ResolveEdramInfo depth_edram_info;
   depth_edram_info.packed = 0;

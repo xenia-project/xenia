@@ -411,16 +411,17 @@ void Value::MulHi(Value* other, bool is_unsigned) {
         constant.i64 = __mulh(constant.i64, other->constant.i64);
       }
 #else
-      unsigned __int128 product;
       if (is_unsigned) {
-        product = static_cast<unsigned __int128>(constant.i64) *
-                  static_cast<unsigned __int128>(other->constant.i64);
+        constant.i64 = static_cast<uint64_t>(
+            (static_cast<unsigned __int128>(constant.i64) *
+             static_cast<unsigned __int128>(other->constant.i64)) >>
+            64);
       } else {
-        product = static_cast<unsigned __int128>(
-            static_cast<__int128>(constant.i64) *
-            static_cast<__int128>(other->constant.i64));
+        constant.i64 = static_cast<uint64_t>(
+            (static_cast<__int128>(constant.i64) *
+             static_cast<__int128>(other->constant.i64)) >>
+            64);
       }
-      constant.i64 = static_cast<int64_t>(product >> 64);
 #endif  // XE_COMPILER_MSVC
       break;
     }

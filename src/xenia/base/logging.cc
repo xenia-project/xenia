@@ -469,16 +469,18 @@ void ShutdownLogging() {
 }
 
 static int g_saved_loglevel = static_cast<int>(LogLevel::Disabled);
-void logging::internal::ToggleLogLevel() {
+void logging::ToggleLogLevel() {
   auto swap = g_saved_loglevel;
 
   g_saved_loglevel = cvars::log_level;
   cvars::log_level = swap;
 }
-bool logging::internal::ShouldLog(LogLevel log_level, uint32_t log_mask) {
+
+bool logging::ShouldLog(LogLevel log_level, uint32_t log_mask) {
   return static_cast<int32_t>(log_level) <= cvars::log_level &&
          (log_mask & cvars::log_mask) == 0;
 }
+
 uint32_t logging::internal::GetLogLevel() { return cvars::log_level; }
 
 std::pair<char*, size_t> logging::internal::GetThreadBuffer() {
@@ -496,7 +498,7 @@ void logging::internal::AppendLogLine(LogLevel log_level,
 
 void logging::AppendLogLine(LogLevel log_level, const char prefix_char,
                             const std::string_view str, uint32_t log_mask) {
-  if (!internal::ShouldLog(log_level, log_mask) || !str.size()) {
+  if (!ShouldLog(log_level, log_mask) || !str.size()) {
     return;
   }
   logger_->AppendLine(xe::threading::current_thread_id(), prefix_char,

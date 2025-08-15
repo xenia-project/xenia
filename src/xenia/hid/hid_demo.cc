@@ -171,7 +171,7 @@ std::vector<std::unique_ptr<hid::InputDriver>> HidDemoApp::CreateInputDrivers(
 
 bool HidDemoApp::OnInitialize() {
   // Create the graphics provider that provides the presenter for the window.
-  graphics_provider_ = xe::ui::vulkan::VulkanProvider::Create(true);
+  graphics_provider_ = xe::ui::vulkan::VulkanProvider::Create(false, true);
   if (!graphics_provider_) {
     XELOGE("Failed to initialize the graphics provider");
     return false;

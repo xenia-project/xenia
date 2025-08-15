@@ -370,13 +370,42 @@ std::unique_ptr<gpu::GraphicsSystem> EmulatorApp::CreateGraphicsSystem() {
   // For maintainability, as much implementation code as possible should be
   // placed in `xe::gpu` and shared between the backends rather than duplicated
   // between them.
+  const std::string gpu_implementation_name = cvars::gpu;
+  if (gpu_implementation_name == "null") {
+    return std::make_unique<gpu::null::NullGraphicsSystem>();
+  }
   Factory<gpu::GraphicsSystem> factory;
 #if XE_PLATFORM_WIN32
   factory.Add<gpu::d3d12::D3D12GraphicsSystem>("d3d12");
 #endif  // XE_PLATFORM_WIN32
   factory.Add<gpu::vulkan::VulkanGraphicsSystem>("vulkan");
-  factory.Add<gpu::null::NullGraphicsSystem>("null");
-  return factory.Create(cvars::gpu);
+  std::unique_ptr<gpu::GraphicsSystem> gpu_implementation =
+      factory.Create(gpu_implementation_name);
+  if (!gpu_implementation) {
+    xe::FatalError(
+        "Unable to initialize the graphics subsystem.\n"
+        "\n"
+#if XE_PLATFORM_ANDROID
+        "The GPU must support at least Vulkan 1.0 with the 'independentBlend' "
+        "feature.\n"
+        "\n"
+#else
+#if XE_PLATFORM_WIN32
+        "For Direct3D 12, at least Windows 10 is required, and the GPU must be "
+        "compatible with Direct3D 12 feature level 11_0.\n"
+        "\n"
+#endif  // XE_PLATFORM_WIN32
+        "For Vulkan, the Vulkan runtime must be installed, and the GPU must "
+        "support at least Vulkan 1.0. The Vulkan runtime can be downloaded at "
+        "https://vulkan.lunarg.com/sdk/home.\n"
+        "\n"
+        "Also, ensure that you have the latest driver installed for your GPU.\n"
+        "\n"
+#endif  // XE_PLATFORM_ANDROID
+        "See https://xenia.jp/faq/ for more information and the system "
+        "requirements.");
+  }
+  return gpu_implementation;
 }
 
 std::vector<std::unique_ptr<hid::InputDriver>> EmulatorApp::CreateInputDrivers(
