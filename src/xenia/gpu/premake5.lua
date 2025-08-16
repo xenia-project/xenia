@@ -43,7 +43,7 @@ project("xenia-gpu-shader-compiler")
     "../base/console_app_main_"..platform_suffix..".cc",
   })
 
-  filter("platforms:Windows")
+  filter("platforms:Windows-*")
     -- Only create the .user file if it doesn't already exist.
     local user_file = project_root.."/build/xenia-gpu-shader-compiler.vcxproj.user"
     if not os.isfile(user_file) then

@@ -172,11 +172,19 @@ X_STATUS Emulator::Setup(
   if (cvars::cpu == "x64") {
     backend.reset(new xe::cpu::backend::x64::X64Backend());
   }
+#elif XE_ARCH_ARM64
+  // TODO(wunkolo): Arm64 backend
+  if (cvars::cpu == "a64") {
+    backend.reset(new xe::cpu::backend::NullBackend());
+  }
 #endif  // XE_ARCH
   if (cvars::cpu == "any") {
     if (!backend) {
 #if XE_ARCH_AMD64
       backend.reset(new xe::cpu::backend::x64::X64Backend());
+#elif XE_ARCH_ARM64
+      // TODO(wunkolo): Arm64 backend
+      backend.reset(new xe::cpu::backend::NullBackend());
 #endif  // XE_ARCH
     }
   }
