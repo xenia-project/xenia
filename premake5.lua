@@ -1,7 +1,13 @@
 include("tools/build")
-require("third_party/premake-export-compile-commands/export-compile-commands")
-require("third_party/premake-androidndk/androidndk")
-require("third_party/premake-cmake/cmake")
+if _ACTION == "export-compile-commands" then
+  require("third_party/premake-export-compile-commands/export-compile-commands")
+end
+if os.istarget("android") then
+  require("third_party/premake-androidndk/androidndk")
+end
+if _ACTION == "cmake" then
+  require("third_party/premake-cmake/cmake")
+end
 
 location(build_root)
 targetdir(build_bin)
@@ -191,22 +197,24 @@ filter({"language:C", "toolset:clang or gcc"}) -- "platforms:Linux"
     "implicit-function-declaration",
   })
 
-filter("platforms:Android-*")
-  system("android")
-  systemversion("24")
-  cppstl("c++")
-  staticruntime("On")
-  -- Hidden visibility is needed to prevent dynamic relocations in FFmpeg
-  -- AArch64 Neon libavcodec assembly with PIC (accesses extern lookup tables
-  -- using `adrp` and `add`, without the Global Object Table, expecting that all
-  -- FFmpeg symbols that aren't a part of the FFmpeg API are hidden by FFmpeg's
-  -- original build system) by resolving those relocations at link time instead.
-  visibility("Hidden")
-  links({
-    "android",
-    "dl",
-    "log",
-  })
+if os.istarget("android") then
+  filter("platforms:Android-*")
+    system("android")
+    systemversion("24")
+    cppstl("c++")
+    staticruntime("On")
+    -- Hidden visibility is needed to prevent dynamic relocations in FFmpeg
+    -- AArch64 Neon libavcodec assembly with PIC (accesses extern lookup tables
+    -- using `adrp` and `add`, without the Global Object Table, expecting that all
+    -- FFmpeg symbols that aren't a part of the FFmpeg API are hidden by FFmpeg's
+    -- original build system) by resolving those relocations at link time instead.
+    visibility("Hidden")
+    links({
+      "android",
+      "dl",
+      "log",
+    })
+end
 
 filter("platforms:Windows")
   system("windows")

@@ -14,9 +14,11 @@ project("xenia-ui")
     "*_demo.cc",
     "windowed_app_main_*.cc",
   })
-  filter("platforms:Android-*")
-    -- Exports JNI functions.
-    wholelib("On")
+  if os.istarget("android") then
+    filter("platforms:Android-*")
+      -- Exports JNI functions.
+      wholelib("On")
+  end
 
   filter("platforms:Windows")
     links({
