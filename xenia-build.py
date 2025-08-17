@@ -486,7 +486,7 @@ def get_premake_target_os(target_os_override=None):
         target_os = "android"
     else:
         target_os = "linux"
-    if target_os_override is not None and target_os_override != target_os:
+    if target_os_override and target_os_override != target_os:
         if target_os_override == "android":
             target_os = target_os_override
         else:
@@ -832,7 +832,7 @@ class BaseBuildCommand(Command):
                     "/m",
                     "/v:m",
                     f"/p:Configuration={args['config']}",
-                    ] + ([targets] if targets is not None else []) + pass_args)
+                    ] + ([targets] if targets else []) + pass_args)
         elif sys.platform == "darwin":
             schemes = args["target"] or ["xenia-app"]
             nested_args = [["-scheme", scheme] for scheme in schemes]
