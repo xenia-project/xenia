@@ -77,6 +77,11 @@ jobs:
       - uses: actions/checkout@main
         with:
           fetch-depth: 0
+      - uses: actions/cache@main
+        id: cache
+        with:
+          key: ${{ hashFiles('tools/build/bin/premake5.exe') }}
+          path: tools/build/bin/premake5
       - name: Setup
         env:
           UBUNTU_BASE: ${{ needs.lint.outputs.UBUNTU_BASE }}
@@ -85,7 +90,11 @@ jobs:
           sudo apt-add-repository "deb http://apt.llvm.org/${UBUNTU_BASE}/ llvm-toolchain-${UBUNTU_BASE}-${{ matrix.LLVM_VERSION }} main"
           sudo apt-get -y update
           sudo apt-get -y install mesa-vulkan-drivers valgrind libc++-dev libc++abi-dev libgtk-3-dev libsdl2-dev libvulkan-dev libx11-xcb-dev clang-${{ matrix.LLVM_VERSION }} ninja-build
-          ./xenia-build.py setup
+          git submodule update --init --depth=1 -j$(getconf _NPROCESSORS_ONLN) $(grep -oP '(?<=path = )(?!third_party\/(DirectXShaderCompiler|FidelityFX-(CAS|FSR)|premake-(androidndk|export-compile-commands))).+' .gitmodules)
+          if [ '${{ steps.cache.outputs.cache-hit }}' != 'true' ]; then
+            ./xenia-build.py premake
+            cp third_party/premake-core/bin/release/premake5 tools/build/bin
+          fi
       - name: Build
         env:
           CC: clang-${{ matrix.LLVM_VERSION }}
