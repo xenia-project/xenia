@@ -521,14 +521,25 @@ TEST_CASE("map_view", "[virtual_memory_mapping]") {
       path, length, xe::memory::PageAccess::kReadWrite, true);
   REQUIRE(memory != xe::memory::kFileMappingHandleInvalid);
 
+#ifdef __APPLE__
+  // On macOS, let the OS choose the address due to ASLR and memory restrictions
+  auto view =
+      xe::memory::MapFileView(memory, nullptr, length,
+                              xe::memory::PageAccess::kReadWrite, 0);
+  REQUIRE(view != nullptr);
+  
+  xe::memory::UnmapFileView(memory, view, length);
+#else
+  // On other platforms, test fixed address mapping
   uintptr_t address = 0x100000000;
-
   auto view =
       xe::memory::MapFileView(memory, reinterpret_cast<void*>(address), length,
                               xe::memory::PageAccess::kReadWrite, 0);
   REQUIRE(reinterpret_cast<uintptr_t>(view) == address);
 
   xe::memory::UnmapFileView(memory, reinterpret_cast<void*>(address), length);
+#endif
+  
   xe::memory::CloseFileMappingHandle(memory, path);
 }
 
@@ -539,7 +550,29 @@ TEST_CASE("read_write_view", "[virtual_memory_mapping]") {
       path, length, xe::memory::PageAccess::kReadWrite, true);
   REQUIRE(memory != xe::memory::kFileMappingHandleInvalid);
 
-  uintptr_t address = 0x200000000;
+#ifdef __APPLE__
+  // On macOS, let the OS choose the address
+  auto view =
+      xe::memory::MapFileView(memory, nullptr, length,
+                              xe::memory::PageAccess::kReadWrite, 0);
+  REQUIRE(view != nullptr);
+  
+  uintptr_t address = reinterpret_cast<uintptr_t>(view);
+  
+  for (uint32_t i = 0; i < length; i += sizeof(uint8_t)) {
+    auto p_value = reinterpret_cast<uint8_t*>(address + i);
+    *p_value = i;
+  }
+  for (uint32_t i = 0; i < length; i += sizeof(uint8_t)) {
+    auto p_value = reinterpret_cast<uint8_t*>(address + i);
+    uint8_t value = *p_value;
+    REQUIRE(value == i);
+  }
+
+  xe::memory::UnmapFileView(memory, view, length);
+#else
+  // On other platforms, test with fixed address
+  uintptr_t address = 0x100000000;
   auto view =
       xe::memory::MapFileView(memory, reinterpret_cast<void*>(address), length,
                               xe::memory::PageAccess::kReadWrite, 0);
@@ -556,6 +589,8 @@ TEST_CASE("read_write_view", "[virtual_memory_mapping]") {
   }
 
   xe::memory::UnmapFileView(memory, reinterpret_cast<void*>(address), length);
+#endif
+  
   xe::memory::CloseFileMappingHandle(memory, path);
 }
 
