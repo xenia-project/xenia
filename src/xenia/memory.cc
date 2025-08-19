@@ -217,9 +217,9 @@ bool Memory::Initialize() {
         }
     }
 
-    // Log the mapping base addresses
-    XELOGI("virtual_membase_: {}", (void*)virtual_membase_);
-    XELOGI("physical_membase_: {}", (void*)physical_membase_);
+    // Debug: mapping base addresses
+    XELOGD("virtual_membase_: {}", (void*)virtual_membase_);
+    XELOGD("physical_membase_: {}", (void*)physical_membase_);
 #else
     file_name_ = fmt::format("xenia_memory_{}", Clock::QueryHostTickCount());
 
