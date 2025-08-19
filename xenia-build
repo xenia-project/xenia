@@ -11,6 +11,7 @@ from datetime import datetime
 from multiprocessing import Pool
 from functools import partial
 import argparse
+import glob
 import json
 import os
 import re
@@ -917,23 +918,38 @@ class BuildShadersCommand(Command):
             if sys.platform == 'win32':
                 print('Building Direct3D 12 Shader Model 5.1 DXBC shaders...')
 
-                # Get the FXC path.
-                # TODO(Triang3l): Find FXC in the most recent Windows SDK.
-                program_files_path = os.environ['ProgramFiles(x86)']
-                if not os.path.exists(program_files_path):
-                    print('ERROR: could not find 32-bit Program Files')
+                # Get the path to FXC from the latest Windows SDK version.
+
+                # Assume native or emulated 32-bit x86 if not one of the
+                # architectures listed here.
+                windows_sdk_architecture = 'x86'
+                processor_architecture = os.environ.get(
+                    'PROCESSOR_ARCHITECTURE')
+                if processor_architecture == 'AMD64':
+                    windows_sdk_architecture = 'x64'
+                elif processor_architecture == 'ARM64':
+                    windows_sdk_architecture = 'arm64'
+                program_files_path = os.environ.get('ProgramFiles(x86)')
+                if program_files_path is None:
+                    program_files_path = os.environ.get('ProgramFiles')
+                if (program_files_path is None or
+                    not os.path.exists(program_files_path)):
+                    print('ERROR: could not find the Program Files folder with '
+                          'the Windows SDK')
                     return 1
-                windows_sdk_bin_path = os.path.join(
-                    program_files_path, 'Windows Kits/10/bin/10.0.22000.0/x64')
-                if not os.path.exists(windows_sdk_bin_path):
-                    print('ERROR: could not find Windows 10 SDK binaries')
+                fxc_paths = glob.glob(
+                    os.path.join(program_files_path, 'Windows Kits/10/bin/*',
+                                 windows_sdk_architecture, 'fxc.exe'))
+                if not fxc_paths:
+                    print('ERROR: could not find the Windows 10/11 SDK with '
+                          'the Effect-Compiler Tool (FXC)')
                     return 1
-                fxc = os.path.join(windows_sdk_bin_path, 'fxc')
-                if not has_bin(fxc):
-                    print('ERROR: could not find fxc')
-                    return 1
+                # TODO(Triang3l): Sort by version number, not alphabetically.
+                fxc_paths.sort()
+                fxc = fxc_paths[-1]
 
                 # Build DXBC.
+
                 dxbc_stages = ['vs', 'hs', 'ds', 'gs', 'ps', 'cs']
                 for src_path in src_paths:
                     src_name = os.path.basename(src_path)
