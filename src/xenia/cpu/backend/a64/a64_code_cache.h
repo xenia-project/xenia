@@ -91,7 +91,15 @@ class A64CodeCache : public CodeCache {
  public:
   // All executable code falls within 0x80000000 to 0x9FFFFFFF, so we can
   // only map enough for lookups within that range.
-  static const size_t kIndirectionTableSize = 0x1FFFFFFF;
+  // Size of the indirection table in bytes.
+  // On macOS ARM64 we store 64-bit entries (8 bytes) per 4-byte guest slot
+  // for the 0x2000_0000-byte guest executable range (0x8000_0000..0xA000_0000),
+  // so we need 0x4000_0000 bytes to cover the full space.
+#if XE_PLATFORM_MAC && XE_ARCH_ARM64
+  static const size_t kIndirectionTableSize = 0x40000000;  // 1 GiB
+#else
+  static const size_t kIndirectionTableSize = 0x20000000 - 1;  // 512 MiB - 1 (legacy)
+#endif
 #if XE_PLATFORM_MAC && XE_ARCH_ARM64
   // On macOS ARM64, the base address is determined dynamically at runtime
   // based on where the OS allows us to allocate memory
