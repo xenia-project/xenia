@@ -518,7 +518,6 @@ bool RunTests(const std::string_view test_name) {
 #endif  // XE_ARCH_AMD64
 
     auto test_path_root = cvars::test_path;
-    std::cout << std::filesystem::current_path() << std::endl;
     std::vector<std::filesystem::path> test_files;
     if (!DiscoverTests(test_path_root, test_files)) {
         return false;
