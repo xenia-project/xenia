@@ -13,6 +13,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <cstddef>
+#include <cerrno>
 
 #include "xenia/base/math.h"
 #include "xenia/base/platform.h"
@@ -95,13 +96,48 @@ void* AllocFixed(void* base_address, size_t length,
                  AllocationType allocation_type, PageAccess access) {
   // mmap does not support reserve / commit, so ignore allocation_type.
   uint32_t prot = ToPosixProtectFlags(access);
+
+#if XE_PLATFORM_MAC && defined(__aarch64__)
+  // On macOS ARM64, MAP_JIT is required for executable mappings.
+  int flags = MAP_PRIVATE | MAP_ANONYMOUS;
+  if (access == PageAccess::kExecuteReadWrite ||
+      access == PageAccess::kExecuteReadOnly) {
+    flags |= MAP_JIT;
+  }
+
+  // Align the requested base address to the system page size if provided.
+  uintptr_t aligned_addr = reinterpret_cast<uintptr_t>(base_address);
+  if (aligned_addr != 0) {
+    aligned_addr = xe::round_up(aligned_addr, page_size());
+  }
+
+  void* result = nullptr;
+  if (aligned_addr != 0) {
+    // Try fixed mapping first if a base address was requested.
+    result = mmap(reinterpret_cast<void*>(aligned_addr), length, prot,
+                  flags | MAP_FIXED, -1, 0);
+    if (result == MAP_FAILED) {
+      // Fall back to OS-chosen address if fixed fails.
+      result = mmap(nullptr, length, prot, flags, -1, 0);
+    }
+  } else {
+    // Let the OS choose the address.
+    result = mmap(nullptr, length, prot, flags, -1, 0);
+  }
+
+  if (result == MAP_FAILED) {
+    return nullptr;
+  }
+  return result;
+#else
+  // Default POSIX behavior: honor fixed base if provided.
   void* result = mmap(base_address, length, prot,
                       MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, -1, 0);
   if (result == MAP_FAILED) {
     return nullptr;
-  } else {
-    return result;
   }
+  return result;
+#endif
 }
 
 bool DeallocFixed(void* base_address, size_t length,
@@ -190,13 +226,23 @@ void CloseFileMappingHandle(FileMappingHandle handle,
 }
 
 void* MapFileView(FileMappingHandle handle, void* base_address, size_t length,
-                 PageAccess access, size_t file_offset) {
+                  PageAccess access, size_t file_offset) {
   uint32_t prot = ToPosixProtectFlags(access);
 #ifdef __APPLE__
-  // Remove MAP_ANONYMOUS for file-backed mappings
-  return mmap(base_address, length, prot, MAP_PRIVATE, handle, file_offset);
+  // File-backed mapping on Apple platforms — use MAP_SHARED to allow writes.
+  void* result = mmap(base_address, length, prot, MAP_SHARED, handle,
+                      file_offset);
+  if (result == MAP_FAILED) {
+    return nullptr;
+  }
+  return result;
 #else
-  return mmap64(base_address, length, prot, MAP_PRIVATE, handle, file_offset);
+  void* result = mmap64(base_address, length, prot, MAP_SHARED, handle,
+                        file_offset);
+  if (result == MAP_FAILED) {
+    return nullptr;
+  }
+  return result;
 #endif
 }
 

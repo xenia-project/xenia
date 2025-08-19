@@ -325,8 +325,6 @@ class Memory {
         if (heap) {
             host_address += heap->host_address_offset();
         }
-        // Optional logging - disabled for performance
-        // XELOGI("TranslateVirtual: guest_address=0x{:08X}, host_address={:p}", guest_address, host_address);
         return reinterpret_cast<T>(host_address);
     }
 
@@ -412,12 +410,6 @@ class Memory {
   // notification handler must invalidate the all the data stored in the touched
   // pages.
   //
-  // Because large ranges (like whole framebuffers) may be written to and
-  // exceptions are expensive, it's better to unprotect multiple pages as a
-  // result of a write access violation, so the shortest common range returned
-  // by all the invalidation callbacks (clamped to a sane range and also not to
-  // touch pages with provider callbacks) is unprotected.
-  //
   // - Data providers:
   //
   // TODO(Triang3l): Implement data providers - more complicated because they
@@ -484,7 +476,11 @@ class Memory {
   bool Restore(ByteStream* stream);
 
  private:
+#if XE_PLATFORM_MAC
+  int MapViewsMac();
+#else
   int MapViews(uint8_t* mapping_base);
+#endif
   void UnmapViews();
 
   static uint32_t HostToGuestVirtualThunk(const void* context,
