@@ -11,74 +11,72 @@
 
 #include "amd_language.xesli"
 
-xesl_pushConstants_begin(b0, space0)
+push_const_begin_xe(b0, space0)
   // 16 used by the vertex shader (GLSL push constant offsets are across
   // stages).
-  xesl_block_offset_member(16, c0.x, xesl_float2,
-                           xe_fsr_easu_input_output_size_ratio)
-  xesl_block_offset_member(24, c0.z, xesl_float2, xe_fsr_easu_input_size_inv)
-xesl_pushConstants_end
+  block_offset_member_xe(16, c0.x, float2_xe,
+                         xe_fsr_easu_input_output_size_ratio)
+  block_offset_member_xe(24, c0.z, float2_xe, xe_fsr_easu_input_size_inv)
+push_const_end_xe
 
 // FIXME(Triang3l): This approach doesn't work for MSL - the texture must be
 // passed explicitly from the entry point's arguments to FsrEasu#F.
 
 // Forward declaration because FsrEasu#F need xe_fsr_easu_source from the entry
 // point bindings.
-void FsrEasuF(xesl_function_param_out(xesl_float3, pixel),
-              xesl_uint2 pixel_position, xesl_uint4 const0, xesl_uint4 const1,
-              xesl_uint4 const2, xesl_uint4 const3);
+void FsrEasuF(out_param_xe(float3_xe, pixel), uint2_xe pixel_position,
+              uint4_xe const0, uint4_xe const1, uint4_xe const2,
+              uint4_xe const3);
 
-xesl_entry_outputs_begin
-  xesl_entry_output_target(xesl_float4, xe_fsr_easu_color, 0)
-xesl_entry_outputs_end_stageInputs_begin
-xesl_entry_stageInputs_end_bindings_begin_pixel
-  xesl_pushConstants_binding(buffer(0))
-  xesl_entry_binding_next
-  xesl_texture(xesl_texture2D, xe_fsr_easu_source, set=0, binding=0, t0, space0,
-               texture(0))
-  xesl_entry_binding_next
-  xesl_samplerState(xe_fsr_easu_sampler, set=0, binding=1, s0, space0,
-                    sampler(0))
-xesl_entry_bindings_end_inputs_begin
-  xesl_entry_input_fragCoord
-xesl_entry_inputs_end_code_begin
+entry_outputs_begin_xe
+  entry_out_target_xe(float4_xe, xe_fsr_easu_color, 0)
+entry_outputs_end_stage_inputs_begin_xe
+entry_stage_inputs_end_bindings_begin_pixel_xe
+  push_const_binding_xe(buffer(0))
+  entry_binding_next_xe
+  texture_xe(texture_2d_xe, xe_fsr_easu_source, set=0, binding=0, t0, space0,
+             texture(0))
+  entry_binding_next_xe
+  sampler_state_xe(xe_fsr_easu_sampler, set=0, binding=1, s0, space0,
+                   sampler(0))
+entry_bindings_end_inputs_begin_xe
+  entry_in_pixel_coord_xe
+entry_inputs_end_code_begin_xe
+{
   // FsrEasuCon with smaller push constant usage.
-  xesl_uint4 easu_const_0 =
-      xesl_uint4(
-          xesl_floatBitsToUint(
-              xesl_pushConstant(xe_fsr_easu_input_output_size_ratio)),
-          xesl_floatBitsToUint(
-              0.5 * xesl_pushConstant(xe_fsr_easu_input_output_size_ratio) -
-              0.5));
-  xesl_uint4 easu_const_1 =
-      xesl_floatBitsToUint(xesl_float4(1.0, 1.0, 1.0, -1.0) *
-                           xesl_pushConstant(xe_fsr_easu_input_size_inv).xyxy);
-  xesl_uint4 easu_const_2 =
-      xesl_floatBitsToUint(xesl_float4(-1.0, 2.0, 1.0, 2.0) *
-                           xesl_pushConstant(xe_fsr_easu_input_size_inv).xyxy);
-  xesl_uint4 easu_const_3 =
-      xesl_uint4(xesl_floatBitsToUint(0.0),
-                 xesl_floatBitsToUint(
-                     4.0 * xesl_pushConstant(xe_fsr_easu_input_size_inv).y),
-                 0u, 0u);
-  FsrEasuF(xesl_Output(xe_fsr_easu_color).rgb, xesl_uint2(xesl_FragCoord.xy),
+  uint4_xe easu_const_0 =
+      uint4_xe(
+          float_bits_to_uint_xe(
+              push_const_xe(xe_fsr_easu_input_output_size_ratio)),
+          float_bits_to_uint_xe(
+              0.5f * push_const_xe(xe_fsr_easu_input_output_size_ratio) -
+              0.5f));
+  uint4_xe easu_const_1 =
+      float_bits_to_uint_xe(float4_xe(1.0f, 1.0f, 1.0f, -1.0f) *
+                            push_const_xe(xe_fsr_easu_input_size_inv).xyxy);
+  uint4_xe easu_const_2 =
+      float_bits_to_uint_xe(float4_xe(-1.0f, 2.0f, 1.0f, 2.0f) *
+                            push_const_xe(xe_fsr_easu_input_size_inv).xyxy);
+  uint4_xe easu_const_3 = uint4_xe(
+      float_bits_to_uint_xe(0.0f),
+      float_bits_to_uint_xe(4.0f * push_const_xe(xe_fsr_easu_input_size_inv).y),
+      0u, 0u);
+  FsrEasuF(out_xe(xe_fsr_easu_color).rgb, uint2_xe(in_pixel_coord_xe.xy),
            easu_const_0, easu_const_1, easu_const_2, easu_const_3);
-  xesl_Output(xe_fsr_easu_color).a = 1.0;
-xesl_entry_code_end
+  out_xe(xe_fsr_easu_color).a = 1.0f;
+}
+entry_code_end_xe
 
 #define A_GPU 1
 #include "../../../../third_party/FidelityFX-FSR/ffx-fsr/ffx_a.h"
 #define FSR_EASU_F 1
-xesl_float4 FsrEasuRF(xesl_float2 p) {
-  return xesl_textureGatherRed2D_sep(xe_fsr_easu_source, xe_fsr_easu_sampler,
-                                     p);
+float4_xe FsrEasuRF(float2_xe p) {
+  return gather_sep_2d_r_xe(xe_fsr_easu_source, xe_fsr_easu_sampler, p);
 }
-xesl_float4 FsrEasuGF(xesl_float2 p) {
-  return xesl_textureGatherGreen2D_sep(xe_fsr_easu_source, xe_fsr_easu_sampler,
-                                       p);
+float4_xe FsrEasuGF(float2_xe p) {
+  return gather_sep_2d_g_xe(xe_fsr_easu_source, xe_fsr_easu_sampler, p);
 }
-xesl_float4 FsrEasuBF(xesl_float2 p) {
-  return xesl_textureGatherBlue2D_sep(xe_fsr_easu_source, xe_fsr_easu_sampler,
-                                      p);
+float4_xe FsrEasuBF(float2_xe p) {
+  return gather_sep_2d_b_xe(xe_fsr_easu_source, xe_fsr_easu_sampler, p);
 }
 #include "../../../../third_party/FidelityFX-FSR/ffx-fsr/ffx_fsr1.h"

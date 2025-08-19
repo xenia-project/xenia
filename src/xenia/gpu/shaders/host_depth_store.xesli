@@ -12,16 +12,16 @@
 
 #include "../../ui/shaders/xesl.xesli"
 
-xesl_pushConstants_begin(b0, space0)
+push_const_begin_xe(b0, space0)
   uint xe_host_depth_store_rectangle;
   uint xe_host_depth_store_render_target;
-xesl_pushConstants_end
+push_const_end_xe
 
 #define XE_HOST_DEPTH_STORE_PUSH_CONSTANTS_BINDING \
-    xesl_pushConstants_binding(buffer(0))
+    push_const_binding_xe(buffer(0))
 
-xesl_uint2 XeHostDepthStoreRectUnscaledOrigin(uint rect_constant) {
-  return ((xesl_uint_x2(rect_constant) >> xesl_uint2(0u, 10u)) & 0x3FFu) << 3u;
+uint2_xe XeHostDepthStoreRectUnscaledOrigin(uint rect_constant) {
+  return ((uint_x2_xe(rect_constant) >> uint2_xe(0u, 10u)) & 0x3FFu) << 3u;
 }
 
 uint XeHostDepthStoreRectUnscaledWidthDiv8(uint rect_constant) {
@@ -29,8 +29,8 @@ uint XeHostDepthStoreRectUnscaledWidthDiv8(uint rect_constant) {
   return ((rect_constant >> 20u) & 0x3FFu) + 1u;
 }
 
-xesl_uint2 XeHostDepthStoreRTResolutionScale(uint rt_constant) {
-  return (xesl_uint_x2(rt_constant) >> xesl_uint2(10u, 13u)) & 0x7u;
+uint2_xe XeHostDepthStoreRTResolutionScale(uint rt_constant) {
+  return (uint_x2_xe(rt_constant) >> uint2_xe(10u, 13u)) & 0x7u;
 }
 
 // As host depth is needed for at most one transfer destination per update, base

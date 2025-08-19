@@ -34,15 +34,15 @@ void main(uint3 xe_thread_id : SV_DispatchThreadID) {
   xe_fxaa_dest[xe_thread_id.xy] =
       float4(
           FxaaPixelShader(
-              (float2(xe_thread_id.xy) + 0.5) * xe_fxaa_size_inv,
-              (float2(xe_thread_id.xy).xyxy + float2(0.0, 1.0).xxyy) *
+              (float2(xe_thread_id.xy) + 0.5f) * xe_fxaa_size_inv,
+              (float2(xe_thread_id.xy).xyxy + float2(0.0f, 1.0f).xxyy) *
                   xe_fxaa_size_inv.xyxy,
               fxaa_texture, fxaa_texture, fxaa_texture, xe_fxaa_size_inv,
-              float2(-0.5, 0.5).xxyy * xe_fxaa_size_inv.xyxy,
-              float2(-2.0, 2.0).xxyy * xe_fxaa_size_inv.xyxy,
-              float2(8.0, -4.0).xxyy * xe_fxaa_size_inv.xyxy,
+              float2(-0.5f, 0.5f).xxyy * xe_fxaa_size_inv.xyxy,
+              float2(-2.0f, 2.0f).xxyy * xe_fxaa_size_inv.xyxy,
+              float2(8.0f, -4.0f).xxyy * xe_fxaa_size_inv.xyxy,
               FXAA_QUALITY__SUBPIX, FXAA_QUALITY__EDGE_THRESHOLD,
-              FXAA_QUALITY__EDGE_THRESHOLD_MIN, 8.0, 0.125, 0.05,
-              float4(1.0, -1.0, 0.25, -0.25)).rgb,
-          1.0);
+              FXAA_QUALITY__EDGE_THRESHOLD_MIN, 8.0f, 0.125f, 0.05f,
+              float4(1.0f, -1.0f, 0.25f, -0.25f)).rgb,
+          1.0f);
 }

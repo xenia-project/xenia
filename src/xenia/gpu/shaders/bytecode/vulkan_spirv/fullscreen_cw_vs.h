@@ -2,18 +2,18 @@
 #if 0
 ; SPIR-V
 ; Version: 1.0
-; Generator: Khronos Glslang Reference Front End; 10
+; Generator: Khronos Glslang Reference Front End; 11
 ; Bound: 22213
 ; Schema: 0
                OpCapability Shader
           %1 = OpExtInstImport "GLSL.std.450"
                OpMemoryModel Logical GLSL450
                OpEntryPoint Vertex %5663 "main" %4930 %gl_VertexIndex
-               OpMemberDecorate %_struct_419 0 BuiltIn Position
-               OpMemberDecorate %_struct_419 1 BuiltIn PointSize
-               OpMemberDecorate %_struct_419 2 BuiltIn ClipDistance
-               OpMemberDecorate %_struct_419 3 BuiltIn CullDistance
-               OpDecorate %_struct_419 Block
+               OpDecorate %_struct_374 Block
+               OpMemberDecorate %_struct_374 0 BuiltIn Position
+               OpMemberDecorate %_struct_374 1 BuiltIn PointSize
+               OpMemberDecorate %_struct_374 2 BuiltIn ClipDistance
+               OpMemberDecorate %_struct_374 3 BuiltIn CullDistance
                OpDecorate %gl_VertexIndex BuiltIn VertexIndex
        %void = OpTypeVoid
        %1282 = OpTypeFunction %void
@@ -23,9 +23,9 @@
     %v4float = OpTypeVector %float 4
      %uint_1 = OpConstant %uint 1
 %_arr_float_uint_1 = OpTypeArray %float %uint_1
-%_struct_419 = OpTypeStruct %v4float %float %_arr_float_uint_1 %_arr_float_uint_1
-%_ptr_Output__struct_419 = OpTypePointer Output %_struct_419
-       %4930 = OpVariable %_ptr_Output__struct_419 Output
+%_struct_374 = OpTypeStruct %v4float %float %_arr_float_uint_1 %_arr_float_uint_1
+%_ptr_Output__struct_374 = OpTypePointer Output %_struct_374
+       %4930 = OpVariable %_ptr_Output__struct_374 Output
         %int = OpTypeInt 32 1
       %int_0 = OpConstant %int 0
 %_ptr_Input_int = OpTypePointer Input %int
@@ -61,21 +61,21 @@
 #endif
 
 const uint32_t fullscreen_cw_vs[] = {
-    0x07230203, 0x00010000, 0x0008000A, 0x000056C5, 0x00000000, 0x00020011,
+    0x07230203, 0x00010000, 0x0008000B, 0x000056C5, 0x00000000, 0x00020011,
     0x00000001, 0x0006000B, 0x00000001, 0x4C534C47, 0x6474732E, 0x3035342E,
     0x00000000, 0x0003000E, 0x00000000, 0x00000001, 0x0007000F, 0x00000000,
-    0x0000161F, 0x6E69616D, 0x00000000, 0x00001342, 0x00001029, 0x00050048,
-    0x000001A3, 0x00000000, 0x0000000B, 0x00000000, 0x00050048, 0x000001A3,
-    0x00000001, 0x0000000B, 0x00000001, 0x00050048, 0x000001A3, 0x00000002,
-    0x0000000B, 0x00000003, 0x00050048, 0x000001A3, 0x00000003, 0x0000000B,
-    0x00000004, 0x00030047, 0x000001A3, 0x00000002, 0x00040047, 0x00001029,
+    0x0000161F, 0x6E69616D, 0x00000000, 0x00001342, 0x00001029, 0x00030047,
+    0x00000176, 0x00000002, 0x00050048, 0x00000176, 0x00000000, 0x0000000B,
+    0x00000000, 0x00050048, 0x00000176, 0x00000001, 0x0000000B, 0x00000001,
+    0x00050048, 0x00000176, 0x00000002, 0x0000000B, 0x00000003, 0x00050048,
+    0x00000176, 0x00000003, 0x0000000B, 0x00000004, 0x00040047, 0x00001029,
     0x0000000B, 0x0000002A, 0x00020013, 0x00000008, 0x00030021, 0x00000502,
     0x00000008, 0x00040015, 0x0000000B, 0x00000020, 0x00000000, 0x00040017,
     0x00000011, 0x0000000B, 0x00000002, 0x00030016, 0x0000000D, 0x00000020,
     0x00040017, 0x0000001D, 0x0000000D, 0x00000004, 0x0004002B, 0x0000000B,
-    0x00000A0D, 0x00000001, 0x0004001C, 0x00000261, 0x0000000D, 0x00000A0D,
-    0x0006001E, 0x000001A3, 0x0000001D, 0x0000000D, 0x00000261, 0x00000261,
-    0x00040020, 0x00000420, 0x00000003, 0x000001A3, 0x0004003B, 0x00000420,
+    0x00000A0D, 0x00000001, 0x0004001C, 0x0000025C, 0x0000000D, 0x00000A0D,
+    0x0006001E, 0x00000176, 0x0000001D, 0x0000000D, 0x0000025C, 0x0000025C,
+    0x00040020, 0x000003F3, 0x00000003, 0x00000176, 0x0004003B, 0x000003F3,
     0x00001342, 0x00000003, 0x00040015, 0x0000000C, 0x00000020, 0x00000001,
     0x0004002B, 0x0000000C, 0x00000A0B, 0x00000000, 0x00040020, 0x00000289,
     0x00000001, 0x0000000C, 0x0004003B, 0x00000289, 0x00001029, 0x00000001,

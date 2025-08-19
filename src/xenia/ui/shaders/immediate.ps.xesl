@@ -9,19 +9,20 @@
 
 #include "xesl.xesli"
 
-xesl_entry_outputs_begin
-  xesl_entry_output_target(xesl_float4, xe_out_color, 0)
-xesl_entry_outputs_end_stageInputs_begin
-  xesl_entry_stageInput(xesl_float2, xe_in_texcoord, 0, TEXCOORD)
-  xesl_entry_stageInput(xesl_float4, xe_in_color, 1, COLOR)
-xesl_entry_stageInputs_end_bindings_begin_pixel
-  xesl_sampler(xesl_sampler2D, xe_immediate_texture, set=0, binding=0, t0,
-               space0, s0, space0, texture(0), sampler(0))
-xesl_entry_bindings_end_inputs_begin
-  xesl_entry_input_stageInputs
-xesl_entry_inputs_end_code_begin
-  xesl_Output(xe_out_color) =
-      xesl_StageInput(xe_in_color) *
-      xesl_textureSampleLod2D_comb(xe_immediate_texture,
-                                   xesl_StageInput(xe_in_texcoord), 0.0);
-xesl_entry_code_end
+entry_outputs_begin_xe
+  entry_out_target_xe(float4_xe, xe_out_color, 0)
+entry_outputs_end_stage_inputs_begin_xe
+  entry_in_stage_xe(float2_xe, xe_in_texcoord, 0, TEXCOORD)
+  entry_in_stage_xe(float4_xe, xe_in_color, 1, COLOR)
+entry_stage_inputs_end_bindings_begin_pixel_xe
+  sampler_xe(sampler_2d_xe, xe_immediate_texture, set=0, binding=0, t0, space0,
+             s0, space0, texture(0), sampler(0))
+entry_bindings_end_inputs_begin_xe
+  entry_in_stage_inputs_xe
+entry_inputs_end_code_begin_xe
+{
+  out_xe(xe_out_color) =
+      in_xe(xe_in_color) *
+      sample_comb_lod_2d_xe(xe_immediate_texture, in_xe(xe_in_texcoord), 0.0f);
+}
+entry_code_end_xe

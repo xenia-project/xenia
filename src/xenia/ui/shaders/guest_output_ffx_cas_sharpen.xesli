@@ -15,49 +15,47 @@
   #include "dither_8bpc.xesli"
 #endif  // XE_GUEST_OUTPUT_DITHER
 
-xesl_pushConstants_begin(b0, space0)
+push_const_begin_xe(b0, space0)
   // 16 used by the vertex shader (GLSL push constant offsets are across
   // stages).
-  xesl_block_offset_member(16, c0.x, xesl_int2, xe_cas_output_offset)
+  block_offset_member_xe(16, c0.x, int2_xe, xe_cas_output_offset)
   // CasSetup const1.x.
-  xesl_block_offset_member(24, c0.z, float, xe_cas_sharpness_post_setup)
-xesl_pushConstants_end
+  block_offset_member_xe(24, c0.z, float, xe_cas_sharpness_post_setup)
+push_const_end_xe
 
 // FIXME(Triang3l): This approach doesn't work for MSL - the texture must be
 // passed explicitly from the entry point's arguments to CasLoad.
 
 // Forward declaration because CasLoad needs xe_cas_source from the entry point
 // bindings.
-void CasFilter(xesl_function_param_out(float, pixel_r),
-               xesl_function_param_out(float, pixel_g),
-               xesl_function_param_out(float, pixel_b),
-               xesl_uint2 pixel_position, xesl_uint4 const0, xesl_uint4 const1,
-               bool no_scaling);
+void CasFilter(out_param_xe(float, pixel_r), out_param_xe(float, pixel_g),
+               out_param_xe(float, pixel_b), uint2_xe pixel_position,
+               uint4_xe const0, uint4_xe const1, bool no_scaling);
 
-xesl_entry_outputs_begin
-  xesl_entry_output_target(xesl_float4, xe_cas_color, 0)
-xesl_entry_outputs_end_stageInputs_begin
-xesl_entry_stageInputs_end_bindings_begin_pixel
-  xesl_pushConstants_binding(buffer(0))
-  xesl_entry_binding_next
-  xesl_texture(xesl_texture2D, xe_cas_source, set=0, binding=0, t0, space0,
-               texture(0))
-xesl_entry_bindings_end_inputs_begin
-  xesl_entry_input_fragCoord
-xesl_entry_inputs_end_code_begin
-  xesl_uint2 pixel_coord =
-      xesl_uint2(xesl_int2(xesl_FragCoord.xy) -
-                 xesl_pushConstant(xe_cas_output_offset));
+entry_outputs_begin_xe
+  entry_out_target_xe(float4_xe, xe_cas_color, 0)
+entry_outputs_end_stage_inputs_begin_xe
+entry_stage_inputs_end_bindings_begin_pixel_xe
+  push_const_binding_xe(buffer(0))
+  entry_binding_next_xe
+  texture_xe(texture_2d_xe, xe_cas_source, set=0, binding=0, t0, space0,
+             texture(0))
+entry_bindings_end_inputs_begin_xe
+  entry_in_pixel_coord_xe
+entry_inputs_end_code_begin_xe
+{
+  uint2_xe pixel_coord = uint2_xe(int2_xe(in_pixel_coord_xe.xy) -
+                                  push_const_xe(xe_cas_output_offset));
   // CasSetup with smaller push constants usage.
-  xesl_uint4 cas_const_0 =
-      xesl_floatBitsToUint(xesl_float4(1.0, 1.0, 0.0, 0.0));
-  xesl_uint4 cas_const_1 =
-      xesl_uint4(
-          xesl_floatBitsToUint(xesl_pushConstant(xe_cas_sharpness_post_setup)),
-          xesl_packHalf2x16(xesl_float2(
-              xesl_pushConstant(xe_cas_sharpness_post_setup), 0.0)),
-          xesl_floatBitsToUint(8.0), 0u);
-  xesl_float4 cas_color;
+  uint4_xe cas_const_0 =
+      float_bits_to_uint_xe(float4_xe(1.0f, 1.0f, 0.0f, 0.0f));
+  uint4_xe cas_const_1 =
+      uint4_xe(
+          float_bits_to_uint_xe(push_const_xe(xe_cas_sharpness_post_setup)),
+          pack_half_2x16_xe(float2_xe(
+              push_const_xe(xe_cas_sharpness_post_setup), 0.0f)),
+          float_bits_to_uint_xe(8.0f), 0u);
+  float4_xe cas_color;
   CasFilter(cas_color.r, cas_color.g, cas_color.b, pixel_coord, cas_const_0,
             cas_const_1, true);
   // Linear conversion approximation as recommended in the CAS presentation.
@@ -66,21 +64,21 @@ xesl_entry_inputs_end_code_begin
     // Clamping because on Vulkan, the surface may specify any format, including
     // floating-point.
     cas_color.rgb =
-        xesl_saturate(cas_color.rgb + XeDitherOffset8bpc(pixel_coord));
+        saturate_xe(cas_color.rgb + XeDitherOffset8bpc(pixel_coord));
   #endif  // XE_GUEST_OUTPUT_DITHER
   // Force alpha to 1 to make sure the surface won't be translucent.
-  cas_color.a = 1.0;
-  xesl_Output(xe_cas_color) = cas_color;
-xesl_entry_code_end
+  cas_color.a = 1.0f;
+  out_xe(xe_cas_color) = cas_color;
+}
+entry_code_end_xe
 
 #define A_GPU 1
 #include "../../../../third_party/FidelityFX-CAS/ffx-cas/ffx_a.h"
-xesl_float3 CasLoad(xesl_int2 p) {
-  return xesl_texelFetch2D(xe_cas_source, p, 0).rgb;
+float3_xe CasLoad(int2_xe p) {
+  return texel_fetch_2d_xe(xe_cas_source, p, 0).rgb;
 }
-void CasInput(xesl_function_param_inout(float, r),
-              xesl_function_param_inout(float, g),
-              xesl_function_param_inout(float, b)) {
+void CasInput(inout_param_xe(float, r), inout_param_xe(float, g),
+              inout_param_xe(float, b)) {
   // Linear conversion approximation as recommended in the CAS presentation.
   r *= r;
   g *= g;

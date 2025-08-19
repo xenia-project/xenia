@@ -2,7 +2,7 @@
 #if 0
 ; SPIR-V
 ; Version: 1.0
-; Generator: Khronos Glslang Reference Front End; 10
+; Generator: Khronos Glslang Reference Front End; 11
 ; Bound: 24627
 ; Schema: 0
                OpCapability Shader
@@ -13,14 +13,14 @@
                OpDecorate %4693 Location 1
                OpDecorate %3080 Location 1
                OpDecorate %5914 Location 2
+               OpDecorate %_struct_419 Block
                OpMemberDecorate %_struct_419 0 BuiltIn Position
                OpMemberDecorate %_struct_419 1 BuiltIn PointSize
                OpMemberDecorate %_struct_419 2 BuiltIn ClipDistance
                OpMemberDecorate %_struct_419 3 BuiltIn CullDistance
-               OpDecorate %_struct_419 Block
                OpDecorate %5474 Location 0
-               OpMemberDecorate %_struct_997 0 Offset 0
                OpDecorate %_struct_997 Block
+               OpMemberDecorate %_struct_997 0 Offset 0
        %void = OpTypeVoid
        %1282 = OpTypeFunction %void
       %float = OpTypeFloat 32
@@ -45,7 +45,7 @@
        %5474 = OpVariable %_ptr_Input_v2float Input
 %_struct_997 = OpTypeStruct %v2float
 %_ptr_PushConstant__struct_997 = OpTypePointer PushConstant %_struct_997
-       %4495 = OpVariable %_ptr_PushConstant__struct_997 PushConstant
+       %3305 = OpVariable %_ptr_PushConstant__struct_997 PushConstant
 %_ptr_PushConstant_v2float = OpTypePointer PushConstant %v2float
     %float_2 = OpConstant %float 2
        %2981 = OpConstantComposite %v2float %float_2 %float_2
@@ -59,7 +59,7 @@
       %11060 = OpLoad %v4float %5914
                OpStore %3080 %11060
       %10541 = OpLoad %v2float %5474
-      %22255 = OpAccessChain %_ptr_PushConstant_v2float %4495 %int_0
+      %22255 = OpAccessChain %_ptr_PushConstant_v2float %3305 %int_0
       %12012 = OpLoad %v2float %22255
       %17501 = OpFMul %v2float %10541 %12012
       %13314 = OpFMul %v2float %17501 %2981
@@ -74,19 +74,19 @@
 #endif
 
 const uint32_t immediate_vs[] = {
-    0x07230203, 0x00010000, 0x0008000A, 0x00006033, 0x00000000, 0x00020011,
+    0x07230203, 0x00010000, 0x0008000B, 0x00006033, 0x00000000, 0x00020011,
     0x00000001, 0x0006000B, 0x00000001, 0x4C534C47, 0x6474732E, 0x3035342E,
     0x00000000, 0x0003000E, 0x00000000, 0x00000001, 0x000B000F, 0x00000000,
     0x0000161F, 0x6E69616D, 0x00000000, 0x0000103F, 0x00001255, 0x00000C08,
     0x0000171A, 0x00001342, 0x00001562, 0x00040047, 0x0000103F, 0x0000001E,
     0x00000000, 0x00040047, 0x00001255, 0x0000001E, 0x00000001, 0x00040047,
     0x00000C08, 0x0000001E, 0x00000001, 0x00040047, 0x0000171A, 0x0000001E,
-    0x00000002, 0x00050048, 0x000001A3, 0x00000000, 0x0000000B, 0x00000000,
-    0x00050048, 0x000001A3, 0x00000001, 0x0000000B, 0x00000001, 0x00050048,
-    0x000001A3, 0x00000002, 0x0000000B, 0x00000003, 0x00050048, 0x000001A3,
-    0x00000003, 0x0000000B, 0x00000004, 0x00030047, 0x000001A3, 0x00000002,
-    0x00040047, 0x00001562, 0x0000001E, 0x00000000, 0x00050048, 0x000003E5,
-    0x00000000, 0x00000023, 0x00000000, 0x00030047, 0x000003E5, 0x00000002,
+    0x00000002, 0x00030047, 0x000001A3, 0x00000002, 0x00050048, 0x000001A3,
+    0x00000000, 0x0000000B, 0x00000000, 0x00050048, 0x000001A3, 0x00000001,
+    0x0000000B, 0x00000001, 0x00050048, 0x000001A3, 0x00000002, 0x0000000B,
+    0x00000003, 0x00050048, 0x000001A3, 0x00000003, 0x0000000B, 0x00000004,
+    0x00040047, 0x00001562, 0x0000001E, 0x00000000, 0x00030047, 0x000003E5,
+    0x00000002, 0x00050048, 0x000003E5, 0x00000000, 0x00000023, 0x00000000,
     0x00020013, 0x00000008, 0x00030021, 0x00000502, 0x00000008, 0x00030016,
     0x0000000D, 0x00000020, 0x00040017, 0x00000013, 0x0000000D, 0x00000002,
     0x00040020, 0x00000290, 0x00000003, 0x00000013, 0x0004003B, 0x00000290,
@@ -102,7 +102,7 @@ const uint32_t immediate_vs[] = {
     0x00001342, 0x00000003, 0x00040015, 0x0000000C, 0x00000020, 0x00000001,
     0x0004002B, 0x0000000C, 0x00000A0B, 0x00000000, 0x0004003B, 0x00000291,
     0x00001562, 0x00000001, 0x0003001E, 0x000003E5, 0x00000013, 0x00040020,
-    0x00000662, 0x00000009, 0x000003E5, 0x0004003B, 0x00000662, 0x0000118F,
+    0x00000662, 0x00000009, 0x000003E5, 0x0004003B, 0x00000662, 0x00000CE9,
     0x00000009, 0x00040020, 0x00000292, 0x00000009, 0x00000013, 0x0004002B,
     0x0000000D, 0x00000018, 0x40000000, 0x0005002C, 0x00000013, 0x00000BA5,
     0x00000018, 0x00000018, 0x0004002B, 0x0000000D, 0x0000008A, 0x3F800000,
@@ -112,7 +112,7 @@ const uint32_t immediate_vs[] = {
     0x00005065, 0x00001255, 0x0003003E, 0x0000103F, 0x00005065, 0x0004003D,
     0x0000001D, 0x00002B34, 0x0000171A, 0x0003003E, 0x00000C08, 0x00002B34,
     0x0004003D, 0x00000013, 0x0000292D, 0x00001562, 0x00050041, 0x00000292,
-    0x000056EF, 0x0000118F, 0x00000A0B, 0x0004003D, 0x00000013, 0x00002EEC,
+    0x000056EF, 0x00000CE9, 0x00000A0B, 0x0004003D, 0x00000013, 0x00002EEC,
     0x000056EF, 0x00050085, 0x00000013, 0x0000445D, 0x0000292D, 0x00002EEC,
     0x00050085, 0x00000013, 0x00003402, 0x0000445D, 0x00000BA5, 0x00050083,
     0x00000013, 0x000019DC, 0x00003402, 0x00000300, 0x00050051, 0x0000000D,

@@ -14,7 +14,7 @@
 
 #include "noise.xesli"
 
-xesl_staticConst float xe_dither_8bpc_noise[] = {
+static_const_xe float xe_dither_8bpc_noise[] = {
   // The conversion to 8bpc in the fixed-function output-merger is done as
   // floor(saturate(color) * 255.0 + 0.5). This dithering function effectively
   // replaces that 0.5 offset, done for rounding to the nearest, with the noise.
@@ -31,11 +31,11 @@ xesl_staticConst float xe_dither_8bpc_noise[] = {
   // the window system, for instance, provides a 10bpc render target (for which
   // dithering is still done here for more consistency between displays, but
   // some addition precision would still be desirable).
-  XeBlueNoise16x16Values0Until256(1.0 / 256.0 / 255.0,
-                                  (-0.5 + 0.5 / 256.0) / 255.0)
+  XeBlueNoise16x16Values0Until256(1.0f / 256.0f / 255.0f,
+                                  (-0.5f + 0.5f / 256.0f) / 255.0f)
 };
 
-float XeDitherOffset8bpc(xesl_uint2 pixel_coord) {
+float XeDitherOffset8bpc(uint2_xe pixel_coord) {
   pixel_coord &= 15u;
   return xe_dither_8bpc_noise[pixel_coord.y * 16u + pixel_coord.x];
 }

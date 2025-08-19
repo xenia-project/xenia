@@ -11,76 +11,76 @@
 
 #ifdef XE_APPLY_GAMMA_COMPUTE
 #ifdef XE_APPLY_GAMMA_FXAA_LUMA
-  #define XE_APPLY_GAMMA_DEST_FORMAT xesl_imageFormat_rgba16f
+  #define XE_APPLY_GAMMA_DEST_FORMAT image_format_rgba16f_xe
 #else
-  #define XE_APPLY_GAMMA_DEST_FORMAT xesl_imageFormat_rgb10_a2
+  #define XE_APPLY_GAMMA_DEST_FORMAT image_format_rgb10_a2_xe
 #endif
-xesl_pushConstants_begin(b0, space0)
-  xesl_uint2 xe_apply_gamma_size;
-xesl_pushConstants_end
-#define xesl_localSize_x 16
-#define xesl_localSize_y 8
-#define xesl_localSize_z 1
-xesl_entry_bindings_begin_compute
-  xesl_pushConstants_binding(buffer(0))
-  xesl_entry_binding_next
-  xesl_texture(xesl_textureBuffer, xe_apply_gamma_ramp, set=0, binding=0, t0,
-               space0, texture(0))
-  xesl_entry_binding_next
-  xesl_texture(xesl_texture2D, xe_apply_gamma_source, set=1, binding=0, t1,
-               space0, texture(1))
-  xesl_entry_binding_next
-  xesl_writeImage(xesl_image2D, XE_APPLY_GAMMA_DEST_FORMAT, xe_apply_gamma_dest,
-                  set=2, binding=0, u0, space0, texture(2))
-xesl_entry_bindings_end_inputs_begin_compute
-  xesl_entry_input_globalInvocationID
-xesl_entry_inputs_end_code_begin_compute
-  xesl_uint2 pixel_index = xesl_GlobalInvocationID.xy;
-  xesl_dont_flatten
-  if (any(xesl_greaterThanEqual(pixel_index,
-                                xesl_pushConstant(xe_apply_gamma_size)))) {
+push_const_begin_xe(b0, space0)
+  uint2_xe xe_apply_gamma_size;
+push_const_end_xe
+#define LOCAL_SIZE_X_XE 16
+#define LOCAL_SIZE_Y_XE 8
+#define LOCAL_SIZE_Z_XE 1
+entry_bindings_begin_compute_xe
+  push_const_binding_xe(buffer(0))
+  entry_binding_next_xe
+  texture_xe(texture_buffer_xe, xe_apply_gamma_ramp, set=0, binding=0, t0,
+             space0, texture(0))
+  entry_binding_next_xe
+  texture_xe(texture_2d_xe, xe_apply_gamma_source, set=1, binding=0, t1,
+             space0, texture(1))
+  entry_binding_next_xe
+  image_wo_xe(image_2d_xe, XE_APPLY_GAMMA_DEST_FORMAT, xe_apply_gamma_dest,
+              set=2, binding=0, u0, space0, texture(2))
+entry_bindings_end_inputs_begin_compute_xe
+  entry_in_global_thread_id_xe
+entry_inputs_end_code_begin_compute_xe
+  uint2_xe pixel_index = in_global_thread_id_xe.xy;
+  dont_flatten_xe
+  if (any(greater_than_equal_xe(pixel_index,
+                                push_const_xe(xe_apply_gamma_size)))) {
     return;
   }
 #else
-xesl_entry_outputs_begin
-  xesl_entry_output_target(xesl_float4, xe_apply_gamma_dest, 0)
-xesl_entry_outputs_end_stageInputs_begin
-xesl_entry_stageInputs_end_bindings_begin_pixel
-  xesl_texture(xesl_textureBuffer, xe_apply_gamma_ramp, set=0, binding=0, t0,
-               space0, texture(0))
-  xesl_entry_binding_next
-  xesl_texture(xesl_texture2D, xe_apply_gamma_source, set=1, binding=0, t1,
-               space0, texture(1))
-xesl_entry_bindings_end_inputs_begin
-  xesl_entry_input_fragCoord
-xesl_entry_inputs_end_code_begin
-  xesl_uint2 pixel_index = xesl_uint2(xesl_FragCoord.xy);
+entry_outputs_begin_xe
+  entry_out_target_xe(float4_xe, xe_apply_gamma_dest, 0)
+entry_outputs_end_stage_inputs_begin_xe
+entry_stage_inputs_end_bindings_begin_pixel_xe
+  texture_xe(texture_buffer_xe, xe_apply_gamma_ramp, set=0, binding=0, t0,
+             space0, texture(0))
+  entry_binding_next_xe
+  texture_xe(texture_2d_xe, xe_apply_gamma_source, set=1, binding=0, t1,
+             space0, texture(1))
+entry_bindings_end_inputs_begin_xe
+  entry_in_pixel_coord_xe
+entry_inputs_end_code_begin_xe
+  uint2_xe pixel_index = uint2_xe(in_pixel_coord_xe.xy);
 #endif  // XE_APPLY_GAMMA_COMPUTE
   // UNORM conversion according to the Direct3D 10+ rules.
-  xesl_uint3 apply_gamma_input = xesl_uint3(
-      xesl_texelFetch2D(xe_apply_gamma_source, pixel_index, 0).rgb * 255.0 +
-      0.5);
+  uint3_xe apply_gamma_input = uint3_xe(
+      texel_fetch_2d_xe(xe_apply_gamma_source, pixel_index, 0).rgb * 255.0f +
+      0.5f);
   // The ramp has blue in bits 0:9, green in 10:19, red in 20:29 - BGR passed as
   // an R10G10B10A2 buffer.
-  xesl_float4 apply_gamma_output;
+  float4_xe apply_gamma_output;
   apply_gamma_output.r =
-      xesl_texelFetchBuffer(xe_apply_gamma_ramp, apply_gamma_input.r).b;
+      texel_fetch_buffer_xe(xe_apply_gamma_ramp, apply_gamma_input.r).b;
   apply_gamma_output.g =
-      xesl_texelFetchBuffer(xe_apply_gamma_ramp, apply_gamma_input.g).g;
+      texel_fetch_buffer_xe(xe_apply_gamma_ramp, apply_gamma_input.g).g;
   apply_gamma_output.b =
-      xesl_texelFetchBuffer(xe_apply_gamma_ramp, apply_gamma_input.b).r;
+      texel_fetch_buffer_xe(xe_apply_gamma_ramp, apply_gamma_input.b).r;
   #ifdef XE_APPLY_GAMMA_FXAA_LUMA
     // Perceptual luma.
     apply_gamma_output.a =
-        dot(apply_gamma_output.rgb, xesl_float3(0.299, 0.587, 0.114));
+        dot(apply_gamma_output.rgb, float3_xe(0.299f, 0.587f, 0.114f));
   #else
     // Perceptual luma.
-    apply_gamma_output.a = 1.0;
+    apply_gamma_output.a = 1.0f;
   #endif
 #ifdef XE_APPLY_GAMMA_COMPUTE
-  xesl_imageStore2DRGBA(xe_apply_gamma_dest, pixel_index, apply_gamma_output);
-xesl_entry_code_end_compute
+  image_store_2d_rgba_xe(xe_apply_gamma_dest, pixel_index, apply_gamma_output);
+entry_code_end_compute_xe
 #else
-  xesl_Output(xe_apply_gamma_dest) = apply_gamma_output;
-xesl_entry_code_end
+  out_xe(xe_apply_gamma_dest) = apply_gamma_output;
+entry_code_end_xe
 #endif

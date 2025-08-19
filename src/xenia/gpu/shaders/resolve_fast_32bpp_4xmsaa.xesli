@@ -8,67 +8,66 @@
  */
 
 #include "endian.xesli"
-#define XE_RESOLVE_SOURCE_TYPE xesl_uint4
+#define XE_RESOLVE_SOURCE_TYPE uint4_xe
 #include "resolve.xesli"
 
-xesl_writeTypedStorageBuffer_declare(xesl_uint4, xe_resolve_dest, set=1,
-                                     binding=0, u0, space0)
-#define xesl_localSize_x 8
-#define xesl_localSize_y 8
-#define xesl_localSize_z 1
-xesl_entry_bindings_begin_compute
-  XE_RESOLVE_PUSH_CONSTANTS_BINDING
-  xesl_entry_binding_next
-  xesl_writeTypedStorageBuffer_binding(xesl_uint4, xe_resolve_dest,
-                                       buffer(1))
-  xesl_entry_binding_next
+array_buffer_wo_declare_xe(uint4_xe, xe_resolve_dest, set=1, binding=0, u0,
+                           space0)
+#define LOCAL_SIZE_X_XE 8
+#define LOCAL_SIZE_Y_XE 8
+#define LOCAL_SIZE_Z_XE 1
+entry_bindings_begin_compute_xe
+  XE_RESOLVE_PUSH_CONST_BINDING
+  entry_binding_next_xe
+  array_buffer_wo_binding_xe(uint4_xe, xe_resolve_dest, buffer(1))
+  entry_binding_next_xe
   XE_RESOLVE_COPY_EDRAM_BINDING
-xesl_entry_bindings_end_inputs_begin_compute
-  xesl_entry_input_globalInvocationID
-xesl_entry_inputs_end_code_begin_compute
+entry_bindings_end_inputs_begin_compute_xe
+  entry_in_global_thread_id_xe
+entry_inputs_end_code_begin_compute_xe
+{
   // 1 thread = 8 host pixels.
-  XeResolveInfo resolve_info =
-      XeResolveGetInfo(xesl_function_call_pushConstants);
+  XeResolveInfo resolve_info = XeResolveGetInfo(pass_push_consts_xe);
   // Group height can't cross resolve granularity, Y overflow check not needed.
-  xesl_dont_flatten
-  if (xesl_GlobalInvocationID.x >= resolve_info.width_div_8_scaled) {
+  dont_flatten_xe
+  if (in_global_thread_id_xe.x >= resolve_info.width_div_8_scaled) {
     return;
   }
-  xesl_uint2 pixel_index = xesl_GlobalInvocationID.xy << xesl_uint2(3u, 0u);
+  uint2_xe pixel_index = in_global_thread_id_xe.xy << uint2_xe(3u, 0u);
   uint source_address_int4s =
       XeEdramOffsetInts(
-          xesl_uint2(pixel_index.x,
-                     max(pixel_index.y,
-                         resolve_info.half_pixel_offset_fill_source.y)) +
+          uint2_xe(pixel_index.x,
+                   max(pixel_index.y,
+                       resolve_info.half_pixel_offset_fill_source.y)) +
               resolve_info.edram_offset_scaled,
           resolve_info.edram_base_tiles, true, resolve_info.edram_pitch_tiles,
           kXenosMsaaSamples_4X, resolve_info.edram_is_depth, 0u,
           XeResolveFirstSampleIndex(resolve_info.sample_select),
           resolve_info.resolution_scale)
       >> 2u;
-  xesl_uint4 pixels_0123, pixels_4567;
-  xesl_dont_flatten
+  uint4_xe pixels_0123, pixels_4567;
+  dont_flatten_xe
   if (resolve_info.sample_select != kXenosCopySampleSelect_2 &&
       resolve_info.sample_select != kXenosCopySampleSelect_3) {
-    pixels_0123.xy = xesl_typedStorageBufferLoad(
+    pixels_0123.xy = array_buffer_load_xe(
         xe_resolve_edram, source_address_int4s).xz;
-    pixels_0123.zw = xesl_typedStorageBufferLoad(
+    pixels_0123.zw = array_buffer_load_xe(
         xe_resolve_edram, source_address_int4s + 1u).xz;
-    pixels_4567.xy = xesl_typedStorageBufferLoad(
+    pixels_4567.xy = array_buffer_load_xe(
         xe_resolve_edram, source_address_int4s + 2u).xz;
-    pixels_4567.zw = xesl_typedStorageBufferLoad(
+    pixels_4567.zw = array_buffer_load_xe(
         xe_resolve_edram, source_address_int4s + 3u).xz;
   } else {
-    pixels_0123.xy = xesl_typedStorageBufferLoad(
+    pixels_0123.xy = array_buffer_load_xe(
         xe_resolve_edram, source_address_int4s).yw;
-    pixels_0123.zw = xesl_typedStorageBufferLoad(
+    pixels_0123.zw = array_buffer_load_xe(
         xe_resolve_edram, source_address_int4s + 1u).yw;
-    pixels_4567.xy = xesl_typedStorageBufferLoad(
+    pixels_4567.xy = array_buffer_load_xe(
         xe_resolve_edram, source_address_int4s + 2u).yw;
-    pixels_4567.zw = xesl_typedStorageBufferLoad(
+    pixels_4567.zw = array_buffer_load_xe(
         xe_resolve_edram, source_address_int4s + 3u).yw;
   }
-  xesl_dont_flatten
+  dont_flatten_xe
   if (pixel_index.x == 0u &&
       resolve_info.half_pixel_offset_fill_source.x != 0u) {
     if (resolve_info.half_pixel_offset_fill_source.x >= 2u) {
@@ -82,12 +81,13 @@ xesl_entry_inputs_end_code_begin_compute
   XeResolveSwap8PixelsRedBlue32bpp(resolve_info, pixels_0123, pixels_4567);
   uint dest_address =
       XeResolveDestPixelAddress(resolve_info, pixel_index, 2u) >> 4u;
-  xesl_typedStorageBufferStore(
+  array_buffer_store_xe(
       xe_resolve_dest, dest_address,
       XeEndianSwap32(pixels_0123, resolve_info.dest_endian_128));
   dest_address += XeResolveDestRightConsecutiveBlocksOffset(
                       pixel_index.x, 2u, resolve_info.resolution_scale) >> 4u;
-  xesl_typedStorageBufferStore(
+  array_buffer_store_xe(
       xe_resolve_dest, dest_address,
       XeEndianSwap32(pixels_4567, resolve_info.dest_endian_128));
-xesl_entry_code_end_compute
+}
+entry_code_end_compute_xe

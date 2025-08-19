@@ -10,61 +10,62 @@
 #include "edram.xesli"
 #include "host_depth_store.xesli"
 
-xesl_writeTypedStorageBuffer_declare(xesl_uint4, xe_host_depth_store_dest,
-                                     set=0, binding=0, u0, space0)
-#define xesl_localSize_x 8
-#define xesl_localSize_y 8
-#define xesl_localSize_z 1
-xesl_entry_bindings_begin_compute
+array_buffer_wo_declare_xe(uint4_xe, xe_host_depth_store_dest, set=0, binding=0,
+                           u0, space0)
+#define LOCAL_SIZE_X_XE 8
+#define LOCAL_SIZE_Y_XE 8
+#define LOCAL_SIZE_Z_XE 1
+entry_bindings_begin_compute_xe
   XE_HOST_DEPTH_STORE_PUSH_CONSTANTS_BINDING
-  xesl_entry_binding_next
-  xesl_writeTypedStorageBuffer_binding(xesl_uint4, xe_host_depth_store_dest,
-                                       buffer(1))
-  xesl_entry_binding_next
-  xesl_texture(xesl_texture2D, xe_host_depth_store_source, set=1, binding=0, t0,
-               space0, texture(0))
-xesl_entry_bindings_end_inputs_begin_compute
-  xesl_entry_input_globalInvocationID
-xesl_entry_inputs_end_code_begin_compute
+  entry_binding_next_xe
+  array_buffer_wo_binding_xe(uint4_xe, xe_host_depth_store_dest, buffer(1))
+  entry_binding_next_xe
+  texture_xe(texture_2d_xe, xe_host_depth_store_source, set=1, binding=0, t0,
+             space0, texture(0))
+entry_bindings_end_inputs_begin_compute_xe
+  entry_in_global_thread_id_xe
+entry_inputs_end_code_begin_compute_xe
+{
   // 1 thread = 8 samples (same as resolve granularity).
-  uint rect_constant = xesl_pushConstant(xe_host_depth_store_rectangle);
-  uint rt_constant = xesl_pushConstant(xe_host_depth_store_render_target);
-  xesl_uint2 resolution_scale = XeHostDepthStoreRTResolutionScale(rt_constant);
+  uint rect_constant = push_const_xe(xe_host_depth_store_rectangle);
+  uint rt_constant = push_const_xe(xe_host_depth_store_render_target);
+  uint2_xe resolution_scale = XeHostDepthStoreRTResolutionScale(rt_constant);
   // Group height can't cross resolve granularity, Y overflow check not needed.
-  xesl_dont_flatten
-  if (xesl_GlobalInvocationID.x >=
+  dont_flatten_xe
+  if (in_global_thread_id_xe.x >=
       (XeHostDepthStoreRectUnscaledWidthDiv8(rect_constant) *
        resolution_scale.x)) {
     return;
   }
-  xesl_int2 pixel_index = xesl_int2(
+  int2_xe pixel_index = int2_xe(
       XeHostDepthStoreRectUnscaledOrigin(rect_constant) * resolution_scale +
-      (xesl_GlobalInvocationID.xy << xesl_uint2(3u, 0u)));
+      (in_global_thread_id_xe.xy << uint2_xe(3u, 0u)));
   uint edram_address_int4s =
-      XeEdramOffsetInts(xesl_uint2(pixel_index), 0u, false,
+      XeEdramOffsetInts(uint2_xe(pixel_index), 0u, false,
                         XeHostDepthStoreRTPitchTiles(rt_constant),
                         kXenosMsaaSamples_1X, false, 0u, 0u,
                         resolution_scale)
       >> 2u;
-  xesl_typedStorageBufferStore(
+  array_buffer_store_xe(
       xe_host_depth_store_dest, edram_address_int4s,
-      xesl_floatBitsToUint(xesl_float4(
-          xesl_texelFetch2D(xe_host_depth_store_source, pixel_index, 0).r,
-          xesl_texelFetch2D(xe_host_depth_store_source,
-                            pixel_index + xesl_int2(1, 0), 0).r,
-          xesl_texelFetch2D(xe_host_depth_store_source,
-                            pixel_index + xesl_int2(2, 0), 0).r,
-          xesl_texelFetch2D(xe_host_depth_store_source,
-                            pixel_index + xesl_int2(3, 0), 0).r)));
-  xesl_typedStorageBufferStore(
+      float_bits_to_uint_xe(float4_xe(
+          texel_fetch_2d_xe(xe_host_depth_store_source, pixel_index, 0).r,
+          texel_fetch_2d_xe(xe_host_depth_store_source,
+                            pixel_index + int2_xe(1, 0), 0).r,
+          texel_fetch_2d_xe(xe_host_depth_store_source,
+                            pixel_index + int2_xe(2, 0), 0).r,
+          texel_fetch_2d_xe(xe_host_depth_store_source,
+                            pixel_index + int2_xe(3, 0), 0).r)));
+  array_buffer_store_xe(
       xe_host_depth_store_dest, edram_address_int4s + 1u,
-      xesl_floatBitsToUint(xesl_float4(
-          xesl_texelFetch2D(xe_host_depth_store_source,
-                            pixel_index + xesl_int2(4, 0), 0).r,
-          xesl_texelFetch2D(xe_host_depth_store_source,
-                            pixel_index + xesl_int2(5, 0), 0).r,
-          xesl_texelFetch2D(xe_host_depth_store_source,
-                            pixel_index + xesl_int2(6, 0), 0).r,
-          xesl_texelFetch2D(xe_host_depth_store_source,
-                            pixel_index + xesl_int2(7, 0), 0).r)));
-xesl_entry_code_end_compute
+      float_bits_to_uint_xe(float4_xe(
+          texel_fetch_2d_xe(xe_host_depth_store_source,
+                            pixel_index + int2_xe(4, 0), 0).r,
+          texel_fetch_2d_xe(xe_host_depth_store_source,
+                            pixel_index + int2_xe(5, 0), 0).r,
+          texel_fetch_2d_xe(xe_host_depth_store_source,
+                            pixel_index + int2_xe(6, 0), 0).r,
+          texel_fetch_2d_xe(xe_host_depth_store_source,
+                            pixel_index + int2_xe(7, 0), 0).r)));
+}
+entry_code_end_compute_xe

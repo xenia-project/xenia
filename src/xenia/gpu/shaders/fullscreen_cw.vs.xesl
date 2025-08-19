@@ -11,16 +11,18 @@
 
 // A clockwise triangle covering the whole viewport.
 
-xesl_entry_outputs_begin
-  xesl_entry_output_position
-xesl_entry_outputs_end_stageInputs_begin
-xesl_entry_stageInputs_end_bindings_begin_vertex
-xesl_entry_bindings_empty_end_inputs_begin
-  xesl_entry_input_vertexID
-xesl_entry_inputs_end_code_begin
-  xesl_Position = xesl_float4(
-      xesl_float2((xesl_uint_x2(xesl_VertexID) >> xesl_uint2(0u, 1u)) & 1u) *
-          xesl_float2(4.0, 4.0 * XESL_Y_SCREEN_DIRECTION) +
-          xesl_float2(-1.0, -XESL_Y_SCREEN_DIRECTION),
-      0.0, 1.0);
-xesl_entry_code_end
+entry_outputs_begin_xe
+  entry_out_position_xe
+entry_outputs_end_stage_inputs_begin_xe
+entry_stage_inputs_end_bindings_begin_vertex_xe
+entry_bindings_empty_end_inputs_begin_xe
+  entry_in_vertex_id_xe
+entry_inputs_end_code_begin_xe
+{
+  out_position_xe = float4_xe(
+      float2_xe((uint_x2_xe(in_vertex_id_xe) >> uint2_xe(0u, 1u)) & 1u) *
+          float2_xe(4.0f, 4.0f * NDC_DIRECTION_Y_XE) +
+          float2_xe(-1.0f, -NDC_DIRECTION_Y_XE),
+      0.0f, 1.0f);
+}
+entry_code_end_xe

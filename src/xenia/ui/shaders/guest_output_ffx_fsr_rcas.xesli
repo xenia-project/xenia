@@ -15,63 +15,61 @@
   #include "dither_8bpc.xesli"
 #endif  // XE_GUEST_OUTPUT_DITHER
 
-xesl_pushConstants_begin(b0, space0)
+push_const_begin_xe(b0, space0)
   // 16 used by the vertex shader (GLSL push constant offsets are across
   // stages).
-  xesl_block_offset_member(16, c0.x, xesl_int2,
-                           xe_fsr_rcas_output_offset)
-  xesl_block_offset_member(24, c0.z, float, xe_fsr_rcas_sharpness_post_setup)
-xesl_pushConstants_end
+  block_offset_member_xe(16, c0.x, int2_xe, xe_fsr_rcas_output_offset)
+  block_offset_member_xe(24, c0.z, float, xe_fsr_rcas_sharpness_post_setup)
+push_const_end_xe
 
 // FIXME(Triang3l): This approach doesn't work for MSL - the texture must be
 // passed explicitly from the entry point's arguments to FsrRcasLoadF.
 
 // Forward declaration because FsrRcasLoadF needs xe_fsr_rcas_source from the
 // entry point bindings.
-void FsrRcasF(xesl_function_param_out(float, pixel_r),
-              xesl_function_param_out(float, pixel_g),
-              xesl_function_param_out(float, pixel_b),
-              xesl_uint2 pixel_position, xesl_uint4 constants);
+void FsrRcasF(out_param_xe(float, pixel_r), out_param_xe(float, pixel_g),
+              out_param_xe(float, pixel_b), uint2_xe pixel_position,
+              uint4_xe constants);
 
-xesl_entry_outputs_begin
-  xesl_entry_output_target(xesl_float4, xe_fsr_rcas_color, 0)
-xesl_entry_outputs_end_stageInputs_begin
-xesl_entry_stageInputs_end_bindings_begin_pixel
-  xesl_pushConstants_binding(buffer(0))
-  xesl_entry_binding_next
-  xesl_texture(xesl_texture2D, xe_fsr_rcas_source, set=0, binding=0, t0, space0,
-               texture(0))
-xesl_entry_bindings_end_inputs_begin
-  xesl_entry_input_fragCoord
-xesl_entry_inputs_end_code_begin
-  xesl_uint2 pixel_coord =
-      xesl_uint2(xesl_int2(xesl_FragCoord.xy) -
-                 xesl_pushConstant(xe_fsr_rcas_output_offset));
-  float sharpness = xesl_pushConstant(xe_fsr_rcas_sharpness_post_setup);
+entry_outputs_begin_xe
+  entry_out_target_xe(float4_xe, xe_fsr_rcas_color, 0)
+entry_outputs_end_stage_inputs_begin_xe
+entry_stage_inputs_end_bindings_begin_pixel_xe
+  push_const_binding_xe(buffer(0))
+  entry_binding_next_xe
+  texture_xe(texture_2d_xe, xe_fsr_rcas_source, set=0, binding=0, t0, space0,
+             texture(0))
+entry_bindings_end_inputs_begin_xe
+  entry_in_pixel_coord_xe
+entry_inputs_end_code_begin_xe
+{
+  uint2_xe pixel_coord = uint2_xe(int2_xe(in_pixel_coord_xe.xy) -
+                                  push_const_xe(xe_fsr_rcas_output_offset));
+  float sharpness = push_const_xe(xe_fsr_rcas_sharpness_post_setup);
   // FsrRcasCon with smaller push constant usage.
-  xesl_uint4 rcas_const =
-      xesl_uint4(xesl_floatBitsToUint(sharpness),
-                 xesl_packHalf2x16(xesl_float2(sharpness, sharpness)), 0u, 0u);
-  xesl_float4 rcas_color;
+  uint4_xe rcas_const =
+      uint4_xe(float_bits_to_uint_xe(sharpness),
+               pack_half_2x16_xe(float2_xe(sharpness, sharpness)), 0u, 0u);
+  float4_xe rcas_color;
   FsrRcasF(rcas_color.r, rcas_color.g, rcas_color.b, pixel_coord, rcas_const);
   #if XE_GUEST_OUTPUT_DITHER
     // Clamping because on Vulkan, the surface may specify any format, including
     // floating-point.
     rcas_color.rgb =
-        xesl_saturate(rcas_color.rgb + XeDitherOffset8bpc(pixel_coord));
+        saturate_xe(rcas_color.rgb + XeDitherOffset8bpc(pixel_coord));
   #endif  // XE_GUEST_OUTPUT_DITHER
   // Force alpha to 1 to make sure the surface won't be translucent.
-  rcas_color.a = 1.0;
-  xesl_Output(xe_fsr_rcas_color) = rcas_color;
-xesl_entry_code_end
+  rcas_color.a = 1.0f;
+  out_xe(xe_fsr_rcas_color) = rcas_color;
+}
+entry_code_end_xe
 
 #define A_GPU 1
 #include "../../../../third_party/FidelityFX-FSR/ffx-fsr/ffx_a.h"
 #define FSR_RCAS_F 1
-xesl_float4 FsrRcasLoadF(xesl_int2 p) {
-  return xesl_float4(xesl_texelFetch2D(xe_fsr_rcas_source, p, 0).rgb, 1.0);
+float4_xe FsrRcasLoadF(int2_xe p) {
+  return float4_xe(texel_fetch_2d_xe(xe_fsr_rcas_source, p, 0).rgb, 1.0f);
 }
-void FsrRcasInputF(xesl_function_param_inout(float, r),
-                   xesl_function_param_inout(float, g),
-                   xesl_function_param_inout(float, b)) {}
+void FsrRcasInputF(inout_param_xe(float, r), inout_param_xe(float, g),
+                   inout_param_xe(float, b)) {}
 #include "../../../../third_party/FidelityFX-FSR/ffx-fsr/ffx_fsr1.h"

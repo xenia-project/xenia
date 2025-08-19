@@ -9,27 +9,29 @@
 
 #include "xesl.xesli"
 
-xesl_pushConstants_begin(b0, space0)
+push_const_begin_xe(b0, space0)
   // If the layout is changed, update the base offset in all guest output pixel
   // shaders!
-  xesl_float2 xe_triangle_strip_rect_offset;
+  float2_xe xe_triangle_strip_rect_offset;
   // Can be negative.
-  xesl_float2 xe_triangle_strip_rect_size;
-xesl_pushConstants_end
+  float2_xe xe_triangle_strip_rect_size;
+push_const_end_xe
 
-xesl_entry_outputs_begin
-  xesl_entry_output_position
-xesl_entry_outputs_end_stageInputs_begin
-xesl_entry_stageInputs_end_bindings_begin_vertex
-  xesl_pushConstants_binding(buffer(0))
-xesl_entry_bindings_end_inputs_begin
-  xesl_entry_input_vertexID
-xesl_entry_inputs_end_code_begin
-  xesl_Position =
-      xesl_float4(
-          xesl_pushConstant(xe_triangle_strip_rect_offset) +
-              xesl_float2((xesl_uint2(xesl_VertexID, xesl_VertexID) >>
-                           xesl_uint2(0u, 1u)) & 1u) *
-              xesl_pushConstant(xe_triangle_strip_rect_size),
-          0.0, 1.0);
-xesl_entry_code_end
+entry_outputs_begin_xe
+  entry_out_position_xe
+entry_outputs_end_stage_inputs_begin_xe
+entry_stage_inputs_end_bindings_begin_vertex_xe
+  push_const_binding_xe(buffer(0))
+entry_bindings_end_inputs_begin_xe
+  entry_in_vertex_id_xe
+entry_inputs_end_code_begin_xe
+{
+  out_position_xe =
+      float4_xe(
+          push_const_xe(xe_triangle_strip_rect_offset) +
+              float2_xe((uint_x2_xe(in_vertex_id_xe) >>
+                         uint2_xe(0u, 1u)) & 1u) *
+              push_const_xe(xe_triangle_strip_rect_size),
+          0.0f, 1.0f);
+}
+entry_code_end_xe

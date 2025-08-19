@@ -12,43 +12,42 @@
 #define XE_RESOLVE_COPY_EDRAM_IS_UINT_VECTOR_BUFFER
 #include "resolve.xesli"
 
-xesl_writeTypedStorageBuffer_declare(xesl_uint4, xe_resolve_dest, set=1,
-                                     binding=0, u0, space0)
-#define xesl_localSize_x 8
-#define xesl_localSize_y 8
-#define xesl_localSize_z 1
-xesl_entry_bindings_begin_compute
-  XE_RESOLVE_PUSH_CONSTANTS_BINDING
-  xesl_entry_binding_next
-  xesl_writeTypedStorageBuffer_binding(xesl_uint4, xe_resolve_dest,
-                                       buffer(1))
-  xesl_entry_binding_next
+array_buffer_wo_declare_xe(uint4_xe, xe_resolve_dest, set=1, binding=0, u0,
+                           space0)
+#define LOCAL_SIZE_X_XE 8
+#define LOCAL_SIZE_Y_XE 8
+#define LOCAL_SIZE_Z_XE 1
+entry_bindings_begin_compute_xe
+  XE_RESOLVE_PUSH_CONST_BINDING
+  entry_binding_next_xe
+  array_buffer_wo_binding_xe(uint4_xe, xe_resolve_dest, buffer(1))
+  entry_binding_next_xe
   XE_RESOLVE_COPY_EDRAM_BINDING
-xesl_entry_bindings_end_inputs_begin_compute
-  xesl_entry_input_globalInvocationID
-xesl_entry_inputs_end_code_begin_compute
+entry_bindings_end_inputs_begin_compute_xe
+  entry_in_global_thread_id_xe
+entry_inputs_end_code_begin_compute_xe
+{
   // 1 thread = 4 host pixels.
   // 1 pixel per thread is 160% as slow on Nvidia Pascal, 8 pixels per thread is
   // 115% as slow.
-  XeResolveInfo resolve_info =
-      XeResolveGetInfo(xesl_function_call_pushConstants);
-  xesl_uint2 pixel_index = xesl_GlobalInvocationID.xy << xesl_uint2(2u, 0u);
+  XeResolveInfo resolve_info = XeResolveGetInfo(pass_push_consts_xe);
+  uint2_xe pixel_index = in_global_thread_id_xe.xy << uint2_xe(2u, 0u);
   // Group height can't cross resolve granularity, Y overflow check not needed.
-  xesl_dont_flatten
+  dont_flatten_xe
   if (pixel_index.x >= resolve_info.width_div_8_scaled << 3u) {
     return;
   }
-  xesl_float4 pixel_0, pixel_1, pixel_2, pixel_3;
+  float4_xe pixel_0, pixel_1, pixel_2, pixel_3;
   XeResolveLoad4RGBAColors(
-      xesl_function_call_uintVectorBuffer(xe_resolve_edram)
-      xesl_function_call_next_after_uintVectorBuffer
+      pass_uint_vector_buffer_xe(xe_resolve_edram)
+      pass_next_after_uint_vector_buffer_xe
       resolve_info,
       XeResolveColorCopySourcePixelAddressIntsYHalfPixelOffsetFilling(
           resolve_info, pixel_index),
       pixel_0, pixel_1, pixel_2, pixel_3);
-  xesl_uint4 packed = XePack32bpp4Pixels(pixel_0, pixel_1, pixel_2, pixel_3,
-                                         resolve_info.dest_format);
-  xesl_dont_flatten
+  uint4_xe packed = XePack32bpp4Pixels(pixel_0, pixel_1, pixel_2, pixel_3,
+                                       resolve_info.dest_format);
+  dont_flatten_xe
   if (pixel_index.x == 0u &&
       resolve_info.half_pixel_offset_fill_source.x != 0u) {
     if (resolve_info.half_pixel_offset_fill_source.x >= 2u) {
@@ -59,8 +58,9 @@ xesl_entry_inputs_end_code_begin_compute
     }
     packed.x = packed.y;
   }
-  xesl_typedStorageBufferStore(
+  array_buffer_store_xe(
       xe_resolve_dest,
       XeResolveDestPixelAddress(resolve_info, pixel_index, 2u) >> 4u,
       XeEndianSwap32(packed, resolve_info.dest_endian_128));
-xesl_entry_code_end_compute
+}
+entry_code_end_compute_xe

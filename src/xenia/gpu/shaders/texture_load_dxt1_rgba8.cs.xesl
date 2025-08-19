@@ -10,59 +10,59 @@
 #include "pixel_formats.xesli"
 #include "texture_load.xesli"
 
-xesl_writeTypedStorageBuffer_declare(xesl_uint4, xe_texture_load_dest, set=0,
-                                     binding=0, u0, space0)
-xesl_typedStorageBuffer_declare(xesl_uint4, xe_texture_load_source, set=1,
-                                binding=0, t0, space0)
-xesl_entry_bindings_begin_compute
+array_buffer_wo_declare_xe(uint4_xe, xe_texture_load_dest, set=0, binding=0, u0,
+                           space0)
+array_buffer_declare_xe(uint4_xe, xe_texture_load_source, set=1, binding=0, t0,
+                        space0)
+entry_bindings_begin_compute_xe
   XE_TEXTURE_LOAD_CONSTANT_BUFFER_BINDING
-  xesl_entry_binding_next
-  xesl_writeTypedStorageBuffer_binding(xesl_uint4, xe_texture_load_dest,
-                                       buffer(1))
-  xesl_entry_binding_next
-  xesl_typedStorageBuffer_binding(xesl_uint4, xe_texture_load_source, buffer(2))
-xesl_entry_bindings_end_inputs_begin_compute
-  xesl_entry_input_globalInvocationID
-xesl_entry_inputs_end_code_begin_compute
+  entry_binding_next_xe
+  array_buffer_wo_binding_xe(uint4_xe, xe_texture_load_dest, buffer(1))
+  entry_binding_next_xe
+  array_buffer_binding_xe(uint4_xe, xe_texture_load_source, buffer(2))
+entry_bindings_end_inputs_begin_compute_xe
+  entry_in_global_thread_id_xe
+entry_inputs_end_code_begin_compute_xe
+{
   // 1 thread = 4 DXT1 blocks to 16x4 R8G8B8A8 texels.
   XeTextureLoadInfo load_info = XeTextureLoadGetInfo(
-      xesl_function_call_constantBuffer(xe_texture_load_constants));
-  xesl_uint3 block_index = xesl_GlobalInvocationID << xesl_uint3(2u, 0u, 0u);
-  xesl_dont_flatten
-  if (any(xesl_greaterThanEqual(block_index.xy, load_info.size_blocks.xy))) {
+      pass_const_buffer_xe(xe_texture_load_constants));
+  uint3_xe block_index = in_global_thread_id_xe << uint3_xe(2u, 0u, 0u);
+  dont_flatten_xe
+  if (any(greater_than_equal_xe(block_index.xy, load_info.size_blocks.xy))) {
     return;
   }
-  xesl_uint3 texel_index_host = block_index << xesl_uint3(2u, 2u, 0u);
+  uint3_xe texel_index_host = block_index << uint3_xe(2u, 2u, 0u);
   uint block_offset_host = uint(
-      (XeTextureHostLinearOffset(xesl_int3(texel_index_host),
+      (XeTextureHostLinearOffset(int3_xe(texel_index_host),
                                  load_info.host_pitch, load_info.height_texels,
                                  4u) +
        load_info.host_offset) >> 4u);
   uint elements_pitch_host = load_info.host_pitch >> 4u;
   uint block_offset_guest =
       XeTextureLoadGuestBlockOffset(load_info, block_index, 8u, 3u) >> 4u;
-  xesl_uint4 blocks_01 = XeEndianSwap32(
-      xesl_typedStorageBufferLoad(xe_texture_load_source, block_offset_guest),
+  uint4_xe blocks_01 = XeEndianSwap32(
+      array_buffer_load_xe(xe_texture_load_source, block_offset_guest),
       load_info.endian_32);
   // Odd 2 blocks = even 2 blocks + 32 bytes when tiled.
   block_offset_guest += load_info.is_tiled ? 2u : 1u;
-  xesl_uint4 blocks_23 = XeEndianSwap32(
-      xesl_typedStorageBufferLoad(xe_texture_load_source, block_offset_guest),
+  uint4_xe blocks_23 = XeEndianSwap32(
+      array_buffer_load_xe(xe_texture_load_source, block_offset_guest),
       load_info.endian_32);
-  xesl_uint4 end_8in10_01 =
-      xesl_uint4(XeDXTColorEndpointsToBGR8In10(blocks_01.x),
-                 XeDXTColorEndpointsToBGR8In10(blocks_01.z));
-  xesl_uint4 end_8in10_23 =
-      xesl_uint4(XeDXTColorEndpointsToBGR8In10(blocks_23.x),
-                 XeDXTColorEndpointsToBGR8In10(blocks_23.z));
-  xesl_bool4 is_trans =
-      xesl_lessThanEqual(xesl_uint4(end_8in10_01.xz, end_8in10_23.xz),
-                         xesl_uint4(end_8in10_01.yw, end_8in10_23.yw));
-  xesl_uint4 weights = xesl_uint4(blocks_01.yw, blocks_23.yw);
-  weights = xesl_select(is_trans, XeDXT1TransWeights(weights),
-                        XeDXTHighColorWeights(weights));
+  uint4_xe end_8in10_01 =
+      uint4_xe(XeDXTColorEndpointsToBGR8In10(blocks_01.x),
+               XeDXTColorEndpointsToBGR8In10(blocks_01.z));
+  uint4_xe end_8in10_23 =
+      uint4_xe(XeDXTColorEndpointsToBGR8In10(blocks_23.x),
+               XeDXTColorEndpointsToBGR8In10(blocks_23.z));
+  bool4_xe is_trans =
+      less_than_equal_xe(uint4_xe(end_8in10_01.xz, end_8in10_23.xz),
+                         uint4_xe(end_8in10_01.yw, end_8in10_23.yw));
+  uint4_xe weights = uint4_xe(blocks_01.yw, blocks_23.yw);
+  weights = select_xe(is_trans, XeDXT1TransWeights(weights),
+                      XeDXTHighColorWeights(weights));
   uint i;
-  xesl_unroll for (i = 0u; i < 4u; ++i) {
+  unroll_xe for (i = 0u; i < 4u; ++i) {
     if (i != 0u) {
       if (texel_index_host.y + i >= load_info.height_texels) {
         break;
@@ -70,25 +70,26 @@ xesl_entry_inputs_end_code_begin_compute
       block_offset_host += elements_pitch_host;
       weights >>= 8u;
     }
-    xesl_typedStorageBufferStore(
+    array_buffer_store_xe(
         xe_texture_load_dest, block_offset_host,
         is_trans.x ? XeDXT1TransRowToRGBA8(end_8in10_01.xy, weights.x)
                    : (XeDXTOpaqueRowToRGB8(end_8in10_01.xy, weights.x) |
                       0xFF000000u));
-    xesl_typedStorageBufferStore(
+    array_buffer_store_xe(
         xe_texture_load_dest, block_offset_host + 1u,
         is_trans.y ? XeDXT1TransRowToRGBA8(end_8in10_01.zw, weights.y)
                    : (XeDXTOpaqueRowToRGB8(end_8in10_01.zw, weights.y) |
                       0xFF000000u));
-    xesl_typedStorageBufferStore(
+    array_buffer_store_xe(
         xe_texture_load_dest, block_offset_host + 2u,
         is_trans.z ? XeDXT1TransRowToRGBA8(end_8in10_23.xy, weights.z)
                    : (XeDXTOpaqueRowToRGB8(end_8in10_23.xy, weights.z) |
                       0xFF000000u));
-    xesl_typedStorageBufferStore(
+    array_buffer_store_xe(
         xe_texture_load_dest, block_offset_host + 3u,
         is_trans.w ? XeDXT1TransRowToRGBA8(end_8in10_23.zw, weights.w)
                    : (XeDXTOpaqueRowToRGB8(end_8in10_23.zw, weights.w) |
                       0xFF000000u));
   }
-xesl_entry_code_end_compute
+}
+entry_code_end_compute_xe

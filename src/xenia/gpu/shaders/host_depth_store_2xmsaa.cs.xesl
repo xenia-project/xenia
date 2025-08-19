@@ -10,40 +10,39 @@
 #include "edram.xesli"
 #include "host_depth_store.xesli"
 
-xesl_writeTypedStorageBuffer_declare(xesl_uint4, xe_host_depth_store_dest,
-                                     set=0, binding=0, u0, space0)
-#define xesl_localSize_x 8
-#define xesl_localSize_y 8
-#define xesl_localSize_z 1
-xesl_entry_bindings_begin_compute
+array_buffer_wo_declare_xe(uint4_xe, xe_host_depth_store_dest, set=0, binding=0,
+                           u0, space0)
+#define LOCAL_SIZE_X_XE 8
+#define LOCAL_SIZE_Y_XE 8
+#define LOCAL_SIZE_Z_XE 1
+entry_bindings_begin_compute_xe
   XE_HOST_DEPTH_STORE_PUSH_CONSTANTS_BINDING
-  xesl_entry_binding_next
-  xesl_writeTypedStorageBuffer_binding(xesl_uint4, xe_host_depth_store_dest,
-                                       buffer(1))
-  xesl_entry_binding_next
-  xesl_texture(xesl_texture2DMS, xe_host_depth_store_source, set=1, binding=0,
-               t0, space0, texture(0))
-xesl_entry_bindings_end_inputs_begin_compute
-  xesl_entry_input_globalInvocationID
-xesl_entry_inputs_end_code_begin_compute
+  entry_binding_next_xe
+  array_buffer_wo_binding_xe(uint4_xe, xe_host_depth_store_dest, buffer(1))
+  entry_binding_next_xe
+  texture_xe(texture_2d_ms_xe, xe_host_depth_store_source, set=1, binding=0,
+             t0, space0, texture(0))
+entry_bindings_end_inputs_begin_compute_xe
+  entry_in_global_thread_id_xe
+entry_inputs_end_code_begin_compute_xe
+{
   // 1 thread = 8 samples (8x0.5 pixels, resolve granularity is 8 pixels).
-  uint rect_constant = xesl_pushConstant(xe_host_depth_store_rectangle);
-  uint rt_constant = xesl_pushConstant(xe_host_depth_store_render_target);
-  xesl_uint2 resolution_scale = XeHostDepthStoreRTResolutionScale(rt_constant);
+  uint rect_constant = push_const_xe(xe_host_depth_store_rectangle);
+  uint rt_constant = push_const_xe(xe_host_depth_store_render_target);
+  uint2_xe resolution_scale = XeHostDepthStoreRTResolutionScale(rt_constant);
   // Group height can't cross resolve granularity, Y overflow check not needed.
-  xesl_dont_flatten
-  if (xesl_GlobalInvocationID.x >=
+  dont_flatten_xe
+  if (in_global_thread_id_xe.x >=
       (XeHostDepthStoreRectUnscaledWidthDiv8(rect_constant) *
        resolution_scale.x)) {
     return;
   }
-  xesl_int2 pixel_index = xesl_int2(
+  int2_xe pixel_index = int2_xe(
       XeHostDepthStoreRectUnscaledOrigin(rect_constant) * resolution_scale +
-      xesl_uint2(xesl_GlobalInvocationID.x << 3u,
-                 xesl_GlobalInvocationID.y >> 1u));
-  uint dest_sample_index = xesl_GlobalInvocationID.y & 1u;
+      uint2_xe(in_global_thread_id_xe.x << 3u, in_global_thread_id_xe.y >> 1u));
+  uint dest_sample_index = in_global_thread_id_xe.y & 1u;
   uint edram_address_int4s =
-      XeEdramOffsetInts(xesl_uint2(pixel_index), 0u, false,
+      XeEdramOffsetInts(uint2_xe(pixel_index), 0u, false,
                         XeHostDepthStoreRTPitchTiles(rt_constant),
                         kXenosMsaaSamples_2X, false, 0u, dest_sample_index,
                         resolution_scale)
@@ -54,33 +53,34 @@ xesl_entry_inputs_end_code_begin_compute
       XeHostDepthStoreRTMsaa2xSupported(rt_constant)
           ? (bool(dest_sample_index) ? 0 : 1)
           : (bool(dest_sample_index) ? 3 : 0);
-  xesl_typedStorageBufferStore(
+  array_buffer_store_xe(
       xe_host_depth_store_dest, edram_address_int4s,
-      xesl_floatBitsToUint(xesl_float4(
-          xesl_texelFetch2DMS(xe_host_depth_store_source, pixel_index,
-                              source_sample_index).r,
-          xesl_texelFetch2DMS(xe_host_depth_store_source,
-                              pixel_index + xesl_int2(1, 0),
-                              source_sample_index).r,
-          xesl_texelFetch2DMS(xe_host_depth_store_source,
-                              pixel_index + xesl_int2(2, 0),
-                              source_sample_index).r,
-          xesl_texelFetch2DMS(xe_host_depth_store_source,
-                              pixel_index + xesl_int2(3, 0),
-                              source_sample_index).r)));
-  xesl_typedStorageBufferStore(
+      float_bits_to_uint_xe(float4_xe(
+          texel_fetch_2d_ms_xe(xe_host_depth_store_source, pixel_index,
+                               source_sample_index).r,
+          texel_fetch_2d_ms_xe(xe_host_depth_store_source,
+                               pixel_index + int2_xe(1, 0),
+                               source_sample_index).r,
+          texel_fetch_2d_ms_xe(xe_host_depth_store_source,
+                               pixel_index + int2_xe(2, 0),
+                               source_sample_index).r,
+          texel_fetch_2d_ms_xe(xe_host_depth_store_source,
+                               pixel_index + int2_xe(3, 0),
+                               source_sample_index).r)));
+  array_buffer_store_xe(
       xe_host_depth_store_dest, edram_address_int4s + 1u,
-      xesl_floatBitsToUint(xesl_float4(
-          xesl_texelFetch2DMS(xe_host_depth_store_source,
-                              pixel_index + xesl_int2(4, 0),
-                              source_sample_index).r,
-          xesl_texelFetch2DMS(xe_host_depth_store_source,
-                              pixel_index + xesl_int2(5, 0),
-                              source_sample_index).r,
-          xesl_texelFetch2DMS(xe_host_depth_store_source,
-                              pixel_index + xesl_int2(6, 0),
-                              source_sample_index).r,
-          xesl_texelFetch2DMS(xe_host_depth_store_source,
-                              pixel_index + xesl_int2(7, 0),
-                              source_sample_index).r)));
-xesl_entry_code_end_compute
+      float_bits_to_uint_xe(float4_xe(
+          texel_fetch_2d_ms_xe(xe_host_depth_store_source,
+                               pixel_index + int2_xe(4, 0),
+                               source_sample_index).r,
+          texel_fetch_2d_ms_xe(xe_host_depth_store_source,
+                               pixel_index + int2_xe(5, 0),
+                               source_sample_index).r,
+          texel_fetch_2d_ms_xe(xe_host_depth_store_source,
+                               pixel_index + int2_xe(6, 0),
+                               source_sample_index).r,
+          texel_fetch_2d_ms_xe(xe_host_depth_store_source,
+                               pixel_index + int2_xe(7, 0),
+                               source_sample_index).r)));
+}
+entry_code_end_compute_xe

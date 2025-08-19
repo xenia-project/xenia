@@ -9,47 +9,48 @@
 
 #include "texture_load.xesli"
 
-xesl_writeTypedStorageBuffer_declare(xesl_uint4, xe_texture_load_dest, set=0,
-                                     binding=0, u0, space0)
-xesl_typedStorageBuffer_declare(xesl_uint4, xe_texture_load_source, set=1,
-                                binding=0, t0, space0)
-xesl_entry_bindings_begin_compute
+array_buffer_wo_declare_xe(uint4_xe, xe_texture_load_dest, set=0, binding=0, u0,
+                           space0)
+array_buffer_declare_xe(uint4_xe, xe_texture_load_source, set=1, binding=0, t0,
+                        space0)
+entry_bindings_begin_compute_xe
   XE_TEXTURE_LOAD_CONSTANT_BUFFER_BINDING
-  xesl_entry_binding_next
-  xesl_writeTypedStorageBuffer_binding(xesl_uint4, xe_texture_load_dest,
-                                       buffer(1))
-  xesl_entry_binding_next
-  xesl_typedStorageBuffer_binding(xesl_uint4, xe_texture_load_source, buffer(2))
-xesl_entry_bindings_end_inputs_begin_compute
-  xesl_entry_input_globalInvocationID
-xesl_entry_inputs_end_code_begin_compute
+  entry_binding_next_xe
+  array_buffer_wo_binding_xe(uint4_xe, xe_texture_load_dest, buffer(1))
+  entry_binding_next_xe
+  array_buffer_binding_xe(uint4_xe, xe_texture_load_source, buffer(2))
+entry_bindings_end_inputs_begin_compute_xe
+  entry_in_global_thread_id_xe
+entry_inputs_end_code_begin_compute_xe
+{
   // 1 thread = 16 blocks passed through an externally provided
   // uint4 transformation function (XE_TEXTURE_LOAD_16BPB_TRANSFORM).
   XeTextureLoadInfo load_info = XeTextureLoadGetInfo(
-      xesl_function_call_constantBuffer(xe_texture_load_constants));
-  xesl_uint3 block_index = xesl_GlobalInvocationID << xesl_uint3(4u, 0u, 0u);
-  xesl_dont_flatten
-  if (any(xesl_greaterThanEqual(block_index.xy, load_info.size_blocks.xy))) {
+      pass_const_buffer_xe(xe_texture_load_constants));
+  uint3_xe block_index = in_global_thread_id_xe << uint3_xe(4u, 0u, 0u);
+  dont_flatten_xe
+  if (any(greater_than_equal_xe(block_index.xy, load_info.size_blocks.xy))) {
     return;
   }
   uint block_offset_host = uint(
-      (XeTextureHostLinearOffset(xesl_int3(block_index), load_info.host_pitch,
+      (XeTextureHostLinearOffset(int3_xe(block_index), load_info.host_pitch,
                                  load_info.size_blocks.y, 2u) +
        load_info.host_offset) >> 4u);
   uint block_offset_guest =
       XeTextureLoadGuestBlockOffset(load_info, block_index, 2u, 1u) >> 4u;
-  xesl_uint4 guest_blocks = XeEndianSwap16(
-      xesl_typedStorageBufferLoad(xe_texture_load_source, block_offset_guest),
+  uint4_xe guest_blocks = XeEndianSwap16(
+      array_buffer_load_xe(xe_texture_load_source, block_offset_guest),
       load_info.endian_32);
-  xesl_typedStorageBufferStore(xe_texture_load_dest, block_offset_host,
-                               XE_TEXTURE_LOAD_16BPB_TRANSFORM(guest_blocks));
+  array_buffer_store_xe(xe_texture_load_dest, block_offset_host,
+                        XE_TEXTURE_LOAD_16BPB_TRANSFORM(guest_blocks));
   ++block_offset_host;
   block_offset_guest +=
       XeTextureLoadRightConsecutiveBlocksOffset(load_info, block_index.x, 1u) >>
       4u;
   guest_blocks = XeEndianSwap16(
-      xesl_typedStorageBufferLoad(xe_texture_load_source, block_offset_guest),
+      array_buffer_load_xe(xe_texture_load_source, block_offset_guest),
       load_info.endian_32);
-  xesl_typedStorageBufferStore(xe_texture_load_dest, block_offset_host,
-                               XE_TEXTURE_LOAD_16BPB_TRANSFORM(guest_blocks));
-xesl_entry_code_end_compute
+  array_buffer_store_xe(xe_texture_load_dest, block_offset_host,
+                        XE_TEXTURE_LOAD_16BPB_TRANSFORM(guest_blocks));
+}
+entry_code_end_compute_xe

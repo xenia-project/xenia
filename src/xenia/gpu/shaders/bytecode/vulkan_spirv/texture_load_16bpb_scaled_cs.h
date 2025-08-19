@@ -2,7 +2,7 @@
 #if 0
 ; SPIR-V
 ; Version: 1.0
-; Generator: Khronos Glslang Reference Front End; 10
+; Generator: Khronos Glslang Reference Front End; 11
 ; Bound: 25155
 ; Schema: 0
                OpCapability Shader
@@ -10,6 +10,7 @@
                OpMemoryModel Logical GLSL450
                OpEntryPoint GLCompute %5663 "main" %gl_GlobalInvocationID
                OpExecutionMode %5663 LocalSize 4 32 1
+               OpDecorate %_struct_1161 Block
                OpMemberDecorate %_struct_1161 0 Offset 0
                OpMemberDecorate %_struct_1161 1 Offset 4
                OpMemberDecorate %_struct_1161 2 Offset 8
@@ -18,22 +19,23 @@
                OpMemberDecorate %_struct_1161 5 Offset 28
                OpMemberDecorate %_struct_1161 6 Offset 32
                OpMemberDecorate %_struct_1161 7 Offset 36
-               OpDecorate %_struct_1161 Block
-               OpDecorate %5245 DescriptorSet 2
                OpDecorate %5245 Binding 0
+               OpDecorate %5245 DescriptorSet 2
                OpDecorate %gl_GlobalInvocationID BuiltIn GlobalInvocationId
                OpDecorate %_runtimearr_v4uint ArrayStride 16
+               OpDecorate %_struct_1972 BufferBlock
                OpMemberDecorate %_struct_1972 0 NonWritable
                OpMemberDecorate %_struct_1972 0 Offset 0
-               OpDecorate %_struct_1972 BufferBlock
-               OpDecorate %4218 DescriptorSet 1
+               OpDecorate %4218 NonWritable
                OpDecorate %4218 Binding 0
+               OpDecorate %4218 DescriptorSet 1
                OpDecorate %_runtimearr_v4uint_0 ArrayStride 16
+               OpDecorate %_struct_1973 BufferBlock
                OpMemberDecorate %_struct_1973 0 NonReadable
                OpMemberDecorate %_struct_1973 0 Offset 0
-               OpDecorate %_struct_1973 BufferBlock
-               OpDecorate %5134 DescriptorSet 0
+               OpDecorate %5134 NonReadable
                OpDecorate %5134 Binding 0
+               OpDecorate %5134 DescriptorSet 0
                OpDecorate %gl_WorkGroupSize BuiltIn WorkgroupSize
        %void = OpTypeVoid
        %1282 = OpTypeFunction %void
@@ -355,28 +357,29 @@
 #endif
 
 const uint32_t texture_load_16bpb_scaled_cs[] = {
-    0x07230203, 0x00010000, 0x0008000A, 0x00006243, 0x00000000, 0x00020011,
+    0x07230203, 0x00010000, 0x0008000B, 0x00006243, 0x00000000, 0x00020011,
     0x00000001, 0x0006000B, 0x00000001, 0x4C534C47, 0x6474732E, 0x3035342E,
     0x00000000, 0x0003000E, 0x00000000, 0x00000001, 0x0006000F, 0x00000005,
     0x0000161F, 0x6E69616D, 0x00000000, 0x00000F48, 0x00060010, 0x0000161F,
-    0x00000011, 0x00000004, 0x00000020, 0x00000001, 0x00050048, 0x00000489,
-    0x00000000, 0x00000023, 0x00000000, 0x00050048, 0x00000489, 0x00000001,
-    0x00000023, 0x00000004, 0x00050048, 0x00000489, 0x00000002, 0x00000023,
-    0x00000008, 0x00050048, 0x00000489, 0x00000003, 0x00000023, 0x0000000C,
-    0x00050048, 0x00000489, 0x00000004, 0x00000023, 0x00000010, 0x00050048,
-    0x00000489, 0x00000005, 0x00000023, 0x0000001C, 0x00050048, 0x00000489,
-    0x00000006, 0x00000023, 0x00000020, 0x00050048, 0x00000489, 0x00000007,
-    0x00000023, 0x00000024, 0x00030047, 0x00000489, 0x00000002, 0x00040047,
-    0x0000147D, 0x00000022, 0x00000002, 0x00040047, 0x0000147D, 0x00000021,
-    0x00000000, 0x00040047, 0x00000F48, 0x0000000B, 0x0000001C, 0x00040047,
-    0x000007DC, 0x00000006, 0x00000010, 0x00040048, 0x000007B4, 0x00000000,
-    0x00000018, 0x00050048, 0x000007B4, 0x00000000, 0x00000023, 0x00000000,
-    0x00030047, 0x000007B4, 0x00000003, 0x00040047, 0x0000107A, 0x00000022,
-    0x00000001, 0x00040047, 0x0000107A, 0x00000021, 0x00000000, 0x00040047,
-    0x000007DD, 0x00000006, 0x00000010, 0x00040048, 0x000007B5, 0x00000000,
+    0x00000011, 0x00000004, 0x00000020, 0x00000001, 0x00030047, 0x00000489,
+    0x00000002, 0x00050048, 0x00000489, 0x00000000, 0x00000023, 0x00000000,
+    0x00050048, 0x00000489, 0x00000001, 0x00000023, 0x00000004, 0x00050048,
+    0x00000489, 0x00000002, 0x00000023, 0x00000008, 0x00050048, 0x00000489,
+    0x00000003, 0x00000023, 0x0000000C, 0x00050048, 0x00000489, 0x00000004,
+    0x00000023, 0x00000010, 0x00050048, 0x00000489, 0x00000005, 0x00000023,
+    0x0000001C, 0x00050048, 0x00000489, 0x00000006, 0x00000023, 0x00000020,
+    0x00050048, 0x00000489, 0x00000007, 0x00000023, 0x00000024, 0x00040047,
+    0x0000147D, 0x00000021, 0x00000000, 0x00040047, 0x0000147D, 0x00000022,
+    0x00000002, 0x00040047, 0x00000F48, 0x0000000B, 0x0000001C, 0x00040047,
+    0x000007DC, 0x00000006, 0x00000010, 0x00030047, 0x000007B4, 0x00000003,
+    0x00040048, 0x000007B4, 0x00000000, 0x00000018, 0x00050048, 0x000007B4,
+    0x00000000, 0x00000023, 0x00000000, 0x00030047, 0x0000107A, 0x00000018,
+    0x00040047, 0x0000107A, 0x00000021, 0x00000000, 0x00040047, 0x0000107A,
+    0x00000022, 0x00000001, 0x00040047, 0x000007DD, 0x00000006, 0x00000010,
+    0x00030047, 0x000007B5, 0x00000003, 0x00040048, 0x000007B5, 0x00000000,
     0x00000019, 0x00050048, 0x000007B5, 0x00000000, 0x00000023, 0x00000000,
-    0x00030047, 0x000007B5, 0x00000003, 0x00040047, 0x0000140E, 0x00000022,
-    0x00000000, 0x00040047, 0x0000140E, 0x00000021, 0x00000000, 0x00040047,
+    0x00030047, 0x0000140E, 0x00000019, 0x00040047, 0x0000140E, 0x00000021,
+    0x00000000, 0x00040047, 0x0000140E, 0x00000022, 0x00000000, 0x00040047,
     0x00000BC3, 0x0000000B, 0x00000019, 0x00020013, 0x00000008, 0x00030021,
     0x00000502, 0x00000008, 0x00040015, 0x0000000B, 0x00000020, 0x00000000,
     0x00040017, 0x00000011, 0x0000000B, 0x00000002, 0x00040017, 0x00000017,

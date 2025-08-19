@@ -2,18 +2,18 @@
 #if 0
 ; SPIR-V
 ; Version: 1.0
-; Generator: Khronos Glslang Reference Front End; 10
+; Generator: Khronos Glslang Reference Front End; 11
 ; Bound: 24988
 ; Schema: 0
                OpCapability Shader
           %1 = OpExtInstImport "GLSL.std.450"
                OpMemoryModel Logical GLSL450
                OpEntryPoint Vertex %5663 "main" %4930 %5474
+               OpDecorate %_struct_2935 Block
                OpMemberDecorate %_struct_2935 0 BuiltIn Position
                OpMemberDecorate %_struct_2935 1 BuiltIn PointSize
                OpMemberDecorate %_struct_2935 2 BuiltIn ClipDistance
                OpMemberDecorate %_struct_2935 3 BuiltIn CullDistance
-               OpDecorate %_struct_2935 Block
                OpDecorate %5474 Location 0
        %void = OpTypeVoid
        %1282 = OpTypeFunction %void
@@ -46,14 +46,14 @@
 #endif
 
 const uint32_t passthrough_position_xy_vs[] = {
-    0x07230203, 0x00010000, 0x0008000A, 0x0000619C, 0x00000000, 0x00020011,
+    0x07230203, 0x00010000, 0x0008000B, 0x0000619C, 0x00000000, 0x00020011,
     0x00000001, 0x0006000B, 0x00000001, 0x4C534C47, 0x6474732E, 0x3035342E,
     0x00000000, 0x0003000E, 0x00000000, 0x00000001, 0x0007000F, 0x00000000,
-    0x0000161F, 0x6E69616D, 0x00000000, 0x00001342, 0x00001562, 0x00050048,
-    0x00000B77, 0x00000000, 0x0000000B, 0x00000000, 0x00050048, 0x00000B77,
-    0x00000001, 0x0000000B, 0x00000001, 0x00050048, 0x00000B77, 0x00000002,
-    0x0000000B, 0x00000003, 0x00050048, 0x00000B77, 0x00000003, 0x0000000B,
-    0x00000004, 0x00030047, 0x00000B77, 0x00000002, 0x00040047, 0x00001562,
+    0x0000161F, 0x6E69616D, 0x00000000, 0x00001342, 0x00001562, 0x00030047,
+    0x00000B77, 0x00000002, 0x00050048, 0x00000B77, 0x00000000, 0x0000000B,
+    0x00000000, 0x00050048, 0x00000B77, 0x00000001, 0x0000000B, 0x00000001,
+    0x00050048, 0x00000B77, 0x00000002, 0x0000000B, 0x00000003, 0x00050048,
+    0x00000B77, 0x00000003, 0x0000000B, 0x00000004, 0x00040047, 0x00001562,
     0x0000001E, 0x00000000, 0x00020013, 0x00000008, 0x00030021, 0x00000502,
     0x00000008, 0x00030016, 0x0000000D, 0x00000020, 0x00040017, 0x0000001D,
     0x0000000D, 0x00000004, 0x00040015, 0x0000000B, 0x00000020, 0x00000000,

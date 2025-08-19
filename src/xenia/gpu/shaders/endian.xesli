@@ -30,9 +30,9 @@ XeEndianSwapType XeEndianSwap16(XeEndianSwapType value, uint endian) { \
   return value; \
 }
 XE_ENDIAN_SWAP_16_OVERLOAD(uint)
-XE_ENDIAN_SWAP_16_OVERLOAD(xesl_uint2)
-XE_ENDIAN_SWAP_16_OVERLOAD(xesl_uint3)
-XE_ENDIAN_SWAP_16_OVERLOAD(xesl_uint4)
+XE_ENDIAN_SWAP_16_OVERLOAD(uint2_xe)
+XE_ENDIAN_SWAP_16_OVERLOAD(uint3_xe)
+XE_ENDIAN_SWAP_16_OVERLOAD(uint4_xe)
 
 #define XE_ENDIAN_SWAP_32_OVERLOAD(XeEndianSwapType) \
 XeEndianSwapType XeEndianSwap32(XeEndianSwapType value, uint endian) { \
@@ -45,11 +45,11 @@ XeEndianSwapType XeEndianSwap32(XeEndianSwapType value, uint endian) { \
   return value; \
 }
 XE_ENDIAN_SWAP_32_OVERLOAD(uint)
-XE_ENDIAN_SWAP_32_OVERLOAD(xesl_uint2)
-XE_ENDIAN_SWAP_32_OVERLOAD(xesl_uint3)
-XE_ENDIAN_SWAP_32_OVERLOAD(xesl_uint4)
+XE_ENDIAN_SWAP_32_OVERLOAD(uint2_xe)
+XE_ENDIAN_SWAP_32_OVERLOAD(uint3_xe)
+XE_ENDIAN_SWAP_32_OVERLOAD(uint4_xe)
 
-xesl_uint2 XeEndianSwap64(xesl_uint2 value, uint endian) {
+uint2_xe XeEndianSwap64(uint2_xe value, uint endian) {
   if (endian == kXenosEndian_8in64) {
     value = value.yx;
     endian = kXenosEndian_8in32;
@@ -57,7 +57,7 @@ xesl_uint2 XeEndianSwap64(xesl_uint2 value, uint endian) {
   return XeEndianSwap32(value, endian);
 }
 
-xesl_uint4 XeEndianSwap64(xesl_uint4 value, uint endian) {
+uint4_xe XeEndianSwap64(uint4_xe value, uint endian) {
   if (endian == kXenosEndian_8in64) {
     value = value.yxwz;
     endian = kXenosEndian_8in32;
@@ -65,7 +65,7 @@ xesl_uint4 XeEndianSwap64(xesl_uint4 value, uint endian) {
   return XeEndianSwap32(value, endian);
 }
 
-xesl_uint4 XeEndianSwap128(xesl_uint4 value, uint endian) {
+uint4_xe XeEndianSwap128(uint4_xe value, uint endian) {
   if (endian == kXenosEndian_8in128) {
     value = value.wzyx;
     endian = kXenosEndian_8in32;

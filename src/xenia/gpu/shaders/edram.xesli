@@ -20,24 +20,23 @@
 // can't exceed 11 bits, and the modulo operator doesn't need to be performed to
 // access the data in the render targets that are located in both ends of the
 // EDRAM at the same time.
-uint XeEdramOffsetInts(xesl_uint2 pixel_index, uint base_tiles, bool wrap,
+uint XeEdramOffsetInts(uint2_xe pixel_index, uint base_tiles, bool wrap,
                        uint pitch_tiles, uint msaa_samples, bool is_depth,
                        uint format_ints_log2, uint pixel_sample_index,
-                       xesl_uint2 resolution_scale) {
-  xesl_uint2 rt_sample_index =
+                       uint2_xe resolution_scale) {
+  uint2_xe rt_sample_index =
       pixel_index <<
-      xesl_uint2(xesl_greaterThanEqual(
-          xesl_uint_x2(msaa_samples),
-          xesl_uint2(kXenosMsaaSamples_4X, kXenosMsaaSamples_2X)));
-  rt_sample_index +=
-      (xesl_uint_x2(pixel_sample_index) >> xesl_uint2(1u, 0u)) & 1u;
+      uint2_xe(greater_than_equal_xe(
+          uint_x2_xe(msaa_samples),
+          uint2_xe(kXenosMsaaSamples_4X, kXenosMsaaSamples_2X)));
+  rt_sample_index += (uint_x2_xe(pixel_sample_index) >> uint2_xe(1u, 0u)) & 1u;
   // For now, while the actual storage of 64bpp render targets in comparison to
   // 32bpp is not known, storing 40x16 64bpp samples per tile for simplicity of
   // addressing in different scenarios.
-  xesl_uint2 tile_size_at_32bpp = xesl_uint2(80u, 16u) * resolution_scale;
-  xesl_uint2 tile_size_samples =
-      tile_size_at_32bpp >> xesl_uint2(format_ints_log2, 0u);
-  xesl_uint2 tile_offset_xy = rt_sample_index / tile_size_samples;
+  uint2_xe tile_size_at_32bpp = uint2_xe(80u, 16u) * resolution_scale;
+  uint2_xe tile_size_samples =
+      tile_size_at_32bpp >> uint2_xe(format_ints_log2, 0u);
+  uint2_xe tile_offset_xy = rt_sample_index / tile_size_samples;
   base_tiles += tile_offset_xy.y * pitch_tiles + tile_offset_xy.x;
   rt_sample_index -= tile_offset_xy * tile_size_samples;
   if (is_depth) {

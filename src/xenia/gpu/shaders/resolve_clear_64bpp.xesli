@@ -10,41 +10,41 @@
 #define XE_RESOLVE_CLEAR
 #include "resolve.xesli"
 
-xesl_writeTypedStorageBuffer_declare(xesl_uint4, xe_resolve_edram, set=0,
-                                     binding=0, u0, space0)
-#define xesl_localSize_x 8
-#define xesl_localSize_y 8
-#define xesl_localSize_z 1
-xesl_entry_bindings_begin_compute
-  XE_RESOLVE_PUSH_CONSTANTS_BINDING
-  xesl_entry_binding_next
-  xesl_writeTypedStorageBuffer_binding(xesl_uint4, xe_resolve_edram,
-                                       buffer(1))
-xesl_entry_bindings_end_inputs_begin_compute
-  xesl_entry_input_globalInvocationID
-xesl_entry_inputs_end_code_begin_compute
+array_buffer_wo_declare_xe(uint4_xe, xe_resolve_edram, set=0, binding=0, u0,
+                           space0)
+#define LOCAL_SIZE_X_XE 8
+#define LOCAL_SIZE_Y_XE 8
+#define LOCAL_SIZE_Z_XE 1
+entry_bindings_begin_compute_xe
+  XE_RESOLVE_PUSH_CONST_BINDING
+  entry_binding_next_xe
+  array_buffer_wo_binding_xe(uint4_xe, xe_resolve_edram, buffer(1))
+entry_bindings_end_inputs_begin_compute_xe
+  entry_in_global_thread_id_xe
+entry_inputs_end_code_begin_compute_xe
+{
   // 1 thread = 8 host samples (same as the resolve granularity at 1x1 scale).
-  XeResolveInfo resolve_info =
-      XeResolveGetInfo(xesl_function_call_pushConstants);
-  xesl_uint2 extent_scale = xesl_uint2(xesl_greaterThanEqual(
-      xesl_uint_x2(resolve_info.edram_msaa_samples),
-      xesl_uint2(kXenosMsaaSamples_4X, kXenosMsaaSamples_2X)));
+  XeResolveInfo resolve_info = XeResolveGetInfo(pass_push_consts_xe);
+  uint2_xe extent_scale = uint2_xe(greater_than_equal_xe(
+      uint_x2_xe(resolve_info.edram_msaa_samples),
+      uint2_xe(kXenosMsaaSamples_4X, kXenosMsaaSamples_2X)));
   // Group height can't cross resolve granularity, Y overflow check not needed.
-  xesl_dont_flatten
-  if (xesl_GlobalInvocationID.x >=
+  dont_flatten_xe
+  if (in_global_thread_id_xe.x >=
       resolve_info.width_div_8_scaled << extent_scale.x) {
     return;
   }
   uint address_int4s =
       XeEdramOffsetInts(
-          (xesl_GlobalInvocationID.xy << xesl_uint2(3u, 0u)) +
+          (in_global_thread_id_xe.xy << uint2_xe(3u, 0u)) +
               (resolve_info.edram_offset_scaled << extent_scale),
           resolve_info.edram_base_tiles, true, resolve_info.edram_pitch_tiles,
           kXenosMsaaSamples_1X, false, 1u, 0u, resolve_info.resolution_scale)
       >> 2u;
   uint i;
-  xesl_unroll for (i = 0u; i < 4u; ++i) {
-    xesl_typedStorageBufferStore(xe_resolve_edram, address_int4s + i,
-                                 resolve_info.clear_value.xyxy);
+  unroll_xe for (i = 0u; i < 4u; ++i) {
+    array_buffer_store_xe(xe_resolve_edram, address_int4s + i,
+                          resolve_info.clear_value.xyxy);
   }
-xesl_entry_code_end_compute
+}
+entry_code_end_compute_xe

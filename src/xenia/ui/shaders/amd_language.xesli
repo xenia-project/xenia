@@ -10,9 +10,9 @@
 #ifndef XENIA_UI_SHADERS_AMD_LANGUAGE_XESLI_
 #define XENIA_UI_SHADERS_AMD_LANGUAGE_XESLI_
 
-#if XESL_LANGUAGE_GLSL
+#if SHADING_LANGUAGE_GLSL_XE
   #define A_GLSL 1
-#elif XESL_LANGUAGE_HLSL
+#elif SHADING_LANGUAGE_HLSL_XE
   #define A_HLSL 1
 #else
   #error Unknown shading language for AMD shaders.

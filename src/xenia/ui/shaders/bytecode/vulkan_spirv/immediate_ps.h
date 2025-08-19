@@ -2,7 +2,7 @@
 #if 0
 ; SPIR-V
 ; Version: 1.0
-; Generator: Khronos Glslang Reference Front End; 10
+; Generator: Khronos Glslang Reference Front End; 11
 ; Bound: 24608
 ; Schema: 0
                OpCapability Shader
@@ -12,8 +12,8 @@
                OpExecutionMode %5663 OriginUpperLeft
                OpDecorate %3080 Location 0
                OpDecorate %5914 Location 1
-               OpDecorate %5818 DescriptorSet 0
                OpDecorate %5818 Binding 0
+               OpDecorate %5818 DescriptorSet 0
                OpDecorate %4693 Location 0
        %void = OpTypeVoid
        %1282 = OpTypeFunction %void
@@ -44,13 +44,13 @@
 #endif
 
 const uint32_t immediate_ps[] = {
-    0x07230203, 0x00010000, 0x0008000A, 0x00006020, 0x00000000, 0x00020011,
+    0x07230203, 0x00010000, 0x0008000B, 0x00006020, 0x00000000, 0x00020011,
     0x00000001, 0x0006000B, 0x00000001, 0x4C534C47, 0x6474732E, 0x3035342E,
     0x00000000, 0x0003000E, 0x00000000, 0x00000001, 0x0008000F, 0x00000004,
     0x0000161F, 0x6E69616D, 0x00000000, 0x00000C08, 0x0000171A, 0x00001255,
     0x00030010, 0x0000161F, 0x00000007, 0x00040047, 0x00000C08, 0x0000001E,
     0x00000000, 0x00040047, 0x0000171A, 0x0000001E, 0x00000001, 0x00040047,
-    0x000016BA, 0x00000022, 0x00000000, 0x00040047, 0x000016BA, 0x00000021,
+    0x000016BA, 0x00000021, 0x00000000, 0x00040047, 0x000016BA, 0x00000022,
     0x00000000, 0x00040047, 0x00001255, 0x0000001E, 0x00000000, 0x00020013,
     0x00000008, 0x00030021, 0x00000502, 0x00000008, 0x00030016, 0x0000000D,
     0x00000020, 0x00040017, 0x0000001D, 0x0000000D, 0x00000004, 0x00040020,

@@ -9,5 +9,5 @@
 
 #include "pixel_formats.xesli"
 #define XE_TEXTURE_LOAD_32BPB_TRANSFORM(blocks) \
-  (xesl_floatBitsToUint(XeUNorm24To32((blocks) >> 8u)))
+  (float_bits_to_uint_xe(XeUNorm24To32((blocks) >> 8u)))
 #include "texture_load_32bpb.xesli"
