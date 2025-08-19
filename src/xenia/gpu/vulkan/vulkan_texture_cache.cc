@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <utility>
 
 #include "xenia/base/assert.h"
@@ -1433,25 +1434,24 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     load_constants.host_pitch = load_shader_info.bytes_per_host_block *
                                 level_host_layout.x_pitch_blocks;
 
+    command_buffer.CmdVkPushConstants(load_pipeline_layout_,
+                                      VK_SHADER_STAGE_COMPUTE_BIT, 0,
+                                      sizeof(load_constants), &load_constants);
+
     uint32_t level_array_slice_stride_bytes_scaled =
         level_guest_layout.array_slice_stride_bytes *
         (texture_resolution_scale_x * texture_resolution_scale_y);
     for (uint32_t slice = 0; slice < array_size; ++slice) {
-      VkDescriptorSet descriptor_set_constants;
-      void* constants_mapping =
-          command_processor_.WriteTransientUniformBufferBinding(
-              sizeof(load_constants),
-              VulkanCommandProcessor::SingleTransientDescriptorLayout ::
-                  kUniformBufferCompute,
-              descriptor_set_constants);
-      if (!constants_mapping) {
-        return false;
+      if (slice != 0) {
+        command_buffer.CmdVkPushConstants(
+            load_pipeline_layout_, VK_SHADER_STAGE_COMPUTE_BIT,
+            offsetof(LoadConstants, guest_offset),
+            sizeof(load_constants.guest_offset), &load_constants.guest_offset);
+        command_buffer.CmdVkPushConstants(
+            load_pipeline_layout_, VK_SHADER_STAGE_COMPUTE_BIT,
+            offsetof(LoadConstants, host_offset),
+            sizeof(load_constants.host_offset), &load_constants.host_offset);
       }
-      std::memcpy(constants_mapping, &load_constants, sizeof(load_constants));
-      command_buffer.CmdVkBindDescriptorSets(
-          VK_PIPELINE_BIND_POINT_COMPUTE, load_pipeline_layout_,
-          kLoadDescriptorSetIndexConstants, 1, &descriptor_set_constants, 0,
-          nullptr);
       command_processor_.SubmitBarriers(true);
       command_buffer.CmdVkDispatch(group_count_x, group_count_y,
                                    load_constants.size_blocks[2]);
@@ -2102,12 +2102,11 @@ bool VulkanTextureCache::Initialize() {
       load_descriptor_set_layout_storage_buffer;
   load_descriptor_set_layouts[kLoadDescriptorSetIndexSource] =
       load_descriptor_set_layout_storage_buffer;
-  load_descriptor_set_layouts[kLoadDescriptorSetIndexConstants] =
-      command_processor_.GetSingleTransientDescriptorLayout(
-          VulkanCommandProcessor::SingleTransientDescriptorLayout ::
-              kUniformBufferCompute);
-  assert_true(load_descriptor_set_layouts[kLoadDescriptorSetIndexConstants] !=
-              VK_NULL_HANDLE);
+  VkPushConstantRange load_pipeline_layout_push_constant_range;
+  load_pipeline_layout_push_constant_range.stageFlags =
+      VK_SHADER_STAGE_COMPUTE_BIT;
+  load_pipeline_layout_push_constant_range.offset = 0;
+  load_pipeline_layout_push_constant_range.size = sizeof(LoadConstants);
   VkPipelineLayoutCreateInfo load_pipeline_layout_create_info;
   load_pipeline_layout_create_info.sType =
       VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -2115,8 +2114,9 @@ bool VulkanTextureCache::Initialize() {
   load_pipeline_layout_create_info.flags = 0;
   load_pipeline_layout_create_info.setLayoutCount = kLoadDescriptorSetCount;
   load_pipeline_layout_create_info.pSetLayouts = load_descriptor_set_layouts;
-  load_pipeline_layout_create_info.pushConstantRangeCount = 0;
-  load_pipeline_layout_create_info.pPushConstantRanges = nullptr;
+  load_pipeline_layout_create_info.pushConstantRangeCount = 1;
+  load_pipeline_layout_create_info.pPushConstantRanges =
+      &load_pipeline_layout_push_constant_range;
   if (dfn.vkCreatePipelineLayout(device, &load_pipeline_layout_create_info,
                                  nullptr, &load_pipeline_layout_)) {
     XELOGE("VulkanTexture: Failed to create the texture load pipeline layout");

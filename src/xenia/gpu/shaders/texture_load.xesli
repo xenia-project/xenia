@@ -26,8 +26,7 @@
 #define LOCAL_SIZE_Y_XE 32
 #define LOCAL_SIZE_Z_XE 1
 
-const_buffer_begin_xe(xe_texture_load_constants, set=2, binding=0, b0,
-                          space0)
+push_const_begin_xe(b0, space0)
   uint xe_texture_load_is_tiled_3d_endian_scale;
   // Base offset in bytes, resolution-scaled.
   uint xe_texture_load_guest_offset;
@@ -49,10 +48,9 @@ const_buffer_begin_xe(xe_texture_load_constants, set=2, binding=0, b0,
 
   uint xe_texture_load_host_pitch;
   uint xe_texture_load_height_texels;
-const_buffer_end_xe(xe_texture_load_constants)
+push_const_end_xe
 
-#define XE_TEXTURE_LOAD_CONSTANT_BUFFER_BINDING \
-    const_buffer_binding_xe(xe_texture_load_constants, buffer(0))
+#define XE_TEXTURE_LOAD_PUSH_CONST_BINDING push_const_binding_xe(buffer(0))
 
 struct XeTextureLoadInfo {
   bool is_tiled;
@@ -68,11 +66,10 @@ struct XeTextureLoadInfo {
   uint height_texels;
 };
 
-XeTextureLoadInfo XeTextureLoadGetInfo(
-    param_const_buffer_xe(xe_texture_load_constants)) {
+XeTextureLoadInfo XeTextureLoadGetInfo(param_push_consts_xe) {
   XeTextureLoadInfo load_info;
-  uint is_tiled_3d_endian_scale = constant_xe(
-      xe_texture_load_constants, xe_texture_load_is_tiled_3d_endian_scale);
+  uint is_tiled_3d_endian_scale =
+      push_const_xe(xe_texture_load_is_tiled_3d_endian_scale);
   #ifdef XE_TEXTURE_LOAD_RESOLUTION_SCALED
     // Only resolved textures can be resolution-scaled, and resolving is only
     // possible to a tiled destination.
@@ -88,21 +85,15 @@ XeTextureLoadInfo XeTextureLoadGetInfo(
   #else
     load_info.resolution_scale = uint2_xe(1u, 1u);
   #endif
-  load_info.guest_offset =
-      constant_xe(xe_texture_load_constants, xe_texture_load_guest_offset);
-  load_info.guest_pitch_aligned = constant_xe(
-      xe_texture_load_constants, xe_texture_load_guest_pitch_aligned);
+  load_info.guest_offset = push_const_xe(xe_texture_load_guest_offset);
+  load_info.guest_pitch_aligned =
+      push_const_xe(xe_texture_load_guest_pitch_aligned);
   load_info.guest_z_stride_block_rows_aligned =
-      constant_xe(xe_texture_load_constants,
-                  xe_texture_load_guest_z_stride_block_rows_aligned);
-  load_info.size_blocks =
-      constant_xe(xe_texture_load_constants, xe_texture_load_size_blocks);
-  load_info.host_offset =
-      constant_xe(xe_texture_load_constants, xe_texture_load_host_offset);
-  load_info.host_pitch =
-      constant_xe(xe_texture_load_constants, xe_texture_load_host_pitch);
-  load_info.height_texels =
-      constant_xe(xe_texture_load_constants, xe_texture_load_height_texels);
+      push_const_xe(xe_texture_load_guest_z_stride_block_rows_aligned);
+  load_info.size_blocks = push_const_xe(xe_texture_load_size_blocks);
+  load_info.host_offset = push_const_xe(xe_texture_load_host_offset);
+  load_info.host_pitch = push_const_xe(xe_texture_load_host_pitch);
+  load_info.height_texels = push_const_xe(xe_texture_load_height_texels);
   return load_info;
 }
 

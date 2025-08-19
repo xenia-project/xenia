@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <array>
 #include <cfloat>
+#include <cstddef>
 #include <cstring>
 #include <memory>
 #include <utility>
@@ -435,9 +436,11 @@ bool D3D12TextureCache::Initialize() {
   // Create the loading root signature.
   D3D12_ROOT_PARAMETER root_parameters[3];
   // Parameter 0 is constants (changed multiple times when untiling).
-  root_parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-  root_parameters[0].Descriptor.ShaderRegister = 0;
-  root_parameters[0].Descriptor.RegisterSpace = 0;
+  root_parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+  root_parameters[0].Constants.ShaderRegister = 0;
+  root_parameters[0].Constants.RegisterSpace = 0;
+  root_parameters[0].Constants.Num32BitValues =
+      sizeof(LoadConstants) / sizeof(uint32_t);
   root_parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
   // Parameter 1 is the source (may be changed multiple times for the same
   // destination).
@@ -1952,22 +1955,23 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     load_constants.host_offset = uint32_t(level_host_slice_layout.Offset);
     load_constants.host_pitch = level_host_slice_layout.Footprint.RowPitch;
 
+    command_list.D3DSetComputeRoot32BitConstants(
+        0, sizeof(load_constants) / sizeof(uint32_t), &load_constants, 0);
+
     uint32_t level_array_slice_stride_bytes_scaled =
         level_guest_layout.array_slice_stride_bytes *
         (texture_resolution_scale_x * texture_resolution_scale_y);
     for (uint32_t slice = 0; slice < array_size; ++slice) {
-      D3D12_GPU_VIRTUAL_ADDRESS cbuffer_gpu_address;
-      uint8_t* cbuffer_mapping = cbuffer_pool.Request(
-          command_processor_.GetCurrentFrame(), sizeof(load_constants),
-          D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, nullptr, nullptr,
-          &cbuffer_gpu_address);
-      if (cbuffer_mapping == nullptr) {
-        command_processor_.ReleaseScratchGPUBuffer(copy_buffer,
-                                                   copy_buffer_state);
-        return false;
+      if (slice != 0) {
+        command_list.D3DSetComputeRoot32BitConstants(
+            0, sizeof(load_constants.guest_offset) / sizeof(uint32_t),
+            &load_constants.guest_offset,
+            offsetof(LoadConstants, guest_offset) / sizeof(uint32_t));
+        command_list.D3DSetComputeRoot32BitConstants(
+            0, sizeof(load_constants.host_offset) / sizeof(uint32_t),
+            &load_constants.host_offset,
+            offsetof(LoadConstants, host_offset) / sizeof(uint32_t));
       }
-      std::memcpy(cbuffer_mapping, &load_constants, sizeof(load_constants));
-      command_list.D3DSetComputeRootConstantBufferView(0, cbuffer_gpu_address);
       assert_true(copy_buffer_state == D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
       command_processor_.SubmitBarriers();
       command_list.D3DDispatch(group_count_x, group_count_y,

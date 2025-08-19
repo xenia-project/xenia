@@ -229,11 +229,11 @@ bool VulkanCommandProcessor::SetupContext() {
         "constant buffers");
     return false;
   }
-  // Transient: uniform buffer for compute shaders.
+  // Transient: storage buffer for compute shaders.
   VkDescriptorSetLayoutBinding descriptor_set_layout_binding_transient;
   descriptor_set_layout_binding_transient.binding = 0;
   descriptor_set_layout_binding_transient.descriptorType =
-      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
   descriptor_set_layout_binding_transient.descriptorCount = 1;
   descriptor_set_layout_binding_transient.stageFlags =
       VK_SHADER_STAGE_COMPUTE_BIT;
@@ -241,21 +241,6 @@ bool VulkanCommandProcessor::SetupContext() {
   descriptor_set_layout_create_info.bindingCount = 1;
   descriptor_set_layout_create_info.pBindings =
       &descriptor_set_layout_binding_transient;
-  if (dfn.vkCreateDescriptorSetLayout(
-          device, &descriptor_set_layout_create_info, nullptr,
-          &descriptor_set_layouts_single_transient_[size_t(
-              SingleTransientDescriptorLayout::kUniformBufferCompute)]) !=
-      VK_SUCCESS) {
-    XELOGE(
-        "Failed to create a Vulkan descriptor set layout for a uniform buffer "
-        "bound to the compute shader");
-    return false;
-  }
-  // Transient: storage buffer for compute shaders.
-  descriptor_set_layout_binding_transient.descriptorType =
-      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-  descriptor_set_layout_binding_transient.stageFlags =
-      VK_SHADER_STAGE_COMPUTE_BIT;
   if (dfn.vkCreateDescriptorSetLayout(
           device, &descriptor_set_layout_create_info, nullptr,
           &descriptor_set_layouts_single_transient_[size_t(
@@ -4371,56 +4356,6 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
   current_graphics_descriptor_sets_bound_up_to_date_ |= descriptor_sets_needed;
 
   return true;
-}
-
-uint8_t* VulkanCommandProcessor::WriteTransientUniformBufferBinding(
-    size_t size, SingleTransientDescriptorLayout transient_descriptor_layout,
-    VkDescriptorBufferInfo& descriptor_buffer_info_out,
-    VkWriteDescriptorSet& write_descriptor_set_out) {
-  assert_true(frame_open_);
-  VkDescriptorSet descriptor_set =
-      AllocateSingleTransientDescriptor(transient_descriptor_layout);
-  if (descriptor_set == VK_NULL_HANDLE) {
-    return nullptr;
-  }
-  uint8_t* mapping = uniform_buffer_pool_->Request(
-      frame_current_, size,
-      size_t(GetVulkanDevice()->properties().minUniformBufferOffsetAlignment),
-      descriptor_buffer_info_out.buffer, descriptor_buffer_info_out.offset);
-  if (!mapping) {
-    return nullptr;
-  }
-  descriptor_buffer_info_out.range = VkDeviceSize(size);
-  write_descriptor_set_out.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-  write_descriptor_set_out.pNext = nullptr;
-  write_descriptor_set_out.dstSet = descriptor_set;
-  write_descriptor_set_out.dstBinding = 0;
-  write_descriptor_set_out.dstArrayElement = 0;
-  write_descriptor_set_out.descriptorCount = 1;
-  write_descriptor_set_out.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-  write_descriptor_set_out.pImageInfo = nullptr;
-  write_descriptor_set_out.pBufferInfo = &descriptor_buffer_info_out;
-  write_descriptor_set_out.pTexelBufferView = nullptr;
-  return mapping;
-}
-
-uint8_t* VulkanCommandProcessor::WriteTransientUniformBufferBinding(
-    size_t size, SingleTransientDescriptorLayout transient_descriptor_layout,
-    VkDescriptorSet& descriptor_set_out) {
-  VkDescriptorBufferInfo write_descriptor_buffer_info;
-  VkWriteDescriptorSet write_descriptor_set;
-  uint8_t* mapping = WriteTransientUniformBufferBinding(
-      size, transient_descriptor_layout, write_descriptor_buffer_info,
-      write_descriptor_set);
-  if (!mapping) {
-    return nullptr;
-  }
-  const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
-  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
-  const VkDevice device = vulkan_device->device();
-  dfn.vkUpdateDescriptorSets(device, 1, &write_descriptor_set, 0, nullptr);
-  descriptor_set_out = write_descriptor_set.dstSet;
-  return mapping;
 }
 
 uint32_t VulkanCommandProcessor::WriteTransientTextureBindings(
