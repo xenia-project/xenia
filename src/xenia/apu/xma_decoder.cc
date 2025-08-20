@@ -142,7 +142,7 @@ X_STATUS XmaDecoder::Setup(kernel::KernelState* kernel_state) {
   assert_not_null(work_event_);
   worker_thread_ = kernel::object_ref<kernel::XHostThread>(
       new kernel::XHostThread(kernel_state, 128 * 1024, 0, [this]() {
-        WorkerThreadMain();
+        //WorkerThreadMain();
         return 0;
       }));
   worker_thread_->set_name("XMA Decoder");
@@ -313,6 +313,7 @@ void XmaDecoder::WriteRegister(uint32_t addr, uint32_t value) {
         uint32_t context_id = base_context_id + i;
         auto& context = contexts_[context_id];
         context.Enable();
+        context.Work();
       }
     }
     // Signal the decoder thread to start processing.
