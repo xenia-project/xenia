@@ -18,8 +18,8 @@
 #include "xenia/base/memory.h"
 #include "xenia/kernel/util/xex2_info.h"
 
-#include "third_party/mspack/lzx.h"
-#include "third_party/mspack/mspack.h"
+#include "third_party/mspack/include/mspack/lzx.h"
+#include "third_party/mspack/include/mspack/mspack.h"
 
 typedef struct mspack_memory_file_t {
   mspack_system sys;
