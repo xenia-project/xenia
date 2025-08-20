@@ -36,7 +36,7 @@ uint64_t BitStream::Peek(size_t num_bits) {
   assert_false(num_bits > 57);
   assert_false(offset_bits_ + num_bits > size_bits_);
 
-  size_t offset_bytes = offset_bits_ >> 3;
+  size_t offset_bytes = std::min(offset_bits_ >> 3, (size_bits_ - 64) >> 3);
   size_t rel_offset_bits = offset_bits_ - (offset_bytes << 3);
 
   // offset -->
