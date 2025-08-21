@@ -63,7 +63,13 @@ DebugWindow::DebugWindow(Emulator* emulator,
       processor_(emulator->processor()),
       app_context_(app_context),
       window_(xe::ui::Window::Create(app_context_, kBaseTitle, 1500, 1000)) {
-  if (cs_open(CS_ARCH_X86, CS_MODE_64, &capstone_handle_) != CS_ERR_OK) {
+  if (
+#ifdef XE_ARCH_AMD64
+      cs_open(CS_ARCH_X86, CS_MODE_64, &capstone_handle_)
+#elif XE_ARCH_ARM64
+      cs_open(CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN, &capstone_handle_)
+#endif
+      != CS_ERR_OK) {
     assert_always("Failed to initialize capstone");
   }
   cs_option(capstone_handle_, CS_OPT_SYNTAX, CS_OPT_SYNTAX_INTEL);
@@ -338,7 +344,7 @@ void DebugWindow::DrawSourcePane() {
   //   copy button
   //   address start - end
   //   name text box (editable)
-  //   combo for interleaved + [ppc, hir, opt hir, x64 + byte with sizes]
+  //   combo for interleaved + [ppc, hir, opt hir, asm + byte with sizes]
   ImGui::AlignTextToFramePadding();
   ImGui::Text("%s", function->module()->name().c_str());
   ImGui::SameLine();
@@ -383,11 +389,11 @@ void DebugWindow::DrawSourcePane() {
   }
   ImGui::SameLine();
   if (state_.source_display_mode > 0) {
-    // Only show x64 step button if we have x64 visible.
+    // Only show asm step button if we have asm visible.
     ImGui::Dummy(ImVec2(4, 0));
     ImGui::SameLine();
     ImGui::PushButtonRepeat(true);
-    if (ImGui::ButtonEx("Step x64", ImVec2(0, 0),
+    if (ImGui::ButtonEx("Step " XE_HOST_ARCH_NAME, ImVec2(0, 0),
                         can_step ? 0 : ImGuiItemFlags_Disabled)) {
       // By enabling the button when stepping we allow repeat behavior.
       if (processor_->execution_state() != cpu::ExecutionState::kStepping) {
@@ -396,8 +402,8 @@ void DebugWindow::DrawSourcePane() {
     }
     ImGui::PopButtonRepeat();
     if (ImGui::IsItemHovered()) {
-      ImGui::SetTooltip(
-          "Step one x64 instruction on the current thread (hold for many).");
+      ImGui::SetTooltip("Step one " XE_HOST_ARCH_NAME
+                        " instruction on the current thread (hold for many).");
     }
     ImGui::SameLine();
   }
@@ -412,9 +418,9 @@ void DebugWindow::DrawSourcePane() {
   if (function->is_guest()) {
     const char* kSourceDisplayModes[] = {
         "PPC",
-        "PPC+HIR+x64",
-        "PPC+HIR (opt)+x64",
-        "PPC+x64",
+        "PPC+HIR+" XE_HOST_ARCH_NAME,
+        "PPC+HIR (opt)+" XE_HOST_ARCH_NAME,
+        "PPC+" XE_HOST_ARCH_NAME,
     };
     ImGui::PushItemWidth(90);
     ImGui::Combo("##display_mode", &state_.source_display_mode,
@@ -459,7 +465,7 @@ void DebugWindow::DrawGuestFunctionSource() {
   //     labels get their own line with duped addresses
   //       show xrefs to labels?
   //     hir greyed and offset (background color change?)
-  //     x64 greyed and offset with native address
+  //     asm greyed and offset with native address
   //     hover on registers/etc for tooltip/highlight others
   //     click register to go to location of last write
   //     click code address to jump to code
@@ -472,18 +478,18 @@ void DebugWindow::DrawGuestFunctionSource() {
 
   bool draw_hir = false;
   bool draw_hir_opt = false;
-  bool draw_x64 = false;
+  bool draw_asm = false;
   switch (state_.source_display_mode) {
     case 1:
       draw_hir = true;
-      draw_x64 = true;
+      draw_asm = true;
       break;
     case 2:
       draw_hir_opt = true;
-      draw_x64 = true;
+      draw_asm = true;
       break;
     case 3:
-      draw_x64 = true;
+      draw_asm = true;
       break;
   }
 
@@ -498,8 +504,8 @@ void DebugWindow::DrawGuestFunctionSource() {
   if (draw_hir_opt) {
     // TODO(benvanik): get HIR and draw preamble.
   }
-  if (draw_x64) {
-    // x64 preamble.
+  if (draw_asm) {
+    // asm preamble.
     DrawMachineCodeSource(function->machine_code(), source_map[0].code_offset);
   }
 
@@ -512,7 +518,7 @@ void DebugWindow::DrawGuestFunctionSource() {
     bool is_current_instr = address == guest_pc;
     if (is_current_instr) {
       ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
-      if (!draw_x64) {
+      if (!draw_asm) {
         ScrollToSourceIfPcChanged();
       }
     }
@@ -548,7 +554,7 @@ void DebugWindow::DrawGuestFunctionSource() {
       if (draw_hir_opt) {
         // TODO(benvanik): get HIR and draw for this PPC function.
       }
-      if (draw_x64) {
+      if (draw_asm) {
         const uint8_t* machine_code_start =
             function->machine_code() + source_map[source_map_index].code_offset;
         const size_t machine_code_length =
@@ -851,10 +857,10 @@ void DebugWindow::DrawRegistersPane() {
   if (state_.register_group == RegisterGroup::kHostGeneral) {
     ImGui::PushStyleColor(ImGuiCol_Button,
                           ImGui::GetStyle().Colors[ImGuiCol_ButtonActive]);
-    ImGui::Button("x64");
+    ImGui::Button(XE_HOST_ARCH_NAME);
     ImGui::PopStyleColor();
   } else {
-    if (ImGui::Button("x64")) {
+    if (ImGui::Button(XE_HOST_ARCH_NAME)) {
       state_.register_group = RegisterGroup::kHostGeneral;
     }
   }
@@ -862,10 +868,10 @@ void DebugWindow::DrawRegistersPane() {
   if (state_.register_group == RegisterGroup::kHostVector) {
     ImGui::PushStyleColor(ImGuiCol_Button,
                           ImGui::GetStyle().Colors[ImGuiCol_ButtonActive]);
-    ImGui::Button("XMM");
+    ImGui::Button(XE_HOST_ARCH_NAME "-vec");
     ImGui::PopStyleColor();
   } else {
-    if (ImGui::Button("XMM")) {
+    if (ImGui::Button(XE_HOST_ARCH_NAME "-vec")) {
       state_.register_group = RegisterGroup::kHostVector;
     }
   }
@@ -958,6 +964,7 @@ void DebugWindow::DrawRegistersPane() {
     } break;
     case RegisterGroup::kHostGeneral: {
       ImGui::BeginChild("##host_general");
+#if XE_ARCH_AMD64
       for (int i = 0; i < 18; ++i) {
         auto reg = static_cast<X64Register>(i);
         ImGui::BeginGroup();
@@ -995,6 +1002,46 @@ void DebugWindow::DrawRegistersPane() {
             i, thread_info->host_context.xmm_registers[i].f32);
         ImGui::EndGroup();
       }
+#elif XE_ARCH_ARM64
+      // TODO(wunkolo): print ARM64 registers
+      for (int i = 0; i < 34; ++i) {
+        auto reg = static_cast<Arm64Register>(i);
+        ImGui::BeginGroup();
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("%3s", HostThreadContext::GetRegisterName(reg));
+        ImGui::SameLine();
+        ImGui::Dummy(ImVec2(4, 0));
+        ImGui::SameLine();
+        if (reg == Arm64Register::kPc) {
+          dirty_guest_context |=
+              DrawRegisterTextBox(i, &thread_info->host_context.pc);
+        } else if (reg == Arm64Register::kPstate) {
+          dirty_guest_context =
+              DrawRegisterTextBox(i, &thread_info->host_context.cpsr);
+        } else {
+          dirty_guest_context |=
+              DrawRegisterTextBox(i, &thread_info->host_context.x[i]);
+        }
+        ImGui::EndGroup();
+      }
+      ImGui::EndChild();
+    } break;
+    case RegisterGroup::kHostVector: {
+      ImGui::BeginChild("##host_vector");
+      for (int i = 0; i < 32; ++i) {
+        auto reg = static_cast<Arm64Register>(
+            static_cast<int>(Arm64Register::kV0) + i);
+        ImGui::BeginGroup();
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("%5s", HostThreadContext::GetRegisterName(reg));
+        ImGui::SameLine();
+        ImGui::Dummy(ImVec2(4, 0));
+        ImGui::SameLine();
+        dirty_host_context |=
+            DrawRegisterTextBoxes(i, thread_info->host_context.v[i].f32);
+        ImGui::EndGroup();
+      }
+#endif
       ImGui::EndChild();
     }
   }
@@ -1144,7 +1191,8 @@ void DebugWindow::DrawBreakpointsPane() {
     ImGui::OpenPopup("##add_code_breakpoint");
   }
   if (ImGui::IsItemHovered()) {
-    ImGui::SetTooltip("Add a code breakpoint for either PPC or x64.");
+    ImGui::SetTooltip(
+        "Add a code breakpoint for either PPC or " XE_HOST_ARCH_NAME ".");
   }
   // TODO(benvanik): remove this set focus workaround when imgui is fixed:
   // https://github.com/ocornut/imgui/issues/343
@@ -1178,15 +1226,15 @@ void DebugWindow::DrawBreakpointsPane() {
     ImGui::Dummy(ImVec2(0, 2));
 
     ImGui::AlignTextToFramePadding();
-    ImGui::Text("x64");
+    ImGui::Text(XE_HOST_ARCH_NAME);
     ImGui::SameLine();
     ImGui::Dummy(ImVec2(2, 0));
     ImGui::SameLine();
-    static char x64_buffer[64] = {0};
+    static char asm_buffer[64] = {0};
     ImGui::PushItemWidth(100);
-    if (ImGui::InputText("##host_address", x64_buffer, 17, input_flags)) {
-      uint64_t address = string_util::from_string<uint64_t>(x64_buffer, true);
-      x64_buffer[0] = 0;
+    if (ImGui::InputText("##host_address", asm_buffer, 17, input_flags)) {
+      uint64_t address = string_util::from_string<uint64_t>(asm_buffer, true);
+      asm_buffer[0] = 0;
       CreateCodeBreakpoint(Breakpoint::AddressType::kHost, address);
       ImGui::CloseCurrentPopup();
     }

@@ -85,3 +85,6 @@
 [submodule "third_party/VulkanMemoryAllocator"]
 	path = third_party/VulkanMemoryAllocator
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+[submodule "third_party/oaknut"]
+	path = third_party/oaknut
+	url = https://github.com/merryhime/oaknut.git
