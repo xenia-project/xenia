@@ -1127,15 +1127,13 @@ void XexModule::Precompile() {
                                 high_code);
   final_image_sha_.finalize(image_sha_bytes_);
 
-  char fmtbuf[20];
+  image_sha_str_.clear();
+  for (unsigned i = 0; i < sizeof(image_sha_bytes_); ++i) {
+    image_sha_str_ += fmt::format("{:02X}", image_sha_bytes_[i]);
+  }
 
-  for (unsigned i = 0; i < 20; ++i) {
-#ifdef XE_PLATFORM_WIN32
-    sprintf_s(fmtbuf, "%X", image_sha_bytes_[i]);
-#else
-    snprintf(fmtbuf, sizeof(fmtbuf), "%X", image_sha_bytes_[i]);
-#endif
-    image_sha_str_ += &fmtbuf[0];
+  if (image_sha_str_.size() != sizeof(image_sha_bytes_) * 2) {
+    XELOGE("XEX hash is the wrong length!");
   }
 
   // Find __savegprlr_* and __restgprlr_* and the others.
