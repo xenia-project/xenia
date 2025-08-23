@@ -1486,7 +1486,8 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
               resolve_copy_pipelines_[size_t(copy_shader)]);
           command_processor_.SubmitBarriers();
           if (cvars::log_resolves) {
-            XELOGGPU("Resolve(D3D12): dispatch %s", copy_shader_info.debug_name);
+            XELOGGPU("Resolve(D3D12): dispatch %s",
+                     copy_shader_info.debug_name);
           }
           command_list.D3DDispatch(copy_group_count_x, copy_group_count_y, 1);
 

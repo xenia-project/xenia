@@ -1055,7 +1055,8 @@ bool VulkanRenderTargetCache::Resolve(const Memory& memory,
       resolve_info.GetCopyEdramTileSpan(span_base, span_row_len, span_rows,
                                         span_pitch);
       XELOGGPU(
-          "Resolve(VK): copy_len=%u dest=[%u..%u) tiles base=%u row_len=%u rows=%u "
+          "Resolve(VK): copy_len=%u dest=[%u..%u) tiles base=%u row_len=%u "
+          "rows=%u "
           "pitch=%u clearD=%d clearC=%d",
           resolve_info.copy_dest_extent_length,
           resolve_info.copy_dest_extent_start,

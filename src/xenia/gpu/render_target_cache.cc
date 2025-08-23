@@ -200,10 +200,9 @@ DEFINE_bool(
     "GPU");
 
 // Optional resolve logging for debugging specific titles.
-DEFINE_bool(
-    log_resolves, false,
-    "Log EDRAM resolve parameters and selected shaders for debugging.",
-    "GPU");
+DEFINE_bool(log_resolves, false,
+            "Log EDRAM resolve parameters and selected shaders for debugging.",
+            "GPU");
 
 namespace xe {
 namespace gpu {
