@@ -451,9 +451,9 @@ class D3D12TextureCache final : public TextureCache {
       {DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown,
        DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,
        kLoadShaderIndexUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
-      // k_DXN
-      {DXGI_FORMAT_BC5_UNORM, DXGI_FORMAT_BC5_UNORM, kLoadShaderIndex128bpb,
-       DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, true,
+      // k_DXN (BC5). Use SNORM when the guest requests signed components.
+      {DXGI_FORMAT_BC5_TYPELESS, DXGI_FORMAT_BC5_UNORM, kLoadShaderIndex128bpb,
+       DXGI_FORMAT_BC5_SNORM, kLoadShaderIndexUnknown, true,
        DXGI_FORMAT_R8G8_UNORM, kLoadShaderIndexDXNToRG8,
        xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
       // k_8_8_8_8_AS_16_16_16_16
@@ -501,10 +501,12 @@ class D3D12TextureCache final : public TextureCache {
       {DXGI_FORMAT_R8_UNORM, DXGI_FORMAT_R8_UNORM, kLoadShaderIndexDXT3A,
        DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,
        kLoadShaderIndexUnknown, xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
-      // k_DXT5A
-      {DXGI_FORMAT_BC4_UNORM, DXGI_FORMAT_BC4_UNORM, kLoadShaderIndex64bpb,
-       DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, true, DXGI_FORMAT_R8_UNORM,
-       kLoadShaderIndexDXT5AToR8, xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
+      // k_DXT5A (BC4). Use SNORM when the guest requests signed components.
+      {DXGI_FORMAT_BC4_TYPELESS, DXGI_FORMAT_BC4_UNORM, kLoadShaderIndex64bpb,
+       DXGI_FORMAT_BC4_SNORM, kLoadShaderIndexUnknown, true,
+       // Fallback for devices without BC4 support.
+       DXGI_FORMAT_R8_UNORM, kLoadShaderIndexDXT5AToR8,
+       xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
       // k_CTX1
       {DXGI_FORMAT_R8G8_UNORM, DXGI_FORMAT_R8G8_UNORM, kLoadShaderIndexCTX1,
        DXGI_FORMAT_UNKNOWN, kLoadShaderIndexUnknown, false, DXGI_FORMAT_UNKNOWN,

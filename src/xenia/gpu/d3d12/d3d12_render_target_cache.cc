@@ -1349,6 +1349,21 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
   // Copying.
   bool copied = false;
   if (resolve_info.copy_dest_extent_length) {
+    if (cvars::log_resolves) {
+      uint32_t span_base = 0, span_row_len = 0, span_rows = 0, span_pitch = 0;
+      resolve_info.GetCopyEdramTileSpan(span_base, span_row_len, span_rows,
+                                        span_pitch);
+      XELOGGPU(
+          "Resolve(D3D12): copy_len=%u dest=[%u..%u) tiles base=%u row_len=%u "
+          "rows=%u pitch=%u clearD=%d clearC=%d",
+          resolve_info.copy_dest_extent_length,
+          resolve_info.copy_dest_extent_start,
+          resolve_info.copy_dest_extent_start +
+              resolve_info.copy_dest_extent_length,
+          span_base, span_row_len, span_rows, span_pitch,
+          int(resolve_info.IsClearingDepth()),
+          int(resolve_info.IsClearingColor()));
+    }
     if (GetPath() == Path::kHostRenderTargets) {
       // Dump the current contents of the render targets owning the affected
       // range to edram_buffer_.
@@ -1372,6 +1387,11 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
     if (copy_shader != draw_util::ResolveCopyShaderIndex::kUnknown) {
       const draw_util::ResolveCopyShaderInfo& copy_shader_info =
           draw_util::resolve_copy_shader_info[size_t(copy_shader)];
+      if (cvars::log_resolves) {
+        XELOGGPU("Resolve(D3D12): shader=%s groups=(%u,%u)",
+                 copy_shader_info.debug_name, copy_group_count_x,
+                 copy_group_count_y);
+      }
 
       // Make sure there is memory to write to.
       bool copy_dest_committed;
@@ -1465,6 +1485,9 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
           command_processor_.SetExternalPipeline(
               resolve_copy_pipelines_[size_t(copy_shader)]);
           command_processor_.SubmitBarriers();
+          if (cvars::log_resolves) {
+            XELOGGPU("Resolve(D3D12): dispatch %s", copy_shader_info.debug_name);
+          }
           command_list.D3DDispatch(copy_group_count_x, copy_group_count_y, 1);
 
           // Order the resolve with other work using the destination as a UAV.

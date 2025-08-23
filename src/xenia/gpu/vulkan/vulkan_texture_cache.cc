@@ -325,10 +325,10 @@ constexpr VulkanTextureCache::HostFormatPair
         {{kLoadShaderIndexUnknown},
          {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
-        // k_DXN
-        // VK_FORMAT_BC5_UNORM_BLOCK is optional.
+        // k_DXN (BC5)
+        // VK_FORMAT_BC5_[U|S]NORM_BLOCK are optional.
         {{kLoadShaderIndex128bpb, VK_FORMAT_BC5_UNORM_BLOCK, true},
-         {kLoadShaderIndexUnknown},
+         {kLoadShaderIndex128bpb, VK_FORMAT_BC5_SNORM_BLOCK, true},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG},
         // k_8_8_8_8_AS_16_16_16_16
         {{kLoadShaderIndex32bpb, VK_FORMAT_R8G8B8A8_UNORM},
@@ -376,10 +376,10 @@ constexpr VulkanTextureCache::HostFormatPair
         {{kLoadShaderIndexDXT3A, VK_FORMAT_R8_UNORM},
          {kLoadShaderIndexUnknown},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
-        // k_DXT5A
-        // VK_FORMAT_BC4_UNORM_BLOCK is optional.
+        // k_DXT5A (BC4)
+        // VK_FORMAT_BC4_[U|S]NORM_BLOCK are optional.
         {{kLoadShaderIndex64bpb, VK_FORMAT_BC4_UNORM_BLOCK, true},
-         {kLoadShaderIndexUnknown},
+         {kLoadShaderIndex64bpb, VK_FORMAT_BC4_SNORM_BLOCK, true},
          xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR},
         // k_CTX1
         {{kLoadShaderIndexCTX1, VK_FORMAT_R8G8_UNORM},
@@ -1853,6 +1853,17 @@ bool VulkanTextureCache::Initialize() {
     host_format_dxn.format_unsigned.format = VK_FORMAT_R8G8_UNORM;
     host_format_dxn.format_unsigned.block_compressed = false;
   }
+  // Check signed BC5 support; if unavailable, fall back to R8G8_SNORM.
+  if (host_format_dxn.format_signed.format == VK_FORMAT_BC5_SNORM_BLOCK) {
+    ifn.vkGetPhysicalDeviceFormatProperties(
+        physical_device, VK_FORMAT_BC5_SNORM_BLOCK, &format_properties);
+    if ((format_properties.optimalTilingFeatures & kLinearFilterFeatures) !=
+        kLinearFilterFeatures) {
+      host_format_dxn.format_signed.load_shader = kLoadShaderIndexDXNToRG8;
+      host_format_dxn.format_signed.format = VK_FORMAT_R8G8_SNORM;
+      host_format_dxn.format_signed.block_compressed = false;
+    }
+  }
   HostFormatPair& host_format_dxt5a =
       host_formats_[uint32_t(xenos::TextureFormat::k_DXT5A)];
   assert_true(host_format_dxt5a.format_unsigned.format ==
@@ -1864,6 +1875,17 @@ bool VulkanTextureCache::Initialize() {
     host_format_dxt5a.format_unsigned.load_shader = kLoadShaderIndexDXT5AToR8;
     host_format_dxt5a.format_unsigned.format = VK_FORMAT_R8_UNORM;
     host_format_dxt5a.format_unsigned.block_compressed = false;
+  }
+  // Check signed BC4 support; if unavailable, fall back to R8_SNORM.
+  if (host_format_dxt5a.format_signed.format == VK_FORMAT_BC4_SNORM_BLOCK) {
+    ifn.vkGetPhysicalDeviceFormatProperties(
+        physical_device, VK_FORMAT_BC4_SNORM_BLOCK, &format_properties);
+    if ((format_properties.optimalTilingFeatures & kLinearFilterFeatures) !=
+        kLinearFilterFeatures) {
+      host_format_dxt5a.format_signed.load_shader = kLoadShaderIndexDXT5AToR8;
+      host_format_dxt5a.format_signed.format = VK_FORMAT_R8_SNORM;
+      host_format_dxt5a.format_signed.block_compressed = false;
+    }
   }
   // k_16, k_16_16, k_16_16_16_16 - UNORM / SNORM are optional, fall back to
   // SFLOAT, which is mandatory and is always filterable (the guest 16-bit
