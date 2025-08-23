@@ -36,6 +36,7 @@ DECLARE_bool(gamma_render_target_as_srgb);
 DECLARE_bool(native_2x_msaa);
 DECLARE_bool(native_stencil_value_output);
 DECLARE_bool(snorm16_render_target_full_range);
+DECLARE_bool(log_resolves);
 
 namespace xe {
 namespace gpu {
