@@ -130,6 +130,7 @@ class EmulatorWindow {
   void FileDrop(const std::filesystem::path& filename);
   void FileOpen();
   void FileClose();
+  void InstallContent();
   void ShowContentDirectory();
   void CpuTimeScalarReset();
   void CpuTimeScalarSetHalf();
