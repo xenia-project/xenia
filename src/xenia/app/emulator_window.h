@@ -139,6 +139,7 @@ class EmulatorWindow {
   void GpuTraceFrame();
   void GpuClearCaches();
   void ToggleDisplayConfigDialog();
+  void ToggleControllerVibration();
   void ShowCompatibility();
   void ShowFAQ();
   void ShowBuildCommit();
