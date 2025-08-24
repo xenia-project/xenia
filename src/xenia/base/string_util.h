@@ -111,6 +111,32 @@ inline size_t copy_and_swap_maybe_truncating(char16_t* dest,
   return chars_copied;
 }
 
+inline bool hex_string_to_array(std::vector<uint8_t>& output_array,
+                                const std::string_view value) {
+  output_array.reserve((value.size() + 1) / 2);
+
+  size_t remaining_length = value.size();
+  while (remaining_length > 0) {
+    uint8_t chars_to_read = remaining_length > 1 ? 2 : 1;
+    const char* substring_pointer =
+        value.data() + value.size() - remaining_length;
+
+    uint8_t string_value = 0;
+    std::from_chars_result result = std::from_chars(
+        substring_pointer, substring_pointer + chars_to_read, string_value, 16);
+
+    if (result.ec != std::errc() ||
+        result.ptr != substring_pointer + chars_to_read) {
+      output_array.clear();
+      return false;
+    }
+
+    output_array.push_back(string_value);
+    remaining_length -= chars_to_read;
+  }
+  return true;
+}
+
 inline std::string to_hex_string(uint32_t value) {
   return fmt::format("{:08X}", value);
 }

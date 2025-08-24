@@ -38,6 +38,7 @@ class UserModule : public XModule {
 
   const std::string& path() const override { return path_; }
   const std::string& name() const override { return name_; }
+  std::optional<uint64_t> hash() const { return hash_; }
 
   enum ModuleFormat {
     kModuleFormatUndefined = 0,
@@ -97,9 +98,11 @@ class UserModule : public XModule {
 
  private:
   X_STATUS LoadXexContinue();
+  void CalculateHash();
 
   std::string name_;
   std::string path_;
+  std::optional<uint64_t> hash_ = std::nullopt;
 
   uint32_t guest_xex_header_ = 0;
   ModuleFormat module_format_ = kModuleFormatUndefined;
