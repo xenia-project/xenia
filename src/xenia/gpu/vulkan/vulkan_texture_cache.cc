@@ -1280,7 +1280,6 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     write_descriptor_set_dest.pTexelBufferView = nullptr;
   }
   // TODO(Triang3l): Use a single 512 MB shared memory binding if possible.
-  // TODO(Triang3l): Scaled resolve buffer bindings.
   // Aligning because if the data for a vector in a storage buffer is provided
   // partially, the value read may still be (0, 0, 0, 0), and small (especially
   // linear) textures won't be loaded correctly.
@@ -1779,9 +1778,7 @@ VulkanTextureCache::VulkanTextureCache(
     : TextureCache(register_file, shared_memory, draw_resolution_scale_x,
                    draw_resolution_scale_y),
       command_processor_(command_processor),
-      guest_shader_pipeline_stages_(guest_shader_pipeline_stages) {
-  // TODO(Triang3l): Support draw resolution scaling.
-}
+      guest_shader_pipeline_stages_(guest_shader_pipeline_stages) {}
 
 bool VulkanTextureCache::Initialize() {
   const ui::vulkan::VulkanDevice* const vulkan_device =
