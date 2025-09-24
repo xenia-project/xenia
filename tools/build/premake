@@ -95,9 +95,18 @@ def build_premake():
   try:
     os.chdir(premake_path)
     if sys.platform == 'darwin':
+      # Detect the host architecture for macOS
+      import platform
+      machine = platform.machine().lower()
+      if machine in ['arm64', 'aarch64']:
+        bootstrap_platform = 'ARM64'
+      else:
+        bootstrap_platform = 'x86_64'
+      
       subprocess.call([
           'make',
           '-f', 'Bootstrap.mak',
+          'PLATFORM=' + bootstrap_platform,
           'osx',
           ], shell=False)
     elif sys.platform == 'win32':
@@ -108,17 +117,66 @@ def build_premake():
         sys.exit(1)
         return
 
+      # NOTE: On ARM64 Windows, the Bootstrap.mak doesn't support the arm64
+      # architecture flag for the bootstrap premake. We use PLATFORM=x86 which
+      # builds a bootstrap premake that can generate the proper ARM64 projects.
+      # The final premake5.exe will be built for the correct architecture.
+      # We also need to use a newer VS version than the default vs2012
+      vs_year = 'vs2022'
+      if 'VSVERSION' in os.environ:
+        vs_ver = os.environ['VSVERSION']
+        if vs_ver == '2019':
+          vs_year = 'vs2019'
+        elif vs_ver == '2017':
+          vs_year = 'vs2017'
+      
+      # Detect the host architecture for the bootstrap
+      import platform
+      machine = platform.machine().lower()
+      if machine in ['arm64', 'aarch64']:
+        bootstrap_platform = 'ARM64'  # Use uppercase ARM64 as shown in help
+      else:
+        bootstrap_platform = 'x86'
+      
+      # Use windows-msbuild target instead of windows to avoid devenv issues
       subprocess.call([
           'nmake',
           '-f', 'Bootstrap.mak',
-          'windows',
+          'PLATFORM=' + bootstrap_platform,
+          'MSDEV=' + vs_year,  # Use current VS version instead of vs2012
+          'windows-msbuild',  # Use msbuild directly instead of devenv
           ], shell=False)
     else:
+      # Detect the host architecture for Linux builds
+      import platform
+      machine = platform.machine().lower()
+      if machine in ['arm64', 'aarch64']:
+        bootstrap_platform = 'ARM64'
+        arch_flag = '--arch=ARM64'
+      elif machine in ['x86_64', 'amd64']:
+        bootstrap_platform = 'x86_64'
+        arch_flag = '--arch=x86_64'
+      else:
+        # Default to x86_64 for unknown architectures
+        bootstrap_platform = 'x86_64'
+        arch_flag = '--arch=x86_64'
+      
+      # Pass architecture via PREMAKE_OPTS environment variable
+      # which gets used by Bootstrap.mak in the premake_bootstrap command
+      env = os.environ.copy()
+      env['PREMAKE_OPTS'] = arch_flag
+      env['PLATFORM'] = bootstrap_platform
+      # Work around implicit function declaration errors in modern compilers
+      # by allowing implicit function declarations for the premake build
+      env['CFLAGS'] = '-Wno-error=implicit-function-declaration'
+      if 'CFLAGS' in os.environ:
+        env['CFLAGS'] = os.environ['CFLAGS'] + ' -Wno-error=implicit-function-declaration'
+      
       subprocess.call([
           'make',
           '-f', 'Bootstrap.mak',
           'linux',
-          ], shell=False)
+          ], shell=False, env=env)
   finally:
     os.chdir(cwd)
   pass
@@ -153,8 +211,22 @@ def clone_premake_to_internal_storage():
 
 
 def has_bin(bin):
-  """Checks whether the given binary is present.
+  """Checks whether the given binary is present and executable on this platform.
   """
+  # Check if the binary path was provided directly (not just a name)
+  if os.path.isfile(bin):
+    exe_file = bin
+    # Try to execute it to ensure it's compatible with this platform
+    try:
+      subprocess.run([exe_file, '--version'], 
+                     stdout=subprocess.DEVNULL, 
+                     stderr=subprocess.DEVNULL,
+                     timeout=1)
+      return True
+    except (subprocess.SubprocessError, OSError, FileNotFoundError):
+      return False
+  
+  # Original PATH search logic
   for path in os.environ["PATH"].split(os.pathsep):
     if sys.platform == 'win32':
       exe_file = os.path.join(path, bin + '.exe')
@@ -224,11 +296,30 @@ def import_vs_environment():
     if 'VS140COMNTOOLS' in os.environ:
       version = 2015
       vcvars_path = os.environ['VS140COMNTOOLS']
-      vcvars_path = os.path.join(tools_path, '..\\..\\vc\\vcvarsall.bat')
-      env_tool_args = [vcvars_path, 'x64', '&&', 'set']
+      vcvars_path = os.path.join(vcvars_path, '..\\..\\vc\\vcvarsall.bat')
+      
+      # Detect the host architecture
+      import platform
+      machine = platform.machine().lower()
+      if machine in ['arm64', 'aarch64']:
+        arch = 'arm64'
+      else:
+        arch = 'x64'
+      
+      env_tool_args = [vcvars_path, arch, '&&', 'set']
   else:
+    # Detect the host architecture
+    import platform
+    machine = platform.machine().lower()
+    if machine in ['arm64', 'aarch64']:
+      arch = 'arm64'
+      host_arch = 'arm64'
+    else:
+      arch = 'amd64'
+      host_arch = 'amd64'
+    
     vsdevcmd_path = os.path.join(install_path, 'Common7\\Tools\\VsDevCmd.bat')
-    env_tool_args = [vsdevcmd_path, '-arch=amd64', '-host_arch=amd64']
+    env_tool_args = [vsdevcmd_path, '-arch=' + arch, '-host_arch=' + host_arch, '&&', 'set']
 
   if version == 0:
     return None

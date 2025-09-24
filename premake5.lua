@@ -39,8 +39,8 @@ if ARCH ~= "ppc64" then
 end
 
 characterset("Unicode")
-flags({
-  "FatalWarnings",        -- Treat warnings as errors.
+fatalwarnings({
+  "All",        -- Treat warnings as errors.
 })
 
 filter("kind:StaticLib")
@@ -121,9 +121,7 @@ filter("configurations:Release")
   })
   optimize("Speed")
   inlining("Auto")
-  flags({
-    "LinkTimeOptimization",
-  })
+  linktimeoptimization "On"
   -- Not using floatingpoint("Fast") - NaN checks are used in some places
   -- (though rarely), overall preferable to avoid any functional differences
   -- between debug and release builds, and to have calculations involved in GPU
@@ -178,12 +176,7 @@ filter("platforms:Mac")
   })
   
   -- Additional Settings
-  flags({
-    "NoPCH",            -- Disable Precompiled Headers if not used
-    "Symbols",          -- Include debugging symbols
-  -- "OptimizeSpeed",  -- Removed to prevent conflict
-    -- Add other flags as needed
-  })
+  -- Premake defaults already exclude PCH usage and symbols are enabled globally.
 
     -- Optimization Flags per Configuration
     filter("configurations:Debug")
@@ -294,8 +287,8 @@ workspace("xenia")
     removefiles({
       "src/xenia/base/app_win32.manifest"
     })
-    removeflags({
-      "FatalWarnings",
+    removefatalwarnings({
+      "All"
     })
   end
 
