@@ -316,6 +316,7 @@ X_STATUS Emulator::LaunchXexFile(const std::filesystem::path& path) {
 
   // Create symlinks to the device.
   file_system_->RegisterSymbolicLink("game:", mount_path);
+  file_system_->RegisterSymbolicLink("update:", mount_path);
   file_system_->RegisterSymbolicLink("d:", mount_path);
 
   // Get just the filename (foo.xex).
@@ -342,6 +343,7 @@ X_STATUS Emulator::LaunchDiscImage(const std::filesystem::path& path) {
 
   // Create symlinks to the device.
   file_system_->RegisterSymbolicLink("game:", mount_path);
+  file_system_->RegisterSymbolicLink("update:", mount_path);
   file_system_->RegisterSymbolicLink("d:", mount_path);
 
   // Launch the game.
@@ -365,6 +367,7 @@ X_STATUS Emulator::LaunchStfsContainer(const std::filesystem::path& path) {
   }
 
   file_system_->RegisterSymbolicLink("game:", mount_path);
+  file_system_->RegisterSymbolicLink("update:", mount_path);
   file_system_->RegisterSymbolicLink("d:", mount_path);
 
   // Launch the game.
