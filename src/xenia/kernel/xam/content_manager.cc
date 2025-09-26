@@ -18,7 +18,7 @@
 #include "xenia/kernel/xfile.h"
 #include "xenia/kernel/xobject.h"
 #include "xenia/vfs/devices/host_path_device.h"
-
+#include "xenia/vfs/devices/stfs_container_device.h"
 namespace xe {
 namespace kernel {
 namespace xam {
@@ -32,14 +32,21 @@ static int content_device_id_ = 0;
 ContentPackage::ContentPackage(KernelState* kernel_state,
                                const std::string_view root_name,
                                const XCONTENT_AGGREGATE_DATA& data,
-                               const std::filesystem::path& package_path)
+                               const std::filesystem::path& package_path,
+                               bool stfs)
     : kernel_state_(kernel_state), root_name_(root_name) {
   device_path_ = fmt::format("\\Device\\Content\\{0}\\", ++content_device_id_);
   content_data_ = data;
 
   auto fs = kernel_state_->file_system();
-  auto device =
-      std::make_unique<vfs::HostPathDevice>(device_path_, package_path, false);
+  std::unique_ptr<vfs::Device> device;
+  if (stfs)
+    device =
+        std::make_unique<vfs::StfsContainerDevice>(device_path_, package_path);
+  else
+    device = std::make_unique<vfs::HostPathDevice>(device_path_, package_path,
+                                                   false);
+
   device->Initialize();
   fs->RegisterDevice(std::move(device));
   fs->RegisterSymbolicLink(root_name_ + ":", device_path_);
@@ -151,6 +158,49 @@ X_RESULT ContentManager::CreateContent(const std::string_view root_name,
   open_packages_.insert({string_key::create(root_name), package.release()});
 
   return X_ERROR_SUCCESS;
+}
+
+// saves content from vfs to host
+// if successful, initlisised data thats passed.
+X_RESULT ContentManager::MountContentToHost(const std::string_view vpath,
+                                            const std::string_view root_name,
+                                            XCONTENT_AGGREGATE_DATA& data) {
+  data.content_type =
+      XContentType::kAvatarItem;  //? this is what velocity says for
+                                  // Database,NuiIdentity
+  data.device_id = 4;             // DeviceType::ODD;
+  data.set_display_name(to_utf16(root_name));
+  data.title_id = kernel_state_->title_id();
+  data.set_file_name(root_name);
+
+  auto path = ResolvePackagePath(data);
+  if (!std::filesystem::exists(path)) {
+    std::filesystem::create_directories(path.parent_path());
+    auto fs = kernel_state_->file_system();
+    auto hostfile = xe::filesystem::OpenFile(path, "wb");
+    xe::vfs::FileAction action;
+    xe::vfs::File* guestFile;
+    fs->OpenFile(nullptr, vpath, xe::vfs::FileDisposition::kOpen,
+                 xe::vfs::FileAccess::kGenericRead, false, true, &guestFile,
+                 &action);
+
+    auto size = guestFile->entry()->size();
+    std::vector<uint8_t> buffer(size);
+    size_t read;
+    guestFile->ReadSync(buffer.data(), size, 0, &read);
+    fwrite(buffer.data(), 1, size, hostfile);
+    fclose(hostfile);
+  }
+  if (open_packages_.count(string_key(root_name))) {
+    return X_ERROR_ALREADY_EXISTS;
+  }
+  auto global_lock = global_critical_region_.Acquire();
+
+  auto package = std::make_unique<ContentPackage>(kernel_state_, root_name,
+                                                  data, path, true);
+  open_packages_.insert({string_key::create(root_name), package.release()});
+
+  return X_E_SUCCESS;
 }
 
 X_RESULT ContentManager::OpenContent(const std::string_view root_name,
