@@ -612,6 +612,10 @@ bool EmulatorWindow::Initialize() {
               "..." XE_BUILD_BRANCH);
         }));
     help_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
+    help_menu->AddChild(
+        MenuItem::Create(MenuItem::Type::kString, "Check for &updates...",
+                         std::bind(&EmulatorWindow::CheckForUpdates, this)));
+    help_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
     help_menu->AddChild(MenuItem::Create(
         MenuItem::Type::kString, "&About...",
         [this]() { LaunchWebBrowser("https://xenia.jp/about/"); }));
@@ -1019,6 +1023,197 @@ void EmulatorWindow::SetInitializingShaderStorage(bool initializing) {
   }
   initializing_shader_storage_ = initializing;
   UpdateTitle();
+}
+
+class EmulatorWindow::UpdateDialog : public xe::ui::ImGuiDialog {
+ public:
+  UpdateDialog(xe::ui::ImGuiDrawer* imgui_drawer,
+               xe::ui::UpdateManager* update_manager)
+      : ui::ImGuiDialog(imgui_drawer),
+        update_manager_(update_manager),
+        state_(State::kChecking),
+        download_progress_(0.0f) {}
+
+  void OnDraw(ImGuiIO& io) override {
+    // Apply Xenia color scheme to the UpdateDialog window
+    ImGui::PushStyleColor(
+        ImGuiCol_WindowBg,
+        ImVec4(0.16f, 0.16f, 0.16f, 1.0f));  
+    ImGui::PushStyleColor(
+        ImGuiCol_TitleBgActive,
+        ImVec4(0.3f, 0.5f, 0.9f, 1.0f));  
+    ImGui::PushStyleColor(ImGuiCol_Button,
+                          ImVec4(0.25f, 0.45f, 0.85f, 1.0f));
+    ImGui::PushStyleColor(
+        ImGuiCol_ButtonHovered,
+        ImVec4(0.35f, 0.55f, 0.95f, 1.0f));  
+    ImGui::PushStyleColor(
+        ImGuiCol_ButtonActive,
+        ImVec4(0.2f, 0.4f, 0.75f, 1.0f));  
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          ImVec4(1.0f, 1.0f, 1.0f, 1.0f)); 
+    ImGui::PushStyleColor(ImGuiCol_Border,
+                          ImVec4(0.3f, 0.3f, 0.3f, 1.0f));  
+    ImGui::PushStyleColor(ImGuiCol_BorderShadow,
+                          ImVec4(0.0f, 0.0f, 0.0f, 0.0f));  
+    ImGui::PushStyleColor(
+        ImGuiCol_FrameBg,
+        ImVec4(0.2f, 0.2f, 0.2f, 1.0f));  
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered,
+                          ImVec4(0.25f, 0.25f, 0.25f, 1.0f));  
+    ImGui::PushStyleColor(ImGuiCol_FrameBgActive,
+                          ImVec4(0.3f, 0.3f, 0.3f, 1.0f)); 
+    ImGui::PushStyleColor(
+        ImGuiCol_Separator,
+        ImVec4(0.4f, 0.4f, 0.4f, 1.0f)); 
+    ImGui::PushStyleColor(
+        ImGuiCol_PlotHistogram,
+        ImVec4(0.25f, 0.45f, 0.85f, 1.0f)); 
+
+    ImGui::SetNextWindowPos(
+        ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f),
+        ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(450, 220), ImGuiCond_FirstUseEver);
+
+    bool dialog_open = true;
+    if (!ImGui::Begin(
+            "Check for Updates", &dialog_open,
+            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize)) {
+      ImGui::PopStyleColor(13); 
+      ImGui::End();
+      return;
+    }
+
+    ImGui::TextWrapped("Current build: %s@%s", XE_BUILD_BRANCH,
+                       XE_BUILD_COMMIT_SHORT);
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    switch (state_) {
+      case State::kChecking:
+        ImGui::TextWrapped("Checking for updates...");
+        ImGui::ProgressBar(static_cast<float>(-1.0 * ImGui::GetTime()),
+                           ImVec2(-1, 0));
+        break;
+
+      case State::kNoUpdate:
+        ImGui::TextWrapped("You are running the latest version.");
+        ImGui::Spacing();
+        if (ImGui::Button("OK", ImVec2(-1, 0))) {
+          dialog_open = false;
+        }
+        break;
+
+      case State::kUpdateAvailable:
+        ImGui::TextWrapped("A new version is available: %s",
+                           update_info_.version.c_str());
+        ImGui::Spacing();
+        if (ImGui::Button("Download and Install", ImVec2(-1, 0))) {
+          state_ = State::kDownloading;
+          StartDownload();
+        }
+        if (ImGui::Button("Later", ImVec2(-1, 0))) {
+          dialog_open = false;
+        }
+        break;
+
+      case State::kDownloading:
+        ImGui::TextWrapped("Downloading update...");
+        ImGui::ProgressBar(download_progress_, ImVec2(-1, 0));
+        ImGui::TextWrapped("%.1f MB / %.1f MB", downloaded_mb_, total_size_mb_);
+        break;
+
+      case State::kInstalling:
+        ImGui::TextWrapped("Installing update...");
+        ImGui::TextWrapped("Xenia will restart momentarily.");
+        break;
+
+      case State::kError:
+        ImGui::TextWrapped("Failed to check for updates.");
+        ImGui::TextWrapped("Please check your internet connection.");
+        ImGui::Spacing();
+        if (ImGui::Button("OK", ImVec2(-1, 0))) {
+          dialog_open = false;
+        }
+        break;
+    }
+
+    ImGui::End();
+
+    ImGui::PopStyleColor(13);
+
+    if (!dialog_open) {
+      Close();
+    }
+  }
+
+  void SetUpdateInfo(const xe::ui::UpdateInfo& info) {
+    update_info_ = info;
+    if (info.update_available) {
+      state_ = State::kUpdateAvailable;
+    } else {
+      state_ = State::kNoUpdate;
+    }
+  }
+
+  void SetError() { state_ = State::kError; }
+
+ private:
+  enum class State {
+    kChecking,
+    kNoUpdate,
+    kUpdateAvailable,
+    kDownloading,
+    kInstalling,
+    kError
+  };
+
+  void StartDownload() {
+    update_manager_->DownloadAndInstallUpdate(
+        update_info_.download_url,
+        [this](uint64_t downloaded, uint64_t total) {
+          if (total > 0) {
+            download_progress_ =
+                static_cast<float>(downloaded) / static_cast<float>(total);
+            downloaded_mb_ = static_cast<float>(downloaded) / 1024.0f / 1024.0f;
+            total_size_mb_ = static_cast<float>(total) / 1024.0f / 1024.0f;
+          }
+        },
+        [this](bool success) {
+          if (success) {
+            state_ = State::kInstalling;
+          } else {
+            state_ = State::kError;
+          }
+        });
+  }
+
+  xe::ui::UpdateManager* update_manager_;
+  State state_;
+  xe::ui::UpdateInfo update_info_;
+  float download_progress_;
+  float downloaded_mb_ = 0.0f;
+  float total_size_mb_ = 0.0f;
+};
+
+
+void EmulatorWindow::CheckForUpdates() {
+  if (!update_manager_) {
+    update_manager_ = std::make_unique<xe::ui::UpdateManager>();
+  }
+
+  auto dialog = new UpdateDialog(imgui_drawer_.get(), update_manager_.get());
+
+  // Start async update check
+  update_manager_->CheckForUpdatesAsync(
+      [dialog](const xe::ui::UpdateInfo& info) {
+        if (info.version.empty()) {
+          dialog->SetError();
+        } else {
+          dialog->SetUpdateInfo(info);
+        }
+      });
 }
 
 }  // namespace app
