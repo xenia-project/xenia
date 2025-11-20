@@ -337,6 +337,16 @@ bool Processor::Execute(ThreadState* thread_state, uint32_t address) {
 
   auto context = thread_state->context();
 
+  // Defensive: ensure the context's global mutex pointer hasn't been clobbered
+  // by guest code scribbling over the red zone. A corrupt pointer (like 0x1)
+  // leads to a crash when unlock() is invoked by translated code paths.
+  auto& expected_global_mutex = xe::global_critical_region::mutex();
+  if (context->global_mutex != &expected_global_mutex) {
+    uintptr_t raw_ptr = reinterpret_cast<uintptr_t>(context->global_mutex);
+    XELOGE("PPCContext global_mutex pointer corrupted (was {:p} / 0x{:X}), restoring", context->global_mutex, raw_ptr);
+    context->global_mutex = &expected_global_mutex;
+  }
+
   // Pad out stack a bit, as some games seem to overwrite the caller by about
   // 16 to 32b.
   context->r[1] -= 64 + 112;

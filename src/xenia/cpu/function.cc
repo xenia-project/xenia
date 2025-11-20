@@ -44,6 +44,12 @@ bool BuiltinFunction::Call(ThreadState* thread_state, uint32_t return_address) {
   }
 
   assert_not_null(handler_);
+  // Detect corruption of builtin argument pointers (e.g., global mutex
+  // accidentally overwritten by guest code). A very low non-null address is
+  // almost certainly invalid here and has led to crashes in unlock().
+  if (arg0_ && reinterpret_cast<uintptr_t>(arg0_) < 0x1000) {
+    XELOGE("BuiltinFunction '{}' arg0 pointer appears corrupt: {:p}", name(), arg0_);
+  }
   handler_(thread_state->context(), arg0_, arg1_);
 
   if (original_thread_state != thread_state) {
@@ -127,6 +133,16 @@ bool GuestFunction::Call(ThreadState* thread_state, uint32_t return_address) {
   ThreadState* original_thread_state = ThreadState::Get();
   if (original_thread_state != thread_state) {
     ThreadState::Bind(thread_state);
+  }
+
+  // Validate the global mutex pointer before executing guest code to help
+  // diagnose crashes where std::recursive_mutex::unlock() sees an invalid
+  // 'this' (e.g., 0x1).
+  auto ctx = thread_state->context();
+  auto& expected_global_mutex = xe::global_critical_region::mutex();
+  if (ctx->global_mutex != &expected_global_mutex) {
+    XELOGE("GuestFunction '{}' executing with corrupted global_mutex {:p}; restoring", name(), ctx->global_mutex);
+    ctx->global_mutex = &expected_global_mutex;
   }
 
   bool result = CallImpl(thread_state, return_address);
