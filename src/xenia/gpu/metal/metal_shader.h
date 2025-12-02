@@ -10,6 +10,8 @@
 #ifndef XENIA_GPU_METAL_METAL_SHADER_H_
 #define XENIA_GPU_METAL_METAL_SHADER_H_
 
+#include <vector>
+
 #include "xenia/gpu/dxbc_shader.h"
 #include "xenia/ui/metal/metal_api.h"
 
@@ -18,22 +20,39 @@ namespace gpu {
 namespace metal {
 
 class DxbcToDxilConverter;
-    
+class MetalShaderConverter;
+
 class MetalShader : public DxbcShader {
  public:
   class MetalTranslation : public DxbcTranslation {
    public:
     MetalTranslation(MetalShader& shader, uint64_t modification)
         : DxbcTranslation(shader, modification) {}
+    ~MetalTranslation();
 
-    // Convert DXBC -> DXIL -> Metal IR
-    bool TranslateToMetalIR(DxbcToDxilConverter& converter,
-                            IRCompiler* compiler,
-                            IRRootSignature* root_signature);
+    // Convert DXBC -> DXIL -> Metal IR using the shader converter
+    bool TranslateToMetal(MTL::Device* device,
+                          DxbcToDxilConverter& dxbc_converter,
+                          MetalShaderConverter& metal_converter);
 
-    IRObject* metal_ir_ = nullptr;
+    // Get the Metal library (contains compiled shader)
+    MTL::Library* metal_library() const { return metal_library_; }
+
+    // Get the Metal function (shader entry point)
+    MTL::Function* metal_function() const { return metal_function_; }
+
+    // Check if translation succeeded
+    bool is_valid() const { return metal_function_ != nullptr; }
+
+    // Get intermediate data for debugging
+    const std::vector<uint8_t>& dxil_data() const { return dxil_data_; }
+    const std::vector<uint8_t>& metallib_data() const { return metallib_data_; }
+
+   private:
+    MTL::Library* metal_library_ = nullptr;
     MTL::Function* metal_function_ = nullptr;
     std::vector<uint8_t> dxil_data_;
+    std::vector<uint8_t> metallib_data_;
   };
 
   MetalShader(xenos::ShaderType shader_type, uint64_t ucode_data_hash,
@@ -76,4 +95,4 @@ class MetalShader : public DxbcShader {
 }  // namespace gpu
 }  // namespace xe
 
-#endif
+#endif  // XENIA_GPU_METAL_METAL_SHADER_H_

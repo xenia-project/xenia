@@ -1,16 +1,28 @@
 /**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2025 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+/**
  * DXBC to DXIL converter implementation
+ * Uses native macOS dxbc2dxil binary (no Wine required)
  */
 
 #include "dxbc_to_dxil_converter.h"
 
-#include <cstdlib>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <cstdio>
+#include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
-#include <filesystem>
-#include <unistd.h>
-#include <sys/stat.h>
+
+#include "xenia/base/logging.h"
 
 namespace xe {
 namespace gpu {
@@ -25,91 +37,71 @@ DxbcToDxilConverter::DxbcToDxilConverter() {
     temp_dir_ = "/tmp";
   }
   temp_dir_ += "/xenia_dxbc2dxil";
-  
+
   // Create temp directory if it doesn't exist
   mkdir(temp_dir_.c_str(), 0700);
 }
 
-DxbcToDxilConverter::~DxbcToDxilConverter() {
-  CleanupTempFiles();
-}
+DxbcToDxilConverter::~DxbcToDxilConverter() { CleanupTempFiles(); }
 
 bool DxbcToDxilConverter::Initialize() {
-  // Check if Wine is available
-  wine_path_ = "wine";
-  if (system("which wine > /dev/null 2>&1") != 0) {
-    printf("[DxbcToDxilConverter] Wine not found in PATH, will hardcode path: /opt/homebrew/bin/wine\n");
-      wine_path_ = "/opt/homebrew/bin/wine";
-  }
-
-  // Look for dxbc2dxil.exe in various locations
+  // Look for native dxbc2dxil binary in various locations
+  // Priority: native macOS binary > Wine-based fallback
   std::vector<std::string> search_paths = {
-    // third_party/dxbc2dxil directory (preferred)
-    "../../../../third_party/dxbc2dxil/bin/dxbc2dxil.exe",
-    "../../../third_party/dxbc2dxil/bin/dxbc2dxil.exe",
-    "../../third_party/dxbc2dxil/bin/dxbc2dxil.exe",
-    "../third_party/dxbc2dxil/bin/dxbc2dxil.exe",
-    "./third_party/dxbc2dxil/bin/dxbc2dxil.exe",
-    // Windows binaries directory
-    "./windows_binaries/dxbc2dxil.exe",
-    "./test_dxbc2dxil_build/windows_binaries/dxbc2dxil.exe",
-    "../test_dxbc2dxil_build/windows_binaries/dxbc2dxil.exe",
-    // Local build directory
-    "./dxbc2dxil.exe",
-    "./test_dxbc2dxil_build/dxbc2dxil.exe",
-    "../test_dxbc2dxil_build/dxbc2dxil.exe",
-    "../../test_dxbc2dxil_build/dxbc2dxil.exe",
-    // Stub for testing
-    "./dxbc2dxil_stub.sh",
-    "./test_dxbc2dxil_build/dxbc2dxil_stub.sh",
-    // DirectXShaderCompiler build outputs
-    "./third_party/DirectXShaderCompiler/build/bin/dxbc2dxil.exe",
-    "../third_party/DirectXShaderCompiler/build/bin/dxbc2dxil.exe",
-    // User-provided location
-    std::string(std::getenv("DXBC2DXIL_PATH") ? std::getenv("DXBC2DXIL_PATH") : "")
-  };
+      // Native macOS binary from DirectXShaderCompiler build (highest priority)
+      "./third_party/DirectXShaderCompiler/build/bin/dxbc2dxil",
+      "../third_party/DirectXShaderCompiler/build/bin/dxbc2dxil",
+      "../../third_party/DirectXShaderCompiler/build/bin/dxbc2dxil",
+      "../../../third_party/DirectXShaderCompiler/build/bin/dxbc2dxil",
+      "../../../../third_party/DirectXShaderCompiler/build/bin/dxbc2dxil",
+      // Build output directory
+      "./build/bin/dxbc2dxil", "../build/bin/dxbc2dxil",
+      // User-provided location via environment variable
+      std::string(std::getenv("DXBC2DXIL_PATH") ? std::getenv("DXBC2DXIL_PATH")
+                                                : "")};
 
   for (const auto& path : search_paths) {
-    if (!path.empty() && access(path.c_str(), F_OK) == 0) {
+    if (!path.empty() && access(path.c_str(), X_OK) == 0) {
       dxbc2dxil_path_ = path;
-      printf("[DxbcToDxilConverter] Found dxbc2dxil.exe at: %s\n", path.c_str());
+      XELOGI("DxbcToDxilConverter: Found native dxbc2dxil at: {}", path);
       is_available_ = true;
-      
-      // Test if it's executable
-      if (path.find(".sh") != std::string::npos) {
-        // It's a shell script (stub), test directly
-        std::string test_cmd = "bash " + dxbc2dxil_path_ + " 2>&1 | head -1";
-        if (system(test_cmd.c_str()) == 0) {
-          printf("[DxbcToDxilConverter] Using stub script for testing\n");
-          return true;
+
+      // Test if it works
+      std::string test_cmd = dxbc2dxil_path_ + " --help 2>&1 | head -1";
+      FILE* pipe = popen(test_cmd.c_str(), "r");
+      if (pipe) {
+        char buffer[256];
+        std::string output;
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+          output += buffer;
         }
-      } else {
-        // It's an exe, test with Wine
-        // dxbc2dxil.exe uses /? for help, not -help
-        std::string test_cmd = wine_path_ + " " + dxbc2dxil_path_ + " /? 2>&1 | grep -q \"Usage:\"";
-        if (system(test_cmd.c_str()) == 0) {
-          printf("[DxbcToDxilConverter] Wine can run dxbc2dxil.exe successfully\n");
+        int exit_code = pclose(pipe);
+
+        // The native binary should respond to --help
+        if (exit_code == 0 || output.find("Usage") != std::string::npos ||
+            output.find("dxbc2dxil") != std::string::npos) {
+          XELOGI("DxbcToDxilConverter: Native binary verified working");
           return true;
-        } else {
-          printf("[DxbcToDxilConverter] Wine failed to run dxbc2dxil.exe\n");
-          is_available_ = false;
         }
       }
+
+      // Even if --help fails, the binary might still work
+      // Some versions don't support --help but work fine with actual conversion
+      XELOGW(
+          "DxbcToDxilConverter: Could not verify binary with --help, but will "
+          "try to use it");
+      return true;
     }
   }
 
-  if (!is_available_) {
-    printf("[DxbcToDxilConverter] dxbc2dxil.exe not found!\n");
-    printf("Please build dxbc2dxil.exe and place it in one of these locations:\n");
-    for (const auto& path : search_paths) {
-      if (!path.empty()) {
-        printf("  - %s\n", path.c_str());
-      }
-    }
-    printf("Or set DXBC2DXIL_PATH environment variable\n");
-  }
+  // No native binary found
+  XELOGE("DxbcToDxilConverter: Native dxbc2dxil binary not found!");
+  XELOGE("Please build dxbc2dxil from third_party/DirectXShaderCompiler:");
+  XELOGE("  cd third_party/DirectXShaderCompiler && ./build_dxbc2dxil.sh");
+  XELOGE("Or set DXBC2DXIL_PATH environment variable to the binary location");
 
-  return is_available_;
+  is_available_ = false;
+  return false;
 }
 
 bool DxbcToDxilConverter::Convert(const std::vector<uint8_t>& dxbc_data,
@@ -117,7 +109,17 @@ bool DxbcToDxilConverter::Convert(const std::vector<uint8_t>& dxbc_data,
                                   std::string* error_message) {
   if (!is_available_) {
     if (error_message) {
-      *error_message = "DxbcToDxilConverter not initialized or dxbc2dxil.exe not found";
+      *error_message =
+          "DxbcToDxilConverter not initialized or dxbc2dxil not found";
+    }
+    return false;
+  }
+
+  // Validate DXBC header
+  if (dxbc_data.size() < 4 || dxbc_data[0] != 'D' || dxbc_data[1] != 'X' ||
+      dxbc_data[2] != 'B' || dxbc_data[3] != 'C') {
+    if (error_message) {
+      *error_message = "Invalid DXBC data - missing DXBC magic header";
     }
     return false;
   }
@@ -125,18 +127,25 @@ bool DxbcToDxilConverter::Convert(const std::vector<uint8_t>& dxbc_data,
   // Check for debug output directories from environment
   const char* dxbc_dir = std::getenv("XENIA_DXBC_OUTPUT_DIR");
   const char* dxil_dir = std::getenv("XENIA_DXIL_OUTPUT_DIR");
-  
-  // Generate unique shader ID
-  std::string shader_id = std::to_string(getpid()) + "_" + std::to_string(rand());
-  
-  // Create file paths (use debug directories if available, otherwise current dir)
-  std::string input_filename = dxbc_dir 
-    ? std::string(dxbc_dir) + "/shader_" + shader_id + ".dxbc"
-    : "temp_shader_" + shader_id + ".dxbc";
-  std::string output_filename = dxil_dir
-    ? std::string(dxil_dir) + "/shader_" + shader_id + ".dxil" 
-    : "temp_shader_" + shader_id + ".dxil";
-  
+
+  // Generate unique shader ID based on data hash
+  uint64_t hash = 0;
+  for (size_t i = 0; i < std::min(dxbc_data.size(), size_t(64)); i++) {
+    hash = hash * 31 + dxbc_data[i];
+  }
+  std::string shader_id = std::to_string(hash) + "_" + std::to_string(getpid());
+
+  // Create file paths
+  std::string input_filename = temp_dir_ + "/shader_" + shader_id + ".dxbc";
+  std::string output_filename = temp_dir_ + "/shader_" + shader_id + ".dxil";
+
+  // Also save to debug directories if specified
+  if (dxbc_dir) {
+    std::string debug_input =
+        std::string(dxbc_dir) + "/shader_" + shader_id + ".dxbc";
+    writeFile(debug_input, dxbc_data);
+  }
+
   // Write input file
   if (!writeFile(input_filename, dxbc_data)) {
     if (error_message) {
@@ -144,39 +153,24 @@ bool DxbcToDxilConverter::Convert(const std::vector<uint8_t>& dxbc_data,
     }
     return false;
   }
-  
-  std::string input_path = input_filename;
-  std::string output_path = output_filename;
 
-  // Build command based on file type
+  // Build command - native binary uses different syntax than Wine version
+  // The native dxbc2dxil uses: dxbc2dxil input.dxbc -o output.dxil
   std::stringstream cmd;
-  if (dxbc2dxil_path_.find(".sh") != std::string::npos) {
-    // Shell script
-    cmd << "bash " << dxbc2dxil_path_;
-  } else {
-    // Windows exe with Wine
-    // Set DLL path for Wine if using third_party location
-    if (dxbc2dxil_path_.find("third_party/dxbc2dxil") != std::string::npos) {
-      // Extract directory path
-      size_t pos = dxbc2dxil_path_.find_last_of("/\\");
-      std::string bin_dir = dxbc2dxil_path_.substr(0, pos);
-      cmd << "WINEPATH=\"" << bin_dir << "\" ";
-    }
-    cmd << wine_path_ << " " << dxbc2dxil_path_;
-  }
-  cmd << " \"" << input_path << "\"";
-  cmd << " /o \"" << output_path << "\"";
+  cmd << dxbc2dxil_path_;
+  cmd << " \"" << input_filename << "\"";
+  cmd << " -o \"" << output_filename << "\"";
   cmd << " 2>&1";  // Capture stderr
 
-  printf("[DxbcToDxilConverter] Running: %s\n", cmd.str().c_str());
+  XELOGD("DxbcToDxilConverter: Running: {}", cmd.str());
 
-  // Execute Wine command
+  // Execute command
   FILE* pipe = popen(cmd.str().c_str(), "r");
   if (!pipe) {
     if (error_message) {
-      *error_message = "Failed to execute Wine command";
+      *error_message = "Failed to execute dxbc2dxil command";
     }
-    unlink(input_path.c_str());
+    unlink(input_filename.c_str());
     return false;
   }
 
@@ -188,29 +182,35 @@ bool DxbcToDxilConverter::Convert(const std::vector<uint8_t>& dxbc_data,
   }
 
   int exit_code = pclose(pipe);
-  
-  // Clean up input file (unless in debug mode)
+
+  // Clean up input file
   if (!dxbc_dir) {
-    unlink(input_path.c_str());
+    unlink(input_filename.c_str());
   }
 
   if (exit_code != 0) {
     if (error_message) {
-      *error_message = "dxbc2dxil.exe failed: " + output;
+      *error_message = "dxbc2dxil failed with exit code " +
+                       std::to_string(exit_code) + ": " + output;
     }
-    printf("[DxbcToDxilConverter] Conversion failed: %s\n", output.c_str());
-    if (!dxil_dir) {
-      unlink(output_path.c_str());  // Clean up in case of partial output
-    }
+    XELOGE("DxbcToDxilConverter: Conversion failed: {}", output);
+    unlink(output_filename.c_str());
     return false;
   }
 
   // Read output file
-  bool success = ReadFile(output_path, dxil_data_out);
-  
-  // Clean up output file (unless in debug mode)
+  bool success = ReadFile(output_filename, dxil_data_out);
+
+  // Copy to debug directory if specified
+  if (dxil_dir && success) {
+    std::string debug_output =
+        std::string(dxil_dir) + "/shader_" + shader_id + ".dxil";
+    writeFile(debug_output, dxil_data_out);
+  }
+
+  // Clean up output file
   if (!dxil_dir) {
-    unlink(output_path.c_str());
+    unlink(output_filename.c_str());
   }
 
   if (!success) {
@@ -220,9 +220,18 @@ bool DxbcToDxilConverter::Convert(const std::vector<uint8_t>& dxbc_data,
     return false;
   }
 
-  printf("[DxbcToDxilConverter] Successfully converted %zu bytes DXBC to %zu bytes DXIL\n",
-         dxbc_data.size(), dxil_data_out.size());
+  // Validate DXIL header (DXBC magic for container, or DXIL for raw)
+  if (dxil_data_out.size() < 4) {
+    if (error_message) {
+      *error_message = "Output DXIL file too small";
+    }
+    return false;
+  }
 
+  XELOGD(
+      "DxbcToDxilConverter: Successfully converted {} bytes DXBC to {} bytes "
+      "DXIL",
+      dxbc_data.size(), dxil_data_out.size());
 
   return true;
 }
@@ -230,6 +239,7 @@ bool DxbcToDxilConverter::Convert(const std::vector<uint8_t>& dxbc_data,
 bool DxbcToDxilConverter::RunWineCommand(const std::string& command,
                                          std::string* output,
                                          std::string* error) {
+  // Not used for native binary, but kept for interface compatibility
   FILE* pipe = popen(command.c_str(), "r");
   if (!pipe) {
     if (error) {
@@ -249,25 +259,25 @@ bool DxbcToDxilConverter::RunWineCommand(const std::string& command,
   return exit_code == 0;
 }
 
-std::string DxbcToDxilConverter::CreateTempFile(const std::string& prefix,
-                                                const std::string& suffix,
-                                                const std::vector<uint8_t>& data) {
+std::string DxbcToDxilConverter::CreateTempFile(
+    const std::string& prefix, const std::string& suffix,
+    const std::vector<uint8_t>& data) {
   // Generate unique filename
   std::stringstream filename;
-  filename << temp_dir_ << "/" << prefix << "_" << getpid() << "_" 
-           << rand() << suffix;
-  
+  filename << temp_dir_ << "/" << prefix << "_" << getpid() << "_" << rand()
+           << suffix;
+
   std::string path = filename.str();
-  
+
   // Write data to file
   std::ofstream file(path, std::ios::binary);
   if (!file) {
     return "";
   }
-  
+
   file.write(reinterpret_cast<const char*>(data.data()), data.size());
   file.close();
-  
+
   return file.good() ? path : "";
 }
 
@@ -277,12 +287,12 @@ bool DxbcToDxilConverter::ReadFile(const std::string& path,
   if (!file) {
     return false;
   }
-  
+
   size_t size = file.tellg();
   data.resize(size);
   file.seekg(0, std::ios::beg);
   file.read(reinterpret_cast<char*>(data.data()), size);
-  
+
   return file.good();
 }
 
@@ -292,7 +302,7 @@ bool DxbcToDxilConverter::writeFile(const std::string& path,
   if (!file) {
     return false;
   }
-  
+
   file.write(reinterpret_cast<const char*>(data.data()), data.size());
   return file.good();
 }

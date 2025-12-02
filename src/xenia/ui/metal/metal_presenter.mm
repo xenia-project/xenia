@@ -62,8 +62,13 @@ bool MetalPresenter::CaptureGuestOutput(RawImage& image_out) {
   
   // Get the latest guest output
   uint32_t guest_output_mailbox_index;
-  std::unique_lock<std::mutex> guest_output_consumer_lock(
-      ConsumeGuestOutput(guest_output_mailbox_index, nullptr, nullptr));
+  {
+    // Scope the consumer lock so it is released before any auto-refresh and
+    // potential second ConsumeGuestOutput call below, to avoid self-deadlock on
+    // guest_output_mailbox_consumer_mutex_.
+    std::unique_lock<std::mutex> guest_output_consumer_lock(
+        ConsumeGuestOutput(guest_output_mailbox_index, nullptr, nullptr));
+  }
   
   if (guest_output_mailbox_index == UINT32_MAX) {
     XELOGW("Metal CaptureGuestOutput: No guest output available, trying auto-refresh");

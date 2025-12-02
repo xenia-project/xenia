@@ -10,13 +10,13 @@
 #include "xenia/gpu/metal/metal_shader.h"
 
 #include <cstring>
-#include <utility>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/logging.h"
 #include "xenia/gpu/dxbc_shader.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/metal/dxbc_to_dxil_converter.h"
+#include "xenia/gpu/metal/metal_shader_converter.h"
 #include "xenia/ui/metal/metal_api.h"
 
 namespace xe {
@@ -30,50 +30,126 @@ MetalShader::MetalShader(xenos::ShaderType shader_type,
     : DxbcShader(shader_type, ucode_data_hash, ucode_dwords, ucode_dword_count,
                  ucode_source_endian) {}
 
-bool MetalShader::MetalTranslation::TranslateToMetalIR(
-    DxbcToDxilConverter& converter, IRCompiler* compiler,
-    IRRootSignature* root_signature) {
-        std::string error_message;
-        if (!converter.Convert(translated_binary(), dxil_data_, &error_message)) {
-            XELOGE("Unable to Convert DXBC to DXIL: {}", error_message);
-        }
-        XELOGD("Converted DXBC -> DXIL Successfully");
-        IRObject* dxil = IRObjectCreateFromDXIL(dxil_data_.data(), sizeof(dxil_data_) * dxil_data_.size(), IRBytecodeOwnershipNone);
+MetalShader::MetalTranslation::~MetalTranslation() {
+  if (metal_function_) {
+    metal_function_->release();
+    metal_function_ = nullptr;
+  }
+  if (metal_library_) {
+    metal_library_->release();
+    metal_library_ = nullptr;
+  }
+}
 
-        // Compile DXIL to Metal IR;
-        IRError* error = nullptr;
-        IRObject* metal_ir = IRCompilerAllocCompileAndLink(compiler, nullptr, dxil, &error);
+bool MetalShader::MetalTranslation::TranslateToMetal(
+    MTL::Device* device, DxbcToDxilConverter& dxbc_converter,
+    MetalShaderConverter& metal_converter) {
+  if (!device) {
+    XELOGE("MetalShader: No Metal device provided");
+    return false;
+  }
 
-        if (!metal_ir) {
-            uint32_t error_code = IRErrorGetCode(error);
-            switch (error_code) {
-                case IRErrorCodeCompilationError:
-                    XELOGE("Metal shader conversion failed: compilation error");
-                    break;
-                case IRErrorCodeFailedToSynthesizeIndirectIntersectionFunction:
-                    XELOGE("Metal shader conversion failed: Failed to Synthesize Indrect Intersection Function");
-                    break;
-                case IRErrorCodeUnrecognizedDXILHeader:
-                    XELOGE("Metal shader conversion failed: Unrecognized DXIL Header");
-                    break;
-                // TODO: Handle other error codes
-                case IRErrorCodeUnsupportedInstruction:
-                    XELOGE("Metal shader conversion failed: Unsupported Instruction");
-                default:
-                    XELOGE("Metal shader conversion failed with error code: {}", error_code);
-            }
-            IRErrorDestroy ( error );
-            return false;
-        }
-        IRShaderStage compiled_stage = IRObjectGetMetalIRShaderStage(metal_ir);
-        IRMetalLibBinary* metal_lib = IRMetalLibBinaryCreate();
-        if (!IRObjectGetMetalLibBinary(metal_ir, compiled_stage, metal_lib)) {
-            XELOGE("Failed to extract Metal library for stage {}", compiled_stage);
-            IRMetalLibBinaryDestroy(metal_lib);
-            return false;
-        }
-        return true;
+  // Get the translated DXBC bytecode from the base class
+  const std::vector<uint8_t>& dxbc_data = translated_binary();
+  if (dxbc_data.empty()) {
+    XELOGE("MetalShader: No translated DXBC data available");
+    return false;
+  }
+
+  // Step 1: Convert DXBC to DXIL using native dxbc2dxil
+  std::string dxbc_error;
+  if (!dxbc_converter.Convert(dxbc_data, dxil_data_, &dxbc_error)) {
+    XELOGE("MetalShader: DXBC to DXIL conversion failed: {}", dxbc_error);
+    return false;
+  }
+  XELOGD("MetalShader: Converted {} bytes DXBC to {} bytes DXIL",
+         dxbc_data.size(), dxil_data_.size());
+
+  // Step 2: Convert DXIL to MetalLib using Metal Shader Converter
+  MetalShaderConversionResult msc_result;
+  if (!metal_converter.Convert(shader().type(), dxil_data_, msc_result)) {
+    XELOGE("MetalShader: DXIL to Metal conversion failed: {}",
+           msc_result.error_message);
+    return false;
+  }
+  metallib_data_ = std::move(msc_result.metallib_data);
+  XELOGD("MetalShader: Converted {} bytes DXIL to {} bytes MetalLib",
+         dxil_data_.size(), metallib_data_.size());
+
+  // Debug: Dump metallib to file for inspection
+  static int shader_dump_counter = 0;
+  {
+    char filename[256];
+    const char* type_str =
+        (shader().type() == xenos::ShaderType::kVertex) ? "vs" : "ps";
+    snprintf(filename, sizeof(filename), "/tmp/xenia_shader_%d_%s.metallib",
+             shader_dump_counter++, type_str);
+    FILE* f = fopen(filename, "wb");
+    if (f) {
+      fwrite(metallib_data_.data(), 1, metallib_data_.size(), f);
+      fclose(f);
+      XELOGI("DEBUG: Dumped metallib to {}", filename);
     }
+  }
+
+  // Step 3: Create Metal library from the metallib data
+  NS::Error* error = nullptr;
+  dispatch_data_t data =
+      dispatch_data_create(metallib_data_.data(), metallib_data_.size(),
+                           nullptr, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+
+  metal_library_ = device->newLibrary(data, &error);
+  dispatch_release(data);
+
+  if (!metal_library_) {
+    if (error) {
+      XELOGE("MetalShader: Failed to create Metal library: {}",
+             error->localizedDescription()->utf8String());
+    } else {
+      XELOGE("MetalShader: Failed to create Metal library (unknown error)");
+    }
+    return false;
+  }
+
+  // Step 4: Get the main function from the library
+  // MSC generates functions with specific names based on shader type
+  NS::String* function_name = NS::String::string(
+      msc_result.function_name.c_str(), NS::UTF8StringEncoding);
+
+  XELOGI("GPU DEBUG: Looking for shader function '{}' in metallib ({} bytes)",
+         msc_result.function_name, metallib_data_.size());
+
+  metal_function_ = metal_library_->newFunction(function_name);
+
+  if (!metal_function_) {
+    // Try alternative function names
+    const char* alt_names[] = {"main0", "main", "vertexMain", "fragmentMain"};
+    for (const char* alt_name : alt_names) {
+      NS::String* alt_func_name =
+          NS::String::string(alt_name, NS::UTF8StringEncoding);
+      metal_function_ = metal_library_->newFunction(alt_func_name);
+      if (metal_function_) {
+        XELOGD("MetalShader: Found function with alternative name: {}",
+               alt_name);
+        break;
+      }
+    }
+  }
+
+  if (!metal_function_) {
+    // List available functions for debugging
+    NS::Array* function_names = metal_library_->functionNames();
+    XELOGE("MetalShader: Could not find shader function. Available functions:");
+    for (NS::UInteger i = 0; i < function_names->count(); i++) {
+      NS::String* name = static_cast<NS::String*>(function_names->object(i));
+      XELOGE("  - {}", name->utf8String());
+    }
+    return false;
+  }
+
+  XELOGI("MetalShader: Successfully created Metal shader function");
+  return true;
+}
 
 Shader::Translation* MetalShader::CreateTranslationInstance(
     uint64_t modification) {

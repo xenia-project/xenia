@@ -39,19 +39,19 @@ TracePlayer::TracePlayer(GraphicsSystem* graphics_system)
 TracePlayer::~TracePlayer() {
   // Signal stop to any running playback
   stop_requested_.store(true);
-  
+
   // Wake up the playback thread if it's waiting
   if (playback_event_) {
     playback_event_->Set();
   }
-  
+
   // Wait for playback to finish
   // Note: WaitOnPlayback uses the same event, so we need to wait a bit
   // to ensure the thread has exited the playback loop
   if (playing_trace_.load()) {
     // Give the playback thread time to notice stop_requested and exit
     xe::threading::Sleep(std::chrono::milliseconds(100));
-    
+
     // If still playing, wait for it to finish
     int wait_count = 0;
     while (playing_trace_.load() && wait_count++ < 100) {
@@ -196,38 +196,31 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
       case TraceCommandType::kMemoryRead: {
         auto cmd = reinterpret_cast<const MemoryCommand*>(trace_ptr);
         trace_ptr += sizeof(*cmd);
-        XELOGI("TracePlayer: MemoryRead command - base=0x{:08X}, decoded_length=0x{:X}, encoded_length=0x{:X}, encoding_format={}", 
-               cmd->base_ptr, cmd->decoded_length, cmd->encoded_length, static_cast<int>(cmd->encoding_format));
-        uint8_t* dest = static_cast<uint8_t*>(memory->TranslatePhysical(cmd->base_ptr));
-        
-        // Log source data before decompression for large textures
-        if (cmd->base_ptr == 0x1BFD5000) {
-          const uint8_t* src = reinterpret_cast<const uint8_t*>(trace_ptr);
-          XELOGI("TracePlayer: Source data before decompress first 16 bytes: "
-                 "[{:02X},{:02X},{:02X},{:02X}] [{:02X},{:02X},{:02X},{:02X}] "
-                 "[{:02X},{:02X},{:02X},{:02X}] [{:02X},{:02X},{:02X},{:02X}]",
-                 src[0], src[1], src[2], src[3],
-                 src[4], src[5], src[6], src[7],
-                 src[8], src[9], src[10], src[11],
-                 src[12], src[13], src[14], src[15]);
+
+        // Skip MemoryRead if this address was written by IssueCopy (resolve).
+        // The trace file contains stale data from before the resolve happened,
+        // so we should keep the freshly resolved data instead.
+        if (command_processor->IsResolvedMemory(cmd->base_ptr,
+                                                cmd->decoded_length)) {
+          XELOGI(
+              "TracePlayer: SKIPPING MemoryRead for resolved memory at "
+              "0x{:08X} (length=0x{:X})",
+              cmd->base_ptr, cmd->decoded_length);
+          trace_ptr += cmd->encoded_length;
+          break;
         }
-        
-        bool decompress_result = DecompressMemory(cmd->encoding_format, trace_ptr, cmd->encoded_length,
-                                                  dest, cmd->decoded_length);
+
+        uint8_t* dest =
+            static_cast<uint8_t*>(memory->TranslatePhysical(cmd->base_ptr));
+
+        bool decompress_result =
+            DecompressMemory(cmd->encoding_format, trace_ptr,
+                             cmd->encoded_length, dest, cmd->decoded_length);
         if (!decompress_result) {
-          XELOGE("TracePlayer: DecompressMemory failed for base=0x{:08X}", cmd->base_ptr);
+          XELOGE("TracePlayer: DecompressMemory failed for base=0x{:08X}",
+                 cmd->base_ptr);
         }
-        
-        // Log first few bytes of texture data for key addresses
-        if (cmd->base_ptr == 0x1BFD5000 && dest) {
-          XELOGI("TracePlayer: Texture data at 0x1BFD5000 first 16 bytes after decompress: "
-                 "[{:02X},{:02X},{:02X},{:02X}] [{:02X},{:02X},{:02X},{:02X}] "
-                 "[{:02X},{:02X},{:02X},{:02X}] [{:02X},{:02X},{:02X},{:02X}]",
-                 dest[0], dest[1], dest[2], dest[3],
-                 dest[4], dest[5], dest[6], dest[7],
-                 dest[8], dest[9], dest[10], dest[11],
-                 dest[12], dest[13], dest[14], dest[15]);
-        }
+
         trace_ptr += cmd->encoded_length;
         command_processor->TracePlaybackWroteMemory(cmd->base_ptr,
                                                     cmd->decoded_length);

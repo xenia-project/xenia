@@ -32,10 +32,12 @@ namespace metal {
 
 class MetalProvider;
 
-class MetalGuestOutputRefreshContext final : public Presenter::GuestOutputRefreshContext {
+class MetalGuestOutputRefreshContext final
+    : public Presenter::GuestOutputRefreshContext {
  public:
   MetalGuestOutputRefreshContext(bool& is_8bpc_out_ref, id resource)
-      : Presenter::GuestOutputRefreshContext(is_8bpc_out_ref), resource_(resource) {}
+      : Presenter::GuestOutputRefreshContext(is_8bpc_out_ref),
+        resource_(resource) {}
 
   // The guest output Metal texture that the refresher should write to.
   // Initial state is undefined, refresher must write all pixels.
@@ -56,7 +58,9 @@ class MetalUIDrawContext final : public UIDrawContext {
         render_encoder_(render_encoder) {}
 
   id command_buffer() const { return command_buffer_; }  // id<MTLCommandBuffer>
-  id render_encoder() const { return render_encoder_; }  // id<MTLRenderCommandEncoder>
+  id render_encoder() const {
+    return render_encoder_;
+  }  // id<MTLRenderCommandEncoder>
 
  private:
   id command_buffer_;  // id<MTLCommandBuffer>
@@ -65,7 +69,8 @@ class MetalUIDrawContext final : public UIDrawContext {
 
 class MetalPresenter : public Presenter {
  public:
-  MetalPresenter(MetalProvider* provider, HostGpuLossCallback host_gpu_loss_callback);
+  MetalPresenter(MetalProvider* provider,
+                 HostGpuLossCallback host_gpu_loss_callback);
   ~MetalPresenter() override;
 
   bool Initialize();
@@ -76,13 +81,13 @@ class MetalPresenter : public Presenter {
 
   // Helper method to copy Metal texture to guest output texture
   bool CopyTextureToGuestOutput(MTL::Texture* source_texture, id dest_texture);
-  
+
   // Helper method for trace dumps to populate guest output before PNG capture
   void TryRefreshGuestOutputForTraceDump(void* command_processor);
 
  protected:
   PaintResult PaintAndPresentImpl(bool execute_ui_drawers) override;
-  
+
   SurfacePaintConnectResult ConnectOrReconnectPaintingToSurfaceFromUIThread(
       Surface& new_surface, uint32_t new_surface_width,
       uint32_t new_surface_height, bool was_paintable,
@@ -97,11 +102,11 @@ class MetalPresenter : public Presenter {
  private:
   MetalProvider* provider_;
   MTL::Device* device_ = nullptr;
-  
+
   // Metal presentation resources
   CAMetalLayer* metal_layer_ = nullptr;
   id command_queue_ = nullptr;  // id<MTLCommandQueue>
-  
+
   // Guest output textures for PNG capture (mailbox system)
   std::array<id, kGuestOutputMailboxSize> guest_output_textures_;
 };

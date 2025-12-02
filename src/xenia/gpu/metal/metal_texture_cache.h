@@ -14,6 +14,7 @@
 #include <string>
 #include <unordered_map>
 
+#include "xenia/gpu/dxbc_shader.h"
 #include "xenia/gpu/register_file.h"
 #include "xenia/gpu/texture_cache.h"
 #include "xenia/gpu/texture_info.h"
@@ -49,31 +50,70 @@ class MetalTextureCache : public TextureCache {
   // Get Metal textures for rendering
   MTL::Texture* GetTexture2D(const TextureInfo& texture_info);
   MTL::Texture* GetTextureCube(const TextureInfo& texture_info);
-  
+
   // Pixel format conversion
-  MTL::PixelFormat ConvertXenosFormat(xenos::TextureFormat format, 
-                                      xenos::Endian endian = xenos::Endian::k8in32);
-  
+  MTL::PixelFormat ConvertXenosFormat(
+      xenos::TextureFormat format,
+      xenos::Endian endian = xenos::Endian::k8in32);
+
   // Debug texture creation
   MTL::Texture* CreateDebugTexture(uint32_t width = 256, uint32_t height = 256);
 
-  // Null texture accessors for invalid bindings (following D3D12/Vulkan pattern)
+  // Null texture accessors for invalid bindings (following D3D12/Vulkan
+  // pattern)
   MTL::Texture* GetNullTexture2D() const { return null_texture_2d_; }
   MTL::Texture* GetNullTexture3D() const { return null_texture_3d_; }
   MTL::Texture* GetNullTextureCube() const { return null_texture_cube_; }
 
+  MTL::Texture* GetTextureForBinding(uint32_t fetch_constant,
+                                     xenos::FetchOpDimension dimension,
+                                     bool is_signed);
+
+  union SamplerParameters {
+    uint32_t value;
+    struct {
+      xenos::ClampMode clamp_x : 3;
+      xenos::ClampMode clamp_y : 3;
+      xenos::ClampMode clamp_z : 3;
+      xenos::BorderColor border_color : 2;
+      uint32_t mag_linear : 1;
+      uint32_t min_linear : 1;
+      uint32_t mip_linear : 1;
+      xenos::AnisoFilter aniso_filter : 3;
+      uint32_t mip_min_level : 4;
+      uint32_t mip_base_map : 1;
+    };
+
+    SamplerParameters() : value(0) { static_assert_size(*this, sizeof(value)); }
+    bool operator==(const SamplerParameters& other) const {
+      return value == other.value;
+    }
+    bool operator!=(const SamplerParameters& other) const {
+      return value != other.value;
+    }
+  };
+
+  SamplerParameters GetSamplerParameters(
+      const DxbcShader::SamplerBinding& binding) const;
+  MTL::SamplerState* GetOrCreateSampler(SamplerParameters parameters);
+
   // TextureCache virtual method overrides
   void RequestTextures(uint32_t used_texture_mask) override;
+
   uint32_t GetHostFormatSwizzle(TextureKey key) const override;
-  uint32_t GetMaxHostTextureWidthHeight(xenos::DataDimension dimension) const override;
-  uint32_t GetMaxHostTextureDepthOrArraySize(xenos::DataDimension dimension) const override;
+  uint32_t GetMaxHostTextureWidthHeight(
+      xenos::DataDimension dimension) const override;
+  uint32_t GetMaxHostTextureDepthOrArraySize(
+      xenos::DataDimension dimension) const override;
   std::unique_ptr<Texture> CreateTexture(TextureKey key) override;
-  bool LoadTextureDataFromResidentMemoryImpl(Texture& texture, bool load_base, bool load_mips) override;
+  bool LoadTextureDataFromResidentMemoryImpl(Texture& texture, bool load_base,
+                                             bool load_mips) override;
 
   // Metal-specific Texture implementation
   class MetalTexture : public Texture {
    public:
-    MetalTexture(MetalTextureCache& texture_cache, const TextureKey& key, MTL::Texture* metal_texture);
+    MetalTexture(MetalTextureCache& texture_cache, const TextureKey& key,
+                 MTL::Texture* metal_texture);
     ~MetalTexture() override;
 
     MTL::Texture* metal_texture() const { return metal_texture_; }
@@ -83,53 +123,43 @@ class MetalTextureCache : public TextureCache {
   };
 
  private:
-  struct TextureDescriptor {
-    uint32_t guest_base;
-    uint32_t width;
-    uint32_t height;
-    uint32_t depth;
-    uint32_t format;
-    uint32_t endian;
-    uint32_t mip_levels;
-    bool is_cube;
-    
-    bool operator==(const TextureDescriptor& other) const;
-  };
-  
-  struct TextureDescriptorHasher {
-    size_t operator()(const TextureDescriptor& desc) const;
-  };
-
   // Metal texture creation helpers
-  MTL::Texture* CreateTexture2D(uint32_t width, uint32_t height, 
-                                MTL::PixelFormat format, uint32_t mip_levels = 1);
-  MTL::Texture* CreateTextureCube(uint32_t width, MTL::PixelFormat format, 
-                                  uint32_t mip_levels = 1);
+  MTL::Texture* CreateTexture2D(uint32_t width, uint32_t height,
+                                uint32_t array_length, MTL::PixelFormat format,
+                                uint32_t mip_levels = 1);
+  MTL::Texture* CreateTexture3D(uint32_t width, uint32_t height, uint32_t depth,
+                                MTL::PixelFormat format,
+                                uint32_t mip_levels = 1);
+  MTL::Texture* CreateTextureCube(uint32_t width, MTL::PixelFormat format,
+                                  uint32_t mip_levels = 1,
+                                  uint32_t cube_count = 1);
   bool UpdateTexture2D(MTL::Texture* texture, const TextureInfo& texture_info);
-  bool UpdateTextureCube(MTL::Texture* texture, const TextureInfo& texture_info);
+  bool UpdateTextureCube(MTL::Texture* texture,
+                         const TextureInfo& texture_info);
   void DumpTextureToFile(MTL::Texture* texture, const std::string& filename,
-                        uint32_t width, uint32_t height);
-  
+                         uint32_t width, uint32_t height);
+
   // Format conversion helpers
-  bool ConvertTextureData(const void* src_data, void* dst_data, 
-                         uint32_t width, uint32_t height,
-                         xenos::TextureFormat src_format, 
-                         MTL::PixelFormat dst_format);
+  bool ConvertTextureData(const void* src_data, void* dst_data, uint32_t width,
+                          uint32_t height, xenos::TextureFormat src_format,
+                          MTL::PixelFormat dst_format);
 
   // Null texture factory methods (following existing CreateTexture pattern)
   MTL::Texture* CreateNullTexture2D();
   MTL::Texture* CreateNullTexture3D();
   MTL::Texture* CreateNullTextureCube();
 
-  MetalCommandProcessor* command_processor_;
-  
-  // Legacy texture cache for old methods (will be migrated to base class)
-  std::unordered_map<TextureDescriptor, std::unique_ptr<MetalTexture>, TextureDescriptorHasher> texture_cache_;
+  xenos::ClampMode NormalizeClampMode(xenos::ClampMode clamp_mode) const;
 
-  // Pre-created null textures for invalid bindings (following existing patterns)
+  MetalCommandProcessor* command_processor_;
+
+  // Pre-created null textures for invalid bindings (following existing
+  // patterns)
   MTL::Texture* null_texture_2d_ = nullptr;
   MTL::Texture* null_texture_3d_ = nullptr;
   MTL::Texture* null_texture_cube_ = nullptr;
+
+  std::unordered_map<uint32_t, MTL::SamplerState*> sampler_cache_;
 };
 
 }  // namespace metal

@@ -254,13 +254,36 @@ bool TraceReader::DecompressMemory(MemoryEncodingFormat encoding_format,
         return false;
       }
       if (uncompressed_length != dest_size) {
-        XELOGE("DecompressMemory: Snappy uncompressed length {} != dest_size {}", 
-               uncompressed_length, dest_size);
+        XELOGE(
+            "DecompressMemory: Snappy uncompressed length {} != dest_size {}",
+            uncompressed_length, dest_size);
       }
-      bool result = snappy::RawUncompress(reinterpret_cast<const char*>(src), src_size,
-                                          reinterpret_cast<char*>(dest));
+      bool result =
+          snappy::RawUncompress(reinterpret_cast<const char*>(src), src_size,
+                                reinterpret_cast<char*>(dest));
       if (!result) {
         XELOGE("DecompressMemory: Snappy decompression failed");
+      }
+      // Debug: Check if decompressed data contains any non-zero bytes
+      if (result && dest_size >= 16) {
+        const uint8_t* d = reinterpret_cast<const uint8_t*>(dest);
+        bool all_zeros = true;
+        uint32_t first_nonzero_offset = 0;
+        for (size_t i = 0; i < dest_size && all_zeros; i++) {
+          if (d[i] != 0) {
+            all_zeros = false;
+            first_nonzero_offset = static_cast<uint32_t>(i);
+          }
+        }
+        if (all_zeros) {
+          XELOGI("DecompressMemory: Decompressed {} bytes - ALL ZEROS",
+                 dest_size);
+        } else {
+          XELOGI(
+              "DecompressMemory: Decompressed {} bytes - first non-zero at "
+              "offset {} = 0x{:02X}",
+              dest_size, first_nonzero_offset, d[first_nonzero_offset]);
+        }
       }
       return result;
     }
