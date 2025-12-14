@@ -317,7 +317,7 @@
        %2122 = OpConstantComposite %v2uint %uint_15 %uint_15
        %2604 = OpConstantComposite %v3float %float_0 %float_0 %float_0
        %2582 = OpConstantComposite %v3float %float_1 %float_1 %float_1
-      %10264 = OpUndef %v4float
+          %2 = OpUndef %v4float
        %5663 = OpFunction %void None %1282
       %24953 = OpLabel
       %18411 = OpVariable %_ptr_Function__arr_float_uint_256 Function
@@ -338,7 +338,7 @@
       %24336 = OpFMul %v2float %15917 %20800
        %9248 = OpImageSampleExplicitLod %v4float %8907 %24336 Lod %float_0
       %21554 = OpCompositeExtract %float %9248 0
-      %14517 = OpCompositeInsert %v4float %21554 %10264 0
+      %14517 = OpCompositeInsert %v4float %21554 %2 0
       %19852 = OpCompositeExtract %float %9248 1
       %16135 = OpCompositeInsert %v4float %19852 %14517 1
       %19814 = OpCompositeExtract %float %9248 2
@@ -617,7 +617,7 @@ const uint32_t guest_output_bilinear_dither_ps[] = {
     0x0000061E, 0x000000FC, 0x000000FC, 0x0005002C, 0x00000011, 0x0000084A,
     0x00000A37, 0x00000A37, 0x0006002C, 0x00000018, 0x00000A2C, 0x00000A0C,
     0x00000A0C, 0x00000A0C, 0x0006002C, 0x00000018, 0x00000A16, 0x0000008A,
-    0x0000008A, 0x0000008A, 0x00030001, 0x0000001D, 0x00002818, 0x00050036,
+    0x0000008A, 0x0000008A, 0x00030001, 0x0000001D, 0x00000002, 0x00050036,
     0x00000008, 0x0000161F, 0x00000000, 0x00000502, 0x000200F8, 0x00006179,
     0x0004003B, 0x00000551, 0x000047EB, 0x00000007, 0x0004003D, 0x0000001D,
     0x00005647, 0x00000C93, 0x0007004F, 0x00000013, 0x000019A2, 0x00005647,
@@ -633,7 +633,7 @@ const uint32_t guest_output_bilinear_dither_ps[] = {
     0x00005140, 0x00002E57, 0x00050085, 0x00000013, 0x00005F10, 0x00003E2D,
     0x00005140, 0x00070058, 0x0000001D, 0x00002420, 0x000022CB, 0x00005F10,
     0x00000002, 0x00000A0C, 0x00050051, 0x0000000D, 0x00005432, 0x00002420,
-    0x00000000, 0x00060052, 0x0000001D, 0x000038B5, 0x00005432, 0x00002818,
+    0x00000000, 0x00060052, 0x0000001D, 0x000038B5, 0x00005432, 0x00000002,
     0x00000000, 0x00050051, 0x0000000D, 0x00004D8C, 0x00002420, 0x00000001,
     0x00060052, 0x0000001D, 0x00003F07, 0x00004D8C, 0x000038B5, 0x00000001,
     0x00050051, 0x0000000D, 0x00004D66, 0x00002420, 0x00000002, 0x00060052,

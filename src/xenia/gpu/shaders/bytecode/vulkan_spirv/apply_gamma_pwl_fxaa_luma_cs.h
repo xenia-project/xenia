@@ -70,7 +70,7 @@
      %uint_8 = OpConstant %uint 8
 %gl_WorkGroupSize = OpConstantComposite %v3uint %uint_16 %uint_8 %uint_1
         %939 = OpConstantComposite %v3float %float_0_5 %float_0_5 %float_0_5
-      %10264 = OpUndef %v4float
+          %2 = OpUndef %v4float
        %5663 = OpFunction %void None %1282
       %15110 = OpLabel
                OpSelectionMerge %21573 None
@@ -110,7 +110,7 @@
       %11948 = OpFAdd %float %17705 %22854
        %7244 = OpFMul %float %11948 %float_1_52737048en05
       %21981 = OpExtInst %float %1 FClamp %7244 %float_0 %float_1
-       %8813 = OpCompositeInsert %v4float %21981 %10264 0
+       %8813 = OpCompositeInsert %v4float %21981 %2 0
       %13846 = OpLoad %152 %5945
       %17466 = OpCompositeExtract %uint %11099 1
       %17798 = OpShiftRightLogical %uint %17466 %uint_3
@@ -205,7 +205,7 @@ const uint32_t apply_gamma_pwl_fxaa_luma_cs[] = {
     0x00000000, 0x0004002B, 0x0000000B, 0x00000A3A, 0x00000010, 0x0004002B,
     0x0000000B, 0x00000A22, 0x00000008, 0x0006002C, 0x00000014, 0x00000B0F,
     0x00000A3A, 0x00000A22, 0x00000A0D, 0x0006002C, 0x00000018, 0x000003AB,
-    0x000000FC, 0x000000FC, 0x000000FC, 0x00030001, 0x0000001D, 0x00002818,
+    0x000000FC, 0x000000FC, 0x000000FC, 0x00030001, 0x0000001D, 0x00000002,
     0x00050036, 0x00000008, 0x0000161F, 0x00000000, 0x00000502, 0x000200F8,
     0x00003B06, 0x000300F7, 0x00005445, 0x00000000, 0x000300FB, 0x00000A0A,
     0x00003272, 0x000200F8, 0x00003272, 0x0004003D, 0x00000014, 0x000035C1,
@@ -235,7 +235,7 @@ const uint32_t apply_gamma_pwl_fxaa_luma_cs[] = {
     0x0000000D, 0x00002EAC, 0x00004529, 0x00005946, 0x00050085, 0x0000000D,
     0x00001C4C, 0x00002EAC, 0x000009AA, 0x0008000C, 0x0000000D, 0x000055DD,
     0x00000001, 0x0000002B, 0x00001C4C, 0x00000A0C, 0x0000008A, 0x00060052,
-    0x0000001D, 0x0000226D, 0x000055DD, 0x00002818, 0x00000000, 0x0004003D,
+    0x0000001D, 0x0000226D, 0x000055DD, 0x00000002, 0x00000000, 0x0004003D,
     0x00000098, 0x00003616, 0x00001739, 0x00050051, 0x0000000B, 0x0000443A,
     0x00002B5B, 0x00000001, 0x000500C2, 0x0000000B, 0x00004586, 0x0000443A,
     0x00000A13, 0x00050084, 0x0000000B, 0x00003DD3, 0x00004586, 0x00000A13,
