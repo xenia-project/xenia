@@ -37,10 +37,70 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
 
   // Check if memory export is allowed in this guest shader invocation.
   std::optional<SpirvBuilder::IfBuilder> if_memexport_allowed;
-  if (main_memexport_allowed_ != spv::NoResult) {
-    if_memexport_allowed.emplace(main_memexport_allowed_,
-                                 spv::SelectionControlDontFlattenMask,
-                                 *builder_);
+  spv::Id memexport_allowed = main_memexport_allowed_;
+
+  // For pixel shaders with resolution scaling, only allow memory export from
+  // the center host pixel to avoid duplicate exports.
+  if (is_pixel_shader() &&
+      (draw_resolution_scale_x_ > 1 || draw_resolution_scale_y_ > 1)) {
+    assert_true(input_fragment_coordinates_ != spv::NoResult);
+
+    // Check if we're at the center pixel (scale/2 for both X and Y).
+    spv::Id is_center_pixel = builder_->makeBoolConstant(true);
+
+    // Check X coordinate.
+    if (draw_resolution_scale_x_ > 1) {
+      id_vector_temp_.clear();
+      id_vector_temp_.push_back(const_int_0_);
+      spv::Id pixel_x = builder_->createUnaryOp(
+          spv::OpConvertFToU, type_uint_,
+          builder_->createLoad(
+              builder_->createAccessChain(spv::StorageClassInput,
+                                          input_fragment_coordinates_,
+                                          id_vector_temp_),
+              spv::NoPrecision));
+      spv::Id pixel_x_remainder = builder_->createBinOp(
+          spv::OpUMod, type_uint_, pixel_x,
+          builder_->makeUintConstant(draw_resolution_scale_x_));
+      is_center_pixel = builder_->createBinOp(
+          spv::OpLogicalAnd, type_bool_, is_center_pixel,
+          builder_->createBinOp(
+              spv::OpIEqual, type_bool_, pixel_x_remainder,
+              builder_->makeUintConstant(draw_resolution_scale_x_ >> 1)));
+    }
+
+    // Check Y coordinate.
+    if (draw_resolution_scale_y_ > 1) {
+      id_vector_temp_.clear();
+      id_vector_temp_.push_back(builder_->makeIntConstant(1));
+      spv::Id pixel_y = builder_->createUnaryOp(
+          spv::OpConvertFToU, type_uint_,
+          builder_->createLoad(
+              builder_->createAccessChain(spv::StorageClassInput,
+                                          input_fragment_coordinates_,
+                                          id_vector_temp_),
+              spv::NoPrecision));
+      spv::Id pixel_y_remainder = builder_->createBinOp(
+          spv::OpUMod, type_uint_, pixel_y,
+          builder_->makeUintConstant(draw_resolution_scale_y_));
+      is_center_pixel = builder_->createBinOp(
+          spv::OpLogicalAnd, type_bool_, is_center_pixel,
+          builder_->createBinOp(
+              spv::OpIEqual, type_bool_, pixel_y_remainder,
+              builder_->makeUintConstant(draw_resolution_scale_y_ >> 1)));
+    }
+
+    // Combine with existing memexport_allowed condition.
+    memexport_allowed =
+        memexport_allowed != spv::NoResult
+            ? builder_->createBinOp(spv::OpLogicalAnd, type_bool_,
+                                    memexport_allowed, is_center_pixel)
+            : is_center_pixel;
+  }
+
+  if (memexport_allowed != spv::NoResult) {
+    if_memexport_allowed.emplace(
+        memexport_allowed, spv::SelectionControlDontFlattenMask, *builder_);
   }
 
   // If the pixel was killed (but the actual killing on the SPIR-V side has not

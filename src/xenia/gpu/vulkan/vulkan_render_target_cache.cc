@@ -1067,6 +1067,13 @@ bool VulkanRenderTargetCache::Resolve(const Memory& memory,
       uint32_t dump_pitch;
       resolve_info.GetCopyEdramTileSpan(dump_base, dump_row_length_used,
                                         dump_rows, dump_pitch);
+      // Scale tile parameters for resolution scaling to match resolve shader
+      // expectations
+      if (IsDrawResolutionScaled()) {
+        dump_row_length_used *= draw_resolution_scale_x();
+        dump_rows *= draw_resolution_scale_y();
+        dump_pitch *= draw_resolution_scale_x();
+      }
       DumpRenderTargets(dump_base, dump_row_length_used, dump_rows, dump_pitch);
     }
 
@@ -1101,15 +1108,95 @@ bool VulkanRenderTargetCache::Resolve(const Memory& memory,
                     kStorageBufferCompute);
         if (descriptor_set_dest != VK_NULL_HANDLE) {
           // Write the destination descriptor.
-          // TODO(Triang3l): Scaled resolve buffer binding.
           VkDescriptorBufferInfo write_descriptor_set_dest_buffer_info;
-          write_descriptor_set_dest_buffer_info.buffer = shared_memory.buffer();
-          write_descriptor_set_dest_buffer_info.offset =
-              resolve_info.copy_dest_base;
-          write_descriptor_set_dest_buffer_info.range =
-              resolve_info.copy_dest_extent_start -
-              resolve_info.copy_dest_base +
-              resolve_info.copy_dest_extent_length;
+
+          bool scaled_buffer_ready = false;
+          if (draw_resolution_scaled) {
+            // For scaled resolve, ensure the scaled buffer exists and bind to
+            // it
+            uint32_t dest_address = resolve_info.copy_dest_base;
+            uint32_t dest_length = resolve_info.copy_dest_extent_start -
+                                   resolve_info.copy_dest_base +
+                                   resolve_info.copy_dest_extent_length;
+
+            // Ensure scaled resolve memory is committed
+            scaled_buffer_ready = true;
+            if (!texture_cache.EnsureScaledResolveMemoryCommittedPublic(
+                    dest_address, dest_length)) {
+              XELOGE(
+                  "Failed to commit scaled resolve memory for resolve dest at "
+                  "0x{:08X}",
+                  dest_address);
+              scaled_buffer_ready = false;
+            }
+
+            // Make the range current to get the buffer
+            if (scaled_buffer_ready &&
+                !texture_cache.MakeScaledResolveRangeCurrent(dest_address,
+                                                             dest_length)) {
+              XELOGE(
+                  "Failed to make scaled resolve range current for resolve "
+                  "dest at 0x{:08X}",
+                  dest_address);
+              scaled_buffer_ready = false;
+            }
+
+            // Get the current scaled buffer
+            VkBuffer scaled_buffer = VK_NULL_HANDLE;
+            if (scaled_buffer_ready) {
+              scaled_buffer = texture_cache.GetCurrentScaledResolveBuffer();
+              if (scaled_buffer == VK_NULL_HANDLE) {
+                XELOGE(
+                    "No current scaled resolve buffer for resolve dest at "
+                    "0x{:08X}",
+                    dest_address);
+                scaled_buffer_ready = false;
+              }
+            }
+
+            if (scaled_buffer_ready) {
+              // Calculate offset within the scaled buffer
+              uint32_t draw_resolution_scale_area =
+                  draw_resolution_scale_x() * draw_resolution_scale_y();
+              uint64_t scaled_offset =
+                  uint64_t(dest_address) * draw_resolution_scale_area;
+
+              // Get the buffer's base offset to calculate relative offset
+              uint64_t buffer_relative_offset = 0;
+              size_t buffer_index =
+                  texture_cache.GetScaledResolveCurrentBufferIndex();
+              auto* buffer_info =
+                  texture_cache.GetScaledResolveBufferInfo(buffer_index);
+              if (buffer_info) {
+                buffer_relative_offset =
+                    scaled_offset - buffer_info->range_start_scaled;
+              }
+
+              write_descriptor_set_dest_buffer_info.buffer = scaled_buffer;
+              write_descriptor_set_dest_buffer_info.offset =
+                  buffer_relative_offset;
+              write_descriptor_set_dest_buffer_info.range =
+                  dest_length * draw_resolution_scale_area;
+            }
+          }
+
+          if (!scaled_buffer_ready) {
+            // Regular unscaled resolve - write to shared memory
+            if (draw_resolution_scaled) {
+              XELOGW(
+                  "Falling back to unscaled resolve at 0x{:08X} - scaled "
+                  "buffer not available",
+                  resolve_info.copy_dest_base);
+            }
+            write_descriptor_set_dest_buffer_info.buffer =
+                shared_memory.buffer();
+            write_descriptor_set_dest_buffer_info.offset =
+                resolve_info.copy_dest_base;
+            write_descriptor_set_dest_buffer_info.range =
+                resolve_info.copy_dest_extent_start -
+                resolve_info.copy_dest_base +
+                resolve_info.copy_dest_extent_length;
+          }
           VkWriteDescriptorSet write_descriptor_set_dest;
           write_descriptor_set_dest.sType =
               VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1128,11 +1215,37 @@ bool VulkanRenderTargetCache::Resolve(const Memory& memory,
                                      nullptr);
 
           // Submit the resolve.
-          // TODO(Triang3l): Transition the scaled resolve buffer.
-          shared_memory.Use(VulkanSharedMemory::Usage::kComputeWrite,
-                            std::pair<uint32_t, uint32_t>(
-                                resolve_info.copy_dest_extent_start,
-                                resolve_info.copy_dest_extent_length));
+          if (!scaled_buffer_ready) {
+            // Regular unscaled - transition shared memory for write
+            shared_memory.Use(VulkanSharedMemory::Usage::kComputeWrite,
+                              std::pair<uint32_t, uint32_t>(
+                                  resolve_info.copy_dest_extent_start,
+                                  resolve_info.copy_dest_extent_length));
+          } else {
+            // Scaled - add barrier for the scaled resolve buffer
+            // The buffer transitions from compute shader read (texture loading)
+            // to compute shader write
+            VkBuffer scaled_buffer =
+                texture_cache.GetCurrentScaledResolveBuffer();
+            if (scaled_buffer != VK_NULL_HANDLE) {
+              VkBufferMemoryBarrier buffer_barrier = {};
+              buffer_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+              // More specific: previous compute shader reads to compute shader
+              // write
+              buffer_barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+              buffer_barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+              buffer_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+              buffer_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+              buffer_barrier.buffer = scaled_buffer;
+              buffer_barrier.offset = 0;
+              buffer_barrier.size = VK_WHOLE_SIZE;
+
+              command_buffer.CmdVkPipelineBarrier(
+                  VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,  // From compute shader
+                  VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,  // To compute shader
+                  0, 0, nullptr, 1, &buffer_barrier, 0, nullptr);
+            }
+          }
           UseEdramBuffer(EdramBufferUsage::kComputeRead);
           command_processor_.BindExternalComputePipeline(
               resolve_copy_pipelines_[size_t(copy_shader)]);
@@ -1162,6 +1275,28 @@ bool VulkanRenderTargetCache::Resolve(const Memory& memory,
           command_processor_.SubmitBarriers(true);
           command_buffer.CmdVkDispatch(copy_group_count_x, copy_group_count_y,
                                        1);
+
+          // Add barrier after writing to scaled resolve buffer
+          if (scaled_buffer_ready) {
+            VkBuffer scaled_buffer =
+                texture_cache.GetCurrentScaledResolveBuffer();
+            if (scaled_buffer != VK_NULL_HANDLE) {
+              VkBufferMemoryBarrier buffer_barrier = {};
+              buffer_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+              buffer_barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+              buffer_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+              buffer_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+              buffer_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+              buffer_barrier.buffer = scaled_buffer;
+              buffer_barrier.offset = 0;
+              buffer_barrier.size = VK_WHOLE_SIZE;
+
+              command_buffer.CmdVkPipelineBarrier(
+                  VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                  VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1,
+                  &buffer_barrier, 0, nullptr);
+            }
+          }
 
           // Invalidate textures and mark the range as scaled if needed.
           texture_cache.MarkRangeAsResolved(
@@ -5000,8 +5135,12 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
       transfer_viewport.minDepth = 0.0f;
       transfer_viewport.maxDepth = 1.0f;
       command_processor_.SetViewport(transfer_viewport);
-      float pixels_to_ndc_x = 2.0f / transfer_viewport.width;
-      float pixels_to_ndc_y = 2.0f / transfer_viewport.height;
+      // GetRectangles returns coordinates in guest pixels, so scale
+      // pixels_to_ndc to convert guest pixels to NDC correctly.
+      float pixels_to_ndc_x =
+          2.0f / transfer_viewport.width * draw_resolution_scale_x();
+      float pixels_to_ndc_y =
+          2.0f / transfer_viewport.height * draw_resolution_scale_y();
       VkRect2D transfer_scissor;
       transfer_scissor.offset.x = 0;
       transfer_scissor.offset.y = 0;
