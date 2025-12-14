@@ -9,7 +9,7 @@
 
 #include "xenia/cpu/cpu_flags.h"
 
-DEFINE_string(cpu, "any", "CPU backend [any, x64].", "CPU");
+DEFINE_string(cpu, "any", "CPU backend [any, x64, a64].", "CPU");
 
 DEFINE_string(
     load_module_map, "",

@@ -66,6 +66,14 @@
 #define XE_ARCH_PPC 1
 #endif
 
+#ifdef XE_ARCH_AMD64
+#define XE_HOST_ARCH_NAME "x64"
+#elif XE_ARCH_ARM64
+#define XE_HOST_ARCH_NAME "a64"
+#elif XE_ARCH_PPC
+#define XE_HOST_ARCH_NAME "ppc"
+#endif
+
 #if XE_PLATFORM_WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX  // Don't want windows.h including min/max macros.

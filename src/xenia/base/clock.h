@@ -18,6 +18,8 @@
 
 #if XE_ARCH_AMD64
 #define XE_CLOCK_RAW_AVAILABLE 1
+#elif XE_ARCH_ARM64
+#define XE_CLOCK_RAW_AVAILABLE 1
 #endif
 
 DECLARE_bool(clock_no_scaling);

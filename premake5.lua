@@ -54,7 +54,7 @@ filter("configurations:Checked")
   defines({
     "DEBUG",
   })
-filter({"configurations:Checked", "platforms:Windows"})
+filter({"configurations:Checked", "platforms:Windows-*"})
   buildoptions({
     "/RTCsu",           -- Full Run-Time Checks.
   })
@@ -153,7 +153,7 @@ filter("platforms:Android-*")
     "log",
   })
 
-filter("platforms:Windows")
+filter("platforms:Windows-*")
   system("windows")
   toolset("msc")
   buildoptions({
@@ -179,8 +179,12 @@ filter("platforms:Windows")
     "_CRT_SECURE_NO_WARNINGS",
     "WIN32",
     "_WIN64=1",
-    "_AMD64=1",
   })
+  filter("architecture:x86_64")
+    defines({
+      "_AMD64=1",
+    })
+  filter({})
   linkoptions({
     "/ignore:4006",  -- Ignores complaints about empty obj files.
     "/ignore:4221",
@@ -198,7 +202,7 @@ filter("platforms:Windows")
   })
 
 -- Embed the manifest for things like dependencies and DPI awareness.
-filter({"platforms:Windows", "kind:ConsoleApp or WindowedApp"})
+filter({"platforms:Windows-*", "kind:ConsoleApp or WindowedApp"})
   files({
     "src/xenia/base/app_win32.manifest"
   })
@@ -228,7 +232,12 @@ workspace("xenia")
         ["ARCHS"] = "x86_64"
       })
     elseif os.istarget("windows") then
-      platforms({"Windows"})
+      platforms({"Windows-ARM64", "Windows-x86_64"})
+      filter("platforms:Windows-ARM64")
+        architecture("ARM64")
+      filter("platforms:Windows-x86_64")
+        architecture("x86_64")
+      filter({})
       -- 10.0.15063.0: ID3D12GraphicsCommandList1::SetSamplePositions.
       -- 10.0.19041.0: D3D12_HEAP_FLAG_CREATE_NOT_ZEROED.
       -- 10.0.22000.0: DWMWA_WINDOW_CORNER_PREFERENCE.
@@ -284,7 +293,13 @@ workspace("xenia")
   include("src/xenia/apu/nop")
   include("src/xenia/base")
   include("src/xenia/cpu")
-  include("src/xenia/cpu/backend/x64")
+
+  filter("architecture:x86_64")
+    include("src/xenia/cpu/backend/x64")
+  filter("architecture:ARM64")
+    include("src/xenia/cpu/backend/a64")
+  filter({})
+
   include("src/xenia/debug/ui")
   include("src/xenia/gpu")
   include("src/xenia/gpu/null")
