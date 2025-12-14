@@ -158,8 +158,8 @@ VulkanPresenter::~VulkanPresenter() {
   // (paint submission completion already awaited).
   // From most likely the latest to most likely the earliest to be signaled, so
   // just one sleep will likely be needed.
-  ui_submission_tracker_.Shutdown();
-  guest_output_image_refresher_submission_tracker_.Shutdown();
+  ui_completion_timeline_.AwaitAllSubmissions();
+  guest_output_image_refresher_completion_timeline_.AwaitAllSubmissions();
 
   const VulkanDevice::Functions& dfn = vulkan_device_->functions();
   const VkDevice device = vulkan_device_->device();
@@ -382,51 +382,24 @@ bool VulkanPresenter::CaptureGuestOutput(RawImage& image_out) {
       return false;
     }
 
-    VkSubmitInfo submit_info = {};
-    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &command_buffer;
-    VulkanSubmissionTracker submission_tracker(vulkan_device_);
     {
-      VulkanSubmissionTracker::FenceAcquisition fence_acqusition(
-          submission_tracker.AcquireFenceToAdvanceSubmission());
-      if (!fence_acqusition.fence()) {
-        XELOGE(
-            "VulkanPresenter: Failed to acquire a fence for guest output "
-            "capturing");
-        fence_acqusition.SubmissionFailedOrDropped();
-        dfn.vkDestroyCommandPool(device, command_pool, nullptr);
-        dfn.vkDestroyBuffer(device, buffer, nullptr);
-        dfn.vkFreeMemory(device, buffer_memory, nullptr);
-        return false;
-      }
-      VkResult submit_result;
-      {
-        const VulkanDevice::Queue::Acquisition queue_acquisition =
-            vulkan_device_->AcquireQueue(
-                vulkan_device_->queue_family_graphics_compute(), 0);
-        submit_result =
-            dfn.vkQueueSubmit(queue_acquisition.queue(), 1, &submit_info,
-                              fence_acqusition.fence());
-      }
+      VulkanGPUCompletionTimeline completion_timeline(vulkan_device_);
+      VkSubmitInfo submit_info = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+      submit_info.commandBufferCount = 1;
+      submit_info.pCommandBuffers = &command_buffer;
+      const VkResult submit_result = completion_timeline.AcquireFenceAndSubmit(
+          vulkan_device_->queue_family_graphics_compute(), 0, 1, &submit_info);
       if (submit_result != VK_SUCCESS) {
         XELOGE(
             "VulkanPresenter: Failed to submit the guest output capturing "
-            "command buffer");
-        fence_acqusition.SubmissionFailedOrDropped();
+            "command buffer: {}",
+            vk::to_string(vk::Result(submit_result)));
         dfn.vkDestroyCommandPool(device, command_pool, nullptr);
         dfn.vkDestroyBuffer(device, buffer, nullptr);
         dfn.vkFreeMemory(device, buffer_memory, nullptr);
         return false;
       }
-    }
-    if (!submission_tracker.AwaitAllSubmissionsCompletion()) {
-      XELOGE(
-          "VulkanPresenter: Failed to await the guest output capturing fence");
-      dfn.vkDestroyCommandPool(device, command_pool, nullptr);
-      dfn.vkDestroyBuffer(device, buffer, nullptr);
-      dfn.vkFreeMemory(device, buffer_memory, nullptr);
-      return false;
+      // Destroying the completion timeline causes the submission to be awaited.
     }
 
     dfn.vkDestroyCommandPool(device, command_pool, nullptr);
@@ -479,8 +452,8 @@ VkCommandBuffer VulkanPresenter::AcquireUISetupCommandBufferFromUIThread() {
 
   // Try to reuse an existing command buffer.
   if (!paint_context_.ui_setup_command_buffers.empty()) {
-    uint64_t submission_index_completed =
-        ui_submission_tracker_.UpdateAndGetCompletedSubmission();
+    const uint64_t submission_index_completed =
+        ui_completion_timeline_.UpdateAndGetCompletedSubmission();
     for (size_t i = 0; i < paint_context_.ui_setup_command_buffers.size();
          ++i) {
       PaintContext::UISetupCommandBuffer& ui_setup_command_buffer =
@@ -503,7 +476,7 @@ VkCommandBuffer VulkanPresenter::AcquireUISetupCommandBufferFromUIThread() {
       }
       paint_context_.ui_setup_command_buffer_current_index = i;
       ui_setup_command_buffer.last_usage_submission_index =
-          ui_submission_tracker_.GetCurrentSubmission();
+          ui_completion_timeline_.GetUpcomingSubmission();
       return ui_setup_command_buffer.command_buffer;
     }
   }
@@ -546,7 +519,7 @@ VkCommandBuffer VulkanPresenter::AcquireUISetupCommandBufferFromUIThread() {
       paint_context_.ui_setup_command_buffers.size();
   paint_context_.ui_setup_command_buffers.emplace_back(
       new_command_pool, new_command_buffer,
-      ui_submission_tracker_.GetCurrentSubmission());
+      ui_completion_timeline_.GetUpcomingSubmission());
   return new_command_buffer;
 }
 
@@ -877,8 +850,9 @@ bool VulkanPresenter::RefreshGuestOutputImpl(
   if (image_instance.image &&
       (image_instance.image->extent().width != frontbuffer_width ||
        image_instance.image->extent().height != frontbuffer_height)) {
-    guest_output_image_refresher_submission_tracker_.AwaitSubmissionCompletion(
-        image_instance.last_refresher_submission);
+    guest_output_image_refresher_completion_timeline_
+        .AwaitSubmissionAndUpdateCompleted(
+            image_instance.last_refresher_submission);
     image_instance.image.reset();
   }
   if (!image_instance.image) {
@@ -904,26 +878,21 @@ bool VulkanPresenter::RefreshGuestOutputImpl(
   // signal and wait slightly longer, for nothing important, while shutting down
   // than to destroy the image while it's still in use.
   image_instance.last_refresher_submission =
-      guest_output_image_refresher_submission_tracker_.GetCurrentSubmission();
+      guest_output_image_refresher_completion_timeline_.GetUpcomingSubmission();
   // No need to make the refresher signal the fence by itself - signal it here
   // instead to have more control:
   // "Fence signal operations that are defined by vkQueueSubmit additionally
   //  include in the first synchronization scope all commands that occur earlier
   //  in submission order."
-  const VulkanDevice::Functions& dfn = vulkan_device_->functions();
-  {
-    VulkanSubmissionTracker::FenceAcquisition fence_acqusition(
-        guest_output_image_refresher_submission_tracker_
-            .AcquireFenceToAdvanceSubmission());
-    const VulkanDevice::Queue::Acquisition queue_acquisition =
-        vulkan_device_->AcquireQueue(
-            vulkan_device_->queue_family_graphics_compute(), 0);
-    if (dfn.vkQueueSubmit(queue_acquisition.queue(), 0, nullptr,
-                          fence_acqusition.fence()) != VK_SUCCESS) {
-      fence_acqusition.SubmissionSucceededSignalFailed();
-    }
+  const VkResult submit_result =
+      guest_output_image_refresher_completion_timeline_.AcquireFenceAndSubmit(
+          vulkan_device_->queue_family_graphics_compute(), 0, 0, nullptr);
+  if (submit_result != VK_SUCCESS) {
+    XELOGE(
+        "VulkanPresenter: Failed to submit the guest output image refresh "
+        "fence signal: {}",
+        vk::to_string(vk::Result(submit_result)));
   }
-
   return refresher_succeeded;
 }
 
@@ -1277,7 +1246,7 @@ VkSwapchainKHR VulkanPresenter::PaintContext::CreateSwapchainForVulkanSurface(
 
 VkSwapchainKHR VulkanPresenter::PaintContext::PrepareForSwapchainRetirement() {
   if (swapchain != VK_NULL_HANDLE) {
-    submission_tracker.AwaitAllSubmissionsCompletion();
+    completion_timeline.AwaitAllSubmissions();
   }
   const VulkanDevice::Functions& dfn = vulkan_device->functions();
   const VkDevice device = vulkan_device->device();
@@ -1385,13 +1354,11 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
     bool execute_ui_drawers) {
   // Begin the submission in place of the one not currently potentially used on
   // the GPU.
-  uint64_t current_paint_submission_index =
-      paint_context_.submission_tracker.GetCurrentSubmission();
+  const uint64_t current_paint_submission_index =
+      paint_context_.completion_timeline.GetUpcomingSubmission();
   uint64_t paint_submission_count = uint64_t(paint_context_.submissions.size());
-  if (current_paint_submission_index >= paint_submission_count) {
-    paint_context_.submission_tracker.AwaitSubmissionCompletion(
-        current_paint_submission_index - paint_submission_count);
-  }
+  paint_context_.completion_timeline
+      .AwaitMaxSubmissionsPendingAndUpdateCompleted(paint_submission_count);
   const PaintContext::Submission& paint_submission =
       *paint_context_.submissions[current_paint_submission_index %
                                   paint_submission_count];
@@ -1555,7 +1522,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
           }
           // Await the completion of the usage of the old guest output image and
           // its descriptors.
-          paint_context_.submission_tracker.AwaitSubmissionCompletion(
+          paint_context_.completion_timeline.AwaitSubmissionAndUpdateCompleted(
               paint_context_
                   .guest_output_image_paint_refs
                       [guest_output_image_paint_ref_new_index]
@@ -1617,9 +1584,10 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
             // Need to replace immediately as a new image with the requested
             // size is needed.
             if (intermediate_image_ptr_ref) {
-              paint_context_.submission_tracker.AwaitSubmissionCompletion(
-                  paint_context_
-                      .guest_output_intermediate_image_last_submission);
+              paint_context_.completion_timeline
+                  .AwaitSubmissionAndUpdateCompleted(
+                      paint_context_
+                          .guest_output_intermediate_image_last_submission);
               intermediate_image_ptr_ref.reset();
               util::DestroyAndNullHandle(
                   dfn.vkDestroyFramebuffer, device,
@@ -1696,7 +1664,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
           } else {
             // Was previously needed, but not anymore - destroy when possible.
             if (intermediate_image_ptr_ref &&
-                paint_context_.submission_tracker
+                paint_context_.completion_timeline
                         .UpdateAndGetCompletedSubmission() >=
                     paint_context_
                         .guest_output_intermediate_image_last_submission) {
@@ -1731,7 +1699,7 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
         if (swapchain_effect_pipeline.swapchain_pipeline != VK_NULL_HANDLE &&
             swapchain_effect_pipeline.swapchain_format !=
                 paint_context_.swapchain_render_pass_format) {
-          paint_context_.submission_tracker.AwaitSubmissionCompletion(
+          paint_context_.completion_timeline.AwaitSubmissionAndUpdateCompleted(
               paint_context_.guest_output_image_paint_last_submission);
           util::DestroyAndNullHandle(
               dfn.vkDestroyPipeline, device,
@@ -1959,10 +1927,10 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
 
   // Release main target guest output image references that aren't needed
   // anymore (this is done after various potential guest-output-related main
-  // target submission tracker waits so the completed submission value is the
+  // target completion timeline waits so the completed submission index is the
   // most actual).
   uint64_t completed_paint_submission =
-      paint_context_.submission_tracker.UpdateAndGetCompletedSubmission();
+      paint_context_.completion_timeline.UpdateAndGetCompletedSubmission();
   for (std::pair<uint64_t, std::shared_ptr<GuestOutputImage>>&
            guest_output_image_paint_ref :
        paint_context_.guest_output_image_paint_refs) {
@@ -2001,8 +1969,8 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
     VulkanUIDrawContext ui_draw_context(
         *this, paint_context_.swapchain_extent.width,
         paint_context_.swapchain_extent.height, draw_command_buffer,
-        ui_submission_tracker_.GetCurrentSubmission(),
-        ui_submission_tracker_.UpdateAndGetCompletedSubmission(),
+        ui_completion_timeline_.GetUpcomingSubmission(),
+        ui_completion_timeline_.UpdateAndGetCompletedSubmission(),
         paint_context_.swapchain_render_pass,
         paint_context_.swapchain_render_pass_format);
     ExecuteUIDrawersFromUIThread(ui_draw_context);
@@ -2045,48 +2013,35 @@ Presenter::PaintResult VulkanPresenter::PaintAndPresentImpl(
   submit_info.pCommandBuffers = command_buffers;
   submit_info.signalSemaphoreCount = 1;
   submit_info.pSignalSemaphores = &present_semaphore;
-  {
-    VulkanSubmissionTracker::FenceAcquisition fence_acqusition(
-        paint_context_.submission_tracker.AcquireFenceToAdvanceSubmission());
-    // Also update the submission tracker giving submission indices to UI draw
-    // callbacks if submission is successful.
-    VulkanSubmissionTracker::FenceAcquisition ui_fence_acquisition;
-    if (execute_ui_drawers) {
-      ui_fence_acquisition =
-          ui_submission_tracker_.AcquireFenceToAdvanceSubmission();
+  const VkResult submit_result =
+      paint_context_.completion_timeline.AcquireFenceAndSubmit(
+          vulkan_device_->queue_family_graphics_compute(), 0, 1, &submit_info);
+  if (submit_result != VK_SUCCESS) {
+    XELOGE(
+        "VulkanPresenter: Failed to submit the presentation command buffer: {}",
+        vk::to_string(vk::Result(submit_result)));
+    if (ui_setup_command_buffer_index != SIZE_MAX) {
+      // If failed to submit, make the UI setup command buffer available for
+      // immediate reuse, as the completed submission index won't be updated to
+      // the current index, and failing submissions with setup command buffer
+      // over and over will result in never reusing the setup command buffers.
+      paint_context_.ui_setup_command_buffers[ui_setup_command_buffer_index]
+          .last_usage_submission_index = 0;
     }
-    VkResult submit_result;
-    {
-      const VulkanDevice::Queue::Acquisition queue_acquisition =
-          vulkan_device_->AcquireQueue(
-              vulkan_device_->queue_family_graphics_compute(), 0);
-      submit_result = dfn.vkQueueSubmit(queue_acquisition.queue(), 1,
-                                        &submit_info, fence_acqusition.fence());
-      if (ui_fence_acquisition.fence() != VK_NULL_HANDLE &&
-          submit_result == VK_SUCCESS) {
-        if (dfn.vkQueueSubmit(queue_acquisition.queue(), 0, nullptr,
-                              ui_fence_acquisition.fence()) != VK_SUCCESS) {
-          ui_fence_acquisition.SubmissionSucceededSignalFailed();
-        }
-      }
-    }
-    if (submit_result != VK_SUCCESS) {
-      XELOGE("VulkanPresenter: Failed to submit command buffers");
-      fence_acqusition.SubmissionFailedOrDropped();
-      ui_fence_acquisition.SubmissionFailedOrDropped();
-      if (ui_setup_command_buffer_index != SIZE_MAX) {
-        // If failed to submit, make the UI setup command buffer available for
-        // immediate reuse, as the completed submission index won't be updated
-        // to the current index, and failing submissions with setup command
-        // buffer over and over will result in never reusing the setup command
-        // buffers.
-        paint_context_.ui_setup_command_buffers[ui_setup_command_buffer_index]
-            .last_usage_submission_index = 0;
-      }
-      // The image is in an acquired state - but now, it will be in it forever.
-      // To avoid that, recreate the swapchain - don't return just
-      // kNotPresented.
-      return PaintResult::kNotPresentedConnectionOutdated;
+    // The image is in an acquired state - but now, it will be in it forever.
+    // To avoid that, recreate the swapchain - don't return just kNotPresented.
+    return PaintResult::kNotPresentedConnectionOutdated;
+  }
+  if (execute_ui_drawers) {
+    // Also update the completion timeline providing submission indices to UI
+    // draw callbacks if submission is successful.
+    const VkResult ui_signal_submit_result =
+        ui_completion_timeline_.AcquireFenceAndSubmit(
+            vulkan_device_->queue_family_graphics_compute(), 0, 0, nullptr);
+    if (ui_signal_submit_result != VK_SUCCESS) {
+      XELOGE(
+          "VulkanPresenter: Failed to submit the UI drawing fence signal: {}",
+          vk::to_string(vk::Result(ui_signal_submit_result)));
     }
   }
 

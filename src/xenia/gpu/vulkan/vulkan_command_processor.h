@@ -38,6 +38,7 @@
 #include "xenia/gpu/xenos.h"
 #include "xenia/kernel/kernel_state.h"
 #include "xenia/ui/vulkan/linked_type_descriptor_set_allocator.h"
+#include "xenia/ui/vulkan/vulkan_gpu_completion_timeline.h"
 #include "xenia/ui/vulkan/vulkan_presenter.h"
 #include "xenia/ui/vulkan/vulkan_provider.h"
 #include "xenia/ui/vulkan/vulkan_upload_buffer_pool.h"
@@ -157,10 +158,11 @@ class VulkanCommandProcessor : public CommandProcessor {
 
   bool submission_open() const { return submission_open_; }
   uint64_t GetCurrentSubmission() const {
-    return submission_completed_ +
-           uint64_t(submissions_in_flight_fences_.size()) + 1;
+    return completion_timeline_.GetUpcomingSubmission();
   }
-  uint64_t GetCompletedSubmission() const { return submission_completed_; }
+  uint64_t GetCompletedSubmission() const {
+    return completion_timeline_.GetCompletedSubmissionFromLastUpdate();
+  }
 
   // Sparse binds are:
   // - In a single submission, all submitted in one vkQueueBindSparse.
@@ -403,7 +405,7 @@ class VulkanCommandProcessor : public CommandProcessor {
   // Rechecks submission number and reclaims per-submission resources. Pass 0 as
   // the submission to await to simply check status, or pass
   // GetCurrentSubmission() to wait for all queue operations to be completed.
-  void CheckSubmissionFenceAndDeviceLoss(uint64_t await_submission);
+  void CheckSubmissionCompletionAndDeviceLoss(uint64_t await_submission);
   // If is_guest_command is true, a new full frame - with full cleanup of
   // resources and, if needed, starting capturing - is opened if pending (as
   // opposed to simply resuming after mid-frame synchronization). Returns
@@ -414,8 +416,9 @@ class VulkanCommandProcessor : public CommandProcessor {
   // successfully, if it has failed, leaves it open.
   bool EndSubmission(bool is_swap);
   bool AwaitAllQueueOperationsCompletion() {
-    CheckSubmissionFenceAndDeviceLoss(GetCurrentSubmission());
-    return !submission_open_ && submissions_in_flight_fences_.empty();
+    CheckSubmissionCompletionAndDeviceLoss(GetCurrentSubmission());
+    return !submission_open_ &&
+           GetCompletedSubmission() + 1u >= GetCurrentSubmission();
   }
 
   void ClearTransientDescriptorPools();
@@ -460,16 +463,14 @@ class VulkanCommandProcessor : public CommandProcessor {
   VkPipelineStageFlags guest_shader_pipeline_stages_ = 0;
   VkShaderStageFlags guest_shader_vertex_stages_ = 0;
 
-  std::vector<VkFence> fences_free_;
   std::vector<VkSemaphore> semaphores_free_;
 
+  ui::vulkan::VulkanGPUCompletionTimeline completion_timeline_;
   bool submission_open_ = false;
-  uint64_t submission_completed_ = 0;
   // In case vkQueueSubmit fails after something like a successful
   // vkQueueBindSparse, to wait correctly on the next attempt.
   std::vector<VkSemaphore> current_submission_wait_semaphores_;
   std::vector<VkPipelineStageFlags> current_submission_wait_stage_masks_;
-  std::vector<VkFence> submissions_in_flight_fences_;
   std::deque<std::pair<uint64_t, VkSemaphore>>
       submissions_in_flight_semaphores_;
 
