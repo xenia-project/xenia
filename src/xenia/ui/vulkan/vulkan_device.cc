@@ -51,22 +51,34 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   VkPhysicalDeviceProperties properties = {};
   ifn.vkGetPhysicalDeviceProperties(physical_device, &properties);
 
+  // From the VkApplicationInfo specification:
+  //
+  // "The Khronos validation layers will treat apiVersion as the highest API
+  // version the application targets, and will validate API usage against the
+  // minimum of that version and the implementation version (instance or device,
+  // depending on context). If an application tries to use functionality from a
+  // greater version than this, a validation error will be triggered."
+  //
+  // "Vulkan 1.0 implementations were required to return
+  // VK_ERROR_INCOMPATIBLE_DRIVER if apiVersion was larger than 1.0."
+  //
+  // Make sure that all usages of the API version in Xenia receive the highest
+  // minor version that Xenia has been tested on.
+  // Libraries such as the Vulkan Memory Allocator also may expect a minor
+  // version that is known to them.
   const uint32_t unclamped_api_version = properties.apiVersion;
-  if (vulkan_instance->api_version() < VK_MAKE_API_VERSION(0, 1, 1, 0)) {
-    // From the VkApplicationInfo specification:
-    //
-    // "The Khronos validation layers will treat apiVersion as the highest API
-    // version the application targets, and will validate API usage against the
-    // minimum of that version and the implementation version (instance or
-    // device, depending on context). If an application tries to use
-    // functionality from a greater version than this, a validation error will
-    // be triggered."
-    //
-    // "Vulkan 1.0 implementations were required to return
-    // VK_ERROR_INCOMPATIBLE_DRIVER if apiVersion was larger than 1.0."
-    properties.apiVersion = VK_MAKE_API_VERSION(
-        0, 1, 0, VK_API_VERSION_PATCH(properties.apiVersion));
-  }
+  const uint32_t clamped_api_minor_version = std::min(
+      VK_MAKE_API_VERSION(VK_API_VERSION_VARIANT(unclamped_api_version),
+                          VK_API_VERSION_MAJOR(unclamped_api_version),
+                          VK_API_VERSION_MINOR(unclamped_api_version), 0),
+      vulkan_instance->api_version() >= VK_MAKE_API_VERSION(0, 1, 1, 0)
+          ? kHighestUsedApiMinorVersion
+          : VK_MAKE_API_VERSION(0, 1, 0, 0));
+  properties.apiVersion =
+      VK_MAKE_API_VERSION(VK_API_VERSION_VARIANT(clamped_api_minor_version),
+                          VK_API_VERSION_MAJOR(clamped_api_minor_version),
+                          VK_API_VERSION_MINOR(clamped_api_minor_version),
+                          VK_API_VERSION_PATCH(unclamped_api_version));
 
   VkPhysicalDeviceFeatures supported_features = {};
   ifn.vkGetPhysicalDeviceFeatures(physical_device, &supported_features);
@@ -488,20 +500,14 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
   std::strcpy(device->properties_.deviceName, properties.deviceName);
 
   XELOGI(
-      "Vulkan device '{}': API {}.{}.{}, vendor 0x{:04X}, device 0x{:04X}, "
-      "driver version 0x{:X}",
-      properties.deviceName, VK_VERSION_MAJOR(properties.apiVersion),
-      VK_VERSION_MINOR(properties.apiVersion),
-      VK_VERSION_PATCH(properties.apiVersion), properties.vendorID,
+      "Vulkan device '{}': API {}.{}.{} ({}.{} used), vendor 0x{:04X}, device "
+      "0x{:04X}, driver version 0x{:X}",
+      properties.deviceName, VK_VERSION_MAJOR(unclamped_api_version),
+      VK_VERSION_MINOR(unclamped_api_version),
+      VK_VERSION_PATCH(properties.apiVersion),
+      VK_VERSION_MAJOR(properties.apiVersion),
+      VK_VERSION_MINOR(properties.apiVersion), properties.vendorID,
       properties.deviceID, properties.driverVersion);
-  if (unclamped_api_version != properties.apiVersion) {
-    XELOGI(
-        "Device supports Vulkan API {}.{}.{}, but the used version is limited "
-        "by the instance",
-        VK_VERSION_MAJOR(unclamped_api_version),
-        VK_VERSION_MINOR(unclamped_api_version),
-        VK_VERSION_PATCH(unclamped_api_version));
-  }
 
   XELOGI("Enabled Vulkan device extensions:");
   for (uint32_t enabled_extension_index = 0;
