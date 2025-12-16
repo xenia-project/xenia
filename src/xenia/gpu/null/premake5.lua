@@ -10,10 +10,18 @@ project("xenia-gpu-null")
     "xenia-base",
     "xenia-gpu",
     "xenia-ui",
-    "xenia-ui-vulkan",
     "xxhash",
   })
-  includedirs({
-    project_root.."/third_party/Vulkan-Headers/include",
-  })
+  filter("platforms:Mac")
+    links({
+      "xenia-ui-metal",
+    })
+  filter("platforms:Windows-* or platforms:Linux-*")
+    links({
+      "xenia-ui-vulkan",
+    })
+    includedirs({
+      project_root.."/third_party/Vulkan-Headers/include",
+    })
+  filter({})
   local_platform_files()

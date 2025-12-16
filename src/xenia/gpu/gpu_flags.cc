@@ -55,3 +55,7 @@ DEFINE_int32(query_occlusion_fake_sample_count, 1000,
              "EVENT_WRITE_ZPD by this number. Setting this to 0 means "
              "everything is reported as occluded.",
              "GPU");
+
+DEFINE_bool(metal_debug_edram_cpu_visible, false,
+            "Make Metal EDRAM buffer CPU-visible for debug instrumentation.",
+            "GPU");

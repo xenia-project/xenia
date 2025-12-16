@@ -526,14 +526,14 @@ HostToGuestThunk A64ThunkEmitter::EmitHostToGuestThunk() {
   func_info.stack_size = stack_size;
 
   void* fn = Emplace(func_info);
-  XELOGI("A64ThunkEmitter::EmitHostToGuestThunk: Created thunk at address 0x{:016X}", 
+  XELOGD("A64ThunkEmitter::EmitHostToGuestThunk: Created thunk at address 0x{:016X}", 
          (uintptr_t)fn);
-  XELOGI("A64ThunkEmitter::EmitHostToGuestThunk: Thunk code size = {} bytes", 
+  XELOGD("A64ThunkEmitter::EmitHostToGuestThunk: Thunk code size = {} bytes", 
          func_info.code_size.total);
   
   // Dump the first 32 bytes of the thunk to see what instructions we generated
   const uint8_t* thunk_bytes = reinterpret_cast<const uint8_t*>(fn);
-  XELOGI("A64ThunkEmitter::EmitHostToGuestThunk: Thunk bytes (first 32): {:02X}{:02X}{:02X}{:02X} {:02X}{:02X}{:02X}{:02X} {:02X}{:02X}{:02X}{:02X} {:02X}{:02X}{:02X}{:02X} {:02X}{:02X}{:02X}{:02X} {:02X}{:02X}{:02X}{:02X} {:02X}{:02X}{:02X}{:02X} {:02X}{:02X}{:02X}{:02X}",
+  XELOGD("A64ThunkEmitter::EmitHostToGuestThunk: Thunk bytes (first 32): {:02X}{:02X}{:02X}{:02X} {:02X}{:02X}{:02X}{:02X} {:02X}{:02X}{:02X}{:02X} {:02X}{:02X}{:02X}{:02X} {:02X}{:02X}{:02X}{:02X} {:02X}{:02X}{:02X}{:02X} {:02X}{:02X}{:02X}{:02X} {:02X}{:02X}{:02X}{:02X}",
          thunk_bytes[0], thunk_bytes[1], thunk_bytes[2], thunk_bytes[3],
          thunk_bytes[4], thunk_bytes[5], thunk_bytes[6], thunk_bytes[7],
          thunk_bytes[8], thunk_bytes[9], thunk_bytes[10], thunk_bytes[11],

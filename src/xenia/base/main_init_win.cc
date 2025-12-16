@@ -8,6 +8,7 @@
  */
 
 #include "xenia/base/platform_win.h"
+#include "xenia/base/wine_utils.h"
 
 #include <cstdlib>
 
@@ -23,6 +24,13 @@ class StartupAvxCheck {
     if (cpu.has(Xbyak::util::Cpu::tAVX)) {
       return;
     }
+
+    // Under CrossOver/Wine on macOS, CPUID feature reporting may be incomplete
+    // even though Rosetta can run AVX/AVX2 code.
+    if (xe::platform::IsWineOnDarwin()) {
+      return;
+    }
+
     // TODO(gibbed): detect app type and printf instead, if needed?
     MessageBoxA(
         nullptr,

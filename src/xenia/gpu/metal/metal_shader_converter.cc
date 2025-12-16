@@ -236,6 +236,14 @@ bool MetalShaderConverter::ConvertWithStage(
     return false;
   }
 
+  // Set compatibility flag to force texture array types
+  // This is required because:
+  // 1. Xenia's DXBC translator generates code expecting texture2d_array
+  // 2. MSC 3.0+ defaults to non-array texture types
+  // 3. Our Metal textures are created as MTLTextureType2DArray
+  IRCompilerSetCompatibilityFlags(compiler,
+                                  IRCompatibilityFlagForceTextureArray);
+
   // Create and set Xbox 360 root signature
   IRRootSignature* rootSig =
       static_cast<IRRootSignature*>(CreateXbox360RootSignature(stage));

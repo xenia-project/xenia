@@ -14,6 +14,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/bit_range.h"
+#include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
@@ -256,6 +257,18 @@ void SharedMemory::RangeWrittenByGpu(uint32_t start, uint32_t length,
   uint32_t page_first = start >> page_size_log2_;
   uint32_t page_last = end >> page_size_log2_;
 
+  // Debug logging of page flags around GPU writes / resolves.
+  uint32_t block_first = page_first >> 6;
+  uint32_t block_last = page_last >> 6;
+  for (uint32_t i = block_first; i <= block_last; ++i) {
+    const SystemPageFlagsBlock& block = system_page_flags_[i];
+    XELOGGPU(
+        "SharedMemory::RangeWrittenByGpu before: block={}, valid={:016X}, "
+        "gpu_written={:016X}, gpu_resolved={:016X}",
+        i, block.valid, block.valid_and_gpu_written,
+        block.valid_and_gpu_resolved);
+  }
+
   // Trigger modification callbacks so, for instance, resolved data is loaded to
   // the texture.
   FireWatches(page_first, page_last, true);
@@ -263,6 +276,15 @@ void SharedMemory::RangeWrittenByGpu(uint32_t start, uint32_t length,
   // Mark the range as valid (so pages are not reuploaded until modified by the
   // CPU) and watch it so the CPU can reuse it and this will be caught.
   MakeRangeValid(start, length, true, is_resolve);
+
+  for (uint32_t i = block_first; i <= block_last; ++i) {
+    const SystemPageFlagsBlock& block = system_page_flags_[i];
+    XELOGGPU(
+        "SharedMemory::RangeWrittenByGpu after : block={}, valid={:016X}, "
+        "gpu_written={:016X}, gpu_resolved={:016X}",
+        i, block.valid, block.valid_and_gpu_written,
+        block.valid_and_gpu_resolved);
+  }
 }
 
 bool SharedMemory::AllocateSparseHostGpuMemoryRange(

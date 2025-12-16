@@ -10,6 +10,9 @@ project("xenia-ui-d3d12")
     "xenia-base",
     "xenia-ui",
   })
+  includedirs({
+    project_root.."/third_party/DirectXShaderCompiler/include",
+  })
   local_platform_files()
   files({
     "../shaders/bytecode/d3d12_5_1/*.h",

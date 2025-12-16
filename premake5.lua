@@ -26,6 +26,70 @@ defines({
   "UNICODE",
 })
 
+filter("platforms:Windows-*")
+  system("windows")
+  if os.getenv("VSVERSION") == "2026" then
+    toolset("msc-v145")
+  else
+    toolset("msc")
+  end
+  buildoptions({
+    "/utf-8",   -- 'build correctly on systems with non-Latin codepages'.
+    -- Mark warnings as severe
+    "/w14839",  -- non-standard use of class 'type' as an argument to a variadic function
+    "/w14840",  -- non-portable use of class 'type' as an argument to a variadic function
+    -- Disable warnings
+    "/wd4100",  -- Unreferenced parameters are ok.
+    "/wd4201",  -- Nameless struct/unions are ok.
+    "/wd4512",  -- 'assignment operator was implicitly defined as deleted'.
+    "/wd4127",  -- 'conditional expression is constant'.
+    "/wd4324",  -- 'structure was padded due to alignment specifier'.
+    "/wd4189",  -- 'local variable is initialized but not referenced'.
+  })
+  flags({
+    "MultiProcessorCompile",  -- Multiprocessor compilation.
+    "NoMinimalRebuild",       -- Required for /MP above.
+  })
+  defines({
+    "_CRT_SECURE_NO_WARNINGS",
+    "_CRT_SECURE_NO_DEPRECATE",
+    "_CRT_NONSTDC_NO_DEPRECATE",
+    "_CRT_NONSTDC_NO_WARNINGS",
+    "_SCL_SECURE_NO_WARNINGS",
+    "WIN32",
+    "_WIN64=1",
+  })
+  filter({"platforms:Windows-*", "architecture:x86_64"})
+    defines({
+      "_AMD64=1",
+    })
+  filter("platforms:Windows-*")
+    linkoptions({
+      "/ignore:4006",  -- Ignores complaints about empty obj files.
+      "/ignore:4221",
+    })
+    links({
+      "ntdll",
+      "wsock32",
+      "ws2_32",
+      "xinput",
+      "comctl32",
+      "shcore",
+      "shlwapi",
+      "dxguid",
+      "bcrypt",
+    })
+filter({})
+
+-- Embed the manifest for things like dependencies and DPI awareness.
+filter({"platforms:Windows-*", "kind:ConsoleApp or WindowedApp"})
+  files({
+    "src/xenia/base/app_win32.manifest"
+  })
+
+filter({})
+
+
 cppdialect("C++17")
 exceptionhandling("On")
 rtti("On")
@@ -145,18 +209,16 @@ filter("platforms:Mac")
   })
   
   -- macOS Frameworks
-  filter "system:macosx"
-    links({
-      "Cocoa.framework",
-      "Carbon.framework", 
-      "CoreGraphics.framework",
-      "QuartzCore.framework"
-    })
-    libdirs({
-      "/opt/homebrew/lib",
-      "/usr/local/lib"
-    })
-  filter {}
+  links({
+    "Cocoa.framework",
+    "Carbon.framework", 
+    "CoreGraphics.framework",
+    "QuartzCore.framework"
+  })
+  libdirs({
+    "/opt/homebrew/lib",
+    "/usr/local/lib"
+  })
   
   -- Libraries to Link Against
   links({
@@ -178,15 +240,17 @@ filter("platforms:Mac")
   -- Additional Settings
   -- Premake defaults already exclude PCH usage and symbols are enabled globally.
 
-    -- Optimization Flags per Configuration
-    filter("configurations:Debug")
+  -- Optimization Flags per Configuration
+  filter({"platforms:Mac", "configurations:Debug"})
     buildoptions({
       "-O0",  -- Disable optimizations for Debug
     })
   
-  filter("configurations:Release")
+  filter({"platforms:Mac", "configurations:Release"})
     optimize("Speed")  -- Enable speed optimizations for Release
   
+filter({})
+
 filter({})
 
 filter({"platforms:Linux", "kind:*App"})

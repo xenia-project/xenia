@@ -117,10 +117,33 @@ class MetalRenderTargetCache final : public gpu::RenderTargetCache {
   MTL::ComputePipelineState* edram_load_pipeline_ = nullptr;   // Tiled → Linear
   MTL::ComputePipelineState* edram_store_pipeline_ = nullptr;  // Linear → Tiled
 
+  // EDRAM dump compute shaders for host render target → EDRAM copies.
+  // Color, 32bpp.
+  MTL::ComputePipelineState* edram_dump_color_32bpp_1xmsaa_pipeline_ = nullptr;
+  MTL::ComputePipelineState* edram_dump_color_32bpp_2xmsaa_pipeline_ = nullptr;
+  MTL::ComputePipelineState* edram_dump_color_32bpp_4xmsaa_pipeline_ = nullptr;
+  // Color, 64bpp.
+  MTL::ComputePipelineState* edram_dump_color_64bpp_1xmsaa_pipeline_ = nullptr;
+  MTL::ComputePipelineState* edram_dump_color_64bpp_2xmsaa_pipeline_ = nullptr;
+  MTL::ComputePipelineState* edram_dump_color_64bpp_4xmsaa_pipeline_ = nullptr;
+  // Depth (D24x / D24FS8 encoded as 32bpp in EDRAM snapshot).
+  MTL::ComputePipelineState* edram_dump_depth_32bpp_1xmsaa_pipeline_ = nullptr;
+  MTL::ComputePipelineState* edram_dump_depth_32bpp_2xmsaa_pipeline_ = nullptr;
+  MTL::ComputePipelineState* edram_dump_depth_32bpp_4xmsaa_pipeline_ = nullptr;
+
   // Resolve compute shaders (Metal XeSL → MSL metallib)
+  MTL::ComputePipelineState* resolve_full_8bpp_pipeline_ = nullptr;
+  MTL::ComputePipelineState* resolve_full_16bpp_pipeline_ = nullptr;
   MTL::ComputePipelineState* resolve_full_32bpp_pipeline_ = nullptr;
+  MTL::ComputePipelineState* resolve_full_64bpp_pipeline_ = nullptr;
+  MTL::ComputePipelineState* resolve_full_128bpp_pipeline_ = nullptr;
+  MTL::ComputePipelineState* resolve_fast_32bpp_1x2xmsaa_pipeline_ = nullptr;
+  MTL::ComputePipelineState* resolve_fast_32bpp_4xmsaa_pipeline_ = nullptr;
+  MTL::ComputePipelineState* resolve_fast_64bpp_1x2xmsaa_pipeline_ = nullptr;
+  MTL::ComputePipelineState* resolve_fast_64bpp_4xmsaa_pipeline_ = nullptr;
 
   // Transfer shaders (host RT ownership transfers) - modeled after D3D12.
+
   // TransferMode list mirrors D3D12RenderTargetCache::TransferMode so logs and
   // structure stay in sync, even if many modes are not implemented yet.
   enum class TransferMode {
@@ -188,6 +211,9 @@ class MetalRenderTargetCache final : public gpu::RenderTargetCache {
   // Track which render targets have been cleared this frame
   std::unordered_set<uint32_t> cleared_render_targets_this_frame_;
 
+  // Debug helper to log a small region of the current color RT0.
+  void LogCurrentColorRT0Pixels(const char* tag);
+
   // Helper methods
   MTL::Texture* CreateColorTexture(uint32_t width, uint32_t height,
                                    xenos::ColorRenderTargetFormat format,
@@ -228,6 +254,11 @@ class MetalRenderTargetCache final : public gpu::RenderTargetCache {
   void PerformTransfersAndResolveClears(
       uint32_t render_target_count, RenderTarget* const* render_targets,
       const std::vector<Transfer>* render_target_transfers);
+
+  // Writes contents of host render targets within rectangles from
+  // ResolveInfo::GetCopyEdramTileSpan to edram_buffer_.
+  void DumpRenderTargets(uint32_t dump_base, uint32_t dump_row_length_used,
+                         uint32_t dump_rows, uint32_t dump_pitch);
 };
 
 }  // namespace metal

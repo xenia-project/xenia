@@ -484,7 +484,7 @@ class Memory {
   bool Restore(ByteStream* stream);
 
  private:
-  int MapViews();
+  int MapViews(uint8_t* mapping_base);
   void UnmapViews();
 
   static uint32_t HostToGuestVirtualThunk(const void* context,

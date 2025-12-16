@@ -104,8 +104,10 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
         int loop_count = 0;
         while (vsync_worker_running_.load(std::memory_order_acquire)) {
           if (++loop_count % 1000 == 0) {
-            XELOGI("GPU VSync thread still running, loop {}, vsync_worker_running_={}", 
-                   loop_count, vsync_worker_running_.load());
+            XELOGI(
+                "GPU VSync thread still running, loop {}, "
+                "vsync_worker_running_={}",
+                loop_count, vsync_worker_running_.load());
           }
           uint64_t current_time = Clock::QueryGuestTickCount();
           uint64_t elapsed = (current_time - last_frame_time) /
@@ -139,9 +141,11 @@ void GraphicsSystem::Shutdown() {
   // Stop VSync thread first to prevent it from accessing command_processor_
   if (vsync_worker_thread_) {
     XELOGI("GPU: Shutting down VSync thread");
-    XELOGI("GPU: Setting vsync_worker_running_ to false (was: {})", vsync_worker_running_.load());
+    XELOGI("GPU: Setting vsync_worker_running_ to false (was: {})",
+           vsync_worker_running_.load());
     vsync_worker_running_.store(false, std::memory_order_release);
-    XELOGI("GPU: vsync_worker_running_ is now: {}", vsync_worker_running_.load());
+    XELOGI("GPU: vsync_worker_running_ is now: {}",
+           vsync_worker_running_.load());
     vsync_worker_thread_->Wait(0, 0, 0, nullptr);
     vsync_worker_thread_.reset();
     XELOGI("GPU: VSync thread shut down");
@@ -295,7 +299,9 @@ void GraphicsSystem::MarkVblank() {
 
   // Double-check command processor is still valid
   if (!command_processor_) {
-    XELOGI("GPU VSync: MarkVblank called but command_processor_ is null, skipping");
+    XELOGI(
+        "GPU VSync: MarkVblank called but command_processor_ is null, "
+        "skipping");
     return;
   }
 

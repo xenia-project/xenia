@@ -109,7 +109,22 @@ class MetalTextureCache : public TextureCache {
   bool LoadTextureDataFromResidentMemoryImpl(Texture& texture, bool load_base,
                                              bool load_mips) override;
 
+ private:
+  // GPU-based texture loading entry point. Returns true on success. For
+  // unsupported formats or failures, the caller may fall back to the existing
+  // CPU path (used only as a safety net for now).
+  bool TryGpuLoadTexture(Texture& texture, bool load_base, bool load_mips);
+
+  // Initialize GPU texture_load_* pipelines for Metal.
+  bool InitializeLoadPipelines();
+
+  // Metal compute pipelines for texture_load_* shaders (unscaled and
+  // resolution-scaled variants), indexed by TextureCache::LoadShaderIndex.
+  MTL::ComputePipelineState* load_pipelines_[kLoadShaderCount] = {};
+  MTL::ComputePipelineState* load_pipelines_scaled_[kLoadShaderCount] = {};
+
   // Metal-specific Texture implementation
+
   class MetalTexture : public Texture {
    public:
     MetalTexture(MetalTextureCache& texture_cache, const TextureKey& key,

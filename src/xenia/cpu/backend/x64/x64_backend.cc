@@ -16,6 +16,7 @@
 
 #include "xenia/base/exception_handler.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/wine_utils.h"
 #include "xenia/cpu/backend/x64/x64_assembler.h"
 #include "xenia/cpu/backend/x64/x64_code_cache.h"
 #include "xenia/cpu/backend/x64/x64_emitter.h"
@@ -94,8 +95,14 @@ bool X64Backend::Initialize(Processor* processor) {
 
   Xbyak::util::Cpu cpu;
   if (!cpu.has(Xbyak::util::Cpu::tAVX)) {
-    XELOGE("This CPU does not support AVX. The emulator will now crash.");
-    return false;
+    if (xe::platform::IsWineOnDarwin()) {
+      XELOGW(
+          "CPU does not advertise AVX under Wine on macOS; assuming AVX2 via "
+          "Rosetta.");
+    } else {
+      XELOGE("This CPU does not support AVX, which is required by Xenia.");
+      return false;
+    }
   }
 
   // Need movbe to do advanced LOAD/STORE tricks.

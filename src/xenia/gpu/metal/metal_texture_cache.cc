@@ -19,20 +19,41 @@
 #include "xenia/base/autorelease_pool.h"
 #include "xenia/base/bit_stream.h"
 #include "xenia/base/byte_order.h"
+#include "xenia/base/cvar.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/profiling.h"
 #include "xenia/gpu/metal/metal_command_processor.h"
 #include "xenia/gpu/metal/metal_shared_memory.h"
+#include "xenia/gpu/shaders/bytecode/metal/texture_load_128bpb_cs.h"
+#include "xenia/gpu/shaders/bytecode/metal/texture_load_16bpb_cs.h"
+#include "xenia/gpu/shaders/bytecode/metal/texture_load_32bpb_cs.h"
+#include "xenia/gpu/shaders/bytecode/metal/texture_load_64bpb_cs.h"
+#include "xenia/gpu/shaders/bytecode/metal/texture_load_8bpb_cs.h"
 #include "xenia/gpu/texture_conversion.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/texture_util.h"
 #include "xenia/gpu/xenos.h"
 
+DEFINE_bool(metal_texture_gpu_load, false,
+            "Use GPU texture_load_* shaders for Metal texture loading.", "GPU");
+
 namespace xe {
 namespace gpu {
 namespace metal {
 namespace {
+
+struct MetalLoadConstants {
+  uint32_t is_tiled_3d_endian_scale;
+  uint32_t guest_offset;
+  uint32_t guest_pitch_aligned;
+  uint32_t guest_z_stride_block_rows_aligned;
+  uint32_t size_blocks[3];
+  uint32_t padding;  // Pad to 16-byte boundary for uint3 in MSL.
+  uint32_t host_offset;
+  uint32_t host_pitch;
+  uint32_t height_texels;
+};
 
 bool AreDimensionsCompatible(xenos::FetchOpDimension shader_dimension,
                              xenos::DataDimension texture_dimension) {
@@ -60,6 +81,335 @@ MetalTextureCache::MetalTextureCache(MetalCommandProcessor* command_processor,
       command_processor_(command_processor) {}
 
 MetalTextureCache::~MetalTextureCache() { Shutdown(); }
+
+bool MetalTextureCache::TryGpuLoadTexture(Texture& texture, bool load_base,
+                                          bool load_mips) {
+  XELOGI(
+      "MetalTextureCache::TryGpuLoadTexture: called (load_base={}, "
+      "load_mips={})",
+      load_base, load_mips);
+
+  MetalTexture* metal_texture = static_cast<MetalTexture*>(&texture);
+
+  if (!metal_texture || !metal_texture->metal_texture()) {
+    return false;
+  }
+
+  const TextureKey& key = texture.key();
+  xenos::DataDimension dimension = key.dimension;
+
+  // For now, implement the GPU path for the primary A-Train case:
+  // 2D, non-scaled, k_8_8_8_8 textures (32bpp). Other formats and dimensions
+  // will fall back to the existing CPU implementation.
+  if (key.scaled_resolve || dimension != xenos::DataDimension::k2DOrStacked ||
+      key.format != xenos::TextureFormat::k_8_8_8_8) {
+    return false;
+  }
+  if (!load_base) {
+    // Mip-only load not supported yet on Metal.
+    return false;
+  }
+
+  // Require a 1x draw resolution scale for the initial implementation.
+  if (draw_resolution_scale_x() != 1 || draw_resolution_scale_y() != 1) {
+    XELOGW(
+        "MetalTextureCache::TryGpuLoadTexture: resolution scaling not yet "
+        "supported in Metal texture_load path");
+    return false;
+  }
+
+  TextureCache::LoadShaderIndex load_shader =
+      TextureCache::kLoadShaderIndex32bpb;
+  MTL::ComputePipelineState* pipeline =
+      load_pipelines_[static_cast<size_t>(load_shader)];
+  if (!pipeline) {
+    XELOGW(
+        "MetalTextureCache::TryGpuLoadTexture: missing 32bpp texture_load "
+        "pipeline");
+    return false;
+  }
+
+  const TextureCache::LoadShaderInfo& load_shader_info =
+      GetLoadShaderInfo(load_shader);
+
+  // Guest layout and basic parameters.
+  const texture_util::TextureGuestLayout& guest_layout = texture.guest_layout();
+  bool is_3d = false;
+  uint32_t width = key.GetWidth();
+  uint32_t height = key.GetHeight();
+  uint32_t depth_or_array_size = key.GetDepthOrArraySize();
+  uint32_t depth = 1;
+  uint32_t array_size = depth_or_array_size;
+
+  const FormatInfo* guest_format_info = FormatInfo::Get(key.format);
+  if (!guest_format_info) {
+    return false;
+  }
+  uint32_t block_width = guest_format_info->block_width;
+  uint32_t block_height = guest_format_info->block_height;
+  uint32_t bytes_per_block = guest_format_info->bytes_per_block();
+
+  // Only support base level for now.
+  uint32_t level = 0;
+  uint32_t level_width = width;
+  uint32_t level_height = height;
+  uint32_t level_depth = depth;
+
+  // Build LoadConstants matching texture_load.xesli /
+  // TextureCache::LoadConstants.
+  TextureCache::LoadConstants load_constants = {};
+  load_constants.is_tiled_3d_endian_scale =
+      uint32_t(key.tiled) | (uint32_t(is_3d) << 1) |
+      (uint32_t(key.endianness) << 2) | (1u << 4) | (1u << 7);
+
+  uint32_t guest_base_address = key.base_page << 12;
+  load_constants.guest_offset = guest_base_address;
+
+  const texture_util::TextureGuestLayout::Level& level_guest_layout =
+      guest_layout.base;
+  uint32_t level_guest_pitch = level_guest_layout.row_pitch_bytes;
+  if (key.tiled) {
+    level_guest_pitch /= bytes_per_block;
+  }
+  load_constants.guest_pitch_aligned = level_guest_pitch;
+  load_constants.guest_z_stride_block_rows_aligned =
+      level_guest_layout.z_slice_stride_block_rows;
+
+  // Size in blocks (no scaling for now).
+  load_constants.size_blocks[0] =
+      (level_width + (block_width - 1)) / block_width;
+  load_constants.size_blocks[1] =
+      (level_height + (block_height - 1)) / block_height;
+  load_constants.size_blocks[2] = level_depth;
+  load_constants.height_texels = level_height;
+
+  // Host layout for an uncompressed 32bpp guest format.
+  uint32_t host_block_width = 1;
+  uint32_t host_block_height = 1;
+  uint32_t host_x_blocks_per_thread =
+      UINT32_C(1) << load_shader_info.guest_x_blocks_per_thread_log2;
+  uint32_t host_width_blocks =
+      (level_width + (host_block_width - 1)) / host_block_width;
+  uint32_t host_height_blocks =
+      (level_height + (host_block_height - 1)) / host_block_height;
+  host_width_blocks = xe::round_up(host_width_blocks, host_x_blocks_per_thread);
+
+  uint32_t host_row_pitch =
+      host_width_blocks * load_shader_info.bytes_per_host_block;
+  load_constants.host_pitch = host_row_pitch;
+  load_constants.host_offset = 0;
+
+  uint32_t host_slice_size_bytes = host_row_pitch * host_height_blocks;
+  uint64_t host_buffer_size =
+      uint64_t(host_slice_size_bytes) * uint64_t(array_size);
+
+  // Acquire Metal resources.
+  MTL::Device* device = command_processor_->GetMetalDevice();
+  if (!device) {
+    return false;
+  }
+
+  MetalSharedMemory& metal_shared_memory =
+      static_cast<MetalSharedMemory&>(shared_memory());
+  MTL::Buffer* shared_buffer = metal_shared_memory.GetBuffer();
+  if (!shared_buffer) {
+    return false;
+  }
+
+  // Debug: log a small slice of the source shared memory backing this texture.
+  const uint8_t* shared_bytes =
+      static_cast<const uint8_t*>(shared_buffer->contents());
+  if (shared_bytes) {
+    const uint8_t* src = shared_bytes + guest_base_address;
+    XELOGI(
+        "MetalTexLoad SRC[0..15] @0x{:08X}: "
+        "{:02X} {:02X} {:02X} {:02X}  {:02X} {:02X} {:02X} {:02X}  "
+        "{:02X} {:02X} {:02X} {:02X}  {:02X} {:02X} {:02X} {:02X}",
+        guest_base_address, src[0], src[1], src[2], src[3], src[4], src[5],
+        src[6], src[7], src[8], src[9], src[10], src[11], src[12], src[13],
+        src[14], src[15]);
+  }
+
+  MTL::Buffer* dest_buffer =
+      device->newBuffer(host_buffer_size, MTL::ResourceStorageModeShared);
+  if (!dest_buffer) {
+    return false;
+  }
+
+  MetalLoadConstants metal_constants = {};
+  metal_constants.is_tiled_3d_endian_scale =
+      load_constants.is_tiled_3d_endian_scale;
+  metal_constants.guest_offset = load_constants.guest_offset;
+  metal_constants.guest_pitch_aligned = load_constants.guest_pitch_aligned;
+  metal_constants.guest_z_stride_block_rows_aligned =
+      load_constants.guest_z_stride_block_rows_aligned;
+  metal_constants.size_blocks[0] = load_constants.size_blocks[0];
+  metal_constants.size_blocks[1] = load_constants.size_blocks[1];
+  metal_constants.size_blocks[2] = load_constants.size_blocks[2];
+  metal_constants.padding = 0;
+  metal_constants.host_offset = load_constants.host_offset;
+  metal_constants.host_pitch = load_constants.host_pitch;
+  metal_constants.height_texels = load_constants.height_texels;
+
+  // Section 8.2: Log LoadConstants for cross-backend comparison.
+  // This format matches the D3D12/Vulkan LoadConstants to help identify
+  // discrepancies in tiling/pitch/offset calculations.
+  XELOGI(
+      "LoadConstants 0x{:08X}: is_tiled_3d_endian_scale=0x{:08X} "
+      "guest_offset=0x{:08X} "
+      "guest_pitch_aligned={} guest_z_stride_block_rows_aligned={} "
+      "size_blocks=({},{},{}) host_offset={} host_pitch={} height_texels={}",
+      guest_base_address, metal_constants.is_tiled_3d_endian_scale,
+      metal_constants.guest_offset, metal_constants.guest_pitch_aligned,
+      metal_constants.guest_z_stride_block_rows_aligned,
+      metal_constants.size_blocks[0], metal_constants.size_blocks[1],
+      metal_constants.size_blocks[2], metal_constants.host_offset,
+      metal_constants.host_pitch, metal_constants.height_texels);
+
+  size_t constants_size = xe::align(sizeof(metal_constants), size_t(16));
+  MTL::Buffer* constants_buffer =
+      device->newBuffer(constants_size, MTL::ResourceStorageModeShared);
+  if (!constants_buffer) {
+    dest_buffer->release();
+    return false;
+  }
+  std::memcpy(constants_buffer->contents(), &metal_constants,
+              sizeof(metal_constants));
+
+  MTL::CommandQueue* queue = command_processor_->GetMetalCommandQueue();
+  if (!queue) {
+    constants_buffer->release();
+    dest_buffer->release();
+    return false;
+  }
+
+  MTL::CommandBuffer* cmd = queue->commandBuffer();
+  if (!cmd) {
+    constants_buffer->release();
+    dest_buffer->release();
+    return false;
+  }
+
+  MTL::ComputeCommandEncoder* encoder = cmd->computeCommandEncoder();
+  if (!encoder) {
+    cmd->release();
+    constants_buffer->release();
+    dest_buffer->release();
+    return false;
+  }
+
+  encoder->setComputePipelineState(pipeline);
+  encoder->setBuffer(constants_buffer, 0, 0);
+  encoder->setBuffer(dest_buffer, 0, 1);
+  encoder->setBuffer(shared_buffer, 0, 2);
+
+  uint32_t guest_x_blocks_per_group_log2 =
+      load_shader_info.GetGuestXBlocksPerGroupLog2();
+  uint32_t group_count_x =
+      (load_constants.size_blocks[0] +
+       ((UINT32_C(1) << guest_x_blocks_per_group_log2) - 1)) >>
+      guest_x_blocks_per_group_log2;
+  uint32_t group_count_y =
+      (load_constants.size_blocks[1] +
+       ((UINT32_C(1) << kLoadGuestYBlocksPerGroupLog2) - 1)) >>
+      kLoadGuestYBlocksPerGroupLog2;
+
+  MTL::Size threads_per_group =
+      MTL::Size::Make(UINT32_C(1) << kLoadGuestXThreadsPerGroupLog2,
+                      UINT32_C(1) << kLoadGuestYBlocksPerGroupLog2, 1);
+  MTL::Size threadgroups = MTL::Size::Make(group_count_x, group_count_y,
+                                           load_constants.size_blocks[2]);
+
+  encoder->dispatchThreadgroups(threadgroups, threads_per_group);
+  encoder->endEncoding();
+  encoder->release();
+
+  cmd->commit();
+  cmd->waitUntilCompleted();
+  cmd->release();
+
+  constants_buffer->release();
+
+  // Upload from the GPU-populated linear buffer to the Metal texture via CPU;
+  // this avoids CPU untile/format work while still using Metal's texture APIs.
+  MTL::Texture* mtl_texture = metal_texture->metal_texture();
+  uint8_t* dest_data = static_cast<uint8_t*>(dest_buffer->contents());
+  if (!dest_data) {
+    dest_buffer->release();
+    return false;
+  }
+
+  // Debug: log the first few bytes of the GPU-populated destination buffer.
+  XELOGI(
+      "MetalTexLoad DEST[0..15]: "
+      "{:02X} {:02X} {:02X} {:02X}  {:02X} {:02X} {:02X} {:02X}  "
+      "{:02X} {:02X} {:02X} {:02X}  {:02X} {:02X} {:02X} {:02X}",
+      dest_data[0], dest_data[1], dest_data[2], dest_data[3], dest_data[4],
+      dest_data[5], dest_data[6], dest_data[7], dest_data[8], dest_data[9],
+      dest_data[10], dest_data[11], dest_data[12], dest_data[13], dest_data[14],
+      dest_data[15]);
+
+  for (uint32_t slice = 0; slice < array_size; ++slice) {
+    uint8_t* slice_data = dest_data + slice * host_slice_size_bytes;
+    MTL::Region region = MTL::Region::Make2D(0, 0, width, height);
+    mtl_texture->replaceRegion(region, 0, slice, slice_data, host_row_pitch, 0);
+  }
+
+  // Debug: Verify texture upload by reading back first pixel
+  static int upload_verify_count = 0;
+  if (upload_verify_count < 5) {
+    upload_verify_count++;
+    uint8_t readback[4] = {0};
+    MTL::Region verify_region = MTL::Region::Make2D(0, 0, 1, 1);
+    mtl_texture->getBytes(readback, 4, verify_region, 0);
+    XELOGI(
+        "TEXTURE_UPLOAD_VERIFY[{}]: mtl_texture={:p} uploaded to slice 0, "
+        "readback first pixel: {:02X} {:02X} {:02X} {:02X} (expected: {:02X} "
+        "{:02X} {:02X} {:02X})",
+        upload_verify_count, (void*)mtl_texture, readback[0], readback[1],
+        readback[2], readback[3], dest_data[0], dest_data[1], dest_data[2],
+        dest_data[3]);
+  }
+
+  // Section 8: Dump GPU-loaded textures for visual inspection.
+  // Dump all k_8_8_8_8 textures loaded via GPU path.
+  {
+    static int gpu_tex_dump_count = 0;
+    if (gpu_tex_dump_count < 20) {
+      gpu_tex_dump_count++;
+      char filename[256];
+      snprintf(filename, sizeof(filename), "gpu_texture_%02d_0x%08X_%ux%u.png",
+               gpu_tex_dump_count, guest_base_address, width, height);
+      // dest_data is BGRA after GPU texture_load (endian swapped from Xbox
+      // ARGB). stb_image_write expects RGBA, so we need to swap R<->B for
+      // correct dump.
+      size_t total_pixels = size_t(width) * height;
+      std::vector<uint8_t> rgba_data(total_pixels * 4);
+      for (size_t i = 0; i < total_pixels; ++i) {
+        size_t src_offset = (i / width) * host_row_pitch + (i % width) * 4;
+        rgba_data[i * 4 + 0] = dest_data[src_offset + 2];  // R from B
+        rgba_data[i * 4 + 1] = dest_data[src_offset + 1];  // G
+        rgba_data[i * 4 + 2] = dest_data[src_offset + 0];  // B from R
+        rgba_data[i * 4 + 3] = dest_data[src_offset + 3];  // A
+      }
+      int ok = stbi_write_png(filename, int(width), int(height), 4,
+                              rgba_data.data(), int(width * 4));
+      XELOGI(
+          "MetalTextureCache: dumped GPU-loaded texture #{} to {} (ok={}, "
+          "{}x{}, host_pitch={})",
+          gpu_tex_dump_count, filename, ok, width, height, host_row_pitch);
+    }
+  }
+
+  dest_buffer->release();
+
+  XELOGD(
+      "MetalTextureCache::TryGpuLoadTexture: GPU texture_load_32bpb path used "
+      "for 0x{:08X} ({}x{})",
+      guest_base_address, width, height);
+
+  return true;
+}
 
 void MetalTextureCache::DumpTextureToFile(MTL::Texture* texture,
                                           const std::string& filename,
@@ -108,7 +458,83 @@ bool MetalTextureCache::Initialize() {
     return false;
   }
 
-  XELOGD("Metal texture cache: Initialized successfully (with null textures)");
+  if (!InitializeLoadPipelines()) {
+    XELOGE("Metal texture cache: Failed to initialize texture_load pipelines");
+    return false;
+  }
+
+  XELOGD(
+      "Metal texture cache: Initialized successfully (null textures + GPU "
+      "texture_load pipelines)");
+
+  return true;
+}
+
+bool MetalTextureCache::InitializeLoadPipelines() {
+  MTL::Device* device = command_processor_->GetMetalDevice();
+  if (!device) {
+    return false;
+  }
+
+  NS::Error* error = nullptr;
+
+  auto create_pipeline_from_metallib =
+      [&](const uint8_t* data, size_t size) -> MTL::ComputePipelineState* {
+    dispatch_data_t dispatch_data = dispatch_data_create(
+        data, size, nullptr, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+    MTL::Library* lib = device->newLibrary(dispatch_data, &error);
+    dispatch_release(dispatch_data);
+    if (!lib) {
+      XELOGE("MetalTextureCache: failed to create texture_load library: {}",
+             error ? error->localizedDescription()->utf8String() : "unknown");
+      return nullptr;
+    }
+    NS::String* fn_name =
+        NS::String::string("xesl_entry", NS::UTF8StringEncoding);
+    MTL::Function* fn = lib->newFunction(fn_name);
+    if (!fn) {
+      XELOGE(
+          "MetalTextureCache: texture_load metallib missing xesl_entry "
+          "function");
+      lib->release();
+      return nullptr;
+    }
+    MTL::ComputePipelineState* pipeline =
+        device->newComputePipelineState(fn, &error);
+    fn->release();
+    lib->release();
+    if (!pipeline) {
+      XELOGE("MetalTextureCache: failed to create texture_load pipeline: {}",
+             error ? error->localizedDescription()->utf8String() : "unknown");
+      return nullptr;
+    }
+    return pipeline;
+  };
+
+  // Only initialize the core 8/16/32/64/128bpb loaders for now; format-
+  // specific loaders can be added as needed.
+  load_pipelines_[TextureCache::kLoadShaderIndex8bpb] =
+      create_pipeline_from_metallib(texture_load_8bpb_cs_metallib,
+                                    sizeof(texture_load_8bpb_cs_metallib));
+  load_pipelines_[TextureCache::kLoadShaderIndex16bpb] =
+      create_pipeline_from_metallib(texture_load_16bpb_cs_metallib,
+                                    sizeof(texture_load_16bpb_cs_metallib));
+  load_pipelines_[TextureCache::kLoadShaderIndex32bpb] =
+      create_pipeline_from_metallib(texture_load_32bpb_cs_metallib,
+                                    sizeof(texture_load_32bpb_cs_metallib));
+  load_pipelines_[TextureCache::kLoadShaderIndex64bpb] =
+      create_pipeline_from_metallib(texture_load_64bpb_cs_metallib,
+                                    sizeof(texture_load_64bpb_cs_metallib));
+  load_pipelines_[TextureCache::kLoadShaderIndex128bpb] =
+      create_pipeline_from_metallib(texture_load_128bpb_cs_metallib,
+                                    sizeof(texture_load_128bpb_cs_metallib));
+
+  // For now, texture_load_*_scaled_cs are not required because the Metal
+  // texture_load path only runs for non-scaled textures.
+
+  if (!load_pipelines_[TextureCache::kLoadShaderIndex32bpb]) {
+    return false;
+  }
 
   return true;
 }
@@ -188,9 +614,10 @@ MTL::PixelFormat MetalTextureCache::ConvertXenosFormat(
   // Xbox 360 formats
   switch (format) {
     case xenos::TextureFormat::k_8_8_8_8:
-      // Xbox 360 k_8_8_8_8 is RGBA after endian swap (same as D3D12/Vulkan
-      // R8G8B8A8_UNORM)
-      return MTL::PixelFormatRGBA8Unorm;
+      // Xbox 360 k_8_8_8_8 is stored as ARGB in big-endian. After k_8in32
+      // endian swap on little-endian, we get BGRA byte order.
+      // Metal's BGRA8Unorm matches this layout directly.
+      return MTL::PixelFormatBGRA8Unorm;
     case xenos::TextureFormat::k_1_5_5_5:
       return MTL::PixelFormatA1BGR5Unorm;
     case xenos::TextureFormat::k_5_6_5:
@@ -902,7 +1329,15 @@ bool MetalTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     return false;
   }
 
+  // GPU-based loading path for Metal texture_load_* shaders. For formats not
+  // yet supported by the Metal path, fall back to the existing CPU untile path
+  // as a safety net.
+  if (TryGpuLoadTexture(texture, load_base, load_mips)) {
+    return true;
+  }
+
   const TextureKey& key = texture.key();
+
   MTL::Texture* mtl_texture = metal_texture->metal_texture();
 
   // Get texture dimensions
@@ -1089,16 +1524,26 @@ bool MetalTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     }
   }
 
-  // For k_8_8_8_8 we currently treat the untiled data as BGRA after
-  // endian swap (matching D3D12/Vulkan behaviour where the host texture is
-  // typically R8G8B8A8 with a swizzle). However, the Metal textures created
-  // here use MTL::PixelFormatRGBA8Unorm, so we need to swizzle the channels
-  // from BGRA -> RGBA before uploading.
-  if (key.format == xenos::TextureFormat::k_8_8_8_8) {
-    for (uint32_t i = 0; i + 3 < total_size; i += 4) {
-      std::swap(untiled_data[i + 0], untiled_data[i + 2]);  // B <-> R
-    }
+  // Section 8.1: Log CPU untile DEST for comparison with GPU path.
+  // Log the first 16 bytes of untiled data BEFORE the BGRA->RGBA swizzle, so
+  // we can directly compare with GPU texture_load output (which produces RGBA
+  // directly for k_8_8_8_8 after endian swap).
+  if (key.format == xenos::TextureFormat::k_8_8_8_8 && total_size >= 16) {
+    XELOGI(
+        "MetalTexLoadCPU DEST[0..15] @0x{:08X}: "
+        "{:02X} {:02X} {:02X} {:02X}  {:02X} {:02X} {:02X} {:02X}  "
+        "{:02X} {:02X} {:02X} {:02X}  {:02X} {:02X} {:02X} {:02X}",
+        guest_address, untiled_data[0], untiled_data[1], untiled_data[2],
+        untiled_data[3], untiled_data[4], untiled_data[5], untiled_data[6],
+        untiled_data[7], untiled_data[8], untiled_data[9], untiled_data[10],
+        untiled_data[11], untiled_data[12], untiled_data[13], untiled_data[14],
+        untiled_data[15]);
   }
+
+  // For k_8_8_8_8, the untiled data is BGRA after endian swap.
+  // Metal textures now use MTL::PixelFormatBGRA8Unorm which matches this
+  // layout directly, so no swizzle is needed.
+  // (Previously we swizzled BGRA->RGBA for RGBA8Unorm format.)
 
   // For the A-Train trace, dump the resolved 1280x720 k_8_8_8_8 background
   // texture at guest address 0x1BFD5000 once, so we can visually inspect what

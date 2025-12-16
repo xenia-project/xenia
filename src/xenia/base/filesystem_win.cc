@@ -74,7 +74,10 @@ bool CreateEmptyFile(const std::filesystem::path& path) {
 FILE* OpenFile(const std::filesystem::path& path, const std::string_view mode) {
   // Dumb, but OK.
   const auto wmode = xe::to_utf16(mode);
-  return _wfopen(path.c_str(), reinterpret_cast<const wchar_t*>(wmode.c_str()));
+  FILE* file = nullptr;
+  errno_t err = _wfopen_s(&file, path.c_str(),
+                          reinterpret_cast<const wchar_t*>(wmode.c_str()));
+  return (err == 0) ? file : nullptr;
 }
 
 bool Seek(FILE* file, int64_t offset, int origin) {

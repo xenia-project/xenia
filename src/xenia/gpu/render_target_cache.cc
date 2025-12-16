@@ -737,9 +737,6 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   if (!depth_and_color_rts_used_bits) {
     // Nothing to bind, don't waste time on things like memexport-only draws -
     // just check if old bindings can still be used.
-    XELOGW("RenderTargetCache: No render targets requested (used_bits=0)");
-    XELOGW("  RB_SURFACE_INFO might not have color/depth bits set");
-    XELOGW("  Keeping previous render targets if valid to avoid pink screen");
 
     // DON'T clear the used targets - keep previous ones
     // std::memset(last_update_used_render_targets_, 0,

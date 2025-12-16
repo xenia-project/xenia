@@ -191,7 +191,15 @@ bool MetalPresenter::CaptureGuestOutput(RawImage& image_out) {
   
   std::memcpy(image_out.data.data(), buffer_contents, height * stride);
   
-  XELOGI("Metal CaptureGuestOutput: Successfully read real texture data from Metal");
+  // Force alpha to 255 (opaque) for all pixels - matches D3D12/Vulkan behavior
+  // The texture is BGRA8, so alpha is at byte offset 3 of each 4-byte pixel
+  uint8_t* pixel_data = image_out.data.data();
+  size_t pixel_count = width * height;
+  for (size_t i = 0; i < pixel_count; ++i) {
+    pixel_data[i * 4 + 3] = 255;  // Set alpha byte to opaque
+  }
+  
+  XELOGI("Metal CaptureGuestOutput: Successfully read real texture data from Metal (forced alpha=255)");
   return true;
 }
 

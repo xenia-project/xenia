@@ -83,7 +83,11 @@ class Export {
         type(type),
         tags(tags),
         function_data({nullptr, nullptr, 0}) {
+#ifdef _WIN32
+    strncpy_s(this->name, xe::countof(this->name), name, _TRUNCATE);
+#else
     std::strncpy(this->name, name, xe::countof(this->name));
+#endif
   }
 
   uint16_t ordinal;

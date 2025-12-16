@@ -138,9 +138,9 @@ bool MacOSA64CodeCache::Initialize() {
 
   // Skip JIT callback freezing - using MAP_JIT with pthread_jit_write_protect_np
 #if XE_PLATFORM_MAC && defined(__aarch64__)
-  XELOGI("MacOSA64CodeCache::Initialize: Using MAP_JIT with pthread_jit_write_protect_np on ARM64 macOS");
+  XELOGD("MacOSA64CodeCache::Initialize: Using MAP_JIT with pthread_jit_write_protect_np on ARM64 macOS");
 #else
-  XELOGI("MacOSA64CodeCache::Initialize: Using regular RWX memory (no JIT protection)");
+  XELOGD("MacOSA64CodeCache::Initialize: Using regular RWX memory (no JIT protection)");
 #endif
   jit_callbacks_frozen = false;
 
@@ -150,34 +150,34 @@ bool MacOSA64CodeCache::Initialize() {
 }
 
 void MacOSA64CodeCache::CopyMachineCode(void* dest, const void* src, size_t size) {
-  XELOGI("MacOSA64CodeCache::CopyMachineCode: About to copy {} bytes from 0x{:016X} to 0x{:016X}", 
+  XELOGD("MacOSA64CodeCache::CopyMachineCode: About to copy {} bytes from 0x{:016X} to 0x{:016X}", 
          size, (uintptr_t)src, (uintptr_t)dest);
   
 #if XE_PLATFORM_MAC && defined(__aarch64__)
   // On ARM64 macOS with MAP_JIT, use pthread_jit_write_protect_np dance
-  XELOGI("MacOSA64CodeCache::CopyMachineCode: Using MAP_JIT with write protection toggle (Thread: 0x{:016X})", (uintptr_t)pthread_self());
+  XELOGD("MacOSA64CodeCache::CopyMachineCode: Using MAP_JIT with write protection toggle (Thread: 0x{:016X})", (uintptr_t)pthread_self());
   
   // Enable write access for this thread (disable execute)
   pthread_jit_write_protect_np(0);
-  XELOGI("MacOSA64CodeCache::CopyMachineCode: Write mode enabled for thread");
+  XELOGD("MacOSA64CodeCache::CopyMachineCode: Write mode enabled for thread");
   
   // Copy the machine code
   std::memcpy(dest, src, size);
   
   // Re-enable execute access for this thread (disable write)
   pthread_jit_write_protect_np(1);
-  XELOGI("MacOSA64CodeCache::CopyMachineCode: Execute mode re-enabled for thread");
+  XELOGD("MacOSA64CodeCache::CopyMachineCode: Execute mode re-enabled for thread");
   
-  XELOGI("MacOSA64CodeCache::CopyMachineCode: MAP_JIT code copied with write protection dance");
+  XELOGD("MacOSA64CodeCache::CopyMachineCode: MAP_JIT code copied with write protection dance");
 #else
   // Using regular RWX memory instead of MAP_JIT - simple memcpy is sufficient
-  XELOGI("MacOSA64CodeCache::CopyMachineCode: Using simple memcpy for RWX memory");
+  XELOGD("MacOSA64CodeCache::CopyMachineCode: Using simple memcpy for RWX memory");
   
   // Copy the machine code
   std::memcpy(dest, src, size);
 #endif
   
-  XELOGI("MacOSA64CodeCache::CopyMachineCode: Machine code copied successfully");
+  XELOGD("MacOSA64CodeCache::CopyMachineCode: Machine code copied successfully");
 }
 
 MacOSA64CodeCache::UnwindReservation
@@ -188,7 +188,7 @@ MacOSA64CodeCache::RequestUnwindReservation(uint8_t* entry_address) {
   unwind_reservation.data_size = xe::round_up(kUnwindInfoSize, 16);
   unwind_reservation.table_slot = current_count;
   unwind_reservation.entry_address = entry_address;
-  XELOGI("MacOSA64CodeCache::RequestUnwindReservation: Allocated slot {} (total count now {})", 
+  XELOGD("MacOSA64CodeCache::RequestUnwindReservation: Allocated slot {} (total count now {})", 
          current_count, current_count + 1);
   return unwind_reservation;
 }
@@ -211,11 +211,11 @@ void MacOSA64CodeCache::PlaceCode(uint32_t guest_address, void* machine_code,
   // Store in the reserved slot
   unwind_table_[unwind_reservation.table_slot] = unwind_info;
 
-  XELOGI("MacOSA64CodeCache::PlaceCode: About to flush instruction cache for address 0x{:016X}, size {}", 
+  XELOGD("MacOSA64CodeCache::PlaceCode: About to flush instruction cache for address 0x{:016X}, size {}", 
          (uintptr_t)code_execute_address, func_info.code_size.total);
   
   // Check memory permissions before flushing
-  XELOGI("MacOSA64CodeCache::PlaceCode: Checking memory permissions before i-cache flush");
+  XELOGD("MacOSA64CodeCache::PlaceCode: Checking memory permissions before i-cache flush");
   
   // Validate address alignment before calling sys_icache_invalidate
   if ((uintptr_t)code_execute_address % 4 != 0) {
@@ -229,22 +229,22 @@ void MacOSA64CodeCache::PlaceCode(uint32_t guest_address, void* machine_code,
   }
   
   // Check if memory region is actually accessible
-  XELOGI("MacOSA64CodeCache::PlaceCode: About to call sys_icache_invalidate");
+  XELOGD("MacOSA64CodeCache::PlaceCode: About to call sys_icache_invalidate");
   
 #if XE_PLATFORM_MAC && defined(__aarch64__)
   // On MAP_JIT memory, just flush instruction cache - memory is already executable
   sys_icache_invalidate(code_execute_address, func_info.code_size.total);
-  XELOGI("MacOSA64CodeCache::PlaceCode: Instruction cache flushed for MAP_JIT memory");
+  XELOGD("MacOSA64CodeCache::PlaceCode: Instruction cache flushed for MAP_JIT memory");
 #else
   // On RWX memory, just flush instruction cache - no JIT protection needed
   sys_icache_invalidate(code_execute_address, func_info.code_size.total);
-  XELOGI("MacOSA64CodeCache::PlaceCode: Instruction cache flushed successfully");
+  XELOGD("MacOSA64CodeCache::PlaceCode: Instruction cache flushed successfully");
 #endif
   
-  XELOGI("MacOSA64CodeCache::PlaceCode: Code setup complete");
+  XELOGD("MacOSA64CodeCache::PlaceCode: Code setup complete");
   
   // Verify code is executable by checking first few bytes
-  XELOGI("MacOSA64CodeCache::PlaceCode: Code verification - first 16 bytes: {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X}",
+  XELOGD("MacOSA64CodeCache::PlaceCode: Code verification - first 16 bytes: {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X} {:02X}",
          ((uint8_t*)code_execute_address)[0], ((uint8_t*)code_execute_address)[1], 
          ((uint8_t*)code_execute_address)[2], ((uint8_t*)code_execute_address)[3],
          ((uint8_t*)code_execute_address)[4], ((uint8_t*)code_execute_address)[5],
@@ -264,7 +264,7 @@ void MacOSA64CodeCache::InitializeUnwindEntry(
 
   // NOTE: Unwind info is already stored in PlaceCode, so we don't store it again here
   // to avoid the double-storage bug that was causing memory corruption.
-  XELOGI("MacOSA64CodeCache::InitializeUnwindEntry: Unwind entry initialized for slot {} at 0x{:016X}",
+  XELOGD("MacOSA64CodeCache::InitializeUnwindEntry: Unwind entry initialized for slot {} at 0x{:016X}",
          unwind_table_slot, reinterpret_cast<uintptr_t>(code_execute_address));
 }
 

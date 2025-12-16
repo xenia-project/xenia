@@ -437,18 +437,21 @@ bool MetalCommandProcessor::SetupContext() {
   // IMPORTANT: The top-level AB contains uint64_t GPU addresses pointing to
   // descriptor tables, NOT IRDescriptorTableEntry structures!
   // The root signature has 14 parameters (4 SRV + 1 SRV hull + 4 UAV + 1
-  // sampler + 4 CBV) Each entry is sizeof(uint64_t) = 8 bytes
-  const size_t kTopLevelABSlots = 20;  // Some extra for safety
-  const size_t kTopLevelABBytes = kTopLevelABSlots * sizeof(uint64_t);
+  // sampler + 4 CBV). Each entry is sizeof(uint64_t) = 8 bytes.
+  // We allocate a ring buffer with one 20-entry region per draw so that
+  // descriptor table pointers are not overwritten before earlier draws execute
+  // on the GPU.
+  const size_t kTopLevelABTotalBytes =
+      kTopLevelABBytesPerDraw * kResourceHeapDrawCount;
   top_level_ab_ =
-      device_->newBuffer(kTopLevelABBytes, MTL::ResourceStorageModeShared);
+      device_->newBuffer(kTopLevelABTotalBytes, MTL::ResourceStorageModeShared);
   if (!top_level_ab_) {
     XELOGE("Failed to create top-level argument buffer");
     return false;
   }
   top_level_ab_->setLabel(
       NS::String::string("TopLevelArgumentBuffer", NS::UTF8StringEncoding));
-  std::memset(top_level_ab_->contents(), 0, kTopLevelABBytes);
+  std::memset(top_level_ab_->contents(), 0, kTopLevelABTotalBytes);
 
   // Create draw arguments buffer (bound at index 4)
   // Contains IRRuntimeDrawArguments structure
@@ -489,7 +492,7 @@ bool MetalCommandProcessor::SetupContext() {
       "entries, smp_heap={} entries, cbv_heap={} entries, uniforms={}B, "
       "top_level={}B, draw_args={}B)",
       kResourceHeapSlots, kSamplerHeapSlots, kCBVHeapSlots, kUniformsBufferSize,
-      kTopLevelABBytes, kDrawArgsSize);
+      kTopLevelABTotalBytes, kDrawArgsSize);
 
   XELOGI("MetalCommandProcessor::SetupContext() completed successfully");
   return true;
@@ -894,7 +897,8 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     pipeline = debug_pipeline_;
   } else {
     // Get or create pipeline state from Xbox 360 shaders
-    pipeline = GetOrCreatePipelineState(vertex_translation, pixel_translation);
+    pipeline =
+        GetOrCreatePipelineState(vertex_translation, pixel_translation, regs);
   }
 
   if (!pipeline) {
@@ -1023,20 +1027,79 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     // Determine primitive type characteristics
     bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
 
-    // Get viewport info for NDC transform
+    // Get viewport info for NDC transform. Use the actual RT0 dimensions
+    // when available so system constants match the current render target.
+    uint32_t vp_width = render_target_width_;
+    uint32_t vp_height = render_target_height_;
+    if (render_target_cache_) {
+      MTL::Texture* rt0_tex = render_target_cache_->GetColorTarget(0);
+      if (rt0_tex) {
+        vp_width = rt0_tex->width();
+        vp_height = rt0_tex->height();
+      }
+    }
     draw_util::ViewportInfo viewport_info;
     auto depth_control = draw_util::GetNormalizedDepthControl(regs);
     draw_util::GetHostViewportInfo(
-        regs, 1, 1,             // draw resolution scale x/y
-        false,                  // origin_bottom_left (Metal uses top-left)
-        render_target_width_,   // x_max
-        render_target_height_,  // y_max
-        false,                  // allow_reverse_z
-        depth_control,          // normalized_depth_control
-        false,                  // convert_z_to_float24
-        false,                  // full_float24_in_0_to_1
-        false,                  // pixel_shader_writes_depth
+        regs, 1, 1,     // draw resolution scale x/y
+        false,          // origin_bottom_left (Metal uses top-left)
+        vp_width,       // x_max
+        vp_height,      // y_max
+        false,          // allow_reverse_z
+        depth_control,  // normalized_depth_control
+        false,          // convert_z_to_float24
+        false,          // full_float24_in_0_to_1
+        false,          // pixel_shader_writes_depth
         viewport_info);
+
+    // Apply per-draw viewport and scissor so the Metal viewport
+    // matches the guest viewport computed by draw_util.
+    draw_util::Scissor scissor;
+    draw_util::GetScissor(regs, scissor, true);
+
+    // Clamp scissor to actual render target bounds (Metal requires this).
+    if (scissor.offset[0] + scissor.extent[0] > vp_width) {
+      scissor.extent[0] =
+          (scissor.offset[0] < vp_width) ? (vp_width - scissor.offset[0]) : 0;
+    }
+    if (scissor.offset[1] + scissor.extent[1] > vp_height) {
+      scissor.extent[1] =
+          (scissor.offset[1] < vp_height) ? (vp_height - scissor.offset[1]) : 0;
+    }
+
+    MTL::Viewport mtl_viewport;
+    mtl_viewport.originX = static_cast<double>(viewport_info.xy_offset[0]);
+    mtl_viewport.originY = static_cast<double>(viewport_info.xy_offset[1]);
+    mtl_viewport.width = static_cast<double>(viewport_info.xy_extent[0]);
+    mtl_viewport.height = static_cast<double>(viewport_info.xy_extent[1]);
+    mtl_viewport.znear = viewport_info.z_min;
+    mtl_viewport.zfar = viewport_info.z_max;
+    current_render_encoder_->setViewport(mtl_viewport);
+
+    MTL::ScissorRect mtl_scissor;
+    mtl_scissor.x = scissor.offset[0];
+    mtl_scissor.y = scissor.offset[1];
+    mtl_scissor.width = scissor.extent[0];
+    mtl_scissor.height = scissor.extent[1];
+    current_render_encoder_->setScissorRect(mtl_scissor);
+
+    // Debug: Log viewport/scissor setup for early draws
+    static int vp_log_count = 0;
+    if (vp_log_count < 8) {
+      vp_log_count++;
+      XELOGI(
+          "VP_DEBUG: draw={} RT={}x{} viewport=({},{} {}x{}) scissor=({},{} "
+          "{}x{}) ndc_scale=({:.3f},{:.3f},{:.3f}) ndc_offset=({:.3f},{:.3f},{:.3f})",
+          vp_log_count, vp_width, vp_height,
+          static_cast<int>(mtl_viewport.originX),
+          static_cast<int>(mtl_viewport.originY),
+          static_cast<int>(mtl_viewport.width),
+          static_cast<int>(mtl_viewport.height), mtl_scissor.x, mtl_scissor.y,
+          mtl_scissor.width, mtl_scissor.height, viewport_info.ndc_scale[0],
+          viewport_info.ndc_scale[1], viewport_info.ndc_scale[2],
+          viewport_info.ndc_offset[0], viewport_info.ndc_offset[1],
+          viewport_info.ndc_offset[2]);
+    }
 
     // Update full system constants from GPU registers
     // This populates flags, NDC transform, alpha test, blend constants, etc.
@@ -1120,13 +1183,19 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       XELOGI("=== END FIRST DRAW DEBUG INFO ===");
     }
 
-    // Populate resource descriptor heap slot 0 with shared memory buffer
-    // This allows shaders to read vertex data via vfetch instructions
-    auto* res_entries =
+    // Populate resource descriptor heap for this draw with shared memory buffer
+    // and shader-visible textures. Each draw uses its own slice of the heap to
+    // avoid overwriting descriptors before earlier draws execute on the GPU.
+    uint32_t draw_index = current_draw_index_ % kResourceHeapDrawCount;
+    size_t resource_base_slot =
+        size_t(draw_index) * kResourceHeapSlotsPerDraw;
+    auto* res_entries_all =
         reinterpret_cast<IRDescriptorTableEntry*>(res_heap_ab_->contents());
+    auto* res_entries = res_entries_all + resource_base_slot;
+
     MTL::Buffer* shared_mem_buffer = shared_memory_->GetBuffer();
     if (shared_mem_buffer) {
-      // Set shared memory as SRV at t0 for vertex buffer fetching
+      // Slot 0: shared memory SRV for vertex fetch
       IRDescriptorTableSetBuffer(&res_entries[0],
                                  shared_mem_buffer->gpuAddress(),
                                  shared_mem_buffer->length());
@@ -1136,7 +1205,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
                                            MTL::ResourceUsageRead);
     }
 
-    std::vector<bool> srv_slot_written(kResourceHeapSlotCount, false);
+    std::vector<bool> srv_slot_written(kResourceHeapSlotsPerDraw, false);
     std::vector<MTL::Texture*> textures_for_encoder;
     textures_for_encoder.reserve(8);
 
@@ -1158,8 +1227,9 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
           shader->GetTextureBindingsAfterTranslation();
       for (size_t binding_index = 0;
            binding_index < shader_texture_bindings.size(); ++binding_index) {
+        // Reserve slot 0 for shared memory; textures start at slot 1.
         uint32_t srv_slot = 1 + static_cast<uint32_t>(binding_index);
-        if (srv_slot >= kResourceHeapSlotCount) {
+        if (srv_slot >= kResourceHeapSlotsPerDraw) {
           continue;
         }
         if (srv_slot_written[srv_slot]) {
@@ -1190,7 +1260,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     bind_shader_textures(vertex_shader);
     bind_shader_textures(pixel_shader);
 
-    for (size_t slot = 1; slot < kResourceHeapSlotCount; ++slot) {
+    for (size_t slot = 1; slot < kResourceHeapSlotsPerDraw; ++slot) {
       if (!srv_slot_written[slot] && null_texture_) {
         IRDescriptorTableSetTexture(&res_entries[slot], null_texture_, 0.0f, 0);
       }
@@ -1258,23 +1328,28 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     //   5-8:  UAV spaces 0-3 (descriptor tables)
     //   9:    Samplers space 0
     //   10-13: CBV spaces 0-3
-    auto* top_level_ptrs =
-        reinterpret_cast<uint64_t*>(top_level_ab_->contents());
+    size_t top_level_offset = size_t(draw_index) * kTopLevelABBytesPerDraw;
+    auto* top_level_ptrs = reinterpret_cast<uint64_t*>(
+        static_cast<uint8_t*>(top_level_ab_->contents()) + top_level_offset);
 
-    // Clear all entries first
-    std::memset(top_level_ptrs, 0, 20 * sizeof(uint64_t));
+    // Clear this draw's entries first
+    std::memset(top_level_ptrs, 0, kTopLevelABBytesPerDraw);
 
-    // SRV entries 0-3: Point to resource heap (shared memory is at slot 0)
+    // SRV entries 0-3: Point to this draw's resource heap slice (shared memory
+    // is at slot 0).
+    uint64_t res_heap_gpu_base =
+        res_heap_ab_->gpuAddress() +
+        resource_base_slot * sizeof(IRDescriptorTableEntry);
     for (int i = 0; i < 4; i++) {
-      top_level_ptrs[i] = res_heap_ab_->gpuAddress();
+      top_level_ptrs[i] = res_heap_gpu_base;
     }
 
-    // SRV entry 4 (hull): Also resource heap
-    top_level_ptrs[4] = res_heap_ab_->gpuAddress();
+    // SRV entry 4 (hull): resource heap
+    top_level_ptrs[4] = res_heap_gpu_base;
 
     // UAV entries 5-8: Point to resource heap (for memexport)
     for (int i = 5; i < 9; i++) {
-      top_level_ptrs[i] = res_heap_ab_->gpuAddress();
+      top_level_ptrs[i] = res_heap_gpu_base;
     }
 
     // Sampler entry 9: Point to sampler heap
@@ -1357,9 +1432,9 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     //   containing GPU addresses of descriptor tables (one per root parameter)
     // - Bind points 0 and 1 are for "dynamic resources" mode (bindless) which
     //   we don't use when we have a root signature
-    current_render_encoder_->setVertexBuffer(top_level_ab_, 0,
+    current_render_encoder_->setVertexBuffer(top_level_ab_, top_level_offset,
                                              kIRArgumentBufferBindPoint);
-    current_render_encoder_->setFragmentBuffer(top_level_ab_, 0,
+    current_render_encoder_->setFragmentBuffer(top_level_ab_, top_level_offset,
                                                kIRArgumentBufferBindPoint);
 
     // Index 4 and 5 are handled by IRRuntimeDrawPrimitives which sets:
@@ -1368,7 +1443,110 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     // Note: Uniforms (constant buffers) are accessed via the top-level
     // argument buffer, NOT directly at bind point 5!
 
+    // MSC also supports "dynamic resources" path at bind points 0 and 1.
+    // Even though we use root signatures, bind the heaps there too for safety.
+    // kIRDescriptorHeapBindPoint (0) = resource heap
+    // kIRSamplerHeapBindPoint (1) = sampler heap
+    current_render_encoder_->setVertexBuffer(res_heap_ab_, 0,
+                                             kIRDescriptorHeapBindPoint);
+    current_render_encoder_->setFragmentBuffer(res_heap_ab_, 0,
+                                               kIRDescriptorHeapBindPoint);
+    current_render_encoder_->setVertexBuffer(smp_heap_ab_, 0,
+                                             kIRSamplerHeapBindPoint);
+    current_render_encoder_->setFragmentBuffer(smp_heap_ab_, 0,
+                                               kIRSamplerHeapBindPoint);
+
+    // Debug dump of descriptor pointers and a few resource slots for early draws
+    static int descriptor_log_count = 0;
+    if (descriptor_log_count < 8) {
+      descriptor_log_count++;
+      // Get shader texture binding info
+      size_t vs_tex_count =
+          vertex_shader ? vertex_shader->GetTextureBindingsAfterTranslation()
+                              .size()
+                        : 0;
+      size_t ps_tex_count =
+          pixel_shader
+              ? pixel_shader->GetTextureBindingsAfterTranslation().size()
+              : 0;
+
+      XELOGI(
+          "DESC_DEBUG: draw={} draw_index={} VS_textures={} PS_textures={} "
+          "top_off={} res_base_slot={}",
+          descriptor_log_count, current_draw_index_, vs_tex_count, ps_tex_count,
+          top_level_offset, resource_base_slot);
+      XELOGI("  res_heap_gpu_base=0x{:016X} smp_heap=0x{:016X} "
+             "cbv_heap=0x{:016X}",
+             res_heap_gpu_base, smp_heap_ab_->gpuAddress(),
+             cbv_heap_ab_->gpuAddress());
+
+      // Log detailed texture bindings for PS
+      if (pixel_shader) {
+        const auto& ps_bindings =
+            pixel_shader->GetTextureBindingsAfterTranslation();
+        for (size_t bi = 0; bi < ps_bindings.size() && bi < 4; ++bi) {
+          const auto& b = ps_bindings[bi];
+          XELOGI(
+              "  PS_tex[{}]: fetch_const={} dim={} signed={} -> srv_slot={}",
+              bi, b.fetch_constant, static_cast<int>(b.dimension), b.is_signed,
+              1 + bi);
+        }
+      }
+
+      // Log a small snapshot of CB0 (system constants) and CB1 (fetch constants)
+      // to verify the values that drive texture sampling control flow.
+      const uint32_t* uniforms_u32 =
+          reinterpret_cast<const uint32_t*>(uniforms_buffer_->contents());
+      const uint32_t* fetch_u32 =
+          reinterpret_cast<const uint32_t*>(uniforms_u32 +
+                                            (kFetchConstantOffset / 4));
+      XELOGI("  CB0[0..7]: {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X}",
+             uniforms_u32[0], uniforms_u32[1], uniforms_u32[2], uniforms_u32[3],
+             uniforms_u32[4], uniforms_u32[5], uniforms_u32[6], uniforms_u32[7]);
+      XELOGI("  CB1(fetch)[0..7]: {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X} {:08X}",
+             fetch_u32[0], fetch_u32[1], fetch_u32[2], fetch_u32[3], fetch_u32[4],
+             fetch_u32[5], fetch_u32[6], fetch_u32[7]);
+
+      // Log first few res_entries
+      for (int i = 0; i < 4; ++i) {
+        const auto& e = res_entries[i];
+        XELOGI(
+            "  res_slot[{}]: gpuVA=0x{:016X} texViewID=0x{:016X} "
+            "metadata=0x{:016X}",
+            i, e.gpuVA, e.textureViewID, e.metadata);
+      }
+      XELOGI("  top_level[0-4]={:016X} {:016X} {:016X} {:016X} {:016X}",
+             top_level_ptrs[0], top_level_ptrs[1], top_level_ptrs[2],
+             top_level_ptrs[3], top_level_ptrs[4]);
+      XELOGI("  top_level[5-9]={:016X} {:016X} {:016X} {:016X} {:016X}",
+             top_level_ptrs[5], top_level_ptrs[6], top_level_ptrs[7],
+             top_level_ptrs[8], top_level_ptrs[9]);
+      XELOGI("  top_level[10-13]={:016X} {:016X} {:016X} {:016X}",
+             top_level_ptrs[10], top_level_ptrs[11], top_level_ptrs[12],
+             top_level_ptrs[13]);
+
+      // One-shot: dump the uniforms buffer and interpolator layout for the
+      // second draw (first PS draw with textures) so we can see exactly what
+      // constants the pixel shader receives.
+      static bool logged_draw2_uniforms = false;
+      if (!logged_draw2_uniforms && current_draw_index_ == 1) {
+        logged_draw2_uniforms = true;
+        XELOGI("=== DRAW2_UNIFORMS_DEBUG ===");
+        DumpUniformsBuffer();
+        LogInterpolators(vertex_shader, pixel_shader);
+        XELOGI("=== END DRAW2_UNIFORMS_DEBUG ===");
+      }
+    }
+
     XELOGD("Bound IR Converter resources: res_heap, smp_heap, top_level_ab");
+  }
+
+  // No stage-in vertex fetch in MSC IR; keep shared memory resident only.
+  if (shared_memory_) {
+    if (MTL::Buffer* shared_mem_buffer = shared_memory_->GetBuffer()) {
+      current_render_encoder_->useResource(shared_mem_buffer,
+                                           MTL::ResourceUsageRead);
+    }
   }
 
   // Convert primitive type and handle special cases
@@ -1426,19 +1604,47 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   // - Bind point 5: Index type (kIRNonIndexedDraw = 0 for non-indexed)
   // TODO: For rectangle list and triangle fan, we need to set up proper
   // vertex transformation in the shader or use index buffers to expand.
-  if (index_buffer_info && index_buffer_info->guest_base) {
-    // Indexed draw - use IRRuntimeDrawPrimitives for now (no index buffer yet)
-    // TODO: Setup index buffer properly with IRRuntimeDrawIndexedPrimitives
-    IRRuntimeDrawPrimitives(current_render_encoder_, mtl_primitive,
-                            NS::UInteger(0), NS::UInteger(draw_vertex_count));
+  bool use_indexed_draw =
+      index_buffer_info && index_buffer_info->guest_base && index_count > 0;
+  if (index_buffer_info) {
+    XELOGI(
+        "INDEX_DEBUG: info present gb=0x{:X} count={} fmt={} endian={} "
+        "use_indexed={}",
+        index_buffer_info->guest_base, index_buffer_info->count,
+        static_cast<int>(index_buffer_info->format),
+        static_cast<int>(index_buffer_info->endianness), use_indexed_draw);
+  }
+  if (use_indexed_draw) {
+    MTL::Buffer* index_buffer = shared_memory_->GetBuffer();
+    if (index_buffer) {
+      MTL::IndexType index_type =
+          (index_buffer_info->format == xenos::IndexFormat::kInt16)
+              ? MTL::IndexTypeUInt16
+              : MTL::IndexTypeUInt32;
+      XELOGI("INDEX_DEBUG: indexed draw, count={} fmt={} guest_base=0x{:X}",
+             index_count, static_cast<int>(index_buffer_info->format),
+             index_buffer_info->guest_base);
+      IRRuntimeDrawIndexedPrimitives(
+          current_render_encoder_, mtl_primitive,
+          NS::UInteger(index_count), index_type, index_buffer,
+          index_buffer_info->guest_base, NS::UInteger(1), 0, 0);
+    } else {
+      XELOGW("INDEX_DEBUG: shared memory buffer missing, falling back to "
+             "non-indexed draw");
+      IRRuntimeDrawPrimitives(current_render_encoder_, mtl_primitive,
+                              NS::UInteger(0), NS::UInteger(draw_vertex_count));
+    }
   } else {
-    // Non-indexed draw
+    XELOGI("INDEX_DEBUG: non-indexed draw, count={}", draw_vertex_count);
     IRRuntimeDrawPrimitives(current_render_encoder_, mtl_primitive,
                             NS::UInteger(0), NS::UInteger(draw_vertex_count));
   }
 
   XELOGI("IssueDraw: {} vertices (expanded to {}), primitive type {}",
          index_count, draw_vertex_count, static_cast<int>(primitive_type));
+
+  // Advance ring-buffer indices for descriptor and argument buffers.
+  ++current_draw_index_;
 
   return true;
 }
@@ -1565,8 +1771,8 @@ void MetalCommandProcessor::BeginCommandBuffer() {
   if (render_target_cache_) {
     MTL::Texture* rt0 = render_target_cache_->GetColorTarget(0);
     if (rt0) {
-      rt_width = rt0->width();
-      rt_height = rt0->height();
+      rt_width = static_cast<uint32_t>(rt0->width());
+      rt_height = static_cast<uint32_t>(rt0->height());
       XELOGI("BeginCommandBuffer: using RT0 size {}x{} for viewport/scissor",
              rt_width, rt_height);
     } else {
@@ -1609,7 +1815,8 @@ MetalCommandProcessor::GetCurrentRenderPassDescriptor() {
 
 MTL::RenderPipelineState* MetalCommandProcessor::GetOrCreatePipelineState(
     MetalShader::MetalTranslation* vertex_translation,
-    MetalShader::MetalTranslation* pixel_translation) {
+    MetalShader::MetalTranslation* pixel_translation,
+    const RegisterFile& regs) {
   if (!vertex_translation || !vertex_translation->metal_function()) {
     XELOGE("No valid vertex shader function");
     return nullptr;
@@ -1666,6 +1873,107 @@ MTL::RenderPipelineState* MetalCommandProcessor::GetOrCreatePipelineState(
   desc->setDepthAttachmentPixelFormat(depth_stencil_format);
   desc->setStencilAttachmentPixelFormat(depth_stencil_format);
   desc->setSampleCount(sample_count);
+
+  // Configure vertex fetch layout for MSC stage-in.
+  // MSC expects stage-in attributes beginning at kIRStageInAttributeStartIndex
+  // and vertex buffers starting at kIRVertexBufferBindPoint.
+  const Shader& vertex_shader_ref = vertex_translation->shader();
+  const auto& vertex_bindings = vertex_shader_ref.vertex_bindings();
+  if (!vertex_bindings.empty()) {
+    auto map_vertex_format = [](const ParsedVertexFetchInstruction::Attributes&
+                                    attrs) -> MTL::VertexFormat {
+      using xenos::VertexFormat;
+      switch (attrs.data_format) {
+        case VertexFormat::k_8_8_8_8:
+          if (attrs.is_integer) {
+            return attrs.is_signed ? MTL::VertexFormatChar4
+                                   : MTL::VertexFormatUChar4;
+          }
+          return attrs.is_signed ? MTL::VertexFormatChar4Normalized
+                                 : MTL::VertexFormatUChar4Normalized;
+        case VertexFormat::k_2_10_10_10:
+          // Metal only supports normalized variants of 10:10:10:2.
+          return attrs.is_signed ? MTL::VertexFormatInt1010102Normalized
+                                 : MTL::VertexFormatUInt1010102Normalized;
+        case VertexFormat::k_10_11_11:
+        case VertexFormat::k_11_11_10:
+          return MTL::VertexFormatFloatRG11B10;
+        case VertexFormat::k_16_16:
+          if (attrs.is_integer) {
+            return attrs.is_signed ? MTL::VertexFormatShort2
+                                   : MTL::VertexFormatUShort2;
+          }
+          return attrs.is_signed ? MTL::VertexFormatShort2Normalized
+                                 : MTL::VertexFormatUShort2Normalized;
+        case VertexFormat::k_16_16_16_16:
+          if (attrs.is_integer) {
+            return attrs.is_signed ? MTL::VertexFormatShort4
+                                   : MTL::VertexFormatUShort4;
+          }
+          return attrs.is_signed ? MTL::VertexFormatShort4Normalized
+                                 : MTL::VertexFormatUShort4Normalized;
+        case VertexFormat::k_16_16_FLOAT:
+          return MTL::VertexFormatHalf2;
+        case VertexFormat::k_16_16_16_16_FLOAT:
+          return MTL::VertexFormatHalf4;
+        case VertexFormat::k_32:
+          if (attrs.is_integer) {
+            return attrs.is_signed ? MTL::VertexFormatInt
+                                   : MTL::VertexFormatUInt;
+          }
+          return MTL::VertexFormatFloat;
+        case VertexFormat::k_32_32:
+          if (attrs.is_integer) {
+            return attrs.is_signed ? MTL::VertexFormatInt2
+                                   : MTL::VertexFormatUInt2;
+          }
+          return MTL::VertexFormatFloat2;
+        case VertexFormat::k_32_32_32_FLOAT:
+          return MTL::VertexFormatFloat3;
+        case VertexFormat::k_32_32_32_32:
+          if (attrs.is_integer) {
+            return attrs.is_signed ? MTL::VertexFormatInt4
+                                   : MTL::VertexFormatUInt4;
+          }
+          return MTL::VertexFormatFloat4;
+        case VertexFormat::k_32_32_32_32_FLOAT:
+          return MTL::VertexFormatFloat4;
+        default:
+          return MTL::VertexFormatInvalid;
+      }
+    };
+
+    MTL::VertexDescriptor* vertex_desc =
+        MTL::VertexDescriptor::alloc()->init();
+
+    uint32_t attr_index = static_cast<uint32_t>(kIRStageInAttributeStartIndex);
+    for (const auto& binding : vertex_bindings) {
+      uint64_t buffer_index =
+          kIRVertexBufferBindPoint + uint64_t(binding.binding_index);
+      auto layout = vertex_desc->layouts()->object(buffer_index);
+      layout->setStride(binding.stride_words * 4);
+      layout->setStepFunction(MTL::VertexStepFunctionPerVertex);
+      layout->setStepRate(1);
+
+      for (const auto& attr : binding.attributes) {
+        MTL::VertexFormat fmt =
+            map_vertex_format(attr.fetch_instr.attributes);
+        if (fmt == MTL::VertexFormatInvalid) {
+          ++attr_index;
+          continue;
+        }
+        auto attr_desc = vertex_desc->attributes()->object(attr_index);
+        attr_desc->setFormat(fmt);
+        attr_desc->setOffset(
+            static_cast<NS::UInteger>(attr.fetch_instr.attributes.offset * 4));
+        attr_desc->setBufferIndex(static_cast<NS::UInteger>(buffer_index));
+        ++attr_index;
+      }
+    }
+
+    desc->setVertexDescriptor(vertex_desc);
+    vertex_desc->release();
+  }
 
   // Create pipeline state
   NS::Error* error = nullptr;

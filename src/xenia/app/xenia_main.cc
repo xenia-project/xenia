@@ -15,13 +15,16 @@
 #include <thread>
 #include <vector>
 
+#include "xenia/base/platform.h"
+
+#if XE_PLATFORM_WIN32
 #include "xenia/app/discord/discord_presence.h"
+#endif
 #include "xenia/app/emulator_window.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"
 #include "xenia/base/debugging.h"
 #include "xenia/base/logging.h"
-#include "xenia/base/platform.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/threading.h"
 #include "xenia/config.h"
@@ -438,10 +441,12 @@ bool EmulatorApp::OnInitialize() {
   cache_root = std::filesystem::absolute(cache_root);
   XELOGI("Cache root: {}", xe::path_to_utf8(cache_root));
 
+#if XE_PLATFORM_WIN32
   if (cvars::discord) {
-    discord::DiscordPresence::Initialize();
-    discord::DiscordPresence::NotPlaying();
+    xe::discord::DiscordPresence::Initialize();
+    xe::discord::DiscordPresence::NotPlaying();
   }
+#endif
 
   // Create the emulator but don't initialize so we can setup the window.
   emulator_ =
@@ -466,9 +471,11 @@ bool EmulatorApp::OnInitialize() {
 void EmulatorApp::OnDestroy() {
   ShutdownEmulatorThreadFromUIThread();
 
+#if XE_PLATFORM_WIN32
   if (cvars::discord) {
-    discord::DiscordPresence::Shutdown();
+    xe::discord::DiscordPresence::Shutdown();
   }
+#endif
 
   Profiler::Dump();
   // The profiler needs to shut down before the graphics context.
@@ -579,10 +586,12 @@ void EmulatorApp::EmulatorThread() {
   }
 
   emulator_->on_launch.AddListener([&](auto title_id, const auto& game_title) {
+#if XE_PLATFORM_WIN32
     if (cvars::discord) {
-      discord::DiscordPresence::PlayingTitle(
+      xe::discord::DiscordPresence::PlayingTitle(
           game_title.empty() ? "Unknown Title" : std::string(game_title));
     }
+#endif
     app_context().CallInUIThread([this]() { emulator_window_->UpdateTitle(); });
     emulator_thread_event_->Set();
   });
@@ -595,9 +604,11 @@ void EmulatorApp::EmulatorThread() {
       });
 
   emulator_->on_terminate.AddListener([]() {
+#if XE_PLATFORM_WIN32
     if (cvars::discord) {
-      discord::DiscordPresence::NotPlaying();
+      xe::discord::DiscordPresence::NotPlaying();
     }
+#endif
   });
 
   // Enable emulator input now that the emulator is properly loaded.

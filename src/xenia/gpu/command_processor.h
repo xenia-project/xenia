@@ -118,6 +118,13 @@ class CommandProcessor {
 
   virtual void TracePlaybackWroteMemory(uint32_t base_ptr, uint32_t length) = 0;
 
+  // Check if memory was written by IssueCopy (resolve) during trace playback.
+  // Used to prevent trace player from overwriting resolved data with stale
+  // trace file data. Default implementation returns false (no tracking).
+  virtual bool IsResolvedMemory(uint32_t base_ptr, uint32_t length) const {
+    return false;
+  }
+
   void RestoreRegisters(uint32_t first_register,
                         const uint32_t* register_values,
                         uint32_t register_count, bool execute_callbacks);

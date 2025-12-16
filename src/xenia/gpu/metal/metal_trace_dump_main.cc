@@ -8,8 +8,11 @@
  */
 
 #include <chrono>
+#include <cstdlib>
 #include <thread>
 
+#include "third_party/metal-cpp/Metal/Metal.hpp"
+#include "third_party/stb/stb_image_write.h"
 #include "xenia/base/console_app_main.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
@@ -17,8 +20,6 @@
 #include "xenia/gpu/metal/metal_command_processor.h"
 #include "xenia/gpu/metal/metal_graphics_system.h"
 #include "xenia/gpu/trace_dump.h"
-// #include "xenia/gpu/metal/metal_render_target_cache.h"
-#include "third_party/stb/stb_image_write.h"
 #include "xenia/ui/metal/metal_presenter.h"
 #include "xenia/ui/presenter.h"
 
@@ -87,37 +88,95 @@ class MetalTraceDump : public TraceDump {
   }
 
   void BeginHostCapture() override {
-    // Metal frame capture can be triggered through Xcode's Metal debugger
-    // or through Metal Performance Shaders frame capture API
-    // For now, we'll add a log message indicating capture should be started
-    // manually through Xcode GPU debugging tools
-    //    XELOGI("Metal frame capture: Start capture manually through Xcode GPU
-    //    debugging tools");
-    //
-    //    // Install dummy presenter for trace dump capture
-    //    XELOGI("MetalTraceDump: Checking presenter, current={}",
-    //           graphics_system_->presenter() ? "yes" : "no");
-    //    if (!graphics_system_->presenter()) {
-    //      dummy_presenter_ =
-    //      std::make_unique<MetalTraceDumpPresenter>(metal_graphics_system_);
-    //      metal_graphics_system_->SetPresenterForTesting(dummy_presenter_.get());
-    //      XELOGI("MetalTraceDump: Dummy presenter installed, now={}",
-    //             metal_graphics_system_->presenter() ? "yes" : "no");
-    //    }
+    // Check if GPU capture is enabled via environment variable
+    const char* capture_enabled = std::getenv("XENIA_GPU_CAPTURE_ENABLED");
+    if (!capture_enabled || std::string(capture_enabled) != "1") {
+      XELOGI(
+          "Metal GPU capture disabled (set XENIA_GPU_CAPTURE_ENABLED=1 to "
+          "enable)");
+      return;
+    }
+
+    // Get capture output directory from environment
+    const char* capture_dir = std::getenv("XENIA_GPU_CAPTURE_DIR");
+    if (!capture_dir) {
+      capture_dir = ".";
+    }
+
+    // Get the command queue from the command processor
+    if (!metal_graphics_system_) {
+      XELOGW("MetalTraceDump: No graphics system for GPU capture");
+      return;
+    }
+
+    auto* cmd_proc = static_cast<MetalCommandProcessor*>(
+        metal_graphics_system_->command_processor());
+    if (!cmd_proc) {
+      XELOGW("MetalTraceDump: No command processor for GPU capture");
+      return;
+    }
+
+    MTL::CommandQueue* command_queue = cmd_proc->GetMetalCommandQueue();
+    if (!command_queue) {
+      XELOGW("MetalTraceDump: No command queue for GPU capture");
+      return;
+    }
+
+    // Start programmatic GPU capture
+    capture_manager_ = MTL::CaptureManager::sharedCaptureManager();
+    if (!capture_manager_) {
+      XELOGW("MetalTraceDump: GPU capture manager not available");
+      return;
+    }
+
+    auto* descriptor = MTL::CaptureDescriptor::alloc()->init();
+    descriptor->setCaptureObject(command_queue);
+    descriptor->setDestination(MTL::CaptureDestinationGPUTraceDocument);
+
+    // Create output path
+    std::string capture_path =
+        std::string(capture_dir) + "/gpu_capture.gputrace";
+    auto* url = NS::URL::fileURLWithPath(
+        NS::String::string(capture_path.c_str(), NS::UTF8StringEncoding));
+    descriptor->setOutputURL(url);
+
+    NS::Error* error = nullptr;
+    if (capture_manager_->startCapture(descriptor, &error)) {
+      XELOGI("MetalTraceDump: Started GPU capture to {}", capture_path);
+      is_capturing_ = true;
+    } else {
+      XELOGE("MetalTraceDump: Failed to start GPU capture: {}",
+             error ? error->localizedDescription()->utf8String() : "unknown");
+    }
+
+    descriptor->release();
   }
 
   void EndHostCapture() override {
-    // Metal frame capture end - capture should be controlled via Xcode’s
-    // GPU debugging tools, consistent with how D3D12 and Vulkan trace dumps
-    // only use BeginHostCapture / EndHostCapture for external tooling.
-    XELOGI(
-        "Metal frame capture: End capture manually through Xcode GPU debugging "
-        "tools");
+    // Ensure the final frame is pushed to the presenter even if the trace
+    // didn't contain a swap command.
+    if (metal_graphics_system_) {
+      auto* cmd_proc = static_cast<MetalCommandProcessor*>(
+          metal_graphics_system_->command_processor());
+      if (cmd_proc) {
+        XELOGI("MetalTraceDump: Forcing swap to ensure frame capture...");
+        cmd_proc->ForceIssueSwap();
+      }
+    }
+
+    // Stop GPU capture if we started one
+    if (capture_manager_ && is_capturing_) {
+      capture_manager_->stopCapture();
+      XELOGI("MetalTraceDump: GPU capture completed");
+      is_capturing_ = false;
+    }
   }
 
  private:
   MetalGraphicsSystem* metal_graphics_system_ = nullptr;
   std::unique_ptr<MetalTraceDumpPresenter> dummy_presenter_;
+  MTL::CaptureManager* capture_manager_ = nullptr;
+  bool is_capturing_ = false;
 
  public:
   int Main(const std::vector<std::string>& args) {

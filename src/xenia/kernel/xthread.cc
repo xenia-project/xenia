@@ -355,8 +355,8 @@ X_STATUS XThread::Create() {
   // This is thread safe.
   thread_state_ = new cpu::ThreadState(kernel_state()->processor(), thread_id_,
                                        stack_base_, pcr_address_);
-  XELOGI("XThread{:08X} ({:X}) Stack: {:08X}-{:08X}", handle(), thread_id_,
-         stack_limit_, stack_base_);
+  // XELOGI("XThread{:08X} ({:X}) Stack: {:08X}-{:08X}", handle(), thread_id_,
+        //  stack_limit_, stack_base_);
 
   // Exports use this to get the kernel.
   thread_state_->context()->kernel_state = kernel_state_;
@@ -451,25 +451,25 @@ X_STATUS XThread::Exit(int exit_code) {
   // This may only be called on the thread itself.
   assert_true(XThread::GetCurrentThread() == this);
   
-  XELOGI("XThread::Exit: ENTRY - thread_id={}, exit_code={}", thread_id_, exit_code);
+  // XELOGI("XThread::Exit: ENTRY - thread_id={}, exit_code={}", thread_id_, exit_code);
   THREAD_MONITOR_EVENT(kExiting, fmt::format("XThread::Exit called with code {} for thread {}", exit_code, thread_id_));
 
   // TODO(benvanik): dispatch events? waiters? etc?
-  XELOGI("XThread::Exit: Running down APCs");
+  // XELOGI("XThread::Exit: Running down APCs");
   RundownAPCs();
 
   // Set exit code.
   X_KTHREAD* thread = guest_object<X_KTHREAD>();
   thread->header.signal_state = 1;
   thread->exit_status = exit_code;
-  XELOGI("XThread::Exit: Set thread signal_state=1, exit_status={}", exit_code);
+  // XELOGI("XThread::Exit: Set thread signal_state=1, exit_status={}", exit_code);
 
   kernel_state()->OnThreadExit(this);
-  XELOGI("XThread::Exit: Called OnThreadExit");
+  // XELOGI("XThread::Exit: Called OnThreadExit");
 
   // Notify processor of our exit.
   emulator()->processor()->OnThreadExit(thread_id_);
-  XELOGI("XThread::Exit: Called processor OnThreadExit");
+  // XELOGI("XThread::Exit: Called processor OnThreadExit");
 
   // NOTE: unless PlatformExit fails, expect it to never return!
   current_xthread_tls_ = nullptr;
@@ -478,16 +478,16 @@ X_STATUS XThread::Exit(int exit_code) {
 
   running_ = false;
   ReleaseHandle();
-  XELOGI("XThread::Exit: Set running_=false, released handle");
+  // XELOGI("XThread::Exit: Set running_=false, released handle");
 
   THREAD_MONITOR_EVENT(kTerminating, fmt::format("XThread::Exit calling Thread::Exit for thread {}", thread_id_));
-  XELOGI("XThread::Exit: About to call threading::Thread::Exit({})", exit_code);
+  // XELOGI("XThread::Exit: About to call threading::Thread::Exit({})", exit_code);
   
   // NOTE: this does not return for guest threads, but may return for XHostThreads
   xe::threading::Thread::Exit(exit_code);
   
   // If we got here, it's an XHostThread that skipped pthread_exit to avoid TLS cleanup hang
-  XELOGI("XThread::Exit: Thread::Exit returned for XHostThread, allowing normal return");
+  // XELOGI("XThread::Exit: Thread::Exit returned for XHostThread, allowing normal return");
   return X_STATUS_SUCCESS;
 }
 
@@ -1107,20 +1107,20 @@ XHostThread::XHostThread(KernelState* kernel_state, uint32_t stack_size,
   can_debugger_suspend_ = false;
   
   // Debug: Check if the function is valid at construction time
-  XELOGI("XHostThread constructor: this pointer = 0x{:016X}", (uintptr_t)this);
-  XELOGI("XHostThread constructor: host_fn_ address = 0x{:016X}", (uintptr_t)&host_fn_);
+  // XELOGI("XHostThread constructor: this pointer = 0x{:016X}", (uintptr_t)this);
+  // XELOGI("XHostThread constructor: host_fn_ address = 0x{:016X}", (uintptr_t)&host_fn_);
   
   if (!host_fn_) {
     XELOGE("XHostThread constructor: host_fn is null for thread {}", thread_id_);
   } else {
-    XELOGI("XHostThread constructor: host_fn is valid for thread {}", thread_id_);
+    // XELOGI("XHostThread constructor: host_fn is valid for thread {}", thread_id_);
     // Check the std::function internals
-    XELOGI("XHostThread constructor: host_fn_.target_type = {}", host_fn_.target_type().name());
+    // XELOGI("XHostThread constructor: host_fn_.target_type = {}", host_fn_.target_type().name());
   }
   
   // Check object integrity immediately after construction
   void** vtable = *(void***)this;
-  XELOGI("XHostThread constructor: vtable pointer = 0x{:016X}", (uintptr_t)vtable);
+  // XELOGI("XHostThread constructor: vtable pointer = 0x{:016X}", (uintptr_t)vtable);
 }
 
 void XHostThread::Execute() {
@@ -1131,7 +1131,7 @@ void XHostThread::Execute() {
   // Thread-level pools cause accumulation of autoreleased objects
   // Each operation that needs a pool should create its own scoped pool
   // This prevents the hang during TLS cleanup
-  XELOGI("XHostThread::Execute: Thread '{}' starting without thread-level pool", thread_name_);
+  // XELOGI("XHostThread::Execute: Thread '{}' starting without thread-level pool", thread_name_);
 #endif
 
   // Get system ID safely - thread_ might not be fully initialized yet
@@ -1153,30 +1153,30 @@ void XHostThread::Execute() {
   int ret = 0;
   
   // Debug: Check object integrity before execution
-  XELOGI("XHostThread::Execute: About to check object integrity for thread {}", thread_id_);
-  XELOGI("XHostThread::Execute: this pointer = 0x{:016X}", (uintptr_t)this);
+  // XELOGI("XHostThread::Execute: About to check object integrity for thread {}", thread_id_);
+  // XELOGI("XHostThread::Execute: this pointer = 0x{:016X}", (uintptr_t)this);
   
   // Check vtable integrity
   void** vtable = *(void***)this;
-  XELOGI("XHostThread::Execute: vtable pointer = 0x{:016X}", (uintptr_t)vtable);
+  // XELOGI("XHostThread::Execute: vtable pointer = 0x{:016X}", (uintptr_t)vtable);
   
   // Check if we can read the vtable
   if (vtable) {
     try {
-      XELOGI("XHostThread::Execute: vtable[0] = 0x{:016X}", (uintptr_t)vtable[0]);
+      // XELOGI("XHostThread::Execute: vtable[0] = 0x{:016X}", (uintptr_t)vtable[0]);
     } catch (...) {
       XELOGE("XHostThread::Execute: CRITICAL - vtable is corrupted!");
     }
   }
   
   // Debug: Check function validity again at execution time
-  XELOGI("XHostThread::Execute: About to check host_fn_ validity for thread {}", thread_id_);
-  XELOGI("XHostThread::Execute: host_fn_ address = 0x{:016X}", (uintptr_t)&host_fn_);
+  // XELOGI("XHostThread::Execute: About to check host_fn_ validity for thread {}", thread_id_);
+  // XELOGI("XHostThread::Execute: host_fn_ address = 0x{:016X}", (uintptr_t)&host_fn_);
   
   // Check if host_fn_ memory is accessible
   try {
     bool has_target = static_cast<bool>(host_fn_);
-    XELOGI("XHostThread::Execute: host_fn_ bool conversion = {}", has_target);
+    // XELOGI("XHostThread::Execute: host_fn_ bool conversion = {}", has_target);
   } catch (...) {
     XELOGE("XHostThread::Execute: CRITICAL - host_fn_ memory is corrupted!");
     Exit(1);
@@ -1184,11 +1184,11 @@ void XHostThread::Execute() {
   }
   
   if (host_fn_) {
-    XELOGI("XHostThread::Execute: host_fn_ is valid, calling function for thread {}", thread_id_);
+    // XELOGI("XHostThread::Execute: host_fn_ is valid, calling function for thread {}", thread_id_);
     THREAD_MONITOR_EVENT(kStarted, fmt::format("Calling host_fn_ for thread {}", thread_id_));
     try {
       ret = host_fn_();
-      XELOGI("XHostThread::Execute: host_fn_ completed successfully for thread {} with ret={}", thread_id_, ret);
+      // XELOGI("XHostThread::Execute: host_fn_ completed successfully for thread {} with ret={}", thread_id_, ret);
       THREAD_MONITOR_EVENT(kExiting, fmt::format("host_fn_ completed with ret={} for thread {}", ret, thread_id_));
     } catch (...) {
       XELOGE("XHostThread::Execute: Exception caught while executing host_fn_ for thread {}", thread_id_);
@@ -1203,16 +1203,16 @@ void XHostThread::Execute() {
   }
 
   // Exit.
-  XELOGI("XHostThread::Execute: About to exit thread {} with ret={}", thread_id_, ret);
-  XELOGI("XHostThread::Execute: Thread name: '{}'", thread_name_);
+  // XELOGI("XHostThread::Execute: About to exit thread {} with ret={}", thread_id_, ret);
+  // XELOGI("XHostThread::Execute: Thread name: '{}'", thread_name_);
   
   THREAD_MONITOR_EVENT(kExiting, fmt::format("XHostThread::Execute calling Exit({}) for thread {}", ret, thread_id_));
-  XELOGI("XHostThread::Execute: Calling Exit({}) for thread_id={}", ret, thread_id_);
+  // XELOGI("XHostThread::Execute: Calling Exit({}) for thread_id={}", ret, thread_id_);
   Exit(ret);
   
   // Note: Exit() may return for XHostThreads to avoid pthread_exit TLS cleanup hang
   // In that case, we just return normally from this function
-  XELOGI("XHostThread::Execute: Exit() returned, allowing thread to return normally");
+  // XELOGI("XHostThread::Execute: Exit() returned, allowing thread to return normally");
   
 #if XE_PLATFORM_MAC
   // No thread-level pool to clean up

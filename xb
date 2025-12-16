@@ -1093,10 +1093,13 @@ class BuildShadersCommand(Command):
                     if stage != 'cs':
                         continue
 
-                    # Limit initial Metal support to resolve and host-depth
-                    # store compute shaders used by the GPU backends.
+                    # Build Metal compute shaders used by the GPU backends.
+                    # Initially this included only resolve and host-depth store
+                    # shaders; extend this to also cover texture_load_* so the
+                    # Metal backend can use GPU-based texture loading.
                     if not (src_name.startswith('resolve_') or
-                            src_name.startswith('host_depth_store_')):
+                            src_name.startswith('host_depth_store_') or
+                            src_name.startswith('texture_load_')):
                         continue
 
                     print('- %s > metal' % (src_path))

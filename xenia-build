@@ -89,7 +89,14 @@ def import_vs_environment():
     if vswhere:
         vswhere = json.loads(vswhere)
     if vswhere and len(vswhere) > 0:
-        version = int(vswhere[0].get("catalog", {}).get("productLineVersion", 2017))
+        product_line_version = int(vswhere[0].get("catalog", {}).get("productLineVersion", 2017))
+        # productLineVersion is the internal version (15=2017, 16=2019, 17=2022, 18=2026)
+        # Map it to the year-based version for compatibility
+        if product_line_version >= 15 and product_line_version < 100:
+            version_map = {15: 2017, 16: 2019, 17: 2022, 18: 2026}
+            version = version_map.get(product_line_version, 2017 + (product_line_version - 15) * 2)
+        else:
+            version = product_line_version
         install_path = vswhere[0].get("installationPath", None)
 
     # Detect the host architecture
@@ -119,6 +126,11 @@ def import_vs_environment():
             env_tool_args = [vcvars_path, vcvars_arch, '&&', 'set']
 
     if version == 0:
+        return None
+
+    if env_tool_args is None:
+        print('ERROR: Could not find Visual Studio environment setup script.')
+        print('       Ensure Visual Studio is installed and vswhere can locate it.')
         return None
 
     import_subprocess_environment(env_tool_args)
@@ -526,10 +538,17 @@ def run_platform_premake(target_os_override=None, cc='clang', devenv=None):
         if target_os == 'macosx':
             devenv = 'xcode4'
         elif target_os == 'windows':
-            vs_version = '2015'
-            if 'VSVERSION' in os.environ:
-                vs_version = os.environ['VSVERSION']
-            devenv = 'vs' + vs_version
+            VSVERSION_MINIMUM = 2022
+            vs_version = os.getenv("VSVERSION", str(VSVERSION_MINIMUM))
+            # Map newer VS versions to vs2022 for premake since it doesn't
+            # have generators for newer versions yet
+            try:
+                vs_year = int(vs_version)
+                if vs_year > 2022:
+                    vs_version = "2022"
+            except ValueError:
+                vs_version = "2022"
+            devenv = f"vs{vs_version}"
         elif target_os == 'android':
             devenv = 'androidndk'
         else:
@@ -675,6 +694,10 @@ class SetupCommand(Command):
         self.parser.add_argument(
             '--target_os', default=None,
             help='Target OS passed to premake, for cross-compilation')
+        self.parser.add_argument(
+            '--arch', default=None,
+            help='Target architecture for VS toolchain (x64, x86, arm64). '
+                 'Defaults to host architecture.')
 
     def execute(self, args, pass_args, cwd):
         print('Setting up the build environment...')
@@ -687,6 +710,10 @@ class SetupCommand(Command):
         else:
             print('WARNING: Git not available or not a repository. Dependencies may be missing.')
         print('')
+
+        # Pass --arch to premake via environment variable for Windows VS setup
+        if args['arch']:
+            os.environ['XENIA_TARGET_ARCH'] = args['arch']
 
         print('- running premake...')
         ret = run_platform_premake(target_os_override=args['target_os'])
@@ -842,25 +869,24 @@ class BaseBuildCommand(Command):
                             break
                         
                         build_target = 'Rebuild' if args['force'] else 'Build'
-                        # Detect the host architecture for ARM64 builds
-                        import platform
-                        machine = platform.machine().lower()
-                        if machine in ['arm64', 'aarch64']:
+                        # Normalize architecture for vcxproj builds
+                        # vcxproj uses: Configuration="Release Windows-x86_64" Platform="x64"
+                        arch_str = args['arch'].lower()
+                        if arch_str in ['arm64', 'aarch64']:
+                            config_suffix = 'Windows-ARM64'
                             platform_arch = 'ARM64'
+                        elif arch_str in ['x86_64', 'x64', 'amd64']:
+                            config_suffix = 'Windows-x86_64'
+                            platform_arch = 'x64'
                         else:
-                            platform_arch = 'x64' if args['arch'] == 'x86_64' else args['arch']
+                            config_suffix = 'Windows-' + args['arch']
+                            platform_arch = args['arch']
                         
-                        # Normalize architecture name for configuration
-                        arch_str = args['arch']
-                        if arch_str.lower() in ['arm64', 'aarch64']:
-                            arch_str = 'ARM64'
-                        elif arch_str.lower() == 'x86_64':
-                            arch_str = 'x86_64'
+                        # Configuration includes the platform suffix (e.g., "Release Windows-x86_64")
+                        config_name = args['config'].capitalize() + ' ' + config_suffix
                         
-                        # Configuration name includes the platform
-                        config_name = args['config'].capitalize() + ' Windows-' + arch_str
-                        
-                        build_result = subprocess.call([
+                        # Build msbuild command with toolset override for newer VS versions
+                        msbuild_args = [
                             'msbuild',
                             project_file,
                             '/nologo',
@@ -869,7 +895,12 @@ class BaseBuildCommand(Command):
                             '/t:' + build_target,
                             '/p:Configuration=' + config_name,
                             '/p:Platform=' + platform_arch,
-                            ] + pass_args,
+                        ]
+                        # Note: PlatformToolset is set in the vcxproj by premake
+                        # Do NOT override it here as it causes full rebuilds
+                        
+                        build_result = subprocess.call(
+                            msbuild_args + pass_args,
                             shell=False)
                         if build_result != 0:
                             result = build_result
@@ -882,14 +913,17 @@ class BaseBuildCommand(Command):
                     arch_str = args['arch']
                     if arch_str.lower() in ['arm64', 'aarch64']:
                         arch_str = 'ARM64'
-                    elif arch_str.lower() == 'x86_64':
+                    elif arch_str.lower() in ['x86_64', 'x64', 'amd64']:
                         arch_str = 'x86_64'
                     
                     # For solution builds, use the solution configuration format
                     solution_config = args['config'].capitalize()
                     solution_platform = 'Windows-' + arch_str
                     
-                    result = subprocess.call([
+                    # Build msbuild command
+                    # Note: PlatformToolset is set in the vcxproj by premake
+                    # Do NOT override it here as it causes full rebuilds
+                    msbuild_args = [
                         'msbuild',
                         'build/xenia.sln',
                         '/nologo',
@@ -897,7 +931,13 @@ class BaseBuildCommand(Command):
                         '/v:m',
                         '/p:Configuration=' + solution_config,
                         '/p:Platform=' + solution_platform,
-                        ] + ([targets] if targets is not None else []) + pass_args,
+                    ]
+                    
+                    if targets is not None:
+                        msbuild_args.append(targets)
+                    
+                    result = subprocess.call(
+                        msbuild_args + pass_args,
                         shell=False)
         elif sys.platform == 'darwin':
             schemes = args['target'] if len(args['target']) else ['xenia-app']

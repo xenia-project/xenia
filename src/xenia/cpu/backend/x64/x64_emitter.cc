@@ -24,6 +24,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/base/profiling.h"
 #include "xenia/base/vec128.h"
+#include "xenia/base/wine_utils.h"
 #include "xenia/cpu/backend/x64/x64_backend.h"
 #include "xenia/cpu/backend/x64/x64_code_cache.h"
 #include "xenia/cpu/backend/x64/x64_function.h"
@@ -74,16 +75,35 @@ X64Emitter::X64Emitter(X64Backend* backend, XbyakAllocator* allocator)
       backend_(backend),
       code_cache_(backend->code_cache()),
       allocator_(allocator) {
-  if (!cpu_.has(Xbyak::util::Cpu::tAVX)) {
+  const bool wine_on_darwin = xe::platform::IsWineOnDarwin();
+
+  if (!wine_on_darwin && !cpu_.has(Xbyak::util::Cpu::tAVX)) {
     xe::FatalError(
         "Your CPU does not support AVX, which is required by Xenia. See the "
         "FAQ for system requirements at https://xenia.jp");
     return;
   }
 
-#define TEST_EMIT_FEATURE(emit, ext)                \
-  if ((cvars::x64_extension_mask & emit) == emit) { \
-    feature_flags_ |= (cpu_.has(ext) ? emit : 0);   \
+  const auto has_cpu_feature = [&](Xbyak::util::Cpu::Type feature) {
+    if (wine_on_darwin) {
+      // Rosetta 2 supports AVX / AVX2, but not AVX512.
+      if (feature == Xbyak::util::Cpu::tAVX2) {
+        return true;
+      }
+      if (feature == Xbyak::util::Cpu::tAVX512F ||
+          feature == Xbyak::util::Cpu::tAVX512VL ||
+          feature == Xbyak::util::Cpu::tAVX512BW ||
+          feature == Xbyak::util::Cpu::tAVX512DQ ||
+          feature == Xbyak::util::Cpu::tAVX512_VBMI) {
+        return false;
+      }
+    }
+    return cpu_.has(feature);
+  };
+
+#define TEST_EMIT_FEATURE(emit, ext)                     \
+  if ((cvars::x64_extension_mask & emit) == emit) {      \
+    feature_flags_ |= (has_cpu_feature(ext) ? emit : 0); \
   }
 
   TEST_EMIT_FEATURE(kX64EmitAVX2, Xbyak::util::Cpu::tAVX2);

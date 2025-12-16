@@ -17,11 +17,21 @@
 
 #include <algorithm>
 
+#if XE_PLATFORM_MAC && XE_ARCH_ARM64
+// On macOS ARM64, prefer W^X (separate RW/RX) to avoid MAP_JIT toggling
+// unless explicitly overridden via cvar.
+DEFINE_bool(
+    writable_executable_memory, false,
+    "Allow mapping memory with both write and execute access, for simulating "
+    "behavior on platforms where that's not supported",
+    "Memory");
+#else
 DEFINE_bool(
     writable_executable_memory, true,
     "Allow mapping memory with both write and execute access, for simulating "
     "behavior on platforms where that's not supported",
     "Memory");
+#endif
 
 namespace xe {
 namespace memory {

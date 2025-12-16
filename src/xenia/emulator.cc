@@ -739,7 +739,13 @@ X_STATUS Emulator::CompleteLaunch(const std::filesystem::path& path,
                                   const std::string_view module_path) {
   // Making changes to the UI (setting the icon) and executing game config load
   // callbacks which expect to be called from the UI thread.
-  assert_true(display_window_->app_context().IsInUIThread());
+  if (!display_window_->app_context().IsInUIThread()) {
+    X_STATUS result = X_STATUS_UNSUCCESSFUL;
+    display_window_->app_context().CallInUIThreadSynchronous([&]() {
+      result = CompleteLaunch(path, module_path);
+    });
+    return result;
+  }
 
   // Setup NullDevices for raw HDD partition accesses
   // Cache/STFC code baked into games tries reading/writing to these

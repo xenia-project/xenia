@@ -298,7 +298,7 @@ void Profiler::ProfilerUIDrawer::Draw(ui::UIDrawContext& ui_draw_context) {
   uint32_t coordinate_space_height = dpi_scaling_
                                          ? window_->GetActualLogicalHeight()
                                          : window_->GetActualPhysicalHeight();
-  
+
   drawer_->Begin(ui_draw_context, coordinate_space_width,
                  coordinate_space_height);
   MicroProfileDraw(coordinate_space_width, coordinate_space_height);

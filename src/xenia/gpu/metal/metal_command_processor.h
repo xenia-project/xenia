@@ -91,6 +91,14 @@ class MetalCommandProcessor : public CommandProcessor {
   // Initialize shader translation pipeline
   bool InitializeShaderTranslation();
 
+  // Request shared-memory ranges needed for the current draw, mirroring
+  // D3D12/Vulkan behavior (vertex buffers, memexport streams).
+  bool RequestSharedMemoryRangesForCurrentDraw(MetalShader* vertex_shader,
+                                               MetalShader* pixel_shader,
+                                               bool memexport_used_vertex,
+                                               bool memexport_used_pixel,
+                                               bool* any_data_resolved_out);
+
   // Command buffer management
   void BeginCommandBuffer();
   void EndCommandBuffer();
@@ -98,16 +106,32 @@ class MetalCommandProcessor : public CommandProcessor {
   // Pipeline state management
   MTL::RenderPipelineState* GetOrCreatePipelineState(
       MetalShader::MetalTranslation* vertex_translation,
-      MetalShader::MetalTranslation* pixel_translation);
+      MetalShader::MetalTranslation* pixel_translation,
+      const RegisterFile& regs);
 
   // Debug rendering
   bool CreateDebugPipeline();
   void DrawDebugQuad();
 
   // Constants for descriptor heap sizes.
-  static constexpr size_t kResourceHeapSlotCount = 1026;
+  // We use a ring buffer approach: allocate multiple "regions" in the heap
+  // so each draw can have its own descriptor entries without overwriting
+  // previous draws' entries before they execute.
+  static constexpr size_t kResourceHeapSlotsPerDraw = 32;  // Slots per draw
+  static constexpr size_t kResourceHeapDrawCount = 32;  // Max draws before wrap
+  static constexpr size_t kResourceHeapSlotCount =
+      kResourceHeapSlotsPerDraw * kResourceHeapDrawCount;  // 1024 total
   static constexpr size_t kSamplerHeapSlotCount = 258;
   static constexpr size_t kCbvHeapSlotCount = 6;
+
+  // Top-level argument buffer ring buffer constants
+  // Each draw needs its own copy of the top-level pointers to avoid race
+  // conditions where later draws overwrite earlier draws' descriptor table
+  // pointers before the GPU executes them.
+  static constexpr size_t kTopLevelABSlotsPerDraw =
+      32;  // 14 root params + padding
+  static constexpr size_t kTopLevelABBytesPerDraw =
+      kTopLevelABSlotsPerDraw * sizeof(uint64_t);  // 256 bytes per draw
 
   // IR Converter runtime resource binding
   bool CreateIRConverterBuffers();
@@ -148,6 +172,7 @@ class MetalCommandProcessor : public CommandProcessor {
 
  public:
   MetalSharedMemory* shared_memory() const { return shared_memory_.get(); }
+  MetalTextureCache* texture_cache() const { return texture_cache_.get(); }
 
  private:
   // Shader translation components
@@ -197,6 +222,11 @@ class MetalCommandProcessor : public CommandProcessor {
   DxbcShaderTranslator::SystemConstants system_constants_;
   bool system_constants_dirty_ = true;
   bool logged_missing_texture_warning_ = false;
+
+  // Draw counter for ring-buffer descriptor heap allocation
+  // Each draw uses a different region of the descriptor heap to avoid
+  // overwriting previous draws' descriptors before GPU execution
+  uint32_t current_draw_index_ = 0;
 
   // Track memory regions written by IssueCopy (resolve) during trace playback.
 

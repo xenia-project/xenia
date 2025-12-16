@@ -138,17 +138,19 @@ inline std::string to_hex_string(const vec128_t& value) {
                      value.u32[1], value.u32[2], value.u32[3]);
 }
 
-// Overload for uintptr_t
+// Overload for uintptr_t - only needed on platforms where uintptr_t is a
+// distinct type from uint32_t/uint64_t. On macOS, uintptr_t is 'unsigned long'
+// which is distinct from 'unsigned long long' (uint64_t). On Windows x64,
+// uintptr_t is the same as uint64_t, so no separate overload is needed.
+#if defined(__APPLE__) || (defined(__linux__) && defined(__LP64__))
 inline std::string to_hex_string(uintptr_t value) {
-    if constexpr (sizeof(uintptr_t) == sizeof(uint32_t)) {
-        return to_hex_string(static_cast<uint32_t>(value));
-    } else if constexpr (sizeof(uintptr_t) == sizeof(uint64_t)) {
-        return to_hex_string(static_cast<uint64_t>(value));
-    } else {
-        static_assert(sizeof(uintptr_t) == sizeof(uint32_t) || sizeof(uintptr_t) == sizeof(uint64_t),
-                      "Unsupported uintptr_t size for to_hex_string.");
-    }
+  if constexpr (sizeof(uintptr_t) == sizeof(uint32_t)) {
+    return to_hex_string(static_cast<uint32_t>(value));
+  } else {
+    return to_hex_string(static_cast<uint64_t>(value));
+  }
 }
+#endif
 
 template <typename T>
 inline T from_string(const std::string_view value, bool force_hex = false) {

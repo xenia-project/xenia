@@ -95,9 +95,10 @@ bool ParseWin32LaunchArguments(
   int argc = wargc;
   char** argv = reinterpret_cast<char**>(alloca(sizeof(char*) * argc));
   for (int n = 0; n < argc; n++) {
-    size_t len = std::wcstombs(nullptr, wargv[n], 0);
-    argv[n] = reinterpret_cast<char*>(alloca(sizeof(char) * (len + 1)));
-    std::wcstombs(argv[n], wargv[n], len + 1);
+    size_t len = 0;
+    wcstombs_s(&len, nullptr, 0, wargv[n], 0);
+    argv[n] = reinterpret_cast<char*>(alloca(sizeof(char) * len));
+    wcstombs_s(nullptr, argv[n], len, wargv[n], len);
   }
 
   LocalFree(wargv);

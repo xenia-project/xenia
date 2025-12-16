@@ -1067,7 +1067,9 @@ inline void MicroProfileThreadJoin(MicroProfileThread* pThread)
 #include <stdarg.h>
 #include <math.h>
 #include <algorithm>
+#ifndef _WIN32
 #include <strings.h>
+#endif
 #include <stdlib.h>
 
 

@@ -23,6 +23,7 @@ project("xenia-ui")
       "windowed_app_context_mac.mm",
       "window_mac.h",
       "window_mac.mm",
+      "file_picker_mac.mm",
     })
 
   filter("platforms:Android-*")

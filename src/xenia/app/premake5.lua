@@ -5,6 +5,8 @@ group("src")
 project("xenia-app")
   uuid("d7e98620-d007-4ad8-9dbd-b47c8853a17f")
   language("C++")
+  local metal_converter_libdir =
+      path.getabsolute(path.join(project_root, "third_party/metal-shader-converter/lib"))
   links({
     "xenia-apu",
     "xenia-apu-nop",
@@ -88,17 +90,30 @@ project("xenia-app")
       "main_resources.rc",
     })
 
-  filter({"architecture:x86_64", "files:../base/main_init_"..platform_suffix..".cc"})
-    vectorextensions("IA32")  -- Disable AVX for main_init_win.cc so our AVX check doesn't use AVX instructions.
+  filter({"platforms:Windows-*", "architecture:x86_64", "files:../base/main_init_"..platform_suffix..".cc"})
+    -- MSVC x64 doesn't support /arch:IA32; remove AVX so the AVX check
+    -- implementation itself doesn't get compiled with AVX enabled.
+    removebuildoptions({
+      "/arch:AVX",
+      "/arch:AVX2",
+    })
 
   filter("platforms:not Android-*")
     links({
-      "xenia-app-discord",
       "xenia-apu-sdl",
       -- TODO(Triang3l): CPU debugger on Android.
       "xenia-debug-ui",
       "xenia-helper-sdl",
       "xenia-hid-sdl",
+    })
+
+  filter("platforms:Mac")
+    -- Use the mac-specific windowed app entrypoint (avoid posix stub).
+    removefiles({ "../ui/windowed_app_main_posix.cc" })
+    files({ "../ui/windowed_app_main_mac.cc" })
+    -- Disable Discord RPC on macOS (Windows-only binary).
+    removelinks({
+      "discord-rpc",
     })
 
   filter("platforms:Linux")
@@ -111,11 +126,21 @@ project("xenia-app")
 
   filter("platforms:Windows-*")
     links({
+      "xenia-app-discord",
       "xenia-apu-xaudio2",
       "xenia-gpu-d3d12",
       "xenia-hid-winkey",
       "xenia-hid-xinput",
       "xenia-ui-d3d12",
+      -- Windows system libraries needed by dependencies.
+      "dxguid",
+      "ws2_32",
+      -- SDL2 is built as a static library on Windows.
+      "SDL2",
+      "setupapi",
+      "winmm",
+      "imm32",
+      "version",
     })
 
   filter({"platforms:Windows-*", SINGLE_LIBRARY_FILTER})
@@ -134,6 +159,37 @@ project("xenia-app")
     end
 
   filter("platforms:Mac")
+    -- Link Metal UI/GPU on macOS so the Metal backend can be selected.
+    links({
+      "xenia-gpu-metal",
+      "xenia-ui-metal",
+      "metal-cpp",
+      "metalirconverter",
+      "SDL2",
+      "Metal.framework",
+      "MetalKit.framework",
+      "QuartzCore.framework",
+    })
+    libdirs({
+      metal_converter_libdir,
+      "/usr/local/lib",
+    })
+    runpathdirs({
+      "@executable_path/../Frameworks",
+      metal_converter_libdir,
+      "/usr/local/lib",
+    })
+    linkoptions({
+      "-Wl,-rpath,@executable_path/../Frameworks",
+      "-Wl,-rpath,@loader_path/../Frameworks",
+    })
+    -- Bundle the Metal shader converter runtime inside the app bundle (Contents/Frameworks).
+    postbuildcommands({
+      'mkdir -p "${TARGET_BUILD_DIR}/xenia.app/Contents/Frameworks"',
+      'cp -f "' ..
+          path.join(metal_converter_libdir, "libmetalirconverter.dylib") ..
+          '" "${TARGET_BUILD_DIR}/xenia.app/Contents/Frameworks/"'
+    })
     files({
       "Info.plist",
       project_root.."/xenia.entitlements",

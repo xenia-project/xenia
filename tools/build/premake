@@ -110,42 +110,102 @@ def build_premake():
           'osx',
           ], shell=False)
     elif sys.platform == 'win32':
+      # Get target architecture from XENIA_TARGET_ARCH env var or command line --arch=
+      target_arch = os.environ.get('XENIA_TARGET_ARCH', None)
+      if target_arch is None:
+        for arg in sys.argv[1:]:
+          if arg.startswith('--arch='):
+            target_arch = arg.split('=')[1].lower()
+            break
+      
+      # Normalize architecture names
+      if target_arch is not None:
+        target_arch = target_arch.lower()
+      
+      if target_arch in ['x64', 'x86_64', 'amd64']:
+        target_arch = 'amd64'
+        bootstrap_platform = 'x64'
+      elif target_arch in ['arm64', 'aarch64']:
+        target_arch = 'arm64'
+        bootstrap_platform = 'ARM64'
+      elif target_arch in ['x86', 'win32']:
+        target_arch = 'x86'
+        bootstrap_platform = 'x86'
+      else:
+        # Default to host architecture
+        import platform
+        machine = platform.machine().lower()
+        if machine in ['arm64', 'aarch64']:
+          target_arch = 'arm64'
+          bootstrap_platform = 'ARM64'
+        else:
+          target_arch = 'amd64'
+          bootstrap_platform = 'x64'
+      
       # Grab Visual Studio version and execute shell to set up environment.
-      vs_version = import_vs_environment()
+      vs_version = import_vs_environment(target_arch)
       if vs_version is None:
         print('ERROR: Visual Studio not found!')
         sys.exit(1)
         return
 
-      # NOTE: On ARM64 Windows, the Bootstrap.mak doesn't support the arm64
-      # architecture flag for the bootstrap premake. We use PLATFORM=x86 which
-      # builds a bootstrap premake that can generate the proper ARM64 projects.
-      # The final premake5.exe will be built for the correct architecture.
-      # We also need to use a newer VS version than the default vs2012
-      vs_year = 'vs2022'
+      # Map VS version to the year string for premake
+      vs_year = 'vs2022'  # Default
       if 'VSVERSION' in os.environ:
         vs_ver = os.environ['VSVERSION']
-        if vs_ver == '2019':
+        if vs_ver == '2026':
+          vs_year = 'vs2022'  # VS 2026 should use vs2022 generator (latest supported by premake)
+        elif vs_ver == '2022':
+          vs_year = 'vs2022'
+        elif vs_ver == '2019':
           vs_year = 'vs2019'
         elif vs_ver == '2017':
           vs_year = 'vs2017'
       
-      # Detect the host architecture for the bootstrap
-      import platform
-      machine = platform.machine().lower()
-      if machine in ['arm64', 'aarch64']:
-        bootstrap_platform = 'ARM64'  # Use uppercase ARM64 as shown in help
-      else:
-        bootstrap_platform = 'x86'
-      
-      # Use windows-msbuild target instead of windows to avoid devenv issues
-      subprocess.call([
+      # Build premake using the upstream Bootstrap.mak.
+      # On some toolchains (Wine/ARM64 Windows), building curl/mbedtls may fail
+      # due to include path expectations. Disable curl in premake bootstrap
+      # because Xenia doesn't need it for project generation.
+      premake_opts = '--curl-src=none'
+
+      # Generate the bootstrap solution via nmake.
+      nmake_args = [
           'nmake',
           '-f', 'Bootstrap.mak',
           'PLATFORM=' + bootstrap_platform,
-          'MSDEV=' + vs_year,  # Use current VS version instead of vs2012
-          'windows-msbuild',  # Use msbuild directly instead of devenv
-          ], shell=False)
+          'MSDEV=' + vs_year,
+          'PREMAKE_OPTS=' + premake_opts,
+          'windows-base',
+      ]
+      if subprocess.call(nmake_args, shell=False) != 0:
+        print('ERROR: Failed to generate premake bootstrap solution')
+        return
+
+      # Build the generated solution via msbuild.
+      # Bootstrap.mak would normally do this, but we need to optionally override
+      # the platform toolset for newer VS versions (v145 for VS 2026).
+      solution_platform = bootstrap_platform
+      if solution_platform == 'x86':
+        solution_platform = 'Win32'
+
+      toolset_map = {
+        2017: 'v141',
+        2019: 'v142',
+        2022: 'v143',
+        2026: 'v145',
+      }
+      toolset = toolset_map.get(vs_version, '')
+
+      msbuild_args = [
+          'msbuild',
+          '/p:Configuration=release',
+          '/p:Platform=' + solution_platform,
+      ]
+      if toolset:
+        msbuild_args.append('/p:PlatformToolset=' + toolset)
+      msbuild_args.append('.\\build\\bootstrap\\Premake5.sln')
+
+      subprocess.call(msbuild_args, shell=False)
     else:
       # Detect the host architecture for Linux builds
       import platform
@@ -274,54 +334,68 @@ def shell_call(command, throw_on_error=True, stdout_path=None, stderr_path=None,
   return result
 
 
-def import_vs_environment():
+def import_vs_environment(target_arch=None):
   """Finds the installed Visual Studio version and imports
   interesting environment variables into os.environ.
 
+  Args:
+    target_arch: Target architecture (amd64, arm64, x86). Defaults to host arch.
+
   Returns:
-  A version such as 2015 or None if no installation is found.
+    A version such as 2015 or None if no installation is found.
   """
   version = 0
   install_path = None
   env_tool_args = None
 
-  vswhere = subprocess.check_output('tools/vswhere/vswhere.exe -version "[15,)" -latest -format json -utf8', shell=False, universal_newlines=True, encoding="utf-8")
+  vswhere = subprocess.check_output(
+      'tools/vswhere/vswhere.exe -version "[15,)" -latest -prerelease -format json -utf8 -products '
+      'Microsoft.VisualStudio.Product.Enterprise '
+      'Microsoft.VisualStudio.Product.Professional '
+      'Microsoft.VisualStudio.Product.Community '
+      'Microsoft.VisualStudio.Product.BuildTools',
+      shell=False, universal_newlines=True, encoding="utf-8")
   if vswhere:
     vswhere = json.loads(vswhere)
   if vswhere and len(vswhere) > 0:
-    version = int(vswhere[0].get("catalog", {}).get("productLineVersion", 2017))
+    product_line_version = int(vswhere[0].get("catalog", {}).get("productLineVersion", 2017))
+    # productLineVersion is the internal version (15=2017, 16=2019, 17=2022, 18=2026)
+    # Map it to the year-based version for compatibility
+    if product_line_version >= 15 and product_line_version < 100:
+      version_map = {15: 2017, 16: 2019, 17: 2022, 18: 2026}
+      version = version_map.get(product_line_version, 2017 + (product_line_version - 15) * 2)
+    else:
+      version = product_line_version
     install_path = vswhere[0].get("installationPath", None)
+
+  # Detect the host architecture
+  import platform
+  machine = platform.machine().lower()
+  if machine in ['arm64', 'aarch64']:
+    host_arch = 'arm64'
+  else:
+    host_arch = 'amd64'
+  
+  # Use provided target_arch or default to host architecture
+  if target_arch is None:
+    target_arch = host_arch
 
   if version < 2017:
     if 'VS140COMNTOOLS' in os.environ:
       version = 2015
       vcvars_path = os.environ['VS140COMNTOOLS']
       vcvars_path = os.path.join(vcvars_path, '..\\..\\vc\\vcvarsall.bat')
-      
-      # Detect the host architecture
-      import platform
-      machine = platform.machine().lower()
-      if machine in ['arm64', 'aarch64']:
-        arch = 'arm64'
-      else:
-        arch = 'x64'
-      
-      env_tool_args = [vcvars_path, arch, '&&', 'set']
+      env_tool_args = [vcvars_path, target_arch, '&&', 'set']
   else:
-    # Detect the host architecture
-    import platform
-    machine = platform.machine().lower()
-    if machine in ['arm64', 'aarch64']:
-      arch = 'arm64'
-      host_arch = 'arm64'
-    else:
-      arch = 'amd64'
-      host_arch = 'amd64'
-    
     vsdevcmd_path = os.path.join(install_path, 'Common7\\Tools\\VsDevCmd.bat')
-    env_tool_args = [vsdevcmd_path, '-arch=' + arch, '-host_arch=' + host_arch, '&&', 'set']
+    env_tool_args = [vsdevcmd_path, '-arch=' + target_arch, '-host_arch=' + host_arch, '&&', 'set']
 
   if version == 0:
+    return None
+
+  if env_tool_args is None:
+    print('ERROR: Could not find Visual Studio environment setup script.')
+    print('       Ensure Visual Studio is installed and vswhere can locate it.')
     return None
 
   import_subprocess_environment(env_tool_args)
@@ -345,14 +419,18 @@ def import_subprocess_environment(args):
       'tmp',
       'windowssdkdir',
       )
+  found_path = False
   for line in variables.splitlines():
     for envvar in envvars_to_save:
       if re.match(envvar + '=', line.lower()):
         var, setting = line.split('=', 1)
         if envvar == 'path':
           setting = os.path.dirname(sys.executable) + os.pathsep + setting
+          found_path = True
         os.environ[var.upper()] = setting
         break
+  if not found_path:
+    print('WARNING: PATH not found in VS environment output')
 
 if __name__ == '__main__':
   main()

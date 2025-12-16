@@ -9,9 +9,11 @@
 
 #include "xenia/gpu/metal/metal_shader.h"
 
+#include <cstdlib>
 #include <cstring>
 
 #include "xenia/base/assert.h"
+#include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/gpu/dxbc_shader.h"
 #include "xenia/gpu/gpu_flags.h"
@@ -76,19 +78,58 @@ bool MetalShader::MetalTranslation::TranslateToMetal(
   XELOGD("MetalShader: Converted {} bytes DXIL to {} bytes MetalLib",
          dxil_data_.size(), metallib_data_.size());
 
-  // Debug: Dump metallib to file for inspection
+  // Debug: Dump shader artifacts (DXBC, DXIL, MetalLib) to files
+  // Use XENIA_SHADER_DUMP_DIR env var if set, otherwise /tmp
   static int shader_dump_counter = 0;
   {
-    char filename[256];
+    const char* dump_dir = std::getenv("XENIA_SHADER_DUMP_DIR");
+    if (!dump_dir) {
+      dump_dir = "/tmp";
+    }
+
+    char filename[512];
     const char* type_str =
         (shader().type() == xenos::ShaderType::kVertex) ? "vs" : "ps";
-    snprintf(filename, sizeof(filename), "/tmp/xenia_shader_%d_%s.metallib",
-             shader_dump_counter++, type_str);
-    FILE* f = fopen(filename, "wb");
-    if (f) {
-      fwrite(metallib_data_.data(), 1, metallib_data_.size(), f);
-      fclose(f);
-      XELOGI("DEBUG: Dumped metallib to {}", filename);
+    int counter = shader_dump_counter++;
+
+    // Dump DXBC (translated binary from DXBC translator)
+    const auto& dxbc_data = translated_binary();
+    if (!dxbc_data.empty()) {
+      snprintf(filename, sizeof(filename), "%s/shader_%d_%s.dxbc", dump_dir,
+               counter, type_str);
+      FILE* f = fopen(filename, "wb");
+      if (f) {
+        fwrite(dxbc_data.data(), 1, dxbc_data.size(), f);
+        fclose(f);
+        XELOGI("DEBUG: Dumped DXBC ({} bytes) to {}", dxbc_data.size(),
+               filename);
+      }
+    }
+
+    // Dump DXIL
+    if (!dxil_data_.empty()) {
+      snprintf(filename, sizeof(filename), "%s/shader_%d_%s.dxil", dump_dir,
+               counter, type_str);
+      FILE* f = fopen(filename, "wb");
+      if (f) {
+        fwrite(dxil_data_.data(), 1, dxil_data_.size(), f);
+        fclose(f);
+        XELOGI("DEBUG: Dumped DXIL ({} bytes) to {}", dxil_data_.size(),
+               filename);
+      }
+    }
+
+    // Dump MetalLib
+    if (!metallib_data_.empty()) {
+      snprintf(filename, sizeof(filename), "%s/shader_%d_%s.metallib", dump_dir,
+               counter, type_str);
+      FILE* f = fopen(filename, "wb");
+      if (f) {
+        fwrite(metallib_data_.data(), 1, metallib_data_.size(), f);
+        fclose(f);
+        XELOGI("DEBUG: Dumped MetalLib ({} bytes) to {}", metallib_data_.size(),
+               filename);
+      }
     }
   }
 

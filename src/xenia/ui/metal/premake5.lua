@@ -4,8 +4,14 @@ include(project_root.."/tools/build")
 group("src")
 project("xenia-ui-metal")
   uuid("f5a4b3c2-d1e8-4567-9abc-def123456789")
-  kind("StaticLib")
   language("C++")
+  
+  filter("system:macosx")
+    kind("StaticLib")
+  filter("not system:macosx")
+    kind("None")
+  filter({})
+  
   links({
     "xenia-base",
     "xenia-ui",
@@ -31,16 +37,19 @@ project("xenia-ui-metal")
       "metal_immediate_drawer.mm",
       "metal_presenter.mm",
     })
-
-  filter("not system:macosx")
-    -- Exclude Metal UI backend on non-macOS platforms
-    removefiles("**")
+  filter({})
 
 group("demos")
 project("xenia-ui-window-metal-demo")
   uuid("c1d2e3f4-5a6b-7c8d-9e0f-123456789abc")
-  single_library_windowed_app_kind()
   language("C++")
+  
+  filter("system:macosx")
+    single_library_windowed_app_kind()
+  filter("not system:macosx")
+    kind("None")
+  filter({})
+  
   links({
     "fmt",
     "imgui",
@@ -94,7 +103,4 @@ project("xenia-ui-window-metal-demo")
       ["CODE_SIGN_STYLE"] = "Automatic",
       ["CODE_SIGN_ENTITLEMENTS"] = path.getabsolute(project_root.."/xenia.entitlements"),
     })
-
-  filter("not system:macosx")
-    -- Exclude Metal UI demo on non-macOS platforms
-    removefiles("**")
+  filter({})
