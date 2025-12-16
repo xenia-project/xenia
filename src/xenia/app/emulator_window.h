@@ -23,6 +23,7 @@
 #include "xenia/ui/window.h"
 #include "xenia/ui/window_listener.h"
 #include "xenia/ui/windowed_app_context.h"
+#include "xenia/ui/update_manager.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -159,6 +160,12 @@ class EmulatorWindow {
   bool initializing_shader_storage_ = false;
 
   std::unique_ptr<DisplayConfigDialog> display_config_dialog_;
+
+  class UpdateDialog;
+  std::unique_ptr<xe::ui::UpdateManager> update_manager_;
+  std::mutex update_dialog_mutex_;
+
+  void CheckForUpdates();
 };
 
 }  // namespace app
