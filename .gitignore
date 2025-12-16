@@ -50,6 +50,22 @@ tmtags
 bin/
 obj/
 
+# Local tool/editor caches
+.cache/
+.cache/**
+.clangd
+compile_commands.json
+
+# Local trace / profiling output
+/tools/trace_runs/
+/tools/run_metal_trace.log*
+/GTAIV/
+/cache*/
+/parsed_microprofile*.json
+/gpu_texture_*.png
+/metal_*.png
+/shader_*.metallib.disasm
+
 # VSCode
 .vscode
 
