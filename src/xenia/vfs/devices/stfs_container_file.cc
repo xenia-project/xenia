@@ -52,12 +52,15 @@ X_STATUS StfsContainerFile::ReadSync(void* buffer, size_t buffer_length,
     size_t read_length =
         std::min(record.length - read_offset, remaining_length);
 
-    auto& file = entry_->files()->at(record.file);
-    xe::filesystem::Seek(file, record.offset + read_offset, SEEK_SET);
-    auto num_read = fread(p, 1, read_length, file);
+    auto global_lock = global_critical_region_.Acquire();
+    {
+      auto& file = entry_->files()->at(record.file);
+      xe::filesystem::Seek(file, record.offset + read_offset, SEEK_SET);
+      auto num_read = fread(p, 1, read_length, file);
 
-    *out_bytes_read += num_read;
-    p += num_read;
+      *out_bytes_read += num_read;
+      p += num_read;
+    }
     src_offset += record.length;
     remaining_length -= read_length;
     if (remaining_length == 0) {
