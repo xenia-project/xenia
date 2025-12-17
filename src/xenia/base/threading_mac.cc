@@ -10,10 +10,8 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/chrono_steady_cast.h"
-#include "xenia/base/logging.h"
 #include "xenia/base/platform.h"
 #include "xenia/base/threading_timer_queue.h"
-#include "xenia/base/thread_monitor.h"
 
 #include <pthread.h>
 #include <sched.h>
@@ -34,18 +32,8 @@
 #include <algorithm>
 #include <functional>
 
-#if XE_PLATFORM_MAC
-// Declare Objective-C runtime functions for autorelease pool management
-extern "C" {
-  void* objc_autoreleasePoolPush(void);
-  void objc_autoreleasePoolPop(void*);
-}
-#endif
-
 namespace xe {
 namespace threading {
-
-// Thread exit handling moved to Thread::Exit() for cleaner cleanup
 
 template <typename _Rep, typename _Period>
 inline timespec DurationToTimeSpec(
@@ -204,6 +192,8 @@ class PosixThread : public Thread,
   void* native_handle() const override;
   PosixConditionBase& condition() override;
 
+  void WaitStarted() const;
+
   // Alertable synchronization
   mutable std::mutex alertable_mutex_;
   std::condition_variable alertable_cv_;
@@ -251,8 +241,10 @@ PosixThread::PosixThread(pthread_t thread)
       mach_thread_(pthread_mach_thread_np(thread)) {}
 
 PosixThread::~PosixThread() {
-  // Threads are detached in ThreadStartRoutine, so we don't need to join
-  // This avoids hangs and race conditions during shutdown
+  if (thread_ && !signaled_) {
+    pthread_cancel(thread_);
+    pthread_join(thread_, nullptr);
+  }
   if (mach_thread_ != MACH_PORT_NULL) {
     mach_port_deallocate(mach_task_self(), mach_thread_);
     mach_thread_ = MACH_PORT_NULL;
@@ -265,36 +257,26 @@ bool PosixThread::Initialize(Thread::CreationParameters params,
       {std::move(start_routine), params.create_suspended, this});
 
   pthread_attr_t attr;
-  if (pthread_attr_init(&attr) != 0) {
-    delete start_data;
-    return false;
-  }
+  if (pthread_attr_init(&attr) != 0) return false;
   if (pthread_attr_setstacksize(&attr, params.stack_size) != 0) {
     pthread_attr_destroy(&attr);
-    delete start_data;
     return false;
   }
   // Set detach state to joinable
   if (pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE) != 0) {
     pthread_attr_destroy(&attr);
-    delete start_data;
     return false;
   }
-  
-  // Create thread and wait for it to initialize under lock
   {
     std::unique_lock<std::mutex> lock(state_mutex_);
     if (pthread_create(&thread_, &attr, ThreadStartRoutine, start_data) != 0) {
       pthread_attr_destroy(&attr);
-      delete start_data;
       return false;
     }
-    
-    // Wait for the thread to complete initialization
-    state_signal_.wait(lock, [this]() { return state_ != State::kUninitialized; });
   }
-  
   pthread_attr_destroy(&attr);
+
+  WaitStarted();
 
   if (params.create_suspended) {
     std::unique_lock<std::mutex> lock(state_mutex_);
@@ -310,9 +292,12 @@ bool PosixThread::Initialize(Thread::CreationParameters params,
   return true;
 }
 
+void PosixThread::WaitStarted() const {
+  std::unique_lock<std::mutex> lock(state_mutex_);
+  state_signal_.wait(lock, [this]() { return state_ != State::kUninitialized; });
+}
+
 void* PosixThread::ThreadStartRoutine(void* parameter) {
-  THREAD_MONITOR_EVENT(kStarted, "ThreadStartRoutine entered");
-  
   threading::set_name("");
 
   auto start_data = static_cast<ThreadStartData*>(parameter);
@@ -322,110 +307,38 @@ void* PosixThread::ThreadStartRoutine(void* parameter) {
   auto thread = static_cast<PosixThread*>(start_data->thread_obj);
   auto start_routine = std::move(start_data->start_routine);
   delete start_data;
-  
-  THREAD_MONITOR_EVENT(kStarted, "Thread object initialized");
-  
-#if XE_PLATFORM_MAC
-  // Create autorelease pool for this thread (required for macOS)
-  // IMPORTANT: XHostThreads (including GPU threads) manage their own autorelease pools
-  // We detect XHostThreads by checking if the start_routine is a lambda/function object
-  // that will call into XHostThread::Execute which has its own pool management
-  void* autorelease_pool = nullptr;
-  
-  // Check if this is likely an XHostThread by examining the thread name
-  // Note: The name might not be set yet, so we also check after thread starts
-  bool is_host_thread = false;
-  
-  // Try to detect if this is an XHostThread by checking common patterns
-  // XHostThreads are created with specific stack sizes (128KB for GPU threads)
-  // But we can't reliably detect this here, so we'll be conservative
-  
-  // For now, don't create autorelease pools for any threads - let them manage their own
-  // This is safer than creating duplicate pools which cause hangs
-  // Regular threads that need pools should create them explicitly
-  THREAD_MONITOR_EVENT(kStarted, "Thread starting - autorelease pool management delegated to thread");
-#endif
 
-  // Set mach_thread_ before any other operations
-  mach_port_t mach_thread = pthread_mach_thread_np(pthread_self());
-  
-  void* exit_value = nullptr;
-  
-  try {
-    // Synchronize all thread initialization under one lock
-    {
-      std::unique_lock<std::mutex> lock(thread->state_mutex_);
-      current_thread_ = thread;
-      thread->mach_thread_ = mach_thread;
-      thread->state_ = State::kRunning;
-      thread->state_signal_.notify_all();
-    }
+  current_thread_ = thread;
 
-    THREAD_MONITOR_EVENT(kStarted, "About to call start_routine");
-    start_routine();
-    THREAD_MONITOR_EVENT(kExiting, "start_routine completed");
+  // Set mach_thread_
+  thread->mach_thread_ = pthread_mach_thread_np(pthread_self());
 
-    {
-      std::unique_lock<std::mutex> lock(thread->state_mutex_);
-      thread->state_ = State::kFinished;
-    }
-
-    {
-      std::lock_guard<std::mutex> lock(PosixConditionBase::mutex_);
-      thread->signaled_ = true;
-      PosixConditionBase::cond_.notify_all();
-    }
+  {
+    std::unique_lock<std::mutex> lock(thread->state_mutex_);
+    thread->state_ = State::kRunning;
+    thread->state_signal_.notify_all();
   }
-  catch (...) {
-    // Unexpected exception
-    XELOGE("Unexpected exception in thread");
-    
-    // Try to update state, but protect against destroyed objects
-    try {
-      {
-        std::unique_lock<std::mutex> lock(thread->state_mutex_);
-        thread->state_ = State::kFinished;
-        thread->exit_code_ = -1;
-      }
 
-      {
-        std::lock_guard<std::mutex> lock(PosixConditionBase::mutex_);
-        thread->signaled_ = true;
-        PosixConditionBase::cond_.notify_all();
-      }
-    } catch (...) {
-      // If we can't even lock the mutex, the thread object is likely destroyed
-      // Just exit without further cleanup
-      XELOGE("Failed to update thread state in exception handler - thread object may be destroyed");
-    }
+  start_routine();
+
+  {
+    std::unique_lock<std::mutex> lock(thread->state_mutex_);
+    thread->state_ = State::kFinished;
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(PosixConditionBase::mutex_);
+    thread->signaled_ = true;
+    PosixConditionBase::cond_.notify_all();
   }
 
   current_thread_ = nullptr;
-  
-#if XE_PLATFORM_MAC
-  // Clean up autorelease pool if we created one
-  // Since we're not creating pools in ThreadStartRoutine anymore,
-  // this should normally be nullptr
-  if (autorelease_pool) {
-    THREAD_MONITOR_EVENT(kPoolDrained, "Draining autorelease pool");
-    objc_autoreleasePoolPop(autorelease_pool);
-    THREAD_MONITOR_EVENT(kPoolDrained, "Autorelease pool drained");
-  }
-#endif
-
-  // Detach the thread so it cleans itself up when it exits
-  // This prevents ThreadSanitizer from reporting thread leaks
-  // and avoids the need for pthread_join which can cause hangs
-  pthread_detach(pthread_self());
-
-  THREAD_MONITOR_EVENT(kReturnFromFunc, "ThreadStartRoutine returning normally");
-  return exit_value;
+  return nullptr;
 }
 
 void PosixThread::set_name(std::string name) {
+  WaitStarted();
   Thread::set_name(name);
-  THREAD_MONITOR_SET_NAME(name);
-  THREAD_MONITOR_EVENT(kNameSet, name);
   std::unique_lock<std::mutex> lock(state_mutex_);
   if (pthread_self() == thread_) {
     pthread_setname_np(name.c_str());
@@ -449,6 +362,7 @@ void PosixThread::set_affinity_mask(uint64_t mask) {
 }
 
 int PosixThread::priority() {
+  WaitStarted();
   int policy;
   sched_param param{};
   int ret = pthread_getschedparam(thread_, &policy, &param);
@@ -460,6 +374,7 @@ int PosixThread::priority() {
 }
 
 void PosixThread::set_priority(int new_priority) {
+  WaitStarted();
   sched_param param{};
   param.sched_priority = new_priority;
   if (pthread_setschedparam(thread_, SCHED_FIFO, &param) != 0)
@@ -467,6 +382,7 @@ void PosixThread::set_priority(int new_priority) {
 }
 
 void PosixThread::QueueUserCallback(std::function<void()> callback) {
+  WaitStarted();
   {
     std::lock_guard<std::mutex> lock(alertable_mutex_);
     user_callback_ = std::move(callback);
@@ -479,6 +395,7 @@ bool PosixThread::Resume(uint32_t* out_previous_suspend_count) {
   if (out_previous_suspend_count) {
     *out_previous_suspend_count = 0;
   }
+  WaitStarted();
   std::unique_lock<std::mutex> lock(state_mutex_);
   if (state_ != State::kSuspended) return false;
   if (out_previous_suspend_count) {
@@ -500,6 +417,7 @@ bool PosixThread::Suspend(uint32_t* out_previous_suspend_count) {
   if (out_previous_suspend_count) {
     *out_previous_suspend_count = 0;
   }
+  WaitStarted();
   std::unique_lock<std::mutex> lock(state_mutex_);
   if (out_previous_suspend_count) {
     *out_previous_suspend_count = suspend_count_;
@@ -517,15 +435,10 @@ bool PosixThread::Suspend(uint32_t* out_previous_suspend_count) {
 }
 
 void PosixThread::Terminate(int exit_code) {
-  XELOGI("PosixThread::Terminate: ENTRY - exit_code={}, thread_={:x}", exit_code, (uintptr_t)thread_);
   bool is_current_thread = pthread_self() == thread_;
-  XELOGI("PosixThread::Terminate: is_current_thread={}, name='{}'", is_current_thread, name());
-  
   {
     std::unique_lock<std::mutex> lock(state_mutex_);
-    XELOGI("PosixThread::Terminate: Current state={}", static_cast<int>(state_));
     if (state_ == State::kFinished) {
-      XELOGI("PosixThread::Terminate: Thread already finished");
       if (is_current_thread) {
         assert_always();
         for (;;) {
@@ -534,56 +447,19 @@ void PosixThread::Terminate(int exit_code) {
       return;
     }
     state_ = State::kFinished;
-    XELOGI("PosixThread::Terminate: Set state to kFinished");
   }
 
   {
     std::lock_guard<std::mutex> lock(PosixConditionBase::mutex_);
     exit_code_ = exit_code;
-    XELOGI("PosixThread::Terminate: Setting signaled_=true, notifying waiters");
     signaled_ = true;
     PosixConditionBase::cond_.notify_all();
   }
   if (is_current_thread) {
-    THREAD_MONITOR_EVENT(kTerminating, "Thread terminating");
-    
-    // HACK: Skip pthread_exit for all XHostThread threads to avoid TLS cleanup hang
-    // Check if we're being called from Thread::Exit - if so, skip pthread_exit
-    // as the thread will return normally from its function
-    // This avoids the hang during TLS cleanup of autoreleased Metal objects
-    bool skip_pthread_exit = false;
-    
-    // Get current thread ID to check if this is an XHostThread
-    pthread_t self = pthread_self();
-    char thread_name[256] = {0};
-    pthread_getname_np(self, thread_name, sizeof(thread_name));
-    
-    // If thread name contains GPU, VSync, or starts with a handle (like F8000004)
-    // then it's likely an XHostThread that should return normally
-    std::string tname(thread_name);
-    if (tname.find("GPU") != std::string::npos || 
-        tname.find("VSync") != std::string::npos ||
-        (tname.length() >= 8 && tname[0] == 'F')) {
-      skip_pthread_exit = true;
-      XELOGI("PosixThread::Terminate: XHostThread '{}' - skipping pthread_exit to avoid hang", tname);
-    }
-    
-    if (!skip_pthread_exit) {
-      XELOGI("PosixThread::Terminate: Regular thread '{}' calling pthread_exit({})", tname, exit_code);
-#if XE_PLATFORM_MAC && defined(__aarch64__)
-      // On macOS ARM64, ensure JIT write protection is properly reset before thread exit
-      // This prevents crashes during pthread_exit() due to corrupted JIT state
-      pthread_jit_write_protect_np(1);  // Set to execute mode (safe default)
-#endif
-      THREAD_MONITOR_EVENT(kPthreadExit, "Calling pthread_exit");
-      pthread_exit(reinterpret_cast<void*>(exit_code));
-      XELOGI("PosixThread::Terminate: ERROR - pthread_exit returned!");
-    }
+    pthread_exit(reinterpret_cast<void*>(exit_code));
   } else {
-    XELOGI("PosixThread::Terminate: Not current thread, calling pthread_cancel");
     pthread_cancel(thread_);
   }
-  XELOGI("PosixThread::Terminate: EXIT");
 }
 
 void* PosixThread::native_handle() const {
@@ -605,9 +481,9 @@ bool PosixThread::signaled() const {
 }
 
 void PosixThread::post_execution() {
-  // Don't join here - the thread might still be executing cleanup code
-  // The join will happen in the destructor when we're sure the thread has exited
-  // This avoids deadlocks where Wait() returns but the thread is still cleaning up
+  if (thread_) {
+    pthread_join(thread_, nullptr);
+  }
 }
 
 // Now, we can implement AlertableSleep using PosixThread
@@ -672,32 +548,13 @@ Thread* Thread::GetCurrentThread() {
   return current_thread_;
 }
 
-// Thread-local flag to indicate we want to exit the thread
-thread_local bool thread_exit_requested = false;
-thread_local int thread_exit_code = 0;
-
 void Thread::Exit(int exit_code) {
-  XELOGI("Thread::Exit: ENTRY - exit_code={}", exit_code);
   if (current_thread_) {
-    XELOGI("Thread::Exit: Calling current_thread_->Terminate({})", exit_code);
     current_thread_->Terminate(exit_code);
-    // If Terminate returns (which it does for XHostThreads to avoid pthread_exit hang)
-    // then we need to return from here and let the thread function return normally
-    XELOGI("Thread::Exit: Terminate returned, allowing thread to return normally");
-    // Set a flag to indicate the thread should exit
-    thread_exit_requested = true;
-    thread_exit_code = exit_code;
-    return;
   } else {
-    XELOGI("Thread::Exit: No current_thread_, calling pthread_exit directly");
     // Should only happen with the main thread
-#if XE_PLATFORM_MAC && defined(__aarch64__)
-    // On macOS ARM64, ensure JIT write protection is properly reset before thread exit
-    pthread_jit_write_protect_np(1);  // Set to execute mode (safe default)
-#endif
     pthread_exit(reinterpret_cast<void*>(exit_code));
   }
-  XELOGI("Thread::Exit: ERROR - Should not reach here!");
   // Function must not return
   assert_always();
 }
@@ -717,13 +574,13 @@ class PosixEvent : public Event,
 
   void Set() override {
     std::lock_guard<std::mutex> lock(mutex_);
-    signal_.store(true, std::memory_order_release);
+    signal_ = true;
     PosixConditionBase::cond_.notify_all();
   }
 
   void Reset() override {
     std::lock_guard<std::mutex> lock(mutex_);
-    signal_.store(false, std::memory_order_release);
+    signal_ = false;
   }
 
   void Pulse() override {
@@ -743,17 +600,17 @@ class PosixEvent : public Event,
   }
 
  protected:
-  bool signaled() const override { return signal_.load(std::memory_order_acquire); }
+  bool signaled() const override { return signal_; }
 
   void post_execution() override {
     if (!manual_reset_) {
-      signal_.store(false, std::memory_order_release);
+      signal_ = false;
     }
   }
 
  private:
   bool manual_reset_;
-  std::atomic<bool> signal_;
+  bool signal_;
   mutable std::mutex mutex_;
 };
 

@@ -98,7 +98,6 @@ PPCTranslator::~PPCTranslator() = default;
 
 bool PPCTranslator::Translate(GuestFunction* function,
                               uint32_t debug_info_flags) {
-  XELOGI("PPCTranslator::Translate: Starting translation for function 0x{:08X}", function->address());
   SCOPE_profile_cpu_f("cpu");
 
   // Reset() all caching when we leave.
@@ -128,13 +127,10 @@ bool PPCTranslator::Translate(GuestFunction* function,
     debug_info.reset(new FunctionDebugInfo());
   }
 
-  XELOGI("PPCTranslator::Translate: About to scan function");
   // Scan the function to find its extents and gather debug data.
   if (!scanner_->Scan(function, debug_info.get())) {
-    XELOGI("PPCTranslator::Translate: Scanner failed");
     return false;
   }
-  XELOGI("PPCTranslator::Translate: Scan completed successfully");
 
   // Setup trace data, if needed.
   if (debug_info_flags & DebugInfoFlags::kDebugInfoTraceFunctions) {
@@ -165,16 +161,13 @@ bool PPCTranslator::Translate(GuestFunction* function,
   }
 
   // Emit function.
-  XELOGI("PPCTranslator::Translate: About to emit HIR");
   uint32_t emit_flags = 0;
   if (debug_info) {
     emit_flags |= PPCHIRBuilder::EMIT_DEBUG_COMMENTS;
   }
   if (!builder_->Emit(function, emit_flags)) {
-    XELOGI("PPCTranslator::Translate: HIR emission failed");
     return false;
   }
-  XELOGI("PPCTranslator::Translate: HIR emission completed");
 
   // Stash raw HIR.
   if (debug_info_flags & DebugInfoFlags::kDebugInfoDisasmRawHir) {
@@ -184,12 +177,9 @@ bool PPCTranslator::Translate(GuestFunction* function,
   }
 
   // Compile/optimize/etc.
-  XELOGI("PPCTranslator::Translate: About to compile HIR");
   if (!compiler_->Compile(builder_.get())) {
-    XELOGI("PPCTranslator::Translate: HIR compilation failed");
     return false;
   }
-  XELOGI("PPCTranslator::Translate: HIR compilation completed");
 
   // Stash optimized HIR.
   if (debug_info_flags & DebugInfoFlags::kDebugInfoDisasmHir) {
@@ -199,13 +189,10 @@ bool PPCTranslator::Translate(GuestFunction* function,
   }
 
   // Assemble to backend machine code.
-  XELOGI("PPCTranslator::Translate: About to assemble to machine code");
   if (!assembler_->Assemble(function, builder_.get(), debug_info_flags,
                             std::move(debug_info))) {
-    XELOGI("PPCTranslator::Translate: Assembly failed");
     return false;
   }
-  XELOGI("PPCTranslator::Translate: Assembly completed successfully");
 
   return true;
 }

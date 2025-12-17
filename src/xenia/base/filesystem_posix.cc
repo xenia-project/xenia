@@ -146,12 +146,6 @@ bool TruncateStdioFile(FILE* file, uint64_t length) {
   return true;
 }
 
-static int removeCallback(const char* fpath, const struct stat* sb,
-                          int typeflag, struct FTW* ftwbuf) {
-  int rv = remove(fpath);
-  return rv;
-}
-
 static uint64_t convertUnixtimeToWinFiletime(time_t unixtime) {
   // Linux uses number of seconds since 1/1/1970, and Windows uses
   // number of nanoseconds since 1/1/1601

@@ -301,9 +301,7 @@ class TestRunner {
     }
 
     // Execute test.
-    XELOGI("About to resolve function at address 0x{:08X}", test_case.address);
     auto fn = processor_->ResolveFunction(test_case.address);
-    XELOGI("Function resolved successfully");
     if (!fn) {
       XELOGE("Entry function not found");
       return false;
@@ -311,39 +309,6 @@ class TestRunner {
 
     auto ctx = thread_state_->context();
     ctx->lr = 0xBCBCBCBC;
-    
-    XELOGI("TestRunner::Run: About to call function");
-    fflush(stdout); fflush(stderr);
-    XELOGI("TestRunner::Run: fn pointer = 0x{:016X}", (uintptr_t)fn);
-    fflush(stdout); fflush(stderr);
-    XELOGI("TestRunner::Run: fn->address() = 0x{:08X}", fn->address());
-    fflush(stdout); fflush(stderr);
-    
-    // Check vtable
-    void** vtable = *(void***)fn;
-    XELOGI("TestRunner::Run: vtable pointer = 0x{:016X}", (uintptr_t)vtable);
-    fflush(stdout); fflush(stderr);
-    if (vtable) {
-      XELOGI("TestRunner::Run: Call function pointer = 0x{:016X}", (uintptr_t)vtable[1]); // Call is typically at index 1
-      fflush(stdout); fflush(stderr);
-      
-      // Check if vtable[1] is pointing to thunk (which would be wrong)
-      uintptr_t call_ptr = (uintptr_t)vtable[1];
-      uintptr_t thunk_start = 0x12A204000; // From the logs - adjust dynamically if needed
-      uintptr_t thunk_end = thunk_start + 0x1000; // Assume 4KB thunk area
-      
-      if (call_ptr >= thunk_start && call_ptr < thunk_end) {
-        XELOGE("TestRunner::Run: CRITICAL ERROR - Call vtable entry points to thunk area!");
-        XELOGE("TestRunner::Run: vtable[1] = 0x{:016X} is in thunk range [0x{:016X}, 0x{:016X})", 
-               call_ptr, thunk_start, thunk_end);
-        XELOGE("TestRunner::Run: This will cause a crash! Aborting test.");
-        fflush(stdout); fflush(stderr);
-        return false; // Avoid the crash
-      }
-    }
-    
-    XELOGI("TestRunner::Run: About to call fn->Call()");
-    fflush(stdout); fflush(stderr);
     fn->Call(thread_state_.get(), uint32_t(ctx->lr));
 
     // Assert test state expectations.
@@ -370,7 +335,7 @@ class TestRunner {
         size_t space_pos = it.second.find(" ");
         auto address_str = it.second.substr(0, space_pos);
         auto bytes_str = it.second.substr(space_pos + 1);
-        uint32_t address = std::strtoul(address_str.c_str(), nullptr, 16);
+        uint32_t address = static_cast<uint32_t>(std::strtoul(address_str.c_str(), nullptr, 16));
         auto p = memory_->TranslateVirtual(address);
         const char* c = bytes_str.c_str();
         while (*c) {
@@ -380,7 +345,7 @@ class TestRunner {
           }
           char ccs[3] = {c[0], c[1], 0};
           c += 2;
-          uint32_t b = std::strtoul(ccs, nullptr, 16);
+          uint32_t b = static_cast<uint32_t>(std::strtoul(ccs, nullptr, 16));
           *p = static_cast<uint8_t>(b);
           ++p;
         }
@@ -410,12 +375,12 @@ class TestRunner {
         size_t space_pos = it.second.find(" ");
         auto address_str = it.second.substr(0, space_pos);
         auto bytes_str = it.second.substr(space_pos + 1);
-        uint32_t address = std::strtoul(address_str.c_str(), nullptr, 16);
+        uint32_t address = static_cast<uint32_t>(std::strtoul(address_str.c_str(), nullptr, 16));
         auto base_address = memory_->TranslateVirtual(address);
         auto p = base_address;
         const char* c = bytes_str.c_str();
         bool failed = false;
-        size_t count = 0;
+        [[maybe_unused]] size_t count = 0;
         StringBuffer expecteds;
         StringBuffer actuals;
         while (*c) {
@@ -426,9 +391,9 @@ class TestRunner {
           char ccs[3] = {c[0], c[1], 0};
           c += 2;
           count++;
-          uint32_t current_address =
+          [[maybe_unused]] uint32_t current_address =
               address + static_cast<uint32_t>(p - base_address);
-          uint32_t expected = std::strtoul(ccs, nullptr, 16);
+          uint32_t expected = static_cast<uint32_t>(std::strtoul(ccs, nullptr, 16));
           uint8_t actual = *p;
 
           expecteds.AppendFormat(" {:02X}", expected);
@@ -478,40 +443,34 @@ int filter(unsigned int code) {
 
 void ProtectedRunTest(TestSuite& test_suite, TestRunner& runner,
                       TestCase& test_case, int& failed_count,
-                      int& passed_count, std::vector<std::string>& failed_tests) {
+                      int& passed_count) {
 #if XE_COMPILER_MSVC
   __try {
 #endif  // XE_COMPILER_MSVC
 
     if (!runner.Setup(test_suite)) {
-      XELOGE("    TEST FAILED SETUP: {}.{}", test_suite.name(), test_case.name);
-      failed_tests.push_back(test_suite.name() + "." + test_case.name + " (SETUP FAILED)");
+      XELOGE("    TEST FAILED SETUP");
       ++failed_count;
-      return;
     }
     if (runner.Run(test_case)) {
-      XELOGI("    TEST PASSED: {}.{}", test_suite.name(), test_case.name);
       ++passed_count;
     } else {
-      XELOGE("    TEST FAILED: {}.{}", test_suite.name(), test_case.name);
-      failed_tests.push_back(test_suite.name() + "." + test_case.name);
+      XELOGE("    TEST FAILED");
       ++failed_count;
     }
 
 #if XE_COMPILER_MSVC
   } __except (filter(GetExceptionCode())) {
-    XELOGE("    TEST FAILED (UNSUPPORTED INSTRUCTION): {}.{}", test_suite.name(), test_case.name);
-    failed_tests.push_back(test_suite.name() + "." + test_case.name + " (UNSUPPORTED INSTRUCTION)");
+    XELOGE("    TEST FAILED (UNSUPPORTED INSTRUCTION)");
     ++failed_count;
   }
 #endif  // XE_COMPILER_MSVC
 }
 
 bool RunTests(const std::string_view test_name) {
-    int result_code = 1;
+    [[maybe_unused]] int result_code = 1;
     int failed_count = 0;
     int passed_count = 0;
-    std::vector<std::string> failed_tests;  // Track failed test names
 
 #if XE_ARCH_AMD64
     XELOGI("Instruction feature mask {}.", cvars::x64_extension_mask);
@@ -556,7 +515,7 @@ bool RunTests(const std::string_view test_name) {
         for (auto& test_case : test_suite.test_cases()) {
             XELOGI("  - {}", test_case.name);
             ProtectedRunTest(test_suite, runner, test_case, failed_count,
-                             passed_count, failed_tests);
+                             passed_count);
         }
 
         XELOGI("");
@@ -566,15 +525,6 @@ bool RunTests(const std::string_view test_name) {
     XELOGI("Total tests: {}", failed_count + passed_count);
     XELOGI("Passed: {}", passed_count);
     XELOGI("Failed: {}", failed_count);
-    
-    // Print summary of failed tests
-    if (failed_count > 0) {
-        XELOGI("");
-        XELOGI("FAILED TESTS:");
-        for (const auto& failed_test : failed_tests) {
-            XELOGI("  - {}", failed_test);
-        }
-    }
 
     return failed_count ? false : true;
 }

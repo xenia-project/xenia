@@ -138,7 +138,7 @@ void* A64Emitter::Emplace(const EmitFunctionInfo& func_info,
   void* new_execute_address;
   void* new_write_address;
 
-  assert_true(func_info.code_size.total == offset());
+  assert_true(func_info.code_size.total == static_cast<size_t>(offset()));
 
   if (function) {
     code_cache_->PlaceGuestCode(function->address(), assembly_buffer.data(),
@@ -251,7 +251,7 @@ bool A64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
 
   // Body.
   auto block = builder->first_block();
-  int block_count = 0;
+  [[maybe_unused]] int block_count = 0;
   while (block) {
     // Mark block labels.
     auto label = block->label_head;
@@ -262,7 +262,7 @@ bool A64Emitter::Emit(HIRBuilder* builder, EmitFunctionInfo& func_info) {
 
     // Process instructions.
     const Instr* instr = block->instr_head;
-    int instr_count = 0;
+    [[maybe_unused]] int instr_count = 0;
     while (instr) {
       const Instr* new_tail = instr;
       if (!SelectSequence(this, instr, &new_tail)) {
@@ -366,7 +366,7 @@ uint64_t TrapDebugPrint(void* raw_context, uint64_t address) {
 }
 
 uint64_t TrapDebugBreak(void* raw_context, uint64_t address) {
-  auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
+  [[maybe_unused]] auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
   XELOGE("tw/td forced trap hit! This should be a crash!");
   if (cvars::break_on_debugbreak) {
     xe::debugging::Break();
@@ -407,26 +407,32 @@ void A64Emitter::UnimplementedInstr(const hir::Instr* i) {
 uint64_t ResolveFunction(void* raw_context, uint64_t target_address) {
   auto thread_state = *reinterpret_cast<ThreadState**>(raw_context);
 
-  
   uint32_t guest_address;
-  
-  // Check if this is a 64-bit host address that needs to be mapped back to guest address
+
+  // Check if this is a 64-bit host address that needs to be mapped back to
+  // guest address
   if (target_address > 0xFFFFFFFF) {
     // Precise guard: if target_address is within the PPCContext, this is a bug.
     auto ctx_ptr = reinterpret_cast<uint64_t>(thread_state->context());
     if (target_address >= ctx_ptr &&
         target_address < ctx_ptr + sizeof(ppc::PPCContext)) {
-      XELOGE("ResolveFunction: target_address 0x{:016X} is within PPCContext [0x{:016X}, 0x{:016X})",
-             target_address, ctx_ptr, ctx_ptr + sizeof(ppc::PPCContext));
-      XELOGE("ResolveFunction: The target register contains a context pointer instead of a function address");
+      XELOGE(
+          "ResolveFunction: target_address 0x{:016X} is within PPCContext "
+          "[0x{:016X}, 0x{:016X})",
+          target_address, ctx_ptr, ctx_ptr + sizeof(ppc::PPCContext));
+      XELOGE(
+          "ResolveFunction: The target register contains a context pointer "
+          "instead of a function address");
       return 0;
     }
 
     // Try to find a function that contains this host address
-    auto code_cache = static_cast<A64CodeCache*>(thread_state->processor()->backend()->code_cache());
+    auto code_cache = static_cast<A64CodeCache*>(
+        thread_state->processor()->backend()->code_cache());
     auto guest_function = code_cache->LookupFunction(target_address);
     if (guest_function) {
-      guest_address = guest_function->MapMachineCodeToGuestAddress(target_address);
+      guest_address =
+          guest_function->MapMachineCodeToGuestAddress(target_address);
     } else {
       // This might be a guest memory address stored in 64-bit form
       // Extract the lower 32 bits as the potential guest address
@@ -437,20 +443,20 @@ uint64_t ResolveFunction(void* raw_context, uint64_t target_address) {
     // Normal 32-bit guest address
     guest_address = static_cast<uint32_t>(target_address);
   }
-  
+
   // Validate that we have a non-zero guest address
   assert_not_zero(guest_address);
-  
+
   // Xbox 360 guest addresses can be in these ranges:
   // 0x00000000-0x3FFFFFFF: v00000000 heap (virtual)
-  // 0x40000000-0x7EFFFFFF: v40000000 heap (virtual) 
+  // 0x40000000-0x7EFFFFFF: v40000000 heap (virtual)
   // 0x70000000-0x7F000000: Thread stacks
   // 0x80000000-0x8FFFFFFF: v80000000 heap (XEX)
   // 0x90000000-0x9FFFFFFF: v90000000 heap (XEX)
   // 0xA0000000-0xBFFFFFFF: vA0000000 heap (physical)
   // 0xC0000000-0xDFFFFFFF: vC0000000 heap (physical)
   // 0xE0000000-0xFFCFFFFF: vE0000000 heap (physical)
-  
+
   // Most executable code should be in XEX ranges (0x80000000-0x9FFFFFFF)
   // but allow other ranges as they may contain valid code
   if (guest_address == 0) {
@@ -460,18 +466,24 @@ uint64_t ResolveFunction(void* raw_context, uint64_t target_address) {
 
   auto fn = thread_state->processor()->ResolveFunction(guest_address);
   if (!fn) {
-    XELOGE("ResolveFunction: Failed to resolve function at guest address 0x{:08X}", guest_address);
-    XELOGE("ResolveFunction: Original target_address was 0x{:016X}", target_address);
-    
+    XELOGE(
+        "ResolveFunction: Failed to resolve function at guest address 0x{:08X}",
+        guest_address);
+    XELOGE("ResolveFunction: Original target_address was 0x{:016X}",
+           target_address);
+
     // This can happen if the target address doesn't point to a valid function
     // Return 0 to indicate failure - the calling code should handle this
     return 0;
   }
-  
+
   auto a64_fn = static_cast<A64Function*>(fn);
   uint64_t addr = reinterpret_cast<uint64_t>(a64_fn->machine_code());
   if (!a64_fn->machine_code()) {
-    XELOGE("ResolveFunction: Function at guest address 0x{:08X} has no machine code", guest_address);
+    XELOGE(
+        "ResolveFunction: Function at guest address 0x{:08X} has no machine "
+        "code",
+        guest_address);
     return 0;
   }
 
@@ -488,8 +500,9 @@ void A64Emitter::Call(const hir::Instr* instr, GuestFunction* function) {
 #if XE_PLATFORM_MAC && defined(__aarch64__)
     // On macOS ARM64, addresses may be allocated in higher memory space
     if (uint64_t(fn->machine_code()) & 0xFFFFFFFF00000000) {
-      XELOGD("Function machine code at high address 0x{:X}, using ResolveFunction", 
-             uint64_t(fn->machine_code()));
+      XELOGD(
+          "Function machine code at high address 0x{:X}, using ResolveFunction",
+          uint64_t(fn->machine_code()));
       // Use ResolveFunction to avoid memory access issues with high addresses
       // Thunk expects: X0=function ptr, X0 replaced with context, X1=arg0
       MOV(X0, reinterpret_cast<uint64_t>(ResolveFunction));
@@ -749,7 +762,7 @@ bool A64Emitter::ConstantFitsIn32Reg(uint64_t v) {
   if ((v & ~0x7FFFFFFF) == 0) {
     // Fits under 31 bits, so just load using normal mov.
     return true;
-  } else if ((v & ~0x7FFFFFFF) == ~0x7FFFFFFF) {
+  } else if ((v & ~0x7FFFFFFFUL) == ~0x7FFFFFFFUL) {
     // Negative number that fits in 32bits.
     return true;
   }
@@ -912,8 +925,10 @@ uintptr_t A64Emitter::PlaceConstData() {
 #if XE_PLATFORM_MAC && XE_ARCH_ARM64
   // On macOS ARM64, memory is often allocated in high address space
   if (reinterpret_cast<uintptr_t>(mem) & ~0x7FFFFFFF) {
-    XELOGD("Const data allocated at high address {:#x}, may cause compatibility issues", 
-           reinterpret_cast<uintptr_t>(mem));
+    XELOGD(
+        "Const data allocated at high address {:#x}, may cause compatibility "
+        "issues",
+        reinterpret_cast<uintptr_t>(mem));
     // Continue anyway since we'll handle it later
   }
 #else

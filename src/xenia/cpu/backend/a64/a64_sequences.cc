@@ -899,7 +899,7 @@ struct COMPARE_EQ_F32
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     EmitCommutativeBinaryVOp<SReg>(
         e, i,
-        [&i](A64Emitter& e, I8Op dest, const SReg& src1, const SReg& src2) {
+        [](A64Emitter& e, I8Op dest, const SReg& src1, const SReg& src2) {
           e.FCMP(src1, src2);
         });
     e.CSET(i.dest, Cond::EQ);
@@ -910,7 +910,7 @@ struct COMPARE_EQ_F64
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     EmitCommutativeBinaryVOp<DReg>(
         e, i,
-        [&i](A64Emitter& e, I8Op dest, const DReg& src1, const DReg& src2) {
+        [](A64Emitter& e, I8Op dest, const DReg& src1, const DReg& src2) {
           e.FCMP(src1, src2);
         });
     e.CSET(i.dest, Cond::EQ);
@@ -1736,33 +1736,33 @@ struct MUL_ADD_V128
                I<OPCODE_MUL_ADD, V128Op, V128Op, V128Op, V128Op>> {
   static void Emit(A64Emitter& e, const EmitArgType& i) {
     const QReg dest = i.dest.reg();
-    
+
     // Always use temporary registers to avoid conflicts
     QReg temp1 = Q0;
     QReg temp2 = Q1;
     QReg temp3 = Q2;
-    
+
     if (i.src1.is_constant) {
       e.LoadConstantV(temp1, i.src1.constant());
     } else {
       e.MOV(temp1.B16(), i.src1.reg().B16());
     }
-    
+
     if (i.src2.is_constant) {
       e.LoadConstantV(temp2, i.src2.constant());
     } else {
       e.MOV(temp2.B16(), i.src2.reg().B16());
     }
-    
+
     if (i.src3.is_constant) {
       e.LoadConstantV(temp3, i.src3.constant());
     } else {
       e.MOV(temp3.B16(), i.src3.reg().B16());
     }
-    
+
     // First multiply: dest = temp1 * temp2
     e.FMUL(dest.S4(), temp1.S4(), temp2.S4());
-    
+
     // Then add: dest = dest + temp3
     e.FADD(dest.S4(), dest.S4(), temp3.S4());
   }
@@ -1799,7 +1799,7 @@ struct MUL_SUB_F32
 
     // Multiply operation is commutative.
     EmitCommutativeBinaryVOp<SReg>(
-        e, i, [&i](A64Emitter& e, SReg dest, SReg src1, SReg src2) {
+        e, i, [](A64Emitter& e, SReg dest, SReg src1, SReg src2) {
           e.FMUL(dest, src1, src2);  // $0 = $1 * $2
         });
 
@@ -1824,7 +1824,7 @@ struct MUL_SUB_F64
 
     // Multiply operation is commutative.
     EmitCommutativeBinaryVOp<DReg>(
-        e, i, [&i](A64Emitter& e, DReg dest, DReg src1, DReg src2) {
+        e, i, [](A64Emitter& e, DReg dest, DReg src1, DReg src2) {
           e.FMUL(dest, src1, src2);  // $0 = $1 * $2
         });
 
@@ -1850,7 +1850,7 @@ struct MUL_SUB_V128
 
     // Multiply operation is commutative.
     EmitCommutativeBinaryVOp(
-        e, i, [&i](A64Emitter& e, QReg dest, QReg src1, QReg src2) {
+        e, i, [](A64Emitter& e, QReg dest, QReg src1, QReg src2) {
           e.FMUL(dest.S4(), src1.S4(), src2.S4());  // $0 = $1 * $2
         });
 

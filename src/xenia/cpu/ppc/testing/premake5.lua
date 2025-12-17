@@ -9,6 +9,7 @@ project("xenia-cpu-ppc-tests")
   links({
     "capstone",
     "fmt",
+    "xenia-ui",  -- Required by xenia-base profiler integration
     "xenia-base",  -- Moved before mspack
     "mspack",
     "xenia-core",
@@ -52,6 +53,7 @@ if ARCH == "ppc64" or ARCH == "powerpc64" then
     language("C++")
     links({
       "fmt",
+      "xenia-ui",
       "xenia-base",
     })
     files({

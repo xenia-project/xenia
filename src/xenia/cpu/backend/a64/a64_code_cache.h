@@ -84,9 +84,11 @@ class A64CodeCache : public CodeCache {
 
   // Access to indirection table base for emitter
   uint8_t* indirection_table_base() const { return indirection_table_base_; }
-  
+
   // Returns the actual base address used for indirection table
-  uintptr_t indirection_table_base_address() const { return indirection_table_actual_base_; }
+  uintptr_t indirection_table_base_address() const {
+    return indirection_table_actual_base_;
+  }
 
  public:
   // All executable code falls within 0x80000000 to 0x9FFFFFFF, so we can
@@ -98,7 +100,8 @@ class A64CodeCache : public CodeCache {
 #if XE_PLATFORM_MAC && XE_ARCH_ARM64
   static const size_t kIndirectionTableSize = 0x40000000;  // 1 GiB
 #else
-  static const size_t kIndirectionTableSize = 0x20000000 - 1;  // 512 MiB - 1 (legacy)
+  static const size_t kIndirectionTableSize =
+      0x20000000 - 1;  // 512 MiB - 1 (legacy)
 #endif
 #if XE_PLATFORM_MAC && XE_ARCH_ARM64
   // On macOS ARM64, the base address is determined dynamically at runtime
@@ -136,7 +139,7 @@ class A64CodeCache : public CodeCache {
                          const EmitFunctionInfo& func_info,
                          void* code_execute_address,
                          UnwindReservation unwind_reservation) {}
-  
+
   // Platform-specific code copying with JIT protection handling
   virtual void CopyMachineCode(void* dest, const void* src, size_t size) {
     std::memcpy(dest, src, size);
@@ -172,8 +175,8 @@ class A64CodeCache : public CodeCache {
   // the generated code table that correspond to the PPC functions in guest
   // space.
   uint8_t* indirection_table_base_ = nullptr;
-  // Actual base address of the indirection table (may differ from kIndirectionTableBase
-  // on systems where fixed address allocation fails)
+  // Actual base address of the indirection table (may differ from
+  // kIndirectionTableBase on systems where fixed address allocation fails)
   uintptr_t indirection_table_actual_base_ = 0;
   // Fixed at kGeneratedCodeExecuteBase and holding all generated code, growing
   // as needed.

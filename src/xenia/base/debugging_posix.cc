@@ -9,6 +9,15 @@
 
 #include "xenia/base/debugging.h"
 
+#if defined(__APPLE__)
+// Add this to the beginning of your source file or a common header
+typedef unsigned int u_int;
+typedef unsigned char u_char;
+typedef unsigned short u_short;
+#include <sys/sysctl.h>
+#include <unistd.h>
+#endif
+
 #include <csignal>
 #include <cstdarg>
 #include <fstream>
@@ -22,6 +31,25 @@ namespace xe {
 namespace debugging {
 
 bool IsDebuggerAttached() {
+#if defined(__APPLE__)
+  int mib[4];
+  struct kinfo_proc info;
+  size_t size = sizeof(info);
+
+  // Initialize MIB array for sysctl call
+  mib[0] = CTL_KERN;
+  mib[1] = KERN_PROC;
+  mib[2] = KERN_PROC_PID;
+  mib[3] = getpid();
+
+  // Call sysctl and check if we are being debugged
+  if (sysctl(mib, 4, &info, &size, nullptr, 0) == -1) {
+    return false;
+  }
+
+  // Check if process has a debugger attached
+  return (info.kp_proc.p_flag & P_TRACED) != 0;
+#else
   std::ifstream proc_status_stream("/proc/self/status");
   if (!proc_status_stream.is_open()) {
     return false;
@@ -38,6 +66,7 @@ bool IsDebuggerAttached() {
     }
   }
   return false;
+#endif
 }
 
 void Break() {
