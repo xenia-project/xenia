@@ -259,8 +259,10 @@ dword_result_t XamContentOpenFile_entry(dword_t user_index,
                                         lpdword_t disposition_ptr,
                                         lpdword_t license_mask_ptr,
                                         lpvoid_t overlapped_ptr) {
-  // TODO(gibbed): arguments assumed based on XamContentCreate.
-  return X_ERROR_FILE_NOT_FOUND;
+  auto content_manager = kernel_state()->content_manager();
+  XCONTENT_AGGREGATE_DATA data;
+  return content_manager->MountContentToHost(path.value(), root_name.value(),
+                                             data);
 }
 DECLARE_XAM_EXPORT1(XamContentOpenFile, kContent, kStub);
 
