@@ -25,9 +25,42 @@ purposes. Compiler passes are defined in src/xenia/cpu/compiler/passes with
 descriptive class names.
 
 Finally, the backend consumes the HIR and emits code that runs natively on the
-host. Currently, the only backend that exists is the x64 backend, with all the
-emission done in
+host. Currently, two backends exist:
+- **x64 backend**: For x86_64 hosts, using [xbyak](https://github.com/herumi/xbyak)
+- **A64 backend**: For ARM64 hosts, using [Oaknut](https://github.com/merryhime/oaknut)
+
+## Backends
+
+### x64 Backend
+
+The x64 backend emits x86_64 native code. All emission is done in
 [x64_sequences.cc](../src/xenia/cpu/backend/x64/x64_sequences.cc).
+
+Key files:
+- `src/xenia/cpu/backend/x64/x64_backend.cc` - Backend initialization, transition thunks
+- `src/xenia/cpu/backend/x64/x64_emitter.cc` - Code emission infrastructure
+- `src/xenia/cpu/backend/x64/x64_sequences.cc` - HIR opcode implementations
+- `src/xenia/cpu/backend/x64/x64_stack_layout.h` - Stack frame layout
+
+### A64 Backend
+
+The A64 backend emits ARM64 native code using [Oaknut](https://github.com/merryhime/oaknut),
+a lightweight ARM64 assembler. This backend was originally developed by
+[wunkolo](https://github.com/Wunkolo/xenia/tree/arm64-windows) for ARM64 Windows
+and has been ported to ARM64 macOS.
+
+Key files:
+- `src/xenia/cpu/backend/a64/a64_backend.cc` - Backend initialization, transition thunks
+- `src/xenia/cpu/backend/a64/a64_emitter.cc` - Code emission infrastructure
+- `src/xenia/cpu/backend/a64/a64_sequences.cc` - HIR opcode implementations (scalar)
+- `src/xenia/cpu/backend/a64/a64_seq_vector.cc` - Vector/SIMD opcode implementations
+- `src/xenia/cpu/backend/a64/a64_seq_memory.cc` - Memory operation implementations
+- `src/xenia/cpu/backend/a64/a64_seq_control.cc` - Control flow implementations
+- `src/xenia/cpu/backend/a64/a64_stack_layout.h` - Stack frame layout
+
+The A64 backend supports optional CPU features detected at runtime:
+- **LSE** (Large System Extensions): Atomic operations
+- **F16C**: Half-precision floating point conversion
 
 ## ABI
 
@@ -36,7 +69,7 @@ through APIs provided by Xenia. Xenia will first execute a thunk to transition
 the host context to a state dependent on the JIT backend, and that will call the
 guest code.
 
-### x64
+### x64 ABI
 
 Transition thunks defined in [x64_backend.cc](../src/xenia/cpu/backend/x64/x64_backend.cc#L389).
 Registers are stored on the stack as defined by [StackLayout::Thunk](../src/xenia/cpu/backend/x64/x64_stack_layout.h#L96)
@@ -45,7 +78,7 @@ for later transitioning back to the host.
 Some registers are reserved for usage by the JIT to store temporary variables.
 See: [X64Emitter::gpr_reg_map_ and X64Emitter::xmm_reg_map_](../src/xenia/cpu/backend/x64/x64_emitter.cc#L57).
 
-#### Integer Registers
+#### x64 Integer Registers
 
 Register | Usage
 ---      | ---
@@ -60,11 +93,44 @@ RDI      | Virtual Memory Base
 R8-R11   | Unused (parameters)
 R12-R15  | JIT temp
 
-#### Floating Point Registers
+#### x64 Floating Point Registers
+
 Register   | Usage
 ---        | ---
 XMM0-XMM5  | Scratch
 XMM6-XMM15 | JIT temp
+
+### A64 ABI
+
+Transition thunks defined in [a64_backend.cc](../src/xenia/cpu/backend/a64/a64_backend.cc).
+Registers are stored on the stack as defined by [StackLayout::Thunk](../src/xenia/cpu/backend/a64/a64_stack_layout.h).
+
+#### A64 Integer Registers
+
+Register | Usage
+---      | ---
+X0       | PowerPC Context (preserved across calls)
+X1-X15   | Scratch
+X16-X17  | Intra-procedure-call scratch (IP0/IP1)
+X18      | Platform register (reserved on macOS/iOS)
+X19-X26  | JIT temp (callee-saved, mapped to HIR registers)
+X27      | Reserved
+X28      | Reserved
+X29      | Frame Pointer (FP)
+X30      | Link Register (LR) / Scratch
+SP       | Stack Pointer
+
+JIT register mapping (`gpr_reg_map_`): X19, X20, X21, X22, X23, X24, X25, X26
+
+#### A64 Vector Registers
+
+Register | Usage
+---      | ---
+V0-V7    | Scratch (also parameter/result registers)
+V8-V15   | JIT temp (callee-saved lower 64 bits, mapped to HIR registers)
+V16-V31  | Scratch
+
+JIT register mapping (`fpr_reg_map_`): V8, V9, V10, V11, V12, V13, V14, V15
 
 ## Memory
 
@@ -111,7 +177,39 @@ add       r11, r11, r10     # add 1 page to addresses > 0xE0000000
 
 ## Memory Management
 
-TODO
+### Platform-Specific Implementations
+
+Memory allocation varies by platform:
+
+**Windows** (`memory_win.cc`):
+- Uses VirtualAlloc/VirtualFree for memory management
+- Supports fixed address allocation natively
+- 64 KB allocation granularity
+
+**macOS ARM64** (`memory_posix.cc`):
+- Custom implementation for ARM64 macOS in `AllocFixed()`
+- Uses `MAP_JIT` flag for executable memory (required by Apple Silicon)
+- Falls back to OS-chosen addresses if fixed mapping fails
+- Uses `mmap`/`munmap` for allocation
+- File mappings use `shm_open` with `MAP_SHARED`
+
+**Linux/POSIX** (`memory_posix.cc`):
+- Standard POSIX `mmap` with `MAP_FIXED | MAP_ANONYMOUS`
+- Uses `mmap64` for file views
+
+**Android**:
+- Uses ASharedMemory (API 26+) or `/dev/ashmem` (older APIs)
+
+### Current Status
+
+The macOS ARM64 memory implementation has been specifically updated to handle:
+- Apple Silicon's stricter memory protection requirements
+- `MAP_JIT` requirement for W^X (write XOR execute) policy
+- Page size differences (16 KB on Apple Silicon vs 4 KB on Intel)
+
+Note: The original Windows/Linux fixed-address allocation behavior has not yet
+been fully integrated back for other platforms after the ARM64 macOS changes.
+Cross-platform testing is needed.
 
 ## References
 
@@ -137,3 +235,11 @@ instructions, though, which are only documented in a few places (like the gcc so
 * [Intel Manuals](https://software.intel.com/en-us/articles/intel-sdm)
    * [Combined Intel Manuals](https://www.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-manual-325462.pdf)
 * [Apple AltiVec/SSE Migration Guide](https://developer.apple.com/legacy/library/documentation/Performance/Conceptual/Accelerate_sse_migration/Accelerate_sse_migration.pdf)
+
+### ARM64
+
+* [ARM Architecture Reference Manual](https://developer.arm.com/documentation/ddi0487/latest)
+* [ARM Cortex-A Series Programmer's Guide](https://developer.arm.com/documentation/den0024/latest)
+* [Oaknut ARM64 Assembler](https://github.com/merryhime/oaknut)
+* [ARM NEON Intrinsics Reference](https://developer.arm.com/architectures/instruction-sets/intrinsics/)
+* [Apple Silicon CPU Optimization Guide](https://developer.apple.com/documentation/apple-silicon/tuning-your-code-s-performance-for-apple-silicon)

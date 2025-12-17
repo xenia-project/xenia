@@ -5,16 +5,48 @@ debugging, performance (both to JIT and of generated code), and portability.
 Some are in various states of completion, and others are just thoughts that need
 more exploring.
 
+## A64 Backend Status
+
+The A64 (ARM64) backend was developed by [wunkolo](https://github.com/Wunkolo/xenia/tree/arm64-windows)
+and has been ported to macOS. Current status:
+
+### Completed
+
+- Full HIR opcode coverage (all sequences implemented)
+- Register allocation with ARM64 calling convention
+- NEON SIMD for vector operations
+- LSE (Large System Extensions) atomic operations (runtime detected)
+- F16C half-precision float conversion (runtime detected)
+- All CPU tests passing (xenia-base-tests, xenia-cpu-ppc-tests, xenia-cpu-tests)
+- Stack walking and debugging support
+- Instruction stepping
+
+### Known Limitations
+
+- Cache maintenance instructions cause issues on some platforms (see TODO comments
+  in `a64_seq_memory.cc`)
+- Some emulated opcodes still use CallNativeSafe (expensive host transition)
+
+### Potential Improvements
+
+- Profile and optimize hot sequences for Apple Silicon specifically
+- Investigate SVE/SVE2 usage for wider vector operations (if available)
+- Better constant pooling for vector constants
+
 ## Debugging Improvements
 
-### Reproducable X64 Emission
+### Reproducible Native Emission
 
 It'd be useful to be able to run a PPC function through the entire pipeline and
-spit out x64 that is byte-for-byte identical across runs. This would allow
-automated verification, bulk analysis, etc. Currently `X64Emitter::Emplace`
-will relocate the x64 when placing it in memory, which will be at a different
-location each time. Instead it would be nice to have the xbyak `calcJmpAddress`
-that performs the relocations use the address of our choosing.
+spit out native code that is byte-for-byte identical across runs. This would allow
+automated verification, bulk analysis, etc.
+
+**x64**: Currently `X64Emitter::Emplace` will relocate the x64 when placing it in
+memory, which will be at a different location each time. Instead it would be nice
+to have the xbyak `calcJmpAddress` that performs the relocations use the address
+of our choosing.
+
+**A64**: Similar considerations apply with Oaknut's code generation.
 
 ### Sampling Profiler
 
@@ -25,25 +57,19 @@ track hotspots in JITed code without a large performance impact. Automatically
 showing the top hot functions in the debugger could help track down poor
 translation much faster.
 
-### Intel Architecture Code Analyzer Support
+### Architecture-Specific Analysis Tools
 
-The [Intel ACA](https://software.intel.com/en-us/articles/intel-architecture-code-analyzer)
-is a nifty tool that, given a kernel of x64, can detail theoretical performance
-characteristics on different processors down to cycle timings and potential
-bottlenecks on memory/execution units. It's designed to run on elf/obj/etc files
-however it simply looks for special markers in the code. Having something that
-walks the code cache and dumps a specially formatted file with the markers
-around basic blocks could allow running the tool in bulk, or alternatively being
-able to invoke it one-off by dumping a specific x64 block to disk and processing
-it for display when looking at the code in the debugger would be useful.
+**x64**: The [Intel ACA](https://software.intel.com/en-us/articles/intel-architecture-code-analyzer)
+can detail theoretical performance characteristics on different processors down
+to cycle timings and potential bottlenecks.
 
-I've done some early experiments with this and its possible to pass just a
-bin file with the markers and the x64.
+**A64**: Apple's Instruments with the CPU Profiler template can analyze generated
+code on Apple Silicon. The `llvm-mca` tool can also analyze ARM64 code.
 
 ### Function Tracing/Coverage Information
 
 `function_trace_data.h` contains the `FunctionTraceData` struct, which is
-currently partially populated by the x64 backend. This enables tracking of which
+currently partially populated by backends. This enables tracking of which
 threads a function is called on, function call count, recent callers of the
 function, and even instruction-level counts.
 
@@ -81,7 +107,7 @@ Aligning everything to 16B values in the arena and using 16bit indices
 
 ### Serialize Code Cache
 
-The x64 code cache is currently set up to use fixed memory addresses and is even
+The code cache is currently set up to use fixed memory addresses and is even
 represented as mapped memory. It should be fairly easy to back this with a file
 and have all code written to disk. Adding more metadata, or perhaps a side-car
 file, would allow for the code to be written to disk. On future runs the code
@@ -155,6 +181,33 @@ Whether the cost of doing the constant de-dupe is worth it remains to be seen.
 Right now it's wasting a lot of instruction cache space, increasing decode time,
 and potentially using a lot more memory bandwidth.
 
+## A64 Backend Improvements
+
+### Reduce CallNativeSafe Usage
+
+Similar to x64, some opcodes fall back to C++ emulation via `CallNativeSafe`.
+These should be replaced with native NEON implementations where possible.
+
+### Optimize for Apple Silicon
+
+Apple's M-series chips have specific performance characteristics:
+- Very wide decode (8+ instructions/cycle)
+- Deep reorder buffer
+- Excellent branch prediction
+
+Consider:
+- Reducing branch density in hot paths
+- Leveraging the large register file more aggressively
+- Using Apple-specific optimizations when detected
+
+### Vector Constant Loading
+
+The A64 backend has optimizations for common vector constants using `MOVI`/`FMOV`
+instructions. Additional patterns could be recognized:
+- Byte-splat patterns
+- Replicated element patterns
+- Sequences that can use `MOVI` with shift
+
 ## Optimization Improvements
 
 ### Speed Up RegisterAllocationPass
@@ -209,7 +262,7 @@ difficult, so it only happens at the end of the process.
 There's currently TODOs in there for adding extend/truncate support, which
 will extend what it does with swaps to also merge the
 sign_extend/zero_extend/truncate into the matching load/store. This allows for
-the x64 backend to generate the proper mov's that do these operations without
+the backend to generate the proper mov's that do these operations without
 requiring additional steps. Note that if we had a LIR and a peephole optimizer
 this would be better done there.
 
@@ -274,9 +327,9 @@ Example:
   branch_true v5, ...
 ```
 
-### Add X64CanonicalizationPass
+### Add CanonicalizationPass
 
-For various opcodes add copies/commute the arguments to match x64
+For various opcodes add copies/commute the arguments to match target
 operand semantics. This makes code generation easier and if done
 before register allocation can prevent a lot of extra shuffling in
 the emitted code.

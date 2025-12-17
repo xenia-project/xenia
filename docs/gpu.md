@@ -20,6 +20,95 @@ store framebuffers/render targets.
 
 TODO: More documentation
 
+## GPU Backends
+
+Xenia supports multiple GPU backends for different platforms:
+
+| Backend | Platform | Status |
+|---------|----------|--------|
+| D3D12 | Windows | Primary, most complete |
+| Vulkan | Windows, Linux | Functional |
+| Metal | macOS | Work in progress (required for macOS) |
+
+### Why Metal is Required on macOS
+
+**MoltenVK (Vulkan on Metal) is NOT supported** for Xenia on macOS due to:
+- Primitive restart functionality issues that cause rendering corruption
+- Other Vulkan feature gaps in the MoltenVK translation layer
+- Performance overhead of the Vulkan-to-Metal translation
+
+A native Metal backend is required for proper Xbox 360 GPU emulation on macOS.
+
+### Metal Backend
+
+The Metal backend (`src/xenia/gpu/metal/`) targets macOS with native Metal API support.
+This is currently the primary development focus for ARM64 macOS.
+
+**Status**: Early work in progress. Basic infrastructure is in place but trace dump
+rendering is not yet functional.
+
+#### Key Files
+
+| File | Purpose |
+|------|---------|
+| `metal_command_processor.cc` | Core GPU command processing, draw calls |
+| `metal_graphics_system.cc` | Metal graphics system initialization |
+| `metal_shader.cc` | Metal shader wrapper |
+| `metal_shader_converter.cc` | DXIL to Metal IR conversion |
+| `metal_shader_cache.cc` | Compiled shader caching |
+| `dxbc_to_dxil_converter.cc` | DXBC to DXIL conversion (via Wine) |
+| `metal_render_target_cache.cc` | Render target/EDRAM management |
+| `metal_texture_cache.cc` | Texture loading and format conversion |
+| `metal_shared_memory.cc` | Xbox 360 memory buffer access |
+| `metal_pipeline_cache.cc` | Pipeline state object caching |
+| `metal_buffer_cache.cc` | Vertex/index buffer management |
+| `metal_primitive_processor.cc` | Primitive type conversion |
+| `metal_presenter.cc` | Display output presentation |
+| `metal_trace_dump_main.cc` | GPU trace replay utility |
+
+#### Shader Translation Pipeline
+
+The Metal backend translates Xbox 360 shader microcode through multiple stages:
+
+```
+Xbox 360 Microcode (ucode)
+    ↓ DxbcShaderTranslator (shared with D3D12)
+DXBC (DirectX Bytecode)
+    ↓ dxbc_to_dxil_converter (Wine + dxbc2dxil.exe)
+DXIL (DirectX Intermediate Language)
+    ↓ metal_shader_converter (Apple Metal Shader Converter)
+Metal IR
+    ↓ MTLDevice newLibraryWithData
+MTLLibrary (GPU-executable)
+```
+
+This pipeline leverages:
+- **DxbcShaderTranslator**: Existing Xenia infrastructure for microcode → DXBC
+- **dxbc2dxil.exe**: Microsoft's shader compiler (run via Wine on macOS)
+- **Metal Shader Converter**: Apple's `metalirconverter` library for DXIL → Metal IR
+
+#### Dependencies
+
+- `third_party/metal-cpp/` - C++ bindings for Metal framework
+- `third_party/metal-shader-converter/` - Apple's DXIL to Metal IR converter
+- Wine (runtime) - For running dxbc2dxil.exe
+
+#### Building Metal Shaders
+
+```bash
+./xb buildshaders --target=metal
+```
+
+### Vulkan Backend
+
+The Vulkan backend (`src/xenia/gpu/vulkan/`) provides cross-platform support.
+On macOS, it runs via MoltenVK but has known issues with primitive restart.
+
+### D3D12 Backend
+
+The D3D12 backend (`src/xenia/gpu/d3d12/`) is the most complete implementation
+and serves as the reference for other backends.
+
 ## Options
 
 ### General
@@ -36,6 +125,25 @@ See the top of [src/xenia/gpu/vulkan/vulkan_gpu_flags.cc](../src/xenia/gpu/vulka
 `vulkan_dump_disasm=true` "Dump shader disassembly. NVIDIA only supported."
 
 ## Tools
+
+### GPU Trace Dump
+
+The `xenia-gpu-metal-trace-dump` target replays captured GPU traces for testing
+and debugging the Metal backend without requiring a full game to run.
+
+```bash
+# Build
+./xb build --target=xenia-gpu-metal-trace-dump
+
+# Run
+./build/bin/Mac/Checked/xenia-gpu-metal-trace-dump <trace_file>
+```
+
+Reference traces are available in `reference-gpu-traces/traces/`:
+- `title_414B07D1_frame_589.xenia_gpu_trace` (small, good for testing)
+- `title_414B07D1_frame_6543.xenia_gpu_trace` (large)
+
+Reference output images are in `reference-gpu-traces/references/`.
 
 ### Shaders
 
@@ -205,3 +313,9 @@ They are 64-bit values and have a high and low 32-bit register as well as a `SEL
 * [LLVM R600 Tables](https://llvm.org/viewvc/llvm-project/llvm/trunk/lib/Target/AMDGPU/R600Instructions.td)
 ** The opcode formats don't match, but the name->psuedo code is correct.
 * [xemit](https://github.com/gligli/libxemit/blob/master/xemitops.c)
+
+### Metal
+
+* [Metal Best Practices Guide](https://developer.apple.com/library/archive/documentation/3DDrawing/Conceptual/MTLBestPracticesGuide/)
+* [Metal Shading Language Specification](https://developer.apple.com/metal/Metal-Shading-Language-Specification.pdf)
+* [Metal Shader Converter Documentation](https://developer.apple.com/documentation/metal/shader_conversion)
