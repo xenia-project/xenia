@@ -2,13 +2,13 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2023 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
 
-#ifndef XENIA_VFS_DEVICES_STFS_CONTAINER_FILE_H_
-#define XENIA_VFS_DEVICES_STFS_CONTAINER_FILE_H_
+#ifndef XENIA_VFS_DEVICES_XCONTENT_CONTAINER_FILE_H_
+#define XENIA_VFS_DEVICES_XCONTENT_CONTAINER_FILE_H_
 
 #include "xenia/vfs/file.h"
 
@@ -17,12 +17,12 @@
 namespace xe {
 namespace vfs {
 
-class StfsContainerEntry;
+class XContentContainerEntry;
 
-class StfsContainerFile : public File {
+class XContentContainerFile : public File {
  public:
-  StfsContainerFile(uint32_t file_access, StfsContainerEntry* entry);
-  ~StfsContainerFile() override;
+  XContentContainerFile(uint32_t file_access, XContentContainerEntry* entry);
+  ~XContentContainerFile() override;
 
   void Destroy() override;
 
@@ -35,10 +35,10 @@ class StfsContainerFile : public File {
   X_STATUS SetLength(size_t length) override { return X_STATUS_ACCESS_DENIED; }
 
  private:
-  StfsContainerEntry* entry_;
+  XContentContainerEntry* entry_;
 };
 
 }  // namespace vfs
 }  // namespace xe
 
-#endif  // XENIA_VFS_DEVICES_STFS_CONTAINER_FILE_H_
+#endif  // XENIA_VFS_DEVICES_XCONTENT_CONTAINER_FILE_H_
