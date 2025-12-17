@@ -202,7 +202,7 @@ class HostThreadContext {
   uint64_t x[31];
   uint64_t sp;
   uint64_t pc;
-  uint64_t pstate;
+  uint32_t cpsr;
   uint32_t fpsr;
   uint32_t fpcr;
   vec128_t v[32];
