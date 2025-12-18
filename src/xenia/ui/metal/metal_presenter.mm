@@ -27,6 +27,8 @@ MetalPresenter::MetalPresenter(MetalProvider* provider,
                                HostGpuLossCallback host_gpu_loss_callback)
     : Presenter(host_gpu_loss_callback), provider_(provider) {
   device_ = provider_->GetDevice();
+  // Initialize guest output textures to nil
+  guest_output_textures_.fill(nil);
 }
 
 MetalPresenter::~MetalPresenter() = default;

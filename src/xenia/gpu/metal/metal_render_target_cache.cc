@@ -137,8 +137,8 @@ void LogMetalRenderTargetTopLeftPixels(
       1u << static_cast<uint32_t>(key.msaa_samples), int(key.is_depth),
       pixel_data[0], pixel_data[1], pixel_data[2], pixel_data[3]);
 
-  readback_buffer->release();
-  cmd->release();  // Autoreleased usually, but strict scoping doesn't hurt
+  readback_buffer->release();  // newBuffer returns retained - must release
+  // Note: cmd is from commandBuffer() which is autoreleased - don't release
 }
 
 }  // namespace
@@ -1260,7 +1260,7 @@ void MetalRenderTargetCache::RestoreEdramSnapshot(const void* snapshot) {
 
       MTL::BlitCommandEncoder* blit = cmd->blitCommandEncoder();
       if (!blit) {
-        cmd->release();
+        // cmd is autoreleased from commandBuffer() - do not release
         staging->release();
         XELOGI("MetalRenderTargetCache::RestoreEdramSnapshot: no blit encoder");
         return;
@@ -1272,7 +1272,7 @@ void MetalRenderTargetCache::RestoreEdramSnapshot(const void* snapshot) {
       blit->endEncoding();
       cmd->commit();
       cmd->waitUntilCompleted();
-      cmd->release();
+      // cmd is autoreleased from commandBuffer() - do not release
       staging->release();
 
       XELOGI(
@@ -1585,10 +1585,7 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(
     XELOGI("MetalRenderTargetCache::GetRenderPassDescriptor: using dummy RT0");
   }
 
-  // FORCE CLEAR MAGENTA - DISABLED (Section 8.3)
-  // Uncomment the block below to force magenta clears for render-pass sanity
-  // checks. FORCE CLEAR MAGENTA END
-
+  render_pass_descriptor_dirty_ = false;
   return cached_render_pass_descriptor_;
 }
 
@@ -1711,7 +1708,7 @@ void MetalRenderTargetCache::StoreTiledData(MTL::CommandBuffer* command_buffer,
           command_buffer->renderCommandEncoder(resolve_desc);
       if (render_encoder) {
         render_encoder->endEncoding();
-        render_encoder->release();
+        // render_encoder is autoreleased - do not release
       }
       resolve_desc->release();
     }
@@ -1750,7 +1747,7 @@ void MetalRenderTargetCache::StoreTiledData(MTL::CommandBuffer* command_buffer,
   // Dispatch compute
   encoder->dispatchThreadgroups(threadgroups, threads_per_threadgroup);
   encoder->endEncoding();
-  encoder->release();
+  // encoder is autoreleased - do not release
 
   if (temp_texture) {
     temp_texture->release();
@@ -1819,7 +1816,7 @@ void MetalRenderTargetCache::DumpRenderTargets(uint32_t dump_base,
   MTL::ComputeCommandEncoder* encoder = cmd->computeCommandEncoder();
   if (!encoder) {
     XELOGE("MetalRenderTargetCache::DumpRenderTargets: no compute encoder");
-    cmd->release();
+    // cmd is autoreleased from commandBuffer() - do not release
     return;
   }
 
@@ -1956,13 +1953,14 @@ void MetalRenderTargetCache::DumpRenderTargets(uint32_t dump_base,
   encoder->endEncoding();
   cmd->commit();
   cmd->waitUntilCompleted();
-  cmd->release();
+  // cmd is autoreleased from commandBuffer() - do not release
 }
 
 bool MetalRenderTargetCache::Resolve(Memory& memory, uint32_t& written_address,
                                      uint32_t& written_length) {
   written_address = 0;
   written_length = 0;
+  XELOGI("MetalRenderTargetCache::Resolve: begin");
 
   const RegisterFile& regs = register_file();
   draw_util::ResolveInfo resolve_info;
@@ -2189,7 +2187,7 @@ bool MetalRenderTargetCache::Resolve(Memory& memory, uint32_t& written_address,
               XELOGE(
                   "MetalRenderTargetCache::Resolve: failed to get compute "
                   "encoder for GPU path");
-              cmd->release();
+              // cmd is autoreleased from commandBuffer() - do not release
             } else {
               encoder->setComputePipelineState(pipeline);
 
@@ -2210,7 +2208,7 @@ bool MetalRenderTargetCache::Resolve(Memory& memory, uint32_t& written_address,
               encoder->endEncoding();
               cmd->commit();
               cmd->waitUntilCompleted();
-              cmd->release();
+              // cmd is autoreleased from commandBuffer() - do not release
 
               if (shared_bytes) {
                 uint32_t debug_addr = resolve_info.copy_dest_extent_start;
@@ -2405,7 +2403,7 @@ void MetalRenderTargetCache::PerformTransfersAndResolveClears(
 
       MTL::BlitCommandEncoder* blit = cmd->blitCommandEncoder();
       if (!blit) {
-        cmd->release();
+        // cmd is autoreleased from commandBuffer() - do not release
         continue;
       }
 
@@ -2490,7 +2488,7 @@ void MetalRenderTargetCache::PerformTransfersAndResolveClears(
           }
           MTL::RenderCommandEncoder* enc = xfer_cmd->renderCommandEncoder(rp);
           if (!enc) {
-            xfer_cmd->release();
+            // xfer_cmd is autoreleased from commandBuffer() - do not release
             transfers_skipped_msaa++;
             continue;
           }
@@ -2526,7 +2524,7 @@ void MetalRenderTargetCache::PerformTransfersAndResolveClears(
 
           xfer_cmd->commit();
           xfer_cmd->waitUntilCompleted();
-          xfer_cmd->release();
+          // xfer_cmd is autoreleased from commandBuffer() - do not release
 
           any_transfers_done = true;
 
@@ -2556,7 +2554,7 @@ void MetalRenderTargetCache::PerformTransfersAndResolveClears(
       blit->endEncoding();
       cmd->commit();
       cmd->waitUntilCompleted();
-      cmd->release();
+      // cmd is autoreleased from commandBuffer() - do not release
     }
   }
 

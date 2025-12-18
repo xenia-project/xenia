@@ -24,8 +24,8 @@
 #if XE_PLATFORM_MAC
 // Declare Objective-C runtime functions for autorelease pool management
 extern "C" {
-  void* objc_autoreleasePoolPush(void);
-  void objc_autoreleasePoolPop(void*);
+void* objc_autoreleasePoolPush(void);
+void objc_autoreleasePoolPop(void*);
 }
 #endif
 #include "xenia/base/byte_stream.h"
@@ -100,29 +100,35 @@ void CommandProcessor::Shutdown() {
 
   THREAD_MONITOR_EVENT(kJoinStarted, "CommandProcessor::Shutdown starting");
   XELOGI("CommandProcessor::Shutdown: Starting shutdown sequence");
-  
+
   worker_running_ = false;
   write_ptr_index_event_->Set();
-  
-  XELOGI("CommandProcessor::Shutdown: worker_running_ set to false, event signaled");
-  XELOGI("CommandProcessor::Shutdown: Worker thread pointer valid: {}", (worker_thread_ != nullptr));
-  
+
+  XELOGI(
+      "CommandProcessor::Shutdown: worker_running_ set to false, event "
+      "signaled");
+  XELOGI("CommandProcessor::Shutdown: Worker thread pointer valid: {}",
+         (worker_thread_ != nullptr));
+
   if (worker_thread_) {
-    XELOGI("CommandProcessor::Shutdown: Worker thread is_running: {}", worker_thread_->is_running());
+    XELOGI("CommandProcessor::Shutdown: Worker thread is_running: {}",
+           worker_thread_->is_running());
     XELOGI("CommandProcessor::Shutdown: About to call worker_thread_->Wait()");
     THREAD_MONITOR_EVENT(kJoinStarted, "Waiting for worker thread to exit");
-    
+
     // Wait indefinitely for the worker thread to finish
     // This ensures all resources are properly cleaned up before destruction
-    auto result = worker_thread_->Wait(0, 0, 0, nullptr);  // 0 = infinite timeout
-    
-    XELOGI("CommandProcessor::Shutdown: Wait() returned with result: {:08X}", result);
+    auto result =
+        worker_thread_->Wait(0, 0, 0, nullptr);  // 0 = infinite timeout
+
+    XELOGI("CommandProcessor::Shutdown: Wait() returned with result: {:08X}",
+           result);
     THREAD_MONITOR_EVENT(kJoinCompleted, "Worker thread joined");
   }
-  
+
   XELOGI("CommandProcessor::Shutdown: Resetting worker thread object");
   worker_thread_.reset();
-  
+
   XELOGI("CommandProcessor::Shutdown: Shutdown complete");
   THREAD_MONITOR_REPORT();
 }
@@ -235,7 +241,7 @@ void CommandProcessor::WaitForIdle() {
   if (!worker_running_.load()) {
     return;
   }
-  
+
   // Use a simple polling approach - wait until the pending queue is empty
   // and the worker is in the wait state (not actively processing commands)
   while (worker_running_.load() && !pending_fns_.empty()) {
@@ -243,10 +249,10 @@ void CommandProcessor::WaitForIdle() {
     xe::threading::MaybeYield();
     xe::threading::Sleep(std::chrono::milliseconds(1));
   }
-  
+
   // At this point, pending_fns_ is empty, but the worker might still be
   // processing GPU commands. We need to wait for it to reach the idle state.
-  // We can trigger the event to wake up the worker and let it check if 
+  // We can trigger the event to wake up the worker and let it check if
   // there's anything to do, then go back to waiting.
   if (worker_running_.load()) {
     write_ptr_index_event_->Set();
@@ -256,8 +262,8 @@ void CommandProcessor::WaitForIdle() {
 }
 
 void CommandProcessor::WorkerThreadMain() {
-  // NOTE: XHostThread::Execute() already creates an autorelease pool for this thread
-  // We only need per-iteration pools for long-running loops
+  // NOTE: XHostThread::Execute() already creates an autorelease pool for this
+  // thread We only need per-iteration pools for long-running loops
   THREAD_MONITOR_EVENT(kStarted, "CommandProcessor::WorkerThreadMain started");
 
   threading::set_name("GPU Commands");
@@ -267,20 +273,28 @@ void CommandProcessor::WorkerThreadMain() {
     return;
   }
   THREAD_MONITOR_EVENT(kStarted, "SetupContext completed successfully");
-  fflush(stdout); fflush(stderr);
+  fflush(stdout);
+  fflush(stderr);
 
   XELOGI("CommandProcessor::WorkerThreadMain: About to enter main loop");
-  
+
 #if XE_PLATFORM_MAC
   void* loop_pool = nullptr;
 #endif
-  
+
+  XELOGI("CommandProcessor: Entering main worker loop, worker_running_={}",
+         worker_running_.load());
   while (worker_running_) {
+    XELOGI("CommandProcessor: Top of while loop, worker_running_={}",
+           worker_running_.load());
 #if XE_PLATFORM_MAC
-    // Create per-loop autorelease pool to prevent memory buildup during long execution
-    // Using our tracked pool system
-    loop_pool = XE_AUTORELEASE_POOL_PUSH("WorkerLoop");
-    THREAD_MONITOR_EVENT(kPoolCreated, "Per-loop autorelease pool created");
+    // NOTE: We intentionally do NOT create per-loop autorelease pools here.
+    // Metal-cpp manages object lifetimes explicitly through retain/release,
+    // and draining an autorelease pool can hang if it contains Metal objects
+    // that were autoreleased through the Obj-C bridge. The XHostThread already
+    // has a thread-level pool that will be cleaned up on thread exit.
+    // loop_pool = XE_AUTORELEASE_POOL_PUSH("WorkerLoop");
+    // THREAD_MONITOR_EVENT(kPoolCreated, "Per-loop autorelease pool created");
 #endif
     while (!pending_fns_.empty()) {
       auto fn = std::move(pending_fns_.front());
@@ -313,12 +327,14 @@ void CommandProcessor::WorkerThreadMain() {
       ReturnFromWait();
       if (!worker_running_ || !pending_fns_.empty()) {
 #if XE_PLATFORM_MAC
-        // Pop pool before continue
-        if (loop_pool) {
-          XE_AUTORELEASE_POOL_POP(loop_pool, "WorkerLoop");
-          loop_pool = nullptr;  // Clear to avoid double-pop
-        }
+        // Pool disabled - see comment at top of loop
+        // if (loop_pool) {
+        //   XE_AUTORELEASE_POOL_POP(loop_pool, "WorkerLoop");
+        //   loop_pool = nullptr;
+        // }
 #endif
+        XELOGI("CommandProcessor: worker_running_={}, about to continue",
+               worker_running_.load());
         continue;
       }
     }
@@ -338,55 +354,53 @@ void CommandProcessor::WorkerThreadMain() {
     // but no games seem to actually use it.
 
 #if XE_PLATFORM_MAC
-    // // Always drain per-loop autorelease pool at the end of each iteration
-    // // This ensures we clean up even if we're about to exit the loop
+    // Pool disabled - see comment at top of loop
     // if (loop_pool) {
-    //   // Check if we're about to exit the loop
-    //   if (!worker_running_) {
-    //     XELOGI("CommandProcessor: Draining pool before loop exit");
-    //   } else if (xe::gpu::metal::MetalObjectTracker::Instance().GetAliveCount() > 0) {
-    //     XELOGI("CommandProcessor: {} Metal objects alive before pool drain",
-    //            xe::gpu::metal::MetalObjectTracker::Instance().GetAliveCount());
-    //   }
-    //   THREAD_MONITOR_EVENT(kPoolDrained, "About to drain per-loop autorelease pool");
     //   XE_AUTORELEASE_POOL_POP(loop_pool, "WorkerLoop");
-    //   loop_pool = nullptr;  // Clear to avoid double-pop
-    //   THREAD_MONITOR_EVENT(kPoolDrained, "Per-loop autorelease pool drained");
+    //   loop_pool = nullptr;
     // }
+    XELOGI("CommandProcessor: End of loop iteration, worker_running_={}",
+           worker_running_.load());
 #endif
   }
 
 #if XE_PLATFORM_MAC
   // The pool should already be popped and set to nullptr in the loop
-  // Only pop if we somehow exited with an active pool (shouldn't happen with our nullptr checks)
+  // Only pop if we somehow exited with an active pool (shouldn't happen with
+  // our nullptr checks)
   if (loop_pool) {
-    XELOGW("CommandProcessor: Unexpected unpoped WorkerLoop pool at exit - cleaning up");
+    XELOGW(
+        "CommandProcessor: Unexpected unpoped WorkerLoop pool at exit - "
+        "cleaning up");
     XE_AUTORELEASE_POOL_POP(loop_pool, "WorkerLoop");
     loop_pool = nullptr;
   }
 #endif
 
   THREAD_MONITOR_EVENT(kExiting, "Worker thread exiting main loop");
-  XELOGI("CommandProcessor::WorkerThreadMain: Exiting main loop, worker_running_={}", worker_running_.load());
-  
+  XELOGI(
+      "CommandProcessor::WorkerThreadMain: Exiting main loop, "
+      "worker_running_={}",
+      worker_running_.load());
+
   ShutdownContext();
   THREAD_MONITOR_EVENT(kExiting, "ShutdownContext completed");
   XELOGI("CommandProcessor::WorkerThreadMain: ShutdownContext completed");
-  
+
 #if XE_PLATFORM_MAC
   // Report any leaked Metal objects before thread exit
   // xe::gpu::metal::MetalObjectTracker::Instance().PrintReport();
 #endif
-  
+
   THREAD_MONITOR_EVENT(kExiting, "WorkerThreadMain about to return");
   XELOGI("CommandProcessor::WorkerThreadMain: About to return from function");
-  
+
 #if XE_PLATFORM_MAC
   // Final check for any leaked autorelease pools
   XELOGI("CommandProcessor: Final autorelease pool check before thread exit");
   XE_AUTORELEASE_POOL_CHECK_LEAKS();
 #endif
-  
+
   // Main autorelease pool cleanup is handled by XHostThread::Execute()
 }
 
@@ -703,7 +717,9 @@ uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index,
     }
   } while (reader.read_count());
 
-  XELOGI("CommandProcessor: Primary buffer execution complete, calling OnPrimaryBufferEnd");
+  XELOGI(
+      "CommandProcessor: Primary buffer execution complete, calling "
+      "OnPrimaryBufferEnd");
   OnPrimaryBufferEnd();
 
   trace_writer_.WritePrimaryBufferEnd();

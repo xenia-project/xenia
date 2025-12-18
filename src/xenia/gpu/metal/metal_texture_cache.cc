@@ -292,7 +292,7 @@ bool MetalTextureCache::TryGpuLoadTexture(Texture& texture, bool load_base,
 
   MTL::ComputeCommandEncoder* encoder = cmd->computeCommandEncoder();
   if (!encoder) {
-    cmd->release();
+    // cmd is autoreleased from commandBuffer() - do not release
     constants_buffer->release();
     dest_buffer->release();
     return false;
@@ -322,11 +322,11 @@ bool MetalTextureCache::TryGpuLoadTexture(Texture& texture, bool load_base,
 
   encoder->dispatchThreadgroups(threadgroups, threads_per_group);
   encoder->endEncoding();
-  encoder->release();
+  // encoder is autoreleased - do not release
 
   cmd->commit();
   cmd->waitUntilCompleted();
-  cmd->release();
+  // cmd is autoreleased from commandBuffer() - do not release
 
   constants_buffer->release();
 

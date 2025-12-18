@@ -18,6 +18,7 @@
 
 #include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"
+#include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/gpu/dxbc_shader.h"
 #include "xenia/gpu/xenos.h"
@@ -628,7 +629,12 @@ void DxbcShaderTranslator::StartVertexOrDomainShader() {
 
     default:
       // TODO(Triang3l): Support line and non-adaptive quad patches.
-      assert_unhandled_case(host_vertex_shader_type);
+      // Avoid crashing on unhandled host vertex shader types (for example,
+      // primitive expansion paths not supported by the DXBC translator).
+      XELOGE(
+          "DxbcShaderTranslator: Unsupported host vertex shader type {} in "
+          "StartVertexOrDomainShader",
+          uint32_t(host_vertex_shader_type));
       EmitTranslationError(
           "Unsupported host vertex shader type in StartVertexOrDomainShader");
       break;

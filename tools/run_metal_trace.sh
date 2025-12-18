@@ -5,12 +5,13 @@ set -euo pipefail
 # for A-Train HX with a short timeout and filtered logs.
 #
 # Usage:
-#   tools/run_metal_trace.sh [trace_file] [grep_pattern] [timeout_seconds]
+#   tools/run_metal_trace.sh [trace_file] [grep_pattern] [timeout_seconds] [capture_enabled]
 #
 # Defaults:
-#   trace_file     = reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace
+#   trace_file     = testdata/reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace
 #   grep_pattern   = "MetalRenderTargetCache|BG_DEST_DEBUG|BG_OVERLAP_DEBUG"
 #   timeout        = 8 seconds
+#   capture        = 0 (disabled)
 #
 # The script:
 #   1. Creates a timestamped output folder in scratch/metal_trace_runs/
@@ -18,7 +19,7 @@ set -euo pipefail
 #   3. Runs it with configurable timeout.
 #   4. Writes full log, build log, and output PNG to the timestamped folder.
 #   5. Prints only lines matching the grep pattern (with small context).
-#   6. Enables programmatic GPU capture (saved to output folder).
+#   6. Optionally enables programmatic GPU capture (saved to output folder).
 #
 # Output folder structure:
 #   scratch/metal_trace_runs/YYYYMMDD_HHMMSS/
@@ -40,9 +41,10 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
-TRACE_FILE="${1:-reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace}"
+TRACE_FILE="${1:-testdata/reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace}"
 GREP_PATTERN="${2:-MetalRenderTargetCache|BG_DEST_DEBUG|BG_OVERLAP_DEBUG}"
 TIMEOUT_SECS="${3:-8}"
+CAPTURE_ENABLED="${4:-0}"
 
 # Create timestamped output folder with subdirectories
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
@@ -66,6 +68,7 @@ echo "Run started at: $(date)" > "${SUMMARY_FILE}"
 echo "Trace file: ${TRACE_FILE}" >> "${SUMMARY_FILE}"
 echo "Grep pattern: ${GREP_PATTERN}" >> "${SUMMARY_FILE}"
 echo "Timeout: ${TIMEOUT_SECS}s" >> "${SUMMARY_FILE}"
+echo "GPU capture: ${CAPTURE_ENABLED}" >> "${SUMMARY_FILE}"
 echo "" >> "${SUMMARY_FILE}"
 
 echo "[run_metal_trace] Building xenia-gpu-metal-trace-dump (this may take a while)..."
@@ -97,17 +100,22 @@ fi
 echo "[run_metal_trace] Running trace-dump on ${TRACE_FILE} (timeout ~${TIMEOUT_SECS}s)..."
 
 # Export environment variables for the trace dump
-# These enable programmatic GPU capture and set output directories
-export XENIA_GPU_CAPTURE_DIR="${ROOT_DIR}/${OUTPUT_DIR}"
 export XENIA_TEXTURE_DUMP_DIR="${ROOT_DIR}/${TEXTURES_DIR}"
 export XENIA_SHADER_DUMP_DIR="${ROOT_DIR}/${SHADERS_DIR}"
-export XENIA_GPU_CAPTURE_ENABLED="1"
 export XENIA_DUMP_SHADERS="1"
 export XENIA_DUMP_TEXTURES="1"
 
-# Enable Metal capture layer for programmatic GPU capture
-# This is required for MTLCaptureManager to work outside of Xcode
-export MTL_CAPTURE_ENABLED="1"
+if [[ "${CAPTURE_ENABLED}" == "1" ]]; then
+  # Enable programmatic GPU capture (saved to OUTPUT_DIR).
+  export XENIA_GPU_CAPTURE_DIR="${ROOT_DIR}/${OUTPUT_DIR}"
+  export XENIA_GPU_CAPTURE_ENABLED="1"
+  # Enable Metal capture layer for programmatic GPU capture.
+  # This is required for MTLCaptureManager to work outside of Xcode.
+  export MTL_CAPTURE_ENABLED="1"
+else
+  export XENIA_GPU_CAPTURE_ENABLED="0"
+  export MTL_CAPTURE_ENABLED="0"
+fi
 
 export ROOT_DIR_ENV="${ROOT_DIR}"
 export LOG_FILE_ENV="${LOG_FILE}"
@@ -132,6 +140,7 @@ if not bin_path:
     raise SystemExit(1)
 
 cmd = [bin_path, f"--target_trace_file={trace_file}", f"--log_file={log_file}", "--log_level=4"]
+cmd.append(f"--trace_dump_path={os.path.join(os.environ.get('ROOT_DIR_ENV', '.'), output_dir)}")
 
 # Suppress the binary's stdout/stderr to avoid flooding the console; rely on
 # the log file + filtered rg/grep output instead.
@@ -161,14 +170,13 @@ if [[ ! -f "${LOG_FILE}" ]]; then
   exit 1
 fi
 
-# Collect output PNG - look for generated PNG in root directory
+# Output PNG should be written to OUTPUT_DIR via --trace_dump_path.
 TRACE_BASENAME="$(basename "${TRACE_FILE}" .xenia_gpu_trace)"
-if [[ -f "${ROOT_DIR}/${TRACE_BASENAME}.png" ]]; then
-  cp "${ROOT_DIR}/${TRACE_BASENAME}.png" "${OUTPUT_DIR}/output.png"
-  echo "[run_metal_trace] Copied output PNG to ${OUTPUT_DIR}/output.png"
-  echo "Output PNG: collected" >> "${SUMMARY_FILE}"
+if [[ -f "${OUTPUT_DIR}/${TRACE_BASENAME}.png" ]]; then
+  echo "[run_metal_trace] Output PNG: ${OUTPUT_DIR}/${TRACE_BASENAME}.png"
+  echo "Output PNG: ${TRACE_BASENAME}.png" >> "${SUMMARY_FILE}"
 else
-  echo "[run_metal_trace] No output PNG found at ${ROOT_DIR}/${TRACE_BASENAME}.png"
+  echo "[run_metal_trace] No output PNG found at ${OUTPUT_DIR}/${TRACE_BASENAME}.png"
   echo "Output PNG: not found" >> "${SUMMARY_FILE}"
 fi
 

@@ -287,7 +287,7 @@ void MetalPresenter::BlitTexture(MTL::Texture* source, MTL::Texture* destination
       );
       
       blit_encoder->endEncoding();
-      blit_encoder->release();
+      // blit encoder is autoreleased - do not release
       return;
     }
   }
@@ -322,7 +322,7 @@ void MetalPresenter::BlitTexture(MTL::Texture* source, MTL::Texture* destination
     }
     
     render_encoder->endEncoding();
-    render_encoder->release();
+    render_// encoder is autoreleased - do not release
   }
   
   render_pass->release();

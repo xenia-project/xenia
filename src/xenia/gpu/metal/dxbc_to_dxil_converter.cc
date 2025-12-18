@@ -96,9 +96,9 @@ bool DxbcToDxilConverter::Initialize() {
 
   // No native binary found
   XELOGE("DxbcToDxilConverter: Native dxbc2dxil binary not found!");
-  XELOGE("Please build dxbc2dxil from third_party/DirectXShaderCompiler:");
-  XELOGE("  cd third_party/DirectXShaderCompiler && ./build_dxbc2dxil.sh");
-  XELOGE("Or set DXBC2DXIL_PATH environment variable to the binary location");
+  XELOGE("Build it from third_party/DirectXShaderCompiler:");
+  XELOGE("  cd third_party/DirectXShaderCompiler && ./build_dxilconv_macos.sh");
+  XELOGE("Or set DXBC2DXIL_PATH to the binary location");
 
   is_available_ = false;
   return false;

@@ -408,11 +408,11 @@ class RenderTargetCache {
     struct {
       // - 1 because the maximum is 0x1FFF / 8, not 0x2000 / 8.
       uint32_t x_pixels_div_8 : xenos::kResolveSizeBits - 1 -
-                                xenos::kResolveAlignmentPixelsLog2;
+          xenos::kResolveAlignmentPixelsLog2;
       uint32_t y_pixels_div_8 : xenos::kResolveSizeBits - 1 -
-                                xenos::kResolveAlignmentPixelsLog2;
+          xenos::kResolveAlignmentPixelsLog2;
       uint32_t width_pixels_div_8_minus_1 : xenos::kResolveSizeBits - 1 -
-                                            xenos::kResolveAlignmentPixelsLog2;
+          xenos::kResolveAlignmentPixelsLog2;
     };
     HostDepthStoreRectangleConstant() : constant(0) {
       static_assert_size(*this, sizeof(constant));
@@ -742,7 +742,7 @@ class RenderTargetCache {
   // update. 0 is depth, color starting from 1, nullptr if not bound.
   // Only valid for non-pixel-shader-interlock paths.
   RenderTarget*
-      last_update_used_render_targets_[1 + xenos::kMaxColorRenderTargets];
+      last_update_used_render_targets_[1 + xenos::kMaxColorRenderTargets] = {};
   // Render targets used by the draw call with the last successful update or
   // previous updates, unless a different or a totally new one was bound (or
   // surface info was changed), to avoid unneeded render target switching (which
@@ -752,9 +752,8 @@ class RenderTargetCache {
   // whether it's safe to enable depth / stencil or writing to a specific color
   // render target in the pipeline for this draw call.
   // Only valid for non-pixel-shader-interlock paths.
-  RenderTarget*
-      last_update_accumulated_render_targets_[1 +
-                                              xenos::kMaxColorRenderTargets];
+  RenderTarget* last_update_accumulated_render_targets_
+      [1 + xenos::kMaxColorRenderTargets] = {};
   // Whether the color render targets (in bits 0...3) from the last successful
   // update have k_8_8_8_8_GAMMA format, for sRGB emulation on the host if
   // needed.

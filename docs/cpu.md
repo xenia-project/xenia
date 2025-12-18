@@ -109,13 +109,13 @@ Registers are stored on the stack as defined by [StackLayout::Thunk](../src/xeni
 
 Register | Usage
 ---      | ---
-X0       | PowerPC Context (preserved across calls)
-X1-X15   | Scratch
+X0       | Guest return address (from host-to-guest thunk)
+X1-X15   | Scratch / argument registers
 X16-X17  | Intra-procedure-call scratch (IP0/IP1)
 X18      | Platform register (reserved on macOS/iOS)
 X19-X26  | JIT temp (callee-saved, mapped to HIR registers)
-X27      | Reserved
-X28      | Reserved
+X27      | PowerPC context pointer (`PPCContext*`)
+X28      | Virtual memory base (membase)
 X29      | Frame Pointer (FP)
 X30      | Link Register (LR) / Scratch
 SP       | Stack Pointer

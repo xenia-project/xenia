@@ -76,6 +76,8 @@ class MetalRenderTargetCache final : public gpu::RenderTargetCache {
   MTL::RenderPassDescriptor* GetRenderPassDescriptor(
       uint32_t expected_sample_count = 1);
 
+  bool IsRenderPassDescriptorDirty() const { return render_pass_descriptor_dirty_; }
+
   // Get current render targets for capture
   MTL::Texture* GetColorTarget(uint32_t index) const;
   MTL::Texture* GetDepthTarget() const;

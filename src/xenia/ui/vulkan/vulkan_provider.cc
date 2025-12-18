@@ -12,12 +12,15 @@
 #include <cfloat>
 #include <cstddef>
 #include <cstring>
+#include <filesystem>
+#include <optional>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/cvar.h"
+#include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
 #include "xenia/base/platform.h"
@@ -52,6 +55,89 @@ DEFINE_int32(
     vulkan_device, -1,
     "Index of the physical device to use, or -1 for any compatible device.",
     "Vulkan");
+
+DEFINE_bool(
+    vulkan_macos_use_bundled_moltenvk, true,
+    "On macOS, if VK_ICD_FILENAMES/VK_DRIVER_FILES is not set, set it to use a "
+    "bundled MoltenVK ICD JSON (to avoid relying on system-wide Vulkan SDK "
+    "installation).",
+    "Vulkan");
+DEFINE_path(vulkan_macos_moltenvk_icd, "",
+            "Override path to MoltenVK_icd.json to use on macOS when "
+            "vulkan_macos_use_bundled_moltenvk is enabled.",
+            "Vulkan");
+DEFINE_bool(
+    vulkan_macos_enable_moltenvk_private_api, true,
+    "On macOS, when using a bundled MoltenVK, set MVK_CONFIG_USE_METAL_PRIVATE_API "
+    "to 1 (requires MoltenVK built with MVK_USE_METAL_PRIVATE_API=1).",
+    "Vulkan");
+
+#if XE_PLATFORM_MAC
+namespace {
+
+std::optional<std::filesystem::path> FindBundledMoltenVkIcdJsonPath() {
+  if (!cvars::vulkan_macos_moltenvk_icd.empty()) {
+    std::filesystem::path override_path = cvars::vulkan_macos_moltenvk_icd;
+    if (std::filesystem::exists(override_path)) {
+      return override_path;
+    }
+    XELOGW(
+        "vulkan_macos_moltenvk_icd is set to '{}', but the file doesn't exist",
+        override_path.string());
+  }
+
+  const std::filesystem::path executable_folder = xe::filesystem::GetExecutableFolder();
+
+  // Prefer files shipped alongside the executable / in the app bundle.
+  const std::filesystem::path candidates[] = {
+      executable_folder / "MoltenVK_icd.json",
+      executable_folder / ".." / "Frameworks" / "MoltenVK_icd.json",
+      executable_folder / ".." / "Resources" / "MoltenVK_icd.json",
+      // Developer-tree fallback (build/bin/Mac/<Config>/ -> repo root).
+      executable_folder / ".." / ".." / ".." / ".." / "third_party" /
+          "MoltenVK" / "MoltenVK" / "dynamic" / "dylib" / "macOS" /
+          "MoltenVK_icd.json",
+  };
+
+  for (const std::filesystem::path& candidate : candidates) {
+    if (std::filesystem::exists(candidate)) {
+      return candidate;
+    }
+  }
+  return std::nullopt;
+}
+
+void MaybeConfigureBundledMoltenVk() {
+  if (!cvars::vulkan_macos_use_bundled_moltenvk) {
+    return;
+  }
+
+  // Don't override user configuration.
+  if (std::getenv("VK_ICD_FILENAMES") || std::getenv("VK_DRIVER_FILES")) {
+    return;
+  }
+
+  std::optional<std::filesystem::path> icd_json_path =
+      FindBundledMoltenVkIcdJsonPath();
+  if (!icd_json_path) {
+    return;
+  }
+
+  std::string icd_json_path_string = icd_json_path->string();
+  // VK_ICD_FILENAMES is the legacy variable, VK_DRIVER_FILES is the newer name.
+  setenv("VK_ICD_FILENAMES", icd_json_path_string.c_str(), 1);
+  setenv("VK_DRIVER_FILES", icd_json_path_string.c_str(), 1);
+
+  if (cvars::vulkan_macos_enable_moltenvk_private_api &&
+      !std::getenv("MVK_CONFIG_USE_METAL_PRIVATE_API")) {
+    setenv("MVK_CONFIG_USE_METAL_PRIVATE_API", "1", 1);
+  }
+
+  XELOGI("Using bundled MoltenVK ICD: {}", icd_json_path_string);
+}
+
+}  // namespace
+#endif  // XE_PLATFORM_MAC
 
 namespace xe {
 namespace ui {
@@ -107,6 +193,10 @@ VulkanProvider::~VulkanProvider() {
 
 bool VulkanProvider::Initialize() {
   renderdoc_api_.Initialize();
+
+#if XE_PLATFORM_MAC
+  MaybeConfigureBundledMoltenVk();
+#endif  // XE_PLATFORM_MAC
 
   // Load the library.
   bool library_functions_loaded = true;
@@ -999,6 +1089,17 @@ void VulkanProvider::TryCreateDevice() {
   FEATURE(sparseBinding)
   FEATURE(sparseResidencyBuffer)
 #undef FEATURE
+
+#if XE_PLATFORM_MAC
+  if (!supported_features.geometryShader) {
+    XELOGW(
+        "Vulkan device '{}' does not support geometry shaders. Xenia's Vulkan "
+        "backend currently relies on geometry shaders for some primitive types "
+        "(for example, rectangle lists), so rendering may be incomplete. "
+        "Prefer the native Metal backend on macOS.",
+        properties.deviceName);
+  }
+#endif  // XE_PLATFORM_MAC
 
   VkPhysicalDeviceProperties2 properties2 = {
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};

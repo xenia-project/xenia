@@ -30,8 +30,13 @@ bool MetalSharedMemory::Initialize() {
   // Create Metal buffer - similar to D3D12's approach
   // On Apple Silicon, ResourceStorageModeShared gives CPU/GPU access
   XELOGI("Creating Metal shared memory buffer: size={}MB", kBufferSize >> 20);
+  fflush(stdout);
+  fflush(stderr);
 
   buffer_ = device->newBuffer(kBufferSize, MTL::ResourceStorageModeShared);
+  XELOGI("Metal buffer allocated: {}", buffer_ ? "success" : "failed");
+  fflush(stdout);
+  fflush(stderr);
   if (!buffer_) {
     XELOGE("Failed to create Metal shared memory buffer");
     return false;
@@ -41,12 +46,19 @@ bool MetalSharedMemory::Initialize() {
   // TODO(Metal): In full implementation, use UploadRanges for incremental
   // updates
   void* xbox_ram = memory().TranslatePhysical(0);
+  XELOGI("xbox_ram={}, about to copy 512MB", xbox_ram ? "valid" : "null");
+  fflush(stdout);
+  fflush(stderr);
   if (xbox_ram) {
     memcpy(buffer_->contents(), xbox_ram, kBufferSize);
     XELOGI("Copied Xbox memory to Metal buffer (initial sync)");
+    fflush(stdout);
+    fflush(stderr);
   }
 
   XELOGI("Metal shared memory initialized successfully");
+  fflush(stdout);
+  fflush(stderr);
 
   return true;
 }

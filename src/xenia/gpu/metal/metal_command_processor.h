@@ -20,6 +20,7 @@
 #include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
 #include "xenia/gpu/metal/dxbc_to_dxil_converter.h"
+#include "xenia/gpu/metal/metal_primitive_processor.h"
 #include "xenia/gpu/metal/metal_render_target_cache.h"
 #include "xenia/gpu/metal/metal_shader.h"
 #include "xenia/gpu/metal/metal_shader_converter.h"
@@ -69,6 +70,12 @@ class MetalCommandProcessor : public CommandProcessor {
   bool SetupContext() override;
   void ShutdownContext() override;
 
+  // Flush pending GPU work before entering wait state.
+  // This ensures Metal command buffers are submitted and completed before
+  // the autorelease pool is drained, preventing hangs from deferred
+  // deallocation.
+  void PrepareForWait() override;
+
   // Use base class WriteRegister - don't override with empty implementation!
   // The base class stores values in register_file_->values[] which we need.
   void OnGammaRamp256EntryTableValueWritten() override {}
@@ -114,24 +121,34 @@ class MetalCommandProcessor : public CommandProcessor {
   void DrawDebugQuad();
 
   // Constants for descriptor heap sizes.
-  // We use a ring buffer approach: allocate multiple "regions" in the heap
-  // so each draw can have its own descriptor entries without overwriting
-  // previous draws' entries before they execute.
-  static constexpr size_t kResourceHeapSlotsPerDraw = 32;  // Slots per draw
-  static constexpr size_t kResourceHeapDrawCount = 32;  // Max draws before wrap
-  static constexpr size_t kResourceHeapSlotCount =
-      kResourceHeapSlotsPerDraw * kResourceHeapDrawCount;  // 1024 total
-  static constexpr size_t kSamplerHeapSlotCount = 258;
-  static constexpr size_t kCbvHeapSlotCount = 6;
+  // MSC's IR runtime uses a D3D12-like "root signature" model. In D3D12, many
+  // root parameters are stage-visible, so VS and PS can both use registers like
+  // `t1` / `s0` without colliding because their descriptor tables are bound
+  // independently.
+  //
+  // To mirror that behavior on Metal, keep separate descriptor table slices for
+  // VS and PS (per draw), and ring-buffer them so CPU writes don't overwrite
+  // data still in flight on the GPU.
+  static constexpr size_t kStageCount = 2;  // Vertex + pixel.
+  static constexpr size_t kDrawRingCount = 32;
+
+  // Root signature descriptor counts in MetalShaderConverter are intentionally
+  // oversized (bindless-style). Allocate extra padding because MSC IR shaders
+  // may read one entry past the declared count.
+  static constexpr size_t kResourceHeapSlotsPerTable = 1025 + 2;
+  static constexpr size_t kSamplerHeapSlotsPerTable = 257 + 2;
+  static constexpr size_t kCbvHeapSlotsPerTable = 5 + 2;  // b0-b4 + padding.
+
+  static constexpr size_t kCbvSizeBytes = 4096;
+  static constexpr size_t kUniformsBytesPerTable = 5 * kCbvSizeBytes;
 
   // Top-level argument buffer ring buffer constants
   // Each draw needs its own copy of the top-level pointers to avoid race
   // conditions where later draws overwrite earlier draws' descriptor table
   // pointers before the GPU executes them.
-  static constexpr size_t kTopLevelABSlotsPerDraw =
-      32;  // 14 root params + padding
-  static constexpr size_t kTopLevelABBytesPerDraw =
-      kTopLevelABSlotsPerDraw * sizeof(uint64_t);  // 256 bytes per draw
+  static constexpr size_t kTopLevelABSlotsPerTable = 32;  // 14 + padding.
+  static constexpr size_t kTopLevelABBytesPerTable =
+      kTopLevelABSlotsPerTable * sizeof(uint64_t);
 
   // IR Converter runtime resource binding
   bool CreateIRConverterBuffers();
@@ -144,6 +161,15 @@ class MetalCommandProcessor : public CommandProcessor {
                                   xenos::Endian index_endian,
                                   const draw_util::ViewportInfo& viewport_info,
                                   uint32_t used_texture_mask);
+
+  // Shader modification selection (mirrors D3D12 PipelineCache logic).
+  DxbcShaderTranslator::Modification GetCurrentVertexShaderModification(
+      const Shader& shader,
+      Shader::HostVertexShaderType host_vertex_shader_type,
+      uint32_t interpolator_mask) const;
+  DxbcShaderTranslator::Modification GetCurrentPixelShaderModification(
+      const Shader& shader, uint32_t interpolator_mask, uint32_t param_gen_pos,
+      reg::RB_DEPTHCONTROL normalized_depth_control) const;
 
   // Debug logging utilities
   void DumpUniformsBuffer();
@@ -169,6 +195,8 @@ class MetalCommandProcessor : public CommandProcessor {
 
   // Shared memory for Xbox 360 memory access
   std::unique_ptr<MetalSharedMemory> shared_memory_;
+  std::unique_ptr<MetalPrimitiveProcessor> primitive_processor_;
+  bool frame_open_ = false;
 
  public:
   MetalSharedMemory* shared_memory() const { return shared_memory_.get(); }

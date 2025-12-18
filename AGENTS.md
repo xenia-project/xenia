@@ -11,6 +11,7 @@ Guidelines for AI agents working on this codebase.
 - **Current Focus**: Metal GPU backend via `xenia-gpu-metal-trace-dump` target
 - **Status**: A64 backend passes all CPU tests; Metal backend is early WIP
 - **Why Metal**: MoltenVK (Vulkan-on-Metal) is NOT supported due to primitive restart issues and other Vulkan feature gaps
+- **Shader Pipeline**: DXBC → DXIL conversion uses `dxbc2dxil` from `third_party/DirectXShaderCompiler` (see `third_party/DirectXShaderCompiler/build_dxilconv_macos.sh`, or set `DXBC2DXIL_PATH`)
 
 ### Branch Structure
 
@@ -66,7 +67,7 @@ All builds use the `xb` Python script. Output goes to `build/bin/Mac/<Config>/`.
 ./build/bin/Mac/Checked/xenia-gpu-metal-trace-dump <trace_file>
 ```
 
-Reference traces are in `reference-gpu-traces/traces/`:
+Reference traces are in `testdata/reference-gpu-traces/traces/`:
 - `title_414B07D1_frame_589.xenia_gpu_trace` (small, good for testing)
 - `title_414B07D1_frame_6543.xenia_gpu_trace` (large)
 
@@ -91,6 +92,52 @@ third_party/
 ```
 
 ## Agent Guidelines
+
+### Shared Code Policy
+
+**Do not modify shared/upstream code** unless absolutely necessary. The
+following directories contain functional code from upstream Xenia that works
+correctly on other platforms:
+
+- `src/xenia/gpu/*.cc` (except `src/xenia/gpu/metal/`)
+- `src/xenia/cpu/` (except `src/xenia/cpu/backend/a64/`)
+- `src/xenia/kernel/`
+- `src/xenia/base/` (except `*_posix.cc` and `*_mac.cc` files)
+
+If a bug appears to be in shared code, investigate whether the issue is
+actually in the platform-specific (Metal, A64) code that calls it. The D3D12
+and Vulkan backends work correctly - use them as reference implementations.
+
+### Documentation-Driven Development
+
+For complex multi-step tasks, maintain documentation in `NEXT_STEPS.md`:
+
+1. **Before starting work**: Document the problem, root cause analysis, and
+   implementation plan with checkboxes
+2. **During implementation**: Update checkboxes as steps are completed
+3. **After completion**: Update status and move to next phase
+
+This ensures context is preserved across sessions and provides a clear record
+of what was attempted and why.
+
+**NEXT_STEPS.md structure**:
+```markdown
+## Phase N: [Current Focus] (STATUS)
+
+### Problem Description
+[What's broken and how it manifests]
+
+### Root Cause Analysis
+[Why it's broken - be specific about code paths]
+
+### Implementation Checklist
+- [ ] Step 1
+- [ ] Step 2
+...
+
+### Reference Information
+[Relevant APIs, code locations, test commands]
+```
 
 ### Use scratch/ for All Output
 
@@ -135,7 +182,7 @@ tail -20 scratch/logs/test.log
 ```bash
 # GPU trace dump
 ./build/bin/Mac/Checked/xenia-gpu-metal-trace-dump \
-    reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace \
+    testdata/reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace \
     2>&1 | tee scratch/logs/trace.log
 
 # Check for crashes or errors
@@ -221,5 +268,5 @@ Update metal_command_processor.cc
 ./build/bin/Mac/Checked/xenia-base-tests && ./build/bin/Mac/Checked/xenia-cpu-ppc-tests && ./build/bin/Mac/Checked/xenia-cpu-tests
 
 # Test Metal trace dump
-./build/bin/Mac/Checked/xenia-gpu-metal-trace-dump reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace 2>&1 | tee scratch/logs/trace.log
+./build/bin/Mac/Checked/xenia-gpu-metal-trace-dump testdata/reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace 2>&1 | tee scratch/logs/trace.log
 ```

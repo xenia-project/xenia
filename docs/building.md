@@ -41,7 +41,7 @@ Xenia uses a Python build script (`xb`) with Premake5 for project generation.
 |---------------|-------------|
 | Checked | Debug runtime, no optimization, full runtime checks |
 | Debug | Release runtime, no optimization, debug symbols (default) |
-| Release | Full optimization, LTO enabled |
+| Release | Full optimization |
 
 ### Output Locations
 
@@ -69,8 +69,8 @@ Intel Mac (x86_64) is not supported.
 # Install build tools
 brew install cmake ninja python3
 
-# Wine is required for DXBC→DXIL shader conversion (Metal backend)
-brew install wine-staging
+# Needed only if you want to build `dxbc2dxil` locally.
+brew install directx-headers
 ```
 
 #### Metal Backend Dependencies
@@ -81,9 +81,10 @@ For the Metal GPU backend, additional setup is required:
    - Download from: https://developer.apple.com/metal/shader-converter/
    - The `metalirconverter` library is used for DXIL → Metal IR conversion
 
-2. **dxbc2dxil.exe** (Microsoft)
+2. **dxbc2dxil** (DirectXShaderCompiler)
    - Required for DXBC → DXIL conversion
-   - Runs via Wine on macOS
+   - Build from `third_party/DirectXShaderCompiler` (`./build_dxilconv_macos.sh`)
+   - Or provide a prebuilt binary via `DXBC2DXIL_PATH`
 
 #### Building
 
@@ -109,7 +110,7 @@ For the Metal GPU backend, additional setup is required:
 
 # Run GPU trace dump
 ./build/bin/Mac/Checked/xenia-gpu-metal-trace-dump \
-    reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace
+    testdata/reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace
 ```
 
 #### Current Status
@@ -122,6 +123,12 @@ For the Metal GPU backend, additional setup is required:
 MoltenVK (Vulkan-on-Metal) is **not supported** due to:
 - Primitive restart issues causing rendering corruption
 - Other Vulkan feature gaps in the translation layer
+
+For experimental Vulkan-on-macOS usage in this fork, a bundled MoltenVK build may
+be used automatically when `--gpu=vulkan` is selected via
+`--vulkan_macos_use_bundled_moltenvk=true` (enabled by default) and
+`--vulkan_macos_enable_moltenvk_private_api=true` (requires MoltenVK built with
+`MVK_USE_METAL_PRIVATE_API=1`).
 
 A native Metal backend is required for macOS GPU emulation.
 

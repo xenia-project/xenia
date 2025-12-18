@@ -32,10 +32,15 @@ Xenia supports multiple GPU backends for different platforms:
 
 ### Why Metal is Required on macOS
 
-**MoltenVK (Vulkan on Metal) is NOT supported** for Xenia on macOS due to:
+**MoltenVK (Vulkan-on-Metal) is NOT supported** for Xenia on macOS due to:
 - Primitive restart functionality issues that cause rendering corruption
 - Other Vulkan feature gaps in the MoltenVK translation layer
 - Performance overhead of the Vulkan-to-Metal translation
+
+This fork includes an experimental path to run the Vulkan backend on macOS using
+a bundled MoltenVK build (typically with private Metal APIs enabled). See
+`--vulkan_macos_use_bundled_moltenvk` and
+`--vulkan_macos_enable_moltenvk_private_api`.
 
 A native Metal backend is required for proper Xbox 360 GPU emulation on macOS.
 
@@ -56,7 +61,7 @@ rendering is not yet functional.
 | `metal_shader.cc` | Metal shader wrapper |
 | `metal_shader_converter.cc` | DXIL to Metal IR conversion |
 | `metal_shader_cache.cc` | Compiled shader caching |
-| `dxbc_to_dxil_converter.cc` | DXBC to DXIL conversion (via Wine) |
+| `dxbc_to_dxil_converter.cc` | DXBC to DXIL conversion (native dxbc2dxil) |
 | `metal_render_target_cache.cc` | Render target/EDRAM management |
 | `metal_texture_cache.cc` | Texture loading and format conversion |
 | `metal_shared_memory.cc` | Xbox 360 memory buffer access |
@@ -74,7 +79,7 @@ The Metal backend translates Xbox 360 shader microcode through multiple stages:
 Xbox 360 Microcode (ucode)
     ↓ DxbcShaderTranslator (shared with D3D12)
 DXBC (DirectX Bytecode)
-    ↓ dxbc_to_dxil_converter (Wine + dxbc2dxil.exe)
+    ↓ dxbc_to_dxil_converter (native dxbc2dxil)
 DXIL (DirectX Intermediate Language)
     ↓ metal_shader_converter (Apple Metal Shader Converter)
 Metal IR
@@ -84,14 +89,14 @@ MTLLibrary (GPU-executable)
 
 This pipeline leverages:
 - **DxbcShaderTranslator**: Existing Xenia infrastructure for microcode → DXBC
-- **dxbc2dxil.exe**: Microsoft's shader compiler (run via Wine on macOS)
+- **dxbc2dxil**: DirectXShaderCompiler tool (native binary)
 - **Metal Shader Converter**: Apple's `metalirconverter` library for DXIL → Metal IR
 
 #### Dependencies
 
 - `third_party/metal-cpp/` - C++ bindings for Metal framework
 - `third_party/metal-shader-converter/` - Apple's DXIL to Metal IR converter
-- Wine (runtime) - For running dxbc2dxil.exe
+- `dxbc2dxil` (native) - DXBC → DXIL conversion
 
 #### Building Metal Shaders
 
@@ -102,7 +107,8 @@ This pipeline leverages:
 ### Vulkan Backend
 
 The Vulkan backend (`src/xenia/gpu/vulkan/`) provides cross-platform support.
-On macOS, it runs via MoltenVK but has known issues with primitive restart.
+On macOS, MoltenVK is **not supported** for Xenia, so Vulkan is effectively
+unsupported there.
 
 ### D3D12 Backend
 
@@ -139,11 +145,11 @@ and debugging the Metal backend without requiring a full game to run.
 ./build/bin/Mac/Checked/xenia-gpu-metal-trace-dump <trace_file>
 ```
 
-Reference traces are available in `reference-gpu-traces/traces/`:
+Reference traces are available in `testdata/reference-gpu-traces/traces/`:
 - `title_414B07D1_frame_589.xenia_gpu_trace` (small, good for testing)
 - `title_414B07D1_frame_6543.xenia_gpu_trace` (large)
 
-Reference output images are in `reference-gpu-traces/references/`.
+Reference output images are in `testdata/reference-gpu-traces/references/`.
 
 ### Shaders
 

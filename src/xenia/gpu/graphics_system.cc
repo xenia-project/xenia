@@ -103,11 +103,10 @@ X_STATUS GraphicsSystem::Setup(cpu::Processor* processor,
         uint64_t last_frame_time = Clock::QueryGuestTickCount();
         int loop_count = 0;
         while (vsync_worker_running_.load(std::memory_order_acquire)) {
-          if (++loop_count % 1000 == 0) {
-            XELOGI(
-                "GPU VSync thread still running, loop {}, "
-                "vsync_worker_running_={}",
-                loop_count, vsync_worker_running_.load());
+          // Avoid spamming the log in normal operation - periodic only, and at
+          // debug level.
+          if (++loop_count % 60000 == 0) {
+            XELOGD("GPU VSync thread alive, loop {}", loop_count);
           }
           uint64_t current_time = Clock::QueryGuestTickCount();
           uint64_t elapsed = (current_time - last_frame_time) /

@@ -240,6 +240,15 @@ def get_bin(binary):
     Returns:
       Full path to the binary or None if not found.
     """
+    # If an explicit path is provided, check it directly.
+    if os.path.isabs(binary) or os.sep in binary or '/' in binary:
+        if os.path.isfile(binary) and os.access(binary, os.X_OK):
+            return binary
+        exe_file = binary + '.exe'
+        if os.path.isfile(exe_file) and os.access(exe_file, os.X_OK):
+            return exe_file
+        return None
+
     for path in os.environ['PATH'].split(os.pathsep):
         path = path.strip('"')
         exe_file = os.path.join(path, binary)
@@ -569,7 +578,7 @@ def get_build_bin_path(args):
       A full path for the bin folder.
     """
     if sys.platform == 'darwin':
-        platform = 'macosx'
+        platform = 'mac'
     elif sys.platform == 'win32':
         platform = 'windows'
     else:
