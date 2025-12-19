@@ -88,3 +88,7 @@
 [submodule "third_party/oaknut"]
 	path = third_party/oaknut
 	url = https://github.com/merryhime/oaknut.git
+
+[submodule "testdata/reference-gpu-traces"]
+	path = testdata/reference-gpu-traces
+	url = https://github.com/xenia-project/reference-gpu-traces.git
