@@ -1,4 +1,4 @@
- 2006/09/01                                         Revision 1.2
+ 2025/12/19                                         Revision 1.3
 -----------------------------------------------------------------
 
 
@@ -103,8 +103,8 @@ Conventions:
 
 
 =================================================================
-   stewx128                 Store Vector128 Element Word Indexed
-|0 0 0 1 0 0|  VS128  |   RA    |   RB    |0 1 1 0 0 0 0|VDh|1 1|
+   stvewx128                Store Vector128 Element Word Indexed
+|0 0 0 1 0 0|  VS128  |   RA    |   RB    |0 0 1 1 0 0 0|VDh|1 1|
 
    stvewx128     vr(VS128), r(RA), r(RB)
 
@@ -120,14 +120,14 @@ Conventions:
    stvlxl128                    Store Vector128 Left Indexed LRU
 |0 0 0 1 0 0|  VS128  |   RA    |   RB    |1 1 1 0 0 0 0|VDh|1 1|
 
-   lvlxl128      vr(VS128), r(RA), r(RB)
+   stvlxl128     vr(VS128), r(RA), r(RB)
 
 
 =================================================================
    stvrx128                        Store Vector128 Right Indexed
 |0 0 0 1 0 0|  VS128  |   RA    |   RB    |1 0 1 0 1 0 0|VDh|1 1|
 
-   stvrx128       vr(VS128), r(RA), r(RB)
+   stvrx128      vr(VS128), r(RA), r(RB)
 
 
 =================================================================
@@ -168,7 +168,7 @@ Conventions:
 =================================================================
    vandc128                                Vector128 Logical AND 
                                                  with Complement
-|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|1 0 1 0|a|1|VDh|VBh|
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|1 0 0 1|a|1|VDh|VBh|
 
    vandc128      vr(VD128), vr(VA128), vr(VB128)
 
@@ -317,7 +317,7 @@ Conventions:
                                                   Floating Point
 |0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|0 1 1 0|a|1|VDh|VBh|
 
-   vmsub3fp128   vr(VD128), vr(VA128), vr(VB128)
+   vmsum3fp128   vr(VD128), vr(VA128), vr(VB128)
 
 
 =================================================================
@@ -325,7 +325,7 @@ Conventions:
                                                   Floating-Point
 |0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|0 1 1 1|a|1|VDh|VBh|
 
-   vmsub4fp128   vr(VD128), vr(VA128), vr(VB128)
+   vmsum4fp128   vr(VD128), vr(VA128), vr(VB128)
 
 
 =================================================================
@@ -494,7 +494,7 @@ Conventions:
 
 =================================================================
    vrlw128                            Vector128 Rotate Left Word
-|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|0 0 0 1|a|1|VDh|VBh|
+|0 0 0 1 1 0|  VD128  |  VA128  |  VB128  |A|0 0 0 1|a|1|VDh|VBh|
 
    vrlw128       vr(VD128), vr(VA128), vr(VB128)
 
@@ -561,7 +561,7 @@ Conventions:
 
 =================================================================
    vsro128                           Vector128 Shift Right Octet
-|0 0 0 1 1 0|  VD128  |  VA128  |  VB128  |A|1 1 1 1|a|1|VDh|VBh|
+|0 0 0 1 0 1|  VD128  |  VA128  |  VB128  |A|1 1 1 1|a|1|VDh|VBh|
 
    vsro128       vr(VD128), vr(VA128), vr(VB128)
 
@@ -596,11 +596,27 @@ Conventions:
 
 
 =================================================================
+   vupkhsh128                                   Vector128 Unpack 
+                                           High Signed Half Word
+|0 0 0 1 1 0|  VD128  |0 0 0 0 0|  VB128  |1 1 1 1 0 1 0|VDh|VBh|
+
+   vupkhsh128    vr(VD128), vr(VB128)
+
+
+=================================================================
    vupklsb128                                   Vector128 Unpack 
                                                  Low Signed Byte
 |0 0 0 1 1 0|  VD128  |0 0 0 0 0|  VB128  |0 1 1 1 1 0 0|VDh|VBh|
 
-   vupkhsb128    vr(VD128), vr(VB128)
+   vupklsb128    vr(VD128), vr(VB128)
+
+
+=================================================================
+   vupklsh128                                   Vector128 Unpack 
+                                            Low Signed Half Word
+|0 0 0 1 1 0|  VD128  |0 0 0 0 0|  VB128  |1 1 1 1 1 1 0|VDh|VBh|
+
+   vupklsh128    vr(VD128), vr(VB128)
 
 
 =================================================================
