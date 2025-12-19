@@ -1564,7 +1564,19 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(
 
     uint32_t width = 1280;
     uint32_t height = 720;
-    if (last_real_color_targets_[0] && last_real_color_targets_[0]->texture()) {
+    if (current_depth_target_ && current_depth_target_->texture()) {
+      width =
+          static_cast<uint32_t>(current_depth_target_->texture()->width());
+      height =
+          static_cast<uint32_t>(current_depth_target_->texture()->height());
+      if (current_depth_target_->texture()->sampleCount() > 0) {
+        samples = std::max<uint32_t>(
+            samples,
+            static_cast<uint32_t>(current_depth_target_->texture()
+                                      ->sampleCount()));
+      }
+    } else if (last_real_color_targets_[0] &&
+               last_real_color_targets_[0]->texture()) {
       width = static_cast<uint32_t>(last_real_color_targets_[0]->texture()
                                         ->width());
       height = static_cast<uint32_t>(last_real_color_targets_[0]->texture()
@@ -1574,6 +1586,12 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(
           static_cast<uint32_t>(last_real_depth_target_->texture()->width());
       height =
           static_cast<uint32_t>(last_real_depth_target_->texture()->height());
+      if (last_real_depth_target_->texture()->sampleCount() > 0) {
+        samples = std::max<uint32_t>(
+            samples,
+            static_cast<uint32_t>(last_real_depth_target_->texture()
+                                      ->sampleCount()));
+      }
     }
 
     const bool dummy_matches =

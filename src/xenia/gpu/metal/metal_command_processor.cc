@@ -857,9 +857,20 @@ void MetalCommandProcessor::CaptureCurrentFrame() {
     return;
   }
 
+  // Only capture common 32bpp color targets for now.
+  if (capture_texture->pixelFormat() != MTL::PixelFormatBGRA8Unorm) {
+    XELOGD("CaptureCurrentFrame: skipping capture of pixel format {}",
+           static_cast<uint32_t>(capture_texture->pixelFormat()));
+    return;
+  }
+
+  const uint32_t capture_width = static_cast<uint32_t>(capture_texture->width());
+  const uint32_t capture_height =
+      static_cast<uint32_t>(capture_texture->height());
+
   // Create a staging buffer for readback
-  size_t bytes_per_row = render_target_width_ * 4;  // BGRA8
-  size_t buffer_size = bytes_per_row * render_target_height_;
+  size_t bytes_per_row = size_t(capture_width) * 4;  // BGRA8
+  size_t buffer_size = bytes_per_row * size_t(capture_height);
 
   MTL::Buffer* staging_buffer =
       device_->newBuffer(buffer_size, MTL::ResourceStorageModeShared);
@@ -875,8 +886,8 @@ void MetalCommandProcessor::CaptureCurrentFrame() {
 
   blit->copyFromTexture(
       capture_texture, 0, 0, MTL::Origin(0, 0, 0),
-      MTL::Size(render_target_width_, render_target_height_, 1), staging_buffer,
-      0, bytes_per_row, 0);
+      MTL::Size(capture_width, capture_height, 1), staging_buffer, 0,
+      bytes_per_row, 0);
 
   blit->endEncoding();
   // Note: blitCommandEncoder() returns autoreleased object - don't release
@@ -884,8 +895,8 @@ void MetalCommandProcessor::CaptureCurrentFrame() {
   blit_cmd->waitUntilCompleted();
 
   // Copy data from staging buffer
-  captured_width_ = render_target_width_;
-  captured_height_ = render_target_height_;
+  captured_width_ = capture_width;
+  captured_height_ = capture_height;
   captured_frame_data_.resize(buffer_size);
 
   uint8_t* src = static_cast<uint8_t*>(staging_buffer->contents());

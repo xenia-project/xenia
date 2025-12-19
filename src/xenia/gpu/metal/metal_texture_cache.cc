@@ -1114,9 +1114,11 @@ MTL::Texture* MetalTextureCache::CreateTextureCube(uint32_t width,
   cube_count = std::max(cube_count, 1u);
 
   MTL::TextureDescriptor* descriptor = MTL::TextureDescriptor::alloc()->init();
-  bool is_array = cube_count > 1;
-  descriptor->setTextureType(is_array ? MTL::TextureTypeCubeArray
-                                      : MTL::TextureTypeCube);
+  // Always use CubeArray (even for a single cubemap) - the shader converter
+  // often emits texturecube_array for Xenos cubemaps, and Metal validates the
+  // bound texture type.
+  bool is_array = true;
+  descriptor->setTextureType(MTL::TextureTypeCubeArray);
   descriptor->setPixelFormat(format);
   descriptor->setWidth(width);
   descriptor->setHeight(width);  // Cube faces are square
@@ -1294,7 +1296,8 @@ MTL::Texture* MetalTextureCache::CreateNullTextureCube() {
   }
 
   MTL::TextureDescriptor* descriptor = MTL::TextureDescriptor::alloc()->init();
-  descriptor->setTextureType(MTL::TextureTypeCube);
+  // Always create as CubeArray for binding compatibility.
+  descriptor->setTextureType(MTL::TextureTypeCubeArray);
   descriptor->setPixelFormat(MTL::PixelFormatRGBA8Unorm);
   descriptor->setWidth(1);
   descriptor->setHeight(1);
