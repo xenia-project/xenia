@@ -106,6 +106,11 @@ and background differences.
   - format mismatch conversions (for specific color formats used in traces)
 - Without these transfers, Metal can render using incomplete EDRAM restore /
   resolve state compared to D3D12.
+- `MetalRenderTargetCache::Resolve` can fail with:
+  - `Resolve: no valid GPU resolve shader / pipeline for this configuration`
+  This indicates the Metal backend doesn’t have a compute pipeline keyed for the
+  `draw_util::ResolveCopyShaderIndex` + MSAA + source format combination
+  requested by the trace.
 
 ### Implementation Checklist
 - [ ] Implement transfer pipelines equivalent to
@@ -115,6 +120,18 @@ and background differences.
   - [ ] Color→Color (format mismatch) conversion for formats seen in Halo 3
   - [ ] Depth→Depth copy/resolve (including stencil where applicable)
   - [ ] Color/Depth ↔ stencil-bit transfer modes used by Xenos
+- [ ] Implement missing **EDRAM resolve** pipeline keys so `IssueCopy` can
+      complete resolves in real traces:
+  - [ ] Log the requested `ResolveCopyShaderIndex`, `msaa_samples`,
+        `source_texture->pixelFormat()`, and copy mode when a resolve pipeline
+        is missing (Metal only).
+  - [ ] Mirror D3D12/Vulkan resolve pipeline selection for the same
+        `ResolveCopyShaderIndex` cases:
+    - [ ] Ensure 32bpp color resolve coverage across 1x/2x/4x MSAA
+    - [ ] Add 64bpp color resolve coverage if traces request it
+    - [ ] Add depth resolve coverage if traces request it
+  - [ ] Add/extend Metal pipeline storage for resolve shaders keyed by
+        `(ResolveCopyShaderIndex, msaa_samples)` (and format if needed).
 - [ ] Add targeted per-trace instrumentation:
   - [ ] Log each skipped transfer with the Xenos format names (not just ids)
   - [ ] Emit a small “transfer summary” at end of trace playback
