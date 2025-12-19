@@ -1498,10 +1498,14 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(
 
     depth_attachment->setStoreAction(MTL::StoreActionStore);
 
-    // Check if this format has stencil
-    xenos::DepthRenderTargetFormat depth_format =
-        current_depth_target_->key().GetDepthFormat();
-    if (depth_format == xenos::DepthRenderTargetFormat::kD24S8) {
+    // If the depth texture includes stencil, bind the same texture to the
+    // stencil attachment too (Metal requires explicit stencil attachment
+    // binding to match pipeline state).
+    MTL::PixelFormat depth_pixel_format =
+        current_depth_target_->texture()->pixelFormat();
+    if (depth_pixel_format == MTL::PixelFormatDepth32Float_Stencil8 ||
+        depth_pixel_format == MTL::PixelFormatDepth24Unorm_Stencil8 ||
+        depth_pixel_format == MTL::PixelFormatX32_Stencil8) {
       auto* stencil_attachment =
           cached_render_pass_descriptor_->stencilAttachment();
       stencil_attachment->setTexture(current_depth_target_->texture());
@@ -1551,12 +1555,31 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(
   // Metal still has a valid render target. This mirrors the D3D12/Vulkan
   // behavior of always binding *some* RT when drawing.
   if (!has_any_render_target) {
-    if (!dummy_color_target_) {
-      uint32_t width = 1;
-      uint32_t height = 1;
-      xenos::ColorRenderTargetFormat fmt =
-          xenos::ColorRenderTargetFormat::k_8_8_8_8;
-      uint32_t samples = std::max(1u, expected_sample_count);
+    xenos::ColorRenderTargetFormat fmt =
+        xenos::ColorRenderTargetFormat::k_8_8_8_8;
+    uint32_t samples = std::max(1u, expected_sample_count);
+
+    uint32_t width = 1280;
+    uint32_t height = 720;
+    if (last_real_color_targets_[0] && last_real_color_targets_[0]->texture()) {
+      width = static_cast<uint32_t>(last_real_color_targets_[0]->texture()
+                                        ->width());
+      height = static_cast<uint32_t>(last_real_color_targets_[0]->texture()
+                                         ->height());
+    } else if (last_real_depth_target_ && last_real_depth_target_->texture()) {
+      width =
+          static_cast<uint32_t>(last_real_depth_target_->texture()->width());
+      height =
+          static_cast<uint32_t>(last_real_depth_target_->texture()->height());
+    }
+
+    const bool dummy_matches =
+        dummy_color_target_ && dummy_color_target_->texture() &&
+        dummy_color_target_->texture()->width() == width &&
+        dummy_color_target_->texture()->height() == height &&
+        static_cast<uint32_t>(dummy_color_target_->texture()->sampleCount()) ==
+            samples;
+    if (!dummy_matches) {
       RenderTargetKey dummy_key;
       dummy_key.key = 0;
       dummy_key.is_depth = 0;

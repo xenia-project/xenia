@@ -1,5 +1,39 @@
 # NEXT_STEPS
 
+## Phase 0: Trace-Dump Stability (Metal Validation) (COMPLETED)
+
+### Problem Description
+Real-game traces (Halo 3 / Gears of War) hit Metal validation asserts when the
+backend tried to use a pipeline with depth/stencil formats while the active
+render pass had no depth/stencil attachments (or had a 1x1 dummy RT but a large
+scissor).
+
+### Root Cause Analysis
+- `MetalCommandProcessor::BeginCommandBuffer` previously returned early if a
+  command buffer existed, so it never restarted the `MTLRenderCommandEncoder`
+  when `MetalRenderTargetCache` switched from dummy RT0 → real RTs (or added
+  depth/stencil).
+- `MetalRenderTargetCache::GetRenderPassDescriptor` only bound a stencil
+  attachment for one Xenos depth enum (`kD24S8`), but Metal requires the stencil
+  attachment to be bound whenever the depth texture’s `pixelFormat` includes
+  stencil.
+- The dummy RT0 was 1x1, but the command processor used a fallback 1280x720
+  scissor when no real RT0 was bound, triggering Metal’s scissor bounds assert.
+
+### Implemented (This Phase)
+- [x] Restart the render encoder when the cache-provided render pass descriptor
+      changes (dummy → real RTs, depth/stencil changes).
+- [x] Bind the stencil attachment whenever the depth texture’s pixel format
+      includes stencil.
+- [x] Size the dummy RT0 to a non-1x1 size (prefer last real RT size) so
+      viewport/scissor derived from RT dimensions stays valid.
+
+### Reference Information
+- `src/xenia/gpu/metal/metal_command_processor.cc`
+- `src/xenia/gpu/metal/metal_render_target_cache.cc`
+
+---
+
 ## Phase 1: Texture Semantics Parity (Halo 3) (IN PROGRESS)
 
 ### Problem Description
@@ -57,7 +91,40 @@ geometry/rasterization problems.
 
 ---
 
-## Phase 2: Reverse-Z + Depth/Stencil Parity (PENDING)
+## Phase 2: Render Target Transfers / Clears Parity (Halo 3) (IN PROGRESS)
+
+### Problem Description
+Some Halo 3 traces show clear evidence of missing host render-target “ownership
+transfer” and format conversion steps (logged as skipped transfers). This can
+produce subtle diffs vs the D3D12 reference: stale data, unexpected overlays,
+and background differences.
+
+### Root Cause Analysis
+- `MetalRenderTargetCache::PerformTransfersAndResolveClears` currently logs and
+  skips key transfers:
+  - depth transfers (`src_depth != dst_depth`)
+  - format mismatch conversions (for specific color formats used in traces)
+- Without these transfers, Metal can render using incomplete EDRAM restore /
+  resolve state compared to D3D12.
+
+### Implementation Checklist
+- [ ] Implement transfer pipelines equivalent to
+      `D3D12RenderTargetCache::GetOrCreateTransferPipelines` for the modes hit
+      by real traces:
+  - [ ] Color→Color (same format) copy/resolve
+  - [ ] Color→Color (format mismatch) conversion for formats seen in Halo 3
+  - [ ] Depth→Depth copy/resolve (including stencil where applicable)
+  - [ ] Color/Depth ↔ stencil-bit transfer modes used by Xenos
+- [ ] Add targeted per-trace instrumentation:
+  - [ ] Log each skipped transfer with the Xenos format names (not just ids)
+  - [ ] Emit a small “transfer summary” at end of trace playback
+
+### Validation Traces
+- Halo 3: `reference-gpu-traces/traces/4D5307E6_37345.xtr`
+
+---
+
+## Phase 3: Reverse-Z + Depth/Stencil State Parity (PENDING)
 
 ### Problem Description
 Some real-game traces render HUD/UI but lose backgrounds/skyboxes, consistent
@@ -78,25 +145,26 @@ with reverse-Z mismatch and missing depth/stencil state parity.
 
 ---
 
-## Phase 3: Fixed-Function Gaps (PENDING)
+## Phase 4: Blend / Alpha Semantics (PENDING)
 
 ### Problem Description
-Traces will hit additional host fixed-function state not yet mirrored in Metal.
+UI and overlays in some games depend on correct alpha semantics (premultiplied
+vs straight alpha) and correct handling of single-channel textures used as alpha
+masks.
 
 ### Root Cause Analysis
-Metal still relies on defaults for some pipeline/dynamic state that must match
-Xenos semantics.
+- Xenos content frequently uses alpha-only textures (`k_8` / A8-like), which
+  must be swizzled correctly for Metal sampling.
+- Some titles appear to rely on premultiplied alpha blend states.
 
 ### Implementation Checklist
-- [ ] Rasterization state parity:
-  - [ ] Cull mode and front-face winding
-  - [ ] Depth bias (constant + slope)
-- [ ] Blend coverage beyond current traces:
-  - [ ] Verify separate alpha blend ops and masks in more traces
+- [ ] Ensure alpha-only textures are sampled as expected (alpha-from-R swizzle).
+- [ ] Verify blend factor mapping (separate RGB/alpha ops, factors, masks)
+      against D3D12 for traces that show overlay diffs.
 
 ---
 
-## Phase 4: Trace Dump Diffing Workflow (PENDING)
+## Phase 5: Trace Dump Diffing Workflow (PENDING)
 
 ### Problem Description
 Metal trace dump output often differs in resolution/aspect from the bundled

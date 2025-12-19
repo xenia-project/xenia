@@ -2067,24 +2067,21 @@ void MetalCommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
 }
 
 void MetalCommandProcessor::BeginCommandBuffer() {
-  if (current_command_buffer_) {
-    return;  // Already have an active command buffer
-  }
-
-  // Note: commandBuffer() returns an autoreleased object, we must retain it
-  current_command_buffer_ = command_queue_->commandBuffer();
   if (!current_command_buffer_) {
-    XELOGE("Failed to create command buffer");
-    return;
-  }
-  current_command_buffer_
-      ->retain();  // Retain since we store in member variable
-  current_command_buffer_->setLabel(
-      NS::String::string("XeniaCommandBuffer", NS::UTF8StringEncoding));
+    // Note: commandBuffer() returns an autoreleased object, we must retain it.
+    current_command_buffer_ = command_queue_->commandBuffer();
+    if (!current_command_buffer_) {
+      XELOGE("Failed to create command buffer");
+      return;
+    }
+    current_command_buffer_->retain();
+    current_command_buffer_->setLabel(
+        NS::String::string("XeniaCommandBuffer", NS::UTF8StringEncoding));
 
-  if (primitive_processor_ && !frame_open_) {
-    primitive_processor_->BeginFrame();
-    frame_open_ = true;
+    if (primitive_processor_ && !frame_open_) {
+      primitive_processor_->BeginFrame();
+      frame_open_ = true;
+    }
   }
 
   // Obtain the render pass descriptor. Prefer the one provided by
@@ -2092,32 +2089,42 @@ void MetalCommandProcessor::BeginCommandBuffer() {
   // legacy descriptor if needed.
   MTL::RenderPassDescriptor* pass_descriptor = render_pass_descriptor_;
   if (render_target_cache_) {
-    MTL::RenderPassDescriptor* cache_desc =
-        render_target_cache_->GetRenderPassDescriptor(1);
-    if (cache_desc) {
+    if (MTL::RenderPassDescriptor* cache_desc =
+            render_target_cache_->GetRenderPassDescriptor(1)) {
       pass_descriptor = cache_desc;
     }
   }
-
   if (!pass_descriptor) {
     XELOGE("BeginCommandBuffer: No render pass descriptor available");
     return;
   }
 
-  // Create render encoder
-  // Note: renderCommandEncoder() returns an autoreleased object, we must retain
-  // it
-  current_render_encoder_ =
-      current_command_buffer_->renderCommandEncoder(pass_descriptor);
-  if (!current_render_encoder_) {
-    XELOGE("Failed to create render command encoder");
-    return;
+  // If the render pass configuration has changed since the current render
+  // encoder was created (e.g. dummy RT0 -> real RTs, depth/stencil binding),
+  // restart the render encoder with the updated descriptor.
+  if (current_render_encoder_ &&
+      current_render_pass_descriptor_ != pass_descriptor) {
+    current_render_encoder_->endEncoding();
+    current_render_encoder_->release();
+    current_render_encoder_ = nullptr;
+    current_render_pass_descriptor_ = nullptr;
   }
-  current_render_encoder_
-      ->retain();  // Retain since we store in member variable
-  current_render_encoder_->setLabel(
-      NS::String::string("XeniaRenderEncoder", NS::UTF8StringEncoding));
-  ff_blend_factor_valid_ = false;
+
+  if (!current_render_encoder_) {
+    // Note: renderCommandEncoder() returns an autoreleased object, we must
+    // retain it.
+    current_render_encoder_ =
+        current_command_buffer_->renderCommandEncoder(pass_descriptor);
+    if (!current_render_encoder_) {
+      XELOGE("Failed to create render command encoder");
+      return;
+    }
+    current_render_encoder_->retain();
+    current_render_encoder_->setLabel(
+        NS::String::string("XeniaRenderEncoder", NS::UTF8StringEncoding));
+    ff_blend_factor_valid_ = false;
+    current_render_pass_descriptor_ = pass_descriptor;
+  }
 
   // Derive viewport/scissor from the actual bound render target rather than
   // a hard-coded 1280x720. Prefer color RT 0 from the MetalRenderTargetCache,
@@ -2126,6 +2133,9 @@ void MetalCommandProcessor::BeginCommandBuffer() {
   uint32_t rt_height = render_target_height_;
   if (render_target_cache_) {
     MTL::Texture* rt0 = render_target_cache_->GetColorTarget(0);
+    if (!rt0) {
+      rt0 = render_target_cache_->GetDummyColorTarget();
+    }
     if (rt0) {
       rt_width = static_cast<uint32_t>(rt0->width());
       rt_height = static_cast<uint32_t>(rt0->height());
@@ -2155,6 +2165,7 @@ void MetalCommandProcessor::EndCommandBuffer() {
     current_render_encoder_->endEncoding();
     current_render_encoder_->release();
     current_render_encoder_ = nullptr;
+    current_render_pass_descriptor_ = nullptr;
   }
 
   if (current_command_buffer_) {
