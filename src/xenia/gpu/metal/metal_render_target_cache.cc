@@ -1467,6 +1467,7 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(
   cached_render_pass_descriptor_->retain();
 
   bool has_any_render_target = false;
+  bool has_any_color_target = false;
 
   // Debug: Log current targets
   XELOGI("GetRenderPassDescriptor: Current targets state:");
@@ -1538,6 +1539,7 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(
       color_attachment->setStoreAction(MTL::StoreActionStore);
 
       has_any_render_target = true;
+      has_any_color_target = true;
 
       // Track this as a real render target for capture
       last_real_color_targets_[i] = current_color_targets_[i];
@@ -1551,10 +1553,11 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(
     }
   }
 
-  // If no render targets are bound, create / use a dummy color target so
-  // Metal still has a valid render target. This mirrors the D3D12/Vulkan
-  // behavior of always binding *some* RT when drawing.
-  if (!has_any_render_target) {
+  // If no color render targets are bound, attach a dummy color target so Metal
+  // has at least one color attachment. This mirrors the D3D12/Vulkan behavior
+  // where an RTV is always bound when drawing, and also keeps pipeline state
+  // validation happy for depth-only passes.
+  if (!has_any_color_target) {
     xenos::ColorRenderTargetFormat fmt =
         xenos::ColorRenderTargetFormat::k_8_8_8_8;
     uint32_t samples = std::max(1u, expected_sample_count);

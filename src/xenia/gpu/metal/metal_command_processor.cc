@@ -2135,10 +2135,10 @@ void MetalCommandProcessor::BeginCommandBuffer() {
   if (render_target_cache_) {
     MTL::Texture* pass_size_texture = render_target_cache_->GetColorTarget(0);
     if (!pass_size_texture) {
-      pass_size_texture = render_target_cache_->GetDummyColorTarget();
+      pass_size_texture = render_target_cache_->GetDepthTarget();
     }
     if (!pass_size_texture) {
-      pass_size_texture = render_target_cache_->GetDepthTarget();
+      pass_size_texture = render_target_cache_->GetDummyColorTarget();
     }
     if (pass_size_texture) {
       rt_width = static_cast<uint32_t>(pass_size_texture->width());
