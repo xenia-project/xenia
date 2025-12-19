@@ -115,6 +115,11 @@ class MetalTextureCache : public TextureCache {
   // CPU path (used only as a safety net for now).
   bool TryGpuLoadTexture(Texture& texture, bool load_base, bool load_mips);
 
+  // Format / load shader mapping for Metal texture loading.
+  bool IsDecompressionNeededForKey(TextureKey key) const;
+  LoadShaderIndex GetLoadShaderIndexForKey(TextureKey key) const;
+  MTL::PixelFormat GetPixelFormatForKey(TextureKey key) const;
+
   // Initialize GPU texture_load_* pipelines for Metal.
   bool InitializeLoadPipelines();
 
