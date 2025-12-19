@@ -49,6 +49,90 @@ DEFINE_bool(metal_draw_debug_quad, false,
             "backend bring-up).",
             "GPU");
 
+namespace {
+
+MTL::ColorWriteMask ToMetalColorWriteMask(uint32_t write_mask) {
+  MTL::ColorWriteMask mtl_mask = MTL::ColorWriteMaskNone;
+  if (write_mask & 0x1) {
+    mtl_mask |= MTL::ColorWriteMaskRed;
+  }
+  if (write_mask & 0x2) {
+    mtl_mask |= MTL::ColorWriteMaskGreen;
+  }
+  if (write_mask & 0x4) {
+    mtl_mask |= MTL::ColorWriteMaskBlue;
+  }
+  if (write_mask & 0x8) {
+    mtl_mask |= MTL::ColorWriteMaskAlpha;
+  }
+  return mtl_mask;
+}
+
+MTL::BlendOperation ToMetalBlendOperation(xenos::BlendOp blend_op) {
+  // 8 entries for safety since 3 bits from the guest are passed directly.
+  static const MTL::BlendOperation kBlendOpMap[8] = {
+      MTL::BlendOperationAdd,              // 0
+      MTL::BlendOperationSubtract,         // 1
+      MTL::BlendOperationMin,              // 2
+      MTL::BlendOperationMax,              // 3
+      MTL::BlendOperationReverseSubtract,  // 4
+      MTL::BlendOperationAdd,              // 5
+      MTL::BlendOperationAdd,              // 6
+      MTL::BlendOperationAdd,              // 7
+  };
+  return kBlendOpMap[uint32_t(blend_op) & 0x7];
+}
+
+MTL::BlendFactor ToMetalBlendFactorRgb(xenos::BlendFactor blend_factor) {
+  // 32 because of 0x1F mask, for safety (all unknown to zero).
+  static const MTL::BlendFactor kBlendFactorMap[32] = {
+      /*  0 */ MTL::BlendFactorZero,
+      /*  1 */ MTL::BlendFactorOne,
+      /*  2 */ MTL::BlendFactorZero,  // ?
+      /*  3 */ MTL::BlendFactorZero,  // ?
+      /*  4 */ MTL::BlendFactorSourceColor,
+      /*  5 */ MTL::BlendFactorOneMinusSourceColor,
+      /*  6 */ MTL::BlendFactorSourceAlpha,
+      /*  7 */ MTL::BlendFactorOneMinusSourceAlpha,
+      /*  8 */ MTL::BlendFactorDestinationColor,
+      /*  9 */ MTL::BlendFactorOneMinusDestinationColor,
+      /* 10 */ MTL::BlendFactorDestinationAlpha,
+      /* 11 */ MTL::BlendFactorOneMinusDestinationAlpha,
+      /* 12 */ MTL::BlendFactorBlendColor,  // CONSTANT_COLOR
+      /* 13 */ MTL::BlendFactorOneMinusBlendColor,
+      /* 14 */ MTL::BlendFactorBlendColor,  // CONSTANT_ALPHA
+      /* 15 */ MTL::BlendFactorOneMinusBlendColor,
+      /* 16 */ MTL::BlendFactorSourceAlphaSaturated,
+  };
+  return kBlendFactorMap[uint32_t(blend_factor) & 0x1F];
+}
+
+MTL::BlendFactor ToMetalBlendFactorAlpha(xenos::BlendFactor blend_factor) {
+  // Like the RGB map, but with color modes changed to alpha.
+  static const MTL::BlendFactor kBlendFactorAlphaMap[32] = {
+      /*  0 */ MTL::BlendFactorZero,
+      /*  1 */ MTL::BlendFactorOne,
+      /*  2 */ MTL::BlendFactorZero,  // ?
+      /*  3 */ MTL::BlendFactorZero,  // ?
+      /*  4 */ MTL::BlendFactorSourceAlpha,
+      /*  5 */ MTL::BlendFactorOneMinusSourceAlpha,
+      /*  6 */ MTL::BlendFactorSourceAlpha,
+      /*  7 */ MTL::BlendFactorOneMinusSourceAlpha,
+      /*  8 */ MTL::BlendFactorDestinationAlpha,
+      /*  9 */ MTL::BlendFactorOneMinusDestinationAlpha,
+      /* 10 */ MTL::BlendFactorDestinationAlpha,
+      /* 11 */ MTL::BlendFactorOneMinusDestinationAlpha,
+      /* 12 */ MTL::BlendFactorBlendAlpha,
+      /* 13 */ MTL::BlendFactorOneMinusBlendAlpha,
+      /* 14 */ MTL::BlendFactorBlendAlpha,
+      /* 15 */ MTL::BlendFactorOneMinusBlendAlpha,
+      /* 16 */ MTL::BlendFactorSourceAlphaSaturated,
+  };
+  return kBlendFactorAlphaMap[uint32_t(blend_factor) & 0x1F];
+}
+
+}  // namespace
+
 MetalCommandProcessor::MetalCommandProcessor(
     MetalGraphicsSystem* graphics_system, kernel::KernelState* kernel_state)
     : CommandProcessor(graphics_system, kernel_state) {}
@@ -1288,7 +1372,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     auto depth_control = draw_util::GetNormalizedDepthControl(regs);
     draw_util::GetHostViewportInfo(
         regs, 1, 1,     // draw resolution scale x/y
-        false,          // origin_bottom_left (Metal uses top-left)
+        true,           // origin_bottom_left (Metal NDC Y is up, like D3D)
         vp_width,       // x_max
         vp_height,      // y_max
         false,          // allow_reverse_z
@@ -1355,6 +1439,23 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
         primitive_processing_result.line_loop_closing_index,
         primitive_processing_result.host_shader_index_endian, viewport_info,
         used_texture_mask);
+
+    float blend_constants[] = {
+        regs.Get<float>(XE_GPU_REG_RB_BLEND_RED),
+        regs.Get<float>(XE_GPU_REG_RB_BLEND_GREEN),
+        regs.Get<float>(XE_GPU_REG_RB_BLEND_BLUE),
+        regs.Get<float>(XE_GPU_REG_RB_BLEND_ALPHA),
+    };
+    bool blend_factor_update_needed =
+        !ff_blend_factor_valid_ ||
+        std::memcmp(ff_blend_factor_, blend_constants, sizeof(float) * 4) != 0;
+    if (blend_factor_update_needed) {
+      std::memcpy(ff_blend_factor_, blend_constants, sizeof(float) * 4);
+      ff_blend_factor_valid_ = true;
+      current_render_encoder_->setBlendColor(
+          blend_constants[0], blend_constants[1], blend_constants[2],
+          blend_constants[3]);
+    }
 
     constexpr size_t kStageVertex = 0;
     constexpr size_t kStagePixel = 1;
@@ -2016,6 +2117,7 @@ void MetalCommandProcessor::BeginCommandBuffer() {
       ->retain();  // Retain since we store in member variable
   current_render_encoder_->setLabel(
       NS::String::string("XeniaRenderEncoder", NS::UTF8StringEncoding));
+  ff_blend_factor_valid_ = false;
 
   // Derive viewport/scissor from the actual bound render target rather than
   // a hard-coded 1280x720. Prefer color RT 0 from the MetalRenderTargetCache,
@@ -2130,6 +2232,9 @@ MTL::RenderPipelineState* MetalCommandProcessor::GetOrCreatePipelineState(
     uint32_t depth_format;
     uint32_t stencil_format;
     uint32_t color_formats[4];
+    uint32_t normalized_color_mask;
+    uint32_t alpha_to_mask_enable;
+    uint32_t blendcontrol[4];
   } key_data = {};
   key_data.vs = vertex_translation;
   key_data.ps = pixel_translation;
@@ -2138,6 +2243,22 @@ MTL::RenderPipelineState* MetalCommandProcessor::GetOrCreatePipelineState(
   key_data.stencil_format = uint32_t(stencil_format);
   for (uint32_t i = 0; i < 4; ++i) {
     key_data.color_formats[i] = uint32_t(color_formats[i]);
+  }
+  uint32_t pixel_shader_writes_color_targets =
+      pixel_translation ? pixel_translation->shader().writes_color_targets()
+                        : 0;
+  key_data.normalized_color_mask =
+      pixel_shader_writes_color_targets
+          ? draw_util::GetNormalizedColorMask(regs,
+                                              pixel_shader_writes_color_targets)
+          : 0;
+  auto rb_colorcontrol = regs.Get<reg::RB_COLORCONTROL>();
+  key_data.alpha_to_mask_enable = rb_colorcontrol.alpha_to_mask_enable ? 1 : 0;
+  for (uint32_t i = 0; i < 4; ++i) {
+    key_data.blendcontrol[i] =
+        regs.Get<reg::RB_BLENDCONTROL>(
+                reg::RB_BLENDCONTROL::rt_register_indices[i])
+            .value;
   }
   uint64_t key = XXH3_64bits(&key_data, sizeof(key_data));
 
@@ -2164,6 +2285,55 @@ MTL::RenderPipelineState* MetalCommandProcessor::GetOrCreatePipelineState(
   desc->setDepthAttachmentPixelFormat(depth_format);
   desc->setStencilAttachmentPixelFormat(stencil_format);
   desc->setSampleCount(sample_count);
+  desc->setAlphaToCoverageEnabled(key_data.alpha_to_mask_enable != 0);
+
+  // Fixed-function blending and color write masks.
+  // These are part of the render pipeline state, so the cache key must include
+  // the relevant register-derived values (mask, RB_BLENDCONTROL, A2C).
+  for (uint32_t i = 0; i < 4; ++i) {
+    auto* color_attachment = desc->colorAttachments()->object(i);
+    if (color_formats[i] == MTL::PixelFormatInvalid) {
+      color_attachment->setWriteMask(MTL::ColorWriteMaskNone);
+      color_attachment->setBlendingEnabled(false);
+      continue;
+    }
+
+    uint32_t rt_write_mask = (key_data.normalized_color_mask >> (i * 4)) & 0xF;
+    color_attachment->setWriteMask(ToMetalColorWriteMask(rt_write_mask));
+    if (!rt_write_mask) {
+      color_attachment->setBlendingEnabled(false);
+      continue;
+    }
+
+    auto blendcontrol = regs.Get<reg::RB_BLENDCONTROL>(
+        reg::RB_BLENDCONTROL::rt_register_indices[i]);
+    MTL::BlendFactor src_rgb =
+        ToMetalBlendFactorRgb(blendcontrol.color_srcblend);
+    MTL::BlendFactor dst_rgb =
+        ToMetalBlendFactorRgb(blendcontrol.color_destblend);
+    MTL::BlendOperation op_rgb =
+        ToMetalBlendOperation(blendcontrol.color_comb_fcn);
+    MTL::BlendFactor src_alpha =
+        ToMetalBlendFactorAlpha(blendcontrol.alpha_srcblend);
+    MTL::BlendFactor dst_alpha =
+        ToMetalBlendFactorAlpha(blendcontrol.alpha_destblend);
+    MTL::BlendOperation op_alpha =
+        ToMetalBlendOperation(blendcontrol.alpha_comb_fcn);
+
+    bool blending_enabled =
+        src_rgb != MTL::BlendFactorOne || dst_rgb != MTL::BlendFactorZero ||
+        op_rgb != MTL::BlendOperationAdd || src_alpha != MTL::BlendFactorOne ||
+        dst_alpha != MTL::BlendFactorZero || op_alpha != MTL::BlendOperationAdd;
+    color_attachment->setBlendingEnabled(blending_enabled);
+    if (blending_enabled) {
+      color_attachment->setSourceRGBBlendFactor(src_rgb);
+      color_attachment->setDestinationRGBBlendFactor(dst_rgb);
+      color_attachment->setRgbBlendOperation(op_rgb);
+      color_attachment->setSourceAlphaBlendFactor(src_alpha);
+      color_attachment->setDestinationAlphaBlendFactor(dst_alpha);
+      color_attachment->setAlphaBlendOperation(op_alpha);
+    }
+  }
 
   // Configure vertex fetch layout for MSC stage-in.
   // NOTE: The translated shaders use vfetch (buffer load) to read vertices
@@ -2731,17 +2901,8 @@ void MetalCommandProcessor::UpdateSystemConstantValues(
 
   // NDC scale and offset from viewport info
   for (uint32_t i = 0; i < 3; ++i) {
-    float scale = viewport_info.ndc_scale[i];
-    float offset = viewport_info.ndc_offset[i];
-    if (i == 1) {
-      // Metal has a top-left origin for the viewport, but NDC Y is up (+1 top).
-      // Invert Y in the NDC transform to map guest Y (0..H) to NDC (1..-1),
-      // which the viewport transform then maps correctly to screen Y (0..H).
-      scale *= -1.0f;
-      offset *= -1.0f;
-    }
-    system_constants_.ndc_scale[i] = scale;
-    system_constants_.ndc_offset[i] = offset;
+    system_constants_.ndc_scale[i] = viewport_info.ndc_scale[i];
+    system_constants_.ndc_offset[i] = viewport_info.ndc_offset[i];
   }
 
   // Point size parameters

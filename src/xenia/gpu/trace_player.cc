@@ -9,6 +9,7 @@
 
 #include "xenia/gpu/trace_player.h"
 
+#include <cstring>
 #include <memory>
 
 #include "xenia/gpu/command_processor.h"
@@ -19,6 +20,17 @@
 
 namespace xe {
 namespace gpu {
+
+namespace {
+
+template <typename T>
+T LoadTraceCommand(const uint8_t* trace_ptr) {
+  T cmd;
+  std::memcpy(&cmd, trace_ptr, sizeof(T));
+  return cmd;
+}
+
+}  // namespace
 
 TracePlayer::TracePlayer(GraphicsSystem* graphics_system)
     : graphics_system_(graphics_system),
@@ -136,7 +148,8 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
   playing_trace_.store(true);
   auto trace_ptr = trace_data;
   bool pending_break = false;
-  const PacketStartCommand* pending_packet = nullptr;
+  PacketStartCommand pending_packet = {};
+  bool pending_packet_valid = false;
   while (trace_ptr < trace_data + trace_size && !stop_requested_.load()) {
     playback_percent_ = uint32_t(
         (float(trace_ptr - trace_data) / float(trace_end - trace_data)) *
@@ -145,47 +158,46 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
     auto type = static_cast<TraceCommandType>(xe::load<uint32_t>(trace_ptr));
     switch (type) {
       case TraceCommandType::kPrimaryBufferStart: {
-        auto cmd =
-            reinterpret_cast<const PrimaryBufferStartCommand*>(trace_ptr);
+        auto cmd = LoadTraceCommand<PrimaryBufferStartCommand>(trace_ptr);
         //
-        trace_ptr += sizeof(*cmd) + cmd->count * 4;
+        trace_ptr += sizeof(cmd) + cmd.count * 4;
         break;
       }
       case TraceCommandType::kPrimaryBufferEnd: {
-        auto cmd = reinterpret_cast<const PrimaryBufferEndCommand*>(trace_ptr);
+        auto cmd = LoadTraceCommand<PrimaryBufferEndCommand>(trace_ptr);
         //
-        trace_ptr += sizeof(*cmd);
+        trace_ptr += sizeof(cmd);
         break;
       }
       case TraceCommandType::kIndirectBufferStart: {
-        auto cmd =
-            reinterpret_cast<const IndirectBufferStartCommand*>(trace_ptr);
+        auto cmd = LoadTraceCommand<IndirectBufferStartCommand>(trace_ptr);
         //
-        trace_ptr += sizeof(*cmd) + cmd->count * 4;
+        trace_ptr += sizeof(cmd) + cmd.count * 4;
         break;
       }
       case TraceCommandType::kIndirectBufferEnd: {
-        auto cmd = reinterpret_cast<const IndirectBufferEndCommand*>(trace_ptr);
+        auto cmd = LoadTraceCommand<IndirectBufferEndCommand>(trace_ptr);
         //
-        trace_ptr += sizeof(*cmd);
+        trace_ptr += sizeof(cmd);
         break;
       }
       case TraceCommandType::kPacketStart: {
-        auto cmd = reinterpret_cast<const PacketStartCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd);
-        std::memcpy(memory->TranslatePhysical(cmd->base_ptr), trace_ptr,
-                    cmd->count * 4);
-        trace_ptr += cmd->count * 4;
+        auto cmd = LoadTraceCommand<PacketStartCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd);
+        std::memcpy(memory->TranslatePhysical(cmd.base_ptr), trace_ptr,
+                    cmd.count * 4);
+        trace_ptr += cmd.count * 4;
         pending_packet = cmd;
+        pending_packet_valid = true;
         break;
       }
       case TraceCommandType::kPacketEnd: {
-        auto cmd = reinterpret_cast<const PacketEndCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd);
-        if (pending_packet) {
-          command_processor->ExecutePacket(pending_packet->base_ptr,
-                                           pending_packet->count);
-          pending_packet = nullptr;
+        auto cmd = LoadTraceCommand<PacketEndCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd);
+        if (pending_packet_valid) {
+          command_processor->ExecutePacket(pending_packet.base_ptr,
+                                           pending_packet.count);
+          pending_packet_valid = false;
         }
         if (pending_break) {
           playing_trace_.store(false);
@@ -194,61 +206,61 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
         break;
       }
       case TraceCommandType::kMemoryRead: {
-        auto cmd = reinterpret_cast<const MemoryCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd);
+        auto cmd = LoadTraceCommand<MemoryCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd);
 
         // Skip MemoryRead if this address was written by IssueCopy (resolve).
         // The trace file contains stale data from before the resolve happened,
         // so we should keep the freshly resolved data instead.
-        if (command_processor->IsResolvedMemory(cmd->base_ptr,
-                                                cmd->decoded_length)) {
+        if (command_processor->IsResolvedMemory(cmd.base_ptr,
+                                                cmd.decoded_length)) {
           XELOGI(
               "TracePlayer: SKIPPING MemoryRead for resolved memory at "
               "0x{:08X} (length=0x{:X})",
-              cmd->base_ptr, cmd->decoded_length);
-          trace_ptr += cmd->encoded_length;
+              cmd.base_ptr, cmd.decoded_length);
+          trace_ptr += cmd.encoded_length;
           break;
         }
 
         uint8_t* dest =
-            static_cast<uint8_t*>(memory->TranslatePhysical(cmd->base_ptr));
+            static_cast<uint8_t*>(memory->TranslatePhysical(cmd.base_ptr));
 
         bool decompress_result =
-            DecompressMemory(cmd->encoding_format, trace_ptr,
-                             cmd->encoded_length, dest, cmd->decoded_length);
+            DecompressMemory(cmd.encoding_format, trace_ptr, cmd.encoded_length,
+                             dest, cmd.decoded_length);
         if (!decompress_result) {
           XELOGE("TracePlayer: DecompressMemory failed for base=0x{:08X}",
-                 cmd->base_ptr);
+                 cmd.base_ptr);
         }
 
-        trace_ptr += cmd->encoded_length;
-        command_processor->TracePlaybackWroteMemory(cmd->base_ptr,
-                                                    cmd->decoded_length);
+        trace_ptr += cmd.encoded_length;
+        command_processor->TracePlaybackWroteMemory(cmd.base_ptr,
+                                                    cmd.decoded_length);
         break;
       }
       case TraceCommandType::kMemoryWrite: {
-        auto cmd = reinterpret_cast<const MemoryCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd);
+        auto cmd = LoadTraceCommand<MemoryCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd);
         // ?
         // Assuming the command processor will do the same write.
-        trace_ptr += cmd->encoded_length;
+        trace_ptr += cmd.encoded_length;
         break;
       }
       case TraceCommandType::kEdramSnapshot: {
-        auto cmd = reinterpret_cast<const EdramSnapshotCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd);
+        auto cmd = LoadTraceCommand<EdramSnapshotCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd);
         std::unique_ptr<uint8_t[]> edram_snapshot(
             new uint8_t[xenos::kEdramSizeBytes]);
-        DecompressMemory(cmd->encoding_format, trace_ptr, cmd->encoded_length,
+        DecompressMemory(cmd.encoding_format, trace_ptr, cmd.encoded_length,
                          edram_snapshot.get(), xenos::kEdramSizeBytes);
-        trace_ptr += cmd->encoded_length;
+        trace_ptr += cmd.encoded_length;
         command_processor->RestoreEdramSnapshot(edram_snapshot.get());
         break;
       }
       case TraceCommandType::kEvent: {
-        auto cmd = reinterpret_cast<const EventCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd);
-        switch (cmd->event_type) {
+        auto cmd = LoadTraceCommand<EventCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd);
+        switch (cmd.event_type) {
           case EventCommand::Type::kSwap: {
             if (playback_mode == TracePlaybackMode::kBreakOnSwap) {
               pending_break = true;
@@ -259,31 +271,31 @@ void TracePlayer::PlayTraceOnThread(const uint8_t* trace_data,
         break;
       }
       case TraceCommandType::kRegisters: {
-        auto cmd = reinterpret_cast<const RegistersCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd);
+        auto cmd = LoadTraceCommand<RegistersCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd);
         std::unique_ptr<uint32_t[]> register_values(
-            new uint32_t[cmd->register_count]);
-        DecompressMemory(cmd->encoding_format, trace_ptr, cmd->encoded_length,
+            new uint32_t[cmd.register_count]);
+        DecompressMemory(cmd.encoding_format, trace_ptr, cmd.encoded_length,
                          register_values.get(),
-                         sizeof(uint32_t) * cmd->register_count);
-        trace_ptr += cmd->encoded_length;
+                         sizeof(uint32_t) * cmd.register_count);
+        trace_ptr += cmd.encoded_length;
         command_processor->RestoreRegisters(
-            cmd->first_register, register_values.get(), cmd->register_count,
-            cmd->execute_callbacks);
+            cmd.first_register, register_values.get(), cmd.register_count,
+            cmd.execute_callbacks);
         break;
       }
       case TraceCommandType::kGammaRamp: {
-        auto cmd = reinterpret_cast<const GammaRampCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd);
+        auto cmd = LoadTraceCommand<GammaRampCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd);
         std::unique_ptr<uint32_t[]> gamma_ramps(new uint32_t[256 + 3 * 128]);
-        DecompressMemory(cmd->encoding_format, trace_ptr, cmd->encoded_length,
+        DecompressMemory(cmd.encoding_format, trace_ptr, cmd.encoded_length,
                          gamma_ramps.get(), sizeof(uint32_t) * (256 + 3 * 128));
-        trace_ptr += cmd->encoded_length;
+        trace_ptr += cmd.encoded_length;
         command_processor->RestoreGammaRamp(
             reinterpret_cast<const reg::DC_LUT_30_COLOR*>(gamma_ramps.get()),
             reinterpret_cast<const reg::DC_LUT_PWL_DATA*>(gamma_ramps.get() +
                                                           256),
-            cmd->rw_component);
+            cmd.rw_component);
         break;
       }
     }

@@ -11,7 +11,9 @@
 
 #include <algorithm>
 #include <cfloat>
+#include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <vector>
 
 #include "third_party/stb/stb_image_write.h"
@@ -37,6 +39,9 @@
 
 DEFINE_bool(metal_texture_gpu_load, false,
             "Use GPU texture_load_* shaders for Metal texture loading.", "GPU");
+DEFINE_bool(metal_texture_dump_png, false,
+            "Dump some loaded Metal textures as PNG to scratch/gpu (debug).",
+            "GPU");
 
 namespace xe {
 namespace gpu {
@@ -371,18 +376,21 @@ bool MetalTextureCache::TryGpuLoadTexture(Texture& texture, bool load_base,
         dest_data[3]);
   }
 
-  // Section 8: Dump GPU-loaded textures for visual inspection.
-  // Dump all k_8_8_8_8 textures loaded via GPU path.
-  {
+  if (cvars::metal_texture_dump_png) {
     static int gpu_tex_dump_count = 0;
     if (gpu_tex_dump_count < 20) {
       gpu_tex_dump_count++;
-      char filename[256];
-      snprintf(filename, sizeof(filename), "gpu_texture_%02d_0x%08X_%ux%u.png",
-               gpu_tex_dump_count, guest_base_address, width, height);
+      std::filesystem::path out_dir = std::filesystem::path("scratch") / "gpu";
+      std::error_code ec;
+      std::filesystem::create_directories(out_dir, ec);
+
+      char filename_buf[256];
+      std::snprintf(filename_buf, sizeof(filename_buf),
+                    "gpu_texture_%02d_0x%08X_%ux%u.png", gpu_tex_dump_count,
+                    guest_base_address, width, height);
+      std::filesystem::path filename = out_dir / filename_buf;
       // dest_data is BGRA after GPU texture_load (endian swapped from Xbox
-      // ARGB). stb_image_write expects RGBA, so we need to swap R<->B for
-      // correct dump.
+      // ARGB). stb_image_write expects RGBA, so swap R<->B for correct dump.
       size_t total_pixels = size_t(width) * height;
       std::vector<uint8_t> rgba_data(total_pixels * 4);
       for (size_t i = 0; i < total_pixels; ++i) {
@@ -392,12 +400,13 @@ bool MetalTextureCache::TryGpuLoadTexture(Texture& texture, bool load_base,
         rgba_data[i * 4 + 2] = dest_data[src_offset + 0];  // B from R
         rgba_data[i * 4 + 3] = dest_data[src_offset + 3];  // A
       }
-      int ok = stbi_write_png(filename, int(width), int(height), 4,
-                              rgba_data.data(), int(width * 4));
+      int ok = stbi_write_png(filename.string().c_str(), int(width),
+                              int(height), 4, rgba_data.data(), int(width * 4));
       XELOGI(
           "MetalTextureCache: dumped GPU-loaded texture #{} to {} (ok={}, "
           "{}x{}, host_pitch={})",
-          gpu_tex_dump_count, filename, ok, width, height, host_row_pitch);
+          gpu_tex_dump_count, filename.string(), ok, width, height,
+          host_row_pitch);
     }
   }
 
@@ -1545,30 +1554,8 @@ bool MetalTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
   // layout directly, so no swizzle is needed.
   // (Previously we swizzled BGRA->RGBA for RGBA8Unorm format.)
 
-  // For the A-Train trace, dump the resolved 1280x720 k_8_8_8_8 background
-  // texture at guest address 0x1BFD5000 once, so we can visually inspect what
-  // Metal is uploading from guest memory.
-  static bool dumped_bg_texture_1bfd5000 = false;
-  if (!dumped_bg_texture_1bfd5000 &&
-      key.format == xenos::TextureFormat::k_8_8_8_8 && width == 1280 &&
-      height == 720 && guest_address == 0x1BFD5000) {
-    dumped_bg_texture_1bfd5000 = true;
-    std::vector<uint8_t> rgba(width * height * 4);
-    // untiled_data is RGBA after endian swap and BGRA->RGBA swizzle.
-    for (uint32_t y = 0; y < height; ++y) {
-      const uint8_t* src_row = untiled_data.data() + y * row_pitch_bytes;
-      uint8_t* dst_row = rgba.data() + y * width * 4;
-      std::memcpy(dst_row, src_row, width * 4);
-    }
-    const char* filename = "metal_texture_1BFD5000_1280x720.png";
-    int ok = stbi_write_png(filename, int(width), int(height), 4, rgba.data(),
-                            int(width * 4));
-    XELOGI(
-        "MetalTextureCache: dumped resolved background texture 0x1BFD5000 to "
-        "{} "
-        "(ok={}, {}x{})",
-        filename, ok, width, height);
-  }
+  // Avoid ad-hoc per-trace texture dumps here. Use `--metal_texture_dump_png`
+  // for controlled PNG dumping, and the generic `--texture_dump` for DDS.
 
   // Upload to Metal texture
   if (key.dimension == xenos::DataDimension::kCube) {

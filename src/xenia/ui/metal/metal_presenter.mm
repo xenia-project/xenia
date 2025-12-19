@@ -9,6 +9,9 @@
 
 #include "xenia/ui/metal/metal_presenter.h"
 
+#include <cstring>
+#include <utility>
+
 #include "Metal/Metal.hpp"
 
 #include "xenia/base/logging.h"
@@ -117,7 +120,9 @@ bool MetalPresenter::CaptureGuestOutput(RawImage& image_out) {
       XELOGI("Metal CaptureGuestOutput: Generated fallback test image {}x{}", width, height);
       return true;
     } else {
-      XELOGI("Metal CaptureGuestOutput: Auto-refresh succeeded, got mailbox index {}", guest_output_mailbox_index);
+      XELOGI("Metal CaptureGuestOutput: Auto-refresh succeeded, got mailbox index "
+             "{}",
+             guest_output_mailbox_index);
     }
   }
   
@@ -192,16 +197,24 @@ bool MetalPresenter::CaptureGuestOutput(RawImage& image_out) {
   }
   
   std::memcpy(image_out.data.data(), buffer_contents, height * stride);
-  
-  // Force alpha to 255 (opaque) for all pixels - matches D3D12/Vulkan behavior
-  // The texture is BGRA8, so alpha is at byte offset 3 of each 4-byte pixel
+
+  // `stbi_write_png` expects RGBA. The guest output texture is BGRA8, so swizzle
+  // to RGBA and force alpha to 255 (matches D3D12/Vulkan behavior).
   uint8_t* pixel_data = image_out.data.data();
   size_t pixel_count = width * height;
+  MTLPixelFormat pixel_format = guest_output_texture.pixelFormat;
+  bool needs_bgra_to_rgba =
+      pixel_format == MTLPixelFormatBGRA8Unorm || pixel_format == MTLPixelFormatBGRA8Unorm_sRGB;
   for (size_t i = 0; i < pixel_count; ++i) {
-    pixel_data[i * 4 + 3] = 255;  // Set alpha byte to opaque
+    uint8_t* pixel = pixel_data + i * 4;
+    if (needs_bgra_to_rgba) {
+      std::swap(pixel[0], pixel[2]);
+    }
+    pixel[3] = 255;
   }
-  
-  XELOGI("Metal CaptureGuestOutput: Successfully read real texture data from Metal (forced alpha=255)");
+
+  XELOGI("Metal CaptureGuestOutput: Successfully read real texture data from "
+         "Metal (forced alpha=255)");
   return true;
 }
 
@@ -231,11 +244,13 @@ Presenter::PaintResult MetalPresenter::PaintAndPresentImpl(bool execute_ui_drawe
   render_pass_desc.colorAttachments[0].texture = drawable.texture;
   render_pass_desc.colorAttachments[0].loadAction = MTLLoadActionClear;
   render_pass_desc.colorAttachments[0].storeAction = MTLStoreActionStore;
-  render_pass_desc.colorAttachments[0].clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 1.0); // Black background
-  
+  render_pass_desc.colorAttachments[0].clearColor =
+      MTLClearColorMake(0.0, 0.0, 0.0, 1.0);  // Black background
+
   // Create render command encoder
-  id<MTLRenderCommandEncoder> render_encoder = [command_buffer renderCommandEncoderWithDescriptor:render_pass_desc];
-  
+  id<MTLRenderCommandEncoder> render_encoder =
+      [command_buffer renderCommandEncoderWithDescriptor:render_pass_desc];
+
   // Execute UI drawers if requested
   if (execute_ui_drawers) {
     // Create Metal UI draw context
@@ -448,14 +463,15 @@ void MetalPresenter::TryRefreshGuestOutputForTraceDump(void* command_processor_p
   
   // Call RefreshGuestOutput to populate the mailbox with final render state
   // Use a simple refresher that doesn't access render targets for now
-  RefreshGuestOutput(
-      guest_width, guest_height, 1280, 720,
-      [this](GuestOutputRefreshContext& context) -> bool {
-        XELOGW("Metal TryRefreshGuestOutputForTraceDump: RefreshGuestOutput called but no render target access");
-        // For trace dumps without SWAP commands, we might not have valid render targets
-        // This will at least populate the mailbox with empty textures so CaptureGuestOutput doesn't fail
-        return true; // Return true to create guest output textures
-      });
+  RefreshGuestOutput(guest_width, guest_height, 1280, 720,
+                     [this](GuestOutputRefreshContext& context) -> bool {
+                       XELOGW("Metal TryRefreshGuestOutputForTraceDump: RefreshGuestOutput "
+                              "called but no render target access");
+                       // For trace dumps without SWAP commands, we might not have valid render
+                       // targets This will at least populate the mailbox with empty textures so
+                       // CaptureGuestOutput doesn't fail.
+                       return true;  // Return true to create guest output textures
+                     });
 }
 
 }  // namespace metal

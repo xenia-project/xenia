@@ -10,6 +10,7 @@
 #include "xenia/gpu/trace_reader.h"
 
 #include <cinttypes>
+#include <cstring>
 
 #include "third_party/snappy/snappy.h"
 #include "xenia/base/filesystem.h"
@@ -23,6 +24,17 @@
 
 namespace xe {
 namespace gpu {
+
+namespace {
+
+template <typename T>
+T LoadTraceCommand(const uint8_t* trace_ptr) {
+  T cmd;
+  std::memcpy(&cmd, trace_ptr, sizeof(T));
+  return cmd;
+}
+
+}  // namespace
 
 bool TraceReader::Open(const std::string_view path) {
   Close();
@@ -80,7 +92,7 @@ void TraceReader::ParseTrace() {
 
   Frame current_frame;
   current_frame.start_ptr = trace_ptr;
-  const PacketStartCommand* packet_start = nullptr;
+  PacketStartCommand packet_start = {};
   const uint8_t* packet_start_ptr = nullptr;
   const uint8_t* last_ptr = trace_ptr;
   bool pending_break = false;
@@ -93,20 +105,18 @@ void TraceReader::ParseTrace() {
     auto type = static_cast<TraceCommandType>(xe::load<uint32_t>(trace_ptr));
     switch (type) {
       case TraceCommandType::kPrimaryBufferStart: {
-        auto cmd =
-            reinterpret_cast<const PrimaryBufferStartCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd) + cmd->count * 4;
+        auto cmd = LoadTraceCommand<PrimaryBufferStartCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd) + cmd.count * 4;
         break;
       }
       case TraceCommandType::kPrimaryBufferEnd: {
-        auto cmd = reinterpret_cast<const PrimaryBufferEndCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd);
+        auto cmd = LoadTraceCommand<PrimaryBufferEndCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd);
         break;
       }
       case TraceCommandType::kIndirectBufferStart: {
-        auto cmd =
-            reinterpret_cast<const IndirectBufferStartCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd) + cmd->count * 4;
+        auto cmd = LoadTraceCommand<IndirectBufferStartCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd) + cmd.count * 4;
 
         // Traverse down a level.
         auto sub_command_buffer = new CommandBuffer();
@@ -117,13 +127,13 @@ void TraceReader::ParseTrace() {
         break;
       }
       case TraceCommandType::kIndirectBufferEnd: {
-        auto cmd = reinterpret_cast<const IndirectBufferEndCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd);
+        auto cmd = LoadTraceCommand<IndirectBufferEndCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd);
 
         // IB packet is wrapped in a kPacketStart/kPacketEnd. Skip the end.
-        auto end_cmd = reinterpret_cast<const PacketEndCommand*>(trace_ptr);
-        assert_true(end_cmd->type == TraceCommandType::kPacketEnd);
-        trace_ptr += sizeof(*cmd);
+        auto end_cmd = LoadTraceCommand<PacketEndCommand>(trace_ptr);
+        assert_true(end_cmd.type == TraceCommandType::kPacketEnd);
+        trace_ptr += sizeof(end_cmd);
 
         // Go back up a level. If parent is null, this frame started in an
         // indirect buffer.
@@ -133,20 +143,19 @@ void TraceReader::ParseTrace() {
         break;
       }
       case TraceCommandType::kPacketStart: {
-        auto cmd = reinterpret_cast<const PacketStartCommand*>(trace_ptr);
         packet_start_ptr = trace_ptr;
-        packet_start = cmd;
-        trace_ptr += sizeof(*cmd) + cmd->count * 4;
+        packet_start = LoadTraceCommand<PacketStartCommand>(trace_ptr);
+        trace_ptr += sizeof(packet_start) + packet_start.count * 4;
         break;
       }
       case TraceCommandType::kPacketEnd: {
-        auto cmd = reinterpret_cast<const PacketEndCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd);
+        auto cmd = LoadTraceCommand<PacketEndCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd);
         if (!packet_start_ptr) {
           continue;
         }
         auto packet_category = PacketDisassembler::GetPacketCategory(
-            packet_start_ptr + sizeof(*packet_start));
+            packet_start_ptr + sizeof(packet_start));
         switch (packet_category) {
           case PacketCategory::kDraw: {
             Frame::Command command;
@@ -190,24 +199,24 @@ void TraceReader::ParseTrace() {
         break;
       }
       case TraceCommandType::kMemoryRead: {
-        auto cmd = reinterpret_cast<const MemoryCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd) + cmd->encoded_length;
+        auto cmd = LoadTraceCommand<MemoryCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd) + cmd.encoded_length;
         break;
       }
       case TraceCommandType::kMemoryWrite: {
-        auto cmd = reinterpret_cast<const MemoryCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd) + cmd->encoded_length;
+        auto cmd = LoadTraceCommand<MemoryCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd) + cmd.encoded_length;
         break;
       }
       case TraceCommandType::kEdramSnapshot: {
-        auto cmd = reinterpret_cast<const EdramSnapshotCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd) + cmd->encoded_length;
+        auto cmd = LoadTraceCommand<EdramSnapshotCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd) + cmd.encoded_length;
         break;
       }
       case TraceCommandType::kEvent: {
-        auto cmd = reinterpret_cast<const EventCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd);
-        switch (cmd->event_type) {
+        auto cmd = LoadTraceCommand<EventCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd);
+        switch (cmd.event_type) {
           case EventCommand::Type::kSwap: {
             pending_break = true;
             break;
@@ -216,13 +225,13 @@ void TraceReader::ParseTrace() {
         break;
       }
       case TraceCommandType::kRegisters: {
-        auto cmd = reinterpret_cast<const RegistersCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd) + cmd->encoded_length;
+        auto cmd = LoadTraceCommand<RegistersCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd) + cmd.encoded_length;
         break;
       }
       case TraceCommandType::kGammaRamp: {
-        auto cmd = reinterpret_cast<const GammaRampCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd) + cmd->encoded_length;
+        auto cmd = LoadTraceCommand<GammaRampCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd) + cmd.encoded_length;
         break;
       }
       default:

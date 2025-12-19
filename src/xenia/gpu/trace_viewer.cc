@@ -10,6 +10,7 @@
 #include "xenia/gpu/trace_viewer.h"
 
 #include <cinttypes>
+#include <cstring>
 #include <string>
 
 #include "third_party/half/include/half.hpp"
@@ -49,6 +50,17 @@ namespace xe {
 namespace gpu {
 
 using namespace xe::gpu::xenos;
+
+namespace {
+
+template <typename T>
+T LoadTraceCommand(const uint8_t* trace_ptr) {
+  T cmd;
+  std::memcpy(&cmd, trace_ptr, sizeof(T));
+  return cmd;
+}
+
+}  // namespace
 
 static const ImVec4 kColorError =
     ImVec4(255 / 255.0f, 0 / 255.0f, 0 / 255.0f, 255 / 255.0f);
@@ -296,51 +308,51 @@ void TraceViewer::DrawPacketDisassemblerUI() {
               player_->current_command_index());
   ImGui::Separator();
   ImGui::BeginChild("packet_disassembler_list");
-  const PacketStartCommand* pending_packet = nullptr;
+  PacketStartCommand pending_packet = {};
+  const uint8_t* pending_packet_ptr = nullptr;
+  bool pending_packet_valid = false;
   auto trace_ptr = start_ptr;
   while (trace_ptr < end_ptr) {
     auto type = static_cast<TraceCommandType>(xe::load<uint32_t>(trace_ptr));
     switch (type) {
       case TraceCommandType::kPrimaryBufferStart: {
-        auto cmd =
-            reinterpret_cast<const PrimaryBufferStartCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd) + cmd->count * 4;
+        auto cmd = LoadTraceCommand<PrimaryBufferStartCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd) + cmd.count * 4;
         ImGui::BulletText("PrimaryBufferStart");
         break;
       }
       case TraceCommandType::kPrimaryBufferEnd: {
-        auto cmd = reinterpret_cast<const PrimaryBufferEndCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd);
+        auto cmd = LoadTraceCommand<PrimaryBufferEndCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd);
         ImGui::BulletText("PrimaryBufferEnd");
         break;
       }
       case TraceCommandType::kIndirectBufferStart: {
-        auto cmd =
-            reinterpret_cast<const IndirectBufferStartCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd) + cmd->count * 4;
+        auto cmd = LoadTraceCommand<IndirectBufferStartCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd) + cmd.count * 4;
         ImGui::BulletText("IndirectBufferStart");
         break;
       }
       case TraceCommandType::kIndirectBufferEnd: {
-        auto cmd = reinterpret_cast<const IndirectBufferEndCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd);
+        auto cmd = LoadTraceCommand<IndirectBufferEndCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd);
         ImGui::BulletText("IndirectBufferEnd");
         break;
       }
       case TraceCommandType::kPacketStart: {
-        auto cmd = reinterpret_cast<const PacketStartCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd) + cmd->count * 4;
-        pending_packet = cmd;
+        pending_packet_ptr = trace_ptr;
+        pending_packet = LoadTraceCommand<PacketStartCommand>(trace_ptr);
+        pending_packet_valid = true;
+        trace_ptr += sizeof(pending_packet) + pending_packet.count * 4;
         break;
       }
       case TraceCommandType::kPacketEnd: {
-        auto cmd = reinterpret_cast<const PacketEndCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd);
-        if (pending_packet) {
+        auto cmd = LoadTraceCommand<PacketEndCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd);
+        if (pending_packet_valid) {
           PacketInfo packet_info = {0};
           if (PacketDisassembler::DisasmPacket(
-                  reinterpret_cast<const uint8_t*>(pending_packet) +
-                      sizeof(PacketStartCommand),
+                  pending_packet_ptr + sizeof(PacketStartCommand),
                   &packet_info)) {
             if (packet_info.predicated) {
               ImGui::PushStyleColor(ImGuiCol_Text, kColorIgnored);
@@ -383,32 +395,32 @@ void TraceViewer::DrawPacketDisassemblerUI() {
           } else {
             ImGui::BulletText("<invalid packet>");
           }
-          pending_packet = nullptr;
+          pending_packet_valid = false;
         }
         break;
       }
       case TraceCommandType::kMemoryRead: {
-        auto cmd = reinterpret_cast<const MemoryCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd) + cmd->encoded_length;
+        auto cmd = LoadTraceCommand<MemoryCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd) + cmd.encoded_length;
         // ImGui::BulletText("MemoryRead");
         break;
       }
       case TraceCommandType::kMemoryWrite: {
-        auto cmd = reinterpret_cast<const MemoryCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd) + cmd->encoded_length;
+        auto cmd = LoadTraceCommand<MemoryCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd) + cmd.encoded_length;
         // ImGui::BulletText("MemoryWrite");
         break;
       }
       case TraceCommandType::kEdramSnapshot: {
-        auto cmd = reinterpret_cast<const EdramSnapshotCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd) + cmd->encoded_length;
+        auto cmd = LoadTraceCommand<EdramSnapshotCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd) + cmd.encoded_length;
         // ImGui::BulletText("EdramSnapshot");
         break;
       }
       case TraceCommandType::kEvent: {
-        auto cmd = reinterpret_cast<const EventCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd);
-        switch (cmd->event_type) {
+        auto cmd = LoadTraceCommand<EventCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd);
+        switch (cmd.event_type) {
           case EventCommand::Type::kSwap: {
             ImGui::BulletText("<swap>");
             break;
@@ -417,14 +429,14 @@ void TraceViewer::DrawPacketDisassemblerUI() {
         break;
       }
       case TraceCommandType::kRegisters: {
-        auto cmd = reinterpret_cast<const RegistersCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd) + cmd->encoded_length;
+        auto cmd = LoadTraceCommand<RegistersCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd) + cmd.encoded_length;
         // ImGui::BulletText("Registers");
         break;
       }
       case TraceCommandType::kGammaRamp: {
-        auto cmd = reinterpret_cast<const GammaRampCommand*>(trace_ptr);
-        trace_ptr += sizeof(*cmd) + cmd->encoded_length;
+        auto cmd = LoadTraceCommand<GammaRampCommand>(trace_ptr);
+        trace_ptr += sizeof(cmd) + cmd.encoded_length;
         // ImGui::BulletText("GammaRamp");
         break;
       }

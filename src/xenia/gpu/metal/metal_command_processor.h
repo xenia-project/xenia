@@ -251,6 +251,10 @@ class MetalCommandProcessor : public CommandProcessor {
   bool system_constants_dirty_ = true;
   bool logged_missing_texture_warning_ = false;
 
+  // Fixed-function dynamic state cached per render encoder.
+  float ff_blend_factor_[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+  bool ff_blend_factor_valid_ = false;
+
   // Draw counter for ring-buffer descriptor heap allocation
   // Each draw uses a different region of the descriptor heap to avoid
   // overwriting previous draws' descriptors before GPU execution
