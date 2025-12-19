@@ -2128,22 +2128,26 @@ void MetalCommandProcessor::BeginCommandBuffer() {
 
   // Derive viewport/scissor from the actual bound render target rather than
   // a hard-coded 1280x720. Prefer color RT 0 from the MetalRenderTargetCache,
-  // falling back to the legacy render_target_width_/height_ when needed.
+  // falling back to depth (depth-only passes) and then legacy
+  // render_target_width_/height_ when needed.
   uint32_t rt_width = render_target_width_;
   uint32_t rt_height = render_target_height_;
   if (render_target_cache_) {
-    MTL::Texture* rt0 = render_target_cache_->GetColorTarget(0);
-    if (!rt0) {
-      rt0 = render_target_cache_->GetDummyColorTarget();
+    MTL::Texture* pass_size_texture = render_target_cache_->GetColorTarget(0);
+    if (!pass_size_texture) {
+      pass_size_texture = render_target_cache_->GetDummyColorTarget();
     }
-    if (rt0) {
-      rt_width = static_cast<uint32_t>(rt0->width());
-      rt_height = static_cast<uint32_t>(rt0->height());
-      XELOGI("BeginCommandBuffer: using RT0 size {}x{} for viewport/scissor",
+    if (!pass_size_texture) {
+      pass_size_texture = render_target_cache_->GetDepthTarget();
+    }
+    if (pass_size_texture) {
+      rt_width = static_cast<uint32_t>(pass_size_texture->width());
+      rt_height = static_cast<uint32_t>(pass_size_texture->height());
+      XELOGI("BeginCommandBuffer: using pass size {}x{} for viewport/scissor",
              rt_width, rt_height);
     } else {
       XELOGI(
-          "BeginCommandBuffer: no RT0 texture, falling back to {}x{} for "
+          "BeginCommandBuffer: no pass texture, falling back to {}x{} for "
           "viewport/scissor",
           rt_width, rt_height);
     }

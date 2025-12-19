@@ -46,7 +46,9 @@
 #include "xenia/gpu/shaders/bytecode/metal/texture_load_depth_unorm_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/metal/texture_load_dxn_rg8_cs.h"
 #include "xenia/gpu/shaders/bytecode/metal/texture_load_dxt1_rgba8_cs.h"
+#include "xenia/gpu/shaders/bytecode/metal/texture_load_dxt3a_cs.h"
 #include "xenia/gpu/shaders/bytecode/metal/texture_load_dxt3_rgba8_cs.h"
+#include "xenia/gpu/shaders/bytecode/metal/texture_load_dxt5a_r8_cs.h"
 #include "xenia/gpu/shaders/bytecode/metal/texture_load_dxt5_rgba8_cs.h"
 #include "xenia/gpu/shaders/bytecode/metal/texture_load_gbgr8_grgb8_cs.h"
 #include "xenia/gpu/shaders/bytecode/metal/texture_load_gbgr8_rgb8_cs.h"
@@ -181,6 +183,10 @@ TextureCache::LoadShaderIndex MetalTextureCache::GetLoadShaderIndexForKey(
       return decompress ? kLoadShaderIndexDXT5ToRGBA8 : kLoadShaderIndex128bpb;
     case xenos::TextureFormat::k_DXN:
       return decompress ? kLoadShaderIndexDXNToRG8 : kLoadShaderIndex128bpb;
+    case xenos::TextureFormat::k_DXT3A:
+      return kLoadShaderIndexDXT3A;
+    case xenos::TextureFormat::k_DXT5A:
+      return kLoadShaderIndexDXT5AToR8;
     case xenos::TextureFormat::k_CTX1:
       return kLoadShaderIndexCTX1;
 
@@ -188,6 +194,19 @@ TextureCache::LoadShaderIndex MetalTextureCache::GetLoadShaderIndexForKey(
       return kLoadShaderIndexDepthUnorm;
     case xenos::TextureFormat::k_24_8_FLOAT:
       return kLoadShaderIndexDepthFloat;
+
+    case xenos::TextureFormat::k_16:
+    case xenos::TextureFormat::k_16_EXPAND:
+    case xenos::TextureFormat::k_16_FLOAT:
+      return kLoadShaderIndex16bpb;
+    case xenos::TextureFormat::k_16_16:
+    case xenos::TextureFormat::k_16_16_EXPAND:
+    case xenos::TextureFormat::k_16_16_FLOAT:
+      return kLoadShaderIndex32bpb;
+    case xenos::TextureFormat::k_16_16_16_16:
+    case xenos::TextureFormat::k_16_16_16_16_EXPAND:
+    case xenos::TextureFormat::k_16_16_16_16_FLOAT:
+      return kLoadShaderIndex64bpb;
 
     default:
       return kLoadShaderIndexUnknown;
@@ -200,7 +219,6 @@ MTL::PixelFormat MetalTextureCache::GetPixelFormatForKey(TextureKey key) const {
     case xenos::TextureFormat::k_8:
     case xenos::TextureFormat::k_8_A:
     case xenos::TextureFormat::k_8_B:
-    case xenos::TextureFormat::k_DXT5A:
       return MTL::PixelFormatR8Unorm;
     case xenos::TextureFormat::k_8_8:
       return MTL::PixelFormatRG8Unorm;
@@ -217,6 +235,22 @@ MTL::PixelFormat MetalTextureCache::GetPixelFormatForKey(TextureKey key) const {
     case xenos::TextureFormat::k_2_10_10_10:
       return MTL::PixelFormatRGB10A2Unorm;
 
+    case xenos::TextureFormat::k_16:
+      return MTL::PixelFormatR16Unorm;
+    case xenos::TextureFormat::k_16_16:
+      return MTL::PixelFormatRG16Unorm;
+    case xenos::TextureFormat::k_16_16_16_16:
+      return MTL::PixelFormatRGBA16Unorm;
+    case xenos::TextureFormat::k_16_EXPAND:
+    case xenos::TextureFormat::k_16_FLOAT:
+      return MTL::PixelFormatR16Float;
+    case xenos::TextureFormat::k_16_16_EXPAND:
+    case xenos::TextureFormat::k_16_16_FLOAT:
+      return MTL::PixelFormatRG16Float;
+    case xenos::TextureFormat::k_16_16_16_16_EXPAND:
+    case xenos::TextureFormat::k_16_16_16_16_FLOAT:
+      return MTL::PixelFormatRGBA16Float;
+
     case xenos::TextureFormat::k_DXT1:
       return decompress ? MTL::PixelFormatRGBA8Unorm : MTL::PixelFormatBC1_RGBA;
     case xenos::TextureFormat::k_DXT2_3:
@@ -226,6 +260,12 @@ MTL::PixelFormat MetalTextureCache::GetPixelFormatForKey(TextureKey key) const {
     case xenos::TextureFormat::k_DXN:
       return decompress ? MTL::PixelFormatRG8Unorm
                         : MTL::PixelFormatBC5_RGUnorm;
+    case xenos::TextureFormat::k_DXT3A:
+    case xenos::TextureFormat::k_DXT5A:
+      return MTL::PixelFormatR8Unorm;
+    case xenos::TextureFormat::k_CTX1:
+      // CTX1 is always decoded via the texture load shader to RG8.
+      return MTL::PixelFormatRG8Unorm;
 
     case xenos::TextureFormat::k_24_8:
     case xenos::TextureFormat::k_24_8_FLOAT:
@@ -809,12 +849,18 @@ bool MetalTextureCache::InitializeLoadPipelines() {
   init_pipeline(TextureCache::kLoadShaderIndexDXT1ToRGBA8,
                 texture_load_dxt1_rgba8_cs_metallib,
                 sizeof(texture_load_dxt1_rgba8_cs_metallib));
+  init_pipeline(TextureCache::kLoadShaderIndexDXT3A,
+                texture_load_dxt3a_cs_metallib,
+                sizeof(texture_load_dxt3a_cs_metallib));
   init_pipeline(TextureCache::kLoadShaderIndexDXT3ToRGBA8,
                 texture_load_dxt3_rgba8_cs_metallib,
                 sizeof(texture_load_dxt3_rgba8_cs_metallib));
   init_pipeline(TextureCache::kLoadShaderIndexDXT5ToRGBA8,
                 texture_load_dxt5_rgba8_cs_metallib,
                 sizeof(texture_load_dxt5_rgba8_cs_metallib));
+  init_pipeline(TextureCache::kLoadShaderIndexDXT5AToR8,
+                texture_load_dxt5a_r8_cs_metallib,
+                sizeof(texture_load_dxt5a_r8_cs_metallib));
   init_pipeline(TextureCache::kLoadShaderIndexDXNToRG8,
                 texture_load_dxn_rg8_cs_metallib,
                 sizeof(texture_load_dxn_rg8_cs_metallib));
