@@ -121,6 +121,8 @@ and background differences.
 
 ### Validation Traces
 - Halo 3: `reference-gpu-traces/traces/4D5307E6_37345.xtr`
+- Gears of War: `reference-gpu-traces/traces/4D5307D5_2072.xtr` (good for
+  catching render-pass transition / validation issues)
 
 ---
 
