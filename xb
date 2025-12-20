@@ -700,6 +700,23 @@ class SetupCommand(Command):
         print('- running premake...')
         ret = run_platform_premake(target_os_override=args['target_os'])
         print('')
+
+        if sys.platform == 'darwin' and ret == 0:
+            # Build dxbc2dxil on macOS as part of setup
+            dxbc2dxil_path = os.path.join(self_path, 'third_party/DirectXShaderCompiler/build_dxilconv_macos/bin/dxbc2dxil')
+            if not os.path.exists(dxbc2dxil_path):
+                print('- building dxbc2dxil (native macOS binary)...')
+                build_script = os.path.join(self_path, 'third_party/DirectXShaderCompiler/build_dxilconv_macos.sh')
+                if os.path.exists(build_script):
+                    script_dir = os.path.dirname(build_script)
+                    try:
+                        subprocess.check_call(['/bin/bash', 'build_dxilconv_macos.sh'], cwd=script_dir)
+                    except subprocess.CalledProcessError:
+                        print('ERROR: Failed to build dxbc2dxil!')
+                        return 1
+                else:
+                    print('WARNING: dxbc2dxil build script not found!')
+
         print('Success!' if ret == 0 else 'Error!')
 
         return ret
@@ -821,6 +838,19 @@ class BaseBuildCommand(Command):
             '-j', default=4, type=int, help='Number of parallel threads')
 
     def execute(self, args, pass_args, cwd):
+        if sys.platform == 'darwin':
+            # Ensure dxbc2dxil is built on macOS as it's needed for the Metal backend
+            dxbc2dxil_path = os.path.join(self_path, 'third_party/DirectXShaderCompiler/build_dxilconv_macos/bin/dxbc2dxil')
+            if not os.path.exists(dxbc2dxil_path):
+                print('- building dxbc2dxil (native macOS binary)...')
+                build_script = os.path.join(self_path, 'third_party/DirectXShaderCompiler/build_dxilconv_macos.sh')
+                if os.path.exists(build_script):
+                    # We need to run it from its own directory usually
+                    script_dir = os.path.dirname(build_script)
+                    subprocess.check_call(['/bin/bash', 'build_dxilconv_macos.sh'], cwd=script_dir)
+                else:
+                    print('WARNING: dxbc2dxil build script not found!')
+
         if not args['no_premake']:
             print('- running premake...')
             run_platform_premake(cc=args['cc'])
