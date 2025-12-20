@@ -117,3 +117,10 @@ node_modules/.bin/
 /third_party/binutils/binutils*
 /third_party/vasm/
 /tools/shader-playground/*.dll
+
+# Local traces and output
+/reference-gpu-traces/
+/*.png
+/unknown_texture.png/
+/unknown_texture_2.png/
+/.gemini-clipboard/

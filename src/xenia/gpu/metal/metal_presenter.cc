@@ -15,6 +15,10 @@
 #include "xenia/gpu/metal/metal_command_processor.h"
 #include "xenia/ui/surface.h"
 
+// Generated shaders
+#include "xenia/ui/shaders/bytecode/metal/guest_output_bilinear_ps.h"
+#include "xenia/ui/shaders/bytecode/metal/guest_output_triangle_strip_rect_vs.h"
+
 namespace xe {
 namespace gpu {
 namespace metal {
@@ -59,11 +63,6 @@ bool MetalPresenter::Initialize() {
   // Create presentation resources
   if (!CreateBlitPipeline()) {
     XELOGE("Metal presenter: Failed to create blit pipeline");
-    return false;
-  }
-
-  if (!CreateFullscreenQuadBuffer()) {
-    XELOGE("Metal presenter: Failed to create fullscreen quad buffer");
     return false;
   }
 
@@ -234,32 +233,64 @@ bool MetalPresenter::SetupMetalLayer(void* layer) {
   return true;
 }
 
+MTL::Function* CreateFunction(MTL::Device* device, const void* data, size_t size,
+                              const char* name) {
+  dispatch_data_t d = dispatch_data_create(data, size, nullptr, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+  NS::Error* error = nullptr;
+  MTL::Library* lib = device->newLibrary(d, &error);
+  dispatch_release(d);
+  if (!lib) {
+    XELOGE("Metal presenter: Failed to create library for {}: {}", name,
+           error ? error->localizedDescription()->utf8String() : "unknown");
+    return nullptr;
+  }
+  NS::String* ns_name = NS::String::string("xesl_entry", NS::UTF8StringEncoding);
+  MTL::Function* fn = lib->newFunction(ns_name);
+  lib->release();
+  if (!fn) {
+    XELOGE("Metal presenter: Failed to load function xesl_entry for {}", name);
+  }
+  return fn;
+}
+
 bool MetalPresenter::CreateBlitPipeline() {
-  // TODO: Create a proper blit pipeline with vertex and fragment shaders
-  // For now, return true as a stub
-  XELOGD("Metal presenter: Blit pipeline creation stubbed");
+  MTL::Function* vs = CreateFunction(device_, guest_output_triangle_strip_rect_vs_metallib,
+                                     sizeof(guest_output_triangle_strip_rect_vs_metallib),
+                                     "blit_vs");
+  if (!vs) return false;
+
+  MTL::Function* ps = CreateFunction(device_, guest_output_bilinear_ps_metallib,
+                                     sizeof(guest_output_bilinear_ps_metallib),
+                                     "blit_ps");
+  if (!ps) {
+    vs->release();
+    return false;
+  }
+
+  MTL::RenderPipelineDescriptor* desc = MTL::RenderPipelineDescriptor::alloc()->init();
+  desc->setVertexFunction(vs);
+  desc->setFragmentFunction(ps);
+  // Match MetalLayer pixel format
+  desc->colorAttachments()->object(0)->setPixelFormat(MTL::PixelFormatBGRA8Unorm_sRGB);
+  desc->setDepthAttachmentPixelFormat(MTL::PixelFormatInvalid);
+  
+  NS::Error* error = nullptr;
+  blit_pipeline_ = device_->newRenderPipelineState(desc, &error);
+  desc->release();
+  vs->release();
+  ps->release();
+
+  if (!blit_pipeline_) {
+    XELOGE("Metal presenter: Failed to create pipeline: {}",
+           error ? error->localizedDescription()->utf8String() : "unknown");
+    return false;
+  }
+
   return true;
 }
 
 bool MetalPresenter::CreateFullscreenQuadBuffer() {
-  // Fullscreen quad vertices (position + texture coordinates)
-  float quad_vertices[] = {
-    // positions    // texture coords
-    -1.0f, -1.0f,   0.0f, 1.0f,  // bottom left
-     1.0f, -1.0f,   1.0f, 1.0f,  // bottom right
-    -1.0f,  1.0f,   0.0f, 0.0f,  // top left
-     1.0f,  1.0f,   1.0f, 0.0f,  // top right
-  };
-
-  fullscreen_quad_buffer_ = device_->newBuffer(
-      quad_vertices, sizeof(quad_vertices), 
-      MTL::ResourceStorageModeShared);
-
-  if (!fullscreen_quad_buffer_) {
-    XELOGE("Metal presenter: Failed to create fullscreen quad buffer");
-    return false;
-  }
-
+  // Deprecated: VS generates vertices.
   return true;
 }
 
@@ -268,37 +299,15 @@ void MetalPresenter::BlitTexture(MTL::Texture* source, MTL::Texture* destination
     return;
   }
 
-  // Use blit encoder for simple copy if formats match and no scaling needed
-  if (source->pixelFormat() == destination->pixelFormat() &&
-      source->width() == destination->width() &&
-      source->height() == destination->height()) {
-    
-    MTL::BlitCommandEncoder* blit_encoder = current_command_buffer_->blitCommandEncoder();
-    if (blit_encoder) {
-      blit_encoder->setLabel(NS::String::string("Present Blit", NS::UTF8StringEncoding));
-      
-      // Copy entire texture
-      blit_encoder->copyFromTexture(
-          source, 0, 0,  // sourceSlice, sourceLevel
-          MTL::Origin(0, 0, 0),  // sourceOrigin
-          MTL::Size(source->width(), source->height(), 1),  // sourceSize
-          destination, 0, 0,  // destSlice, destLevel  
-          MTL::Origin(0, 0, 0)  // destOrigin
-      );
-      
-      blit_encoder->endEncoding();
-      // blit encoder is autoreleased - do not release
-      return;
-    }
-  }
+  // Always use the render pass with blit pipeline to handle format conversion,
+  // scaling, and gamma correction properly.
+  // (The previous blit-copy optimization is removed because it bypasses gamma/scaling).
 
-  // Otherwise, use render encoder with blit pipeline for format conversion/scaling
   MTL::RenderPassDescriptor* render_pass = MTL::RenderPassDescriptor::alloc()->init();
   if (!render_pass) {
     return;
   }
 
-  // Configure render pass to render to destination texture
   MTL::RenderPassColorAttachmentDescriptor* color_attachment = 
       render_pass->colorAttachments()->object(0);
   color_attachment->setTexture(destination);
@@ -312,17 +321,22 @@ void MetalPresenter::BlitTexture(MTL::Texture* source, MTL::Texture* destination
     render_encoder->setLabel(NS::String::string("Present Render", NS::UTF8StringEncoding));
     
     if (blit_pipeline_) {
-      // Set pipeline and draw fullscreen quad
       render_encoder->setRenderPipelineState(blit_pipeline_);
-      render_encoder->setVertexBuffer(fullscreen_quad_buffer_, NS::UInteger(0), NS::UInteger(0));
+      
+      // Push Constants for VS: Offset(-1,-1), Size(2,2) for full screen NDC
+      struct {
+        float offset[2];
+        float size[2];
+      } constants = {{-1.0f, -1.0f}, {2.0f, 2.0f}};
+      
+      render_encoder->setVertexBytes(&constants, sizeof(constants), 0);
       render_encoder->setFragmentTexture(source, 0);
       
-      // Draw triangle strip (4 vertices for quad)
+      // Draw 4 vertices (triangle strip)
       render_encoder->drawPrimitives(MTL::PrimitiveTypeTriangleStrip, NS::UInteger(0), NS::UInteger(4));
     }
     
     render_encoder->endEncoding();
-    render_// encoder is autoreleased - do not release
   }
   
   render_pass->release();

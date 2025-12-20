@@ -146,11 +146,14 @@ class MetalTextureCache : public TextureCache {
   // Metal texture creation helpers
   MTL::Texture* CreateTexture2D(uint32_t width, uint32_t height,
                                 uint32_t array_length, MTL::PixelFormat format,
+                                MTL::TextureSwizzleChannels swizzle,
                                 uint32_t mip_levels = 1);
   MTL::Texture* CreateTexture3D(uint32_t width, uint32_t height, uint32_t depth,
                                 MTL::PixelFormat format,
+                                MTL::TextureSwizzleChannels swizzle,
                                 uint32_t mip_levels = 1);
   MTL::Texture* CreateTextureCube(uint32_t width, MTL::PixelFormat format,
+                                  MTL::TextureSwizzleChannels swizzle,
                                   uint32_t mip_levels = 1,
                                   uint32_t cube_count = 1);
   bool UpdateTexture2D(MTL::Texture* texture, const TextureInfo& texture_info);

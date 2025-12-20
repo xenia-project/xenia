@@ -38,7 +38,8 @@ extern "C" int main(int argc, char** argv) {
       if (arg.rfind("-NSDocumentRevisionsDebugMode", 0) == 0 ||
           arg.rfind("-ApplePersistenceIgnoreState", 0) == 0  ||
           arg.rfind("-NSDocumentRevisionsDebugMode", 0) == 0 ||
-          arg.rfind("-YES", 0) == 0) {
+          arg.rfind("-YES", 0) == 0 ||
+          arg.rfind("YES", 0) == 0) {
         continue;
       }
       filtered_args.emplace_back(argv[i]);

@@ -51,6 +51,34 @@ DEFINE_bool(metal_draw_debug_quad, false,
 
 namespace {
 
+MTL::CompareFunction ToMetalCompareFunction(xenos::CompareFunction compare) {
+  static const MTL::CompareFunction kCompareMap[8] = {
+      MTL::CompareFunctionNever,         // 0
+      MTL::CompareFunctionLess,          // 1
+      MTL::CompareFunctionEqual,         // 2
+      MTL::CompareFunctionLessEqual,     // 3
+      MTL::CompareFunctionGreater,       // 4
+      MTL::CompareFunctionNotEqual,      // 5
+      MTL::CompareFunctionGreaterEqual,  // 6
+      MTL::CompareFunctionAlways,        // 7
+  };
+  return kCompareMap[uint32_t(compare) & 0x7];
+}
+
+MTL::StencilOperation ToMetalStencilOperation(xenos::StencilOp op) {
+  static const MTL::StencilOperation kStencilOpMap[8] = {
+      MTL::StencilOperationKeep,           // 0
+      MTL::StencilOperationZero,           // 1
+      MTL::StencilOperationReplace,        // 2
+      MTL::StencilOperationIncrementClamp, // 3
+      MTL::StencilOperationDecrementClamp, // 4
+      MTL::StencilOperationInvert,         // 5
+      MTL::StencilOperationIncrementWrap,  // 6
+      MTL::StencilOperationDecrementWrap,  // 7
+  };
+  return kStencilOpMap[uint32_t(op) & 0x7];
+}
+
 MTL::ColorWriteMask ToMetalColorWriteMask(uint32_t write_mask) {
   MTL::ColorWriteMask mtl_mask = MTL::ColorWriteMaskNone;
   if (write_mask & 0x1) {
@@ -100,8 +128,8 @@ MTL::BlendFactor ToMetalBlendFactorRgb(xenos::BlendFactor blend_factor) {
       /* 11 */ MTL::BlendFactorOneMinusDestinationAlpha,
       /* 12 */ MTL::BlendFactorBlendColor,  // CONSTANT_COLOR
       /* 13 */ MTL::BlendFactorOneMinusBlendColor,
-      /* 14 */ MTL::BlendFactorBlendColor,  // CONSTANT_ALPHA
-      /* 15 */ MTL::BlendFactorOneMinusBlendColor,
+      /* 14 */ MTL::BlendFactorBlendAlpha,  // CONSTANT_ALPHA
+      /* 15 */ MTL::BlendFactorOneMinusBlendAlpha,
       /* 16 */ MTL::BlendFactorSourceAlphaSaturated,
   };
   return kBlendFactorMap[uint32_t(blend_factor) & 0x1F];
@@ -171,6 +199,13 @@ MetalCommandProcessor::~MetalCommandProcessor() {
     }
   }
   pipeline_cache_.clear();
+
+  for (auto& pair : depth_stencil_state_cache_) {
+    if (pair.second) {
+      pair.second->release();
+    }
+  }
+  depth_stencil_state_cache_.clear();
 
   // Release debug pipeline
   if (debug_pipeline_) {
@@ -1377,20 +1412,34 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       if (rt0_tex) {
         vp_width = rt0_tex->width();
         vp_height = rt0_tex->height();
+      } else if (MTL::Texture* depth_tex =
+                     render_target_cache_->GetDepthTarget()) {
+        vp_width = depth_tex->width();
+        vp_height = depth_tex->height();
+      } else if (MTL::Texture* dummy =
+                     render_target_cache_->GetDummyColorTarget()) {
+        vp_width = dummy->width();
+        vp_height = dummy->height();
       }
     }
     draw_util::ViewportInfo viewport_info;
     auto depth_control = draw_util::GetNormalizedDepthControl(regs);
+    constexpr uint32_t kViewportBoundsMax = 32767;
+    bool host_render_targets_used = true;
+    bool convert_z_to_float24 =
+        host_render_targets_used &&
+        ::cvars::depth_float24_convert_in_pixel_shader;
     draw_util::GetHostViewportInfo(
         regs, 1, 1,     // draw resolution scale x/y
         true,           // origin_bottom_left (Metal NDC Y is up, like D3D)
-        vp_width,       // x_max
-        vp_height,      // y_max
+        kViewportBoundsMax,  // x_max
+        kViewportBoundsMax,  // y_max
         false,          // allow_reverse_z
         depth_control,  // normalized_depth_control
-        false,          // convert_z_to_float24
-        false,          // full_float24_in_0_to_1
-        false,          // pixel_shader_writes_depth
+        convert_z_to_float24,          // convert_z_to_float24
+        host_render_targets_used,      // full_float24_in_0_to_1
+        pixel_shader && pixel_shader->writes_depth(),
+        // pixel_shader_writes_depth
         viewport_info);
 
     // Apply per-draw viewport and scissor so the Metal viewport
@@ -1423,6 +1472,10 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     mtl_scissor.width = scissor.extent[0];
     mtl_scissor.height = scissor.extent[1];
     current_render_encoder_->setScissorRect(mtl_scissor);
+
+    // Fixed-function depth/stencil state is not part of the pipeline state in
+    // Metal, so update it per draw.
+    ApplyDepthStencilState(primitive_polygonal, depth_control);
 
     // Debug: Log viewport/scissor setup for early draws
     static int vp_log_count = 0;
@@ -1722,6 +1775,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       }
       const auto& shader_texture_bindings =
           shader->GetTextureBindingsAfterTranslation();
+      MetalTextureCache* metal_texture_cache = texture_cache_.get();
       for (size_t binding_index = 0;
            binding_index < shader_texture_bindings.size(); ++binding_index) {
         uint32_t srv_slot = 1 + static_cast<uint32_t>(binding_index);
@@ -1732,7 +1786,24 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
         MTL::Texture* texture = texture_cache_->GetTextureForBinding(
             binding.fetch_constant, binding.dimension, binding.is_signed);
         if (!texture) {
-          texture = null_texture_;
+          // Use a dimension-compatible null texture to avoid Metal validation
+          // errors (for example, cube-array expectations from converted
+          // shaders).
+          switch (binding.dimension) {
+            case xenos::FetchOpDimension::k1D:
+            case xenos::FetchOpDimension::k2D:
+              texture = metal_texture_cache->GetNullTexture2D();
+              break;
+            case xenos::FetchOpDimension::k3DOrStacked:
+              texture = metal_texture_cache->GetNullTexture3D();
+              break;
+            case xenos::FetchOpDimension::kCube:
+              texture = metal_texture_cache->GetNullTextureCube();
+              break;
+            default:
+              texture = metal_texture_cache->GetNullTexture2D();
+              break;
+          }
           if (!logged_missing_texture_warning_) {
             XELOGW(
                 "Metal: Missing texture for fetch constant {} (dimension {} "
@@ -2110,6 +2181,24 @@ void MetalCommandProcessor::BeginCommandBuffer() {
     return;
   }
 
+  // Detect Reverse-Z usage and update clear depth.
+  if (register_file_) {
+    auto depth_control = register_file_->Get<reg::RB_DEPTHCONTROL>();
+    bool reverse_z =
+        depth_control.z_enable &&
+        (depth_control.zfunc == xenos::CompareFunction::kGreater ||
+         depth_control.zfunc == xenos::CompareFunction::kGreaterEqual);
+    if (auto* da = pass_descriptor->depthAttachment()) {
+      if (reverse_z) {
+        XELOGI("BeginCommandBuffer: Reverse-Z detected (zfunc={}), setting ClearDepth to 0.0",
+               int(depth_control.zfunc));
+        da->setClearDepth(0.0);
+      } else {
+        da->setClearDepth(1.0);
+      }
+    }
+  }
+
   // If the render pass configuration has changed since the current render
   // encoder was created (e.g. dummy RT0 -> real RTs, depth/stencil binding),
   // restart the render encoder with the updated descriptor.
@@ -2187,6 +2276,108 @@ void MetalCommandProcessor::EndCommandBuffer() {
     current_command_buffer_->commit();
     current_command_buffer_->release();
     current_command_buffer_ = nullptr;
+  }
+}
+
+void MetalCommandProcessor::ApplyDepthStencilState(
+    bool primitive_polygonal, reg::RB_DEPTHCONTROL normalized_depth_control) {
+  if (!current_render_encoder_ || !device_) {
+    return;
+  }
+
+  const RegisterFile& regs = *register_file_;
+  auto stencil_ref_mask_front = regs.Get<reg::RB_STENCILREFMASK>();
+  auto stencil_ref_mask_back =
+      regs.Get<reg::RB_STENCILREFMASK>(XE_GPU_REG_RB_STENCILREFMASK_BF);
+
+  DepthStencilStateKey key;
+  key.depth_control = normalized_depth_control.value;
+  key.stencil_ref_mask_front = stencil_ref_mask_front.value;
+  key.stencil_ref_mask_back = stencil_ref_mask_back.value;
+  key.polygonal_and_backface =
+      (primitive_polygonal ? 1u : 0u) |
+      (normalized_depth_control.backface_enable ? 2u : 0u);
+
+  MTL::DepthStencilState* state = nullptr;
+  auto it = depth_stencil_state_cache_.find(key);
+  if (it != depth_stencil_state_cache_.end()) {
+    state = it->second;
+  } else {
+    MTL::DepthStencilDescriptor* ds_desc =
+        MTL::DepthStencilDescriptor::alloc()->init();
+    if (normalized_depth_control.z_enable) {
+      ds_desc->setDepthCompareFunction(
+          ToMetalCompareFunction(normalized_depth_control.zfunc));
+      ds_desc->setDepthWriteEnabled(
+          normalized_depth_control.z_write_enable != 0);
+    } else {
+      ds_desc->setDepthCompareFunction(MTL::CompareFunctionAlways);
+      ds_desc->setDepthWriteEnabled(false);
+    }
+
+    if (normalized_depth_control.stencil_enable) {
+      auto* front = MTL::StencilDescriptor::alloc()->init();
+      front->setStencilCompareFunction(
+          ToMetalCompareFunction(normalized_depth_control.stencilfunc));
+      front->setStencilFailureOperation(
+          ToMetalStencilOperation(normalized_depth_control.stencilfail));
+      front->setDepthFailureOperation(
+          ToMetalStencilOperation(normalized_depth_control.stencilzfail));
+      front->setDepthStencilPassOperation(
+          ToMetalStencilOperation(normalized_depth_control.stencilzpass));
+      front->setReadMask(stencil_ref_mask_front.stencilmask);
+      front->setWriteMask(stencil_ref_mask_front.stencilwritemask);
+
+      ds_desc->setFrontFaceStencil(front);
+
+      if (primitive_polygonal && normalized_depth_control.backface_enable) {
+        auto* back = MTL::StencilDescriptor::alloc()->init();
+        back->setStencilCompareFunction(
+            ToMetalCompareFunction(normalized_depth_control.stencilfunc_bf));
+        back->setStencilFailureOperation(
+            ToMetalStencilOperation(normalized_depth_control.stencilfail_bf));
+        back->setDepthFailureOperation(
+            ToMetalStencilOperation(normalized_depth_control.stencilzfail_bf));
+        back->setDepthStencilPassOperation(
+            ToMetalStencilOperation(normalized_depth_control.stencilzpass_bf));
+        back->setReadMask(stencil_ref_mask_back.stencilmask);
+        back->setWriteMask(stencil_ref_mask_back.stencilwritemask);
+        ds_desc->setBackFaceStencil(back);
+        back->release();
+      } else {
+        ds_desc->setBackFaceStencil(front);
+      }
+
+      front->release();
+    }
+
+    state = device_->newDepthStencilState(ds_desc);
+    ds_desc->release();
+
+    if (!state) {
+      XELOGE("Failed to create Metal depth/stencil state");
+      return;
+    }
+    depth_stencil_state_cache_.emplace(key, state);
+  }
+
+  current_render_encoder_->setDepthStencilState(state);
+
+  if (normalized_depth_control.stencil_enable) {
+    uint32_t ref_front = stencil_ref_mask_front.stencilref;
+    uint32_t ref_back = stencil_ref_mask_back.stencilref;
+    if (primitive_polygonal && normalized_depth_control.backface_enable &&
+        ref_front != ref_back) {
+      static bool mismatch_logged = false;
+      if (!mismatch_logged) {
+        mismatch_logged = true;
+        XELOGW(
+            "Metal: front/back stencil ref differ (front={}, back={}); using "
+            "front for both",
+            ref_front, ref_back);
+      }
+    }
+    current_render_encoder_->setStencilReferenceValue(ref_front);
   }
 }
 
@@ -2438,10 +2629,7 @@ MTL::RenderPipelineState* MetalCommandProcessor::GetOrCreatePipelineState(
     for (const auto& binding : vertex_bindings) {
       uint64_t buffer_index =
           kIRVertexBufferBindPoint + uint64_t(binding.binding_index);
-      auto layout = vertex_desc->layouts()->object(buffer_index);
-      layout->setStride(binding.stride_words * 4);
-      layout->setStepFunction(MTL::VertexStepFunctionPerVertex);
-      layout->setStepRate(1);
+      bool used_any_attribute = false;
 
       for (const auto& attr : binding.attributes) {
         MTL::VertexFormat fmt = map_vertex_format(attr.fetch_instr.attributes);
@@ -2454,7 +2642,15 @@ MTL::RenderPipelineState* MetalCommandProcessor::GetOrCreatePipelineState(
         attr_desc->setOffset(
             static_cast<NS::UInteger>(attr.fetch_instr.attributes.offset * 4));
         attr_desc->setBufferIndex(static_cast<NS::UInteger>(buffer_index));
+        used_any_attribute = true;
         ++attr_index;
+      }
+
+      if (used_any_attribute) {
+        auto layout = vertex_desc->layouts()->object(buffer_index);
+        layout->setStride(binding.stride_words * 4);
+        layout->setStepFunction(MTL::VertexStepFunctionPerVertex);
+        layout->setStepRate(1);
       }
     }
 

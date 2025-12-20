@@ -1,130 +1,127 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Quick helper for building and running the Metal trace-dump target
-# for A-Train HX with a short timeout and filtered logs.
+# Quick helper for building and running the Metal trace-dump target.
 #
 # Usage:
-#   tools/run_metal_trace.sh [trace_file] [grep_pattern] [timeout_seconds] [capture_enabled]
+#   tools/run_metal_trace.sh [trace_path] [grep_pattern] [timeout_seconds] [capture_enabled]
 #
-# Defaults:
-#   trace_file     = testdata/reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace
-#   grep_pattern   = "MetalRenderTargetCache|BG_DEST_DEBUG|BG_OVERLAP_DEBUG"
-#   timeout        = 8 seconds
-#   capture        = 0 (disabled)
+# Arguments:
+#   trace_path     Path to a single .xenia_gpu_trace file OR a directory containing traces.
+#                  If a directory is provided, all .xenia_gpu_trace files in it are processed.
+#                  Defaults to: testdata/reference-gpu-traces/traces/
+#   grep_pattern   Regex pattern to grep from logs (in addition to XELOG errors/warnings).
+#                  Defaults to: "MetalRenderTargetCache|BG_DEST_DEBUG|BG_OVERLAP_DEBUG"
+#   timeout        Timeout in seconds per trace. Default: 8.
+#   capture        1 to enable programmatic GPU capture, 0 to disable. Default: 0.
 #
 # The script:
-#   1. Creates a timestamped output folder in scratch/metal_trace_runs/
-#   2. Builds xenia-gpu-metal-trace-dump, suppressing verbose output.
-#   3. Runs it with configurable timeout.
-#   4. Writes full log, build log, and output PNG to the timestamped folder.
-#   5. Prints only lines matching the grep pattern (with small context).
-#   6. Optionally enables programmatic GPU capture (saved to output folder).
-#
-# Output folder structure:
-#   scratch/metal_trace_runs/YYYYMMDD_HHMMSS/
-#     ├── build.log
-#     ├── trace.log  
-#     ├── output.png (copied from generated PNG)
-#     ├── gpu_capture_0000.gputrace (if capture succeeded)
-#     ├── shaders/
-#     │   ├── shader_*_vs.dxbc
-#     │   ├── shader_*_vs.dxil
-#     │   ├── shader_*_vs.metallib
-#     │   ├── shader_*_ps.dxbc
-#     │   ├── shader_*_ps.dxil
-#     │   └── shader_*_ps.metallib
-#     ├── textures/
-#     │   └── texture_*.png
-#     └── summary.txt
+#   1. Builds xenia-gpu-metal-trace-dump (once).
+#   2. Runs the dump for the specified trace(s).
+#   3. Generates a timestamped output directory in scratch/metal_trace_runs/.
+#   4. Captures logs, highlighting XELOG[E|W|I] and custom patterns.
+#   5. Summarizes results.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
-TRACE_FILE="${1:-testdata/reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace}"
-GREP_PATTERN="${2:-MetalRenderTargetCache|BG_DEST_DEBUG|BG_OVERLAP_DEBUG}"
+# --- Configuration ---
+INPUT_PATH="${1:-testdata/reference-gpu-traces/traces/}"
+CUSTOM_GREP_PATTERN="${2:-MetalRenderTargetCache|BG_DEST_DEBUG|BG_OVERLAP_DEBUG|unsupported|not implemented|missing|failed}"
 TIMEOUT_SECS="${3:-8}"
 CAPTURE_ENABLED="${4:-0}"
 
-# Create timestamped output folder with subdirectories
+# Always grep for these important log levels
+BASE_GREP_PATTERN="XELOG[EWI]"
+# Combine with user pattern
+FULL_GREP_PATTERN="${BASE_GREP_PATTERN}|${CUSTOM_GREP_PATTERN}"
+
+# Create master timestamped output folder
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
-OUTPUT_DIR="scratch/metal_trace_runs/${TIMESTAMP}"
-SHADERS_DIR="${OUTPUT_DIR}/shaders"
-TEXTURES_DIR="${OUTPUT_DIR}/textures"
-mkdir -p "${OUTPUT_DIR}" "${SHADERS_DIR}" "${TEXTURES_DIR}"
+MASTER_OUTPUT_DIR="scratch/metal_trace_runs/${TIMESTAMP}"
+mkdir -p "${MASTER_OUTPUT_DIR}"
 
-# Set up file paths
-BUILD_LOG="${OUTPUT_DIR}/build.log"
-LOG_FILE="${OUTPUT_DIR}/trace.log"
-SUMMARY_FILE="${OUTPUT_DIR}/summary.txt"
-
-# Also keep a symlink to latest run for convenience
+# Symlink 'latest'
 LATEST_LINK="scratch/metal_trace_runs/latest"
 rm -f "${LATEST_LINK}" 2>/dev/null || true
 ln -sf "${TIMESTAMP}" "${LATEST_LINK}"
 
-echo "[run_metal_trace] Output folder: ${OUTPUT_DIR}"
-echo "Run started at: $(date)" > "${SUMMARY_FILE}"
-echo "Trace file: ${TRACE_FILE}" >> "${SUMMARY_FILE}"
-echo "Grep pattern: ${GREP_PATTERN}" >> "${SUMMARY_FILE}"
-echo "Timeout: ${TIMEOUT_SECS}s" >> "${SUMMARY_FILE}"
-echo "GPU capture: ${CAPTURE_ENABLED}" >> "${SUMMARY_FILE}"
-echo "" >> "${SUMMARY_FILE}"
+BUILD_LOG="${MASTER_OUTPUT_DIR}/build.log"
+MASTER_SUMMARY="${MASTER_OUTPUT_DIR}/master_summary.txt"
 
-echo "[run_metal_trace] Building xenia-gpu-metal-trace-dump (this may take a while)..."
-# Suppress detailed build output; only report success/failure.
-if ./xb build --target=xenia-gpu-metal-trace-dump >"${BUILD_LOG}" 2>&1; then
-  echo "[run_metal_trace] Build succeeded. Build log: ${BUILD_LOG}"
-  echo "Build: SUCCESS" >> "${SUMMARY_FILE}"
+echo "[run_metal_trace] Output folder: ${MASTER_OUTPUT_DIR}"
+echo "Run started at: $(date)" > "${MASTER_SUMMARY}"
+echo "Input path: ${INPUT_PATH}" >> "${MASTER_SUMMARY}"
+echo "Grep pattern: ${FULL_GREP_PATTERN}" >> "${MASTER_SUMMARY}"
+echo "Timeout: ${TIMEOUT_SECS}s" >> "${MASTER_SUMMARY}"
+echo "GPU capture: ${CAPTURE_ENABLED}" >> "${MASTER_SUMMARY}"
+echo "" >> "${MASTER_SUMMARY}"
+
+# --- Build Step ---
+echo "[run_metal_trace] Building xenia-gpu-metal-trace-dump..."
+if ./xb build --target=xenia-gpu-metal-trace-dump --config=Checked >"${BUILD_LOG}" 2>&1; then
+  echo "[run_metal_trace] Build succeeded."
+  echo "Build: SUCCESS" >> "${MASTER_SUMMARY}"
 else
-  echo "[run_metal_trace] Build FAILED. Showing relevant errors from ${BUILD_LOG}:" >&2
-  echo "Build: FAILED" >> "${SUMMARY_FILE}"
+  echo "[run_metal_trace] Build FAILED. See ${BUILD_LOG}" >&2
+  echo "Build: FAILED" >> "${MASTER_SUMMARY}"
   if command -v rg >/dev/null 2>&1; then
-    rg -n -C5 "error:|fatal error|Undefined symbols for architecture|ld: error" "${BUILD_LOG}" || \
-      echo "[run_metal_trace] No obvious error lines found in build log." >&2
+    rg -n -C5 "error:|fatal error|ld: error" "${BUILD_LOG}" || true
   else
-    grep -nE -C5 "error:|fatal error|Undefined symbols for architecture|ld: error" "${BUILD_LOG}" || \
-      echo "[run_metal_trace] No obvious error lines found in build log." >&2
+    grep -nE -C5 "error:|fatal error|ld: error" "${BUILD_LOG}" || true
   fi
   exit 1
 fi
 
-# Run the trace-dump with configurable timeout.
-# Use Python's subprocess timeout for portability across macOS setups.
 BIN="${ROOT_DIR}/build/bin/Mac/Checked/xenia-gpu-metal-trace-dump"
 if [[ ! -x "${BIN}" ]]; then
   echo "[run_metal_trace] ERROR: Binary not found at ${BIN}" >&2
   exit 1
 fi
 
-echo "[run_metal_trace] Running trace-dump on ${TRACE_FILE} (timeout ~${TIMEOUT_SECS}s)..."
+# --- Helper Function to Run Single Trace ---
+run_single_trace() {
+  local t_file="$1"
+  local t_name
+  t_name="$(basename "${t_file}" .xenia_gpu_trace)"
+  
+  local run_dir="${MASTER_OUTPUT_DIR}/${t_name}"
+  local shaders_dir="${run_dir}/shaders"
+  local textures_dir="${run_dir}/textures"
+  local log_file="${run_dir}/trace.log"
+  local summary_file="${run_dir}/summary.txt"
+  
+  mkdir -p "${run_dir}" "${shaders_dir}" "${textures_dir}"
 
-# Export environment variables for the trace dump
-export XENIA_TEXTURE_DUMP_DIR="${ROOT_DIR}/${TEXTURES_DIR}"
-export XENIA_SHADER_DUMP_DIR="${ROOT_DIR}/${SHADERS_DIR}"
-export XENIA_DUMP_SHADERS="1"
-export XENIA_DUMP_TEXTURES="1"
+  echo "----------------------------------------------------------------"
+  echo "Processing: ${t_name}"
+  echo "Trace: ${t_file}"
+  
+  # Environment setup
+  export XENIA_TEXTURE_DUMP_DIR="${textures_dir}"
+  export XENIA_SHADER_DUMP_DIR="${shaders_dir}"
+  export XENIA_DUMP_SHADERS="1"
+  export XENIA_DUMP_TEXTURES="1"
+  
+  if [[ "${CAPTURE_ENABLED}" == "1" ]]; then
+    export XENIA_GPU_CAPTURE_DIR="${run_dir}"
+    export XENIA_GPU_CAPTURE_ENABLED="1"
+    export MTL_CAPTURE_ENABLED="1"
+  else
+    export XENIA_GPU_CAPTURE_ENABLED="0"
+    export MTL_CAPTURE_ENABLED="0"
+  fi
 
-if [[ "${CAPTURE_ENABLED}" == "1" ]]; then
-  # Enable programmatic GPU capture (saved to OUTPUT_DIR).
-  export XENIA_GPU_CAPTURE_DIR="${ROOT_DIR}/${OUTPUT_DIR}"
-  export XENIA_GPU_CAPTURE_ENABLED="1"
-  # Enable Metal capture layer for programmatic GPU capture.
-  # This is required for MTLCaptureManager to work outside of Xcode.
-  export MTL_CAPTURE_ENABLED="1"
-else
-  export XENIA_GPU_CAPTURE_ENABLED="0"
-  export MTL_CAPTURE_ENABLED="0"
-fi
+  # Pass variables to Python script via env
+  export LOG_FILE_ENV="${log_file}"
+  export TRACE_FILE_ENV="${t_file}"
+  export BIN_ENV="${BIN}"
+  export OUTPUT_DIR_ENV="${run_dir}" # Relative to CWD for Python script logic usually, but here absolute is safer or handle carefully
+  export TIMEOUT_SECS_ENV="${TIMEOUT_SECS}"
+  export ROOT_DIR_ENV="${ROOT_DIR}"
 
-export ROOT_DIR_ENV="${ROOT_DIR}"
-export LOG_FILE_ENV="${LOG_FILE}"
-export TRACE_FILE_ENV="${TRACE_FILE}"
-export BIN_ENV="${BIN}"
-export OUTPUT_DIR_ENV="${OUTPUT_DIR}"
-export TIMEOUT_SECS_ENV="${TIMEOUT_SECS}"
-
-python3 - << 'EOF'
+  # Execute trace dump using Python for reliable timeout
+  python3 - << 'EOF'
 import os
 import subprocess
 import sys
@@ -135,117 +132,102 @@ bin_path = os.environ.get("BIN_ENV")
 output_dir = os.environ.get("OUTPUT_DIR_ENV")
 timeout_secs = int(os.environ.get("TIMEOUT_SECS_ENV", "8"))
 
-if not bin_path:
-    print("[run_metal_trace] ERROR: BIN_ENV not set")
-    raise SystemExit(1)
-
 cmd = [bin_path, f"--target_trace_file={trace_file}", f"--log_file={log_file}", "--log_level=4"]
-cmd.append(f"--trace_dump_path={os.path.join(os.environ.get('ROOT_DIR_ENV', '.'), output_dir)}")
+# trace_dump_path determines where the output PNG goes
+cmd.append(f"--trace_dump_path={output_dir}")
 
-# Suppress the binary's stdout/stderr to avoid flooding the console; rely on
-# the log file + filtered rg/grep output instead.
 run_status = "UNKNOWN"
 with open(os.devnull, 'wb') as devnull:
     try:
         proc = subprocess.run(cmd, check=False, timeout=timeout_secs,
                               stdout=devnull, stderr=devnull)
         if proc.returncode == 0:
-            print(f"[run_metal_trace] Trace-dump completed successfully")
             run_status = "SUCCESS"
         else:
-            print(f"[run_metal_trace] Trace-dump exited with code {proc.returncode}")
             run_status = f"EXITED_CODE_{proc.returncode}"
     except subprocess.TimeoutExpired:
-        print(f"[run_metal_trace] Trace-dump TIMED OUT after {timeout_secs} seconds; killing process.")
         run_status = "TIMEOUT"
 
-# Write status to summary
-summary_path = os.path.join(os.environ.get("ROOT_DIR_ENV", "."), output_dir, "summary.txt")
-with open(summary_path, "a") as f:
-    f.write(f"Run status: {run_status}\n")
+with open(os.path.join(output_dir, "status.txt"), "w") as f:
+    f.write(run_status)
 EOF
 
-if [[ ! -f "${LOG_FILE}" ]]; then
-  echo "[run_metal_trace] No log file produced at ${LOG_FILE}." >&2
+  local status
+  if [[ -f "${run_dir}/status.txt" ]]; then
+    status=$(cat "${run_dir}/status.txt")
+  else
+    status="UNKNOWN_ERROR"
+  fi
+  
+  echo "Status: ${status}"
+  
+  # Check for output PNG
+  local png_status="MISSING"
+  if [[ -f "${run_dir}/${t_name}.png" ]]; then
+    png_status="GENERATED"
+    
+    # Save a copy to scratch/images for tracking
+    local git_hash
+    git_hash=$(git rev-parse --short HEAD 2>/dev/null || echo "nogit")
+    local img_timestamp
+    img_timestamp=$(date +%Y%m%d_%H%M%S)
+    local images_dir="${ROOT_DIR}/scratch/images"
+    mkdir -p "${images_dir}"
+    cp "${run_dir}/${t_name}.png" "${images_dir}/${t_name}_${git_hash}_${img_timestamp}.png"
+  fi
+
+  # Post-process artifacts (move from /tmp/ or root if leaked, though env vars should prevent most)
+  # (Simpler cleanup here than original script for brevity, relying on env vars mostly working)
+  # Just double check /tmp/ for shaders if env var didn't catch them all (sometimes happens)
+  shopt -s nullglob
+  for f in /tmp/xenia_shader_*.metallib /tmp/xenia_shader_*.dxbc /tmp/xenia_shader_*.dxil; do
+    if [[ -f "$f" ]]; then mv "$f" "${shaders_dir}/"; fi
+  done
+  shopt -u nullglob
+
+  # Log Analysis
+  local log_matches=""
+  if [[ -f "${log_file}" ]]; then
+    if command -v rg >/dev/null 2>&1; then
+      log_matches=$(rg -n "${FULL_GREP_PATTERN}" "${log_file}" | head -n 20) || true
+    else
+      log_matches=$(grep -nE "${FULL_GREP_PATTERN}" "${log_file}" | head -n 20) || true
+    fi
+  fi
+
+  # Append to summary
+  {
+    echo "Trace: ${t_name}"
+    echo "  Status: ${status}"
+    echo "  PNG: ${png_status}"
+    if [[ -n "${log_matches}" ]]; then
+      echo "  Important Logs:"
+      echo "${log_matches}" | sed 's/^/    /'
+    fi
+    echo ""
+  } >> "${MASTER_SUMMARY}"
+  
+  echo "  -> See ${run_dir} for details."
+}
+
+# --- Main Logic ---
+
+if [[ -d "${INPUT_PATH}" ]]; then
+  echo "[run_metal_trace] Processing all traces in directory: ${INPUT_PATH}"
+  # Find all .xenia_gpu_trace and .xtr files
+  # Use while loop to handle filenames with spaces correctly
+  find "${INPUT_PATH}" \( -name "*.xenia_gpu_trace" -o -name "*.xtr" \) -print0 | sort -z | while IFS= read -r -d '' trace; do
+    run_single_trace "${trace}"
+  done
+elif [[ -f "${INPUT_PATH}" ]]; then
+  echo "[run_metal_trace] Processing single trace: ${INPUT_PATH}"
+  run_single_trace "${INPUT_PATH}"
+else
+  echo "[run_metal_trace] Error: Input path '${INPUT_PATH}' is not a file or directory." >&2
   exit 1
 fi
 
-# Output PNG should be written to OUTPUT_DIR via --trace_dump_path.
-TRACE_BASENAME="$(basename "${TRACE_FILE}" .xenia_gpu_trace)"
-if [[ -f "${OUTPUT_DIR}/${TRACE_BASENAME}.png" ]]; then
-  echo "[run_metal_trace] Output PNG: ${OUTPUT_DIR}/${TRACE_BASENAME}.png"
-  echo "Output PNG: ${TRACE_BASENAME}.png" >> "${SUMMARY_FILE}"
-else
-  echo "[run_metal_trace] No output PNG found at ${OUTPUT_DIR}/${TRACE_BASENAME}.png"
-  echo "Output PNG: not found" >> "${SUMMARY_FILE}"
-fi
-
-# Count shaders dumped directly to SHADERS_DIR via XENIA_SHADER_DUMP_DIR env var
-SHADER_COUNT=$(find "${SHADERS_DIR}" -name "shader_*" -type f 2>/dev/null | wc -l | tr -d ' ')
-# Also collect any from /tmp (legacy location) if they exist
-shopt -s nullglob
-for f in /tmp/xenia_shader_*.metallib /tmp/xenia_shader_*.dxbc /tmp/xenia_shader_*.dxil; do
-  if [[ -f "$f" ]]; then
-    mv "$f" "${SHADERS_DIR}/"
-    ((SHADER_COUNT++)) || true
-  fi
-done
-shopt -u nullglob
-echo "[run_metal_trace] Found ${SHADER_COUNT} shader files in ${SHADERS_DIR}/"
-echo "Shaders collected: ${SHADER_COUNT}" >> "${SUMMARY_FILE}"
-
-# Collect any textures dumped
-TEXTURE_COUNT=0
-shopt -s nullglob
-for f in /tmp/xenia_tex_*.raw /tmp/xenia_tex_*.png; do
-  if [[ -f "$f" ]]; then
-    cp "$f" "${TEXTURES_DIR}/"
-    ((TEXTURE_COUNT++)) || true
-  fi
-done
-# Also collect GPU texture dumps from root
-for f in "${ROOT_DIR}"/gpu_texture_*.png; do
-  if [[ -f "$f" ]]; then
-    cp "$f" "${TEXTURES_DIR}/"
-    ((TEXTURE_COUNT++)) || true
-  fi
-done
-shopt -u nullglob
-echo "[run_metal_trace] Collected ${TEXTURE_COUNT} texture files to ${TEXTURES_DIR}/"
-echo "Textures collected: ${TEXTURE_COUNT}" >> "${SUMMARY_FILE}"
-
-# Collect GPU trace if present (note: .gputrace is a directory bundle)
-GPUTRACE_COUNT=0
-shopt -s nullglob
-for f in "${OUTPUT_DIR}"/*.gputrace "${ROOT_DIR}"/*.gputrace; do
-  if [[ -d "$f" ]] && [[ "$f" != "${OUTPUT_DIR}"/* ]]; then
-    mv "$f" "${OUTPUT_DIR}/"
-    ((GPUTRACE_COUNT++)) || true
-  elif [[ -d "$f" ]]; then
-    ((GPUTRACE_COUNT++)) || true
-  fi
-done
-shopt -u nullglob
-echo "GPU traces: ${GPUTRACE_COUNT}" >> "${SUMMARY_FILE}"
-if [[ ${GPUTRACE_COUNT} -gt 0 ]]; then
-  echo "[run_metal_trace] Found ${GPUTRACE_COUNT} GPU trace(s) - open with: open ${OUTPUT_DIR}/*.gputrace"
-fi
-
-# Finalize summary
-echo "" >> "${SUMMARY_FILE}"
-echo "Run completed at: $(date)" >> "${SUMMARY_FILE}"
-
-# Filter log output to only the lines we care about, with small context.
-echo ""
-echo "[run_metal_trace] Filtered log (pattern: ${GREP_PATTERN}) from ${LOG_FILE}:"
-if command -v rg >/dev/null 2>&1; then
-  rg -n -C5 "${GREP_PATTERN}" "${LOG_FILE}" || echo "[run_metal_trace] No matches found."
-else
-  grep -nE -C5 "${GREP_PATTERN}" "${LOG_FILE}" || echo "[run_metal_trace] No matches found."
-fi
-
-echo ""
-echo "[run_metal_trace] Summary:"
-cat "${SUMMARY_FILE}"
-echo ""
-echo "[run_metal_trace] All artifacts saved to: ${OUTPUT_DIR}"
+echo "----------------------------------------------------------------"
+echo "[run_metal_trace] All Done."
+echo "Master Summary available at: ${MASTER_SUMMARY}"
+cat "${MASTER_SUMMARY}"

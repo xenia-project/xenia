@@ -116,6 +116,10 @@ class MetalCommandProcessor : public CommandProcessor {
       MetalShader::MetalTranslation* pixel_translation,
       const RegisterFile& regs);
 
+  // Fixed-function depth/stencil state (mirrors Vulkan/D3D12 dynamic state).
+  void ApplyDepthStencilState(bool primitive_polygonal,
+                              reg::RB_DEPTHCONTROL normalized_depth_control);
+
   // Debug rendering
   bool CreateDebugPipeline();
   void DrawDebugQuad();
@@ -215,6 +219,32 @@ class MetalCommandProcessor : public CommandProcessor {
 
   // Pipeline cache (keyed by shader combination)
   std::unordered_map<uint64_t, MTL::RenderPipelineState*> pipeline_cache_;
+
+  struct DepthStencilStateKey {
+    uint32_t depth_control;
+    uint32_t stencil_ref_mask_front;
+    uint32_t stencil_ref_mask_back;
+    uint32_t polygonal_and_backface;
+    bool operator==(const DepthStencilStateKey& other) const {
+      return depth_control == other.depth_control &&
+             stencil_ref_mask_front == other.stencil_ref_mask_front &&
+             stencil_ref_mask_back == other.stencil_ref_mask_back &&
+             polygonal_and_backface == other.polygonal_and_backface;
+    }
+    struct Hasher {
+      size_t operator()(const DepthStencilStateKey& key) const {
+        size_t h = size_t(key.depth_control);
+        h ^= size_t(key.stencil_ref_mask_front) << 1;
+        h ^= size_t(key.stencil_ref_mask_back) << 2;
+        h ^= size_t(key.polygonal_and_backface) << 3;
+        return h;
+      }
+    };
+  };
+
+  std::unordered_map<DepthStencilStateKey, MTL::DepthStencilState*,
+                     DepthStencilStateKey::Hasher>
+      depth_stencil_state_cache_;
 
   // Debug pipeline for testing
   MTL::RenderPipelineState* debug_pipeline_ = nullptr;

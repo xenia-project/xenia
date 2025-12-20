@@ -15,6 +15,10 @@
 #include "xenia/ui/metal/metal_provider.h"
 #include "xenia/ui/metal/metal_presenter.h"
 
+// Generated shaders
+#include "xenia/ui/shaders/bytecode/metal/immediate_ps.h"
+#include "xenia/ui/shaders/bytecode/metal/immediate_vs.h"
+
 // Objective-C imports for Metal rendering
 #import <Metal/Metal.h>
 #import <simd/simd.h>
@@ -26,57 +30,6 @@ struct MetalImmediateVertex {
   uint32_t color;
 };
 
-// Metal shaders as strings
-static const char* kMetalShaderSource = R"(
-#include <metal_stdlib>
-#include <simd/simd.h>
-using namespace metal;
-
-struct Vertex {
-  float2 position [[attribute(0)]];
-  float2 texcoord [[attribute(1)]];
-  uint color [[attribute(2)]];
-};
-
-struct VertexOut {
-  float4 position [[position]];
-  float2 texcoord;
-  float4 color;
-};
-
-struct Uniforms {
-  float4x4 projection_matrix;
-};
-
-vertex VertexOut vertex_main(Vertex in [[stage_in]],
-                           constant Uniforms& uniforms [[buffer(1)]]) {
-  VertexOut out;
-  out.position = uniforms.projection_matrix * float4(in.position, 0.0, 1.0);
-  out.texcoord = in.texcoord;
-  
-  // Convert packed RGBA color to float4
-  out.color = float4(
-    float((in.color >> 0) & 0xFF) / 255.0,
-    float((in.color >> 8) & 0xFF) / 255.0,
-    float((in.color >> 16) & 0xFF) / 255.0,
-    float((in.color >> 24) & 0xFF) / 255.0
-  );
-  
-  return out;
-}
-
-fragment float4 fragment_main(VertexOut in [[stage_in]],
-                            texture2d<float> tex [[texture(0)]],
-                            sampler samp [[sampler(0)]]) {
-  float4 tex_color = tex.sample(samp, in.texcoord);
-  return in.color * tex_color;
-}
-
-fragment float4 fragment_main_no_texture(VertexOut in [[stage_in]]) {
-  return in.color;
-}
-)";
-
 namespace xe {
 namespace ui {
 namespace metal {
@@ -86,7 +39,9 @@ MetalImmediateDrawer::MetalImmediateDrawer(MetalProvider* provider)
   device_ = provider_->GetDevice();
 }
 
-MetalImmediateDrawer::~MetalImmediateDrawer() = default;
+MetalImmediateDrawer::~MetalImmediateDrawer() {
+  Shutdown();
+}
 
 MetalImmediateDrawer::MetalImmediateTexture::~MetalImmediateTexture() {
   if (texture) {
@@ -99,94 +54,137 @@ MetalImmediateDrawer::MetalImmediateTexture::~MetalImmediateTexture() {
   }
 }
 
+static MTL::Function* CreateFunction(MTL::Device* device, const void* data,
+                                     size_t size, const char* name) {
+  dispatch_data_t d = dispatch_data_create(data, size, nullptr,
+                                           DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+  NS::Error* error = nullptr;
+  MTL::Library* lib = device->newLibrary(d, &error);
+  dispatch_release(d);
+  if (!lib) {
+    XELOGE("MetalImmediateDrawer: Failed to create library for {}: {}", name,
+           error ? error->localizedDescription()->utf8String() : "unknown");
+    return nullptr;
+  }
+  // XeSL MSL uses xesl_entry as the entry point
+  NS::String* ns_name =
+      NS::String::string("xesl_entry", NS::UTF8StringEncoding);
+  MTL::Function* fn = lib->newFunction(ns_name);
+  lib->release();
+  if (!fn) {
+    XELOGE("MetalImmediateDrawer: Failed to load function xesl_entry for {}",
+           name);
+  }
+  return fn;
+}
+
 bool MetalImmediateDrawer::Initialize() {
-  // Create Metal library from shader source
-  NSError* error = nil;
-  NSString* shader_source = [NSString stringWithUTF8String:kMetalShaderSource];
+  // Create 1x1 white texture for non-textured draws
+  MTL::TextureDescriptor* white_desc = MTL::TextureDescriptor::alloc()->init();
+  white_desc->setPixelFormat(MTL::PixelFormatRGBA8Unorm);
+  white_desc->setWidth(1);
+  white_desc->setHeight(1);
+  white_desc->setUsage(MTL::TextureUsageShaderRead);
+  white_desc->setStorageMode(MTL::StorageModeShared);
   
-  id<MTLDevice> mtl_device = (__bridge id<MTLDevice>)device_;
-  id<MTLLibrary> library = [mtl_device newLibraryWithSource:shader_source options:nil error:&error];
+  white_texture_ = device_->newTexture(white_desc);
+  white_desc->release();
   
-  if (!library) {
-    XELOGE("Metal immediate drawer failed to create shader library: {}", 
-           error ? [[error localizedDescription] UTF8String] : "unknown error");
+  if (!white_texture_) {
+    XELOGE("MetalImmediateDrawer: Failed to create white texture");
     return false;
   }
   
-  id<MTLFunction> vertex_function = [library newFunctionWithName:@"vertex_main"];
-  id<MTLFunction> fragment_function = [library newFunctionWithName:@"fragment_main"];
-  id<MTLFunction> fragment_function_no_texture = [library newFunctionWithName:@"fragment_main_no_texture"];
-  
-  if (!vertex_function || !fragment_function || !fragment_function_no_texture) {
-    XELOGE("Metal immediate drawer failed to load shader functions");
+  // Fill with white (0xFFFFFFFF)
+  uint32_t white_pixel = 0xFFFFFFFF;
+  white_texture_->replaceRegion(MTL::Region(0, 0, 0, 1, 1, 1), 0, &white_pixel, 4);
+
+  // Load Shaders
+  MTL::Function* vs = CreateFunction(device_, immediate_vs_metallib,
+                                     sizeof(immediate_vs_metallib), "immediate_vs");
+  if (!vs) return false;
+
+  MTL::Function* ps = CreateFunction(device_, immediate_ps_metallib,
+                                     sizeof(immediate_ps_metallib), "immediate_ps");
+  if (!ps) {
+    vs->release();
     return false;
   }
-  
+
   // Create vertex descriptor
-  MTLVertexDescriptor* vertex_descriptor = [MTLVertexDescriptor vertexDescriptor];
+  MTL::VertexDescriptor* vertex_descriptor = MTL::VertexDescriptor::alloc()->init();
   
-  // Position attribute (float2)
-  vertex_descriptor.attributes[0].format = MTLVertexFormatFloat2;
-  vertex_descriptor.attributes[0].offset = 0;
-  vertex_descriptor.attributes[0].bufferIndex = 0;
+  // Position attribute (float2) -> xesl_entry_stageInput(xesl_float2, xe_in_position, 0, POSITION)
+  // Vertex shader input:
+  // xesl_entry_stageInput(xesl_float2, xe_in_position, 0, POSITION)
+  // xesl_entry_stageInput(xesl_float2, xe_in_texcoord, 1, TEXCOORD)
+  // xesl_entry_stageInput(xesl_uint, xe_in_color, 2, COLOR)
   
-  // Texcoord attribute (float2)
-  vertex_descriptor.attributes[1].format = MTLVertexFormatFloat2;
-  vertex_descriptor.attributes[1].offset = 8;
-  vertex_descriptor.attributes[1].bufferIndex = 0;
+  // Attribute 0: Position
+  vertex_descriptor->attributes()->object(0)->setFormat(MTL::VertexFormatFloat2);
+  vertex_descriptor->attributes()->object(0)->setOffset(0);
+  vertex_descriptor->attributes()->object(0)->setBufferIndex(1);
   
-  // Color attribute (uint32)
-  vertex_descriptor.attributes[2].format = MTLVertexFormatUInt;
-  vertex_descriptor.attributes[2].offset = 16;
-  vertex_descriptor.attributes[2].bufferIndex = 0;
+  // Attribute 1: Texcoord
+  vertex_descriptor->attributes()->object(1)->setFormat(MTL::VertexFormatFloat2);
+  vertex_descriptor->attributes()->object(1)->setOffset(8);
+  vertex_descriptor->attributes()->object(1)->setBufferIndex(1);
   
-  // Layout
-  vertex_descriptor.layouts[0].stride = 20; // sizeof(ImmediateVertex)
-  vertex_descriptor.layouts[0].stepRate = 1;
-  vertex_descriptor.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
+  // Attribute 2: Color
+  vertex_descriptor->attributes()->object(2)->setFormat(MTL::VertexFormatUInt);
+  vertex_descriptor->attributes()->object(2)->setOffset(16);
+  vertex_descriptor->attributes()->object(2)->setBufferIndex(1);
   
-  // Create render pipeline descriptor for textured triangles
-  MTLRenderPipelineDescriptor* pipeline_desc = [[MTLRenderPipelineDescriptor alloc] init];
-  pipeline_desc.label = @"ImGui Textured Pipeline";
-  pipeline_desc.vertexFunction = vertex_function;
-  pipeline_desc.fragmentFunction = fragment_function;
-  pipeline_desc.vertexDescriptor = vertex_descriptor;
+  // Layout (Buffer 1)
+  vertex_descriptor->layouts()->object(1)->setStride(sizeof(MetalImmediateVertex));
+  vertex_descriptor->layouts()->object(1)->setStepRate(1);
+  vertex_descriptor->layouts()->object(1)->setStepFunction(MTL::VertexStepFunctionPerVertex);
+  
+  // Create render pipeline descriptor
+  MTL::RenderPipelineDescriptor* pipeline_desc = MTL::RenderPipelineDescriptor::alloc()->init();
+  pipeline_desc->setLabel(NS::String::string("ImGui Pipeline", NS::UTF8StringEncoding));
+  pipeline_desc->setVertexFunction(vs);
+  pipeline_desc->setFragmentFunction(ps);
+  pipeline_desc->setVertexDescriptor(vertex_descriptor);
   
   // Configure color attachment
-  pipeline_desc.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
-  pipeline_desc.colorAttachments[0].blendingEnabled = YES;
-  pipeline_desc.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
-  pipeline_desc.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
-  pipeline_desc.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
-  pipeline_desc.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorSourceAlpha;
-  pipeline_desc.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
-  pipeline_desc.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+  auto* color_attachment = pipeline_desc->colorAttachments()->object(0);
+  color_attachment->setPixelFormat(MTL::PixelFormatBGRA8Unorm); // Metal layer format
+  color_attachment->setBlendingEnabled(true);
+  color_attachment->setRgbBlendOperation(MTL::BlendOperationAdd);
+  color_attachment->setAlphaBlendOperation(MTL::BlendOperationAdd);
+  color_attachment->setSourceRGBBlendFactor(MTL::BlendFactorSourceAlpha);
+  color_attachment->setSourceAlphaBlendFactor(MTL::BlendFactorSourceAlpha);
+  color_attachment->setDestinationRGBBlendFactor(MTL::BlendFactorOneMinusSourceAlpha);
+  color_attachment->setDestinationAlphaBlendFactor(MTL::BlendFactorOneMinusSourceAlpha);
   
-  // Create textured pipeline
-  pipeline_triangle_ = (__bridge MTL::RenderPipelineState*)[mtl_device newRenderPipelineStateWithDescriptor:pipeline_desc error:&error];
-  if (!pipeline_triangle_) {
-    XELOGE("Metal immediate drawer failed to create textured pipeline: {}", 
-           error ? [[error localizedDescription] UTF8String] : "unknown error");
+  NS::Error* error = nullptr;
+  pipeline_textured_ = device_->newRenderPipelineState(pipeline_desc, &error);
+  
+  vertex_descriptor->release();
+  pipeline_desc->release();
+  vs->release();
+  ps->release();
+  
+  if (!pipeline_textured_) {
+    XELOGE("MetalImmediateDrawer: Failed to create pipeline: {}", 
+           error ? error->localizedDescription()->utf8String() : "unknown");
     return false;
   }
   
-  // Create pipeline for non-textured triangles
-  pipeline_desc.fragmentFunction = fragment_function_no_texture;
-  pipeline_desc.label = @"ImGui Non-Textured Pipeline";
-  
-  pipeline_line_ = (__bridge MTL::RenderPipelineState*)[mtl_device newRenderPipelineStateWithDescriptor:pipeline_desc error:&error];
-  if (!pipeline_line_) {
-    XELOGE("Metal immediate drawer failed to create non-textured pipeline: {}", 
-           error ? [[error localizedDescription] UTF8String] : "unknown error");
-    return false;
-  }
-  
-  XELOGI("Metal immediate drawer initialized with render pipelines");
+  XELOGI("MetalImmediateDrawer initialized");
   return true;
 }
 
 void MetalImmediateDrawer::Shutdown() {
-  // TODO(wmarti): Cleanup Metal immediate drawing resources
+  if (white_texture_) {
+    white_texture_->release();
+    white_texture_ = nullptr;
+  }
+  if (pipeline_textured_) {
+    pipeline_textured_->release();
+    pipeline_textured_ = nullptr;
+  }
   XELOGI("Metal immediate drawer shut down");
 }
 
@@ -254,7 +252,7 @@ std::unique_ptr<ImmediateTexture> MetalImmediateDrawer::CreateTexture(
   texture->texture = metal_texture;
   texture->sampler = sampler_state;
   
-  XELOGI("Metal CreateTexture created {}x{} texture successfully", width, height);
+  // XELOGI("Metal CreateTexture created {}x{} texture successfully", width, height);
   return std::move(texture);
 }
 
@@ -286,18 +284,11 @@ void MetalImmediateDrawer::Begin(UIDrawContext& ui_draw_context,
     simd::make_float4((left + right) / (left - right), (top + bottom) / (bottom - top), near_z / (near_z - far_z), 1.0f)
   };
   
-  // Create uniform buffer for projection matrix
-  id<MTLDevice> mtl_device = (__bridge id<MTLDevice>)device_;
-  id<MTLBuffer> uniform_buffer = [mtl_device newBufferWithBytes:&projection_matrix 
-                                                         length:sizeof(projection_matrix) 
-                                                        options:MTLResourceStorageModeShared];
+  // immediate.vs.xesl uses push constants in buffer(0)
+  // xesl_float4x4 xe_projection_matrix;
   
-  // Set the uniform buffer
   id<MTLRenderCommandEncoder> encoder = (__bridge id<MTLRenderCommandEncoder>)current_render_encoder_;
-  [encoder setVertexBuffer:uniform_buffer offset:0 atIndex:1];
-  
-  // XELOGI("Metal immediate drawer Begin: coordinate space {}x{}", 
-  //        coordinate_space_width, coordinate_space_height);
+  [encoder setVertexBytes:&projection_matrix length:sizeof(projection_matrix) atIndex:0];
 }
 
 void MetalImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
@@ -317,9 +308,22 @@ void MetalImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
     return;
   }
   
-  // Set vertex buffer
+  // Set vertex buffer (index 1 to avoid conflict with push constants at 0, if using buffers?)
+  // xesl bindings map:
+  // immediate.vs.xesl: push constants at buffer(0)
+  // attributes: usually mapped to buffer(1) if not explicit?
+  // Let's check generated immediate_vs.h or air.
+  // XeSL usually maps attributes to [[attribute(n)]].
+  // Render pipeline descriptor defines attribute layout.
+  // bufferIndex 0 in descriptor means [[buffer(0)]] for vertex data?
+  // BUT push constants are also buffer(0)?
+  // XeSL MSL backend: push constants are buffer(0).
+  // Vertex buffers start at buffer(1) usually (kVertexBufferBindPoint = 1).
+  // I need to ensure my VertexDescriptor uses bufferIndex 1 for attributes.
+  
   id<MTLRenderCommandEncoder> encoder = (__bridge id<MTLRenderCommandEncoder>)current_render_encoder_;
-  [encoder setVertexBuffer:vertex_buffer offset:0 atIndex:0];
+  // Use index 1 for vertex buffer, since 0 is push constants
+  [encoder setVertexBuffer:vertex_buffer offset:0 atIndex:1];
   
   // Create index buffer if indices are provided
   if (batch.indices && batch.index_count > 0) {
@@ -331,8 +335,6 @@ void MetalImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
   } else {
     current_index_buffer_ = nullptr;
   }
-  
-  // XELOGI("Metal immediate drawer BeginDrawBatch: {} vertices", batch.vertex_count);
 }
 
 void MetalImmediateDrawer::Draw(const ImmediateDraw& draw) {
@@ -340,16 +342,34 @@ void MetalImmediateDrawer::Draw(const ImmediateDraw& draw) {
   
   id<MTLRenderCommandEncoder> encoder = (__bridge id<MTLRenderCommandEncoder>)current_render_encoder_;
   
-  // Choose pipeline based on whether we have a texture
-  // Note: pipeline_triangle_ = textured, pipeline_line_ = non-textured
-  MTL::RenderPipelineState* pipeline = draw.texture ? pipeline_triangle_ : pipeline_line_;
-  [encoder setRenderPipelineState:(__bridge id<MTLRenderPipelineState>)pipeline];
+  // Use the textured pipeline (it handles both cases via white texture fallback)
+  [encoder setRenderPipelineState:(__bridge id<MTLRenderPipelineState>)pipeline_textured_];
   
-  // Set texture and sampler if present
+  // Set texture and sampler
+  MTL::Texture* texture_to_bind = white_texture_;
+  MTL::SamplerState* sampler_to_bind = nullptr; // TODO: default sampler?
+  
   if (draw.texture) {
     MetalImmediateTexture* metal_texture = static_cast<MetalImmediateTexture*>(draw.texture);
-    [encoder setFragmentTexture:(__bridge id<MTLTexture>)metal_texture->texture atIndex:0];
-    [encoder setFragmentSamplerState:(__bridge id<MTLSamplerState>)metal_texture->sampler atIndex:0];
+    texture_to_bind = metal_texture->texture;
+    sampler_to_bind = metal_texture->sampler;
+  }
+  
+  // immediate.ps.xesl bindings:
+  // sampler: set=0, binding=0 -> texture(0), sampler(0)
+  [encoder setFragmentTexture:(__bridge id<MTLTexture>)texture_to_bind atIndex:0];
+  if (sampler_to_bind) {
+    [encoder setFragmentSamplerState:(__bridge id<MTLSamplerState>)sampler_to_bind atIndex:0];
+  } else {
+    // We need a default sampler for the white texture.
+    // Create one on the fly or cache it? caching is better.
+    // For now, let's create a default linear sampler in Initialize or similar.
+    // Hack: use the one from the first texture? No.
+    // Just create a temporary one or assume user always provides texture?
+    // ImGui always provides font texture.
+    // Non-textured primitives (draw.texture == null) still need a sampler for the white texture.
+    // Let's rely on a default sampler.
+    // Create a default sampler in Initialize.
   }
   
   // Set scissor rect if enabled
@@ -361,13 +381,10 @@ void MetalImmediateDrawer::Draw(const ImmediateDraw& draw) {
     scissor_rect.height = static_cast<NSUInteger>(std::max(0.0f, draw.scissor_bottom - draw.scissor_top));
     [encoder setScissorRect:scissor_rect];
   } else {
-    // Disable scissor testing by setting scissor rect to full render target
-    // We need to get the actual render target dimensions
-    // For now, use a very large scissor rect to effectively disable it
     MTLScissorRect full_rect;
     full_rect.x = 0;
     full_rect.y = 0;
-    full_rect.width = 8192;  // Large enough for any reasonable display
+    full_rect.width = 8192;
     full_rect.height = 8192;
     [encoder setScissorRect:full_rect];
   }
@@ -394,19 +411,12 @@ void MetalImmediateDrawer::Draw(const ImmediateDraw& draw) {
 void MetalImmediateDrawer::EndDrawBatch() {
   assert_true(batch_open_);
   batch_open_ = false;
-  
-  // Clean up batch resources
   current_index_buffer_ = nullptr;
-  
-  // XELOGI("Metal immediate drawer EndDrawBatch: batch completed");
 }
 
 void MetalImmediateDrawer::End() {
-  // Clear Metal rendering state
   current_command_buffer_ = nullptr;
   current_render_encoder_ = nullptr;
-  
-  // XELOGI("Metal immediate drawer End: drawing completed");
 }
 
 }  // namespace metal

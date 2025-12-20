@@ -66,8 +66,8 @@ class MetalImmediateDrawer : public ImmediateDrawer {
   MTL::Device* device_ = nullptr;
   
   // Rendering pipeline objects
-  MTL::RenderPipelineState* pipeline_triangle_ = nullptr;
-  MTL::RenderPipelineState* pipeline_line_ = nullptr;
+  MTL::RenderPipelineState* pipeline_textured_ = nullptr;
+  MTL::Texture* white_texture_ = nullptr;
   
   // Current rendering state
   MTL::CommandBuffer* current_command_buffer_ = nullptr;
