@@ -1627,8 +1627,9 @@ uint32_t MetalTextureCache::GetHostFormatSwizzle(TextureKey key) const {
     case xenos::TextureFormat::k_8_A:
     case xenos::TextureFormat::k_DXT3A:
     case xenos::TextureFormat::k_DXT5A:
-      // Map R to RRRR (Intensity). Matches D3D12.
-      return xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR;
+      // Map R to A, force RGB to 1.0 (111R) to fix missing text and UI artifacts.
+      // Note: RRRR (Intensity) causes regressions (Green Screen/Invisible Text) in Metal.
+      return XE_GPU_MAKE_TEXTURE_SWIZZLE(1, 1, 1, R);
 
     case xenos::TextureFormat::k_8_B:
     case xenos::TextureFormat::k_16:

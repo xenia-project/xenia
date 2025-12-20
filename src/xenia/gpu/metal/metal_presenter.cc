@@ -299,6 +299,30 @@ void MetalPresenter::BlitTexture(MTL::Texture* source, MTL::Texture* destination
     return;
   }
 
+  // Use blit encoder for simple copy if formats match and no scaling needed
+  if (source->pixelFormat() == destination->pixelFormat() &&
+      source->width() == destination->width() &&
+      source->height() == destination->height()) {
+    
+    MTL::BlitCommandEncoder* blit_encoder = current_command_buffer_->blitCommandEncoder();
+    if (blit_encoder) {
+      blit_encoder->setLabel(NS::String::string("Present Blit", NS::UTF8StringEncoding));
+      
+      // Copy entire texture
+      blit_encoder->copyFromTexture(
+          source, 0, 0,  // sourceSlice, sourceLevel
+          MTL::Origin(0, 0, 0),  // sourceOrigin
+          MTL::Size(source->width(), source->height(), 1),  // sourceSize
+          destination, 0, 0,  // destSlice, destLevel  
+          MTL::Origin(0, 0, 0)  // destOrigin
+      );
+      
+      blit_encoder->endEncoding();
+      // blit encoder is autoreleased - do not release
+      return;
+    }
+  }
+
   // Always use the render pass with blit pipeline to handle format conversion,
   // scaling, and gamma correction properly.
   // (The previous blit-copy optimization is removed because it bypasses gamma/scaling).

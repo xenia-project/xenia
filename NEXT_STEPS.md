@@ -344,7 +344,8 @@ asset pipeline and makes maintaining UI shaders harder.
 - [x] Fix Vertex Buffer index (1) vs Push Constants (0) conflict in MSL.
 
 ### Notes
-- **Texture Swizzling:** `k_8` and `k_DXT3A` are mapped to `RRRR` (Intensity) to match D3D12 behavior.
+- **Texture Swizzling:** `k_8` and `k_DXT3A` are mapped to `111R` (White RGB, Alpha from R) to fix text/UI visibility regressions seen with `RRRR`.
+- **Presentation:** `MetalPresenter` uses a simple Blit copy for 1:1 presentation to avoid shader pipeline issues (Green Screen), falling back to the `guest_output` pipeline only for scaling/format conversion.
 
 ---
 
@@ -352,8 +353,11 @@ asset pipeline and makes maintaining UI shaders harder.
 
 ### Problem Description
 1.  **Green Screen Regression:** Some scenes (e.g. Gears of War Title Menu) render as a solid green screen.
-    - **Status:** **Fixed**. Identified pixel format mismatch between `MetalImmediateDrawer` (Linear) and `MetalPresenter` (sRGB). Updated drawer to use `BGRA8Unorm_sRGB`.
-2.  **Texture Sampling Artifacts:** In-game Gears of War looks mostly correct, but specific textures (e.g. columns) show sampling errors (likely address mode, mipmap, or format interpretation issues).
+    - **Status:** **Fixed**. 
+        1. Identified pixel format mismatch in `MetalImmediateDrawer` (`BGRA8Unorm` vs `BGRA8Unorm_sRGB`).
+        2. Restored `111R` swizzle for `k_8` formats.
+        3. Restored simple Blit optimization in `MetalPresenter`.
+2.  **Texture Sampling Artifacts:** In-game Gears of War looks mostly correct, but specific textures (e.g. columns) show sampling errors.
 
 ### Root Cause Theories (Sampling)
 - **Mipmap transitions:** `k_DXT3A` / `k_8` swizzles are now `RRRR` (D3D12 parity), but maybe artifacts persist?
