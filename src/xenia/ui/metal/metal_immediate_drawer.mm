@@ -149,7 +149,7 @@ bool MetalImmediateDrawer::Initialize() {
   
   // Configure color attachment
   auto* color_attachment = pipeline_desc->colorAttachments()->object(0);
-  color_attachment->setPixelFormat(MTL::PixelFormatBGRA8Unorm); // Metal layer format
+  color_attachment->setPixelFormat(MTL::PixelFormatBGRA8Unorm_sRGB); // Match MetalLayer format
   color_attachment->setBlendingEnabled(true);
   color_attachment->setRgbBlendOperation(MTL::BlendOperationAdd);
   color_attachment->setAlphaBlendOperation(MTL::BlendOperationAdd);

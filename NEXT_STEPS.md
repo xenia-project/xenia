@@ -348,23 +348,21 @@ asset pipeline and makes maintaining UI shaders harder.
 
 ---
 
-## Phase 11: Regression Analysis & Texture Sampling (PENDING)
+## Phase 11: Regression Analysis & Texture Sampling (In Progress)
 
 ### Problem Description
-1.  **Green Screen Regression:** Some scenes (e.g. Gears of War Title Menu?) now render as a solid green screen, whereas previously they rendered correctly (albeit with some artifacts). This suggests an overcorrection in texture format mapping or swizzling, or an issue with the new presentation pipeline.
+1.  **Green Screen Regression:** Some scenes (e.g. Gears of War Title Menu) render as a solid green screen.
+    - **Status:** **Fixed**. Identified pixel format mismatch between `MetalImmediateDrawer` (Linear) and `MetalPresenter` (sRGB). Updated drawer to use `BGRA8Unorm_sRGB`.
 2.  **Texture Sampling Artifacts:** In-game Gears of War looks mostly correct, but specific textures (e.g. columns) show sampling errors (likely address mode, mipmap, or format interpretation issues).
 
-### Root Cause Theories
-- **Green Screen:**
-    - Could be `k_8` / `k_DXT3A` swizzle (`RRRR` vs `111R`). If the game relies on `111R` (White) for a modulation mask and `RRRR` gives Black/Red, it might fail. Or if it's a video texture format being mishandled.
-    - Could be `MetalPresenter` blit pipeline. If the source texture is valid but the presentation shader fails (e.g. gamma shader), it might output green/debug color.
-- **Sampling Artifacts:**
-    - Mipmap transitions?
-    - `TextureAddressMode` conversion? Metal has strict requirements.
+### Root Cause Theories (Sampling)
+- **Mipmap transitions:** `k_DXT3A` / `k_8` swizzles are now `RRRR` (D3D12 parity), but maybe artifacts persist?
+- **Address Mode:** Metal `ClampToEdge` vs Xenos `Border` (Black).
+- **Texture Loading:** `texture_load` shader might need tweaks for specific packed formats.
 
 ### Implementation Checklist
-- [ ] Investigate "Green Screen" trace. Dump the source texture before presentation.
-- [ ] Experiment with `k_8` swizzle (`111R`) again if `RRRR` is confirmed problematic for this specific case, despite D3D12 parity.
+- [x] Fix `MetalImmediateDrawer` pixel format (Green Screen).
+- [ ] Investigate "Sampling Artifacts" with new trace dump (once built).
 - [ ] Verify `MetalPresenter` input texture state.
 
 Run (Metal):
