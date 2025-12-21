@@ -26,11 +26,15 @@ project("xenia-hid-demo")
     "xenia-hid",
     "xenia-hid-nop",
     "xenia-ui",
-    "xenia-ui-vulkan",
   })
-  includedirs({
-    project_root.."/third_party/Vulkan-Headers/include",
-  })
+  filter("platforms:not Mac")
+    links({
+      "xenia-ui-vulkan",
+    })
+    includedirs({
+      project_root.."/third_party/Vulkan-Headers/include",
+    })
+  filter({})
   files({
     "hid_demo.cc",
     "../ui/windowed_app_main_"..platform_suffix..".cc",

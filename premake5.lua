@@ -326,7 +326,9 @@ workspace("xenia")
   include("third_party/cpptoml.lua")
   include("third_party/FFmpeg/premake5.lua")
   include("third_party/fmt.lua")
-  include("third_party/glslang-spirv.lua")
+  if not os.istarget("macosx") then
+    include("third_party/glslang-spirv.lua")
+  end
   include("third_party/imgui.lua")
   include("third_party/metal-shader-converter.lua")
   include("third_party/metal-cpp.lua")
@@ -373,12 +375,16 @@ workspace("xenia")
   include("src/xenia/debug/ui")
   include("src/xenia/gpu")
   include("src/xenia/gpu/null")
-  include("src/xenia/gpu/vulkan")
+  if not os.istarget("macosx") then
+    include("src/xenia/gpu/vulkan")
+  end
   include("src/xenia/hid")
   include("src/xenia/hid/nop")
   include("src/xenia/kernel")
   include("src/xenia/ui")
-  include("src/xenia/ui/vulkan")
+  if not os.istarget("macosx") then
+    include("src/xenia/ui/vulkan")
+  end
   include("src/xenia/vfs")
 
   filter("system:macosx")

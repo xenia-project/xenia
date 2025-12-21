@@ -5,8 +5,6 @@ group("src")
 project("xenia-app")
   uuid("d7e98620-d007-4ad8-9dbd-b47c8853a17f")
   language("C++")
-  local metal_converter_libdir =
-      path.getabsolute(path.join(project_root, "third_party/metal-shader-converter/lib"))
   links({
     "xenia-apu",
     "xenia-apu-nop",
@@ -15,12 +13,10 @@ project("xenia-app")
     "xenia-cpu",
     "xenia-gpu",
     "xenia-gpu-null",
-    "xenia-gpu-vulkan",
     "xenia-hid",
     "xenia-hid-nop",
     "xenia-kernel",
     "xenia-ui",
-    "xenia-ui-vulkan",
     "xenia-vfs",
   })
   links({
@@ -29,7 +25,6 @@ project("xenia-app")
     "fmt",
     "dxbc",
     "discord-rpc",
-    "glslang-spirv",
     "imgui",
     "libavcodec",
     "libavutil",
@@ -37,6 +32,13 @@ project("xenia-app")
     "snappy",
     "xxhash",
   })
+  filter("platforms:not Mac")
+    links({
+      "glslang-spirv",
+      "xenia-gpu-vulkan",
+      "xenia-ui-vulkan",
+    })
+  filter({})
   defines({
     "XBYAK_NO_OP_NAMES",
     "XBYAK_ENABLE_OMITTED_OPERAND",
@@ -58,6 +60,11 @@ project("xenia-app")
     links({
       "xenia-gpu-vulkan-trace-viewer",
       "xenia-hid-demo",
+      "xenia-ui-window-vulkan-demo",
+    })
+  filter({"platforms:Mac", SINGLE_LIBRARY_FILTER})
+    removelinks({
+      "xenia-gpu-vulkan-trace-viewer",
       "xenia-ui-window-vulkan-demo",
     })
   filter(NOT_SINGLE_LIBRARY_FILTER)
@@ -108,6 +115,8 @@ project("xenia-app")
     })
 
   filter("platforms:Mac")
+    local metal_converter_libdir =
+        path.getabsolute(path.join(project_root, "third_party/metal-shader-converter/lib"))
     -- Use the mac-specific windowed app entrypoint (avoid posix stub).
     removefiles({ "../ui/windowed_app_main_posix.cc" })
     files({ "../ui/windowed_app_main_mac.cc" })

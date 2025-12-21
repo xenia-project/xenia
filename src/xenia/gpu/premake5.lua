@@ -9,16 +9,22 @@ project("xenia-gpu")
   links({
     "dxbc",
     "fmt",
-    "glslang-spirv",
+    -- "glslang-spirv",
     "snappy",
     "xenia-base",
     "xenia-ui",
     "xxhash",
   })
   includedirs({
-    project_root.."/third_party/Vulkan-Headers/include",
+    -- project_root.."/third_party/Vulkan-Headers/include",
   })
   local_platform_files()
+  filter("platforms:Mac")
+    removefiles({
+      "spirv_*.cc",
+      "spirv_*.h",
+    })
+  filter({})
 
 group("src")
 project("xenia-gpu-shader-compiler")
@@ -28,15 +34,15 @@ project("xenia-gpu-shader-compiler")
   links({
     "dxbc",
     "fmt",
-    "glslang-spirv",
+    -- "glslang-spirv",
     "snappy",
     "xenia-base",
     "xenia-gpu",
     "xenia-ui",
-    "xenia-ui-vulkan",
+    "xenia-ui-metal",
   })
   includedirs({
-    project_root.."/third_party/Vulkan-Headers/include",
+    -- project_root.."/third_party/Vulkan-Headers/include",
   })
   files({
     "shader_compiler_main.cc",

@@ -349,7 +349,9 @@ std::unique_ptr<gpu::GraphicsSystem> EmulatorApp::CreateGraphicsSystem() {
 #if XE_PLATFORM_MAC
   factory.Add<gpu::metal::MetalGraphicsSystem>("metal");
 #endif  // XE_PLATFORM_MAC
+#if !XE_PLATFORM_MAC
   factory.Add<gpu::vulkan::VulkanGraphicsSystem>("vulkan");
+#endif  // !XE_PLATFORM_MAC
   factory.Add<gpu::null::NullGraphicsSystem>("null");
   return factory.Create(cvars::gpu);
 }
