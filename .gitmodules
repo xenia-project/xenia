@@ -92,3 +92,12 @@
 [submodule "testdata/reference-gpu-traces"]
 	path = testdata/reference-gpu-traces
 	url = https://github.com/xenia-project/reference-gpu-traces.git
+[submodule "third_party/metal-cpp"]
+	path = third_party/metal-cpp
+	url = git@github.com:wmarti/metal-cpp.git
+[submodule "third_party/metal-shader-converter"]
+	path = third_party/metal-shader-converter
+	url = git@github.com:wmarti/metal-shader-converter.git
+[submodule "third_party/directx-headers"]
+	path = third_party/directx-headers
+	url = git@github.com:wmarti/directx-headers.git
