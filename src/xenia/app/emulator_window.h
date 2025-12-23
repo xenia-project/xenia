@@ -28,6 +28,12 @@
 namespace xe {
 namespace app {
 
+struct RecentTitleEntry {
+  std::string title_name;
+  std::filesystem::path path_to_file;
+  std::time_t last_run_time;
+};
+
 class EmulatorWindow {
  public:
   enum : size_t {
@@ -143,6 +149,12 @@ class EmulatorWindow {
   void ShowFAQ();
   void ShowBuildCommit();
 
+  void RunRecentlyPlayedTitle(std::filesystem::path path_to_file);
+  void FillRecentlyLaunchedTitlesMenu(xe::ui::MenuItem* recent_menu);
+  void LoadRecentlyLaunchedTitles();
+  void AddRecentlyLaunchedTitle(std::filesystem::path path_to_file,
+                                std::string title_name);
+
   Emulator* emulator_;
   ui::WindowedAppContext& app_context_;
   EmulatorWindowListener window_listener_;
@@ -159,6 +171,8 @@ class EmulatorWindow {
   bool initializing_shader_storage_ = false;
 
   std::unique_ptr<DisplayConfigDialog> display_config_dialog_;
+
+  std::vector<RecentTitleEntry> recently_launched_titles_;
 };
 
 }  // namespace app
