@@ -12,7 +12,7 @@
 	url = https://github.com/catchorg/Catch2.git
 [submodule "third_party/premake-core"]
 	path = third_party/premake-core
-	url = https://github.com/xenia-project/premake-core.git
+	url = https://github.com/wmarti/premake-core-xenia-mac
 [submodule "third_party/snappy"]
 	path = third_party/snappy
 	url = https://github.com/xenia-project/snappy.git
@@ -48,7 +48,7 @@
 	url = https://github.com/fmtlib/fmt.git
 [submodule "third_party/disruptorplus"]
 	path = third_party/disruptorplus
-	url = https://github.com/xenia-project/disruptorplus.git
+	url = https://github.com/wmarti/disruptorplus-xenia-mac
 [submodule "third_party/DirectXShaderCompiler"]
 	path = third_party/DirectXShaderCompiler
 	url = git@github.com:wmarti/DirectXShaderCompiler.git
@@ -94,10 +94,10 @@
 	url = https://github.com/xenia-project/reference-gpu-traces.git
 [submodule "third_party/metal-cpp"]
 	path = third_party/metal-cpp
-	url = git@github.com:wmarti/metal-cpp.git
+	url = https://github.com/wmarti/metal-cpp.git
 [submodule "third_party/metal-shader-converter"]
 	path = third_party/metal-shader-converter
-	url = git@github.com:wmarti/metal-shader-converter.git
+	url = https://github.com/wmarti/metal-shader-converter.git
 [submodule "third_party/directx-headers"]
 	path = third_party/directx-headers
 	url = git@github.com:wmarti/directx-headers.git
