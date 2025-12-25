@@ -84,7 +84,6 @@
 #include "xenia/gpu/shaders/bytecode/metal/texture_load_rgba16_snorm_float_scaled_cs.h"
 #include "xenia/gpu/shaders/bytecode/metal/texture_load_rgba16_unorm_float_cs.h"
 #include "xenia/gpu/shaders/bytecode/metal/texture_load_rgba16_unorm_float_scaled_cs.h"
-#include "xenia/gpu/texture_conversion.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/texture_util.h"
 #include "xenia/gpu/xenos.h"
@@ -168,37 +167,6 @@ MTL::TextureSwizzleChannels ToMetalTextureSwizzle(uint32_t xenos_swizzle) {
   return swizzle;
 }
 
-void SwapBlockBC1(void* dst, const void* src) {
-  const uint16_t* s16 = reinterpret_cast<const uint16_t*>(src);
-  uint16_t* d16 = reinterpret_cast<uint16_t*>(dst);
-  d16[0] = xe::byte_swap(s16[0]);
-  d16[1] = xe::byte_swap(s16[1]);
-  const uint32_t* s32 = reinterpret_cast<const uint32_t*>(s16 + 2);
-  uint32_t* d32 = reinterpret_cast<uint32_t*>(d16 + 2);
-  d32[0] = xe::byte_swap(s32[0]);
-}
-
-void SwapBlockBC2(void* dst, const void* src) {
-  const uint16_t* s16 = reinterpret_cast<const uint16_t*>(src);
-  uint16_t* d16 = reinterpret_cast<uint16_t*>(dst);
-  for (int i = 0; i < 4; ++i) d16[i] = xe::byte_swap(s16[i]);
-  SwapBlockBC1(d16 + 4, s16 + 4);
-}
-
-void SwapBlockBC3(void* dst, const void* src) {
-  const uint64_t* s64 = reinterpret_cast<const uint64_t*>(src);
-  uint64_t* d64 = reinterpret_cast<uint64_t*>(dst);
-  d64[0] = xe::byte_swap(s64[0]);
-  SwapBlockBC1(d64 + 1, s64 + 1);
-}
-
-void SwapBlockBC5(void* dst, const void* src) {
-  const uint64_t* s64 = reinterpret_cast<const uint64_t*>(src);
-  uint64_t* d64 = reinterpret_cast<uint64_t*>(dst);
-  d64[0] = xe::byte_swap(s64[0]);
-  d64[1] = xe::byte_swap(s64[1]);
-}
-
 }  // namespace
 
 MetalTextureCache::MetalTextureCache(MetalCommandProcessor* command_processor,
@@ -242,7 +210,6 @@ TextureCache::LoadShaderIndex MetalTextureCache::GetLoadShaderIndexForKey(
   switch (key.format) {
     case xenos::TextureFormat::k_8:
     case xenos::TextureFormat::k_8_A:
-    case xenos::TextureFormat::k_8_B:
       return kLoadShaderIndex8bpb;
     case xenos::TextureFormat::k_8_8:
       return kLoadShaderIndex16bpb;
@@ -253,7 +220,6 @@ TextureCache::LoadShaderIndex MetalTextureCache::GetLoadShaderIndexForKey(
     case xenos::TextureFormat::k_6_5_5:
       return kLoadShaderIndexR5G5B6ToB5G6R5WithRBGASwizzle;
     case xenos::TextureFormat::k_8_8_8_8:
-    case xenos::TextureFormat::k_8_8_8_8_A:
       return kLoadShaderIndex32bpb;
     case xenos::TextureFormat::k_2_10_10_10:
       return kLoadShaderIndex32bpb;
@@ -325,6 +291,10 @@ TextureCache::LoadShaderIndex MetalTextureCache::GetLoadShaderIndexForKey(
     case xenos::TextureFormat::k_16_16_16_16_FLOAT:
       return kLoadShaderIndex64bpb;
 
+    case xenos::TextureFormat::k_8_B:
+    case xenos::TextureFormat::k_8_8_8_8_A:
+      return kLoadShaderIndexUnknown;
+
     default:
       return kLoadShaderIndexUnknown;
   }
@@ -335,7 +305,6 @@ MTL::PixelFormat MetalTextureCache::GetPixelFormatForKey(TextureKey key) const {
   switch (key.format) {
     case xenos::TextureFormat::k_8:
     case xenos::TextureFormat::k_8_A:
-    case xenos::TextureFormat::k_8_B:
       return MTL::PixelFormatR8Unorm;
     case xenos::TextureFormat::k_8_8:
       return MTL::PixelFormatRG8Unorm;
@@ -347,7 +316,6 @@ MTL::PixelFormat MetalTextureCache::GetPixelFormatForKey(TextureKey key) const {
     case xenos::TextureFormat::k_4_4_4_4:
       return MTL::PixelFormatABGR4Unorm;
     case xenos::TextureFormat::k_8_8_8_8:
-    case xenos::TextureFormat::k_8_8_8_8_A:
       return MTL::PixelFormatRGBA8Unorm;
     case xenos::TextureFormat::k_2_10_10_10:
       return MTL::PixelFormatRGB10A2Unorm;
@@ -410,6 +378,10 @@ MTL::PixelFormat MetalTextureCache::GetPixelFormatForKey(TextureKey key) const {
     case xenos::TextureFormat::k_24_8:
     case xenos::TextureFormat::k_24_8_FLOAT:
       return MTL::PixelFormatR32Float;
+
+    case xenos::TextureFormat::k_8_B:
+    case xenos::TextureFormat::k_8_8_8_8_A:
+      return MTL::PixelFormatInvalid;
 
     default:
       return MTL::PixelFormatInvalid;
@@ -1595,6 +1567,7 @@ MTL::Texture* MetalTextureCache::GetTextureForBinding(
     bool is_signed) {
   static std::array<bool, 32> logged_missing_binding{};
   static std::array<bool, 32> logged_missing_texture{};
+  static std::array<bool, 32> logged_format{};
 
   auto get_null_texture_for_dimension = [&]() -> MTL::Texture* {
     switch (dimension) {
@@ -1619,6 +1592,36 @@ MTL::Texture* MetalTextureCache::GetTextureForBinding(
       logged_missing_binding[fetch_constant] = true;
     }
     return get_null_texture_for_dimension();
+  }
+
+  if (fetch_constant < logged_format.size() && !logged_format[fetch_constant]) {
+    const xenos::TextureFormat format = binding->key.format;
+    if (format == xenos::TextureFormat::k_8_8_8_8 ||
+        format == xenos::TextureFormat::k_2_10_10_10 ||
+        format == xenos::TextureFormat::k_10_11_11 ||
+        format == xenos::TextureFormat::k_11_11_10 ||
+        format == xenos::TextureFormat::k_DXT1 ||
+        format == xenos::TextureFormat::k_DXT2_3 ||
+        format == xenos::TextureFormat::k_DXT4_5 ||
+        format == xenos::TextureFormat::k_DXT3A ||
+        format == xenos::TextureFormat::k_DXT5A ||
+        format == xenos::TextureFormat::k_DXN ||
+        format == xenos::TextureFormat::k_16 ||
+        format == xenos::TextureFormat::k_16_16 ||
+        format == xenos::TextureFormat::k_16_16_16_16) {
+      const FormatInfo* format_info = FormatInfo::Get(format);
+      const char* format_name = format_info ? format_info->name : "unknown";
+      TextureCache::LoadShaderIndex load_shader =
+          GetLoadShaderIndexForKey(binding->key);
+      MTL::PixelFormat pixel_format = GetPixelFormatForKey(binding->key);
+      XELOGI(
+          "MetalTexture binding {}: format={} ({}), signs=0x{:08X}, "
+          "host_swizzle=0x{:08X}, load_shader={}, pixel_format={}",
+          fetch_constant, uint32_t(format), format_name, binding->swizzled_signs,
+          binding->host_swizzle,
+          static_cast<int>(load_shader), static_cast<int>(pixel_format));
+      logged_format[fetch_constant] = true;
+    }
   }
   XELOGI(
       "GetTextureForBinding: Found binding for fetch {} - texture={}, "
@@ -1844,13 +1847,9 @@ uint32_t MetalTextureCache::GetHostFormatSwizzle(TextureKey key) const {
   switch (key.format) {
     case xenos::TextureFormat::k_8:
     case xenos::TextureFormat::k_8_A:
+    case xenos::TextureFormat::k_8_B:
     case xenos::TextureFormat::k_DXT3A:
     case xenos::TextureFormat::k_DXT5A:
-      // Map R to A, force RGB to 1.0 (111R) to fix missing text and UI artifacts.
-      // Note: RRRR (Intensity) causes regressions (Green Screen/Invisible Text) in Metal.
-      return XE_GPU_MAKE_TEXTURE_SWIZZLE(1, 1, 1, R);
-
-    case xenos::TextureFormat::k_8_B:
     case xenos::TextureFormat::k_16:
     case xenos::TextureFormat::k_16_EXPAND:
     case xenos::TextureFormat::k_16_FLOAT:
@@ -1871,7 +1870,6 @@ uint32_t MetalTextureCache::GetHostFormatSwizzle(TextureKey key) const {
       return xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB;
 
     case xenos::TextureFormat::k_8_8_8_8:
-    case xenos::TextureFormat::k_8_8_8_8_A:
     case xenos::TextureFormat::k_2_10_10_10:
       // Stored as BGRA after endian swap; CPU path swaps to RGBA8.
       return xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA;
@@ -2015,232 +2013,9 @@ bool MetalTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     return false;
   }
 
-  // GPU-based loading path for Metal texture_load_* shaders. For formats not
-  // yet supported by the Metal path, fall back to the existing CPU untile path
-  // as a safety net.
-  if (TryGpuLoadTexture(texture, load_base, load_mips)) {
-    return true;
-  }
-
-  const TextureKey& key = texture.key();
-  const texture_util::TextureGuestLayout& guest_layout = texture.guest_layout();
-
-  MTL::Texture* mtl_texture = metal_texture->metal_texture();
-
-  // Get format info
-  const FormatInfo* format_info = FormatInfo::Get(key.format);
-  if (!format_info) {
-    XELOGE("LoadTextureDataFromResidentMemoryImpl: Unknown format {}",
-           static_cast<uint32_t>(key.format));
-    return false;
-  }
-
-  uint32_t bytes_per_block = format_info->bytes_per_block();
-  uint32_t bytes_per_block_log2 = xe::log2_floor(bytes_per_block);
-
-  // Get guest memory address
-  uint32_t base_guest_address = key.base_page << 12;
-  uint32_t mips_guest_address = key.mip_page << 12;
-
-  // Get the shared memory buffer - this contains a copy of Xbox memory
-  MetalSharedMemory& metal_shared_memory =
-      static_cast<MetalSharedMemory&>(shared_memory());
-  MTL::Buffer* shared_buffer = metal_shared_memory.GetBuffer();
-  if (!shared_buffer) {
-    XELOGE(
-        "LoadTextureDataFromResidentMemoryImpl: Shared memory buffer is null");
-    return false;
-  }
-
-  // Get pointer to buffer contents - this is the Xbox memory copy
-  const uint8_t* buffer_data =
-      static_cast<const uint8_t*>(shared_buffer->contents());
-  if (!buffer_data) {
-    XELOGE(
-        "LoadTextureDataFromResidentMemoryImpl: Failed to get buffer contents");
-    return false;
-  }
-
-  // The guest_address is a physical address offset into the 512MB Xbox memory
-  auto load_level =
-      [&](uint32_t mip_level,
-          const texture_util::TextureGuestLayout::Level& level_layout,
-          uint32_t level_guest_address) -> bool {
-    if (!level_layout.level_data_extent_bytes) {
-      return true;
-    }
-    if (!level_guest_address) {
-      return false;
-    }
-
-    uint32_t width_texels = std::max(key.GetWidth() >> mip_level, uint32_t(1));
-    uint32_t height_texels =
-        std::max(key.GetHeight() >> mip_level, uint32_t(1));
-    uint32_t depth_or_array_size =
-        std::max(key.GetDepthOrArraySize() >> mip_level, uint32_t(1));
-    if (key.dimension != xenos::DataDimension::k3D) {
-      depth_or_array_size = key.GetDepthOrArraySize();
-    }
-
-    uint32_t width_blocks = xe::align(width_texels, format_info->block_width) /
-                            format_info->block_width;
-    uint32_t height_blocks =
-        xe::align(height_texels, format_info->block_height) /
-        format_info->block_height;
-
-    uint32_t dst_row_pitch_bytes = width_blocks * bytes_per_block;
-    uint32_t depth_slices =
-        key.dimension == xenos::DataDimension::k3D ? depth_or_array_size : 1;
-    uint32_t array_slices = key.dimension == xenos::DataDimension::k3D
-                                ? 1
-                                : guest_layout.array_size;
-
-    uint64_t slice_bytes = uint64_t(dst_row_pitch_bytes) *
-                           uint64_t(height_blocks) * uint64_t(depth_slices);
-    uint64_t total_bytes = slice_bytes * uint64_t(array_slices);
-    if (total_bytes > SIZE_MAX) {
-      return false;
-    }
-
-    const uint8_t* level_src = buffer_data + level_guest_address;
-
-    auto untiled_data = std::vector<uint8_t>(size_t(total_bytes));
-    uint32_t pitch_blocks = level_layout.row_pitch_bytes / bytes_per_block;
-
-    std::function<void(void*, const void*)> swap_func;
-    if (key.format == xenos::TextureFormat::k_DXT1) {
-      swap_func = [](void* d, const void* s) { SwapBlockBC1(d, s); };
-    } else if (key.format == xenos::TextureFormat::k_DXT2_3) {
-      swap_func = [](void* d, const void* s) { SwapBlockBC2(d, s); };
-    } else if (key.format == xenos::TextureFormat::k_DXT4_5) {
-      swap_func = [](void* d, const void* s) { SwapBlockBC3(d, s); };
-    } else if (key.format == xenos::TextureFormat::k_DXN) {
-      swap_func = [](void* d, const void* s) { SwapBlockBC5(d, s); };
-    } else {
-      swap_func = [&](void* d, const void* s) {
-        texture_conversion::CopySwapBlock(key.endianness, d, s,
-                                          bytes_per_block);
-      };
-    }
-
-    if (key.tiled) {
-      if (key.dimension == xenos::DataDimension::k3D) {
-        uint32_t height_stride_blocks = level_layout.z_slice_stride_block_rows;
-        for (uint32_t z = 0; z < depth_slices; ++z) {
-          for (uint32_t y = 0; y < height_blocks; ++y) {
-            for (uint32_t x = 0; x < width_blocks; ++x) {
-              int32_t tiled_offset = texture_util::GetTiledOffset3D(
-                  int32_t(x), int32_t(y), int32_t(z), pitch_blocks,
-                  height_stride_blocks, bytes_per_block_log2);
-              size_t dst_offset = (size_t(z) * height_blocks * width_blocks +
-                                   size_t(y) * width_blocks + size_t(x)) *
-                                  bytes_per_block;
-              if (tiled_offset < 0 ||
-                  dst_offset + bytes_per_block > untiled_data.size()) {
-                continue;
-              }
-              swap_func(untiled_data.data() + dst_offset,
-                        level_src + tiled_offset);
-            }
-          }
-        }
-      } else {
-        for (uint32_t slice = 0; slice < array_slices; ++slice) {
-          const uint8_t* slice_src =
-              level_src + slice * level_layout.array_slice_stride_bytes;
-          for (uint32_t y = 0; y < height_blocks; ++y) {
-            for (uint32_t x = 0; x < width_blocks; ++x) {
-              int32_t tiled_offset = texture_util::GetTiledOffset2D(
-                  int32_t(x), int32_t(y), pitch_blocks, bytes_per_block_log2);
-              size_t dst_offset =
-                  (size_t(slice) * height_blocks * width_blocks +
-                   size_t(y) * width_blocks + size_t(x)) *
-                  bytes_per_block;
-              if (tiled_offset < 0 ||
-                  dst_offset + bytes_per_block > untiled_data.size()) {
-                continue;
-              }
-              swap_func(untiled_data.data() + dst_offset,
-                        slice_src + tiled_offset);
-            }
-          }
-        }
-      }
-    } else {
-      uint32_t z_slice_stride_bytes =
-          level_layout.row_pitch_bytes * level_layout.z_slice_stride_block_rows;
-      if (key.dimension == xenos::DataDimension::k3D) {
-        for (uint32_t z = 0; z < depth_slices; ++z) {
-          for (uint32_t y = 0; y < height_blocks; ++y) {
-            uint32_t src_offset =
-                z * z_slice_stride_bytes + y * level_layout.row_pitch_bytes;
-            size_t dst_offset =
-                (size_t(z) * height_blocks + size_t(y)) * dst_row_pitch_bytes;
-            swap_func(untiled_data.data() + dst_offset, level_src + src_offset);
-          }
-        }
-      } else {
-        for (uint32_t slice = 0; slice < array_slices; ++slice) {
-          const uint8_t* slice_src =
-              level_src + slice * level_layout.array_slice_stride_bytes;
-          for (uint32_t y = 0; y < height_blocks; ++y) {
-            uint32_t src_offset = y * level_layout.row_pitch_bytes;
-            size_t dst_offset = (size_t(slice) * height_blocks + size_t(y)) *
-                                dst_row_pitch_bytes;
-            swap_func(untiled_data.data() + dst_offset,
-                      slice_src + src_offset);
-          }
-        }
-      }
-    }
-
-    if (key.format == xenos::TextureFormat::k_8_8_8_8 ||
-        key.format == xenos::TextureFormat::k_8_8_8_8_A) {
-      for (size_t i = 0; i + 3 < untiled_data.size(); i += 4) {
-        std::swap(untiled_data[i], untiled_data[i + 2]);
-      }
-    }
-
-    // Upload to Metal texture.
-    if (key.dimension == xenos::DataDimension::k3D) {
-      MTL::Region region = MTL::Region::Make3D(0, 0, 0, width_texels,
-                                               height_texels, depth_slices);
-      mtl_texture->replaceRegion(region, mip_level, 0, untiled_data.data(),
-                                 dst_row_pitch_bytes,
-                                 dst_row_pitch_bytes * height_blocks);
-    } else {
-      for (uint32_t slice = 0; slice < array_slices; ++slice) {
-        MTL::Region region =
-            MTL::Region::Make2D(0, 0, width_texels, height_texels);
-        const uint8_t* slice_data = untiled_data.data() + slice * slice_bytes;
-        mtl_texture->replaceRegion(region, mip_level, slice, slice_data,
-                                   dst_row_pitch_bytes, 0);
-      }
-    }
-
-    return true;
-  };
-
-  // For k_8_8_8_8, the untiled data is BGRA after endian swap.
-  // CPU path swaps to RGBA8 to match the Metal host format.
-
-  bool ok = true;
-  if (load_base && guest_layout.base.level_data_extent_bytes) {
-    ok &= load_level(0, guest_layout.base, base_guest_address);
-  }
-  if (load_mips && guest_layout.mips_total_extent_bytes) {
-    for (uint32_t level = 1; level <= guest_layout.max_level; ++level) {
-      const auto& level_layout = guest_layout.mips[level];
-      if (!level_layout.level_data_extent_bytes) {
-        continue;
-      }
-      ok &= load_level(
-          level, level_layout,
-          mips_guest_address + guest_layout.mip_offsets_bytes[level]);
-    }
-  }
-
-  return ok;
+  // GPU-based loading path for Metal texture_load_* shaders only (parity with
+  // D3D12/Vulkan; no CPU untile fallback).
+  return TryGpuLoadTexture(texture, load_base, load_mips);
 }
 
 // MetalTexture implementation

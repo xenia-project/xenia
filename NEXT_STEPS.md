@@ -47,6 +47,12 @@ renders incorrect UI/text in traces.
       - Dump a small, bounded set of textures to `scratch/gpu/` keyed by
         fetch constant + guest address.
       - Compare Metal vs Vulkan output for the same fetch constants.
+- [ ] Decode missing binding fetch constants (e.g., fetch 21) to identify the
+      guest format/swizzle/signedness being dropped.
+- [ ] Log memexport usage per draw/shader to correlate warnings with visual
+      artifacts (store shader IDs and target usage).
+- [ ] Add resolve/transfer debug logging for UI render targets (format,
+      MSAA, pixel format) to verify parity with D3D12/Vulkan.
 
 ### Reference Information
 - `src/xenia/gpu/metal/metal_texture_cache.cc`

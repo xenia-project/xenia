@@ -111,9 +111,7 @@ class MetalTextureCache : public TextureCache {
                                              bool load_mips) override;
 
  private:
-  // GPU-based texture loading entry point. Returns true on success. For
-  // unsupported formats or failures, the caller may fall back to the existing
-  // CPU path (used only as a safety net for now).
+  // GPU-based texture loading entry point. Returns true on success.
   bool TryGpuLoadTexture(Texture& texture, bool load_base, bool load_mips);
 
   // Format / load shader mapping for Metal texture loading.
