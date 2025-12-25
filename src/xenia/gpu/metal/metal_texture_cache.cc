@@ -1587,8 +1587,32 @@ MTL::Texture* MetalTextureCache::GetTextureForBinding(
   if (!binding) {
     if (fetch_constant < logged_missing_binding.size() &&
         !logged_missing_binding[fetch_constant]) {
-      XELOGW("GetTextureForBinding: No valid binding for fetch constant {}",
-             fetch_constant);
+      xenos::xe_gpu_texture_fetch_t fetch =
+          register_file().GetTextureFetch(fetch_constant);
+      TextureKey decoded_key;
+      uint8_t swizzled_signs = 0;
+      BindingInfoFromFetchConstant(fetch, decoded_key, &swizzled_signs);
+      XELOGW(
+          "GetTextureForBinding: No valid binding for fetch {} (type={}, "
+          "format={}, swizzle=0x{:08X}, dwords={:08X} {:08X} {:08X} {:08X} "
+          "{:08X} {:08X})",
+          fetch_constant, uint32_t(fetch.type), uint32_t(fetch.format),
+          fetch.swizzle, fetch.dword_0, fetch.dword_1, fetch.dword_2,
+          fetch.dword_3, fetch.dword_4, fetch.dword_5);
+      if (decoded_key.is_valid) {
+        const FormatInfo* format_info = FormatInfo::Get(decoded_key.format);
+        const char* format_name = format_info ? format_info->name : "unknown";
+        XELOGW(
+            "GetTextureForBinding: Decoded fetch {} -> format={} ({}), "
+            "size={}x{}x{}, pitch={}, mips={}, tiled={}, packed_mips={}, "
+            "endian={}, swizzled_signs=0x{:02X}",
+            fetch_constant, uint32_t(decoded_key.format), format_name,
+            decoded_key.GetWidth(), decoded_key.GetHeight(),
+            decoded_key.GetDepthOrArraySize(), decoded_key.pitch,
+            decoded_key.mip_max_level + 1, decoded_key.tiled ? 1 : 0,
+            decoded_key.packed_mips ? 1 : 0, uint32_t(decoded_key.endianness),
+            swizzled_signs);
+      }
       logged_missing_binding[fetch_constant] = true;
     }
     return get_null_texture_for_dimension();

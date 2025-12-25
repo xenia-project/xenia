@@ -13,6 +13,7 @@
 #include <cmath>
 #include <cstring>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -2406,6 +2407,23 @@ void MetalRenderTargetCache::PerformTransfersAndResolveClears(
           dest_texture->sampleCount(), dest_key.is_depth ? 1 : 0,
           transfer.start_tiles, transfer.end_tiles,
           (void*)transfer.host_depth_source);
+      static std::unordered_set<uint64_t> logged_transfer_pairs;
+      uint64_t transfer_pair_key =
+          (uint64_t(source_key.key) << 32) | uint64_t(dest_key.key);
+      if (logged_transfer_pairs.insert(transfer_pair_key).second) {
+        MTL::PixelFormat src_pixel_format =
+            source_key.is_depth ? GetDepthPixelFormat(source_key.GetDepthFormat())
+                                : GetColorPixelFormat(source_key.GetColorFormat());
+        MTL::PixelFormat dst_pixel_format =
+            dest_key.is_depth ? GetDepthPixelFormat(dest_key.GetDepthFormat())
+                              : GetColorPixelFormat(dest_key.GetColorFormat());
+        XELOGI(
+            "MetalRenderTargetCache transfer formats: src={} (host={}), "
+            "dst={} (host={})",
+            source_key.GetFormatName(),
+            static_cast<int>(src_pixel_format), dest_key.GetFormatName(),
+            static_cast<int>(dst_pixel_format));
+      }
 
       // Determine transfer mode (matching D3D12's TransferMode enum)
       bool source_is_depth = source_key.is_depth;

@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <unordered_set>
 #include <vector>
 
 #include "xenia/base/assert.h"
@@ -1044,6 +1045,22 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   bool memexport_used_pixel =
       pixel_shader && (pixel_shader->memexport_eM_written() != 0);
   bool memexport_used = memexport_used_vertex || memexport_used_pixel;
+  static std::unordered_set<uint64_t> logged_memexport_vs;
+  static std::unordered_set<uint64_t> logged_memexport_ps;
+  if (memexport_used_vertex) {
+    uint64_t vs_hash = vertex_shader->ucode_data_hash();
+    if (logged_memexport_vs.insert(vs_hash).second) {
+      XELOGI("Metal memexport VS: hash={:016X} eM=0x{:02X}", vs_hash,
+             vertex_shader->memexport_eM_written());
+    }
+  }
+  if (memexport_used_pixel && pixel_shader) {
+    uint64_t ps_hash = pixel_shader->ucode_data_hash();
+    if (logged_memexport_ps.insert(ps_hash).second) {
+      XELOGI("Metal memexport PS: hash={:016X} eM=0x{:02X}", ps_hash,
+             pixel_shader->memexport_eM_written());
+    }
+  }
 
   // Primitive/index processing (like D3D12/Vulkan).
   PrimitiveProcessor::ProcessingResult primitive_processing_result;
