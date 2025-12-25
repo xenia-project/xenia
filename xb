@@ -1122,23 +1122,15 @@ class BuildShadersCommand(Command):
                 for src_path in src_paths:
                     src_name = os.path.basename(src_path)
                     src_is_xesl = src_name.endswith('.xesl')
-                    # For now, only build compute shaders (.cs.xesl) for Metal.
                     if (not src_is_xesl or len(src_name) <= 8 or
                             src_name[-8] != '.'):
+                        continue
+                    if 'fxaa' in src_name or 'ffx_' in src_name:
                         continue
                     identifier = src_name[:-5].replace('.', '_')
                     # Stage suffix (vs/ps/cs, etc.).
                     stage = identifier[-2:]
-                    if stage != 'cs':
-                        continue
-
-                    # Build Metal compute shaders used by the GPU backends.
-                    # Initially this included only resolve and host-depth store
-                    # shaders; extend this to also cover texture_load_* so the
-                    # Metal backend can use GPU-based texture loading.
-                    if not (src_name.startswith('resolve_') or
-                            src_name.startswith('host_depth_store_') or
-                            src_name.startswith('texture_load_')):
+                    if stage not in ['cs', 'ps', 'vs']:
                         continue
 
                     print('- %s > metal' % (src_path))

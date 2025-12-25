@@ -100,6 +100,7 @@ class MetalTextureCache : public TextureCache {
   // TextureCache virtual method overrides
   void RequestTextures(uint32_t used_texture_mask) override;
 
+  bool IsSignedVersionSeparateForFormat(TextureKey key) const override;
   uint32_t GetHostFormatSwizzle(TextureKey key) const override;
   uint32_t GetMaxHostTextureWidthHeight(
       xenos::DataDimension dimension) const override;
@@ -137,9 +138,13 @@ class MetalTextureCache : public TextureCache {
     ~MetalTexture() override;
 
     MTL::Texture* metal_texture() const { return metal_texture_; }
+    MTL::Texture* GetOrCreateView(uint32_t host_swizzle,
+                                  xenos::FetchOpDimension dimension,
+                                  bool is_signed);
 
    private:
     MTL::Texture* metal_texture_;
+    std::unordered_map<uint64_t, MTL::Texture*> swizzled_view_cache_;
   };
 
  private:
