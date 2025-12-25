@@ -110,6 +110,29 @@ struct MetalLoadConstants {
   uint32_t height_texels;
 };
 
+bool SupportsPixelFormat(MTL::Device* device, MTL::PixelFormat format) {
+  if (!device || format == MTL::PixelFormatInvalid) {
+    return false;
+  }
+  MTL::TextureDescriptor* descriptor = MTL::TextureDescriptor::alloc()->init();
+  descriptor->setTextureType(MTL::TextureType2D);
+  descriptor->setPixelFormat(format);
+  descriptor->setWidth(1);
+  descriptor->setHeight(1);
+  descriptor->setDepth(1);
+  descriptor->setArrayLength(1);
+  descriptor->setMipmapLevelCount(1);
+  descriptor->setSampleCount(1);
+  descriptor->setUsage(MTL::TextureUsageShaderRead);
+  descriptor->setStorageMode(MTL::StorageModeShared);
+  MTL::Texture* texture = device->newTexture(descriptor);
+  descriptor->release();
+  if (texture) {
+    texture->release();
+  }
+  return texture != nullptr;
+}
+
 bool AreDimensionsCompatible(xenos::FetchOpDimension shader_dimension,
                              xenos::DataDimension texture_dimension) {
   switch (shader_dimension) {
@@ -266,14 +289,38 @@ TextureCache::LoadShaderIndex MetalTextureCache::GetLoadShaderIndexForKey(
       return kLoadShaderIndexDepthFloat;
 
     case xenos::TextureFormat::k_16:
+      if (key.signed_separate) {
+        return r16_selection_.signed_uses_float
+                   ? kLoadShaderIndexR16SNormToFloat
+                   : kLoadShaderIndex16bpb;
+      }
+      return r16_selection_.unsigned_uses_float
+                 ? kLoadShaderIndexR16UNormToFloat
+                 : kLoadShaderIndex16bpb;
     case xenos::TextureFormat::k_16_EXPAND:
     case xenos::TextureFormat::k_16_FLOAT:
       return kLoadShaderIndex16bpb;
     case xenos::TextureFormat::k_16_16:
+      if (key.signed_separate) {
+        return rg16_selection_.signed_uses_float
+                   ? kLoadShaderIndexRG16SNormToFloat
+                   : kLoadShaderIndex32bpb;
+      }
+      return rg16_selection_.unsigned_uses_float
+                 ? kLoadShaderIndexRG16UNormToFloat
+                 : kLoadShaderIndex32bpb;
     case xenos::TextureFormat::k_16_16_EXPAND:
     case xenos::TextureFormat::k_16_16_FLOAT:
       return kLoadShaderIndex32bpb;
     case xenos::TextureFormat::k_16_16_16_16:
+      if (key.signed_separate) {
+        return rgba16_selection_.signed_uses_float
+                   ? kLoadShaderIndexRGBA16SNormToFloat
+                   : kLoadShaderIndex64bpb;
+      }
+      return rgba16_selection_.unsigned_uses_float
+                 ? kLoadShaderIndexRGBA16UNormToFloat
+                 : kLoadShaderIndex64bpb;
     case xenos::TextureFormat::k_16_16_16_16_EXPAND:
     case xenos::TextureFormat::k_16_16_16_16_FLOAT:
       return kLoadShaderIndex64bpb;
@@ -310,11 +357,28 @@ MTL::PixelFormat MetalTextureCache::GetPixelFormatForKey(TextureKey key) const {
                                  : MTL::PixelFormatRGBA16Unorm;
 
     case xenos::TextureFormat::k_16:
-      return MTL::PixelFormatR16Unorm;
+      if (key.signed_separate) {
+        return r16_selection_.signed_uses_float ? MTL::PixelFormatR16Float
+                                                : MTL::PixelFormatR16Snorm;
+      }
+      return r16_selection_.unsigned_uses_float ? MTL::PixelFormatR16Float
+                                                : MTL::PixelFormatR16Unorm;
     case xenos::TextureFormat::k_16_16:
-      return MTL::PixelFormatRG16Unorm;
+      if (key.signed_separate) {
+        return rg16_selection_.signed_uses_float ? MTL::PixelFormatRG16Float
+                                                 : MTL::PixelFormatRG16Snorm;
+      }
+      return rg16_selection_.unsigned_uses_float ? MTL::PixelFormatRG16Float
+                                                 : MTL::PixelFormatRG16Unorm;
     case xenos::TextureFormat::k_16_16_16_16:
-      return MTL::PixelFormatRGBA16Unorm;
+      if (key.signed_separate) {
+        return rgba16_selection_.signed_uses_float
+                   ? MTL::PixelFormatRGBA16Float
+                   : MTL::PixelFormatRGBA16Snorm;
+      }
+      return rgba16_selection_.unsigned_uses_float
+                 ? MTL::PixelFormatRGBA16Float
+                 : MTL::PixelFormatRGBA16Unorm;
     case xenos::TextureFormat::k_16_EXPAND:
     case xenos::TextureFormat::k_16_FLOAT:
       return MTL::PixelFormatR16Float;
@@ -765,6 +829,16 @@ bool MetalTextureCache::Initialize() {
   SCOPE_profile_cpu_f("gpu");
   XE_SCOPED_AUTORELEASE_POOL("MetalTextureCache::Initialize");
 
+  MTL::Device* device = command_processor_->GetMetalDevice();
+  if (!device) {
+    XELOGE(
+        "Metal texture cache: Failed to get Metal device from command "
+        "processor");
+    return false;
+  }
+
+  InitializeNorm16Selection(device);
+
   // Create null textures following existing factory pattern
   null_texture_2d_ = CreateNullTexture2D();
   null_texture_3d_ = CreateNullTexture3D();
@@ -1033,6 +1107,36 @@ bool MetalTextureCache::InitializeLoadPipelines() {
   return load_pipelines_[TextureCache::kLoadShaderIndex32bpb] != nullptr &&
          load_pipelines_[TextureCache::kLoadShaderIndex16bpb] != nullptr &&
          load_pipelines_[TextureCache::kLoadShaderIndex8bpb] != nullptr;
+}
+
+void MetalTextureCache::InitializeNorm16Selection(MTL::Device* device) {
+  r16_selection_.unsigned_uses_float =
+      !SupportsPixelFormat(device, MTL::PixelFormatR16Unorm);
+  r16_selection_.signed_uses_float =
+      !SupportsPixelFormat(device, MTL::PixelFormatR16Snorm);
+
+  rg16_selection_.unsigned_uses_float =
+      !SupportsPixelFormat(device, MTL::PixelFormatRG16Unorm);
+  rg16_selection_.signed_uses_float =
+      !SupportsPixelFormat(device, MTL::PixelFormatRG16Snorm);
+
+  rgba16_selection_.unsigned_uses_float =
+      !SupportsPixelFormat(device, MTL::PixelFormatRGBA16Unorm);
+  rgba16_selection_.signed_uses_float =
+      !SupportsPixelFormat(device, MTL::PixelFormatRGBA16Snorm);
+
+  if (r16_selection_.unsigned_uses_float || r16_selection_.signed_uses_float ||
+      rg16_selection_.unsigned_uses_float || rg16_selection_.signed_uses_float ||
+      rgba16_selection_.unsigned_uses_float ||
+      rgba16_selection_.signed_uses_float) {
+    XELOGI(
+        "Metal texture cache: norm16 float fallback enabled (R16 u={}, s={}; "
+        "RG16 u={}, s={}; RGBA16 u={}, s={})",
+        r16_selection_.unsigned_uses_float, r16_selection_.signed_uses_float,
+        rg16_selection_.unsigned_uses_float, rg16_selection_.signed_uses_float,
+        rgba16_selection_.unsigned_uses_float,
+        rgba16_selection_.signed_uses_float);
+  }
 }
 
 void MetalTextureCache::Shutdown() {
@@ -1779,6 +1883,15 @@ uint32_t MetalTextureCache::GetHostFormatSwizzle(TextureKey key) const {
 
 bool MetalTextureCache::IsSignedVersionSeparateForFormat(TextureKey key) const {
   switch (key.format) {
+    case xenos::TextureFormat::k_16:
+      return r16_selection_.unsigned_uses_float ||
+             r16_selection_.signed_uses_float;
+    case xenos::TextureFormat::k_16_16:
+      return rg16_selection_.unsigned_uses_float ||
+             rg16_selection_.signed_uses_float;
+    case xenos::TextureFormat::k_16_16_16_16:
+      return rgba16_selection_.unsigned_uses_float ||
+             rgba16_selection_.signed_uses_float;
     case xenos::TextureFormat::k_10_11_11:
     case xenos::TextureFormat::k_11_11_10:
       return true;

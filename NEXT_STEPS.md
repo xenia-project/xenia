@@ -33,7 +33,8 @@ renders incorrect UI/text in traces.
       - Keep base texture swizzle identity (format only).
 - [x] Expand `GetLoadShaderIndexForKey` to include:
       `k_10_11_11`, `k_11_11_10`, `k_DXT3A_AS_1_1_1_1`.
-- [ ] Implement UNORM/SNORM→float selection for 16-bit formats as needed.
+- [x] Implement UNORM/SNORM→float selection for 16-bit formats as needed.
+- [x] Instrument norm16 float fallback logging for trace validation.
 - [x] Initialize missing Metal `texture_load_*` pipelines that already exist in
       `src/xenia/gpu/shaders/bytecode/metal/`.
 - [x] Ensure `./xb buildshaders --target=metal` generates all shaders in

@@ -124,6 +124,13 @@ class MetalTextureCache : public TextureCache {
   // Initialize GPU texture_load_* pipelines for Metal.
   bool InitializeLoadPipelines();
 
+  struct Norm16Selection {
+    bool unsigned_uses_float = false;
+    bool signed_uses_float = false;
+  };
+
+  void InitializeNorm16Selection(MTL::Device* device);
+
   // Metal compute pipelines for texture_load_* shaders (unscaled and
   // resolution-scaled variants), indexed by TextureCache::LoadShaderIndex.
   MTL::ComputePipelineState* load_pipelines_[kLoadShaderCount] = {};
@@ -186,6 +193,10 @@ class MetalTextureCache : public TextureCache {
   MTL::Texture* null_texture_2d_ = nullptr;
   MTL::Texture* null_texture_3d_ = nullptr;
   MTL::Texture* null_texture_cube_ = nullptr;
+
+  Norm16Selection r16_selection_;
+  Norm16Selection rg16_selection_;
+  Norm16Selection rgba16_selection_;
 
   std::unordered_map<uint32_t, MTL::SamplerState*> sampler_cache_;
 };

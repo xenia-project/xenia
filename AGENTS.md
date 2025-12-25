@@ -217,6 +217,8 @@ If something cannot be fully implemented:
 - **Be informative and professional**
 - **No emojis**
 - Explain the "why", not just the "what"
+- Prefer descriptive titles that summarize the concrete change (not just the
+  component), and include key behavior changes when relevant.
 - Reference components with brackets: `[Metal]`, `[A64]`, `[Build]`, `[Base]`
 
 Good examples:
@@ -226,6 +228,20 @@ Good examples:
 [A64] Fix PACK_FLOAT16_2 sentinel value handling for Xbox 360 compatibility
 
 [Build] Fix premake bootstrap for ARM64 on Linux and macOS
+```
+
+Preferred with descriptive body:
+```
+[Metal] Expand shader build coverage and texture cache parity
+
+- Build Metal XeSL bytecode for all shader stages, skipping only FXAA in
+  buildshaders.
+- Add per-binding swizzled texture views with signed pixel-format support for
+  Metal bindings.
+- Enable GPU texture load path by default and align Metal texture formats and
+  BC decompression with D3D12.
+- Wire missing Metal texture_load pipelines (DXT3A_AS_1111, R10G11B11/R11G11B10,
+  UNORM/SNORM helpers) and update NEXT_STEPS tracking.
 ```
 
 Bad examples:
