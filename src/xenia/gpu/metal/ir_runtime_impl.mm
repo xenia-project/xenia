@@ -14,4 +14,4 @@
 #define IR_PRIVATE_IMPLEMENTATION   // Generate the implementation exactly once
 
 // Use the actual runtime header with absolute path
-#include "/usr/local/include/metal_irconverter_runtime/metal_irconverter_runtime.h"
+#include "third_party/metal-shader-converter/include/metal_irconverter_runtime.h"

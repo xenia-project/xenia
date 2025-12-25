@@ -15,7 +15,7 @@
 
 // Include Metal IR Converter Runtime for IRDescriptorTableEntry
 #define IR_RUNTIME_METALCPP
-#include "/usr/local/include/metal_irconverter_runtime/metal_irconverter_runtime.h"
+#include "third_party/metal-shader-converter/include/metal_irconverter_runtime.h"
 
 namespace xe {
 namespace gpu {

@@ -69,6 +69,12 @@ Intel Mac (x86_64) is not supported.
 # Install build tools
 brew install cmake ninja python3
 
+# SDL2 development files are required for premake.
+brew install sdl2
+
+# LZ4 is required by the build.
+brew install lz4
+
 # Needed only if you want to build `dxbc2dxil` locally.
 brew install directx-headers
 ```

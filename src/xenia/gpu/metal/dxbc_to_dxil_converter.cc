@@ -54,6 +54,12 @@ bool DxbcToDxilConverter::Initialize() {
       "../../third_party/DirectXShaderCompiler/build/bin/dxbc2dxil",
       "../../../third_party/DirectXShaderCompiler/build/bin/dxbc2dxil",
       "../../../../third_party/DirectXShaderCompiler/build/bin/dxbc2dxil",
+      // Native macOS binary from build_dxilconv_macos.sh
+      "./third_party/DirectXShaderCompiler/build_dxilconv_macos/bin/dxbc2dxil",
+      "../third_party/DirectXShaderCompiler/build_dxilconv_macos/bin/dxbc2dxil",
+      "../../third_party/DirectXShaderCompiler/build_dxilconv_macos/bin/dxbc2dxil",
+      "../../../third_party/DirectXShaderCompiler/build_dxilconv_macos/bin/dxbc2dxil",
+      "../../../../third_party/DirectXShaderCompiler/build_dxilconv_macos/bin/dxbc2dxil",
       // Build output directory
       "./build/bin/dxbc2dxil", "../build/bin/dxbc2dxil",
       // User-provided location via environment variable

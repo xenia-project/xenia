@@ -42,7 +42,7 @@ project("capstone")
   -- Xcode uses -iquote for normal include dirs, which doesn't work with
   -- angle-bracket includes like <capstone/capstone.h>. Treat capstone headers
   -- as system headers so they are found via -isystem on macOS.
-  sysincludedirs({
+  externalincludedirs({
     "capstone/include",
   })
   files({
