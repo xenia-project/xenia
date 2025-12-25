@@ -47,6 +47,7 @@ renders incorrect UI/text in traces.
       - Dump a small, bounded set of textures to `scratch/gpu/` keyed by
         fetch constant + guest address.
       - Compare Metal vs Vulkan output for the same fetch constants.
+      - Blocked: Vulkan texture dump comparison unavailable on this machine.
 - [x] Decode missing binding fetch constants (e.g., fetch 21) to identify the
       guest format/swizzle/signedness being dropped.
 - [x] Log memexport usage per draw/shader to correlate warnings with visual
@@ -62,7 +63,7 @@ renders incorrect UI/text in traces.
 
 ---
 
-## Phase 2: Geometry Shader Emulation Pipeline (BLOCKED - MSC BUG)
+## Phase 2: Geometry Shader Emulation Pipeline (IN_PROGRESS - MSC BUG)
 
 ### Problem Description
 Rectangle/point list expansion draws are skipped on Metal because the backend
@@ -76,17 +77,17 @@ mesh/geometry pipeline materialization for real traces (GTA IV).
   causing `Failed to materializeAll` and `metal-objdump: Invalid cast`.
 
 ### Implementation Checklist
-- [ ] Reintegrate geometry emulation pipeline from scratch:
+- [x] Reintegrate geometry emulation pipeline from scratch:
       - `scratch/metal_command_processor.cc`
       - `scratch/metal_geometry_shader.cc`
       - `scratch/metal_shader.cc` (function_name_ assignment)
-- [ ] Add new Metal geometry shader module (`metal_geometry_shader.{h,cc}`),
+- [x] Add new Metal geometry shader module (`metal_geometry_shader.{h,cc}`),
       wire into `premake5.lua`, and include in builds.
-- [ ] Restore geometry pipeline caches and draw path integration in
+- [x] Restore geometry pipeline caches and draw path integration in
       `MetalCommandProcessor`.
-- [ ] Restore shader dump/probe helpers used in the scratch pipeline.
-- [ ] Keep mesh shader capability gating (macOS 14+ / Apple GPU family).
-- [ ] Integrate MSC conversion details from scratch:
+- [x] Restore shader dump/probe helpers used in the scratch pipeline.
+- [x] Keep mesh shader capability gating (macOS 14+ / Apple GPU family).
+- [x] Integrate MSC conversion details from scratch:
       - Function-constant discovery and binding for GS stage.
       - Root signature visibility ALL for geometry pipelines.
       - Stage-in reflection path for vertex attributes.
@@ -94,6 +95,32 @@ mesh/geometry pipeline materialization for real traces (GTA IV).
       - Indexed + non-indexed geometry emulation draws.
       - Null pixel shader cases (decide if dummy PS is required).
       - Geometry emulation path not taken for unsupported host VS types.
+- [x] Fix Metal transfer depth resolve MSAA binding mismatch:
+      - Use MSAA source texture when available for depth resolves.
+      - Select transfer pipeline based on actual source/dest sample counts.
+- [x] Prevent GPU address faults from invalid vertex fetches:
+      - Validate fetch constant type and shared-memory range per binding.
+      - Abort draws with out-of-range vertex buffer offsets.
+- [x] Skip stage-in vertex descriptors/bindings when shaders use vfetch SRVs,
+      matching D3D12/Vulkan behavior and avoiding invalid Metal buffer loads.
+- [x] Validate guest DMA index buffer ranges and request shared-memory uploads
+      before Metal draw calls to avoid stale/invalid indices.
+- [x] Guard descriptor ring reuse by flushing the Metal command buffer when
+      the per-draw ring would wrap, preventing argument buffer overwrites.
+- [x] Replace per-draw ring flushing with a proper ring allocator that
+      allocates new descriptor/uniform buffer pages and releases them on
+      command buffer completion.
+- [x] Fix depth transfer pipeline selection to avoid binding 1x depth textures
+      to MSAA-only transfer shaders.
+- [x] Mark shared memory as writable when memexport is enabled to prevent
+      invalid device stores in vertex shaders.
+- [x] Gate Metal shader artifact dumping behind the global `--dump_shaders`
+      cvar to avoid always-on dumps.
+- [ ] Investigate non-deterministic outputs:
+      - Validate render target load/store actions and clears.
+      - Check command buffer ordering and resource reuse hazards.
+      - Compare vertex fetch coverage with D3D12 (use constant register map).
+      - Enable MSC bounds checking for shared-memory vertex fetches.
 
 ### Reproducer (Latest in `scratch/`)
 - `scratch/27f5af3d-296b-468b-8ff4-552d0e66f700/GS_DEBUG.md`
@@ -112,6 +139,8 @@ mesh/geometry pipeline materialization for real traces (GTA IV).
   `src/xenia/gpu/d3d12/pipeline_cache.cc`
 - MSC docs:
   `third_party/metal-shader-converter/docs/UserManual.md`
+ - Latest trace run (4D5307E6_9843.xtr): mesh stage missing warning and
+   geometry emulation skipped without PS (see `scratch/run.log`).
 
 ---
 

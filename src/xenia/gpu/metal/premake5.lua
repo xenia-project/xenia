@@ -33,6 +33,8 @@ project("xenia-gpu-metal")
       "metal_command_processor.h",
       "metal_debug_utils.cc",
       "metal_debug_utils.h",
+      "metal_geometry_shader.cc",
+      "metal_geometry_shader.h",
       "metal_graphics_system.cc",
       "metal_graphics_system.h",
       "metal_object_tracker.h",

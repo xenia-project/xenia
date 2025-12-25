@@ -2388,12 +2388,27 @@ void MetalRenderTargetCache::PerformTransfersAndResolveClears(
 
       MetalRenderTarget* source_metal_rt =
           static_cast<MetalRenderTarget*>(source_rt);
+      RenderTargetKey source_key = source_metal_rt->key();
+
       MTL::Texture* source_texture = source_metal_rt->texture();
       if (!source_texture) {
         continue;
       }
-
-      RenderTargetKey source_key = source_metal_rt->key();
+      MTL::Texture* source_transfer_texture = source_texture;
+      if (source_metal_rt->msaa_texture() &&
+          source_metal_rt->msaa_texture()->sampleCount() > 1 &&
+          source_key.msaa_samples != xenos::MsaaSamples::k1X) {
+        source_transfer_texture = source_metal_rt->msaa_texture();
+      } else if (source_key.msaa_samples != xenos::MsaaSamples::k1X &&
+                 source_texture->sampleCount() <= 1) {
+        static std::unordered_set<uint32_t> logged_msaa_mismatch;
+        if (logged_msaa_mismatch.insert(source_key.key).second) {
+          XELOGW(
+              "MetalRenderTargetCache: MSAA transfer requested, but source RT "
+              "key=0x{:08X} has no MSAA texture (samples={})",
+              source_key.key, source_texture->sampleCount());
+        }
+      }
 
       // Log the transfer request for debugging
       XELOGI(
@@ -2401,8 +2416,9 @@ void MetalRenderTargetCache::PerformTransfersAndResolveClears(
           "Transfer request - src key=0x{:08X} ({}x{}, {}samples, depth={}) "
           "-> dst key=0x{:08X} ({}x{}, {}samples, depth={}), "
           "tiles=[{}, {}), host_depth_src={:p}",
-          source_key.key, source_texture->width(), source_texture->height(),
-          source_texture->sampleCount(), source_key.is_depth ? 1 : 0,
+          source_key.key, source_transfer_texture->width(),
+          source_transfer_texture->height(),
+          source_transfer_texture->sampleCount(), source_key.is_depth ? 1 : 0,
           dest_key.key, dest_texture->width(), dest_texture->height(),
           dest_texture->sampleCount(), dest_key.is_depth ? 1 : 0,
           transfer.start_tiles, transfer.end_tiles,
@@ -2541,9 +2557,11 @@ void MetalRenderTargetCache::PerformTransfersAndResolveClears(
 
               // Clamp to source texture bounds
 
-              uint32_t src_width = static_cast<uint32_t>(source_texture->width());
+              uint32_t src_width =
+                  static_cast<uint32_t>(source_transfer_texture->width());
 
-              uint32_t src_height = static_cast<uint32_t>(source_texture->height());
+              uint32_t src_height =
+                  static_cast<uint32_t>(source_transfer_texture->height());
 
               if (scaled_x >= src_width || scaled_y >= src_height) {
 
@@ -2590,7 +2608,8 @@ void MetalRenderTargetCache::PerformTransfersAndResolveClears(
               // For MSAA mismatches (such as the 4x->1x A-Train case), route
               // through GetOrCreateTransferPipelines so logs clearly show missing
               // implementations.
-              if (source_texture->sampleCount() != dest_texture->sampleCount() ||
+              if (source_transfer_texture->sampleCount() !=
+                      dest_texture->sampleCount() ||
                   source_key.resource_format != dest_key.resource_format ||
                   source_is_depth != dest_is_depth) {
                 TransferShaderKey shader_key;
@@ -2604,8 +2623,20 @@ void MetalRenderTargetCache::PerformTransfersAndResolveClears(
                   shader_key.mode = TransferMode::kColorToColor;
                 }
 
-                shader_key.source_msaa_samples = source_key.msaa_samples;
-                shader_key.dest_msaa_samples = dest_key.msaa_samples;
+                auto samples_to_msaa =
+                    [](NS::UInteger samples) -> xenos::MsaaSamples {
+                  if (samples <= 1) {
+                    return xenos::MsaaSamples::k1X;
+                  }
+                  if (samples <= 2) {
+                    return xenos::MsaaSamples::k2X;
+                  }
+                  return xenos::MsaaSamples::k4X;
+                };
+                shader_key.source_msaa_samples =
+                    samples_to_msaa(source_transfer_texture->sampleCount());
+                shader_key.dest_msaa_samples =
+                    samples_to_msaa(dest_texture->sampleCount());
                 shader_key.source_resource_format = source_key.resource_format;
                 shader_key.dest_resource_format = dest_key.resource_format;
 
@@ -2665,7 +2696,7 @@ void MetalRenderTargetCache::PerformTransfersAndResolveClears(
                 }
 
                 enc->setRenderPipelineState(pipeline);
-                enc->setFragmentTexture(source_texture, 0);
+                enc->setFragmentTexture(source_transfer_texture, 0);
 
                 struct RectInfo {
                   float dst[4];      // x, y, w, h
@@ -2720,7 +2751,8 @@ void MetalRenderTargetCache::PerformTransfersAndResolveClears(
 
         // Copy the region from source to destination
         blit->copyFromTexture(
-            source_texture, 0, 0, MTL::Origin::Make(scaled_x, scaled_y, 0),
+            source_transfer_texture, 0, 0,
+            MTL::Origin::Make(scaled_x, scaled_y, 0),
             MTL::Size::Make(scaled_width, scaled_height, 1), dest_texture, 0, 0,
             MTL::Origin::Make(scaled_x, scaled_y, 0));
 
@@ -2901,6 +2933,18 @@ MTL::RenderPipelineState* MetalRenderTargetCache::GetOrCreateTransferPipelines(
       return out;
     }
 
+    fragment DepthOut transfer_ps_depth_copy(
+        VSOut in [[stage_in]],
+        texture2d<float> src_tex [[texture(0)]],
+        constant RectInfo& ri [[buffer(0)]]) {
+      float2 dst_px = float2(ri.dst.x, ri.dst.y) + in.texcoord * ri.dst.zw;
+      uint2 src_px = uint2(dst_px);
+      src_px = min(src_px, uint2(ri.srcSize.xy) - uint2(1, 1));
+      DepthOut out;
+      out.depth = src_tex.read(src_px, 0).r;
+      return out;
+    }
+
     fragment DepthOut transfer_ps_color_to_depth(
         VSOut in [[stage_in]],
         texture2d<float> src_tex [[texture(0)]],
@@ -2968,18 +3012,11 @@ MTL::RenderPipelineState* MetalRenderTargetCache::GetOrCreateTransferPipelines(
   bool src_ms = key.source_msaa_samples != xenos::MsaaSamples::k1X;
 
   if (key.mode == TransferMode::kDepthToDepth) {
-    // kDepthToDepth usually implies MSAA resolve if src != dst samples,
-    // and we already use transfer_ps_depth_resolve which expects texture2d_ms.
-    // If src is 1x, we might need a non-ms variant, but currently kDepthToDepth
-    // logic in PerformTransfers... sets it for source_is_depth && dest_is_depth.
-    // Xenos depth is often treated as MSAA even if 1x.
-    // But let's check.
-    // Existing code uses `transfer_ps_depth_resolve` which takes `texture2d_ms`.
-    // If we have 1x depth -> 1x depth copy, we might need non-ms.
-    // But let's stick to the requested changes for now.
-    // The previous error was about `transfer_ps_depth_to_color`.
-    ps_name_str =
-        NS::String::string("transfer_ps_depth_resolve", NS::UTF8StringEncoding);
+    // Use MSAA resolve only when the source is multisampled to avoid binding
+    // a non-MSAA texture to a texture2d_ms parameter.
+    ps_name_str = NS::String::string(
+        src_ms ? "transfer_ps_depth_resolve" : "transfer_ps_depth_copy",
+        NS::UTF8StringEncoding);
   } else if (key.mode == TransferMode::kColorToDepth) {
     ps_name_str = NS::String::string(src_ms ? "transfer_ps_color_to_depth_ms"
                                             : "transfer_ps_color_to_depth",

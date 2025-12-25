@@ -122,7 +122,8 @@ bool SupportsPixelFormat(MTL::Device* device, MTL::PixelFormat format) {
   descriptor->setArrayLength(1);
   descriptor->setMipmapLevelCount(1);
   descriptor->setSampleCount(1);
-  descriptor->setUsage(MTL::TextureUsageShaderRead);
+  descriptor->setUsage(MTL::TextureUsageShaderRead |
+                       MTL::TextureUsagePixelFormatView);
   descriptor->setStorageMode(MTL::StorageModeShared);
   MTL::Texture* texture = device->newTexture(descriptor);
   descriptor->release();
@@ -1265,7 +1266,8 @@ MTL::Texture* MetalTextureCache::CreateTexture2D(
   descriptor->setDepth(1);
   descriptor->setArrayLength(array_length);
   descriptor->setMipmapLevelCount(mip_levels);
-  descriptor->setUsage(MTL::TextureUsageShaderRead);
+  descriptor->setUsage(MTL::TextureUsageShaderRead |
+                       MTL::TextureUsagePixelFormatView);
   descriptor->setStorageMode(MTL::StorageModeShared);
   descriptor->setSwizzle(swizzle);
 
@@ -1308,7 +1310,8 @@ MTL::Texture* MetalTextureCache::CreateTexture3D(uint32_t width,
   descriptor->setDepth(depth);
   descriptor->setArrayLength(1);
   descriptor->setMipmapLevelCount(mip_levels);
-  descriptor->setUsage(MTL::TextureUsageShaderRead);
+  descriptor->setUsage(MTL::TextureUsageShaderRead |
+                       MTL::TextureUsagePixelFormatView);
   descriptor->setStorageMode(MTL::StorageModeShared);
   descriptor->setSwizzle(swizzle);
 
@@ -1348,7 +1351,8 @@ MTL::Texture* MetalTextureCache::CreateTextureCube(uint32_t width,
   descriptor->setHeight(width);
   descriptor->setDepth(1);
   descriptor->setMipmapLevelCount(mip_levels);
-  descriptor->setUsage(MTL::TextureUsageShaderRead);
+  descriptor->setUsage(MTL::TextureUsageShaderRead |
+                       MTL::TextureUsagePixelFormatView);
   descriptor->setStorageMode(MTL::StorageModeShared);
   descriptor->setSwizzle(swizzle);
 
@@ -1457,7 +1461,8 @@ MTL::Texture* MetalTextureCache::CreateNullTexture2D() {
   descriptor->setWidth(1);
   descriptor->setHeight(1);
   descriptor->setArrayLength(1);
-  descriptor->setUsage(MTL::TextureUsageShaderRead);
+  descriptor->setUsage(MTL::TextureUsageShaderRead |
+                       MTL::TextureUsagePixelFormatView);
   descriptor->setStorageMode(MTL::StorageModeShared);
 
   MTL::Texture* texture = device->newTexture(descriptor);
@@ -1492,7 +1497,8 @@ MTL::Texture* MetalTextureCache::CreateNullTexture3D() {
   descriptor->setWidth(1);
   descriptor->setHeight(1);
   descriptor->setDepth(1);
-  descriptor->setUsage(MTL::TextureUsageShaderRead);
+  descriptor->setUsage(MTL::TextureUsageShaderRead |
+                       MTL::TextureUsagePixelFormatView);
   descriptor->setStorageMode(MTL::StorageModeShared);
 
   MTL::Texture* texture = device->newTexture(descriptor);
@@ -1530,7 +1536,8 @@ MTL::Texture* MetalTextureCache::CreateNullTextureCube() {
   descriptor->setHeight(1);
   descriptor->setDepth(1);
   descriptor->setArrayLength(1);
-  descriptor->setUsage(MTL::TextureUsageShaderRead);
+  descriptor->setUsage(MTL::TextureUsageShaderRead |
+                       MTL::TextureUsagePixelFormatView);
   descriptor->setStorageMode(MTL::StorageModeShared);
 
   MTL::Texture* texture = device->newTexture(descriptor);

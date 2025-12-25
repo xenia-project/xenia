@@ -10,6 +10,7 @@
 #ifndef XENIA_GPU_METAL_METAL_SHADER_H_
 #define XENIA_GPU_METAL_METAL_SHADER_H_
 
+#include <string>
 #include <vector>
 
 #include "xenia/gpu/dxbc_shader.h"
@@ -47,12 +48,14 @@ class MetalShader : public DxbcShader {
     // Get intermediate data for debugging
     const std::vector<uint8_t>& dxil_data() const { return dxil_data_; }
     const std::vector<uint8_t>& metallib_data() const { return metallib_data_; }
+    const std::string& function_name() const { return function_name_; }
 
    private:
     MTL::Library* metal_library_ = nullptr;
     MTL::Function* metal_function_ = nullptr;
     std::vector<uint8_t> dxil_data_;
     std::vector<uint8_t> metallib_data_;
+    std::string function_name_;
   };
 
   MetalShader(xenos::ShaderType shader_type, uint64_t ucode_data_hash,

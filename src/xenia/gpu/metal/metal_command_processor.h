@@ -11,6 +11,7 @@
 #define XENIA_GPU_METAL_METAL_COMMAND_PROCESSOR_H_
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -20,6 +21,7 @@
 #include "xenia/gpu/draw_util.h"
 #include "xenia/gpu/dxbc_shader_translator.h"
 #include "xenia/gpu/metal/dxbc_to_dxil_converter.h"
+#include "xenia/gpu/metal/metal_geometry_shader.h"
 #include "xenia/gpu/metal/metal_primitive_processor.h"
 #include "xenia/gpu/metal/metal_render_target_cache.h"
 #include "xenia/gpu/metal/metal_shader.h"
@@ -109,12 +111,51 @@ class MetalCommandProcessor : public CommandProcessor {
   // Command buffer management
   void BeginCommandBuffer();
   void EndCommandBuffer();
+  void EnsureDrawRingCapacity();
 
   // Pipeline state management
   MTL::RenderPipelineState* GetOrCreatePipelineState(
       MetalShader::MetalTranslation* vertex_translation,
       MetalShader::MetalTranslation* pixel_translation,
       const RegisterFile& regs);
+
+  struct GeometryVertexStageState {
+    MTL::Library* library = nullptr;
+    MTL::Library* stage_in_library = nullptr;
+    std::string function_name;
+    uint32_t vertex_output_size_in_bytes = 0;
+    std::string input_layout_json;
+    std::string input_summary;
+  };
+
+  struct GeometryShaderStageState {
+    MTL::Library* library = nullptr;
+    std::string function_name;
+    uint32_t max_input_primitives_per_mesh_threadgroup = 0;
+    std::vector<MetalShaderFunctionConstant> function_constants;
+  };
+
+  struct GeometryPipelineState {
+    MTL::RenderPipelineState* pipeline = nullptr;
+    uint32_t gs_vertex_size_in_bytes = 0;
+    uint32_t gs_max_input_primitives_per_mesh_threadgroup = 0;
+  };
+
+  struct DrawRingBuffers {
+    MTL::Buffer* res_heap_ab = nullptr;
+    MTL::Buffer* smp_heap_ab = nullptr;
+    MTL::Buffer* cbv_heap_ab = nullptr;
+    MTL::Buffer* uniforms_buffer = nullptr;
+    MTL::Buffer* top_level_ab = nullptr;
+    MTL::Buffer* draw_args_buffer = nullptr;
+
+    ~DrawRingBuffers();
+  };
+
+  GeometryPipelineState* GetOrCreateGeometryPipelineState(
+      MetalShader::MetalTranslation* vertex_translation,
+      MetalShader::MetalTranslation* pixel_translation,
+      GeometryShaderKey geometry_shader_key, const RegisterFile& regs);
 
   // Fixed-function depth/stencil state (mirrors Vulkan/D3D12 dynamic state).
   void ApplyDepthStencilState(bool primitive_polygonal,
@@ -142,6 +183,7 @@ class MetalCommandProcessor : public CommandProcessor {
   static constexpr size_t kResourceHeapSlotsPerTable = 1025 + 2;
   static constexpr size_t kSamplerHeapSlotsPerTable = 257 + 2;
   static constexpr size_t kCbvHeapSlotsPerTable = 5 + 2;  // b0-b4 + padding.
+  static constexpr size_t kNullBufferSize = 4096;
 
   static constexpr size_t kCbvSizeBytes = 4096;
   static constexpr size_t kUniformsBytesPerTable = 5 * kCbvSizeBytes;
@@ -157,6 +199,11 @@ class MetalCommandProcessor : public CommandProcessor {
   // IR Converter runtime resource binding
   bool CreateIRConverterBuffers();
   void PopulateIRConverterBuffers();
+  std::shared_ptr<DrawRingBuffers> CreateDrawRingBuffers();
+  std::shared_ptr<DrawRingBuffers> AcquireDrawRingBuffers();
+  void SetActiveDrawRing(const std::shared_ptr<DrawRingBuffers>& ring);
+  void EnsureActiveDrawRing();
+  void ScheduleDrawRingRelease(MTL::CommandBuffer* command_buffer);
 
   // System constants population (mirrors D3D12 implementation)
   void UpdateSystemConstantValues(bool shared_memory_is_uav,
@@ -219,6 +266,12 @@ class MetalCommandProcessor : public CommandProcessor {
 
   // Pipeline cache (keyed by shader combination)
   std::unordered_map<uint64_t, MTL::RenderPipelineState*> pipeline_cache_;
+  std::unordered_map<uint64_t, GeometryPipelineState> geometry_pipeline_cache_;
+  std::unordered_map<MetalShader::MetalTranslation*, GeometryVertexStageState>
+      geometry_vertex_stage_cache_;
+  std::unordered_map<GeometryShaderKey, GeometryShaderStageState,
+                     GeometryShaderKey::Hasher>
+      geometry_shader_stage_cache_;
 
   struct DepthStencilStateKey {
     uint32_t depth_control;
@@ -248,6 +301,7 @@ class MetalCommandProcessor : public CommandProcessor {
 
   // Debug pipeline for testing
   MTL::RenderPipelineState* debug_pipeline_ = nullptr;
+  bool mesh_shader_supported_ = false;
 
   // Frame capture data
   bool has_captured_frame_ = false;
@@ -275,6 +329,10 @@ class MetalCommandProcessor : public CommandProcessor {
       nullptr;  // Top-level argument buffer (bind point 2)
   MTL::Buffer* draw_args_buffer_ =
       nullptr;  // Draw arguments buffer (bind point 4)
+  std::shared_ptr<DrawRingBuffers> active_draw_ring_;
+  std::vector<std::shared_ptr<DrawRingBuffers>> draw_ring_pool_;
+  std::vector<std::shared_ptr<DrawRingBuffers>> command_buffer_draw_rings_;
+  std::mutex draw_ring_mutex_;
 
   // System constants - matches DxbcShaderTranslator::SystemConstants layout
   // Stored persistently to track dirty state

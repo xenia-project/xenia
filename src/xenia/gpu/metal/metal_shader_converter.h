@@ -14,6 +14,8 @@
 #include <string>
 #include <vector>
 
+struct IRVersionedInputLayoutDescriptor;
+
 #include "xenia/gpu/xenos.h"
 
 namespace xe {
@@ -21,7 +23,7 @@ namespace gpu {
 namespace metal {
 
 // Shader stage for Metal conversion
-enum class MetalShaderStage { kVertex, kFragment, kCompute };
+enum class MetalShaderStage { kVertex, kFragment, kGeometry, kCompute };
 
 // Result of shader conversion
 struct MetalShaderConversionResult {
@@ -29,6 +31,26 @@ struct MetalShaderConversionResult {
   std::vector<uint8_t> metallib_data;
   std::string error_message;
   std::string function_name;  // Main function name in the metallib
+  bool has_mesh_stage = false;
+  bool has_geometry_stage = false;
+};
+
+struct MetalShaderReflectionInput {
+  std::string name;
+  uint8_t attribute_index = 0;
+};
+
+struct MetalShaderFunctionConstant {
+  std::string name;
+  uint32_t type = 0;
+};
+
+struct MetalShaderReflectionInfo {
+  uint32_t vertex_output_size_in_bytes = 0;
+  uint32_t vertex_input_count = 0;
+  std::vector<MetalShaderReflectionInput> vertex_inputs;
+  uint32_t gs_max_input_primitives_per_mesh_threadgroup = 0;
+  std::vector<MetalShaderFunctionConstant> function_constants;
 };
 
 // Converts DXIL shaders to Metal IR using Apple's Metal Shader Converter
@@ -57,11 +79,28 @@ class MetalShaderConverter {
                         const std::vector<uint8_t>& dxil_data,
                         MetalShaderConversionResult& result);
 
+  bool ConvertWithStageEx(MetalShaderStage stage,
+                          const std::vector<uint8_t>& dxil_data,
+                          MetalShaderConversionResult& result,
+                          MetalShaderReflectionInfo* reflection,
+                          const IRVersionedInputLayoutDescriptor* input_layout,
+                          std::vector<uint8_t>* stage_in_metallib,
+                          bool enable_geometry_emulation,
+                          int input_topology);
+
+  void SetMinimumTarget(uint32_t gpu_family, uint32_t os,
+                        const std::string& version);
+
  private:
   bool is_available_ = false;
+  bool has_minimum_target_ = false;
+  uint32_t minimum_gpu_family_ = 0;
+  uint32_t minimum_os_ = 0;
+  std::string minimum_os_version_;
 
   // Create Xbox 360 root signature for the given shader visibility
-  void* CreateXbox360RootSignature(MetalShaderStage stage);
+  void* CreateXbox360RootSignature(MetalShaderStage stage,
+                                   bool force_all_visibility);
 
   // Destroy a root signature
   void DestroyRootSignature(void* root_sig);

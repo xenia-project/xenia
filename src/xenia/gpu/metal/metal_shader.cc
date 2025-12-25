@@ -74,18 +74,15 @@ bool MetalShader::MetalTranslation::TranslateToMetal(
            msc_result.error_message);
     return false;
   }
+  function_name_ = msc_result.function_name;
   metallib_data_ = std::move(msc_result.metallib_data);
   XELOGD("MetalShader: Converted {} bytes DXIL to {} bytes MetalLib",
          dxil_data_.size(), metallib_data_.size());
 
-  // Debug: Dump shader artifacts (DXBC, DXIL, MetalLib) to files
-  // Use XENIA_SHADER_DUMP_DIR env var if set, otherwise /tmp
+  // Debug: Dump shader artifacts (DXBC, DXIL, MetalLib) to files when enabled.
   static int shader_dump_counter = 0;
-  {
-    const char* dump_dir = std::getenv("XENIA_SHADER_DUMP_DIR");
-    if (!dump_dir) {
-      dump_dir = "/tmp";
-    }
+  if (!cvars::dump_shaders.empty()) {
+    const char* dump_dir = cvars::dump_shaders.c_str();
 
     char filename[512];
     const char* type_str =
