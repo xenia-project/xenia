@@ -1046,15 +1046,18 @@ void MetalCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
 
     if (source_texture) {
       ui::metal::MetalPresenter* metal_presenter = presenter;
+      uint32_t source_width = output_width;
+      uint32_t source_height = output_height;
       presenter->RefreshGuestOutput(
           output_width, output_height, 1280, 720,  // Display aspect ratio
-          [source_texture, metal_presenter](
+          [source_texture, metal_presenter, source_width, source_height](
               ui::Presenter::GuestOutputRefreshContext& context) -> bool {
             auto& metal_context =
                 static_cast<ui::metal::MetalGuestOutputRefreshContext&>(
                     context);
             return metal_presenter->CopyTextureToGuestOutput(
-                source_texture, metal_context.resource_uav_capable());
+                source_texture, metal_context.resource_uav_capable(),
+                source_width, source_height);
           });
     }
   }

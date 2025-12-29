@@ -42,6 +42,8 @@ class MetalImmediateDrawer : public ImmediateDrawer {
                                                   ImmediateTextureFilter filter,
                                                   bool repeat,
                                                   const uint8_t* data) override;
+  std::unique_ptr<ImmediateTexture> CreateTextureFromMetal(
+      MTL::Texture* texture, MTL::SamplerState* sampler);
 
   void Begin(UIDrawContext& ui_draw_context,
              float coordinate_space_width,
@@ -68,6 +70,7 @@ class MetalImmediateDrawer : public ImmediateDrawer {
   // Rendering pipeline objects
   MTL::RenderPipelineState* pipeline_textured_ = nullptr;
   MTL::Texture* white_texture_ = nullptr;
+  MTL::SamplerState* default_sampler_ = nullptr;
   
   // Current rendering state
   MTL::CommandBuffer* current_command_buffer_ = nullptr;

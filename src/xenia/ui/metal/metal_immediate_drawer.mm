@@ -23,13 +23,6 @@
 #import <Metal/Metal.h>
 #import <simd/simd.h>
 
-// Vertex structure matching ImmediateVertex
-struct MetalImmediateVertex {
-  simd::float2 position;
-  simd::float2 texcoord;
-  uint32_t color;
-};
-
 namespace xe {
 namespace ui {
 namespace metal {
@@ -99,6 +92,15 @@ bool MetalImmediateDrawer::Initialize() {
   uint32_t white_pixel = 0xFFFFFFFF;
   white_texture_->replaceRegion(MTL::Region(0, 0, 0, 1, 1, 1), 0, &white_pixel, 4);
 
+  // Create default sampler
+  MTL::SamplerDescriptor* sampler_desc = MTL::SamplerDescriptor::alloc()->init();
+  sampler_desc->setMinFilter(MTL::SamplerMinMagFilterLinear);
+  sampler_desc->setMagFilter(MTL::SamplerMinMagFilterLinear);
+  sampler_desc->setSAddressMode(MTL::SamplerAddressModeClampToEdge);
+  sampler_desc->setTAddressMode(MTL::SamplerAddressModeClampToEdge);
+  default_sampler_ = device_->newSamplerState(sampler_desc);
+  sampler_desc->release();
+
   // Load Shaders
   MTL::Function* vs = CreateFunction(device_, immediate_vs_metallib,
                                      sizeof(immediate_vs_metallib), "immediate_vs");
@@ -122,21 +124,24 @@ bool MetalImmediateDrawer::Initialize() {
   
   // Attribute 0: Position
   vertex_descriptor->attributes()->object(0)->setFormat(MTL::VertexFormatFloat2);
-  vertex_descriptor->attributes()->object(0)->setOffset(0);
+  vertex_descriptor->attributes()->object(0)->setOffset(
+      offsetof(ImmediateVertex, x));
   vertex_descriptor->attributes()->object(0)->setBufferIndex(1);
   
   // Attribute 1: Texcoord
   vertex_descriptor->attributes()->object(1)->setFormat(MTL::VertexFormatFloat2);
-  vertex_descriptor->attributes()->object(1)->setOffset(8);
+  vertex_descriptor->attributes()->object(1)->setOffset(
+      offsetof(ImmediateVertex, u));
   vertex_descriptor->attributes()->object(1)->setBufferIndex(1);
   
   // Attribute 2: Color
-  vertex_descriptor->attributes()->object(2)->setFormat(MTL::VertexFormatUInt);
-  vertex_descriptor->attributes()->object(2)->setOffset(16);
+  vertex_descriptor->attributes()->object(2)->setFormat(MTL::VertexFormatUChar4Normalized);
+  vertex_descriptor->attributes()->object(2)->setOffset(
+      offsetof(ImmediateVertex, color));
   vertex_descriptor->attributes()->object(2)->setBufferIndex(1);
   
   // Layout (Buffer 1)
-  vertex_descriptor->layouts()->object(1)->setStride(sizeof(MetalImmediateVertex));
+  vertex_descriptor->layouts()->object(1)->setStride(sizeof(ImmediateVertex));
   vertex_descriptor->layouts()->object(1)->setStepRate(1);
   vertex_descriptor->layouts()->object(1)->setStepFunction(MTL::VertexStepFunctionPerVertex);
   
@@ -149,7 +154,8 @@ bool MetalImmediateDrawer::Initialize() {
   
   // Configure color attachment
   auto* color_attachment = pipeline_desc->colorAttachments()->object(0);
-  color_attachment->setPixelFormat(MTL::PixelFormatBGRA8Unorm_sRGB); // Match MetalLayer format
+  // Match the CAMetalLayer format used by the Metal presenter.
+  color_attachment->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
   color_attachment->setBlendingEnabled(true);
   color_attachment->setRgbBlendOperation(MTL::BlendOperationAdd);
   color_attachment->setAlphaBlendOperation(MTL::BlendOperationAdd);
@@ -180,6 +186,10 @@ void MetalImmediateDrawer::Shutdown() {
   if (white_texture_) {
     white_texture_->release();
     white_texture_ = nullptr;
+  }
+  if (default_sampler_) {
+    default_sampler_->release();
+    default_sampler_ = nullptr;
   }
   if (pipeline_textured_) {
     pipeline_textured_->release();
@@ -256,6 +266,26 @@ std::unique_ptr<ImmediateTexture> MetalImmediateDrawer::CreateTexture(
   return std::move(texture);
 }
 
+std::unique_ptr<ImmediateTexture>
+MetalImmediateDrawer::CreateTextureFromMetal(MTL::Texture* texture,
+                                             MTL::SamplerState* sampler) {
+  if (!texture) {
+    return nullptr;
+  }
+  auto wrapped = std::make_unique<MetalImmediateTexture>(
+      static_cast<uint32_t>(texture->width()),
+      static_cast<uint32_t>(texture->height()));
+  wrapped->texture = texture;
+  wrapped->sampler = sampler ? sampler : default_sampler_;
+  if (wrapped->texture) {
+    wrapped->texture->retain();
+  }
+  if (wrapped->sampler) {
+    wrapped->sampler->retain();
+  }
+  return wrapped;
+}
+
 void MetalImmediateDrawer::Begin(UIDrawContext& ui_draw_context,
                                  float coordinate_space_width,
                                  float coordinate_space_height) {
@@ -268,27 +298,34 @@ void MetalImmediateDrawer::Begin(UIDrawContext& ui_draw_context,
   current_command_buffer_ = (__bridge MTL::CommandBuffer*)metal_ui_draw_context.command_buffer();
   current_render_encoder_ = (__bridge MTL::RenderCommandEncoder*)metal_ui_draw_context.render_encoder();
   
-  // Set up orthographic projection matrix for UI coordinate space
+  // Set up coordinate space size inverse for UI coordinate space
   // ImGui expects (0,0) at top-left, (width,height) at bottom-right
-  float left = 0.0f;
-  float right = coordinate_space_width;
-  float top = 0.0f;
-  float bottom = coordinate_space_height;
-  float near_z = -1.0f;
-  float far_z = 1.0f;
-  
-  simd::float4x4 projection_matrix = {
-    simd::make_float4(2.0f / (right - left), 0.0f, 0.0f, 0.0f),
-    simd::make_float4(0.0f, 2.0f / (top - bottom), 0.0f, 0.0f),
-    simd::make_float4(0.0f, 0.0f, 1.0f / (far_z - near_z), 0.0f),
-    simd::make_float4((left + right) / (left - right), (top + bottom) / (bottom - top), near_z / (near_z - far_z), 1.0f)
+  simd::float2 coordinate_space_size_inv = {
+    1.0f / coordinate_space_width,
+    1.0f / coordinate_space_height,
   };
   
   // immediate.vs.xesl uses push constants in buffer(0)
-  // xesl_float4x4 xe_projection_matrix;
+  // xesl_float2 xe_coordinate_space_size_inv;
   
   id<MTLRenderCommandEncoder> encoder = (__bridge id<MTLRenderCommandEncoder>)current_render_encoder_;
-  [encoder setVertexBytes:&projection_matrix length:sizeof(projection_matrix) atIndex:0];
+  // Ensure UI draws use a full-screen viewport/scissor regardless of prior GPU state.
+  MTLViewport viewport;
+  viewport.originX = 0.0;
+  viewport.originY = 0.0;
+  viewport.width = metal_ui_draw_context.render_target_width();
+  viewport.height = metal_ui_draw_context.render_target_height();
+  viewport.znear = 0.0;
+  viewport.zfar = 1.0;
+  [encoder setViewport:viewport];
+
+  MTLScissorRect scissor_rect;
+  scissor_rect.x = 0;
+  scissor_rect.y = 0;
+  scissor_rect.width = metal_ui_draw_context.render_target_width();
+  scissor_rect.height = metal_ui_draw_context.render_target_height();
+  [encoder setScissorRect:scissor_rect];
+  [encoder setVertexBytes:&coordinate_space_size_inv length:sizeof(coordinate_space_size_inv) atIndex:0];
 }
 
 void MetalImmediateDrawer::BeginDrawBatch(const ImmediateDrawBatch& batch) {
@@ -344,10 +381,21 @@ void MetalImmediateDrawer::Draw(const ImmediateDraw& draw) {
   
   // Use the textured pipeline (it handles both cases via white texture fallback)
   [encoder setRenderPipelineState:(__bridge id<MTLRenderPipelineState>)pipeline_textured_];
+  uint32_t scissor_left, scissor_top, scissor_width, scissor_height;
+  if (!ScissorToRenderTarget(draw, scissor_left, scissor_top, scissor_width,
+                             scissor_height)) {
+    return;
+  }
+  MTLScissorRect scissor_rect;
+  scissor_rect.x = scissor_left;
+  scissor_rect.y = scissor_top;
+  scissor_rect.width = scissor_width;
+  scissor_rect.height = scissor_height;
+  [encoder setScissorRect:scissor_rect];
   
   // Set texture and sampler
   MTL::Texture* texture_to_bind = white_texture_;
-  MTL::SamplerState* sampler_to_bind = nullptr; // TODO: default sampler?
+  MTL::SamplerState* sampler_to_bind = default_sampler_;
   
   if (draw.texture) {
     MetalImmediateTexture* metal_texture = static_cast<MetalImmediateTexture*>(draw.texture);
@@ -360,33 +408,6 @@ void MetalImmediateDrawer::Draw(const ImmediateDraw& draw) {
   [encoder setFragmentTexture:(__bridge id<MTLTexture>)texture_to_bind atIndex:0];
   if (sampler_to_bind) {
     [encoder setFragmentSamplerState:(__bridge id<MTLSamplerState>)sampler_to_bind atIndex:0];
-  } else {
-    // We need a default sampler for the white texture.
-    // Create one on the fly or cache it? caching is better.
-    // For now, let's create a default linear sampler in Initialize or similar.
-    // Hack: use the one from the first texture? No.
-    // Just create a temporary one or assume user always provides texture?
-    // ImGui always provides font texture.
-    // Non-textured primitives (draw.texture == null) still need a sampler for the white texture.
-    // Let's rely on a default sampler.
-    // Create a default sampler in Initialize.
-  }
-  
-  // Set scissor rect if enabled
-  if (draw.scissor) {
-    MTLScissorRect scissor_rect;
-    scissor_rect.x = static_cast<NSUInteger>(std::max(0.0f, draw.scissor_left));
-    scissor_rect.y = static_cast<NSUInteger>(std::max(0.0f, draw.scissor_top));
-    scissor_rect.width = static_cast<NSUInteger>(std::max(0.0f, draw.scissor_right - draw.scissor_left));
-    scissor_rect.height = static_cast<NSUInteger>(std::max(0.0f, draw.scissor_bottom - draw.scissor_top));
-    [encoder setScissorRect:scissor_rect];
-  } else {
-    MTLScissorRect full_rect;
-    full_rect.x = 0;
-    full_rect.y = 0;
-    full_rect.width = 8192;
-    full_rect.height = 8192;
-    [encoder setScissorRect:full_rect];
   }
   
   // Convert primitive type
@@ -400,10 +421,13 @@ void MetalImmediateDrawer::Draw(const ImmediateDraw& draw) {
                         indexCount:draw.count
                          indexType:MTLIndexTypeUInt16
                        indexBuffer:index_buffer
-                 indexBufferOffset:draw.index_offset * sizeof(uint16_t)];
+                 indexBufferOffset:draw.index_offset * sizeof(uint16_t)
+                     instanceCount:1
+                        baseVertex:draw.base_vertex
+                      baseInstance:0];
   } else {
     [encoder drawPrimitives:primitive_type
-                vertexStart:draw.base_vertex + draw.index_offset
+                vertexStart:draw.base_vertex
                 vertexCount:draw.count];
   }
 }

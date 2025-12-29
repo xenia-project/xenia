@@ -9,7 +9,9 @@
 
 #include "xenia/ui/metal/metal_presenter.h"
 
+#include <cstdlib>
 #include <cstring>
+#include <string>
 #include <utility>
 
 #include "Metal/Metal.hpp"
@@ -20,6 +22,7 @@
 #include "xenia/gpu/metal/metal_command_processor.h"
 
 // Objective-C imports for Metal layer configuration
+#import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
 namespace xe {
@@ -52,6 +55,12 @@ void MetalPresenter::Shutdown() {
   // Release Metal presentation resources
   if (command_queue_) {
     command_queue_ = nullptr;
+  }
+  if (copy_texture_convert_pipeline_2d_) {
+    copy_texture_convert_pipeline_2d_ = nullptr;
+  }
+  if (copy_texture_convert_pipeline_2d_array_) {
+    copy_texture_convert_pipeline_2d_array_ = nullptr;
   }
   metal_layer_ = nullptr;
   XELOGI("Metal presenter shut down");
@@ -136,7 +145,7 @@ bool MetalPresenter::CaptureGuestOutput(RawImage& image_out) {
   
   uint32_t width = static_cast<uint32_t>(guest_output_texture.width);
   uint32_t height = static_cast<uint32_t>(guest_output_texture.height);
-  size_t stride = width * 4; // BGRA format
+  size_t stride = width * 4; // 4 bytes per pixel
   
   XELOGI("Metal CaptureGuestOutput: Reading real texture data {}x{} from mailbox index {}", 
          width, height, guest_output_mailbox_index);
@@ -198,8 +207,9 @@ bool MetalPresenter::CaptureGuestOutput(RawImage& image_out) {
   
   std::memcpy(image_out.data.data(), buffer_contents, height * stride);
 
-  // `stbi_write_png` expects RGBA. The guest output texture is BGRA8, so swizzle
-  // to RGBA and force alpha to 255 (matches D3D12/Vulkan behavior).
+  // `stbi_write_png` expects RGBA. The guest output texture may be BGRA8 or
+  // RGBA8 depending on how it was produced, so swizzle to RGBA when needed and
+  // force alpha to 255 (matches D3D12/Vulkan behavior).
   uint8_t* pixel_data = image_out.data.data();
   size_t pixel_count = width * height;
   MTLPixelFormat pixel_format = guest_output_texture.pixelFormat;
@@ -253,6 +263,38 @@ Presenter::PaintResult MetalPresenter::PaintAndPresentImpl(bool execute_ui_drawe
 
   // Execute UI drawers if requested
   if (execute_ui_drawers) {
+    static bool ui_capture_done = false;
+    if (!ui_capture_done) {
+      const char* capture_env = std::getenv("XENIA_METAL_UI_CAPTURE");
+      if (capture_env && std::strcmp(capture_env, "1") == 0) {
+        ui_capture_done = true;
+        id capture_manager = [MTLCaptureManager sharedCaptureManager];
+        if (capture_manager) {
+          id descriptor = [[MTLCaptureDescriptor alloc] init];
+          // Capture the device to avoid layer insertion failures.
+          [descriptor setCaptureObject:(__bridge id<MTLDevice>)device_];
+          [descriptor setDestination:MTLCaptureDestinationGPUTraceDocument];
+          const char* capture_dir = std::getenv("XENIA_GPU_CAPTURE_DIR");
+          std::string filename =
+              capture_dir
+                  ? (std::string(capture_dir) + "/ui_capture.gputrace")
+                  : std::string("./ui_capture.gputrace");
+          NSURL* output_url = [NSURL
+              fileURLWithPath:[NSString stringWithUTF8String:filename.c_str()]];
+          [descriptor setOutputURL:output_url];
+          NSError* error = nil;
+          if (![capture_manager startCaptureWithDescriptor:descriptor
+                                                     error:&error]) {
+            XELOGE("Metal UI capture start failed: {}",
+                   error ? error.localizedDescription.UTF8String : "unknown");
+          } else {
+            XELOGI("Metal UI capture started: {}", filename);
+          }
+          [descriptor release];
+        }
+      }
+    }
+
     // Create Metal UI draw context
     MetalUIDrawContext metal_ui_draw_context(
         *this, 
@@ -264,6 +306,14 @@ Presenter::PaintResult MetalPresenter::PaintAndPresentImpl(bool execute_ui_drawe
     // Execute the UI drawers
     ExecuteUIDrawersFromUIThread(metal_ui_draw_context);
     // XELOGI("Metal PaintAndPresentImpl: UI drawers executed successfully");
+
+    if (ui_capture_done) {
+      id capture_manager = [MTLCaptureManager sharedCaptureManager];
+      if (capture_manager && [capture_manager isCapturing]) {
+        [capture_manager stopCapture];
+        XELOGI("Metal UI capture completed");
+      }
+    }
   }
   
   // End rendering
@@ -361,7 +411,7 @@ bool MetalPresenter::RefreshGuestOutputImpl(
     
     // Create texture descriptor for guest output
     MTLTextureDescriptor* descriptor = [MTLTextureDescriptor 
-        texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
+        texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
                                      width:frontbuffer_width
                                     height:frontbuffer_height
                                  mipmapped:NO];
@@ -397,7 +447,118 @@ bool MetalPresenter::RefreshGuestOutputImpl(
   return true;
 }
 
-bool MetalPresenter::CopyTextureToGuestOutput(MTL::Texture* source_texture, id dest_texture) {
+bool MetalPresenter::EnsureCopyTextureConvertPipelines() {
+  if (copy_texture_convert_pipeline_2d_ && copy_texture_convert_pipeline_2d_array_) {
+    return true;
+  }
+
+  id<MTLDevice> mtl_device = (__bridge id<MTLDevice>)device_;
+  if (!mtl_device) {
+    XELOGE("MetalPresenter::EnsureCopyTextureConvertPipelines: No Metal device");
+    return false;
+  }
+
+  static const char kCopyTextureConvertShaderSource[] = R"METAL(
+#include <metal_stdlib>
+using namespace metal;
+
+struct CopyConstants {
+  uint width;
+  uint height;
+  uint slice;
+  uint flags;
+};
+
+kernel void xe_copy_texture_convert_2d(
+    texture2d<float, access::read> src [[texture(0)]],
+    texture2d<half, access::write> dst [[texture(1)]],
+    constant CopyConstants& c [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]) {
+  if (gid.x >= c.width || gid.y >= c.height) {
+    return;
+  }
+  float4 v = src.read(gid);
+  if (c.flags & 1u) {
+    v = v.bgra;
+  }
+  dst.write(half4(v), gid);
+}
+
+kernel void xe_copy_texture_convert_2d_array(
+    texture2d_array<float, access::read> src [[texture(0)]],
+    texture2d<half, access::write> dst [[texture(1)]],
+    constant CopyConstants& c [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]) {
+  if (gid.x >= c.width || gid.y >= c.height) {
+    return;
+  }
+  float4 v = src.read(gid, c.slice);
+  if (c.flags & 1u) {
+    v = v.bgra;
+  }
+  dst.write(half4(v), gid);
+}
+)METAL";
+
+  NSString* source =
+      [NSString stringWithUTF8String:kCopyTextureConvertShaderSource];
+  NSError* error = nil;
+  id<MTLLibrary> library =
+      [mtl_device newLibraryWithSource:source options:nil error:&error];
+  if (!library) {
+    XELOGE(
+        "MetalPresenter::EnsureCopyTextureConvertPipelines: Failed to compile "
+        "library: {}",
+        error ? error.localizedDescription.UTF8String : "unknown error");
+    return false;
+  }
+
+  id<MTLFunction> function_2d =
+      [library newFunctionWithName:@"xe_copy_texture_convert_2d"];
+  if (!function_2d) {
+    XELOGE(
+        "MetalPresenter::EnsureCopyTextureConvertPipelines: Missing "
+        "xe_copy_texture_convert_2d function");
+    return false;
+  }
+  id<MTLFunction> function_2d_array =
+      [library newFunctionWithName:@"xe_copy_texture_convert_2d_array"];
+  if (!function_2d_array) {
+    XELOGE(
+        "MetalPresenter::EnsureCopyTextureConvertPipelines: Missing "
+        "xe_copy_texture_convert_2d_array function");
+    return false;
+  }
+
+  id<MTLComputePipelineState> pipeline_2d =
+      [mtl_device newComputePipelineStateWithFunction:function_2d error:&error];
+  if (!pipeline_2d) {
+    XELOGE(
+        "MetalPresenter::EnsureCopyTextureConvertPipelines: Failed to create "
+        "compute pipeline: {}",
+        error ? error.localizedDescription.UTF8String : "unknown error");
+    return false;
+  }
+  id<MTLComputePipelineState> pipeline_2d_array =
+      [mtl_device newComputePipelineStateWithFunction:function_2d_array
+                                                error:&error];
+  if (!pipeline_2d_array) {
+    XELOGE(
+        "MetalPresenter::EnsureCopyTextureConvertPipelines: Failed to create "
+        "compute pipeline (2d array): {}",
+        error ? error.localizedDescription.UTF8String : "unknown error");
+    return false;
+  }
+
+  copy_texture_convert_pipeline_2d_ = pipeline_2d;
+  copy_texture_convert_pipeline_2d_array_ = pipeline_2d_array;
+  return true;
+}
+
+bool MetalPresenter::CopyTextureToGuestOutput(MTL::Texture* source_texture,
+                                              id dest_texture,
+                                              uint32_t source_width,
+                                              uint32_t source_height) {
   if (!source_texture || !dest_texture) {
     XELOGE("MetalPresenter::CopyTextureToGuestOutput: Invalid textures");
     return false;
@@ -406,8 +567,110 @@ bool MetalPresenter::CopyTextureToGuestOutput(MTL::Texture* source_texture, id d
   // Create command buffer for the copy operation  
   id<MTLCommandBuffer> copy_command_buffer = [command_queue_ commandBuffer];
   if (!copy_command_buffer) {
-    XELOGE("MetalPresenter::CopyTextureToGuestOutput: Failed to create command buffer");
+    XELOGE("MetalPresenter::CopyTextureToGuestOutput: Failed to create "
+           "command buffer");
     return false;
+  }
+
+  // Cast dest_texture to proper Metal texture type
+  id<MTLTexture> dest_metal_texture = (id<MTLTexture>)dest_texture;
+
+  // Handle size differences by copying the minimum dimensions.
+  uint32_t source_clamped_width = std::min(
+      source_width, static_cast<uint32_t>(source_texture->width()));
+  uint32_t source_clamped_height = std::min(
+      source_height, static_cast<uint32_t>(source_texture->height()));
+  uint32_t copy_width =
+      std::min(source_clamped_width,
+               static_cast<uint32_t>([dest_metal_texture width]));
+  uint32_t copy_height =
+      std::min(source_clamped_height,
+               static_cast<uint32_t>([dest_metal_texture height]));
+  if (!copy_width || !copy_height) {
+    XELOGW("MetalPresenter::CopyTextureToGuestOutput: Empty copy region");
+    return false;
+  }
+
+  // Metal blit encoder copies require identical pixel formats. If formats
+  // differ (for example RGBA8 vs BGRA8), the result is undefined and may
+  // manifest as diagonal splits / corrupted colors in captures.
+  MTLPixelFormat src_format = (MTLPixelFormat)source_texture->pixelFormat();
+  MTLPixelFormat dst_format = dest_metal_texture.pixelFormat;
+  if (src_format != dst_format) {
+    XELOGW(
+        "MetalPresenter::CopyTextureToGuestOutput: Pixel format mismatch: "
+        "src={} dst={} - using shader conversion",
+        int(src_format), int(dst_format));
+
+    if (!EnsureCopyTextureConvertPipelines()) {
+      return false;
+    }
+
+    const auto src_type = source_texture->textureType();
+    if (src_type != MTL::TextureType::TextureType2D &&
+        src_type != MTL::TextureType::TextureType2DArray) {
+      XELOGE(
+          "MetalPresenter::CopyTextureToGuestOutput: Unsupported source "
+          "texture type {} for conversion",
+          int(src_type));
+      return false;
+    }
+
+    id<MTLComputeCommandEncoder> compute_encoder =
+        [copy_command_buffer computeCommandEncoder];
+    if (!compute_encoder) {
+      XELOGE("MetalPresenter::CopyTextureToGuestOutput: Failed to create "
+             "compute encoder");
+      return false;
+    }
+
+    id<MTLComputePipelineState> pipeline =
+        (src_type == MTL::TextureType::TextureType2DArray)
+            ? (id<MTLComputePipelineState>)copy_texture_convert_pipeline_2d_array_
+            : (id<MTLComputePipelineState>)copy_texture_convert_pipeline_2d_;
+    [compute_encoder setComputePipelineState:pipeline];
+    [compute_encoder setTexture:(__bridge id<MTLTexture>)source_texture
+                        atIndex:0];
+    [compute_encoder setTexture:dest_metal_texture atIndex:1];
+
+    struct CopyConstants {
+      uint32_t width;
+      uint32_t height;
+      uint32_t slice;
+      uint32_t flags;
+    } constants;
+    constants.width = copy_width;
+    constants.height = copy_height;
+    constants.slice = 0;
+    bool swap_rb = false;
+    if (src_format == MTLPixelFormatBGRA8Unorm ||
+        src_format == MTLPixelFormatBGRA8Unorm_sRGB) {
+      swap_rb = true;
+    }
+#ifdef MTLPixelFormatBGR10A2Unorm
+    if (src_format == MTLPixelFormatBGR10A2Unorm) {
+      swap_rb = true;
+    }
+#endif
+#ifdef MTLPixelFormatBGR10A2Unorm_sRGB
+    if (src_format == MTLPixelFormatBGR10A2Unorm_sRGB) {
+      swap_rb = true;
+    }
+#endif
+    constants.flags = swap_rb ? 1u : 0u;
+    [compute_encoder setBytes:&constants length:sizeof(constants) atIndex:0];
+
+    const MTLSize threads_per_threadgroup = MTLSizeMake(16, 16, 1);
+    const MTLSize threads_per_grid = MTLSizeMake(copy_width, copy_height, 1);
+    [compute_encoder dispatchThreads:threads_per_grid
+              threadsPerThreadgroup:threads_per_threadgroup];
+    [compute_encoder endEncoding];
+
+    [copy_command_buffer commit];
+    [copy_command_buffer waitUntilCompleted];
+    XELOGI(
+        "MetalPresenter::CopyTextureToGuestOutput: Shader copy completed successfully");
+    return true;
   }
   
   // Create blit command encoder
@@ -417,19 +680,12 @@ bool MetalPresenter::CopyTextureToGuestOutput(MTL::Texture* source_texture, id d
     return false;
   }
   
-  // Cast dest_texture to proper Metal texture type
-  id<MTLTexture> dest_metal_texture = (id<MTLTexture>)dest_texture;
-  
-  // Copy source texture to destination texture
-  // Handle size differences by copying the minimum dimensions
-  uint32_t copy_width = std::min(static_cast<uint32_t>(source_texture->width()), 
-                                static_cast<uint32_t>([dest_metal_texture width]));
-  uint32_t copy_height = std::min(static_cast<uint32_t>(source_texture->height()), 
-                                 static_cast<uint32_t>([dest_metal_texture height]));
-  
-  XELOGI("MetalPresenter::CopyTextureToGuestOutput: Copying {}x{} → {}x{}", 
-         source_texture->width(), source_texture->height(),
-         [dest_metal_texture width], [dest_metal_texture height]);
+  XELOGI(
+      "MetalPresenter::CopyTextureToGuestOutput: Copying {}x{} (src {}x{}) → "
+      "{}x{}",
+      copy_width, copy_height, source_texture->width(),
+      source_texture->height(), [dest_metal_texture width],
+      [dest_metal_texture height]);
   
   [blit_encoder copyFromTexture:(__bridge id<MTLTexture>)source_texture
                     sourceSlice:0

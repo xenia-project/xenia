@@ -80,7 +80,9 @@ class MetalPresenter : public Presenter {
   bool CaptureGuestOutput(RawImage& image_out) override;
 
   // Helper method to copy Metal texture to guest output texture
-  bool CopyTextureToGuestOutput(MTL::Texture* source_texture, id dest_texture);
+  bool CopyTextureToGuestOutput(MTL::Texture* source_texture, id dest_texture,
+                                uint32_t source_width,
+                                uint32_t source_height);
 
   // Helper method for trace dumps to populate guest output before PNG capture
   void TryRefreshGuestOutputForTraceDump(void* command_processor);
@@ -93,19 +95,29 @@ class MetalPresenter : public Presenter {
       uint32_t new_surface_height, bool was_paintable,
       bool& is_vsync_implicit_out) override;
   void DisconnectPaintingFromSurfaceFromUIThreadImpl() override;
-  bool RefreshGuestOutputImpl(
+ bool RefreshGuestOutputImpl(
       uint32_t mailbox_index, uint32_t frontbuffer_width,
       uint32_t frontbuffer_height,
       std::function<bool(GuestOutputRefreshContext& context)> refresher,
       bool& is_8bpc_out_ref) override;
 
  private:
+  // Metal's blit encoder copyFromTexture:toTexture requires identical pixel
+  // formats. The swap surface may be 10-bit or BGRA while the guest output is
+  // RGBA8 for PNG capture, so a shader conversion path is required.
+  bool EnsureCopyTextureConvertPipelines();
+
   MetalProvider* provider_;
   MTL::Device* device_ = nullptr;
 
   // Metal presentation resources
   CAMetalLayer* metal_layer_ = nullptr;
   id command_queue_ = nullptr;  // id<MTLCommandQueue>
+
+  // Compute pipeline state used to convert/copy from swap formats to the
+  // RGBA8 guest output texture.
+  id copy_texture_convert_pipeline_2d_ = nullptr;  // id<MTLComputePipelineState>
+  id copy_texture_convert_pipeline_2d_array_ = nullptr;  // id<MTLComputePipelineState>
 
   // Guest output textures for PNG capture (mailbox system)
   std::array<id, kGuestOutputMailboxSize> guest_output_textures_;
