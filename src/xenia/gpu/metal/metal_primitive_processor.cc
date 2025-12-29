@@ -39,7 +39,7 @@ bool MetalPrimitiveProcessor::Initialize() {
           false,   // line_loops_supported (will convert)
           false,   // quad_lists_supported (will convert)
           true,    // point_sprites_supported_without_vs_expansion
-          false))  // rectangle_lists_supported_without_vs_expansion
+          true))  // rectangle_lists_supported_without_vs_expansion
   {
     Shutdown();
     return false;
@@ -80,9 +80,8 @@ void MetalPrimitiveProcessor::BeginSubmission() {
 
 void MetalPrimitiveProcessor::BeginFrame() {
   // Clean up old frame index buffers
-  static uint64_t frame_counter = 0;
-  frame_counter++;
-  uint64_t current_frame = frame_counter;
+  ++current_frame_;
+  uint64_t current_frame = current_frame_;
 
   frame_index_buffers_.erase(
       std::remove_if(frame_index_buffers_.begin(), frame_index_buffers_.end(),
@@ -153,8 +152,7 @@ void* MetalPrimitiveProcessor::RequestHostConvertedIndexBufferForCurrentFrame(
 
   // Find or create a buffer large enough
   FrameIndexBuffer* chosen_buffer = nullptr;
-  static uint64_t frame_counter = 0;
-  uint64_t current_frame = frame_counter;
+  uint64_t current_frame = current_frame_;
 
   // First try to find an existing buffer that's large enough
   for (auto& frame_buffer : frame_index_buffers_) {
