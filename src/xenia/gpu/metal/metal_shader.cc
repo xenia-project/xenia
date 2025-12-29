@@ -9,12 +9,16 @@
 
 #include "xenia/gpu/metal/metal_shader.h"
 
+#include <atomic>
 #include <cstdlib>
 #include <cstring>
+#include <inttypes.h>
 
 #include "xenia/base/assert.h"
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/string.h"
+#include "xenia/gpu/dxbc.h"
 #include "xenia/gpu/dxbc_shader.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/metal/dxbc_to_dxil_converter.h"
@@ -24,6 +28,59 @@
 namespace xe {
 namespace gpu {
 namespace metal {
+
+namespace {
+
+bool DxbcFeatureInfoHasROV(const std::vector<uint8_t>& dxbc_data,
+                           bool& sfi_present) {
+  sfi_present = false;
+  if (dxbc_data.size() < sizeof(dxbc::ContainerHeader)) {
+    return false;
+  }
+
+  dxbc::ContainerHeader header = {};
+  std::memcpy(&header, dxbc_data.data(), sizeof(header));
+  if (header.fourcc != dxbc::ContainerHeader::kFourCC) {
+    return false;
+  }
+
+  const size_t offsets_bytes =
+      size_t(header.blob_count) * sizeof(uint32_t);
+  const size_t header_bytes = sizeof(dxbc::ContainerHeader) + offsets_bytes;
+  if (dxbc_data.size() < header_bytes) {
+    return false;
+  }
+
+  const uint8_t* offsets_base = dxbc_data.data() + sizeof(dxbc::ContainerHeader);
+  for (uint32_t i = 0; i < header.blob_count; ++i) {
+    uint32_t blob_offset = 0;
+    std::memcpy(&blob_offset, offsets_base + i * sizeof(uint32_t),
+                sizeof(blob_offset));
+    if (blob_offset + sizeof(dxbc::BlobHeader) > dxbc_data.size()) {
+      continue;
+    }
+
+    dxbc::BlobHeader blob_header = {};
+    std::memcpy(&blob_header, dxbc_data.data() + blob_offset,
+                sizeof(blob_header));
+    if (blob_header.fourcc != dxbc::BlobHeader::FourCC::kShaderFeatureInfo) {
+      continue;
+    }
+
+    sfi_present = true;
+    const size_t payload_offset = blob_offset + sizeof(dxbc::BlobHeader);
+    if (payload_offset + sizeof(dxbc::ShaderFeatureInfo) > dxbc_data.size()) {
+      return false;
+    }
+    dxbc::ShaderFeatureInfo info = {};
+    std::memcpy(&info, dxbc_data.data() + payload_offset, sizeof(info));
+    return (info.feature_flags[0] & dxbc::kShaderFeature0_ROVs) != 0;
+  }
+
+  return false;
+}
+
+}  // namespace
 
 MetalShader::MetalShader(xenos::ShaderType shader_type,
                          uint64_t ucode_data_hash, const uint32_t* ucode_dwords,
@@ -57,11 +114,70 @@ bool MetalShader::MetalTranslation::TranslateToMetal(
     XELOGE("MetalShader: No translated DXBC data available");
     return false;
   }
+  if (cvars::metal_edram_rov && shader().type() == xenos::ShaderType::kPixel) {
+    static int rov_feature_log_count = 0;
+    if (rov_feature_log_count < 16) {
+      bool sfi_present = false;
+      bool rov_feature = DxbcFeatureInfoHasROV(dxbc_data, sfi_present);
+      XELOGI("MetalShader: DXBC SFI0 present={} ROV_feature={}", sfi_present,
+             rov_feature);
+      ++rov_feature_log_count;
+    }
+  }
+
+  auto dump_msc_failure = [&](const char* reason) {
+    static std::atomic<uint32_t> dump_counter{0};
+    uint32_t dump_id = dump_counter.fetch_add(1);
+    const char* type_str =
+        (shader().type() == xenos::ShaderType::kVertex) ? "vs" : "ps";
+    char base_name[128];
+    snprintf(base_name, sizeof(base_name), "shader_%016" PRIx64 "_%s_%u",
+             shader().ucode_data_hash(), type_str, dump_id);
+
+    std::filesystem::path base_dir = xe::to_path("scratch/msc_failures");
+    std::filesystem::path dxbc_path =
+        base_dir / (std::string(base_name) + ".dxbc");
+    std::filesystem::path dxil_path =
+        base_dir / (std::string(base_name) + ".dxil");
+    std::filesystem::path info_path =
+        base_dir / (std::string(base_name) + ".txt");
+
+    xe::filesystem::CreateParentFolder(dxbc_path);
+
+    FILE* info_file = xe::filesystem::OpenFile(info_path, "wb");
+    if (info_file) {
+      std::string info = fmt::format(
+          "reason={}\nshader_type={}\nucode_hash=0x{:016X}\n", reason, type_str,
+          shader().ucode_data_hash());
+      fwrite(info.data(), 1, info.size(), info_file);
+      fclose(info_file);
+    }
+
+    if (!dxbc_data.empty()) {
+      FILE* f = xe::filesystem::OpenFile(dxbc_path, "wb");
+      if (f) {
+        fwrite(dxbc_data.data(), 1, dxbc_data.size(), f);
+        fclose(f);
+      }
+    }
+
+    if (!dxil_data_.empty()) {
+      FILE* f = xe::filesystem::OpenFile(dxil_path, "wb");
+      if (f) {
+        fwrite(dxil_data_.data(), 1, dxil_data_.size(), f);
+        fclose(f);
+      }
+    }
+
+    XELOGE("MetalShader: dumped MSC failure artifacts to {} (reason={})",
+           xe::path_to_utf8(info_path.parent_path()), reason);
+  };
 
   // Step 1: Convert DXBC to DXIL using native dxbc2dxil
   std::string dxbc_error;
   if (!dxbc_converter.Convert(dxbc_data, dxil_data_, &dxbc_error)) {
     XELOGE("MetalShader: DXBC to DXIL conversion failed: {}", dxbc_error);
+    dump_msc_failure("dxbc2dxil_failed");
     return false;
   }
   XELOGD("MetalShader: Converted {} bytes DXBC to {} bytes DXIL",
@@ -72,6 +188,7 @@ bool MetalShader::MetalTranslation::TranslateToMetal(
   if (!metal_converter.Convert(shader().type(), dxil_data_, msc_result)) {
     XELOGE("MetalShader: DXIL to Metal conversion failed: {}",
            msc_result.error_message);
+    dump_msc_failure("msc_convert_failed");
     return false;
   }
   function_name_ = msc_result.function_name;

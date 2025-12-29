@@ -59,3 +59,7 @@ DEFINE_int32(query_occlusion_fake_sample_count, 1000,
 DEFINE_bool(metal_debug_edram_cpu_visible, false,
             "Make Metal EDRAM buffer CPU-visible for debug instrumentation.",
             "GPU");
+
+DEFINE_bool(metal_edram_rov, false,
+            "Enable ROV-style EDRAM path in the Metal backend.",
+            "GPU");

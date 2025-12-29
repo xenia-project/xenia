@@ -23,7 +23,14 @@ namespace gpu {
 namespace metal {
 
 // Shader stage for Metal conversion
-enum class MetalShaderStage { kVertex, kFragment, kGeometry, kCompute };
+enum class MetalShaderStage {
+  kVertex,
+  kFragment,
+  kGeometry,
+  kCompute,
+  kHull,
+  kDomain
+};
 
 // Result of shader conversion
 struct MetalShaderConversionResult {
@@ -51,6 +58,25 @@ struct MetalShaderReflectionInfo {
   std::vector<MetalShaderReflectionInput> vertex_inputs;
   uint32_t gs_max_input_primitives_per_mesh_threadgroup = 0;
   std::vector<MetalShaderFunctionConstant> function_constants;
+  bool has_hull_info = false;
+  uint32_t hs_max_patches_per_object_threadgroup = 0;
+  uint32_t hs_max_object_threads_per_patch = 0;
+  uint32_t hs_patch_constants_size = 0;
+  uint32_t hs_input_control_point_count = 0;
+  uint32_t hs_output_control_point_count = 0;
+  uint32_t hs_output_control_point_size = 0;
+  uint32_t hs_tessellator_domain = 0;
+  uint32_t hs_tessellator_partitioning = 0;
+  uint32_t hs_tessellator_output_primitive = 0;
+  bool hs_tessellation_type_half = false;
+  float hs_max_tessellation_factor = 0.0f;
+  bool has_domain_info = false;
+  uint32_t ds_max_input_prims_per_mesh_threadgroup = 0;
+  uint32_t ds_input_control_point_count = 0;
+  uint32_t ds_input_control_point_size = 0;
+  uint32_t ds_patch_constants_size = 0;
+  uint32_t ds_tessellator_domain = 0;
+  bool ds_tessellation_type_half = false;
 };
 
 // Converts DXIL shaders to Metal IR using Apple's Metal Shader Converter

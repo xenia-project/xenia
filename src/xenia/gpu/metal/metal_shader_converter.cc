@@ -17,6 +17,8 @@ namespace xe {
 namespace gpu {
 namespace metal {
 
+constexpr uint32_t kFunctionConstantRegisterSpace = 2147420894u;
+
 MetalShaderConverter::MetalShaderConverter() = default;
 
 MetalShaderConverter::~MetalShaderConverter() = default;
@@ -54,6 +56,24 @@ bool MetalShaderConverter::Initialize() {
 // Create Xbox 360 root signature matching xbox360_rootsig_helper.h
 void* MetalShaderConverter::CreateXbox360RootSignature(
     MetalShaderStage stage, bool force_all_visibility) {
+  auto stage_name = [](MetalShaderStage value) -> const char* {
+    switch (value) {
+      case MetalShaderStage::kVertex:
+        return "vertex";
+      case MetalShaderStage::kFragment:
+        return "fragment";
+      case MetalShaderStage::kGeometry:
+        return "geometry";
+      case MetalShaderStage::kCompute:
+        return "compute";
+      case MetalShaderStage::kHull:
+        return "hull";
+      case MetalShaderStage::kDomain:
+        return "domain";
+      default:
+        return "unknown";
+    }
+  };
   IRShaderVisibility visibility = IRShaderVisibilityAll;
   if (!force_all_visibility) {
     switch (stage) {
@@ -62,6 +82,12 @@ void* MetalShaderConverter::CreateXbox360RootSignature(
         break;
       case MetalShaderStage::kFragment:
         visibility = IRShaderVisibilityPixel;
+        break;
+      case MetalShaderStage::kHull:
+        visibility = IRShaderVisibilityHull;
+        break;
+      case MetalShaderStage::kDomain:
+        visibility = IRShaderVisibilityDomain;
         break;
       case MetalShaderStage::kCompute:
       case MetalShaderStage::kGeometry:
@@ -73,7 +99,7 @@ void* MetalShaderConverter::CreateXbox360RootSignature(
 
   // Create descriptor ranges for Xbox 360 shader resources
   // This matches the layout in xbox360_rootsig_helper.h
-  static IRDescriptorRange1 ranges[20];
+  IRDescriptorRange1 ranges[20] = {};
   int rangeIdx = 0;
 
   // SRVs in spaces 0-3
@@ -85,8 +111,7 @@ void* MetalShaderConverter::CreateXbox360RootSignature(
     ranges[rangeIdx].BaseShaderRegister = 0;
     ranges[rangeIdx].RegisterSpace = space;
     ranges[rangeIdx].Flags = IRDescriptorRangeFlagNone;
-    ranges[rangeIdx].OffsetInDescriptorsFromTableStart =
-        IRDescriptorRangeOffsetAppend;
+    ranges[rangeIdx].OffsetInDescriptorsFromTableStart = 0;
     rangeIdx++;
   }
 
@@ -97,8 +122,7 @@ void* MetalShaderConverter::CreateXbox360RootSignature(
   ranges[rangeIdx].BaseShaderRegister = 0;
   ranges[rangeIdx].RegisterSpace = 10;
   ranges[rangeIdx].Flags = IRDescriptorRangeFlagNone;
-  ranges[rangeIdx].OffsetInDescriptorsFromTableStart =
-      IRDescriptorRangeOffsetAppend;
+  ranges[rangeIdx].OffsetInDescriptorsFromTableStart = 0;
   rangeIdx++;
 
   // UAVs in spaces 0-3
@@ -110,8 +134,7 @@ void* MetalShaderConverter::CreateXbox360RootSignature(
     ranges[rangeIdx].BaseShaderRegister = 0;
     ranges[rangeIdx].RegisterSpace = space;
     ranges[rangeIdx].Flags = IRDescriptorRangeFlagNone;
-    ranges[rangeIdx].OffsetInDescriptorsFromTableStart =
-        IRDescriptorRangeOffsetAppend;
+    ranges[rangeIdx].OffsetInDescriptorsFromTableStart = 0;
     rangeIdx++;
   }
 
@@ -122,8 +145,7 @@ void* MetalShaderConverter::CreateXbox360RootSignature(
   ranges[rangeIdx].BaseShaderRegister = 0;
   ranges[rangeIdx].RegisterSpace = 0;
   ranges[rangeIdx].Flags = IRDescriptorRangeFlagNone;
-  ranges[rangeIdx].OffsetInDescriptorsFromTableStart =
-      IRDescriptorRangeOffsetAppend;
+  ranges[rangeIdx].OffsetInDescriptorsFromTableStart = 0;
   rangeIdx++;
 
   // CBVs in spaces 0-3
@@ -141,14 +163,22 @@ void* MetalShaderConverter::CreateXbox360RootSignature(
     ranges[rangeIdx].BaseShaderRegister = 0;
     ranges[rangeIdx].RegisterSpace = space;
     ranges[rangeIdx].Flags = IRDescriptorRangeFlagNone;
-    ranges[rangeIdx].OffsetInDescriptorsFromTableStart =
-        IRDescriptorRangeOffsetAppend;
+    ranges[rangeIdx].OffsetInDescriptorsFromTableStart = 0;
     rangeIdx++;
   }
 
+  // Function-constant CBV space for MSC.
+  ranges[rangeIdx].RangeType = IRDescriptorRangeTypeCBV;
+  ranges[rangeIdx].NumDescriptors = 1;
+  ranges[rangeIdx].BaseShaderRegister = 0;
+  ranges[rangeIdx].RegisterSpace = kFunctionConstantRegisterSpace;
+  ranges[rangeIdx].Flags = IRDescriptorRangeFlagNone;
+  ranges[rangeIdx].OffsetInDescriptorsFromTableStart = 0;
+  rangeIdx++;
+
   // Create descriptor tables and parameters
-  static IRRootDescriptorTable1 tables[20];
-  static IRRootParameter1 params[20];
+  IRRootDescriptorTable1 tables[20] = {};
+  IRRootParameter1 params[20] = {};
 
   for (int i = 0; i < rangeIdx; i++) {
     tables[i].NumDescriptorRanges = 1;
@@ -169,6 +199,21 @@ void* MetalShaderConverter::CreateXbox360RootSignature(
   IRVersionedRootSignatureDescriptor versionedDesc = {};
   versionedDesc.version = IRRootSignatureVersion_1_1;
   versionedDesc.desc_1_1 = desc;
+
+  static bool logged_root_sig = false;
+  if (!logged_root_sig) {
+    logged_root_sig = true;
+    const char* json =
+        IRVersionedRootSignatureDescriptorCopyJSONString(&versionedDesc);
+    if (json) {
+      XELOGI(
+          "MetalShaderConverter: root signature (stage={}, visibility={}, "
+          "force_all_visibility={}): {}",
+          stage_name(stage), static_cast<int>(visibility),
+          force_all_visibility, json);
+      IRVersionedRootSignatureDescriptorReleaseString(json);
+    }
+  }
 
   // Create the root signature
   IRError* error = nullptr;
@@ -273,6 +318,11 @@ bool MetalShaderConverter::ConvertWithStageEx(
   if (enable_geometry_emulation) {
     IRCompilerEnableGeometryAndTessellationEmulation(compiler, true);
   }
+  // Ignore embedded root signatures in DXIL; we provide our own.
+  IRCompilerIgnoreRootSignature(compiler, true);
+  // Enable function-constant register space for MSC specialization.
+  IRCompilerSetFunctionConstantResourceSpace(compiler,
+                                             kFunctionConstantRegisterSpace);
   if (has_minimum_target_) {
     IRCompilerSetMinimumGPUFamily(
         compiler, static_cast<IRGPUFamily>(minimum_gpu_family_));
@@ -283,7 +333,7 @@ bool MetalShaderConverter::ConvertWithStageEx(
 
   // Create and set Xbox 360 root signature
   IRRootSignature* rootSig = static_cast<IRRootSignature*>(
-      CreateXbox360RootSignature(stage, enable_geometry_emulation));
+      CreateXbox360RootSignature(stage, true));
   if (!rootSig) {
     IRCompilerDestroy(compiler);
     IRObjectDestroy(dxilObject);
@@ -321,20 +371,30 @@ bool MetalShaderConverter::ConvertWithStageEx(
   }
 
   auto extract_metallib = [&](IRShaderStage ir_stage,
-                              std::vector<uint8_t>& out_bytes) -> bool {
+                              std::vector<uint8_t>& out_bytes,
+                              size_t* out_size) -> bool {
     IRMetalLibBinary* metallib = IRMetalLibBinaryCreate();
     if (!metallib) {
+      if (out_size) {
+        *out_size = 0;
+      }
       return false;
     }
     bool ok = IRObjectGetMetalLibBinary(metalObject, ir_stage, metallib);
     size_t metallib_size = IRMetalLibGetBytecodeSize(metallib);
     if (!ok || metallib_size == 0) {
       IRMetalLibBinaryDestroy(metallib);
+      if (out_size) {
+        *out_size = 0;
+      }
       return false;
     }
     out_bytes.resize(metallib_size);
     IRMetalLibGetBytecode(metallib, out_bytes.data());
     IRMetalLibBinaryDestroy(metallib);
+    if (out_size) {
+      *out_size = metallib_size;
+    }
     return true;
   };
 
@@ -349,6 +409,12 @@ bool MetalShaderConverter::ConvertWithStageEx(
     case MetalShaderStage::kCompute:
       ir_stage = IRShaderStageCompute;
       break;
+    case MetalShaderStage::kHull:
+      ir_stage = IRShaderStageHull;
+      break;
+    case MetalShaderStage::kDomain:
+      ir_stage = IRShaderStageDomain;
+      break;
     case MetalShaderStage::kGeometry:
       // We'll determine mesh/geometry below.
       break;
@@ -359,13 +425,14 @@ bool MetalShaderConverter::ConvertWithStageEx(
 
   result.has_mesh_stage = false;
   result.has_geometry_stage = false;
+  size_t stage_size = 0;
   if (stage == MetalShaderStage::kGeometry) {
     std::vector<uint8_t> mesh_bytes;
     std::vector<uint8_t> geom_bytes;
     result.has_mesh_stage =
-        extract_metallib(IRShaderStageMesh, mesh_bytes);
+        extract_metallib(IRShaderStageMesh, mesh_bytes, nullptr);
     result.has_geometry_stage =
-        extract_metallib(IRShaderStageGeometry, geom_bytes);
+        extract_metallib(IRShaderStageGeometry, geom_bytes, nullptr);
     if (result.has_mesh_stage) {
       result.metallib_data = std::move(mesh_bytes);
       ir_stage = IRShaderStageMesh;
@@ -374,12 +441,37 @@ bool MetalShaderConverter::ConvertWithStageEx(
       ir_stage = IRShaderStageGeometry;
     }
   } else if (ir_stage != IRShaderStageInvalid) {
-    extract_metallib(ir_stage, result.metallib_data);
+    extract_metallib(ir_stage, result.metallib_data, &stage_size);
   }
 
   if (result.metallib_data.empty()) {
+    auto stage_name = [](MetalShaderStage value) -> const char* {
+      switch (value) {
+        case MetalShaderStage::kVertex:
+          return "vertex";
+        case MetalShaderStage::kFragment:
+          return "fragment";
+        case MetalShaderStage::kGeometry:
+          return "geometry";
+        case MetalShaderStage::kCompute:
+          return "compute";
+        case MetalShaderStage::kHull:
+          return "hull";
+        case MetalShaderStage::kDomain:
+          return "domain";
+        default:
+          return "unknown";
+      }
+    };
     result.success = false;
     result.error_message = "Generated MetalLib has zero size";
+    XELOGE(
+        "MetalShaderConverter: empty metallib (stage={}, ir_stage={}, "
+        "geom_emulation={}, input_topology={}, mesh_ok={}, geom_ok={}, "
+        "stage_size={})",
+        stage_name(stage), int(ir_stage), enable_geometry_emulation,
+        input_topology, result.has_mesh_stage, result.has_geometry_stage,
+        stage_size);
     IRObjectDestroy(metalObject);
     IRRootSignatureDestroy(rootSig);
     IRCompilerDestroy(compiler);
@@ -393,6 +485,25 @@ bool MetalShaderConverter::ConvertWithStageEx(
     reflection->vertex_output_size_in_bytes = 0;
     reflection->vertex_input_count = 0;
     reflection->gs_max_input_primitives_per_mesh_threadgroup = 0;
+    reflection->has_hull_info = false;
+    reflection->hs_max_patches_per_object_threadgroup = 0;
+    reflection->hs_max_object_threads_per_patch = 0;
+    reflection->hs_patch_constants_size = 0;
+    reflection->hs_input_control_point_count = 0;
+    reflection->hs_output_control_point_count = 0;
+    reflection->hs_output_control_point_size = 0;
+    reflection->hs_tessellator_domain = 0;
+    reflection->hs_tessellator_partitioning = 0;
+    reflection->hs_tessellator_output_primitive = 0;
+    reflection->hs_tessellation_type_half = false;
+    reflection->hs_max_tessellation_factor = 0.0f;
+    reflection->has_domain_info = false;
+    reflection->ds_max_input_prims_per_mesh_threadgroup = 0;
+    reflection->ds_input_control_point_count = 0;
+    reflection->ds_input_control_point_size = 0;
+    reflection->ds_patch_constants_size = 0;
+    reflection->ds_tessellator_domain = 0;
+    reflection->ds_tessellation_type_half = false;
   }
 
   IRShaderReflection* shader_reflection = IRShaderReflectionCreate();
@@ -454,6 +565,60 @@ bool MetalShaderConverter::ConvertWithStageEx(
             }
             IRShaderReflectionReleaseFunctionConstants(constants.data(),
                                                        constant_count);
+          }
+        }
+
+        if (ir_stage == IRShaderStageHull) {
+          IRVersionedHSInfo hs_info = {};
+          hs_info.version = IRReflectionVersion_1_0;
+          if (IRShaderReflectionCopyHullInfo(shader_reflection,
+                                             IRReflectionVersion_1_0,
+                                             &hs_info)) {
+            reflection->has_hull_info = true;
+            reflection->hs_max_patches_per_object_threadgroup =
+                hs_info.info_1_0.max_patches_per_object_threadgroup;
+            reflection->hs_max_object_threads_per_patch =
+                hs_info.info_1_0.max_object_threads_per_patch;
+            reflection->hs_patch_constants_size =
+                hs_info.info_1_0.patch_constants_size;
+            reflection->hs_input_control_point_count =
+                hs_info.info_1_0.input_control_point_count;
+            reflection->hs_output_control_point_count =
+                hs_info.info_1_0.output_control_point_count;
+            reflection->hs_output_control_point_size =
+                hs_info.info_1_0.output_control_point_size;
+            reflection->hs_tessellator_domain =
+                static_cast<uint32_t>(hs_info.info_1_0.tessellator_domain);
+            reflection->hs_tessellator_partitioning = static_cast<uint32_t>(
+                hs_info.info_1_0.tessellator_partitioning);
+            reflection->hs_tessellator_output_primitive = static_cast<uint32_t>(
+                hs_info.info_1_0.tessellator_output_primitive);
+            reflection->hs_tessellation_type_half =
+                hs_info.info_1_0.tessellation_type_half;
+            reflection->hs_max_tessellation_factor =
+                hs_info.info_1_0.max_tessellation_factor;
+            IRShaderReflectionReleaseHullInfo(&hs_info);
+          }
+        } else if (ir_stage == IRShaderStageDomain) {
+          IRVersionedDSInfo ds_info = {};
+          ds_info.version = IRReflectionVersion_1_0;
+          if (IRShaderReflectionCopyDomainInfo(shader_reflection,
+                                               IRReflectionVersion_1_0,
+                                               &ds_info)) {
+            reflection->has_domain_info = true;
+            reflection->ds_max_input_prims_per_mesh_threadgroup =
+                ds_info.info_1_0.max_input_prims_per_mesh_threadgroup;
+            reflection->ds_input_control_point_count =
+                ds_info.info_1_0.input_control_point_count;
+            reflection->ds_input_control_point_size =
+                ds_info.info_1_0.input_control_point_size;
+            reflection->ds_patch_constants_size =
+                ds_info.info_1_0.patch_constants_size;
+            reflection->ds_tessellator_domain =
+                static_cast<uint32_t>(ds_info.info_1_0.tessellator_domain);
+            reflection->ds_tessellation_type_half =
+                ds_info.info_1_0.tessellation_type_half;
+            IRShaderReflectionReleaseDomainInfo(&ds_info);
           }
         }
       }
