@@ -1,0 +1,372 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2025 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#ifndef XENIA_GPU_SHADERS_EDRAM_BLEND_32BPP_COMMON_XESLI_
+#define XENIA_GPU_SHADERS_EDRAM_BLEND_32BPP_COMMON_XESLI_
+
+#include "edram.xesli"
+#include "pixel_formats.xesli"
+
+// Constants (matching xenos::BlendFactor / BlendOp in xenos.h).
+#define kXeBlendFactorZero 0u
+#define kXeBlendFactorOne 1u
+#define kXeBlendFactorSrcColor 4u
+#define kXeBlendFactorOneMinusSrcColor 5u
+#define kXeBlendFactorSrcAlpha 6u
+#define kXeBlendFactorOneMinusSrcAlpha 7u
+#define kXeBlendFactorDstColor 8u
+#define kXeBlendFactorOneMinusDstColor 9u
+#define kXeBlendFactorDstAlpha 10u
+#define kXeBlendFactorOneMinusDstAlpha 11u
+#define kXeBlendFactorConstantColor 12u
+#define kXeBlendFactorOneMinusConstantColor 13u
+#define kXeBlendFactorConstantAlpha 14u
+#define kXeBlendFactorOneMinusConstantAlpha 15u
+#define kXeBlendFactorSrcAlphaSaturate 16u
+
+#define kXeBlendOpAdd 0u
+#define kXeBlendOpSubtract 1u
+#define kXeBlendOpMin 2u
+#define kXeBlendOpMax 3u
+#define kXeBlendOpRevSubtract 4u
+
+#define kXeColorFormatBits 4u
+#define kXeFormatFlag64bpp (1u << kXeColorFormatBits)
+#define kXeFormatFlagFixedPointColor (1u << (kXeColorFormatBits + 1u))
+#define kXeFormatFlagFixedPointAlpha (1u << (kXeColorFormatBits + 2u))
+
+#define kXeBlendFactorsMask 0x1Fu
+#define kXeBlendEquationMask 0x7u
+
+xesl_pushConstants_begin(b0, space0)
+  // dispatch_first_tile, source_base_tiles, dest_pitch_tiles, source_pitch_tiles
+  xesl_uint4 xe_edram_blend_tile_info;
+  // resolution_scale_x, resolution_scale_y, format_flags, keep_mask_low
+  xesl_uint4 xe_edram_blend_misc_info;
+  // keep_mask_high, blend_factors_ops, padding, padding
+  xesl_uint4 xe_edram_blend_mask_info;
+  xesl_float4 xe_edram_blend_clamp;
+  xesl_float4 xe_edram_blend_constant;
+xesl_pushConstants_end
+
+#define XE_EDRAM_BLEND_PUSH_CONSTANTS_BINDING \
+    xesl_pushConstants_binding(buffer(0))
+
+// EDRAM read/write buffers (bound to the same storage in Metal).
+xesl_typedStorageBuffer_declare(xesl_uint, xe_edram_src, set=0, binding=0, t0,
+                                space0)
+xesl_writeTypedStorageBuffer_declare(xesl_uint, xe_edram_dest, set=0, binding=1,
+                                     u0, space0)
+
+#define xesl_localSize_x 40
+#define xesl_localSize_y 16
+#define xesl_localSize_z 1
+
+bool XeFormatIsFixedPointColor(uint format_flags) {
+  return (format_flags & kXeFormatFlagFixedPointColor) != 0u;
+}
+
+bool XeFormatIsFixedPointAlpha(uint format_flags) {
+  return (format_flags & kXeFormatFlagFixedPointAlpha) != 0u;
+}
+
+uint XeFormatFromFlags(uint format_flags) {
+  return format_flags & ((1u << kXeColorFormatBits) - 1u);
+}
+
+xesl_float3 XeFlushNaNClampColor(xesl_float3 value, bool fixed_point,
+                                 xesl_float3 clamp_min,
+                                 xesl_float3 clamp_max) {
+  if (!fixed_point) {
+    return value;
+  }
+  xesl_bool3 not_nan = xesl_equal(value, value);
+  xesl_float3 cleaned =
+      xesl_select(not_nan, value, xesl_float_x3(0.0f));
+  return min(max(cleaned, clamp_min), clamp_max);
+}
+
+float XeFlushNaNClampAlpha(float value, bool fixed_point, float clamp_min,
+                           float clamp_max) {
+  if (!fixed_point) {
+    return value;
+  }
+  bool not_nan = xesl_equal(value, value);
+  float cleaned = xesl_select(not_nan, value, 0.0f);
+  return min(max(cleaned, clamp_min), clamp_max);
+}
+
+xesl_float3 XeApplyColorBlendFactor(
+    xesl_float3 value, bool fixed_point, xesl_float3 clamp_min,
+    xesl_float3 clamp_max, uint factor, xesl_float3 source_color,
+    float source_alpha, xesl_float3 dest_color, float dest_alpha,
+    xesl_float3 constant_color, float constant_alpha) {
+  if (factor == kXeBlendFactorZero) {
+    return xesl_float_x3(0.0f);
+  }
+  xesl_float3 result = value;
+  switch (factor) {
+    case kXeBlendFactorOne:
+      result = value;
+      break;
+    case kXeBlendFactorSrcColor:
+      result = value * source_color;
+      break;
+    case kXeBlendFactorOneMinusSrcColor:
+      result = value * (xesl_float_x3(1.0f) - source_color);
+      break;
+    case kXeBlendFactorSrcAlpha:
+      result = value * source_alpha;
+      break;
+    case kXeBlendFactorOneMinusSrcAlpha:
+      result = value * (1.0f - source_alpha);
+      break;
+    case kXeBlendFactorDstColor:
+      result = value * dest_color;
+      break;
+    case kXeBlendFactorOneMinusDstColor:
+      result = value * (xesl_float_x3(1.0f) - dest_color);
+      break;
+    case kXeBlendFactorDstAlpha:
+      result = value * dest_alpha;
+      break;
+    case kXeBlendFactorOneMinusDstAlpha:
+      result = value * (1.0f - dest_alpha);
+      break;
+    case kXeBlendFactorConstantColor:
+      result = value * constant_color;
+      break;
+    case kXeBlendFactorOneMinusConstantColor:
+      result = value * (xesl_float_x3(1.0f) - constant_color);
+      break;
+    case kXeBlendFactorConstantAlpha:
+      result = value * constant_alpha;
+      break;
+    case kXeBlendFactorOneMinusConstantAlpha:
+      result = value * (1.0f - constant_alpha);
+      break;
+    case kXeBlendFactorSrcAlphaSaturate:
+      result =
+          value * min(source_alpha, (1.0f - dest_alpha));
+      break;
+    default:
+      result = value;
+      break;
+  }
+  return XeFlushNaNClampColor(result, fixed_point, clamp_min, clamp_max);
+}
+
+float XeApplyAlphaBlendFactor(float value, bool fixed_point, float clamp_min,
+                              float clamp_max, uint factor, float source_alpha,
+                              float dest_alpha, float constant_alpha) {
+  if (factor == kXeBlendFactorZero) {
+    return 0.0f;
+  }
+  float result = value;
+  switch (factor) {
+    case kXeBlendFactorOne:
+      result = value;
+      break;
+    case kXeBlendFactorSrcColor:
+    case kXeBlendFactorSrcAlpha:
+      result = value * source_alpha;
+      break;
+    case kXeBlendFactorOneMinusSrcColor:
+    case kXeBlendFactorOneMinusSrcAlpha:
+      result = value * (1.0f - source_alpha);
+      break;
+    case kXeBlendFactorDstColor:
+    case kXeBlendFactorDstAlpha:
+      result = value * dest_alpha;
+      break;
+    case kXeBlendFactorOneMinusDstColor:
+    case kXeBlendFactorOneMinusDstAlpha:
+      result = value * (1.0f - dest_alpha);
+      break;
+    case kXeBlendFactorConstantColor:
+    case kXeBlendFactorConstantAlpha:
+      result = value * constant_alpha;
+      break;
+    case kXeBlendFactorOneMinusConstantColor:
+    case kXeBlendFactorOneMinusConstantAlpha:
+      result = value * (1.0f - constant_alpha);
+      break;
+    case kXeBlendFactorSrcAlphaSaturate:
+      result = value * min(source_alpha, (1.0f - dest_alpha));
+      break;
+    default:
+      result = value;
+      break;
+  }
+  return XeFlushNaNClampAlpha(result, fixed_point, clamp_min, clamp_max);
+}
+
+xesl_float3 XeBlendColor(xesl_float3 source_color_clamped, float source_alpha,
+                         xesl_float3 dest_color, float dest_alpha,
+                         xesl_float3 constant_color, float constant_alpha,
+                         bool fixed_point, xesl_float3 clamp_min,
+                         xesl_float3 clamp_max, uint equation,
+                         uint source_factor, uint dest_factor) {
+  if (equation == kXeBlendOpMin) {
+    return min(source_color_clamped, dest_color);
+  }
+  if (equation == kXeBlendOpMax) {
+    return max(source_color_clamped, dest_color);
+  }
+  xesl_float3 term_source =
+      XeApplyColorBlendFactor(source_color_clamped, fixed_point, clamp_min,
+                              clamp_max, source_factor, source_color_clamped,
+                              source_alpha, dest_color, dest_alpha,
+                              constant_color, constant_alpha);
+  xesl_float3 term_dest =
+      XeApplyColorBlendFactor(dest_color, fixed_point, clamp_min, clamp_max,
+                              dest_factor, source_color_clamped, source_alpha,
+                              dest_color, dest_alpha, constant_color,
+                              constant_alpha);
+  if (equation == kXeBlendOpSubtract) {
+    return term_source - term_dest;
+  }
+  if (equation == kXeBlendOpRevSubtract) {
+    return term_dest - term_source;
+  }
+  return term_source + term_dest;
+}
+
+float XeBlendAlpha(float source_alpha_clamped, float dest_alpha,
+                   float constant_alpha, bool fixed_point, float clamp_min,
+                   float clamp_max, uint equation, uint source_factor,
+                   uint dest_factor) {
+  if (equation == kXeBlendOpMin) {
+    return min(source_alpha_clamped, dest_alpha);
+  }
+  if (equation == kXeBlendOpMax) {
+    return max(source_alpha_clamped, dest_alpha);
+  }
+  float term_source =
+      XeApplyAlphaBlendFactor(source_alpha_clamped, fixed_point, clamp_min,
+                              clamp_max, source_factor, source_alpha_clamped,
+                              dest_alpha, constant_alpha);
+  float term_dest =
+      XeApplyAlphaBlendFactor(dest_alpha, fixed_point, clamp_min, clamp_max,
+                              dest_factor, source_alpha_clamped, dest_alpha,
+                              constant_alpha);
+  if (equation == kXeBlendOpSubtract) {
+    return term_source - term_dest;
+  }
+  if (equation == kXeBlendOpRevSubtract) {
+    return term_dest - term_source;
+  }
+  return term_source + term_dest;
+}
+
+uint XePackSigned16FromEdram(float value) {
+  float bias = value >= 0.0f ? 0.5f : -0.5f;
+  int packed = int(value * (32767.0f / 32.0f) + bias);
+  return uint(packed) & 0xFFFFu;
+}
+
+uint XePreClampedFloat32To7e3(float value) {
+  uint f32 = xesl_floatBitsToUint(value);
+  uint biased_f32;
+  if (f32 < 0x3E800000u) {
+    uint f32_exp = f32 >> 23u;
+    uint shift = 125u - f32_exp;
+    shift = min(shift, 24u);
+    uint mantissa = (f32 & 0x7FFFFFu) | 0x800000u;
+    biased_f32 = mantissa >> shift;
+  } else {
+    biased_f32 = f32 + 0xC2000000u;
+  }
+  uint round_bit = (biased_f32 >> 16u) & 1u;
+  uint f10 = biased_f32 + 0x7FFFu + round_bit;
+  return (f10 >> 16u) & 0x3FFu;
+}
+
+uint XeUnclampedFloat32To7e3(float value) {
+  float clamped = min(max(value, 0.0f), 31.875f);
+  return XePreClampedFloat32To7e3(clamped);
+}
+
+bool XeUnpackColor32bpp(uint format, uint packed,
+                         xesl_function_param_out(xesl_float4, out_color)) {
+  switch (format) {
+    case kXenosColorRenderTargetFormat_8_8_8_8:
+    case kXenosColorRenderTargetFormat_8_8_8_8_GAMMA:
+      out_color = XeUnpackR8G8B8A8UNorm(packed);
+      return true;
+    case kXenosColorRenderTargetFormat_2_10_10_10:
+    case kXenosColorRenderTargetFormat_2_10_10_10_AS_10_10_10_10:
+      out_color = XeUnpackR10G10B10A2UNorm(packed);
+      return true;
+    case kXenosColorRenderTargetFormat_2_10_10_10_FLOAT:
+    case kXenosColorRenderTargetFormat_2_10_10_10_FLOAT_AS_16_16_16_16:
+      out_color = XeUnpackR10G10B10A2Float(packed);
+      return true;
+    case kXenosColorRenderTargetFormat_16_16: {
+      xesl_float2 rg = XeUnpackR16G16Edram(packed);
+      out_color = xesl_float4(rg, 0.0f, 1.0f);
+      return true;
+    }
+    case kXenosColorRenderTargetFormat_16_16_FLOAT: {
+      xesl_float2 rg = xesl_unpackHalf2x16(packed);
+      out_color = xesl_float4(rg, 0.0f, 1.0f);
+      return true;
+    }
+    case kXenosColorRenderTargetFormat_32_FLOAT:
+      out_color =
+          xesl_float4(xesl_uintBitsToFloat(packed), 0.0f, 0.0f, 1.0f);
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
+bool XePackColor32bpp(uint format, xesl_float4 color,
+                      xesl_function_param_out(uint, out_packed)) {
+  switch (format) {
+    case kXenosColorRenderTargetFormat_8_8_8_8:
+    case kXenosColorRenderTargetFormat_8_8_8_8_GAMMA:
+      out_packed = XePackR8G8B8A8UNorm(color);
+      return true;
+    case kXenosColorRenderTargetFormat_2_10_10_10:
+    case kXenosColorRenderTargetFormat_2_10_10_10_AS_10_10_10_10:
+      out_packed = XePackR10G10B10A2UNorm(color);
+      return true;
+    case kXenosColorRenderTargetFormat_2_10_10_10_FLOAT:
+    case kXenosColorRenderTargetFormat_2_10_10_10_FLOAT_AS_16_16_16_16: {
+      uint r = XeUnclampedFloat32To7e3(color.r);
+      uint g = XeUnclampedFloat32To7e3(color.g);
+      uint b = XeUnclampedFloat32To7e3(color.b);
+      float a = min(max(color.a, 0.0f), 1.0f);
+      uint alpha = uint(a * 3.0f + 0.5f);
+      out_packed =
+          (r & 0x3FFu) | ((g & 0x3FFu) << 10u) |
+          ((b & 0x3FFu) << 20u) | ((alpha & 0x3u) << 30u);
+      return true;
+    }
+    case kXenosColorRenderTargetFormat_16_16: {
+      uint r = XePackSigned16FromEdram(color.r);
+      uint g = XePackSigned16FromEdram(color.g);
+      out_packed = r | (g << 16u);
+      return true;
+    }
+    case kXenosColorRenderTargetFormat_16_16_FLOAT:
+      out_packed = xesl_packHalf2x16(color.rg);
+      return true;
+    case kXenosColorRenderTargetFormat_32_FLOAT:
+      out_packed = xesl_floatBitsToUint(color.r);
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
+#endif  // XENIA_GPU_SHADERS_EDRAM_BLEND_32BPP_COMMON_XESLI_

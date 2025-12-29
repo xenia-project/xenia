@@ -1,0 +1,168 @@
+/**
+ ******************************************************************************
+ * Xenia : Xbox 360 Emulator Research Project                                 *
+ ******************************************************************************
+ * Copyright 2025 Ben Vanik. All rights reserved.                             *
+ * Released under the BSD license - see LICENSE in the root for more details. *
+ ******************************************************************************
+ */
+
+#include "edram_blend_64bpp_common.xesli"
+
+// Override entrypoint for 2x MSAA sampling.
+xesl_entry_bindings_begin_compute
+  XE_EDRAM_BLEND_PUSH_CONSTANTS_BINDING
+  xesl_entry_binding_next
+  xesl_typedStorageBuffer_binding(xesl_uint, xe_edram_src, buffer(1))
+  xesl_entry_binding_next
+  xesl_writeTypedStorageBuffer_binding(xesl_uint, xe_edram_dest, buffer(2))
+  xesl_entry_binding_next
+  xesl_texture(xesl_texture2DMS, xe_edram_blend_source, set=1, binding=0, t0,
+               space0, texture(0))
+  xesl_entry_binding_next
+  xesl_texture(xesl_texture2DMS, xe_edram_blend_coverage, set=1, binding=1,
+               t1, space0, texture(1))
+xesl_entry_bindings_end_inputs_begin_compute
+  xesl_entry_input_globalInvocationID
+xesl_entry_inputs_end_code_begin_compute
+  xesl_uint2 resolution_scale =
+      xesl_uint2(xesl_pushConstant(xe_edram_blend_misc_info).xy);
+  xesl_uint2 tile_size = xesl_uint2(40u * resolution_scale.x,
+                                    16u * resolution_scale.y);
+
+  xesl_uint2 tid = xesl_GlobalInvocationID.xy;
+  xesl_uint2 tile_coord = tid / tile_size;
+  xesl_uint2 sample_in_tile = tid % tile_size;
+
+  uint rect_width_tiles = xesl_pushConstant(xe_edram_blend_mask_info).z;
+  uint rect_height_tiles = xesl_pushConstant(xe_edram_blend_mask_info).w;
+  if (rect_width_tiles != 0u || rect_height_tiles != 0u) {
+    xesl_uint2 rect_pixels =
+        xesl_uint2(rect_width_tiles * tile_size.x,
+                   rect_height_tiles * tile_size.y);
+    if (tid.x >= rect_pixels.x || tid.y >= rect_pixels.y) {
+      return;
+    }
+  }
+
+  uint dest_pitch_tiles = xesl_pushConstant(xe_edram_blend_tile_info).z;
+  uint rect_tile_index = tile_coord.y * dest_pitch_tiles + tile_coord.x;
+
+  uint dispatch_first_tile = xesl_pushConstant(xe_edram_blend_tile_info).x;
+  uint nonwrapped_tile = dispatch_first_tile + rect_tile_index;
+  uint wrapped_tile = nonwrapped_tile & (2048u - 1u);
+
+  uint tile_samples = tile_size.x * tile_size.y;
+  uint sample_index = sample_in_tile.y * tile_size.x + sample_in_tile.x;
+  uint edram_index = (wrapped_tile * tile_samples + sample_index) * 2u;
+
+  uint source_base_tiles = xesl_pushConstant(xe_edram_blend_tile_info).y;
+  uint source_pitch_tiles = xesl_pushConstant(xe_edram_blend_tile_info).w;
+  uint source_linear_tile = nonwrapped_tile - source_base_tiles;
+  uint source_tile_y = source_linear_tile / source_pitch_tiles;
+  uint source_tile_x = source_linear_tile % source_pitch_tiles;
+  xesl_uint2 source_sample =
+      xesl_uint2(source_tile_x * tile_size.x + sample_in_tile.x,
+                 source_tile_y * tile_size.y + sample_in_tile.y);
+
+  uint sample_id = source_sample.y & 1u;
+  xesl_uint2 pixel_coord =
+      xesl_uint2(source_sample.x, source_sample.y >> 1);
+
+  float coverage = xesl_texelFetch2DMS(xe_edram_blend_coverage,
+                                       xesl_int2(pixel_coord), sample_id)
+                       .x;
+  bool covered = coverage >= 0.5f;
+
+  xesl_float4 source_color =
+      xesl_texelFetch2DMS(xe_edram_blend_source, xesl_int2(pixel_coord),
+                          sample_id);
+
+  uint format_flags = xesl_pushConstant(xe_edram_blend_misc_info).z;
+  uint keep_mask_low = xesl_pushConstant(xe_edram_blend_misc_info).w;
+  uint keep_mask_high = xesl_pushConstant(xe_edram_blend_mask_info).x;
+  uint blend_factors_ops = xesl_pushConstant(xe_edram_blend_mask_info).y;
+
+  if (keep_mask_low == 0xFFFFFFFFu && keep_mask_high == 0xFFFFFFFFu) {
+    return;
+  }
+
+  uint packed_dest_low = xesl_typedStorageBufferLoad(xe_edram_src, edram_index);
+  uint packed_dest_high =
+      xesl_typedStorageBufferLoad(xe_edram_src, edram_index + 1u);
+  xesl_float4 dest_color;
+  uint format = XeFormatFromFlags(format_flags);
+  if (!XeUnpackColor64bpp(format, xesl_uint2(packed_dest_low, packed_dest_high),
+                          dest_color)) {
+    return;
+  }
+
+  bool fixed_point_color = XeFormatIsFixedPointColor(format_flags);
+  bool fixed_point_alpha = XeFormatIsFixedPointAlpha(format_flags);
+
+  xesl_float3 clamp_min_color =
+      xesl_float3(xesl_pushConstant(xe_edram_blend_clamp).x);
+  float clamp_min_alpha = xesl_pushConstant(xe_edram_blend_clamp).y;
+  xesl_float3 clamp_max_color =
+      xesl_float3(xesl_pushConstant(xe_edram_blend_clamp).z);
+  float clamp_max_alpha = xesl_pushConstant(xe_edram_blend_clamp).w;
+
+  xesl_float3 blend_constant_color =
+      xesl_pushConstant(xe_edram_blend_constant).xyz;
+  float blend_constant_alpha =
+      xesl_pushConstant(xe_edram_blend_constant).w;
+
+  xesl_float3 source_color_clamped =
+      XeFlushNaNClampColor(source_color.rgb, fixed_point_color,
+                           clamp_min_color, clamp_max_color);
+  float source_alpha_clamped =
+      XeFlushNaNClampAlpha(source_color.a, fixed_point_alpha, clamp_min_alpha,
+                           clamp_max_alpha);
+
+  uint color_source_factor = blend_factors_ops & kXeBlendFactorsMask;
+  uint color_equation =
+      (blend_factors_ops >> 5u) & kXeBlendEquationMask;
+  uint color_dest_factor =
+      (blend_factors_ops >> 8u) & kXeBlendFactorsMask;
+  uint alpha_source_factor =
+      (blend_factors_ops >> 16u) & kXeBlendFactorsMask;
+  uint alpha_equation =
+      (blend_factors_ops >> 21u) & kXeBlendEquationMask;
+  uint alpha_dest_factor =
+      (blend_factors_ops >> 24u) & kXeBlendFactorsMask;
+
+  xesl_float3 blended_color = source_color_clamped;
+  float blended_alpha = source_alpha_clamped;
+
+  if (covered && blend_factors_ops != 0x00010001u) {
+    blended_color = XeBlendColor(
+        source_color_clamped, source_alpha_clamped, dest_color.rgb,
+        dest_color.a, blend_constant_color, blend_constant_alpha,
+        fixed_point_color, clamp_min_color, clamp_max_color, color_equation,
+        color_source_factor, color_dest_factor);
+    blended_alpha = XeBlendAlpha(
+        source_alpha_clamped, dest_color.a, blend_constant_alpha,
+        fixed_point_alpha, clamp_min_alpha, clamp_max_alpha, alpha_equation,
+        alpha_source_factor, alpha_dest_factor);
+  }
+
+  xesl_float4 result_color =
+      xesl_float4(blended_color, blended_alpha);
+
+  xesl_uint2 packed_result;
+  if (!XePackColor64bpp(format, result_color, packed_result)) {
+    return;
+  }
+
+  uint replace_mask_low = ~keep_mask_low;
+  uint replace_mask_high = ~keep_mask_high;
+  uint final_packed_low =
+      (packed_dest_low & keep_mask_low) |
+      (packed_result.x & replace_mask_low);
+  uint final_packed_high =
+      (packed_dest_high & keep_mask_high) |
+      (packed_result.y & replace_mask_high);
+  xesl_typedStorageBufferStore(xe_edram_dest, edram_index, final_packed_low);
+  xesl_typedStorageBufferStore(xe_edram_dest, edram_index + 1u,
+                               final_packed_high);
+xesl_entry_code_end_compute
