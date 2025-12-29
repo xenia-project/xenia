@@ -1263,6 +1263,13 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   bool memexport_used_pixel =
       pixel_shader && (pixel_shader->memexport_eM_written() != 0);
   bool memexport_used = memexport_used_vertex || memexport_used_pixel;
+  memexport_ranges_.clear();
+  if (memexport_used_vertex) {
+    draw_util::AddMemExportRanges(regs, *vertex_shader, memexport_ranges_);
+  }
+  if (memexport_used_pixel) {
+    draw_util::AddMemExportRanges(regs, *pixel_shader, memexport_ranges_);
+  }
   static std::unordered_set<uint64_t> logged_memexport_vs;
   static std::unordered_set<uint64_t> logged_memexport_ps;
   if (memexport_used_vertex) {
@@ -1701,6 +1708,18 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       }
     }
 
+    for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+      uint32_t base_bytes = memexport_range.base_address_dwords << 2;
+      if (!shared_memory_->RequestRange(base_bytes,
+                                        memexport_range.size_bytes)) {
+        XELOGE(
+            "Failed to request memexport stream at 0x{:08X} (size {}) in shared "
+            "memory",
+            base_bytes, memexport_range.size_bytes);
+        return false;
+      }
+    }
+
     vertex_ranges.reserve(vb_bindings.size());
     for (const auto& binding : vb_bindings) {
       xenos::xe_gpu_vertex_fetch_t vfetch =
@@ -1846,6 +1865,7 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     mtl_scissor.height = scissor.extent[1];
     current_render_encoder_->setScissorRect(mtl_scissor);
 
+    ApplyRasterizerState(primitive_polygonal);
     // Fixed-function depth/stencil state is not part of the pipeline state in
     // Metal, so update it per draw.
     ApplyDepthStencilState(primitive_polygonal, depth_control);
@@ -2611,6 +2631,13 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       primitive_processing_result.host_draw_vertex_count,
       uint32_t(primitive_processing_result.index_buffer_type));
 
+  if (memexport_used && shared_memory_) {
+    for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+      shared_memory_->RangeWrittenByGpu(
+          memexport_range.base_address_dwords << 2, memexport_range.size_bytes,
+          false);
+    }
+  }
   // Advance ring-buffer indices for descriptor and argument buffers.
   ++current_draw_index_;
 
@@ -2931,8 +2958,13 @@ void MetalCommandProcessor::ApplyDepthStencilState(
   if (normalized_depth_control.stencil_enable) {
     uint32_t ref_front = stencil_ref_mask_front.stencilref;
     uint32_t ref_back = stencil_ref_mask_back.stencilref;
+    auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
+    uint32_t ref = ref_front;
     if (primitive_polygonal && normalized_depth_control.backface_enable &&
-        ref_front != ref_back) {
+        pa_su_sc_mode_cntl.cull_front && !pa_su_sc_mode_cntl.cull_back) {
+      ref = ref_back;
+    } else if (primitive_polygonal && normalized_depth_control.backface_enable &&
+               ref_front != ref_back) {
       static bool mismatch_logged = false;
       if (!mismatch_logged) {
         mismatch_logged = true;
@@ -2942,8 +2974,77 @@ void MetalCommandProcessor::ApplyDepthStencilState(
             ref_front, ref_back);
       }
     }
-    current_render_encoder_->setStencilReferenceValue(ref_front);
+    current_render_encoder_->setStencilReferenceValue(ref);
   }
+}
+
+void MetalCommandProcessor::ApplyRasterizerState(bool primitive_polygonal) {
+  if (!current_render_encoder_ || !render_target_cache_) {
+    return;
+  }
+
+  const RegisterFile& regs = *register_file_;
+  auto pa_su_sc_mode_cntl = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
+  auto pa_cl_clip_cntl = regs.Get<reg::PA_CL_CLIP_CNTL>();
+
+  MTL::CullMode cull_mode = MTL::CullModeNone;
+  if (primitive_polygonal) {
+    bool cull_front = pa_su_sc_mode_cntl.cull_front;
+    bool cull_back = pa_su_sc_mode_cntl.cull_back;
+    if (cull_front && !cull_back) {
+      cull_mode = MTL::CullModeFront;
+    } else if (cull_back && !cull_front) {
+      cull_mode = MTL::CullModeBack;
+    }
+  }
+  current_render_encoder_->setCullMode(cull_mode);
+
+  current_render_encoder_->setFrontFacingWinding(
+      pa_su_sc_mode_cntl.face ? MTL::WindingClockwise
+                              : MTL::WindingCounterClockwise);
+
+  MTL::TriangleFillMode fill_mode = MTL::TriangleFillModeFill;
+  if (primitive_polygonal &&
+      pa_su_sc_mode_cntl.poly_mode == xenos::PolygonModeEnable::kDualMode) {
+    xenos::PolygonType polygon_type = xenos::PolygonType::kTriangles;
+    if (!pa_su_sc_mode_cntl.cull_front) {
+      polygon_type =
+          std::min(polygon_type, pa_su_sc_mode_cntl.polymode_front_ptype);
+    }
+    if (!pa_su_sc_mode_cntl.cull_back) {
+      polygon_type =
+          std::min(polygon_type, pa_su_sc_mode_cntl.polymode_back_ptype);
+    }
+    if (polygon_type != xenos::PolygonType::kTriangles) {
+      fill_mode = MTL::TriangleFillModeLines;
+    }
+  }
+  current_render_encoder_->setTriangleFillMode(fill_mode);
+
+  if (render_target_cache_->GetPath() ==
+      RenderTargetCache::Path::kHostRenderTargets) {
+    float polygon_offset_scale = 0.0f;
+    float polygon_offset = 0.0f;
+    draw_util::GetPreferredFacePolygonOffset(regs, primitive_polygonal,
+                                             polygon_offset_scale,
+                                             polygon_offset);
+    float depth_bias_factor =
+        regs.Get<reg::RB_DEPTH_INFO>().depth_format ==
+                xenos::DepthRenderTargetFormat::kD24S8
+            ? draw_util::kD3D10PolygonOffsetFactorUnorm24
+            : draw_util::kD3D10PolygonOffsetFactorFloat24;
+    float depth_bias_constant = polygon_offset * depth_bias_factor;
+    float depth_bias_slope =
+        polygon_offset_scale * xenos::kPolygonOffsetScaleSubpixelUnit *
+        float(std::max(render_target_cache_->draw_resolution_scale_x(),
+                       render_target_cache_->draw_resolution_scale_y()));
+    current_render_encoder_->setDepthBias(depth_bias_constant, depth_bias_slope,
+                                          0.0f);
+  }
+
+  current_render_encoder_->setDepthClipMode(
+      pa_cl_clip_cntl.clip_disable ? MTL::DepthClipModeClamp
+                                   : MTL::DepthClipModeClip);
 }
 
 MTL::RenderPassDescriptor*

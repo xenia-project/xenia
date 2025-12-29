@@ -161,6 +161,7 @@ class MetalCommandProcessor : public CommandProcessor {
   // Fixed-function depth/stencil state (mirrors Vulkan/D3D12 dynamic state).
   void ApplyDepthStencilState(bool primitive_polygonal,
                               reg::RB_DEPTHCONTROL normalized_depth_control);
+  void ApplyRasterizerState(bool primitive_polygonal);
 
   // Debug rendering
   bool CreateDebugPipeline();
@@ -357,6 +358,8 @@ class MetalCommandProcessor : public CommandProcessor {
   // Each draw uses a different region of the descriptor heap to avoid
   // overwriting previous draws' descriptors before GPU execution
   uint32_t current_draw_index_ = 0;
+  // Memexport tracking for shared memory invalidation.
+  std::vector<draw_util::MemExportRange> memexport_ranges_;
 
   // Track memory regions written by IssueCopy (resolve) during trace playback.
 
