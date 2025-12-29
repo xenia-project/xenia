@@ -59,7 +59,16 @@ DEFINE_int32(query_occlusion_fake_sample_count, 1000,
 DEFINE_bool(metal_debug_edram_cpu_visible, false,
             "Make Metal EDRAM buffer CPU-visible for debug instrumentation.",
             "GPU");
-
 DEFINE_bool(metal_edram_rov, false,
-            "Enable ROV-style EDRAM path in the Metal backend.",
+            "Enable Metal ROV-style EDRAM blending path (ordered blending).",
+            "GPU");
+DEFINE_bool(metal_edram_compute_fallback, false,
+            "Enable Metal compute fallback to dump host render targets into "
+            "EDRAM after command buffers (debug/slow path).",
+            "GPU");
+DEFINE_bool(metal_edram_blend_bounds_check, false,
+            "Add bounds checks to Metal EDRAM blend shaders (debug only).",
+            "GPU");
+DEFINE_bool(metal_force_full_scissor_on_swap_resolve, false,
+            "Force full scissor for resolves targeting the frontbuffer.",
             "GPU");

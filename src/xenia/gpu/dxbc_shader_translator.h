@@ -56,6 +56,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
                        bool force_emit_source_map = false);
   ~DxbcShaderTranslator() override;
 
+  // Extra color target used by the Metal ordered-blend coverage attachment.
+  static constexpr uint32_t kCoverageMaskColorTargetIndex = 4;
+
   // Stage linkage ordering and rules (must be respected not only within the
   // DxbcShaderTranslator, but also by everything else between the VS and the
   // PS, such as geometry shaders for primitive types, and built-in pixel
@@ -114,7 +117,7 @@ class DxbcShaderTranslator : public ShaderTranslator {
     // If anything in this is structure is changed in a way not compatible with
     // the previous layout, invalidate the pipeline storages by increasing this
     // version number (0xYYYYMMDD)!
-    static constexpr uint32_t kVersion = 0x20220720;
+    static constexpr uint32_t kVersion = 0x20251228;
 
     enum class DepthStencilMode : uint32_t {
       kNoModifiers,
@@ -179,6 +182,8 @@ class DxbcShaderTranslator : public ShaderTranslator {
       uint32_t dynamic_addressable_register_count : 8;
       // Non-ROV - depth / stencil output mode.
       DepthStencilMode depth_stencil_mode : 2;
+      uint32_t coverage_output : 1;
+      uint32_t : 15;
     } pixel;
 
     explicit Modification(uint64_t modification_value = 0)

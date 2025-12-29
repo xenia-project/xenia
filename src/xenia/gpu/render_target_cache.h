@@ -203,6 +203,9 @@ class RenderTargetCache {
   bool IsDrawResolutionScaled() const {
     return draw_resolution_scale_x() > 1 || draw_resolution_scale_y() > 1;
   }
+    
+  void LogOwnershipRangesAround(uint32_t base, const char* tag) const;
+
 
   // Virtual (both the common code and the implementation may do something
   // here), don't call from destructors (does work not needed for shutdown

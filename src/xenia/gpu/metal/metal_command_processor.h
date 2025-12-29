@@ -28,6 +28,7 @@
 #include "xenia/gpu/metal/metal_shader_converter.h"
 #include "xenia/gpu/metal/metal_shared_memory.h"
 #include "xenia/gpu/metal/metal_texture_cache.h"
+#include "third_party/metal-shader-converter/include/metal_irconverter_runtime.h"
 #include "xenia/ui/metal/metal_api.h"
 #include "xenia/ui/metal/metal_provider.h"
 
@@ -57,6 +58,11 @@ class MetalCommandProcessor : public CommandProcessor {
   // Get the Metal device and command queue
   MTL::Device* GetMetalDevice() const { return device_; }
   MTL::CommandQueue* GetMetalCommandQueue() const { return command_queue_; }
+  MTL::CommandBuffer* GetCurrentCommandBuffer() const {
+    return current_command_buffer_;
+  }
+  MTL::CommandBuffer* EnsureCommandBuffer();
+  void EndRenderEncoder();
 
   // Get current render pass descriptor (for render target binding)
   MTL::RenderPassDescriptor* GetCurrentRenderPassDescriptor();
@@ -112,13 +118,14 @@ class MetalCommandProcessor : public CommandProcessor {
   // Command buffer management
   void BeginCommandBuffer();
   void EndCommandBuffer();
+  void FlushEdramFromHostRenderTargetsIfEnabled(const char* reason);
   void EnsureDrawRingCapacity();
 
   // Pipeline state management
   MTL::RenderPipelineState* GetOrCreatePipelineState(
       MetalShader::MetalTranslation* vertex_translation,
       MetalShader::MetalTranslation* pixel_translation,
-      const RegisterFile& regs);
+      const RegisterFile& regs, uint32_t edram_compute_fallback_mask);
 
   struct GeometryVertexStageState {
     MTL::Library* library = nullptr;
@@ -142,6 +149,31 @@ class MetalCommandProcessor : public CommandProcessor {
     uint32_t gs_max_input_primitives_per_mesh_threadgroup = 0;
   };
 
+  struct TessellationVertexStageState {
+    MTL::Library* library = nullptr;
+    MTL::Library* stage_in_library = nullptr;
+    std::string function_name;
+    uint32_t vertex_output_size_in_bytes = 0;
+  };
+
+  struct TessellationHullStageState {
+    MTL::Library* library = nullptr;
+    std::string function_name;
+    MetalShaderReflectionInfo reflection;
+  };
+
+  struct TessellationDomainStageState {
+    MTL::Library* library = nullptr;
+    std::string function_name;
+    MetalShaderReflectionInfo reflection;
+  };
+
+  struct TessellationPipelineState {
+    MTL::RenderPipelineState* pipeline = nullptr;
+    IRRuntimeTessellationPipelineConfig config = {};
+    IRRuntimePrimitiveType primitive = IRRuntimePrimitiveTypeTriangle;
+  };
+
   struct DrawRingBuffers {
     MTL::Buffer* res_heap_ab = nullptr;
     MTL::Buffer* smp_heap_ab = nullptr;
@@ -156,7 +188,14 @@ class MetalCommandProcessor : public CommandProcessor {
   GeometryPipelineState* GetOrCreateGeometryPipelineState(
       MetalShader::MetalTranslation* vertex_translation,
       MetalShader::MetalTranslation* pixel_translation,
-      GeometryShaderKey geometry_shader_key, const RegisterFile& regs);
+      GeometryShaderKey geometry_shader_key, const RegisterFile& regs,
+      uint32_t edram_compute_fallback_mask);
+
+  TessellationPipelineState* GetOrCreateTessellationPipelineState(
+      MetalShader::MetalTranslation* domain_translation,
+      MetalShader::MetalTranslation* pixel_translation,
+      const PrimitiveProcessor::ProcessingResult& primitive_processing_result,
+      const RegisterFile& regs, uint32_t edram_compute_fallback_mask);
 
   // Fixed-function depth/stencil state (mirrors Vulkan/D3D12 dynamic state).
   void ApplyDepthStencilState(bool primitive_polygonal,
@@ -166,6 +205,8 @@ class MetalCommandProcessor : public CommandProcessor {
   // Debug rendering
   bool CreateDebugPipeline();
   void DrawDebugQuad();
+
+  bool EnsureDepthOnlyPixelShader();
 
   // Constants for descriptor heap sizes.
   // MSC's IR runtime uses a D3D12-like "root signature" model. In D3D12, many
@@ -213,7 +254,9 @@ class MetalCommandProcessor : public CommandProcessor {
                                   uint32_t line_loop_closing_index,
                                   xenos::Endian index_endian,
                                   const draw_util::ViewportInfo& viewport_info,
-                                  uint32_t used_texture_mask);
+                                  uint32_t used_texture_mask,
+                                  reg::RB_DEPTHCONTROL normalized_depth_control,
+                                  uint32_t normalized_color_mask);
 
   // Shader modification selection (mirrors D3D12 PipelineCache logic).
   DxbcShaderTranslator::Modification GetCurrentVertexShaderModification(
@@ -222,7 +265,8 @@ class MetalCommandProcessor : public CommandProcessor {
       uint32_t interpolator_mask) const;
   DxbcShaderTranslator::Modification GetCurrentPixelShaderModification(
       const Shader& shader, uint32_t interpolator_mask, uint32_t param_gen_pos,
-      reg::RB_DEPTHCONTROL normalized_depth_control) const;
+      reg::RB_DEPTHCONTROL normalized_depth_control,
+      bool ordered_blend_coverage) const;
 
   // Debug logging utilities
   void DumpUniformsBuffer();
@@ -282,6 +326,14 @@ class MetalCommandProcessor : public CommandProcessor {
   std::unordered_map<GeometryShaderKey, GeometryShaderStageState,
                      GeometryShaderKey::Hasher>
       geometry_shader_stage_cache_;
+  std::unordered_map<uint32_t, TessellationVertexStageState>
+      tessellation_vertex_stage_cache_;
+  std::unordered_map<uint64_t, TessellationHullStageState>
+      tessellation_hull_stage_cache_;
+  std::unordered_map<uint64_t, TessellationDomainStageState>
+      tessellation_domain_stage_cache_;
+  std::unordered_map<uint64_t, TessellationPipelineState>
+      tessellation_pipeline_cache_;
 
   struct DepthStencilStateKey {
     uint32_t depth_control;
@@ -339,10 +391,14 @@ class MetalCommandProcessor : public CommandProcessor {
       nullptr;  // Top-level argument buffer (bind point 2)
   MTL::Buffer* draw_args_buffer_ =
       nullptr;  // Draw arguments buffer (bind point 4)
+  MTL::Buffer* tessellator_tables_buffer_ = nullptr;
   std::shared_ptr<DrawRingBuffers> active_draw_ring_;
   std::vector<std::shared_ptr<DrawRingBuffers>> draw_ring_pool_;
   std::vector<std::shared_ptr<DrawRingBuffers>> command_buffer_draw_rings_;
   std::mutex draw_ring_mutex_;
+
+  MTL::Library* depth_only_pixel_library_ = nullptr;
+  std::string depth_only_pixel_function_name_;
 
   // System constants - matches DxbcShaderTranslator::SystemConstants layout
   // Stored persistently to track dirty state
@@ -358,6 +414,11 @@ class MetalCommandProcessor : public CommandProcessor {
   // Each draw uses a different region of the descriptor heap to avoid
   // overwriting previous draws' descriptors before GPU execution
   uint32_t current_draw_index_ = 0;
+  uint64_t tessellation_enabled_draws_ = 0;
+  uint64_t tessellated_draws_ = 0;
+  bool logged_tessellation_enable_ = false;
+  bool logged_tessellated_draw_ = false;
+
   // Memexport tracking for shared memory invalidation.
   std::vector<draw_util::MemExportRange> memexport_ranges_;
 

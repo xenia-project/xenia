@@ -26,8 +26,11 @@ DECLARE_bool(half_pixel_offset);
 // Metal-specific debug flag: make EDRAM buffer CPU-visible so its contents
 // can be inspected from resolve code. Only use in debug builds.
 DECLARE_bool(metal_debug_edram_cpu_visible);
-// Metal-specific: enable ROV-style EDRAM path when available.
+// Metal: enable ROV-style EDRAM blending path (ordered blending).
 DECLARE_bool(metal_edram_rov);
+DECLARE_bool(metal_edram_compute_fallback);
+DECLARE_bool(metal_edram_blend_bounds_check);
+DECLARE_bool(metal_force_full_scissor_on_swap_resolve);
 
 DECLARE_int32(query_occlusion_fake_sample_count);
 

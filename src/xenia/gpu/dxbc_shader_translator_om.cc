@@ -1662,41 +1662,51 @@ void DxbcShaderTranslator::ROV_HandleAlphaBlendFactorCases(
 void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
   uint32_t shader_writes_color_targets =
       current_shader().writes_color_targets();
-  if (!shader_writes_color_targets) {
+  bool coverage_output = GetDxbcShaderModification().pixel.coverage_output != 0;
+  if (!shader_writes_color_targets && !coverage_output) {
     return;
   }
 
   uint32_t gamma_temp = PushSystemTemp();
-  for (uint32_t i = 0; i < 4; ++i) {
-    if (!(shader_writes_color_targets & (1 << i))) {
-      continue;
-    }
-    uint32_t system_temp_color = system_temps_color_[i];
-    // Apply the exponent bias after alpha to coverage because it needs the
-    // unbiased alpha from the shader.
-    a_.OpMul(dxbc::Dest::R(system_temp_color), dxbc::Src::R(system_temp_color),
-             LoadSystemConstant(
-                 SystemConstants::Index::kColorExpBias,
-                 offsetof(SystemConstants, color_exp_bias) + sizeof(float) * i,
-                 dxbc::Src::kXXXX));
-    if (!gamma_render_target_as_srgb_) {
-      // Convert to gamma space - this is incorrect, since it must be done after
-      // blending on the Xbox 360, but this is just one of many blending issues
-      // in the RTV path.
-      a_.OpAnd(dxbc::Dest::R(gamma_temp, 0b0001), LoadFlagsSystemConstant(),
-               dxbc::Src::LU(kSysFlag_ConvertColor0ToGamma << i));
-      a_.OpIf(true, dxbc::Src::R(gamma_temp, dxbc::Src::kXXXX));
-      // Saturate before the gamma conversion.
-      a_.OpMov(dxbc::Dest::R(system_temp_color, 0b0111),
-               dxbc::Src::R(system_temp_color), true);
-      for (uint32_t j = 0; j < 3; ++j) {
-        PreSaturatedLinearToPWLGamma(system_temp_color, j, system_temp_color, j,
-                                     gamma_temp, 0, gamma_temp, 1);
+  if (shader_writes_color_targets) {
+    for (uint32_t i = 0; i < 4; ++i) {
+      if (!(shader_writes_color_targets & (1 << i))) {
+        continue;
       }
-      a_.OpEndIf();
+      uint32_t system_temp_color = system_temps_color_[i];
+      // Apply the exponent bias after alpha to coverage because it needs the
+      // unbiased alpha from the shader.
+      a_.OpMul(dxbc::Dest::R(system_temp_color), dxbc::Src::R(system_temp_color),
+               LoadSystemConstant(
+                   SystemConstants::Index::kColorExpBias,
+                   offsetof(SystemConstants, color_exp_bias) +
+                       sizeof(float) * i,
+                   dxbc::Src::kXXXX));
+      if (!gamma_render_target_as_srgb_) {
+        // Convert to gamma space - this is incorrect, since it must be done
+        // after blending on the Xbox 360, but this is just one of many blending
+        // issues in the RTV path.
+        a_.OpAnd(dxbc::Dest::R(gamma_temp, 0b0001), LoadFlagsSystemConstant(),
+                 dxbc::Src::LU(kSysFlag_ConvertColor0ToGamma << i));
+        a_.OpIf(true, dxbc::Src::R(gamma_temp, dxbc::Src::kXXXX));
+        // Saturate before the gamma conversion.
+        a_.OpMov(dxbc::Dest::R(system_temp_color, 0b0111),
+                 dxbc::Src::R(system_temp_color), true);
+        for (uint32_t j = 0; j < 3; ++j) {
+          PreSaturatedLinearToPWLGamma(system_temp_color, j,
+                                       system_temp_color, j, gamma_temp, 0,
+                                       gamma_temp, 1);
+        }
+        a_.OpEndIf();
+      }
+      // Copy the color from a readable temp register to an output register.
+      a_.OpMov(dxbc::Dest::O(i), dxbc::Src::R(system_temp_color));
     }
-    // Copy the color from a readable temp register to an output register.
-    a_.OpMov(dxbc::Dest::O(i), dxbc::Src::R(system_temp_color));
+  }
+  if (coverage_output) {
+    a_.OpMov(
+        dxbc::Dest::O(kCoverageMaskColorTargetIndex, 0b0001),
+        dxbc::Src::LF(1.0f));
   }
   // Release gamma_temp.
   PopSystemTemp();

@@ -763,12 +763,14 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
       }
     }
 
-    // Don't clear accumulated targets even if invalid - preserve them!
     if (!are_accumulated_render_targets_valid_) {
-      XELOGW("  Accumulated targets were invalid but NOT clearing them!");
-      // Keep whatever we had before instead of clearing
-      are_accumulated_render_targets_valid_ =
-          true;  // Force valid to prevent clearing
+      XELOGW("  Accumulated targets were invalid; clearing them!");
+      std::memset(last_update_used_render_targets_, 0,
+                  sizeof(last_update_used_render_targets_));
+      std::memset(last_update_accumulated_render_targets_, 0,
+                  sizeof(last_update_accumulated_render_targets_));
+      last_update_accumulated_color_targets_are_gamma_ = 0;
+      are_accumulated_render_targets_valid_ = true;
     }
     return true;
   }
@@ -1726,6 +1728,30 @@ void RenderTargetCache::ChangeOwnership(
     // The ownership change extent goes to the next EDRAM addressing period.
     change_ownership_in_extent(
         0, std::min(end_tiles & (xenos::kEdramTileCount - 1), start_tiles));
+  }
+}
+
+void RenderTargetCache::LogOwnershipRangesAround(uint32_t base,
+                                                 const char* tag) const {
+  XELOGW("{}: ownership ranges={}", tag, ownership_ranges_.size());
+  if (ownership_ranges_.empty()) {
+    return;
+  }
+  auto it = ownership_ranges_.lower_bound(base);
+  if (it != ownership_ranges_.begin()) {
+    auto it_prev = std::prev(it);
+    XELOGW("{}: prev range start={} end={} key=0x{:08X}", tag, it_prev->first,
+           it_prev->second.end_tiles, it_prev->second.render_target.key);
+  }
+  if (it != ownership_ranges_.end()) {
+    XELOGW("{}: next range start={} end={} key=0x{:08X}", tag, it->first,
+           it->second.end_tiles, it->second.render_target.key);
+    auto it_next = std::next(it);
+    if (it_next != ownership_ranges_.end()) {
+      XELOGW("{}: next+1 range start={} end={} key=0x{:08X}", tag,
+             it_next->first, it_next->second.end_tiles,
+             it_next->second.render_target.key);
+    }
   }
 }
 

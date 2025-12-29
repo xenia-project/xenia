@@ -3261,6 +3261,7 @@ void DxbcShaderTranslator::WriteOutputSignature() {
   } else if (is_pixel_shader()) {
     if (!edram_rov_used_) {
       uint32_t color_targets_written = current_shader().writes_color_targets();
+      bool coverage_output = shader_modification.pixel.coverage_output != 0;
 
       // Color render targets (SV_Target#).
       size_t target_position = SIZE_MAX;
@@ -3285,6 +3286,22 @@ void DxbcShaderTranslator::WriteOutputSignature() {
           target.register_index = i;
           target.mask = 0b1111;
         }
+      }
+
+      // Coverage output for the Metal ordered-blend coverage attachment.
+      size_t coverage_target_position = SIZE_MAX;
+      if (coverage_output) {
+        coverage_target_position = shader_object_.size();
+        shader_object_.resize(shader_object_.size() + kParameterDwords);
+        ++parameter_count;
+        auto& coverage_target = *reinterpret_cast<dxbc::SignatureParameter*>(
+            shader_object_.data() + coverage_target_position);
+        coverage_target.semantic_index = kCoverageMaskColorTargetIndex;
+        coverage_target.component_type =
+            dxbc::SignatureRegisterComponentType::kFloat32;
+        coverage_target.register_index = kCoverageMaskColorTargetIndex;
+        coverage_target.mask = 0b0001;
+        coverage_target.never_writes_mask = 0b1110;
       }
 
       // Coverage output for alpha to mask (SV_Coverage).
@@ -3319,13 +3336,19 @@ void DxbcShaderTranslator::WriteOutputSignature() {
       // Semantic names.
       uint32_t semantic_offset =
           uint32_t((shader_object_.size() - blob_position) * sizeof(uint32_t));
-      if (target_position != SIZE_MAX) {
-        {
+      if (target_position != SIZE_MAX || coverage_target_position != SIZE_MAX) {
+        if (target_position != SIZE_MAX) {
           auto targets = reinterpret_cast<dxbc::SignatureParameter*>(
               shader_object_.data() + target_position);
           for (uint32_t i = 0; i < color_targets_written_count; ++i) {
             targets[i].semantic_name_ptr = semantic_offset;
           }
+        }
+        if (coverage_target_position != SIZE_MAX) {
+          auto& coverage_target =
+              *reinterpret_cast<dxbc::SignatureParameter*>(
+                  shader_object_.data() + coverage_target_position);
+          coverage_target.semantic_name_ptr = semantic_offset;
         }
         semantic_offset +=
             dxbc::AppendAlignedString(shader_object_, "SV_Target");
