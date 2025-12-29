@@ -11,6 +11,7 @@
 
 #include <cinttypes>
 #include <cstring>
+#include <filesystem>
 #include <string>
 
 #include "third_party/half/include/half.hpp"
@@ -43,8 +44,7 @@
 #include "xenia/ui/windowed_app_context.h"
 #include "xenia/xbox.h"
 
-DEFINE_string(target_trace_file, "", "Specifies the trace file to load.",
-              "GPU");
+DECLARE_path(target_trace_file);
 
 namespace xe {
 namespace gpu {
@@ -79,7 +79,7 @@ TraceViewer::TraceViewer(xe::ui::WindowedAppContext& app_context,
 TraceViewer::~TraceViewer() = default;
 
 bool TraceViewer::OnInitialize() {
-  std::string path = cvars::target_trace_file;
+  std::filesystem::path path = cvars::target_trace_file;
 
   // If no path passed, ask the user.
   // On Android, however, there's no synchronous file picker, and the trace file
@@ -99,7 +99,7 @@ bool TraceViewer::OnInitialize() {
     if (file_picker->Show()) {
       auto selected_files = file_picker->selected_files();
       if (!selected_files.empty()) {
-        path = xe::path_to_utf8(selected_files[0]);
+        path = selected_files[0];
       }
     }
   }
@@ -116,7 +116,8 @@ bool TraceViewer::OnInitialize() {
                              "Unable to setup trace viewer");
     return false;
   }
-  if (!Load(path)) {
+  std::string path_utf8 = xe::path_to_utf8(path);
+  if (!Load(path_utf8)) {
     xe::ShowSimpleMessageBox(xe::SimpleMessageBoxType::Error,
                              "Unable to load trace file; not found?");
     return false;
@@ -743,7 +744,8 @@ void TraceViewer::DrawTextureInfo(
     DrawFailedTextureInfo(texture_binding, "Unable to parse sampler info");
     return;
   }
-  auto texture = GetTextureEntry(texture_info, sampler_info);
+  auto texture = GetTextureEntry(texture_info, sampler_info,
+                                 texture_binding.fetch_constant);
 
   ImGui::Columns(2);
   if (texture) {
@@ -1405,7 +1407,7 @@ void TraceViewer::DrawStateUI() {
                         blend_color.y, blend_color.z, blend_color.w);
       ImGui::SameLine();
       // TODO small_height (was true) parameter was removed
-      ImGui::ColorButton(nullptr, blend_color);
+      ImGui::ColorButton("##blend_color", blend_color);
 
       uint32_t rb_color_mask = regs[XE_GPU_REG_RB_COLOR_MASK];
       uint32_t color_info[4] = {

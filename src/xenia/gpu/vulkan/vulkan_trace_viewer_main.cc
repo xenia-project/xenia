@@ -45,7 +45,8 @@ class VulkanTraceViewer final : public TraceViewer {
   }
 
   uintptr_t GetTextureEntry(const TextureInfo& texture_info,
-                            const SamplerInfo& sampler_info) override {
+                            const SamplerInfo& sampler_info,
+                            uint32_t fetch_constant) override {
     // TODO(Triang3l): Textures, but from a fetch constant rather than
     // TextureInfo/SamplerInfo which are going away.
     return 0;

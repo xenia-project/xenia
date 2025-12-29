@@ -53,13 +53,18 @@ class TraceViewer : public xe::ui::WindowedApp {
       uint32_t pitch, xenos::MsaaSamples samples, uint32_t base,
       xenos::DepthRenderTargetFormat format) = 0;
   virtual uintptr_t GetTextureEntry(const TextureInfo& texture_info,
-                                    const SamplerInfo& sampler_info) = 0;
+                                    const SamplerInfo& sampler_info,
+                                    uint32_t fetch_constant) = 0;
 
   virtual size_t QueryVSOutputSize() { return 0; }
   virtual size_t QueryVSOutputElementSize() { return 0; }
   virtual bool QueryVSOutput(void* buffer, size_t size) { return false; }
 
   virtual bool Setup();
+
+  ui::ImmediateDrawer* immediate_drawer() const {
+    return immediate_drawer_.get();
+  }
 
  private:
   class TraceViewerWindowListener final : public xe::ui::WindowListener,
