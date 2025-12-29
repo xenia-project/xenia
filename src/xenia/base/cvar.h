@@ -10,6 +10,7 @@
 #ifndef XENIA_CVAR_H_
 #define XENIA_CVAR_H_
 
+#include <cctype>
 #include <filesystem>
 #include <map>
 #include <string>
@@ -28,6 +29,22 @@
 #endif  // XE_PLATFORM_ANDROID
 
 namespace cvar {
+
+inline bool ParseBoolString(const std::string& value) {
+  std::string lower;
+  lower.reserve(value.size());
+  for (char c : value) {
+    lower.push_back(
+        static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+  }
+  if (lower == "1" || lower == "true" || lower == "yes" || lower == "on") {
+    return true;
+  }
+  if (lower == "0" || lower == "false" || lower == "no" || lower == "off") {
+    return false;
+  }
+  throw cxxopts::argument_incorrect_type(value);
+}
 
 namespace toml {
 std::string EscapeString(const std::string_view str);
@@ -119,6 +136,12 @@ void CommandVar<T>::AddToLaunchOptions(cxxopts::Options* options) {
   options->add_options()(name_, description_, cxxopts::value<T>());
 }
 template <>
+inline void CommandVar<bool>::AddToLaunchOptions(cxxopts::Options* options) {
+  options->add_options()(
+      name_, description_,
+      cxxopts::value<std::string>()->implicit_value("true"));
+}
+template <>
 inline void CommandVar<std::filesystem::path>::AddToLaunchOptions(
     cxxopts::Options* options) {
   options->add_options()(name_, description_, cxxopts::value<std::string>());
@@ -127,6 +150,12 @@ template <class T>
 void ConfigVar<T>::AddToLaunchOptions(cxxopts::Options* options) {
   options->add_options(category_)(this->name_, this->description_,
                                   cxxopts::value<T>());
+}
+template <>
+inline void ConfigVar<bool>::AddToLaunchOptions(cxxopts::Options* options) {
+  options->add_options(category_)(
+      this->name_, this->description_,
+      cxxopts::value<std::string>()->implicit_value("true"));
 }
 template <>
 inline void ConfigVar<std::filesystem::path>::AddToLaunchOptions(
@@ -138,6 +167,12 @@ template <class T>
 void CommandVar<T>::LoadFromLaunchOptions(cxxopts::ParseResult* result) {
   T value = (*result)[name_].template as<T>();
   SetCommandLineValue(value);
+}
+template <>
+inline void CommandVar<bool>::LoadFromLaunchOptions(
+    cxxopts::ParseResult* result) {
+  std::string value = (*result)[name_].template as<std::string>();
+  SetCommandLineValue(ParseBoolString(value));
 }
 template <>
 inline void CommandVar<std::filesystem::path>::LoadFromLaunchOptions(

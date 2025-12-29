@@ -114,23 +114,35 @@ Emulator::~Emulator() {
 
   // Give the systems time to shutdown before we delete them.
   if (graphics_system_) {
+    XELOGI("Emulator::Shutdown: graphics system shutdown begin");
     graphics_system_->Shutdown();
+    XELOGI("Emulator::Shutdown: graphics system shutdown end");
   }
   if (audio_system_) {
+    XELOGI("Emulator::Shutdown: audio system shutdown begin");
     audio_system_->Shutdown();
+    XELOGI("Emulator::Shutdown: audio system shutdown end");
   }
 
+  XELOGI("Emulator::Shutdown: resetting input system");
   input_system_.reset();
+  XELOGI("Emulator::Shutdown: resetting graphics system");
   graphics_system_.reset();
+  XELOGI("Emulator::Shutdown: resetting audio system");
   audio_system_.reset();
 
+  XELOGI("Emulator::Shutdown: resetting kernel state");
   kernel_state_.reset();
+  XELOGI("Emulator::Shutdown: resetting file system");
   file_system_.reset();
 
+  XELOGI("Emulator::Shutdown: resetting processor");
   processor_.reset();
 
+  XELOGI("Emulator::Shutdown: resetting export resolver");
   export_resolver_.reset();
 
+  XELOGI("Emulator::Shutdown: uninstalling exception handler");
   ExceptionHandler::Uninstall(Emulator::ExceptionCallbackThunk, this);
 }
 

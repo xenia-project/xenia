@@ -10,6 +10,7 @@
 #include <alloca.h>
 #include <dlfcn.h>
 #include <stdlib.h>
+#include <sys/resource.h>
 
 #include <cstring>
 
@@ -77,5 +78,29 @@ void ShowSimpleMessageBox(SimpleMessageBoxType type, std::string_view message) {
     dlclose(libsdl2);
   }
 }
+
+bool SetProcessPriorityClass(const uint32_t priority_class) {
+  int nice_value = 0;
+  switch (priority_class) {
+    case 0:
+      nice_value = 0;
+      break;
+    case 1:
+      nice_value = -5;
+      break;
+    case 2:
+      nice_value = -10;
+      break;
+    case 3:
+      nice_value = -20;
+      break;
+    default:
+      return false;
+  }
+
+  return setpriority(PRIO_PROCESS, 0, nice_value) == 0;
+}
+
+bool IsUseNexusForGameBarEnabled() { return false; }
 
 }  // namespace xe

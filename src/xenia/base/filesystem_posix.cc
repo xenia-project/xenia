@@ -14,6 +14,7 @@
 #include "xenia/base/filesystem.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/string.h"
+#include "xenia/xbox.h"
 
 #include <sys/types.h>
 #include <assert.h>
@@ -236,20 +237,38 @@ std::unique_ptr<FileHandle> FileHandle::OpenExisting(
   return std::make_unique<PosixFileHandle>(path, handle);
 }
 
-bool GetInfo(const std::filesystem::path& path, FileInfo* out_info) {
+std::optional<FileInfo> GetInfo(const std::filesystem::path& path) {
   struct stat st;
-  if (stat(path.c_str(), &st) == 0) {
-    if (S_ISDIR(st.st_mode)) {
-      out_info->type = FileInfo::Type::kDirectory;
-    } else {
-      out_info->type = FileInfo::Type::kFile;
-    }
-    out_info->create_timestamp = convertUnixtimeToWinFiletime(st.st_ctime);
-    out_info->access_timestamp = convertUnixtimeToWinFiletime(st.st_atime);
-    out_info->write_timestamp = convertUnixtimeToWinFiletime(st.st_mtime);
-    return true;
+  if (stat(path.c_str(), &st) != 0) {
+    return {};
   }
-  return false;
+
+  FileInfo out_info{};
+  if (S_ISDIR(st.st_mode)) {
+    out_info.type = FileInfo::Type::kDirectory;
+    out_info.total_size = 0;
+  } else {
+    out_info.type = FileInfo::Type::kFile;
+    out_info.total_size = static_cast<size_t>(st.st_size);
+  }
+  out_info.path = path.parent_path();
+  out_info.name = path.filename();
+  out_info.create_timestamp = convertUnixtimeToWinFiletime(st.st_ctime);
+  out_info.access_timestamp = convertUnixtimeToWinFiletime(st.st_atime);
+  out_info.write_timestamp = convertUnixtimeToWinFiletime(st.st_mtime);
+  return std::move(out_info);
+}
+
+bool GetInfo(const std::filesystem::path& path, FileInfo* out_info) {
+  if (!out_info) {
+    return false;
+  }
+  auto info = GetInfo(path);
+  if (!info) {
+    return false;
+  }
+  *out_info = *info;
+  return true;
 }
 
 std::vector<FileInfo> ListFiles(const std::filesystem::path& path) {
@@ -265,27 +284,30 @@ std::vector<FileInfo> ListFiles(const std::filesystem::path& path) {
       continue;
     }
 
-    FileInfo info;
-
-    info.name = ent->d_name;
-    struct stat st;
-    stat((path / info.name).c_str(), &st);
-    info.create_timestamp = convertUnixtimeToWinFiletime(st.st_ctime);
-    info.access_timestamp = convertUnixtimeToWinFiletime(st.st_atime);
-    info.write_timestamp = convertUnixtimeToWinFiletime(st.st_mtime);
-    info.path = path;
-
-    if (S_ISDIR(st.st_mode)) {
-      info.type = FileInfo::Type::kDirectory;
-      info.total_size = 0;
-    } else {
-      info.type = FileInfo::Type::kFile;
-      info.total_size = st.st_size;
+    auto info = GetInfo(path / ent->d_name);
+    if (!info) {
+      continue;
     }
-    result.push_back(info);
+    result.push_back(*info);
   }
   closedir(dir);
   return result;
+}
+
+bool SetAttributes(const std::filesystem::path& path, uint64_t attributes) {
+  struct stat st;
+  if (stat(path.c_str(), &st) != 0) {
+    return false;
+  }
+
+  mode_t mode = st.st_mode;
+  if (attributes & X_FILE_ATTRIBUTE_READONLY) {
+    mode &= ~(S_IWUSR | S_IWGRP | S_IWOTH);
+  } else {
+    mode |= S_IWUSR;
+  }
+
+  return chmod(path.c_str(), mode) == 0;
 }
 
 }  // namespace filesystem

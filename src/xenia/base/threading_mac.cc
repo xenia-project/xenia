@@ -62,6 +62,11 @@ void Sleep(std::chrono::microseconds duration) {
   nanosleep(&rqtp, nullptr);
 }
 
+void NanoSleep(int64_t ns) {
+  timespec rqtp = DurationToTimeSpec(std::chrono::nanoseconds(ns));
+  nanosleep(&rqtp, nullptr);
+}
+
 // Thread-local storage to indicate if the thread is in an alertable state
 thread_local bool alertable_state_ = false;
 
