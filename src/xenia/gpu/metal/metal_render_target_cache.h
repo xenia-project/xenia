@@ -87,6 +87,14 @@ class MetalRenderTargetCache final : public gpu::RenderTargetCache {
   MTL::Texture* GetLastRealColorTarget(uint32_t index) const;
   MTL::Texture* GetLastRealDepthTarget() const;
 
+  // Look up a render target texture by key for debug/trace viewer use.
+  MTL::Texture* GetRenderTargetTexture(RenderTargetKey key) const;
+  // Look up a color render target texture by key components for the trace
+  // viewer without exposing RenderTargetKey.
+  MTL::Texture* GetColorRenderTargetTexture(
+      uint32_t pitch, xenos::MsaaSamples samples, uint32_t base,
+      xenos::ColorRenderTargetFormat format) const;
+
   // Restore EDRAM contents from snapshot (for trace playback), matching
   // D3D12RenderTargetCache::RestoreEdramSnapshot.
   void RestoreEdramSnapshot(const void* snapshot);

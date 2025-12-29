@@ -252,6 +252,9 @@ class MetalCommandProcessor : public CommandProcessor {
 
  public:
   MetalSharedMemory* shared_memory() const { return shared_memory_.get(); }
+  MetalRenderTargetCache* render_target_cache() const {
+    return render_target_cache_.get();
+  }
   MetalTextureCache* texture_cache() const { return texture_cache_.get(); }
 
  private:

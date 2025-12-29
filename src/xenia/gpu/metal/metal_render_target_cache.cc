@@ -1685,6 +1685,40 @@ MTL::Texture* MetalRenderTargetCache::GetLastRealDepthTarget() const {
   return last_real_depth_target_->texture();
 }
 
+MTL::Texture* MetalRenderTargetCache::GetRenderTargetTexture(
+    RenderTargetKey key) const {
+  auto it = render_target_map_.find(key.key);
+  if (it == render_target_map_.end()) {
+    return nullptr;
+  }
+  MetalRenderTarget* target = it->second;
+  return target ? target->texture() : nullptr;
+}
+
+MTL::Texture* MetalRenderTargetCache::GetColorRenderTargetTexture(
+    uint32_t pitch, xenos::MsaaSamples samples, uint32_t base,
+    xenos::ColorRenderTargetFormat format) const {
+  if (!pitch) {
+    return nullptr;
+  }
+  RenderTargetKey key;
+  key.base_tiles = base;
+  uint32_t msaa_samples_x_log2 =
+      uint32_t(samples >= xenos::MsaaSamples::k4X);
+  key.pitch_tiles_at_32bpp =
+      ((pitch << msaa_samples_x_log2) +
+       (xenos::kEdramTileWidthSamples - 1)) /
+      xenos::kEdramTileWidthSamples;
+  key.msaa_samples = samples;
+  key.is_depth = 0;
+  xenos::ColorRenderTargetFormat resource_format =
+      format == xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA
+          ? xenos::ColorRenderTargetFormat::k_8_8_8_8
+          : xenos::GetStorageColorFormat(format);
+  key.resource_format = uint32_t(resource_format);
+  return GetRenderTargetTexture(key);
+}
+
 void MetalRenderTargetCache::LogCurrentColorRT0Pixels(const char* tag) {
   // Section 6.3: Wrapper method to call the debug helper for current color RT0.
   LogMetalRenderTargetTopLeftPixels(current_color_targets_[0], tag, device_,
