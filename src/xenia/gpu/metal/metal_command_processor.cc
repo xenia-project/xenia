@@ -580,11 +580,18 @@ void MetalCommandProcessor::ClearResolvedMemory() {
 void MetalCommandProcessor::ForceIssueSwap() {
   // Force a swap to push any pending render target to presenter
   // This is used by trace dumps to capture output when there's no explicit swap
+  if (saw_swap_) {
+    return;
+  }
   IssueSwap(0, render_target_width_, render_target_height_);
 }
 
 bool MetalCommandProcessor::SetupContext() {
   XELOGI("MetalCommandProcessor::SetupContext: Starting");
+  saw_swap_ = false;
+  last_swap_ptr_ = 0;
+  last_swap_width_ = 0;
+  last_swap_height_ = 0;
   if (!CommandProcessor::SetupContext()) {
     XELOGE("Failed to initialize base command processor context");
     return false;
@@ -1000,6 +1007,10 @@ void MetalCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
                                       uint32_t frontbuffer_height) {
   XELOGI("MetalCommandProcessor::IssueSwap(ptr={:08X}, {}x{})", frontbuffer_ptr,
          frontbuffer_width, frontbuffer_height);
+  saw_swap_ = true;
+  last_swap_ptr_ = frontbuffer_ptr;
+  last_swap_width_ = frontbuffer_width;
+  last_swap_height_ = frontbuffer_height;
 
   // End any active render encoder
   if (current_render_encoder_) {
@@ -1031,17 +1042,34 @@ void MetalCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
   auto* presenter =
       static_cast<ui::metal::MetalPresenter*>(graphics_system_->presenter());
   if (presenter && render_target_cache_) {
-    uint32_t output_width = render_target_width_;
-    uint32_t output_height = render_target_height_;
+    uint32_t output_width =
+        frontbuffer_width ? frontbuffer_width : render_target_width_;
+    uint32_t output_height =
+        frontbuffer_height ? frontbuffer_height : render_target_height_;
 
-    // Prefer the last real color target 0, fall back to current/dummy.
-    MTL::Texture* source_texture =
-        render_target_cache_->GetLastRealColorTarget(0);
-    if (!source_texture) {
-      source_texture = render_target_cache_->GetColorTarget(0);
+    MTL::Texture* source_texture = nullptr;
+    if (texture_cache_) {
+      uint32_t swap_width = 0;
+      uint32_t swap_height = 0;
+      xenos::TextureFormat swap_format = xenos::TextureFormat::k_8_8_8_8;
+      source_texture =
+          texture_cache_->RequestSwapTexture(swap_width, swap_height,
+                                             swap_format);
+      if (source_texture) {
+        output_width = swap_width;
+        output_height = swap_height;
+      }
     }
+
+    // Fallback to the last real color target if no swap texture.
     if (!source_texture) {
-      source_texture = render_target_cache_->GetDummyColorTarget();
+      source_texture = render_target_cache_->GetLastRealColorTarget(0);
+      if (!source_texture) {
+        source_texture = render_target_cache_->GetColorTarget(0);
+      }
+      if (!source_texture) {
+        source_texture = render_target_cache_->GetDummyColorTarget();
+      }
     }
 
     if (source_texture) {

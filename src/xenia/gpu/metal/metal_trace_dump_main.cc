@@ -159,8 +159,12 @@ class MetalTraceDump : public TraceDump {
       auto* cmd_proc = static_cast<MetalCommandProcessor*>(
           metal_graphics_system_->command_processor());
       if (cmd_proc) {
-        XELOGI("MetalTraceDump: Forcing swap to ensure frame capture...");
-        cmd_proc->ForceIssueSwap();
+        if (!cmd_proc->HasSeenSwap()) {
+          XELOGI("MetalTraceDump: Forcing swap to ensure frame capture...");
+          cmd_proc->ForceIssueSwap();
+        } else {
+          XELOGI("MetalTraceDump: swap already seen; skipping forced swap");
+        }
       }
     }
 

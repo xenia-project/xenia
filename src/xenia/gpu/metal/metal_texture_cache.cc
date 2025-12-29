@@ -292,6 +292,16 @@ TextureCache::LoadShaderIndex MetalTextureCache::GetLoadShaderIndexForKey(
     case xenos::TextureFormat::k_16_16_16_16_FLOAT:
       return kLoadShaderIndex64bpb;
 
+    case xenos::TextureFormat::k_32:
+    case xenos::TextureFormat::k_32_FLOAT:
+      return kLoadShaderIndex32bpb;
+    case xenos::TextureFormat::k_32_32:
+    case xenos::TextureFormat::k_32_32_FLOAT:
+      return kLoadShaderIndex64bpb;
+    case xenos::TextureFormat::k_32_32_32_32:
+    case xenos::TextureFormat::k_32_32_32_32_FLOAT:
+      return kLoadShaderIndex128bpb;
+
     case xenos::TextureFormat::k_8_B:
     case xenos::TextureFormat::k_8_8_8_8_A:
       return kLoadShaderIndexUnknown;
@@ -1707,6 +1717,64 @@ MTL::Texture* MetalTextureCache::GetTextureForBinding(
   return result ? result : get_null_texture_for_dimension();
 }
 
+MTL::Texture* MetalTextureCache::RequestSwapTexture(
+    uint32_t& width_scaled_out, uint32_t& height_scaled_out,
+    xenos::TextureFormat& format_out) {
+  static bool logged_valid = false;
+  static bool logged_invalid = false;
+
+  const auto& regs = register_file();
+  xenos::xe_gpu_texture_fetch_t fetch = regs.GetTextureFetch(0);
+  TextureKey key;
+  BindingInfoFromFetchConstant(fetch, key, nullptr);
+  if (!key.is_valid || key.base_page == 0 ||
+      key.dimension != xenos::DataDimension::k2DOrStacked) {
+    if (!logged_invalid) {
+      XELOGW(
+          "MetalSwap: fetch0 invalid (valid={}, base_page=0x{:X}, dim={})",
+          key.is_valid ? 1 : 0, key.base_page,
+          static_cast<uint32_t>(key.dimension));
+      logged_invalid = true;
+    }
+    return nullptr;
+  }
+
+  auto* texture = static_cast<MetalTexture*>(FindOrCreateTexture(key));
+  if (!texture) {
+    return nullptr;
+  }
+
+  uint32_t host_swizzle =
+      GuestToHostSwizzle(fetch.swizzle, GetHostFormatSwizzle(key));
+  MTL::Texture* view = texture->GetOrCreateView(
+      host_swizzle, xenos::FetchOpDimension::k2D, false);
+  if (!view) {
+    return nullptr;
+  }
+
+  if (!LoadTextureData(*texture)) {
+    return nullptr;
+  }
+
+  texture->MarkAsUsed();
+  key = texture->key();
+  width_scaled_out =
+      key.GetWidth() * (key.scaled_resolve ? draw_resolution_scale_x() : 1);
+  height_scaled_out =
+      key.GetHeight() * (key.scaled_resolve ? draw_resolution_scale_y() : 1);
+  format_out = key.format;
+  if (!logged_valid) {
+    XELOGI(
+        "MetalSwap: using fetch0 base_page=0x{:X} {}x{} pitch={} scaled={} "
+        "format={} dim={}",
+        key.base_page, width_scaled_out, height_scaled_out, key.pitch,
+        key.scaled_resolve ? 1 : 0, static_cast<uint32_t>(format_out),
+        static_cast<uint32_t>(key.dimension));
+    logged_valid = true;
+  }
+  return view;
+}
+
 MetalTextureCache::SamplerParameters MetalTextureCache::GetSamplerParameters(
     const DxbcShader::SamplerBinding& binding) const {
   const RegisterFile& regs = register_file();
@@ -2153,7 +2221,8 @@ MTL::Texture* MetalTextureCache::MetalTexture::GetOrCreateView(
       slice_count = metal_texture_->arrayLength() * 6;
       break;
     case MTL::TextureType3D:
-      slice_count = metal_texture_->depth();
+      // Metal requires a single slice range for 3D texture views.
+      slice_count = 1;
       break;
     default:
       slice_count = 1;

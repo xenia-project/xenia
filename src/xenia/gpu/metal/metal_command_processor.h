@@ -67,6 +67,7 @@ class MetalCommandProcessor : public CommandProcessor {
 
   // Force issue a swap to push render target to presenter (for trace dumps)
   void ForceIssueSwap();
+  bool HasSeenSwap() const { return saw_swap_; }
 
  protected:
   bool SetupContext() override;
@@ -249,6 +250,11 @@ class MetalCommandProcessor : public CommandProcessor {
   std::unique_ptr<MetalSharedMemory> shared_memory_;
   std::unique_ptr<MetalPrimitiveProcessor> primitive_processor_;
   bool frame_open_ = false;
+
+  bool saw_swap_ = false;
+  uint32_t last_swap_ptr_ = 0;
+  uint32_t last_swap_width_ = 0;
+  uint32_t last_swap_height_ = 0;
 
  public:
   MetalSharedMemory* shared_memory() const { return shared_memory_.get(); }

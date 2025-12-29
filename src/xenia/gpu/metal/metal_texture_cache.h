@@ -69,6 +69,10 @@ class MetalTextureCache : public TextureCache {
                                      xenos::FetchOpDimension dimension,
                                      bool is_signed);
 
+  MTL::Texture* RequestSwapTexture(uint32_t& width_scaled_out,
+                                   uint32_t& height_scaled_out,
+                                   xenos::TextureFormat& format_out);
+
   union SamplerParameters {
     uint32_t value;
     struct {
