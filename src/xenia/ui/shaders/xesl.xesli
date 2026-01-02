@@ -1223,28 +1223,28 @@ xesl_float4 xesl_float_x4(float xesl_var_value) {
     return ctz(xesl_var_value);
   }
   uint xesl_firstOneBitHigh(int xesl_var_value) {
-    return 32u - uint(clz(xesl_var_value));
+    return 31u - clz(uint(xesl_var_value));
   }
   xesl_uint2 xesl_firstOneBitHigh(xesl_int2 xesl_var_value) {
-    return xesl_uint_x2(32u) - xesl_uint2(clz(xesl_var_value));
+    return xesl_uint_x2(31u) - clz(xesl_uint2(xesl_var_value));
   }
   xesl_uint3 xesl_firstOneBitHigh(xesl_int3 xesl_var_value) {
-    return xesl_uint_x3(32u) - xesl_uint3(clz(xesl_var_value));
+    return xesl_uint_x3(31u) - clz(xesl_uint3(xesl_var_value));
   }
   xesl_uint4 xesl_firstOneBitHigh(xesl_int4 xesl_var_value) {
-    return xesl_uint_x4(32u) - xesl_uint4(clz(xesl_var_value));
+    return xesl_uint_x4(31u) - clz(xesl_uint4(xesl_var_value));
   }
   uint xesl_firstOneBitHigh(uint xesl_var_value) {
-    return 32u - clz(xesl_var_value);
+    return 31u - clz(xesl_var_value);
   }
   xesl_uint2 xesl_firstOneBitHigh(xesl_uint2 xesl_var_value) {
-    return xesl_uint_x2(32u) - clz(xesl_var_value);
+    return xesl_uint_x2(31u) - clz(xesl_var_value);
   }
   xesl_uint3 xesl_firstOneBitHigh(xesl_uint3 xesl_var_value) {
-    return xesl_uint_x3(32u) - clz(xesl_var_value);
+    return xesl_uint_x3(31u) - clz(xesl_var_value);
   }
   xesl_uint4 xesl_firstOneBitHigh(xesl_uint4 xesl_var_value) {
-    return xesl_uint_x4(32u) - clz(xesl_var_value);
+    return xesl_uint_x4(31u) - clz(xesl_var_value);
   }
 #else
   #error Bit count operations not defined for the target language.
