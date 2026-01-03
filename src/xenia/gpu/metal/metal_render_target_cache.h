@@ -67,6 +67,10 @@ class MetalRenderTargetCache final : public gpu::RenderTargetCache {
     void SetMsaaTransferTexture(MTL::Texture* texture) {
       msaa_transfer_texture_ = texture;
     }
+    bool needs_initial_clear() const { return needs_initial_clear_; }
+    void SetNeedsInitialClear(bool needs_initial_clear) {
+      needs_initial_clear_ = needs_initial_clear;
+    }
 
     // Public constructor for creating render targets
     MetalRenderTarget(RenderTargetKey key) : RenderTarget(key) {}
@@ -79,6 +83,7 @@ class MetalRenderTargetCache final : public gpu::RenderTargetCache {
     MTL::Texture* msaa_draw_texture_ = nullptr;
     MTL::Texture* msaa_transfer_texture_ = nullptr;
     uint32_t temporary_sort_index_ = UINT32_MAX;
+    bool needs_initial_clear_ = true;
   };
 
  public:

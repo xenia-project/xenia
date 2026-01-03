@@ -989,17 +989,38 @@ bool MetalRenderTargetCache::Initialize() {
       size_t(xenos::kEdramTileHeightSamples) * size_t(scale_x) *
       size_t(scale_y);
   const size_t edram_size_bytes = edram_dwords * sizeof(uint32_t);
-  edram_buffer_ =
-      device_->newBuffer(edram_size_bytes, MTL::ResourceStorageModeShared);
+  const bool edram_cpu_visible = cvars::metal_debug_edram_cpu_visible;
+  const MTL::ResourceOptions edram_storage_mode =
+      edram_cpu_visible ? MTL::ResourceStorageModeShared
+                        : MTL::ResourceStorageModePrivate;
+  edram_buffer_ = device_->newBuffer(edram_size_bytes, edram_storage_mode);
   if (!edram_buffer_) {
     XELOGE("MetalRenderTargetCache: Failed to create EDRAM buffer");
     return false;
   }
   edram_buffer_->setLabel(
       NS::String::string("EDRAM Buffer", NS::UTF8StringEncoding));
-  void* edram_contents = edram_buffer_->contents();
-  if (edram_contents) {
-    std::memset(edram_contents, 0, edram_size_bytes);
+  if (edram_cpu_visible) {
+    void* edram_contents = edram_buffer_->contents();
+    if (edram_contents) {
+      std::memset(edram_contents, 0, edram_size_bytes);
+    }
+  } else {
+    MTL::CommandQueue* queue = command_processor_.GetMetalCommandQueue();
+    if (queue) {
+      MTL::CommandBuffer* cmd = queue->commandBuffer();
+      if (cmd) {
+        MTL::BlitCommandEncoder* blit = cmd->blitCommandEncoder();
+        if (blit) {
+          blit->fillBuffer(edram_buffer_,
+                           NS::Range::Make(
+                               0, static_cast<NS::UInteger>(edram_size_bytes)),
+                           0);
+          blit->endEncoding();
+          cmd->commit();
+        }
+      }
+    }
   }
   XELOGI("MetalRenderTargetCache: EDRAM buffer size {} bytes (scale {}x{})",
          edram_size_bytes, scale_x, scale_y);
@@ -3119,6 +3140,7 @@ void MetalRenderTargetCache::RestoreEdramSnapshot(const void* snapshot) {
       cmd->waitUntilCompleted();
       // cmd is autoreleased from commandBuffer() - do not release
       staging->release();
+      metal_rt->SetNeedsInitialClear(false);
 
       XELOGI(
           "MetalRenderTargetCache::RestoreEdramSnapshot: restored snapshot "
@@ -3160,31 +3182,8 @@ MTL::Texture* MetalRenderTargetCache::CreateColorTexture(
   MTL::Texture* texture = device_->newTexture(desc);
   desc->release();
 
-  // Clear texture to zero immediately after creation so we can always use
-  // LoadActionLoad (matching D3D12/Vulkan behavior where render targets
-  // preserve content and transfers/clears are explicit operations).
-  if (texture) {
-    MTL::CommandQueue* queue = command_processor_.GetMetalCommandQueue();
-    if (queue) {
-      MTL::CommandBuffer* cmd = queue->commandBuffer();
-      if (cmd) {
-        MTL::RenderPassDescriptor* rp =
-            MTL::RenderPassDescriptor::renderPassDescriptor();
-        auto* ca = rp->colorAttachments()->object(0);
-        ca->setTexture(texture);
-        ca->setLoadAction(MTL::LoadActionClear);
-        ca->setClearColor(MTL::ClearColor::Make(0.0, 0.0, 0.0, 0.0));
-        ca->setStoreAction(MTL::StoreActionStore);
-        MTL::RenderCommandEncoder* enc = cmd->renderCommandEncoder(rp);
-        if (enc) {
-          enc->endEncoding();
-        }
-        cmd->commit();
-        cmd->waitUntilCompleted();
-      }
-    }
-  }
-
+  // Initial clear is handled on first bind via load actions; avoid
+  // synchronous clears here to keep the host RT path fast.
   return texture;
 }
 
@@ -3207,39 +3206,8 @@ MTL::Texture* MetalRenderTargetCache::CreateDepthTexture(
   MTL::Texture* texture = device_->newTexture(desc);
   desc->release();
 
-  // Clear depth texture immediately after creation so we can always use
-  // LoadActionLoad (matching D3D12/Vulkan behavior).
-  if (texture) {
-    MTL::CommandQueue* queue = command_processor_.GetMetalCommandQueue();
-    if (queue) {
-      MTL::CommandBuffer* cmd = queue->commandBuffer();
-      if (cmd) {
-        MTL::RenderPassDescriptor* rp =
-            MTL::RenderPassDescriptor::renderPassDescriptor();
-        auto* da = rp->depthAttachment();
-        da->setTexture(texture);
-        da->setLoadAction(MTL::LoadActionClear);
-        da->setClearDepth(1.0);
-        da->setStoreAction(MTL::StoreActionStore);
-        // Also handle stencil if format includes it
-        if (pixel_format == MTL::PixelFormatDepth32Float_Stencil8 ||
-            pixel_format == MTL::PixelFormatDepth24Unorm_Stencil8) {
-          auto* sa = rp->stencilAttachment();
-          sa->setTexture(texture);
-          sa->setLoadAction(MTL::LoadActionClear);
-          sa->setClearStencil(0);
-          sa->setStoreAction(MTL::StoreActionStore);
-        }
-        MTL::RenderCommandEncoder* enc = cmd->renderCommandEncoder(rp);
-        if (enc) {
-          enc->endEncoding();
-        }
-        cmd->commit();
-        cmd->waitUntilCompleted();
-      }
-    }
-  }
-
+  // Initial clear is handled on first bind via load actions; avoid
+  // synchronous clears here to keep the host RT path fast.
   return texture;
 }
 
@@ -3248,6 +3216,7 @@ MTL::PixelFormat MetalRenderTargetCache::GetColorResourcePixelFormat(
   switch (format) {
     case xenos::ColorRenderTargetFormat::k_8_8_8_8:
     case xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA:
+      // Match D3D12/Vulkan and texture cache mapping (RGBA for 8888).
       return MTL::PixelFormatRGBA8Unorm;
     case xenos::ColorRenderTargetFormat::k_2_10_10_10:
     case xenos::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10:
@@ -3271,7 +3240,7 @@ MTL::PixelFormat MetalRenderTargetCache::GetColorResourcePixelFormat(
     default:
       XELOGE("MetalRenderTargetCache: Unsupported color format {}",
              static_cast<uint32_t>(format));
-      return MTL::PixelFormatBGRA8Unorm;
+      return MTL::PixelFormatRGBA8Unorm;
   }
 }
 
@@ -3448,11 +3417,17 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(
     auto* depth_attachment = cached_render_pass_descriptor_->depthAttachment();
     depth_attachment->setTexture(current_depth_target_->draw_texture());
 
-    // Always use LoadActionLoad - textures are cleared on creation and
-    // transfers/clears are explicit operations (matching D3D12/Vulkan
-    // behavior).
+    // Clear on first bind to avoid synchronous clears at creation.
     uint32_t depth_key = current_depth_target_->key().key;
-    depth_attachment->setLoadAction(MTL::LoadActionLoad);
+    bool depth_needs_clear = current_depth_target_->needs_initial_clear();
+    if (depth_needs_clear) {
+      depth_attachment->setLoadAction(MTL::LoadActionClear);
+      depth_attachment->setClearDepth(1.0);
+      current_depth_target_->SetNeedsInitialClear(false);
+      needs_descriptor_refresh = true;
+    } else {
+      depth_attachment->setLoadAction(MTL::LoadActionLoad);
+    }
     XELOGI("MetalRenderTargetCache: Loading depth target 0x{:08X}", depth_key);
 
     depth_attachment->setStoreAction(MTL::StoreActionStore);
@@ -3501,11 +3476,18 @@ MTL::RenderPassDescriptor* MetalRenderTargetCache::GetRenderPassDescriptor(
           cached_render_pass_descriptor_->colorAttachments()->object(i);
       color_attachment->setTexture(current_color_targets_[i]->draw_texture());
 
-      // Always use LoadActionLoad - textures are cleared on creation and
-      // transfers/clears are explicit operations (matching D3D12/Vulkan
-      // behavior).
-      uint32_t color_key = current_color_targets_[i]->key().key;
-      color_attachment->setLoadAction(MTL::LoadActionLoad);
+      // Clear on first bind to avoid synchronous clears at creation.
+      bool color_needs_clear =
+          current_color_targets_[i]->needs_initial_clear();
+      if (color_needs_clear) {
+        color_attachment->setLoadAction(MTL::LoadActionClear);
+        color_attachment->setClearColor(
+            MTL::ClearColor::Make(0.0, 0.0, 0.0, 0.0));
+        current_color_targets_[i]->SetNeedsInitialClear(false);
+        needs_descriptor_refresh = true;
+      } else {
+        color_attachment->setLoadAction(MTL::LoadActionLoad);
+      }
       color_attachment->setStoreAction(MTL::StoreActionStore);
 
       has_any_render_target = true;
