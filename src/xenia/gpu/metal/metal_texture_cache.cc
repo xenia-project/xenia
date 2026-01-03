@@ -14,6 +14,7 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <limits>
 #include <vector>
 
 #include "third_party/stb/stb_image_write.h"
@@ -103,11 +104,13 @@ struct MetalLoadConstants {
   uint32_t guest_pitch_aligned;
   uint32_t guest_z_stride_block_rows_aligned;
   uint32_t size_blocks[3];
-  uint32_t padding;  // Pad to 16-byte boundary for uint3 in MSL.
+  uint32_t padding0;  // Pad to 16-byte boundary for uint3 in MSL.
   uint32_t host_offset;
   uint32_t host_pitch;
   uint32_t height_texels;
+  uint32_t padding1[5];  // Pad to 64 bytes to match HLSL CB size.
 };
+static_assert(sizeof(MetalLoadConstants) == 64);
 
 bool SupportsPixelFormat(MTL::Device* device, MTL::PixelFormat format) {
   if (!device || format == MTL::PixelFormatInvalid) {
@@ -407,9 +410,14 @@ bool MetalTextureCache::TryGpuLoadTexture(Texture& texture, bool load_base,
   }
 
   const TextureKey& key = texture.key();
-  if (key.scaled_resolve) {
-    return false;
-  }
+  bool texture_resolution_scaled =
+      key.scaled_resolve && IsDrawResolutionScaled();
+  uint32_t texture_resolution_scale_x =
+      texture_resolution_scaled ? draw_resolution_scale_x() : 1;
+  uint32_t texture_resolution_scale_y =
+      texture_resolution_scaled ? draw_resolution_scale_y() : 1;
+  uint32_t texture_resolution_scale_area =
+      texture_resolution_scale_x * texture_resolution_scale_y;
 
   const texture_util::TextureGuestLayout& guest_layout = texture.guest_layout();
   xenos::DataDimension dimension = key.dimension;
@@ -442,13 +450,28 @@ bool MetalTextureCache::TryGpuLoadTexture(Texture& texture, bool load_base,
   }
 
   MTL::ComputePipelineState* pipeline =
-      load_pipelines_[static_cast<size_t>(load_shader)];
+      texture_resolution_scaled
+          ? load_pipelines_scaled_[static_cast<size_t>(load_shader)]
+          : load_pipelines_[static_cast<size_t>(load_shader)];
   if (!pipeline) {
     return false;
   }
 
   const TextureCache::LoadShaderInfo& load_shader_info =
       GetLoadShaderInfo(load_shader);
+  if (texture_resolution_scaled) {
+    static uint32_t scaled_load_log_count = 0;
+    if (scaled_load_log_count < 8) {
+      ++scaled_load_log_count;
+      XELOGI(
+          "MetalTextureLoad: scaled resolve base=0x{:X} mip=0x{:X} "
+          "{}x{} scale={}x{} format={} tiled={}",
+          key.base_page << 12, key.mip_page << 12, key.GetWidth(),
+          key.GetHeight(), texture_resolution_scale_x,
+          texture_resolution_scale_y, static_cast<uint32_t>(key.format),
+          key.tiled ? 1 : 0);
+    }
+  }
 
   bool is_block_compressed_format =
       key.format == xenos::TextureFormat::k_DXT1 ||
@@ -503,22 +526,25 @@ bool MetalTextureCache::TryGpuLoadTexture(Texture& texture, bool load_base,
       continue;
     }
 
-    uint32_t level_width, level_height, level_depth;
+    uint32_t level_width_unscaled, level_height_unscaled, level_depth;
     if (level == level_packed) {
-      level_width = level_guest_layout.x_extent_blocks * block_width;
-      level_height = level_guest_layout.y_extent_blocks * block_height;
+      level_width_unscaled = level_guest_layout.x_extent_blocks * block_width;
+      level_height_unscaled = level_guest_layout.y_extent_blocks * block_height;
       level_depth = level_guest_layout.z_extent;
     } else {
-      level_width = std::max(width >> level, uint32_t(1));
-      level_height = std::max(height >> level, uint32_t(1));
+      level_width_unscaled = std::max(width >> level, uint32_t(1));
+      level_height_unscaled = std::max(height >> level, uint32_t(1));
       level_depth = std::max(depth >> level, uint32_t(1));
     }
 
-    uint32_t width_texels_aligned = xe::round_up(level_width, host_block_width);
-    uint32_t height_texels_aligned =
-        xe::round_up(level_height, host_block_height);
-    uint32_t width_blocks = width_texels_aligned / host_block_width;
-    uint32_t height_blocks = height_texels_aligned / host_block_height;
+    uint32_t width_texels_scaled =
+        xe::round_up(level_width_unscaled * texture_resolution_scale_x,
+                     host_block_width);
+    uint32_t height_texels_scaled =
+        xe::round_up(level_height_unscaled * texture_resolution_scale_y,
+                     host_block_height);
+    uint32_t width_blocks = width_texels_scaled / host_block_width;
+    uint32_t height_blocks = height_texels_scaled / host_block_height;
 
     uint32_t row_pitch_bytes =
         xe::align(xe::round_up(width_blocks, host_x_blocks_per_thread) *
@@ -535,8 +561,8 @@ bool MetalTextureCache::TryGpuLoadTexture(Texture& texture, bool load_base,
     host_layout.row_pitch_bytes = row_pitch_bytes;
     host_layout.height_blocks = height_blocks;
     host_layout.depth_slices = level_depth;
-    host_layout.width_texels = level_width;
-    host_layout.height_texels = level_height;
+    host_layout.width_texels = level_width_unscaled;
+    host_layout.height_texels = level_height_unscaled;
     stored_levels.push_back(host_layout);
 
     dest_buffer_size += uint64_t(slice_size_bytes) * uint64_t(array_size);
@@ -597,13 +623,20 @@ bool MetalTextureCache::TryGpuLoadTexture(Texture& texture, bool load_base,
   }
 
   encoder->setComputePipelineState(pipeline);
-  encoder->setBuffer(shared_buffer, 0, 2);
+  if (!texture_resolution_scaled) {
+    encoder->setBuffer(shared_buffer, 0, 2);
+  }
 
   uint32_t guest_x_blocks_per_group_log2 =
       load_shader_info.GetGuestXBlocksPerGroupLog2();
   MTL::Size threads_per_group =
       MTL::Size::Make(UINT32_C(1) << kLoadGuestXThreadsPerGroupLog2,
                       UINT32_C(1) << kLoadGuestYBlocksPerGroupLog2, 1);
+
+  bool scaled_mips_source_set_up = false;
+  MTL::Buffer* source_buffer = shared_buffer;
+  size_t source_buffer_offset = 0;
+  size_t source_buffer_length = 0;
 
   size_t dispatch_index = 0;
   for (const StoredLevelHostLayout& stored_level : stored_levels) {
@@ -612,10 +645,39 @@ bool MetalTextureCache::TryGpuLoadTexture(Texture& texture, bool load_base,
         is_base_storage ? guest_layout.base
                         : guest_layout.mips[stored_level.level];
 
-    uint32_t level_guest_offset =
-        is_base_storage ? base_guest_address
-                        : (mips_guest_address +
-                           guest_layout.mip_offsets_bytes[stored_level.level]);
+    if (texture_resolution_scaled &&
+        (is_base_storage || !scaled_mips_source_set_up)) {
+      uint32_t guest_address =
+          is_base_storage ? base_guest_address : mips_guest_address;
+      uint32_t guest_size_unscaled =
+          is_base_storage ? texture.GetGuestBaseSize()
+                          : texture.GetGuestMipsSize();
+      if (!MakeScaledResolveRangeCurrent(guest_address, guest_size_unscaled,
+                                         load_shader_info.source_bpe_log2) ||
+          !GetCurrentScaledResolveBuffer(source_buffer, source_buffer_offset,
+                                         source_buffer_length)) {
+        constants_buffer->release();
+        dest_buffer->release();
+        return false;
+      }
+      encoder->setBuffer(source_buffer, source_buffer_offset, 2);
+      if (!is_base_storage) {
+        scaled_mips_source_set_up = true;
+      }
+    }
+
+    uint32_t level_guest_offset = 0;
+    if (!texture_resolution_scaled) {
+      level_guest_offset =
+          is_base_storage ? base_guest_address : mips_guest_address;
+    }
+    if (!is_base_storage) {
+      uint32_t mip_offset = guest_layout.mip_offsets_bytes[stored_level.level];
+      if (texture_resolution_scaled) {
+        mip_offset *= texture_resolution_scale_area;
+      }
+      level_guest_offset += mip_offset;
+    }
 
     uint32_t guest_pitch_aligned = level_guest_layout.row_pitch_bytes;
     if (key.tiled) {
@@ -626,6 +688,8 @@ bool MetalTextureCache::TryGpuLoadTexture(Texture& texture, bool load_base,
         (stored_level.width_texels + (block_width - 1)) / block_width;
     uint32_t size_blocks_y =
         (stored_level.height_texels + (block_height - 1)) / block_height;
+    size_blocks_x *= texture_resolution_scale_x;
+    size_blocks_y *= texture_resolution_scale_y;
 
     uint32_t group_count_x =
         (size_blocks_x +
@@ -642,11 +706,16 @@ bool MetalTextureCache::TryGpuLoadTexture(Texture& texture, bool load_base,
       MetalLoadConstants constants = {};
       constants.is_tiled_3d_endian_scale = uint32_t(key.tiled) |
                                            (uint32_t(is_3d) << 1) |
-                                           (uint32_t(key.endianness) << 2);
+                                           (uint32_t(key.endianness) << 2) |
+                                           (texture_resolution_scale_x << 4) |
+                                           (texture_resolution_scale_y << 7);
       constants.guest_offset = level_guest_offset;
       if (!is_3d) {
-        constants.guest_offset +=
-            slice * level_guest_layout.array_slice_stride_bytes;
+        uint32_t slice_stride = level_guest_layout.array_slice_stride_bytes;
+        if (texture_resolution_scaled) {
+          slice_stride *= texture_resolution_scale_area;
+        }
+        constants.guest_offset += slice * slice_stride;
       }
       constants.guest_pitch_aligned = guest_pitch_aligned;
       constants.guest_z_stride_block_rows_aligned =
@@ -654,7 +723,7 @@ bool MetalTextureCache::TryGpuLoadTexture(Texture& texture, bool load_base,
       constants.size_blocks[0] = size_blocks_x;
       constants.size_blocks[1] = size_blocks_y;
       constants.size_blocks[2] = stored_level.depth_slices;
-      constants.padding = 0;
+      constants.padding0 = 0;
       constants.host_offset = 0;
       constants.host_pitch = stored_level.row_pitch_bytes;
       constants.height_texels = stored_level.height_texels;
@@ -709,12 +778,16 @@ bool MetalTextureCache::TryGpuLoadTexture(Texture& texture, bool load_base,
       continue;
     }
 
-    uint32_t level_width = std::max(width >> level, uint32_t(1));
-    uint32_t level_height = std::max(height >> level, uint32_t(1));
+    uint32_t level_width_unscaled = std::max(width >> level, uint32_t(1));
+    uint32_t level_height_unscaled = std::max(height >> level, uint32_t(1));
     uint32_t level_depth = std::max(depth >> level, uint32_t(1));
+    uint32_t level_width_scaled =
+        level_width_unscaled * texture_resolution_scale_x;
+    uint32_t level_height_scaled =
+        level_height_unscaled * texture_resolution_scale_y;
 
-    uint32_t upload_width = level_width;
-    uint32_t upload_height = level_height;
+    uint32_t upload_width = level_width_scaled;
+    uint32_t upload_height = level_height_scaled;
     if (host_block_compressed) {
       upload_width = xe::round_up(upload_width, host_block_width);
       upload_height = xe::round_up(upload_height, host_block_height);
@@ -738,14 +811,21 @@ bool MetalTextureCache::TryGpuLoadTexture(Texture& texture, bool load_base,
           size_t(stored_layout->row_pitch_bytes) * stored_layout->height_blocks;
       if (level >= level_packed) {
         if (host_block_compressed) {
+          uint32_t packed_offset_blocks_x_scaled =
+              packed_offset_blocks_x * texture_resolution_scale_x;
+          uint32_t packed_offset_blocks_y_scaled =
+              packed_offset_blocks_y * texture_resolution_scale_y;
           source_ptr += packed_offset_z * bytes_per_image;
-          source_ptr += packed_offset_blocks_y * stored_layout->row_pitch_bytes;
-          source_ptr += packed_offset_blocks_x * bytes_per_block;
+          source_ptr +=
+              packed_offset_blocks_y_scaled * stored_layout->row_pitch_bytes;
+          source_ptr += packed_offset_blocks_x_scaled * bytes_per_block;
         } else {
           uint32_t packed_offset_texels_x =
               packed_offset_blocks_x * block_width;
           uint32_t packed_offset_texels_y =
               packed_offset_blocks_y * block_height;
+          packed_offset_texels_x *= texture_resolution_scale_x;
+          packed_offset_texels_y *= texture_resolution_scale_y;
           source_ptr += packed_offset_z * bytes_per_image;
           source_ptr += packed_offset_texels_y * stored_layout->row_pitch_bytes;
           source_ptr += packed_offset_texels_x * bytes_per_host_block;
@@ -1155,6 +1235,26 @@ void MetalTextureCache::Shutdown() {
   XELOGD("Metal texture cache: Shutdown complete");
 }
 
+void MetalTextureCache::ClearScaledResolveBuffers() {
+  for (auto& buffer : scaled_resolve_buffers_) {
+    if (buffer.buffer) {
+      buffer.buffer->release();
+      buffer.buffer = nullptr;
+    }
+  }
+  scaled_resolve_buffers_.clear();
+  for (auto& buffer : scaled_resolve_retired_buffers_) {
+    if (buffer.buffer) {
+      buffer.buffer->release();
+      buffer.buffer = nullptr;
+    }
+  }
+  scaled_resolve_retired_buffers_.clear();
+  scaled_resolve_current_buffer_index_ = size_t(-1);
+  scaled_resolve_current_range_start_scaled_ = 0;
+  scaled_resolve_current_range_length_scaled_ = 0;
+}
+
 void MetalTextureCache::ClearCache() {
   SCOPE_profile_cpu_f("gpu");
 
@@ -1164,6 +1264,7 @@ void MetalTextureCache::ClearCache() {
     }
   }
   sampler_cache_.clear();
+  ClearScaledResolveBuffers();
 
   XELOGD("Metal texture cache: Cache cleared");
 }
@@ -1997,6 +2098,251 @@ bool MetalTextureCache::IsSignedVersionSeparateForFormat(TextureKey key) const {
   }
 }
 
+bool MetalTextureCache::IsScaledResolveSupportedForFormat(TextureKey key) const {
+  LoadShaderIndex load_shader = GetLoadShaderIndexForKey(key);
+  return load_shader != kLoadShaderIndexUnknown &&
+         load_pipelines_scaled_[load_shader] != nullptr;
+}
+
+bool MetalTextureCache::EnsureScaledResolveMemoryCommitted(
+    uint32_t start_unscaled, uint32_t length_unscaled,
+    uint32_t length_scaled_alignment_log2) {
+  if (!IsDrawResolutionScaled()) {
+    return false;
+  }
+  if (!length_unscaled) {
+    return true;
+  }
+
+  uint64_t start_scaled = 0;
+  uint64_t length_scaled = 0;
+  if (!GetScaledResolveRange(start_unscaled, length_unscaled,
+                             length_scaled_alignment_log2, start_scaled,
+                             length_scaled)) {
+    return false;
+  }
+  return EnsureScaledResolveBufferRange(start_scaled, length_scaled);
+}
+
+bool MetalTextureCache::MakeScaledResolveRangeCurrent(
+    uint32_t start_unscaled, uint32_t length_unscaled,
+    uint32_t length_scaled_alignment_log2) {
+  if (!IsDrawResolutionScaled()) {
+    return false;
+  }
+  if (!length_unscaled) {
+    return false;
+  }
+
+  uint64_t start_scaled = 0;
+  uint64_t length_scaled = 0;
+  if (!GetScaledResolveRange(start_unscaled, length_unscaled,
+                             length_scaled_alignment_log2, start_scaled,
+                             length_scaled)) {
+    return false;
+  }
+  if (!length_scaled) {
+    return false;
+  }
+
+  uint64_t end_scaled = start_scaled + length_scaled - 1;
+  for (size_t i = scaled_resolve_buffers_.size(); i-- > 0;) {
+    const ScaledResolveBuffer& buffer = scaled_resolve_buffers_[i];
+    uint64_t buffer_end = buffer.base_scaled + buffer.length_scaled - 1;
+    if (start_scaled >= buffer.base_scaled && end_scaled <= buffer_end) {
+      scaled_resolve_current_buffer_index_ = i;
+      scaled_resolve_current_range_start_scaled_ = start_scaled;
+      scaled_resolve_current_range_length_scaled_ = length_scaled;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool MetalTextureCache::GetCurrentScaledResolveBuffer(
+    MTL::Buffer*& buffer_out, size_t& buffer_offset_out,
+    size_t& buffer_length_out) const {
+  if (scaled_resolve_current_buffer_index_ == size_t(-1) ||
+      scaled_resolve_current_buffer_index_ >= scaled_resolve_buffers_.size()) {
+    return false;
+  }
+  const ScaledResolveBuffer& buffer =
+      scaled_resolve_buffers_[scaled_resolve_current_buffer_index_];
+  uint64_t offset =
+      scaled_resolve_current_range_start_scaled_ - buffer.base_scaled;
+  uint64_t end_offset = offset + scaled_resolve_current_range_length_scaled_;
+  if (end_offset > buffer.length_scaled) {
+    return false;
+  }
+  if (offset > std::numeric_limits<size_t>::max() ||
+      scaled_resolve_current_range_length_scaled_ >
+          std::numeric_limits<size_t>::max()) {
+    return false;
+  }
+  buffer_out = buffer.buffer;
+  buffer_offset_out = size_t(offset);
+  buffer_length_out = size_t(scaled_resolve_current_range_length_scaled_);
+  return buffer_out != nullptr;
+}
+
+bool MetalTextureCache::GetScaledResolveRange(
+    uint32_t start_unscaled, uint32_t length_unscaled,
+    uint32_t length_scaled_alignment_log2, uint64_t& start_scaled_out,
+    uint64_t& length_scaled_out) const {
+  if (!length_unscaled) {
+    start_scaled_out = 0;
+    length_scaled_out = 0;
+    return true;
+  }
+  if (start_unscaled >= SharedMemory::kBufferSize ||
+      (SharedMemory::kBufferSize - start_unscaled) < length_unscaled) {
+    return false;
+  }
+
+  uint32_t scale_area =
+      draw_resolution_scale_x() * draw_resolution_scale_y();
+  uint64_t start_scaled = uint64_t(start_unscaled) * scale_area;
+  uint64_t end_scaled =
+      uint64_t(start_unscaled + (length_unscaled - 1)) * scale_area;
+  if (length_scaled_alignment_log2) {
+    uint64_t alignment_mask =
+        (uint64_t(1) << length_scaled_alignment_log2) - 1;
+    end_scaled = (end_scaled + alignment_mask) & ~alignment_mask;
+  }
+  start_scaled_out = start_scaled;
+  length_scaled_out = end_scaled - start_scaled + 1;
+  return true;
+}
+
+bool MetalTextureCache::EnsureScaledResolveBufferRange(uint64_t start_scaled,
+                                                       uint64_t length_scaled) {
+  if (!length_scaled) {
+    return true;
+  }
+  uint64_t end_scaled = start_scaled + length_scaled - 1;
+
+  for (const ScaledResolveBuffer& buffer : scaled_resolve_buffers_) {
+    uint64_t buffer_end = buffer.base_scaled + buffer.length_scaled - 1;
+    if (start_scaled >= buffer.base_scaled && end_scaled <= buffer_end) {
+      return true;
+    }
+  }
+
+  uint64_t new_base_scaled = start_scaled;
+  uint64_t new_end_scaled = end_scaled;
+  std::vector<size_t> overlap_indices;
+  overlap_indices.reserve(scaled_resolve_buffers_.size());
+
+  for (size_t i = 0; i < scaled_resolve_buffers_.size(); ++i) {
+    const ScaledResolveBuffer& buffer = scaled_resolve_buffers_[i];
+    uint64_t buffer_end = buffer.base_scaled + buffer.length_scaled - 1;
+    if (buffer.base_scaled <= end_scaled && buffer_end >= start_scaled) {
+      overlap_indices.push_back(i);
+      new_base_scaled = std::min(new_base_scaled, buffer.base_scaled);
+      new_end_scaled = std::max(new_end_scaled, buffer_end);
+    }
+  }
+
+  uint64_t new_length_scaled = new_end_scaled - new_base_scaled + 1;
+  new_length_scaled = xe::align(new_length_scaled, uint64_t(16));
+  if (new_length_scaled > std::numeric_limits<size_t>::max()) {
+    XELOGE("Metal scaled resolve: buffer size too large ({} bytes)",
+           new_length_scaled);
+    return false;
+  }
+
+  MTL::Device* device = command_processor_->GetMetalDevice();
+  if (!device) {
+    XELOGE("Metal scaled resolve: missing Metal device");
+    return false;
+  }
+  if (new_length_scaled > device->maxBufferLength()) {
+    XELOGE("Metal scaled resolve: requested {} bytes exceeds maxBufferLength",
+           new_length_scaled);
+    return false;
+  }
+
+  MTL::Buffer* new_buffer =
+      device->newBuffer(size_t(new_length_scaled),
+                        MTL::ResourceStorageModePrivate);
+  if (!new_buffer) {
+    XELOGE("Metal scaled resolve: failed to allocate {} bytes",
+           new_length_scaled);
+    return false;
+  }
+  new_buffer->setLabel(
+      NS::String::string("XeniaScaledResolveBuffer", NS::UTF8StringEncoding));
+
+  if (!overlap_indices.empty()) {
+    MTL::CommandQueue* queue = command_processor_->GetMetalCommandQueue();
+    if (!queue) {
+      new_buffer->release();
+      return false;
+    }
+    MTL::CommandBuffer* cmd = queue->commandBuffer();
+    if (!cmd) {
+      new_buffer->release();
+      return false;
+    }
+    MTL::BlitCommandEncoder* blit = cmd->blitCommandEncoder();
+    if (!blit) {
+      new_buffer->release();
+      return false;
+    }
+
+    for (size_t index : overlap_indices) {
+      const ScaledResolveBuffer& old_buffer = scaled_resolve_buffers_[index];
+      uint64_t dst_offset = old_buffer.base_scaled - new_base_scaled;
+      if (dst_offset > std::numeric_limits<size_t>::max()) {
+        continue;
+      }
+      blit->copyFromBuffer(
+          old_buffer.buffer, 0, new_buffer, size_t(dst_offset),
+          size_t(old_buffer.length_scaled));
+    }
+
+    blit->endEncoding();
+    cmd->commit();
+    cmd->waitUntilCompleted();
+  }
+
+  std::vector<ScaledResolveBuffer> new_buffers;
+  bool retain_overlaps = command_processor_->GetCurrentCommandBuffer() != nullptr;
+  new_buffers.reserve(scaled_resolve_buffers_.size() - overlap_indices.size() +
+                      1);
+  for (size_t i = 0; i < scaled_resolve_buffers_.size(); ++i) {
+    bool overlapping = false;
+    for (size_t overlap_index : overlap_indices) {
+      if (overlap_index == i) {
+        overlapping = true;
+        break;
+      }
+    }
+    if (overlapping) {
+      if (retain_overlaps) {
+        scaled_resolve_retired_buffers_.push_back(scaled_resolve_buffers_[i]);
+      } else if (scaled_resolve_buffers_[i].buffer) {
+        scaled_resolve_buffers_[i].buffer->release();
+      }
+      continue;
+    }
+    new_buffers.push_back(scaled_resolve_buffers_[i]);
+  }
+
+  ScaledResolveBuffer new_entry;
+  new_entry.buffer = new_buffer;
+  new_entry.base_scaled = new_base_scaled;
+  new_entry.length_scaled = new_length_scaled;
+  new_buffers.push_back(new_entry);
+
+  scaled_resolve_buffers_.swap(new_buffers);
+  scaled_resolve_current_buffer_index_ = size_t(-1);
+  scaled_resolve_current_range_start_scaled_ = 0;
+  scaled_resolve_current_range_length_scaled_ = 0;
+
+  return true;
+}
+
 // GetMaxHostTextureWidthHeight implementation
 uint32_t MetalTextureCache::GetMaxHostTextureWidthHeight(
     xenos::DataDimension dimension) const {
@@ -2049,24 +2395,30 @@ std::unique_ptr<TextureCache::Texture> MetalTextureCache::CreateTexture(
       ToMetalTextureSwizzle(xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA);
 
   MTL::Texture* metal_texture = nullptr;
+  uint32_t width = key.GetWidth();
+  uint32_t height = key.GetHeight();
+  if (key.scaled_resolve) {
+    width *= draw_resolution_scale_x();
+    height *= draw_resolution_scale_y();
+  }
 
   // Create Metal texture based on dimension
   switch (key.dimension) {
     case xenos::DataDimension::k1D: {
       metal_texture = CreateTexture2D(
-          key.GetWidth(), key.GetHeight(), key.GetDepthOrArraySize(),
+          width, height, key.GetDepthOrArraySize(),
           metal_format, metal_swizzle, key.mip_max_level + 1);
       break;
     }
     case xenos::DataDimension::k2DOrStacked: {
       metal_texture = CreateTexture2D(
-          key.GetWidth(), key.GetHeight(), key.GetDepthOrArraySize(),
+          width, height, key.GetDepthOrArraySize(),
           metal_format, metal_swizzle, key.mip_max_level + 1);
       break;
     }
     case xenos::DataDimension::k3D: {
       metal_texture =
-          CreateTexture3D(key.GetWidth(), key.GetHeight(),
+          CreateTexture3D(width, height,
                           key.GetDepthOrArraySize(), metal_format,
                           metal_swizzle, key.mip_max_level + 1);
       break;

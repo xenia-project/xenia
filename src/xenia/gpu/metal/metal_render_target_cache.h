@@ -262,6 +262,19 @@ class MetalRenderTargetCache final : public gpu::RenderTargetCache {
   MTL::ComputePipelineState* resolve_fast_32bpp_4xmsaa_pipeline_ = nullptr;
   MTL::ComputePipelineState* resolve_fast_64bpp_1x2xmsaa_pipeline_ = nullptr;
   MTL::ComputePipelineState* resolve_fast_64bpp_4xmsaa_pipeline_ = nullptr;
+  MTL::ComputePipelineState* resolve_full_8bpp_scaled_pipeline_ = nullptr;
+  MTL::ComputePipelineState* resolve_full_16bpp_scaled_pipeline_ = nullptr;
+  MTL::ComputePipelineState* resolve_full_32bpp_scaled_pipeline_ = nullptr;
+  MTL::ComputePipelineState* resolve_full_64bpp_scaled_pipeline_ = nullptr;
+  MTL::ComputePipelineState* resolve_full_128bpp_scaled_pipeline_ = nullptr;
+  MTL::ComputePipelineState* resolve_fast_32bpp_1x2xmsaa_scaled_pipeline_ =
+      nullptr;
+  MTL::ComputePipelineState* resolve_fast_32bpp_4xmsaa_scaled_pipeline_ =
+      nullptr;
+  MTL::ComputePipelineState* resolve_fast_64bpp_1x2xmsaa_scaled_pipeline_ =
+      nullptr;
+  MTL::ComputePipelineState* resolve_fast_64bpp_4xmsaa_scaled_pipeline_ =
+      nullptr;
 
   // Host depth store compute shaders (1x/2x/4x MSAA).
   MTL::ComputePipelineState* host_depth_store_pipelines_[3] = {};

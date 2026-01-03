@@ -10,9 +10,12 @@
 #ifndef XENIA_GPU_METAL_METAL_TEXTURE_CACHE_H_
 #define XENIA_GPU_METAL_METAL_TEXTURE_CACHE_H_
 
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "xenia/gpu/dxbc_shader.h"
 #include "xenia/gpu/register_file.h"
@@ -105,6 +108,16 @@ class MetalTextureCache : public TextureCache {
   void RequestTextures(uint32_t used_texture_mask) override;
 
   bool IsSignedVersionSeparateForFormat(TextureKey key) const override;
+  bool IsScaledResolveSupportedForFormat(TextureKey key) const override;
+  bool EnsureScaledResolveMemoryCommitted(
+      uint32_t start_unscaled, uint32_t length_unscaled,
+      uint32_t length_scaled_alignment_log2 = 0) override;
+  bool MakeScaledResolveRangeCurrent(
+      uint32_t start_unscaled, uint32_t length_unscaled,
+      uint32_t length_scaled_alignment_log2 = 0);
+  bool GetCurrentScaledResolveBuffer(MTL::Buffer*& buffer_out,
+                                     size_t& buffer_offset_out,
+                                     size_t& buffer_length_out) const;
   uint32_t GetHostFormatSwizzle(TextureKey key) const override;
   uint32_t GetMaxHostTextureWidthHeight(
       xenos::DataDimension dimension) const override;
@@ -176,6 +189,20 @@ class MetalTextureCache : public TextureCache {
   void DumpTextureToFile(MTL::Texture* texture, const std::string& filename,
                          uint32_t width, uint32_t height);
 
+  struct ScaledResolveBuffer {
+    MTL::Buffer* buffer = nullptr;
+    uint64_t base_scaled = 0;
+    uint64_t length_scaled = 0;
+  };
+
+  bool GetScaledResolveRange(uint32_t start_unscaled, uint32_t length_unscaled,
+                             uint32_t length_scaled_alignment_log2,
+                             uint64_t& start_scaled_out,
+                             uint64_t& length_scaled_out) const;
+  bool EnsureScaledResolveBufferRange(uint64_t start_scaled,
+                                      uint64_t length_scaled);
+  void ClearScaledResolveBuffers();
+
   // Format conversion helpers
   bool ConvertTextureData(const void* src_data, void* dst_data, uint32_t width,
                           uint32_t height, xenos::TextureFormat src_format,
@@ -201,6 +228,12 @@ class MetalTextureCache : public TextureCache {
   Norm16Selection rgba16_selection_;
 
   std::unordered_map<uint32_t, MTL::SamplerState*> sampler_cache_;
+
+  std::vector<ScaledResolveBuffer> scaled_resolve_buffers_;
+  std::vector<ScaledResolveBuffer> scaled_resolve_retired_buffers_;
+  size_t scaled_resolve_current_buffer_index_ = size_t(-1);
+  uint64_t scaled_resolve_current_range_start_scaled_ = 0;
+  uint64_t scaled_resolve_current_range_length_scaled_ = 0;
 };
 
 }  // namespace metal
