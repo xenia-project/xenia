@@ -74,8 +74,17 @@ DEFINE_bool(metal_draw_debug_quad, false,
             "Draw a full-screen debug quad instead of guest draws (Metal "
             "backend bring-up).",
             "GPU");
+DEFINE_bool(metal_rog_self_test, false,
+            "Run a minimal raster order group (ROG) self-test at startup.",
+            "GPU");
 DEFINE_bool(metal_capture_frame, false,
             "Capture Metal swap frames for readback (debug).", "GPU");
+DEFINE_bool(metal_log_memexport, false,
+            "Log Metal memexport draws and ranges (debug).", "GPU");
+DEFINE_bool(metal_readback_memexport, false,
+            "Read back Metal memexport ranges on command buffer completion "
+            "(debug).",
+            "GPU");
 DEFINE_bool(metal_disable_swap_dest_swap, false,
             "Disable forcing RB swap based on resolve dest_swap (debug).",
             "GPU");
@@ -137,6 +146,169 @@ const char* GetShaderDumpDir() {
     return dump_dir;
   }
   return "/tmp";
+}
+
+bool RunRogSelfTest(MTL::Device* device, MTL::CommandQueue* queue) {
+  if (!device || !queue) {
+    XELOGE("Metal ROG self-test: missing device or command queue");
+    return false;
+  }
+  if (!device->areRasterOrderGroupsSupported()) {
+    XELOGW("Metal ROG self-test: raster order groups unsupported");
+    return false;
+  }
+
+  static const char kRogTestShader[] = R"METAL(
+#include <metal_stdlib>
+using namespace metal;
+
+struct VSOut {
+  float4 position [[position]];
+};
+
+vertex VSOut rog_test_vs(uint vid [[vertex_id]]) {
+  float2 positions[6] = {
+    float2(-1.0, -1.0),
+    float2( 3.0, -1.0),
+    float2(-1.0,  3.0),
+    float2(-1.0, -1.0),
+    float2( 3.0, -1.0),
+    float2(-1.0,  3.0)
+  };
+
+  VSOut out;
+  out.position = float4(positions[vid], 0.0, 1.0);
+  return out;
+}
+
+fragment void rog_test_fs(VSOut in [[stage_in]],
+                          device uint* edram [[buffer(0),
+                                               raster_order_group(0)]],
+                          uint prim_id [[primitive_id]]) {
+  uint v = edram[0];
+  uint value = prim_id + 1;
+  edram[0] = v * 10 + value;
+}
+)METAL";
+
+  NS::Error* error = nullptr;
+  MTL::CompileOptions* options = MTL::CompileOptions::alloc()->init();
+  MTL::Library* library = device->newLibrary(
+      NS::String::string(kRogTestShader, NS::UTF8StringEncoding), options,
+      &error);
+  if (!library) {
+    LogMetalErrorDetails("Metal ROG self-test: library compile failed", error);
+    options->release();
+    return false;
+  }
+
+  MTL::Function* vertex_fn = library->newFunction(
+      NS::String::string("rog_test_vs", NS::UTF8StringEncoding));
+  MTL::Function* fragment_fn = library->newFunction(
+      NS::String::string("rog_test_fs", NS::UTF8StringEncoding));
+  if (!vertex_fn || !fragment_fn) {
+    XELOGE("Metal ROG self-test: missing shader entry points");
+    if (vertex_fn) {
+      vertex_fn->release();
+    }
+    if (fragment_fn) {
+      fragment_fn->release();
+    }
+    library->release();
+    options->release();
+    return false;
+  }
+
+  MTL::RenderPipelineDescriptor* desc =
+      MTL::RenderPipelineDescriptor::alloc()->init();
+  desc->setVertexFunction(vertex_fn);
+  desc->setFragmentFunction(fragment_fn);
+  desc->colorAttachments()->object(0)->setPixelFormat(
+      MTL::PixelFormatBGRA8Unorm);
+
+  MTL::RenderPipelineState* pipeline =
+      device->newRenderPipelineState(desc, &error);
+  desc->release();
+  vertex_fn->release();
+  fragment_fn->release();
+  library->release();
+  options->release();
+  if (!pipeline) {
+    LogMetalErrorDetails("Metal ROG self-test: pipeline create failed", error);
+    return false;
+  }
+
+  MTL::TextureDescriptor* tex_desc = MTL::TextureDescriptor::alloc()->init();
+  tex_desc->setTextureType(MTL::TextureType2D);
+  tex_desc->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
+  tex_desc->setWidth(1);
+  tex_desc->setHeight(1);
+  tex_desc->setStorageMode(MTL::StorageModePrivate);
+  tex_desc->setUsage(MTL::TextureUsageRenderTarget);
+  MTL::Texture* color_tex = device->newTexture(tex_desc);
+  tex_desc->release();
+  if (!color_tex) {
+    pipeline->release();
+    XELOGE("Metal ROG self-test: failed to create color texture");
+    return false;
+  }
+
+  MTL::Buffer* result_buffer =
+      device->newBuffer(sizeof(uint32_t), MTL::ResourceStorageModeShared);
+  if (!result_buffer) {
+    color_tex->release();
+    pipeline->release();
+    XELOGE("Metal ROG self-test: failed to create result buffer");
+    return false;
+  }
+  std::memset(result_buffer->contents(), 0, sizeof(uint32_t));
+
+  MTL::RenderPassDescriptor* pass_desc =
+      MTL::RenderPassDescriptor::alloc()->init();
+  auto* color_attachment = pass_desc->colorAttachments()->object(0);
+  color_attachment->setTexture(color_tex);
+  color_attachment->setLoadAction(MTL::LoadActionClear);
+  color_attachment->setStoreAction(MTL::StoreActionDontCare);
+  color_attachment->setClearColor(
+      MTL::ClearColor(0.0, 0.0, 0.0, 1.0));
+
+  MTL::CommandBuffer* cmd = queue->commandBuffer();
+  MTL::RenderCommandEncoder* encoder = cmd->renderCommandEncoder(pass_desc);
+  pass_desc->release();
+  if (!encoder) {
+    result_buffer->release();
+    color_tex->release();
+    pipeline->release();
+    XELOGE("Metal ROG self-test: failed to create render encoder");
+    return false;
+  }
+
+  encoder->setRenderPipelineState(pipeline);
+  encoder->setFragmentBuffer(result_buffer, 0, 0);
+  MTL::Viewport viewport = {0.0, 0.0, 1.0, 1.0, 0.0, 1.0};
+  encoder->setViewport(viewport);
+  MTL::ScissorRect scissor = {0, 0, 1, 1};
+  encoder->setScissorRect(scissor);
+  encoder->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0),
+                          NS::UInteger(6));
+  encoder->endEncoding();
+  cmd->commit();
+  cmd->waitUntilCompleted();
+  // cmd is autoreleased from commandBuffer() - do not release.
+
+  uint32_t result = *static_cast<uint32_t*>(result_buffer->contents());
+  result_buffer->release();
+  color_tex->release();
+  pipeline->release();
+
+  constexpr uint32_t kExpected = 12;
+  if (result != kExpected) {
+    XELOGE("Metal ROG self-test: expected {}, got {}", kExpected, result);
+    return false;
+  }
+
+  XELOGI("Metal ROG self-test: passed (value={})", result);
+  return true;
 }
 
 bool WriteDumpFile(const std::string& path, const void* data, size_t size) {
@@ -710,6 +882,11 @@ bool MetalCommandProcessor::SetupContext() {
   }
   XELOGI(
       "MetalCommandProcessor::SetupContext: Render target cache initialized");
+
+  if (cvars::metal_rog_self_test) {
+    bool passed = RunRogSelfTest(device_, command_queue_);
+    XELOGI("Metal ROG self-test {}", passed ? "passed" : "failed");
+  }
 
   // Initialize shader translation pipeline
   XELOGI(
@@ -1306,9 +1483,11 @@ void MetalCommandProcessor::CaptureCurrentFrame() {
   }
 
   // Only capture common 32bpp color targets for now.
-  if (capture_texture->pixelFormat() != MTL::PixelFormatBGRA8Unorm) {
+  const MTL::PixelFormat capture_format = capture_texture->pixelFormat();
+  if (capture_format != MTL::PixelFormatBGRA8Unorm &&
+      capture_format != MTL::PixelFormatRGBA8Unorm) {
     XELOGD("CaptureCurrentFrame: skipping capture of pixel format {}",
-           static_cast<uint32_t>(capture_texture->pixelFormat()));
+           static_cast<uint32_t>(capture_format));
     return;
   }
 
@@ -1317,7 +1496,7 @@ void MetalCommandProcessor::CaptureCurrentFrame() {
       static_cast<uint32_t>(capture_texture->height());
 
   // Create a staging buffer for readback
-  size_t bytes_per_row = size_t(capture_width) * 4;  // BGRA8
+  size_t bytes_per_row = size_t(capture_width) * 4;  // 32bpp
   size_t buffer_size = bytes_per_row * size_t(capture_height);
 
   MTL::Buffer* staging_buffer =
@@ -1349,12 +1528,16 @@ void MetalCommandProcessor::CaptureCurrentFrame() {
 
   uint8_t* src = static_cast<uint8_t*>(staging_buffer->contents());
 
-  // Convert BGRA to RGBA
-  for (size_t i = 0; i < buffer_size; i += 4) {
-    captured_frame_data_[i + 0] = src[i + 2];  // R from B
-    captured_frame_data_[i + 1] = src[i + 1];  // G
-    captured_frame_data_[i + 2] = src[i + 0];  // B from R
-    captured_frame_data_[i + 3] = src[i + 3];  // A
+  if (capture_format == MTL::PixelFormatBGRA8Unorm) {
+    // Convert BGRA to RGBA.
+    for (size_t i = 0; i < buffer_size; i += 4) {
+      captured_frame_data_[i + 0] = src[i + 2];  // R from B
+      captured_frame_data_[i + 1] = src[i + 1];  // G
+      captured_frame_data_[i + 2] = src[i + 0];  // B from R
+      captured_frame_data_[i + 3] = src[i + 3];  // A
+    }
+  } else {
+    std::memcpy(captured_frame_data_.data(), src, buffer_size);
   }
 
   staging_buffer->release();
@@ -1484,6 +1667,21 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
     if (logged_memexport_ps.insert(ps_hash).second) {
       XELOGI("Metal memexport PS: hash={:016X} eM=0x{:02X}", ps_hash,
              pixel_shader->memexport_eM_written());
+    }
+  }
+  static uint32_t memexport_log_count = 0;
+  if (cvars::metal_log_memexport && memexport_used && memexport_log_count < 16) {
+    ++memexport_log_count;
+    XELOGI(
+        "Metal memexport draw: vs_memexport={} ps_memexport={} ranges={}",
+        memexport_used_vertex ? 1 : 0, memexport_used_pixel ? 1 : 0,
+        memexport_ranges_.size());
+    if (memexport_ranges_.empty()) {
+      XELOGW("Metal memexport draw has no ranges (missing stream constants?)");
+    }
+    for (const auto& range : memexport_ranges_) {
+      XELOGI("  memexport range: base=0x{:08X} size={}",
+             range.base_address_dwords << 2, range.size_bytes);
     }
   }
 
@@ -1749,6 +1947,62 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   // Begin command buffer if needed (will use cache-provided render targets).
   BeginCommandBuffer();
   EnsureDrawRingCapacity();
+  if (cvars::metal_readback_memexport && memexport_used) {
+    static uint32_t memexport_readback_count = 0;
+    if (memexport_readback_count < 4) {
+      ++memexport_readback_count;
+      MTL::CommandBuffer* cmd = EnsureCommandBuffer();
+      MTL::Buffer* shared_mem_buffer =
+          shared_memory_ ? shared_memory_->GetBuffer() : nullptr;
+      if (!cmd || !shared_mem_buffer) {
+        XELOGW("Metal memexport readback skipped (no command buffer/buffer)");
+      } else if (shared_mem_buffer->storageMode() !=
+                 MTL::StorageModeShared) {
+        XELOGW(
+            "Metal memexport readback skipped (shared memory not CPU-visible)");
+      } else {
+        auto ranges = memexport_ranges_;
+        uint32_t readback_id = memexport_readback_count;
+        cmd->addCompletedHandler(
+            [shared_mem_buffer, ranges, readback_id](MTL::CommandBuffer*) {
+              const uint8_t* bytes =
+                  static_cast<const uint8_t*>(shared_mem_buffer->contents());
+              if (!bytes) {
+                XELOGW("Metal memexport readback {}: no buffer contents",
+                       readback_id);
+                return;
+              }
+              for (const auto& range : ranges) {
+                uint32_t base_bytes = range.base_address_dwords << 2;
+                uint64_t buffer_length = shared_mem_buffer->length();
+                if (base_bytes >= buffer_length) {
+                  continue;
+                }
+                uint32_t available = std::min<uint32_t>(
+                    range.size_bytes,
+                    uint32_t(buffer_length - base_bytes));
+                uint8_t sample_bytes[16] = {};
+                uint32_t sample_count = std::min<uint32_t>(available, 16u);
+                std::memcpy(sample_bytes, bytes + base_bytes, sample_count);
+                XELOGI(
+                    "Metal memexport readback {}: base=0x{:08X} size={} "
+                    "bytes[0..15]={:02X} {:02X} {:02X} {:02X}  "
+                    "{:02X} {:02X} {:02X} {:02X}  {:02X} {:02X} {:02X} {:02X}  "
+                    "{:02X} {:02X} {:02X} {:02X}",
+                    readback_id, base_bytes, range.size_bytes, sample_bytes[0],
+                    sample_bytes[1], sample_bytes[2], sample_bytes[3],
+                    sample_bytes[4], sample_bytes[5], sample_bytes[6],
+                    sample_bytes[7], sample_bytes[8], sample_bytes[9],
+                    sample_bytes[10], sample_bytes[11], sample_bytes[12],
+                    sample_bytes[13], sample_bytes[14], sample_bytes[15]);
+                if (sample_count < 16) {
+                  break;
+                }
+              }
+            });
+      }
+    }
+  }
 
   if (cvars::metal_draw_debug_quad) {
     if (!debug_pipeline_) {
@@ -2159,6 +2413,10 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       shared_memory_is_uav
           ? (MTL::ResourceUsageRead | MTL::ResourceUsageWrite)
           : MTL::ResourceUsageRead;
+  if (cvars::metal_log_memexport && memexport_used) {
+    XELOGI("Metal memexport shared_memory_is_uav={}",
+           shared_memory_is_uav ? 1 : 0);
+  }
 
   // Bind IR Converter runtime resources.
   // The Metal Shader Converter expects resources at specific bind points.
@@ -3351,12 +3609,12 @@ bool MetalCommandProcessor::IssueCopy() {
   // Any cached views of this memory (especially textures sourced from it)
   // must be invalidated, otherwise subsequent render-to-texture / postprocess
   // passes will sample stale host textures and produce corrupted output.
-  // if (shared_memory_) {
-  //   shared_memory_->MemoryInvalidationCallback(written_address, written_length, true);
-  // }
-  // if (primitive_processor_) {
-  //   primitive_processor_->MemoryInvalidationCallback(written_address, written_length, true);
-  // }
+//   if (shared_memory_) {
+//     shared_memory_->MemoryInvalidationCallback(written_address, written_length, true);
+//   }
+//   if (primitive_processor_) {
+//     primitive_processor_->MemoryInvalidationCallback(written_address, written_length, true);
+//   }
   
 
   // Submit the command buffer without waiting - the resolve writes are now
@@ -3392,7 +3650,7 @@ void MetalCommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
       ++copy_dest_base_log_count;
       XELOGI("MetalRegWrite RB_COPY_DEST_BASE=0x{:08X}", value);
     } else if (index == XE_GPU_REG_RB_COPY_DEST_INFO &&
-               copy_dest_info_log_count < kMaxLogCount) {
+        copy_dest_info_log_count < kMaxLogCount) {
       ++copy_dest_info_log_count;
       reg::RB_COPY_DEST_INFO info;
       info.value = value;
@@ -3639,7 +3897,10 @@ void MetalCommandProcessor::EndCommandBuffer() {
 
 void MetalCommandProcessor::FlushEdramFromHostRenderTargetsIfEnabled(
     const char* reason) {
-  if (!render_target_cache_ || !::cvars::metal_edram_compute_fallback) {
+  if (!render_target_cache_ || !::cvars::metal_edram_rov ||
+      !::cvars::metal_edram_compute_fallback ||
+      render_target_cache_->GetPath() !=
+          RenderTargetCache::Path::kHostRenderTargets) {
     return;
   }
   XELOGI(
