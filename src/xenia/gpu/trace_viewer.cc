@@ -832,10 +832,16 @@ void TraceViewer::DrawVertexFetcher(Shader* shader,
   }
   ImGui::BeginChild("#indices", ImVec2(0, 300));
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 0));
-  int display_start, display_end;
-  ImGui::CalcListClipping(vertex_count, ImGui::GetTextLineHeight(),
-                          &display_start, &display_end);
-  ImGui::Dummy(ImVec2(0, (display_start)*ImGui::GetTextLineHeight()));
+  int display_start = 0;
+  int display_end = 0;
+  ImGuiListClipper clipper;
+  clipper.Begin(vertex_count, ImGui::GetTextLineHeight());
+  if (clipper.Step()) {
+    display_start = clipper.DisplayStart;
+    display_end = clipper.DisplayEnd;
+  }
+  clipper.End();
+  ImGui::Dummy(ImVec2(0, display_start * ImGui::GetTextLineHeight()));
   ImGui::Columns(column_count);
   if (display_start <= 1) {
     for (size_t el_index = 0; el_index < vertex_binding.attributes.size();
@@ -1663,11 +1669,16 @@ void TraceViewer::DrawStateUI() {
 
       ImGui::BeginChild("#vsvertices", ImVec2(0, 300));
 
-      int display_start, display_end;
-      ImGui::CalcListClipping(int(vertices.size() / 4),
-                              ImGui::GetTextLineHeight(), &display_start,
-                              &display_end);
-      ImGui::Dummy(ImVec2(0, (display_start)*ImGui::GetTextLineHeight()));
+      int display_start = 0;
+      int display_end = 0;
+      ImGuiListClipper clipper;
+      clipper.Begin(int(vertices.size() / 4), ImGui::GetTextLineHeight());
+      if (clipper.Step()) {
+        display_start = clipper.DisplayStart;
+        display_end = clipper.DisplayEnd;
+      }
+      clipper.End();
+      ImGui::Dummy(ImVec2(0, display_start * ImGui::GetTextLineHeight()));
 
       ImGui::Columns(int(el_size), "#vsvertices", true);
       for (size_t i = display_start; i < display_end; i++) {
@@ -1728,11 +1739,16 @@ void TraceViewer::DrawStateUI() {
       }
       ImGui::BeginChild("#indices", ImVec2(0, 300));
       ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
-      int display_start, display_end;
-      ImGui::CalcListClipping(1 + draw_info.index_count,
-                              ImGui::GetTextLineHeight(), &display_start,
-                              &display_end);
-      ImGui::Dummy(ImVec2(0, (display_start)*ImGui::GetTextLineHeight()));
+      int display_start = 0;
+      int display_end = 0;
+      ImGuiListClipper clipper;
+      clipper.Begin(1 + draw_info.index_count, ImGui::GetTextLineHeight());
+      if (clipper.Step()) {
+        display_start = clipper.DisplayStart;
+        display_end = clipper.DisplayEnd;
+      }
+      clipper.End();
+      ImGui::Dummy(ImVec2(0, display_start * ImGui::GetTextLineHeight()));
       ImGui::Columns(2, "#indices", true);
       ImGui::SetColumnOffset(1, 60);
       if (display_start <= 1) {

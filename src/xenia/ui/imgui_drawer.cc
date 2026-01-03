@@ -255,7 +255,7 @@ void ImGuiDrawer::SetImmediateDrawer(ImmediateDrawer* new_immediate_drawer) {
     return;
   }
   if (immediate_drawer_) {
-    GetIO().Fonts->TexID = static_cast<ImTextureID>(nullptr);
+    GetIO().Fonts->TexID = ImTextureID(0);
     font_texture_.reset();
   }
   immediate_drawer_ = new_immediate_drawer;
@@ -352,7 +352,7 @@ void ImGuiDrawer::RenderDrawLists(ImDrawData* data,
       draw.primitive_type = ImmediatePrimitiveType::kTriangles;
       draw.count = cmd.ElemCount;
       draw.index_offset = cmd.IdxOffset;
-      draw.texture = reinterpret_cast<ImmediateTexture*>(cmd.TextureId);
+      draw.texture = reinterpret_cast<ImmediateTexture*>(cmd.GetTexID());
       draw.scissor = true;
       draw.scissor_left = cmd.ClipRect.x;
       draw.scissor_top = cmd.ClipRect.y;
@@ -494,7 +494,6 @@ void ImGuiDrawer::ClearInput() {
   io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
   std::memset(io.MouseDown, 0, sizeof(io.MouseDown));
   io.ClearInputKeys();
-  io.ClearInputCharacters();
   touch_pointer_id_ = TouchEvent::kPointerIDNone;
   reset_mouse_position_after_next_frame_ = false;
 }
