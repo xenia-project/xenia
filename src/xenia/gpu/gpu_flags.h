@@ -29,8 +29,14 @@ DECLARE_bool(metal_debug_edram_cpu_visible);
 // Metal: enable ROV-style EDRAM blending path (ordered blending).
 DECLARE_bool(metal_edram_rov);
 DECLARE_bool(metal_edram_compute_fallback);
+DECLARE_bool(metal_disable_resolve_edram_dump);
+DECLARE_bool(metal_disable_transfer_shaders);
 DECLARE_bool(metal_edram_blend_bounds_check);
+DECLARE_bool(metal_disable_resolve_pitch_override);
+DECLARE_bool(metal_log_resolve_copy_dest_info);
+DECLARE_bool(metal_log_copy_dest_register_writes);
 DECLARE_bool(metal_force_full_scissor_on_swap_resolve);
+DECLARE_bool(metal_log_edram_dump_color_samples);
 
 DECLARE_int32(query_occlusion_fake_sample_count);
 

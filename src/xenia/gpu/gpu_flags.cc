@@ -66,9 +66,31 @@ DEFINE_bool(metal_edram_compute_fallback, false,
             "Enable Metal compute fallback to dump host render targets into "
             "EDRAM after command buffers (debug/slow path).",
             "GPU");
+DEFINE_bool(metal_disable_resolve_edram_dump, false,
+            "Disable Metal resolve-time dump of host RTs into EDRAM (debug).",
+            "GPU");
+DEFINE_bool(metal_disable_transfer_shaders, false,
+            "Disable Metal ownership transfer shaders; use blit fast path "
+            "only (debug).",
+            "GPU");
 DEFINE_bool(metal_edram_blend_bounds_check, false,
             "Add bounds checks to Metal EDRAM blend shaders (debug only).",
             "GPU");
+DEFINE_bool(metal_disable_resolve_pitch_override, false,
+            "Disable Metal resolve dest pitch override when pitch < width "
+            "(debug).",
+            "GPU");
+DEFINE_bool(metal_log_resolve_copy_dest_info, false,
+            "Log RB_COPY_DEST_INFO and resolved copy dest format in Metal "
+            "resolve passes (debug).",
+            "GPU");
+DEFINE_bool(metal_log_copy_dest_register_writes, false,
+            "Log RB_COPY_DEST_INFO, RB_COPY_CONTROL, and RB_COLOR_INFO writes "
+            "in Metal (debug).",
+            "GPU");
 DEFINE_bool(metal_force_full_scissor_on_swap_resolve, false,
             "Force full scissor for resolves targeting the frontbuffer.",
+            "GPU");
+DEFINE_bool(metal_log_edram_dump_color_samples, false,
+            "Log Metal EDRAM dump color samples and packed values (debug).",
             "GPU");

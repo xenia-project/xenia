@@ -3343,6 +3343,71 @@ void MetalCommandProcessor::OnGammaRampPWLValueWritten() {
 }
 
 void MetalCommandProcessor::WriteRegister(uint32_t index, uint32_t value) {
+  if (::cvars::metal_log_copy_dest_register_writes) {
+    static uint32_t copy_dest_base_log_count = 0;
+    static uint32_t copy_dest_info_log_count = 0;
+    static uint32_t copy_dest_pitch_log_count = 0;
+    static uint32_t copy_control_log_count = 0;
+    static uint32_t color_info_log_count = 0;
+    constexpr uint32_t kMaxLogCount = 64;
+    if (index == XE_GPU_REG_RB_COPY_DEST_BASE &&
+        copy_dest_base_log_count < kMaxLogCount) {
+      ++copy_dest_base_log_count;
+      XELOGI("MetalRegWrite RB_COPY_DEST_BASE=0x{:08X}", value);
+    } else if (index == XE_GPU_REG_RB_COPY_DEST_INFO &&
+               copy_dest_info_log_count < kMaxLogCount) {
+      ++copy_dest_info_log_count;
+      reg::RB_COPY_DEST_INFO info;
+      info.value = value;
+      XELOGI(
+          "MetalRegWrite RB_COPY_DEST_INFO=0x{:08X} endian={} array={} "
+          "slice={} format={} number={} exp_bias={} swap={}",
+          value, uint32_t(info.copy_dest_endian), info.copy_dest_array ? 1 : 0,
+          uint32_t(info.copy_dest_slice), uint32_t(info.copy_dest_format),
+          uint32_t(info.copy_dest_number), int(info.copy_dest_exp_bias),
+          info.copy_dest_swap ? 1 : 0);
+    } else if (index == XE_GPU_REG_RB_COPY_DEST_PITCH &&
+               copy_dest_pitch_log_count < kMaxLogCount) {
+      ++copy_dest_pitch_log_count;
+      reg::RB_COPY_DEST_PITCH pitch;
+      pitch.value = value;
+      XELOGI(
+          "MetalRegWrite RB_COPY_DEST_PITCH=0x{:08X} pitch={} height={}",
+          value, uint32_t(pitch.copy_dest_pitch),
+          uint32_t(pitch.copy_dest_height));
+    } else if (index == XE_GPU_REG_RB_COPY_CONTROL &&
+               copy_control_log_count < kMaxLogCount) {
+      ++copy_control_log_count;
+      reg::RB_COPY_CONTROL control;
+      control.value = value;
+      XELOGI(
+          "MetalRegWrite RB_COPY_CONTROL=0x{:08X} src_select={} "
+          "sample_select={} color_clear={} depth_clear={} copy_command={}",
+          value, uint32_t(control.copy_src_select),
+          uint32_t(control.copy_sample_select),
+          control.color_clear_enable ? 1 : 0,
+          control.depth_clear_enable ? 1 : 0,
+          uint32_t(control.copy_command));
+    } else if (color_info_log_count < kMaxLogCount) {
+      for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
+        if (index != reg::RB_COLOR_INFO::rt_register_indices[i]) {
+          continue;
+        }
+        ++color_info_log_count;
+        reg::RB_COLOR_INFO color_info;
+        color_info.value = value;
+        uint32_t color_base =
+            color_info.color_base | (color_info.color_base_bit_11 << 11);
+        XELOGI(
+            "MetalRegWrite RB_COLOR{}_INFO=0x{:08X} base_tiles={} "
+            "format={} exp_bias={}",
+            i, value, color_base, uint32_t(color_info.color_format),
+            int(color_info.color_exp_bias));
+        break;
+      }
+    }
+  }
+
   CommandProcessor::WriteRegister(index, value);
 
   if (index >= XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 &&

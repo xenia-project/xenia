@@ -349,6 +349,434 @@ void LogMetalRenderTargetTopLeftPixels(
   // Note: cmd is from commandBuffer() which is autoreleased - don't release
 }
 
+struct DebugColor {
+  float r;
+  float g;
+  float b;
+  float a;
+};
+
+uint32_t FloatToBits(float value) {
+  uint32_t bits = 0;
+  std::memcpy(&bits, &value, sizeof(bits));
+  return bits;
+}
+
+float BitsToFloat(uint32_t value) {
+  float out = 0.0f;
+  std::memcpy(&out, &value, sizeof(out));
+  return out;
+}
+
+float HalfToFloat(uint16_t value) {
+  uint32_t sign = (value >> 15) & 1u;
+  uint32_t exponent = (value >> 10) & 0x1Fu;
+  uint32_t mantissa = value & 0x3FFu;
+  if (exponent == 0u) {
+    if (mantissa == 0u) {
+      return sign ? -0.0f : 0.0f;
+    }
+    float base = float(mantissa) * (1.0f / 1024.0f);
+    float result = std::ldexp(base, -14);
+    return sign ? -result : result;
+  }
+  if (exponent == 31u) {
+    float inf = std::numeric_limits<float>::infinity();
+    return sign ? -inf : inf;
+  }
+  float base = 1.0f + float(mantissa) * (1.0f / 1024.0f);
+  float result = std::ldexp(base, int(exponent) - 15);
+  return sign ? -result : result;
+}
+
+uint16_t FloatToHalf(float value) {
+  uint32_t bits = FloatToBits(value);
+  uint32_t sign = (bits >> 16) & 0x8000u;
+  int exponent = int((bits >> 23) & 0xFFu) - 127 + 15;
+  uint32_t mantissa = bits & 0x7FFFFFu;
+  if (exponent <= 0) {
+    if (exponent < -10) {
+      return uint16_t(sign);
+    }
+    mantissa |= 0x800000u;
+    uint32_t shift = uint32_t(14 - exponent);
+    uint32_t half = mantissa >> shift;
+    if ((mantissa >> (shift - 1u)) & 1u) {
+      ++half;
+    }
+    return uint16_t(sign | half);
+  }
+  if (exponent >= 31) {
+    return uint16_t(sign | 0x7C00u);
+  }
+  uint32_t half = (uint32_t(exponent) << 10) | (mantissa >> 13);
+  if (mantissa & 0x1000u) {
+    ++half;
+  }
+  return uint16_t(sign | half);
+}
+
+uint32_t PackUnorm(float value, float scale) {
+  float clamped = std::min(std::max(value, 0.0f), 1.0f);
+  return uint32_t(clamped * scale + 0.5f);
+}
+
+uint32_t PackSnorm16(float value) {
+  float clamped = std::min(std::max(value, -1.0f), 1.0f);
+  float bias = clamped >= 0.0f ? 0.5f : -0.5f;
+  int packed = int(clamped * 32767.0f + bias);
+  return uint32_t(packed) & 0xFFFFu;
+}
+
+uint32_t XePreClampedFloat32To7e3(float value) {
+  uint32_t f32 = FloatToBits(value);
+  uint32_t biased_f32;
+  if (f32 < 0x3E800000u) {
+    uint32_t f32_exp = f32 >> 23u;
+    uint32_t shift = 125u - f32_exp;
+    shift = std::min(shift, 24u);
+    uint32_t mantissa = (f32 & 0x7FFFFFu) | 0x800000u;
+    biased_f32 = mantissa >> shift;
+  } else {
+    biased_f32 = f32 + 0xC2000000u;
+  }
+  uint32_t round_bit = (biased_f32 >> 16u) & 1u;
+  uint32_t f10 = biased_f32 + 0x7FFFu + round_bit;
+  return (f10 >> 16u) & 0x3FFu;
+}
+
+uint32_t XeUnclampedFloat32To7e3(float value) {
+  if (!std::isfinite(value)) {
+    value = 0.0f;
+  }
+  float clamped = std::min(std::max(value, 0.0f), 31.875f);
+  return XePreClampedFloat32To7e3(clamped);
+}
+
+float XeFloat7e3To32(uint32_t f10) {
+  f10 &= 0x3FFu;
+  if (!f10) {
+    return 0.0f;
+  }
+  uint32_t mantissa = f10 & 0x7Fu;
+  uint32_t exponent = f10 >> 7u;
+  if (exponent == 0u) {
+    uint32_t lzcnt = 0;
+    if (mantissa != 0u) {
+      lzcnt = uint32_t(__builtin_clz(mantissa)) - 24u;
+    }
+    exponent = uint32_t(int32_t(1) - int32_t(lzcnt));
+    mantissa = (mantissa << lzcnt) & 0x7Fu;
+  }
+  uint32_t f32 = ((exponent + 124u) << 23u) | (mantissa << 16u);
+  return BitsToFloat(f32);
+}
+
+uint32_t PackR8G8B8A8Unorm(const DebugColor& color) {
+  uint32_t r = PackUnorm(color.r, 255.0f);
+  uint32_t g = PackUnorm(color.g, 255.0f);
+  uint32_t b = PackUnorm(color.b, 255.0f);
+  uint32_t a = PackUnorm(color.a, 255.0f);
+  return r | (g << 8u) | (b << 16u) | (a << 24u);
+}
+
+bool PackColor32bpp(uint32_t format, const DebugColor& color,
+                    uint32_t* packed_out) {
+  switch (format) {
+    case uint32_t(MetalEdramDumpFormat::kColorRGBA8): {
+      *packed_out = PackR8G8B8A8Unorm(color);
+      return true;
+    }
+    case uint32_t(MetalEdramDumpFormat::kColorRGB10A2Unorm): {
+      uint32_t r = PackUnorm(color.r, 1023.0f);
+      uint32_t g = PackUnorm(color.g, 1023.0f);
+      uint32_t b = PackUnorm(color.b, 1023.0f);
+      uint32_t a = PackUnorm(color.a, 3.0f);
+      *packed_out = r | (g << 10u) | (b << 20u) | (a << 30u);
+      return true;
+    }
+    case uint32_t(MetalEdramDumpFormat::kColorRGB10A2Float): {
+      uint32_t r = XeUnclampedFloat32To7e3(color.r);
+      uint32_t g = XeUnclampedFloat32To7e3(color.g);
+      uint32_t b = XeUnclampedFloat32To7e3(color.b);
+      uint32_t a = PackUnorm(color.a, 3.0f);
+      *packed_out =
+          (r & 0x3FFu) | ((g & 0x3FFu) << 10u) |
+          ((b & 0x3FFu) << 20u) | ((a & 0x3u) << 30u);
+      return true;
+    }
+    case uint32_t(MetalEdramDumpFormat::kColorRG16Snorm): {
+      uint32_t r = PackSnorm16(color.r);
+      uint32_t g = PackSnorm16(color.g);
+      *packed_out = r | (g << 16u);
+      return true;
+    }
+    case uint32_t(MetalEdramDumpFormat::kColorRG16Float): {
+      uint16_t r = FloatToHalf(color.r);
+      uint16_t g = FloatToHalf(color.g);
+      *packed_out = uint32_t(r) | (uint32_t(g) << 16u);
+      return true;
+    }
+    case uint32_t(MetalEdramDumpFormat::kColorR32Float): {
+      *packed_out = FloatToBits(color.r);
+      return true;
+    }
+    default:
+      break;
+  }
+  return false;
+}
+
+bool UnpackColor32bpp(uint32_t format, uint32_t packed,
+                      DebugColor* color_out) {
+  if (!color_out) {
+    return false;
+  }
+  switch (format) {
+    case uint32_t(MetalEdramDumpFormat::kColorRGBA8): {
+      color_out->r = float(packed & 0xFFu) * (1.0f / 255.0f);
+      color_out->g = float((packed >> 8u) & 0xFFu) * (1.0f / 255.0f);
+      color_out->b = float((packed >> 16u) & 0xFFu) * (1.0f / 255.0f);
+      color_out->a = float(packed >> 24u) * (1.0f / 255.0f);
+      return true;
+    }
+    case uint32_t(MetalEdramDumpFormat::kColorRGB10A2Unorm): {
+      color_out->r = float(packed & 0x3FFu) * (1.0f / 1023.0f);
+      color_out->g = float((packed >> 10u) & 0x3FFu) * (1.0f / 1023.0f);
+      color_out->b = float((packed >> 20u) & 0x3FFu) * (1.0f / 1023.0f);
+      color_out->a = float((packed >> 30u) & 0x3u) * (1.0f / 3.0f);
+      return true;
+    }
+    case uint32_t(MetalEdramDumpFormat::kColorRGB10A2Float): {
+      color_out->r = XeFloat7e3To32(packed & 0x3FFu);
+      color_out->g = XeFloat7e3To32((packed >> 10u) & 0x3FFu);
+      color_out->b = XeFloat7e3To32((packed >> 20u) & 0x3FFu);
+      color_out->a = float((packed >> 30u) & 0x3u) * (1.0f / 3.0f);
+      return true;
+    }
+    case uint32_t(MetalEdramDumpFormat::kColorRG16Snorm): {
+      int16_t r = int16_t(packed & 0xFFFFu);
+      int16_t g = int16_t(packed >> 16u);
+      color_out->r = std::max(float(r) * (1.0f / 32767.0f), -1.0f);
+      color_out->g = std::max(float(g) * (1.0f / 32767.0f), -1.0f);
+      color_out->b = 0.0f;
+      color_out->a = 1.0f;
+      return true;
+    }
+    case uint32_t(MetalEdramDumpFormat::kColorRG16Float): {
+      uint16_t r = uint16_t(packed & 0xFFFFu);
+      uint16_t g = uint16_t(packed >> 16u);
+      color_out->r = HalfToFloat(r);
+      color_out->g = HalfToFloat(g);
+      color_out->b = 0.0f;
+      color_out->a = 1.0f;
+      return true;
+    }
+    case uint32_t(MetalEdramDumpFormat::kColorR32Float): {
+      color_out->r = BitsToFloat(packed);
+      color_out->g = 0.0f;
+      color_out->b = 0.0f;
+      color_out->a = 1.0f;
+      return true;
+    }
+    default:
+      break;
+  }
+  return false;
+}
+
+bool DecodeColorTexel(MTL::PixelFormat format, const uint8_t* bytes,
+                      DebugColor* color_out) {
+  if (!color_out) {
+    return false;
+  }
+  switch (format) {
+    case MTL::PixelFormatRGBA16Float: {
+      uint16_t components[4];
+      std::memcpy(components, bytes, sizeof(components));
+      color_out->r = HalfToFloat(components[0]);
+      color_out->g = HalfToFloat(components[1]);
+      color_out->b = HalfToFloat(components[2]);
+      color_out->a = HalfToFloat(components[3]);
+      return true;
+    }
+    case MTL::PixelFormatRG16Float: {
+      uint16_t components[2];
+      std::memcpy(components, bytes, sizeof(components));
+      color_out->r = HalfToFloat(components[0]);
+      color_out->g = HalfToFloat(components[1]);
+      color_out->b = 0.0f;
+      color_out->a = 1.0f;
+      return true;
+    }
+    case MTL::PixelFormatRGBA8Unorm: {
+      color_out->r = float(bytes[0]) * (1.0f / 255.0f);
+      color_out->g = float(bytes[1]) * (1.0f / 255.0f);
+      color_out->b = float(bytes[2]) * (1.0f / 255.0f);
+      color_out->a = float(bytes[3]) * (1.0f / 255.0f);
+      return true;
+    }
+    case MTL::PixelFormatBGRA8Unorm: {
+      color_out->b = float(bytes[0]) * (1.0f / 255.0f);
+      color_out->g = float(bytes[1]) * (1.0f / 255.0f);
+      color_out->r = float(bytes[2]) * (1.0f / 255.0f);
+      color_out->a = float(bytes[3]) * (1.0f / 255.0f);
+      return true;
+    }
+    case MTL::PixelFormatRGB10A2Unorm:
+    case MTL::PixelFormatBGR10A2Unorm: {
+      uint32_t packed = 0;
+      std::memcpy(&packed, bytes, sizeof(packed));
+      DebugColor unpacked;
+      unpacked.r = float(packed & 0x3FFu) * (1.0f / 1023.0f);
+      unpacked.g = float((packed >> 10u) & 0x3FFu) * (1.0f / 1023.0f);
+      unpacked.b = float((packed >> 20u) & 0x3FFu) * (1.0f / 1023.0f);
+      unpacked.a = float((packed >> 30u) & 0x3u) * (1.0f / 3.0f);
+      if (format == MTL::PixelFormatBGR10A2Unorm) {
+        std::swap(unpacked.r, unpacked.b);
+      }
+      *color_out = unpacked;
+      return true;
+    }
+    case MTL::PixelFormatR32Float: {
+      uint32_t packed = 0;
+      std::memcpy(&packed, bytes, sizeof(packed));
+      color_out->r = BitsToFloat(packed);
+      color_out->g = 0.0f;
+      color_out->b = 0.0f;
+      color_out->a = 1.0f;
+      return true;
+    }
+    case MTL::PixelFormatRG32Float: {
+      uint32_t packed[2] = {};
+      std::memcpy(packed, bytes, sizeof(packed));
+      color_out->r = BitsToFloat(packed[0]);
+      color_out->g = BitsToFloat(packed[1]);
+      color_out->b = 0.0f;
+      color_out->a = 1.0f;
+      return true;
+    }
+    default:
+      break;
+  }
+  return false;
+}
+
+void ScheduleEdramDumpColorSamples(MTL::CommandBuffer* cmd, MTL::Texture* tex,
+                                   uint32_t rt_key_value,
+                                   uint32_t dump_format) {
+  if (!::cvars::metal_log_edram_dump_color_samples || !cmd || !tex) {
+    return;
+  }
+  static uint32_t log_count = 0;
+  if (log_count >= 8) {
+    return;
+  }
+  ++log_count;
+
+  uint32_t bytes_per_pixel = 0;
+  switch (tex->pixelFormat()) {
+    case MTL::PixelFormatRGBA16Float:
+    case MTL::PixelFormatRG32Float:
+      bytes_per_pixel = 8;
+      break;
+    case MTL::PixelFormatRG16Float:
+    case MTL::PixelFormatR32Float:
+    case MTL::PixelFormatRGBA8Unorm:
+    case MTL::PixelFormatBGRA8Unorm:
+    case MTL::PixelFormatRGB10A2Unorm:
+    case MTL::PixelFormatBGR10A2Unorm:
+      bytes_per_pixel = 4;
+      break;
+    default:
+      XELOGI(
+          "MetalEdramDump32bpp: unsupported source pixel format {}",
+          int(tex->pixelFormat()));
+      return;
+  }
+
+  uint32_t width = uint32_t(tex->width());
+  uint32_t height = uint32_t(tex->height());
+  std::array<std::pair<uint32_t, uint32_t>, 2> sample_coords = {
+      std::make_pair(538u, 205u),
+      std::make_pair(623u, 68u),
+  };
+  const char* sample_labels[2] = {"tl", "mid"};
+
+  uint32_t max_x = width ? width - 1u : 0u;
+  uint32_t max_y = height ? height - 1u : 0u;
+  for (auto& coord : sample_coords) {
+    coord.first = std::min(coord.first, max_x);
+    coord.second = std::min(coord.second, max_y);
+  }
+
+  MTL::Device* device = cmd->device();
+  if (!device) {
+    return;
+  }
+  MTL::Buffer* buffer = device->newBuffer(
+      bytes_per_pixel * uint32_t(sample_coords.size()),
+      MTL::ResourceStorageModeShared);
+  if (!buffer) {
+    return;
+  }
+  MTL::BlitCommandEncoder* blit = cmd->blitCommandEncoder();
+  if (!blit) {
+    buffer->release();
+    return;
+  }
+  for (size_t i = 0; i < sample_coords.size(); ++i) {
+    blit->copyFromTexture(
+        tex, 0, 0,
+        MTL::Origin::Make(sample_coords[i].first, sample_coords[i].second, 0),
+        MTL::Size::Make(1, 1, 1), buffer,
+        uint32_t(i) * bytes_per_pixel, bytes_per_pixel, 0);
+  }
+  blit->endEncoding();
+
+  buffer->retain();
+  MTL::PixelFormat format = tex->pixelFormat();
+  cmd->addCompletedHandler([buffer, bytes_per_pixel, format, dump_format,
+                            rt_key_value, sample_coords, sample_labels](
+                               MTL::CommandBuffer*) {
+    const uint8_t* bytes =
+        static_cast<const uint8_t*>(buffer->contents());
+    if (!bytes) {
+      buffer->release();
+      return;
+    }
+    for (size_t i = 0; i < sample_coords.size(); ++i) {
+      const uint8_t* sample_bytes = bytes + i * bytes_per_pixel;
+      DebugColor source = {};
+      uint32_t packed = 0;
+      if (!DecodeColorTexel(format, sample_bytes, &source)) {
+        continue;
+      }
+      if (!PackColor32bpp(dump_format, source, &packed)) {
+        XELOGI(
+            "MetalEdramDump32bpp {}: unsupported dump_format {} for key=0x{:08X}",
+            sample_labels[i], dump_format, rt_key_value);
+        continue;
+      }
+      DebugColor unpacked = {};
+      if (!UnpackColor32bpp(dump_format, packed, &unpacked)) {
+        continue;
+      }
+      uint32_t rgba8 = PackR8G8B8A8Unorm(unpacked);
+      XELOGI(
+          "MetalEdramDump32bpp {}: key=0x{:08X} src_fmt={} dump_fmt={} "
+          "coord=({}, {}) src=({:.6f} {:.6f} {:.6f} {:.6f}) packed=0x{:08X} "
+          "unpacked_rgba8={:02X} {:02X} {:02X} {:02X}",
+          sample_labels[i], rt_key_value, int(format), dump_format,
+          sample_coords[i].first, sample_coords[i].second, source.r, source.g,
+          source.b, source.a, packed, rgba8 & 0xFFu, (rgba8 >> 8u) & 0xFFu,
+          (rgba8 >> 16u) & 0xFFu, (rgba8 >> 24u) & 0xFFu);
+    }
+    buffer->release();
+  });
+  buffer->release();
+}
+
 size_t MsaaSamplesToIndex(xenos::MsaaSamples samples) {
   switch (samples) {
     case xenos::MsaaSamples::k1X:
@@ -3652,6 +4080,14 @@ void MetalRenderTargetCache::DumpRenderTargets(
       continue;
     }
 
+    if (!log_texture && ::cvars::metal_log_edram_dump_color_samples &&
+        !key.is_depth && !is_64bpp &&
+        key.msaa_samples == xenos::MsaaSamples::k1X) {
+      log_texture = tex;
+      log_key_value = key.key;
+      log_dump_format = dump_format;
+    }
+
     for (uint32_t i = 0; i < dispatch_count; ++i) {
       const ResolveCopyDumpRectangle::Dispatch& dispatch = dispatches[i];
 
@@ -3693,6 +4129,10 @@ void MetalRenderTargetCache::DumpRenderTargets(
   }
 
   encoder->endEncoding();
+  if (log_texture) {
+    ScheduleEdramDumpColorSamples(cmd, log_texture, log_key_value,
+                                  log_dump_format);
+  }
   if (owns_command_buffer) {
     cmd->commit();
     cmd->waitUntilCompleted();
@@ -4878,6 +5318,26 @@ bool MetalRenderTargetCache::Resolve(Memory& memory, uint32_t& written_address,
     return true;
   }
 
+  if (cvars::metal_log_resolve_copy_dest_info) {
+    static uint32_t copy_dest_log_count = 0;
+    if (copy_dest_log_count < 16) {
+      ++copy_dest_log_count;
+      auto copy_dest_info = regs.Get<reg::RB_COPY_DEST_INFO>();
+      XELOGI(
+          "MetalResolve RB_COPY_DEST_INFO=0x{:08X} endian={} array={} slice={} "
+          "format={} number={} exp_bias={} swap={} (resolved_format={})",
+          copy_dest_info.value,
+          uint32_t(copy_dest_info.copy_dest_endian),
+          copy_dest_info.copy_dest_array ? 1 : 0,
+          uint32_t(copy_dest_info.copy_dest_slice),
+          uint32_t(copy_dest_info.copy_dest_format),
+          uint32_t(copy_dest_info.copy_dest_number),
+          int(copy_dest_info.copy_dest_exp_bias),
+          copy_dest_info.copy_dest_swap ? 1 : 0,
+          uint32_t(resolve_info.copy_dest_info.copy_dest_format));
+    }
+  }
+
   bool host_rt_path = GetPath() == Path::kHostRenderTargets;
   if (!host_rt_path) {
     XELOGI("MetalRenderTargetCache::Resolve: non-host-RT path using EDRAM");
@@ -4976,26 +5436,39 @@ bool MetalRenderTargetCache::Resolve(Memory& memory, uint32_t& written_address,
     // Match D3D12/Vulkan: dump host RT ownership into EDRAM, then resolve
     // from EDRAM to shared memory. Resolve-time blend fallback is not correct
     // because blending state is per-draw, not per-resolve.
-    DumpRenderTargets(dump_base, dump_row_length_used, dump_rows, dump_pitch,
-                      command_buffer);
-    static uint32_t edram_after_dump_log_count = 0;
-    if (edram_after_dump_log_count < 8 && edram_buffer_) {
-      ++edram_after_dump_log_count;
-      const uint8_t* edram_bytes =
-          static_cast<const uint8_t*>(edram_buffer_->contents());
-      if (edram_bytes) {
-        uint32_t edram_debug_offset = dump_base * 64u;
-        const uint8_t* src_edram = edram_bytes + edram_debug_offset;
-        XELOGI(
-            "MetalResolve SRC (EDRAM) after dump [0..15] @tile_base*64="
-            "0x{:08X}: "
-            "{:02X} {:02X} {:02X} {:02X}  {:02X} {:02X} {:02X} {:02X}  "
-            "{:02X} {:02X} {:02X} {:02X}  {:02X} {:02X} {:02X} {:02X}",
-            edram_debug_offset, src_edram[0], src_edram[1], src_edram[2],
-            src_edram[3], src_edram[4], src_edram[5], src_edram[6],
-            src_edram[7], src_edram[8], src_edram[9], src_edram[10],
-            src_edram[11], src_edram[12], src_edram[13], src_edram[14],
-            src_edram[15]);
+    if (cvars::metal_disable_resolve_edram_dump) {
+      static uint32_t disable_dump_log_count = 0;
+      if (disable_dump_log_count < 8) {
+        ++disable_dump_log_count;
+        XELOGW(
+            "MetalResolve: EDRAM dump disabled via "
+            "metal_disable_resolve_edram_dump");
+      }
+    } else {
+      DumpRenderTargets(dump_base, dump_row_length_used, dump_rows, dump_pitch,
+                        command_buffer);
+      static uint32_t edram_after_dump_log_count = 0;
+      const bool edram_cpu_visible =
+          edram_buffer_ &&
+          edram_buffer_->storageMode() == MTL::StorageModeShared;
+      if (edram_after_dump_log_count < 8 && edram_cpu_visible) {
+        ++edram_after_dump_log_count;
+        const uint8_t* edram_bytes =
+            static_cast<const uint8_t*>(edram_buffer_->contents());
+        if (edram_bytes) {
+          uint32_t edram_debug_offset = dump_base * 64u;
+          const uint8_t* src_edram = edram_bytes + edram_debug_offset;
+          XELOGI(
+              "MetalResolve SRC (EDRAM) after dump [0..15] @tile_base*64="
+              "0x{:08X}: "
+              "{:02X} {:02X} {:02X} {:02X}  {:02X} {:02X} {:02X} {:02X}  "
+              "{:02X} {:02X} {:02X} {:02X}  {:02X} {:02X} {:02X} {:02X}",
+              edram_debug_offset, src_edram[0], src_edram[1], src_edram[2],
+              src_edram[3], src_edram[4], src_edram[5], src_edram[6],
+              src_edram[7], src_edram[8], src_edram[9], src_edram[10],
+              src_edram[11], src_edram[12], src_edram[13], src_edram[14],
+              src_edram[15]);
+        }
       }
     }
   }
