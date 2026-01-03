@@ -108,6 +108,19 @@ If a bug appears to be in shared code, investigate whether the issue is
 actually in the platform-specific (Metal, A64) code that calls it. The D3D12
 and Vulkan backends work correctly - use them as reference implementations.
 
+### Metal + ARM64 Porting Focus
+
+- Use D3D12 and Vulkan as behavioral references; check
+  `docs/gpu-backend-map.md` for subsystem mapping before changing Metal paths.
+- Keep changes in Metal/A64/macOS-specific code whenever possible; if shared
+  code must change, document the rationale in `NEXT_STEPS.md`.
+- **Required**: consult `docs/Metal-Feature-Set-Tables.pdf` and
+  `docs/Metal-Shading-Language-Specification.pdf` when validating Metal
+  feature usage, compatibility, or MSL behavior. Note required GPU families or
+  macOS versions in code comments and `NEXT_STEPS.md` when relevant.
+- Prefer correctness and parity over micro-optimizations; validate via trace
+  dump comparisons before tuning.
+
 ### Documentation-Driven Development
 
 For complex multi-step tasks, maintain documentation in `NEXT_STEPS.md`:
@@ -157,11 +170,12 @@ scratch/
 
 ### Build and Test Pattern
 
-**Do not dump full build output to context.** Always redirect to scratch/ and grep for issues:
+**Do not dump full build output to context.** Always redirect to scratch/ and
+grep for issues. Avoid piping to `tee` to prevent build/run timeouts.
 
 ```bash
 # Build with log capture
-./xb build --target=xenia-gpu-metal-trace-dump 2>&1 | tee scratch/logs/build.log
+./xb build --target=xenia-gpu-metal-trace-dump > scratch/logs/build.log 2>&1
 
 # Check for errors only
 grep -E "error:" scratch/logs/build.log
@@ -172,7 +186,7 @@ grep -E "warning:" scratch/logs/build.log | head -20
 
 ```bash
 # Run tests with log capture
-./build/bin/Mac/Checked/xenia-cpu-ppc-tests 2>&1 > scratch/logs/test.log
+./build/bin/Mac/Checked/xenia-cpu-ppc-tests > scratch/logs/test.log 2>&1
 
 # Check results summary
 grep -E "(PASSED|FAILED|passed|failed)" scratch/logs/test.log
@@ -182,12 +196,35 @@ tail -20 scratch/logs/test.log
 ```bash
 # GPU trace dump
 ./build/bin/Mac/Checked/xenia-gpu-metal-trace-dump \
-    testdata/reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace \
-    2>&1 | tee scratch/logs/trace.log
+    reference-gpu-traces/traces/<title_id>.xtr \
+    > scratch/logs/trace.log 2>&1
 
 # Check for crashes or errors
 grep -iE "(error|exception|crash|assert)" scratch/logs/trace.log
 ```
+
+### PDF / Spec Ingestion (Terminal, LLM-Ready)
+
+Markers and helpers are installed into `scratch/marker-env`.
+
+- Activate / call the env when you need `marker_single`, `uv`, or similar:
+  ```bash
+  source scratch/marker-env/bin/activate
+  marker_single ...
+  deactivate
+  ```
+- The environment means you do not touch system Python (PEP-668) and keeps
+  scratch artifacts in `scratch/`.
+- Marker remains the default PDF → Markdown/JSON converter; fall back to
+  PyMuPDF4LLM or Docling only if Marker cannot read the doc.
+
+Policy:
+- Never prompt directly on raw PDF bytes—convert via Marker first.
+- Keep outputs inside `scratch/docs/pdf/` (gitignored) and reference the
+  converted Markdown from analysis notes.
+- Marker code is GPL, and the model weights carry a commercial-use
+  restriction—do not redistribute the tool or artifacts as part of a
+  product without legal sign-off.
 
 ### Code Quality Requirements
 
@@ -254,8 +291,12 @@ Update metal_command_processor.cc
 ### When to Commit
 
 - Commit logical units of work that compile and run
+- Commit early and often: whenever you make meaningful progress, create a small,
+  buildable commit rather than batching changes
 - Do not batch unrelated changes
 - Do not commit broken/incomplete code to main branches
+- Update `NEXT_STEPS.md` status and add a brief validation note (commands run
+  or "Not run") when committing significant changes.
 
 ### Clean History
 
@@ -270,6 +311,9 @@ Update metal_command_processor.cc
 | `docs/building.md` | Build instructions per platform |
 | `docs/cpu.md` | JIT architecture (x64 and A64 backends) |
 | `docs/gpu.md` | GPU emulation, shader tools, trace viewer |
+| `docs/gpu-backend-map.md` | D3D12-first backend equivalence map + Metal parity notes |
+| `docs/Metal-Feature-Set-Tables.pdf` | Metal feature support by GPU family / OS |
+| `docs/Metal-Shading-Language-Specification.pdf` | MSL syntax, semantics, and limits |
 | `docs/style_guide.md` | Code formatting and style rules |
 | `docs/kernel.md` | Kernel shim implementation |
 | `.github/CONTRIBUTING.md` | Contribution guidelines, legal requirements |
@@ -278,11 +322,11 @@ Update metal_command_processor.cc
 
 ```bash
 # Full rebuild cycle
-./xb premake && ./xb build --target=xenia-gpu-metal-trace-dump 2>&1 | tee scratch/logs/build.log && grep -E "error:" scratch/logs/build.log
+./xb premake && ./xb build --target=xenia-gpu-metal-trace-dump > scratch/logs/build.log 2>&1 && grep -E "error:" scratch/logs/build.log
 
 # Run all CPU tests
 ./build/bin/Mac/Checked/xenia-base-tests && ./build/bin/Mac/Checked/xenia-cpu-ppc-tests && ./build/bin/Mac/Checked/xenia-cpu-tests
 
 # Test Metal trace dump
-./build/bin/Mac/Checked/xenia-gpu-metal-trace-dump testdata/reference-gpu-traces/traces/title_414B07D1_frame_589.xenia_gpu_trace 2>&1 | tee scratch/logs/trace.log
+./build/bin/Mac/Checked/xenia-gpu-metal-trace-dump reference-gpu-traces/traces/<title_id>.xtr > scratch/logs/trace.log 2>&1
 ```
