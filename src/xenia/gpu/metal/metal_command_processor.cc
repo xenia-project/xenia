@@ -74,9 +74,6 @@ DEFINE_bool(metal_draw_debug_quad, false,
             "Draw a full-screen debug quad instead of guest draws (Metal "
             "backend bring-up).",
             "GPU");
-DEFINE_bool(metal_rog_self_test, false,
-            "Run a minimal raster order group (ROG) self-test at startup.",
-            "GPU");
 DEFINE_bool(metal_capture_frame, false,
             "Capture Metal swap frames for readback (debug).", "GPU");
 DEFINE_bool(metal_log_memexport, false,
@@ -146,169 +143,6 @@ const char* GetShaderDumpDir() {
     return dump_dir;
   }
   return "/tmp";
-}
-
-bool RunRogSelfTest(MTL::Device* device, MTL::CommandQueue* queue) {
-  if (!device || !queue) {
-    XELOGE("Metal ROG self-test: missing device or command queue");
-    return false;
-  }
-  if (!device->areRasterOrderGroupsSupported()) {
-    XELOGW("Metal ROG self-test: raster order groups unsupported");
-    return false;
-  }
-
-  static const char kRogTestShader[] = R"METAL(
-#include <metal_stdlib>
-using namespace metal;
-
-struct VSOut {
-  float4 position [[position]];
-};
-
-vertex VSOut rog_test_vs(uint vid [[vertex_id]]) {
-  float2 positions[6] = {
-    float2(-1.0, -1.0),
-    float2( 3.0, -1.0),
-    float2(-1.0,  3.0),
-    float2(-1.0, -1.0),
-    float2( 3.0, -1.0),
-    float2(-1.0,  3.0)
-  };
-
-  VSOut out;
-  out.position = float4(positions[vid], 0.0, 1.0);
-  return out;
-}
-
-fragment void rog_test_fs(VSOut in [[stage_in]],
-                          device uint* edram [[buffer(0),
-                                               raster_order_group(0)]],
-                          uint prim_id [[primitive_id]]) {
-  uint v = edram[0];
-  uint value = prim_id + 1;
-  edram[0] = v * 10 + value;
-}
-)METAL";
-
-  NS::Error* error = nullptr;
-  MTL::CompileOptions* options = MTL::CompileOptions::alloc()->init();
-  MTL::Library* library = device->newLibrary(
-      NS::String::string(kRogTestShader, NS::UTF8StringEncoding), options,
-      &error);
-  if (!library) {
-    LogMetalErrorDetails("Metal ROG self-test: library compile failed", error);
-    options->release();
-    return false;
-  }
-
-  MTL::Function* vertex_fn = library->newFunction(
-      NS::String::string("rog_test_vs", NS::UTF8StringEncoding));
-  MTL::Function* fragment_fn = library->newFunction(
-      NS::String::string("rog_test_fs", NS::UTF8StringEncoding));
-  if (!vertex_fn || !fragment_fn) {
-    XELOGE("Metal ROG self-test: missing shader entry points");
-    if (vertex_fn) {
-      vertex_fn->release();
-    }
-    if (fragment_fn) {
-      fragment_fn->release();
-    }
-    library->release();
-    options->release();
-    return false;
-  }
-
-  MTL::RenderPipelineDescriptor* desc =
-      MTL::RenderPipelineDescriptor::alloc()->init();
-  desc->setVertexFunction(vertex_fn);
-  desc->setFragmentFunction(fragment_fn);
-  desc->colorAttachments()->object(0)->setPixelFormat(
-      MTL::PixelFormatBGRA8Unorm);
-
-  MTL::RenderPipelineState* pipeline =
-      device->newRenderPipelineState(desc, &error);
-  desc->release();
-  vertex_fn->release();
-  fragment_fn->release();
-  library->release();
-  options->release();
-  if (!pipeline) {
-    LogMetalErrorDetails("Metal ROG self-test: pipeline create failed", error);
-    return false;
-  }
-
-  MTL::TextureDescriptor* tex_desc = MTL::TextureDescriptor::alloc()->init();
-  tex_desc->setTextureType(MTL::TextureType2D);
-  tex_desc->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
-  tex_desc->setWidth(1);
-  tex_desc->setHeight(1);
-  tex_desc->setStorageMode(MTL::StorageModePrivate);
-  tex_desc->setUsage(MTL::TextureUsageRenderTarget);
-  MTL::Texture* color_tex = device->newTexture(tex_desc);
-  tex_desc->release();
-  if (!color_tex) {
-    pipeline->release();
-    XELOGE("Metal ROG self-test: failed to create color texture");
-    return false;
-  }
-
-  MTL::Buffer* result_buffer =
-      device->newBuffer(sizeof(uint32_t), MTL::ResourceStorageModeShared);
-  if (!result_buffer) {
-    color_tex->release();
-    pipeline->release();
-    XELOGE("Metal ROG self-test: failed to create result buffer");
-    return false;
-  }
-  std::memset(result_buffer->contents(), 0, sizeof(uint32_t));
-
-  MTL::RenderPassDescriptor* pass_desc =
-      MTL::RenderPassDescriptor::alloc()->init();
-  auto* color_attachment = pass_desc->colorAttachments()->object(0);
-  color_attachment->setTexture(color_tex);
-  color_attachment->setLoadAction(MTL::LoadActionClear);
-  color_attachment->setStoreAction(MTL::StoreActionDontCare);
-  color_attachment->setClearColor(
-      MTL::ClearColor(0.0, 0.0, 0.0, 1.0));
-
-  MTL::CommandBuffer* cmd = queue->commandBuffer();
-  MTL::RenderCommandEncoder* encoder = cmd->renderCommandEncoder(pass_desc);
-  pass_desc->release();
-  if (!encoder) {
-    result_buffer->release();
-    color_tex->release();
-    pipeline->release();
-    XELOGE("Metal ROG self-test: failed to create render encoder");
-    return false;
-  }
-
-  encoder->setRenderPipelineState(pipeline);
-  encoder->setFragmentBuffer(result_buffer, 0, 0);
-  MTL::Viewport viewport = {0.0, 0.0, 1.0, 1.0, 0.0, 1.0};
-  encoder->setViewport(viewport);
-  MTL::ScissorRect scissor = {0, 0, 1, 1};
-  encoder->setScissorRect(scissor);
-  encoder->drawPrimitives(MTL::PrimitiveTypeTriangle, NS::UInteger(0),
-                          NS::UInteger(6));
-  encoder->endEncoding();
-  cmd->commit();
-  cmd->waitUntilCompleted();
-  // cmd is autoreleased from commandBuffer() - do not release.
-
-  uint32_t result = *static_cast<uint32_t*>(result_buffer->contents());
-  result_buffer->release();
-  color_tex->release();
-  pipeline->release();
-
-  constexpr uint32_t kExpected = 12;
-  if (result != kExpected) {
-    XELOGE("Metal ROG self-test: expected {}, got {}", kExpected, result);
-    return false;
-  }
-
-  XELOGI("Metal ROG self-test: passed (value={})", result);
-  return true;
 }
 
 bool WriteDumpFile(const std::string& path, const void* data, size_t size) {
@@ -882,11 +716,6 @@ bool MetalCommandProcessor::SetupContext() {
   }
   XELOGI(
       "MetalCommandProcessor::SetupContext: Render target cache initialized");
-
-  if (cvars::metal_rog_self_test) {
-    bool passed = RunRogSelfTest(device_, command_queue_);
-    XELOGI("Metal ROG self-test {}", passed ? "passed" : "failed");
-  }
 
   // Initialize shader translation pipeline
   XELOGI(
