@@ -1500,6 +1500,18 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   if (!primitive_processing_result.host_draw_vertex_count) {
     return true;
   }
+  if (primitive_processing_result.host_vertex_shader_type ==
+      Shader::HostVertexShaderType::kMemExportCompute) {
+    primitive_processing_result.host_vertex_shader_type =
+        Shader::HostVertexShaderType::kVertex;
+    static bool logged_memexport_compute = false;
+    if (!logged_memexport_compute) {
+      logged_memexport_compute = true;
+      XELOGI(
+          "Metal: memexport-only draws use the vertex path (MSC supports UAV "
+          "writes in vertex shaders)");
+    }
+  }
 
   // Log the first few draws to identify primitive processing / shader
   // modification issues quickly when bringing up the backend.
@@ -1586,20 +1598,6 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
   // vertex shader path (and domain shaders are skipped above). Some
   // PrimitiveProcessor fallback host vertex shader types require additional
   // translator/runtime support and can't be executed yet.
-  if (primitive_processing_result.host_vertex_shader_type ==
-      Shader::HostVertexShaderType::kMemExportCompute) {
-    // TODO(Metal): Implement memexport host vertex shader type for the Metal
-    // backend (likely requiring additional translation support or a compute
-    // pipeline).
-    XELOGW(
-        "Metal: Host vertex shader type {} is not supported yet, skipping "
-        "draw (guest_prim={}, host_prim={})",
-        uint32_t(primitive_processing_result.host_vertex_shader_type),
-        uint32_t(primitive_processing_result.guest_primitive_type),
-        uint32_t(primitive_processing_result.host_primitive_type));
-    return true;
-  }
-
   // Configure render targets via MetalRenderTargetCache, similar to D3D12.
   // D3D12 passes `is_rasterization_done` when there is an actual draw to
   // perform (after primitive processing). For this Metal path we currently
