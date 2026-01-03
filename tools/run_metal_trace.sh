@@ -4,7 +4,7 @@ set -euo pipefail
 # Quick helper for building and running the Metal trace-dump target.
 #
 # Usage:
-#   tools/run_metal_trace.sh [trace_path] [grep_pattern] [timeout_seconds] [capture_enabled]
+#   tools/run_metal_trace.sh [trace_path] [grep_pattern] [timeout_seconds] [capture_enabled] [output_root]
 #
 # Arguments:
 #   trace_path     Path to a single .xenia_gpu_trace file OR a directory containing traces.
@@ -14,6 +14,7 @@ set -euo pipefail
 #                  Defaults to: "MetalRenderTargetCache|BG_DEST_DEBUG|BG_OVERLAP_DEBUG"
 #   timeout        Timeout in seconds per trace. Default: 8.
 #   capture        1 to enable programmatic GPU capture, 0 to disable. Default: 0.
+#   output_root    Base output directory for trace dumps. Default: scratch/metal_trace_runs/
 #
 # The script:
 #   1. Builds xenia-gpu-metal-trace-dump (once).
@@ -30,6 +31,7 @@ INPUT_PATH="${1:-testdata/reference-gpu-traces/traces/}"
 CUSTOM_GREP_PATTERN="${2:-MetalRenderTargetCache|BG_DEST_DEBUG|BG_OVERLAP_DEBUG|unsupported|not implemented|missing|failed}"
 TIMEOUT_SECS="${3:-8}"
 CAPTURE_ENABLED="${4:-0}"
+OUTPUT_ROOT="${5:-scratch/metal_trace_runs}"
 
 # Always grep for these important log levels
 BASE_GREP_PATTERN="XELOG[EWI]"
@@ -38,11 +40,14 @@ FULL_GREP_PATTERN="${BASE_GREP_PATTERN}|${CUSTOM_GREP_PATTERN}"
 
 # Create master timestamped output folder
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
-MASTER_OUTPUT_DIR="scratch/metal_trace_runs/${TIMESTAMP}"
+if [[ "${OUTPUT_ROOT}" != /* ]]; then
+  OUTPUT_ROOT="${ROOT_DIR}/${OUTPUT_ROOT}"
+fi
+MASTER_OUTPUT_DIR="${OUTPUT_ROOT}/${TIMESTAMP}"
 mkdir -p "${MASTER_OUTPUT_DIR}"
 
 # Symlink 'latest'
-LATEST_LINK="scratch/metal_trace_runs/latest"
+LATEST_LINK="${OUTPUT_ROOT}/latest"
 rm -f "${LATEST_LINK}" 2>/dev/null || true
 ln -sf "${TIMESTAMP}" "${LATEST_LINK}"
 
@@ -52,6 +57,7 @@ MASTER_SUMMARY="${MASTER_OUTPUT_DIR}/master_summary.txt"
 echo "[run_metal_trace] Output folder: ${MASTER_OUTPUT_DIR}"
 echo "Run started at: $(date)" > "${MASTER_SUMMARY}"
 echo "Input path: ${INPUT_PATH}" >> "${MASTER_SUMMARY}"
+echo "Output root: ${OUTPUT_ROOT}" >> "${MASTER_SUMMARY}"
 echo "Grep pattern: ${FULL_GREP_PATTERN}" >> "${MASTER_SUMMARY}"
 echo "Timeout: ${TIMEOUT_SECS}s" >> "${MASTER_SUMMARY}"
 echo "GPU capture: ${CAPTURE_ENABLED}" >> "${MASTER_SUMMARY}"
@@ -132,7 +138,7 @@ bin_path = os.environ.get("BIN_ENV")
 output_dir = os.environ.get("OUTPUT_DIR_ENV")
 timeout_secs = int(os.environ.get("TIMEOUT_SECS_ENV", "8"))
 
-cmd = [bin_path, f"--target_trace_file={trace_file}", f"--log_file={log_file}", "--log_level=4"]
+cmd = [bin_path, f"--target_trace_file={trace_file}", f"--log_file={log_file}", "--log_level=4", "--metal_log_memexport=true", "--metal_readback_memexport=true", "--metal_presenter_log_gamma_ramp=true", "--metal_presenter_log_mailbox=true", "--metal_presenter_probe_copy=true", "--metal_texture_load_probe=true", "--metal_force_bc_decompress=true", "--metal_swap_probe_decode_by_format=true"]
 # trace_dump_path determines where the output PNG goes
 cmd.append(f"--trace_dump_path={output_dir}")
 

@@ -1154,6 +1154,8 @@ class BuildShadersCommand(Command):
                             '-c',
                             src_path,
                             '-o', air_path,
+                            '-frecord-sources',
+                            '-gline-tables-only'
                         ]
                     else:
                         metal_cmd = [
@@ -1164,6 +1166,8 @@ class BuildShadersCommand(Command):
                             '-c',
                             src_path,
                             '-o', air_path,
+                            '-frecord-sources',
+                            '-gline-tables-only'
                         ]
 
                     if subprocess.call(metal_cmd) != 0:
