@@ -1,6 +1,12 @@
 -- premake5.lua
 local project_root = "../../../.."
 local metal_converter_libdir = path.join(project_root, "third_party/metal-shader-converter/lib")
+local dxilconv_root = path.join(project_root, "third_party/DirectXShaderCompiler")
+local dxilconv_libdir = path.join(dxilconv_root, "build_dxilconv_macos/lib")
+local dxilconv_includes = {
+  path.join(dxilconv_root, "include"),
+  path.join(dxilconv_root, "projects/dxilconv/include"),
+}
 
 include(path.join(project_root, "tools/build"))
 
@@ -55,17 +61,20 @@ project("xenia-gpu-metal")
     }
 
     includedirs {
+      dxilconv_includes[1],
+      dxilconv_includes[2],
       path.join(project_root, "third_party/metal-shader-converter/include"),
       "/usr/local/include/metal_irconverter_runtime"
     }
 
     defines { "METAL_SHADER_CONVERTER_AVAILABLE" }
 
-    libdirs     { metal_converter_libdir, "/usr/local/lib" }
+    libdirs     { metal_converter_libdir, dxilconv_libdir, "/usr/local/lib" }
     runpathdirs {
       "@executable_path/../Frameworks",
       "@loader_path/../Frameworks",
       metal_converter_libdir,
+      dxilconv_libdir,
       "/usr/local/lib",
     }
     linkoptions({
@@ -78,6 +87,8 @@ project("xenia-gpu-metal")
       "Metal.framework",
       "MetalKit.framework",
       "metalirconverter",
+      "dxilconv",
+      "LLVMDxcSupport",
     }
   filter "not system:macosx"
     removefiles "**"
@@ -142,9 +153,11 @@ project("xenia-gpu-metal-trace-viewer")
     links { "xenia-cpu-backend-a64" }
 
   filter "system:macosx"
-    libdirs     { metal_converter_libdir, "/usr/local/lib" }
-    runpathdirs { metal_converter_libdir, "/usr/local/lib" }
+    libdirs     { metal_converter_libdir, dxilconv_libdir, "/usr/local/lib" }
+    runpathdirs { metal_converter_libdir, dxilconv_libdir, "/usr/local/lib" }
     includedirs {
+      dxilconv_includes[1],
+      dxilconv_includes[2],
       path.join(project_root, "third_party/metal-shader-converter/include"),
       "/usr/local/include/metal_irconverter_runtime"
     }
@@ -157,13 +170,19 @@ project("xenia-gpu-metal-trace-viewer")
       "QuartzCore.framework",
       "SDL2",
       "metalirconverter",
+      "dxilconv",
+      "LLVMDxcSupport",
     }
     local metal_irconverter_dylib =
         path.getabsolute(path.join(metal_converter_libdir,
                                    "libmetalirconverter.dylib"))
+    local dxilconv_dylib =
+        path.getabsolute(path.join(dxilconv_libdir, "libdxilconv.dylib"))
     postbuildcommands({
       'mkdir -p "${TARGET_BUILD_DIR}/xenia-gpu-metal-trace-viewer.app/Contents/Frameworks"',
       'cp -f "' .. metal_irconverter_dylib ..
+          '" "${TARGET_BUILD_DIR}/xenia-gpu-metal-trace-viewer.app/Contents/Frameworks/"',
+      'cp -f "' .. dxilconv_dylib ..
           '" "${TARGET_BUILD_DIR}/xenia-gpu-metal-trace-viewer.app/Contents/Frameworks/"'
     })
     xcodebuildsettings({
@@ -173,6 +192,7 @@ project("xenia-gpu-metal-trace-viewer")
       ["LD_RUNPATH_SEARCH_PATHS"] =
           "@executable_path/../Frameworks @loader_path/../Frameworks "
           .. "@loader_path/../../../../third_party/metal-shader-converter/lib "
+          .. "@loader_path/../../../../third_party/DirectXShaderCompiler/build_dxilconv_macos/lib "
           .. "/usr/local/lib",
     })
   filter {}
@@ -231,16 +251,24 @@ project("xenia-gpu-metal-trace-dump")
     links { "xenia-cpu-backend-a64" }
 
   filter "system:macosx"
-    libdirs     { metal_converter_libdir, "/usr/local/lib" }
-    runpathdirs { metal_converter_libdir, "/usr/local/lib" }
+    libdirs     { metal_converter_libdir, dxilconv_libdir, "/usr/local/lib" }
+    runpathdirs { metal_converter_libdir, dxilconv_libdir, "/usr/local/lib" }
     includedirs {
+      dxilconv_includes[1],
+      dxilconv_includes[2],
       path.join(project_root, "third_party/metal-shader-converter/include"),
       "/usr/local/include/metal_irconverter_runtime"
     }
 
     defines { "METAL_SHADER_CONVERTER_AVAILABLE" }
 
-    links       { "Metal.framework", "MetalKit.framework", "metalirconverter" }
+    links {
+      "Metal.framework",
+      "MetalKit.framework",
+      "metalirconverter",
+      "dxilconv",
+      "LLVMDxcSupport",
+    }
   filter "not system:macosx"
     removefiles "**"
   filter {}

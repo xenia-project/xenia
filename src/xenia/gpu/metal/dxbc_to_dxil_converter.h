@@ -1,8 +1,7 @@
 /**
  * DXBC to DXIL converter wrapper for Metal backend.
  *
- * Converts DXBC to DXIL using a native `dxbc2dxil` binary (built from
- * DirectXShaderCompiler's dxilconv tools).
+ * Converts DXBC to DXIL using the in-process dxilconv library (no CLI spawn).
  */
 
 #ifndef DXBC_TO_DXIL_CONVERTER_H_
@@ -11,6 +10,8 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+
+struct IDxbcConverter;
 
 namespace xe {
 namespace gpu {
@@ -21,7 +22,7 @@ class DxbcToDxilConverter {
   DxbcToDxilConverter();
   ~DxbcToDxilConverter();
 
-  // Initialize the converter (locate `dxbc2dxil` binary).
+  // Initialize the converter (ensure dxilconv is available).
   bool Initialize();
 
   // Convert DXBC bytecode to DXIL bytecode
@@ -33,32 +34,19 @@ class DxbcToDxilConverter {
   // Check if the converter is available
   bool IsAvailable() const { return is_available_; }
 
-  // Get the path to `dxbc2dxil`.
-  const std::string& GetDxbc2DxilPath() const { return dxbc2dxil_path_; }
+  // Get the dxilconv library path (if resolved).
+  const std::string& GetDxbc2DxilPath() const { return dxilconv_path_; }
 
  private:
   bool is_available_ = false;
-  std::string wine_path_;
-  std::string dxbc2dxil_path_;
-  std::string temp_dir_;
+  std::string dxilconv_path_;
+  std::wstring extra_options_;
 
-  // Helper to run Wine command
-  bool RunWineCommand(const std::string& command, std::string* output = nullptr,
-                      std::string* error = nullptr);
+  // Lazily created per-thread converter instance.
+  IDxbcConverter* GetThreadConverter(std::string* error_message);
 
-  // Create a temporary file with the given data
-  std::string CreateTempFile(const std::string& prefix,
-                             const std::string& suffix,
-                             const std::vector<uint8_t>& data);
-
-  // Read file into vector
-  bool ReadFile(const std::string& path, std::vector<uint8_t>& data);
-
-  // Write vector to file
-  bool writeFile(const std::string& path, const std::vector<uint8_t>& data);
-
-  // Clean up temporary files
-  void CleanupTempFiles();
+  // Write vector to file (for debug dumps).
+  bool WriteFile(const std::string& path, const std::vector<uint8_t>& data);
 };
 
 }  // namespace metal

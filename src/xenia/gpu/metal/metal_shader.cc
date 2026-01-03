@@ -126,6 +126,9 @@ bool MetalShader::MetalTranslation::TranslateToMetal(
   }
 
   auto dump_msc_failure = [&](const char* reason) {
+    if (cvars::dump_shaders.empty()) {
+      return;
+    }
     static std::atomic<uint32_t> dump_counter{0};
     uint32_t dump_id = dump_counter.fetch_add(1);
     const char* type_str =
@@ -134,7 +137,8 @@ bool MetalShader::MetalTranslation::TranslateToMetal(
     snprintf(base_name, sizeof(base_name), "shader_%016" PRIx64 "_%s_%u",
              shader().ucode_data_hash(), type_str, dump_id);
 
-    std::filesystem::path base_dir = xe::to_path("scratch/msc_failures");
+    std::filesystem::path base_dir =
+        cvars::dump_shaders / "metal_shaders" / "failures";
     std::filesystem::path dxbc_path =
         base_dir / (std::string(base_name) + ".dxbc");
     std::filesystem::path dxil_path =
@@ -173,7 +177,7 @@ bool MetalShader::MetalTranslation::TranslateToMetal(
            xe::path_to_utf8(info_path.parent_path()), reason);
   };
 
-  // Step 1: Convert DXBC to DXIL using native dxbc2dxil
+  // Step 1: Convert DXBC to DXIL in-process (dxilconv)
   std::string dxbc_error;
   if (!dxbc_converter.Convert(dxbc_data, dxil_data_, &dxbc_error)) {
     XELOGE("MetalShader: DXBC to DXIL conversion failed: {}", dxbc_error);
@@ -199,9 +203,9 @@ bool MetalShader::MetalTranslation::TranslateToMetal(
   // Debug: Dump shader artifacts (DXBC, DXIL, MetalLib) to files when enabled.
   static int shader_dump_counter = 0;
   if (!cvars::dump_shaders.empty()) {
-    const char* dump_dir = cvars::dump_shaders.c_str();
+    std::filesystem::path base_dir = cvars::dump_shaders / "metal_shaders";
 
-    char filename[512];
+    char filename[128];
     const char* type_str =
         (shader().type() == xenos::ShaderType::kVertex) ? "vs" : "ps";
     int counter = shader_dump_counter++;
@@ -209,40 +213,46 @@ bool MetalShader::MetalTranslation::TranslateToMetal(
     // Dump DXBC (translated binary from DXBC translator)
     const auto& dxbc_data = translated_binary();
     if (!dxbc_data.empty()) {
-      snprintf(filename, sizeof(filename), "%s/shader_%d_%s.dxbc", dump_dir,
-               counter, type_str);
-      FILE* f = fopen(filename, "wb");
+      snprintf(filename, sizeof(filename), "shader_%d_%s.dxbc", counter,
+               type_str);
+      std::filesystem::path dxbc_path = base_dir / filename;
+      xe::filesystem::CreateParentFolder(dxbc_path);
+      FILE* f = xe::filesystem::OpenFile(dxbc_path, "wb");
       if (f) {
         fwrite(dxbc_data.data(), 1, dxbc_data.size(), f);
         fclose(f);
         XELOGI("DEBUG: Dumped DXBC ({} bytes) to {}", dxbc_data.size(),
-               filename);
+               xe::path_to_utf8(dxbc_path));
       }
     }
 
     // Dump DXIL
     if (!dxil_data_.empty()) {
-      snprintf(filename, sizeof(filename), "%s/shader_%d_%s.dxil", dump_dir,
-               counter, type_str);
-      FILE* f = fopen(filename, "wb");
+      snprintf(filename, sizeof(filename), "shader_%d_%s.dxil", counter,
+               type_str);
+      std::filesystem::path dxil_path = base_dir / filename;
+      xe::filesystem::CreateParentFolder(dxil_path);
+      FILE* f = xe::filesystem::OpenFile(dxil_path, "wb");
       if (f) {
         fwrite(dxil_data_.data(), 1, dxil_data_.size(), f);
         fclose(f);
         XELOGI("DEBUG: Dumped DXIL ({} bytes) to {}", dxil_data_.size(),
-               filename);
+               xe::path_to_utf8(dxil_path));
       }
     }
 
     // Dump MetalLib
     if (!metallib_data_.empty()) {
-      snprintf(filename, sizeof(filename), "%s/shader_%d_%s.metallib", dump_dir,
-               counter, type_str);
-      FILE* f = fopen(filename, "wb");
+      snprintf(filename, sizeof(filename), "shader_%d_%s.metallib", counter,
+               type_str);
+      std::filesystem::path metallib_path = base_dir / filename;
+      xe::filesystem::CreateParentFolder(metallib_path);
+      FILE* f = xe::filesystem::OpenFile(metallib_path, "wb");
       if (f) {
         fwrite(metallib_data_.data(), 1, metallib_data_.size(), f);
         fclose(f);
         XELOGI("DEBUG: Dumped MetalLib ({} bytes) to {}", metallib_data_.size(),
-               filename);
+               xe::path_to_utf8(metallib_path));
       }
     }
   }
