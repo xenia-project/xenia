@@ -102,6 +102,81 @@ float XeFlushNaNClampAlpha(float value, bool fixed_point, float clamp_min,
   return min(max(cleaned, clamp_min), clamp_max);
 }
 
+float XeSaturateNoNaN(float value) {
+  float clamped = xesl_saturate(value);
+  bool not_nan = xesl_equal(clamped, clamped);
+  return xesl_select(not_nan, clamped, 0.0f);
+}
+
+float XeTruncToFloat(float value) {
+  return float(int(value));
+}
+
+float XePWLGammaToLinear(float value) {
+  float clamped = XeSaturateNoNaN(value);
+  float scale;
+  float offset;
+  if (clamped >= (96.0f / 255.0f)) {
+    if (clamped >= (192.0f / 255.0f)) {
+      scale = 8.0f / 1024.0f;
+      offset = -1024.0f;
+    } else {
+      scale = 4.0f / 1024.0f;
+      offset = -256.0f;
+    }
+  } else {
+    if (clamped >= (64.0f / 255.0f)) {
+      scale = 2.0f / 1024.0f;
+      offset = -64.0f;
+    } else {
+      scale = 1.0f / 1024.0f;
+      offset = 0.0f;
+    }
+  }
+  float linear =
+      clamped * (255.0f * 1024.0f) * scale + offset;
+  linear += XeTruncToFloat(linear * scale);
+  return linear * (1.0f / 1023.0f);
+}
+
+float XeLinearToPWLGamma(float value) {
+  float clamped = XeSaturateNoNaN(value);
+  float scale;
+  float offset;
+  if (clamped >= (128.0f / 1023.0f)) {
+    if (clamped >= (512.0f / 1023.0f)) {
+      scale = 1023.0f / 8.0f;
+      offset = 128.0f / 255.0f;
+    } else {
+      scale = 1023.0f / 4.0f;
+      offset = 64.0f / 255.0f;
+    }
+  } else {
+    if (clamped >= (64.0f / 1023.0f)) {
+      scale = 1023.0f / 2.0f;
+      offset = 32.0f / 255.0f;
+    } else {
+      scale = 1023.0f;
+      offset = 0.0f;
+    }
+  }
+  float gamma =
+      XeTruncToFloat(clamped * scale) * (1.0f / 255.0f) + offset;
+  return gamma;
+}
+
+xesl_float3 XePWLGammaToLinear(xesl_float3 value) {
+  return xesl_float3(XePWLGammaToLinear(value.r),
+                     XePWLGammaToLinear(value.g),
+                     XePWLGammaToLinear(value.b));
+}
+
+xesl_float3 XeLinearToPWLGamma(xesl_float3 value) {
+  return xesl_float3(XeLinearToPWLGamma(value.r),
+                     XeLinearToPWLGamma(value.g),
+                     XeLinearToPWLGamma(value.b));
+}
+
 xesl_float3 XeApplyColorBlendFactor(
     xesl_float3 value, bool fixed_point, xesl_float3 clamp_min,
     xesl_float3 clamp_max, uint factor, xesl_float3 source_color,
@@ -297,8 +372,11 @@ bool XeUnpackColor32bpp(uint format, uint packed,
                          xesl_function_param_out(xesl_float4, out_color)) {
   switch (format) {
     case kXenosColorRenderTargetFormat_8_8_8_8:
+      out_color = XeUnpackR8G8B8A8UNorm(packed);
+      return true;
     case kXenosColorRenderTargetFormat_8_8_8_8_GAMMA:
       out_color = XeUnpackR8G8B8A8UNorm(packed);
+      out_color.rgb = XePWLGammaToLinear(out_color.rgb);
       return true;
     case kXenosColorRenderTargetFormat_2_10_10_10:
     case kXenosColorRenderTargetFormat_2_10_10_10_AS_10_10_10_10:
@@ -332,7 +410,10 @@ bool XePackColor32bpp(uint format, xesl_float4 color,
                       xesl_function_param_out(uint, out_packed)) {
   switch (format) {
     case kXenosColorRenderTargetFormat_8_8_8_8:
+      out_packed = XePackR8G8B8A8UNorm(color);
+      return true;
     case kXenosColorRenderTargetFormat_8_8_8_8_GAMMA:
+      color.rgb = XeLinearToPWLGamma(color.rgb);
       out_packed = XePackR8G8B8A8UNorm(color);
       return true;
     case kXenosColorRenderTargetFormat_2_10_10_10:

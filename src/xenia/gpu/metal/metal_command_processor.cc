@@ -1614,10 +1614,13 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
         "normalized_color_mask=0x{:X}",
         pixel_shader ? pixel_shader->writes_color_targets() : 0,
         normalized_color_mask);
+    const bool edram_psi_used =
+        render_target_cache_->GetPath() ==
+        RenderTargetCache::Path::kPixelShaderInterlock;
     {
       static int edram_blend_log_count = 0;
       ordered_blend_mask = 0;
-      if (normalized_color_mask) {
+      if (edram_psi_used && normalized_color_mask) {
         for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
           uint32_t rt_write_mask =
               (normalized_color_mask >> (i * 4)) & 0xF;
@@ -1653,13 +1656,13 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       if (edram_blend_log_count < 16 && ordered_blend_mask) {
         ++edram_blend_log_count;
         XELOGI("EDRAM blend: ordered blending likely required (mask=0x{:X})",
-               normalized_color_mask);
+               ordered_blend_mask);
       }
     }
-    use_ordered_blend_fallback =
-        ordered_blend_mask && ::cvars::metal_edram_compute_fallback &&
-        render_target_cache_->GetPath() ==
-            RenderTargetCache::Path::kHostRenderTargets;
+    const bool allow_compute_fallback =
+        edram_psi_used && ::cvars::metal_edram_rov &&
+        ::cvars::metal_edram_compute_fallback;
+    use_ordered_blend_fallback = ordered_blend_mask && allow_compute_fallback;
     ordered_blend_coverage = use_ordered_blend_fallback && pixel_shader;
     draw_util::GetScissor(regs, guest_scissor);
     guest_scissor_valid = true;
@@ -1705,6 +1708,40 @@ bool MetalCommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type,
       } else if (rt0_w == 1280 && rt0_h == 2048) {
         debug_bg_rt0_1280x2048 = true;
         XELOGI("BG_DEBUG: draw {} into 1280x2048 RT0", draw_counter);
+      }
+    }
+  }
+
+  if (use_ordered_blend_fallback && ordered_blend_mask && render_target_cache_) {
+    if (!guest_scissor_valid) {
+      static bool logged_missing_scissor = false;
+      if (!logged_missing_scissor) {
+        logged_missing_scissor = true;
+        XELOGW(
+            "Metal: ordered blend fallback pre-dump skipped (guest scissor "
+            "unavailable)");
+      }
+    } else {
+      EndRenderEncoder();
+      MTL::CommandBuffer* cmd = EnsureCommandBuffer();
+      if (cmd) {
+        for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
+          if (!(ordered_blend_mask & (1u << i))) {
+            continue;
+          }
+          uint32_t rt_write_mask =
+              (normalized_color_mask >> (i * 4)) & 0xF;
+          if (!rt_write_mask) {
+            continue;
+          }
+          auto* rt = render_target_cache_->GetColorRenderTarget(i);
+          if (!rt) {
+            continue;
+          }
+          render_target_cache_->DumpRenderTargetToEdramRect(
+              rt, guest_scissor.offset[0], guest_scissor.offset[1],
+              guest_scissor.extent[0], guest_scissor.extent[1], cmd);
+        }
       }
     }
   }

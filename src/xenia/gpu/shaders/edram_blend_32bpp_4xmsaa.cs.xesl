@@ -81,6 +81,7 @@ xesl_entry_inputs_end_code_begin_compute
                           sample_id);
 
   uint format_flags = xesl_pushConstant(xe_edram_blend_misc_info).z;
+  uint format = XeFormatFromFlags(format_flags);
   uint keep_mask_low = xesl_pushConstant(xe_edram_blend_misc_info).w;
   uint keep_mask_high = xesl_pushConstant(xe_edram_blend_mask_info).x;
   uint blend_factors_ops = xesl_pushConstant(xe_edram_blend_mask_info).y;
@@ -89,9 +90,16 @@ xesl_entry_inputs_end_code_begin_compute
     return;
   }
 
+  if (format == kXenosColorRenderTargetFormat_8_8_8_8_GAMMA) {
+    source_color.rgb = XePWLGammaToLinear(source_color.rgb);
+  }
+
   uint packed_dest = xesl_typedStorageBufferLoad(xe_edram_src, edram_index);
+  if (!covered) {
+    xesl_typedStorageBufferStore(xe_edram_dest, edram_index, packed_dest);
+    return;
+  }
   xesl_float4 dest_color;
-  uint format = XeFormatFromFlags(format_flags);
   if (!XeUnpackColor32bpp(format, packed_dest, dest_color)) {
     return;
   }

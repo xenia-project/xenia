@@ -90,6 +90,12 @@ xesl_entry_inputs_end_code_begin_compute
   uint packed_dest_low = xesl_typedStorageBufferLoad(xe_edram_src, edram_index);
   uint packed_dest_high =
       xesl_typedStorageBufferLoad(xe_edram_src, edram_index + 1u);
+  if (!covered) {
+    xesl_typedStorageBufferStore(xe_edram_dest, edram_index, packed_dest_low);
+    xesl_typedStorageBufferStore(xe_edram_dest, edram_index + 1u,
+                                 packed_dest_high);
+    return;
+  }
   xesl_float4 dest_color;
   uint format = XeFormatFromFlags(format_flags);
   if (!XeUnpackColor64bpp(format, xesl_uint2(packed_dest_low, packed_dest_high),

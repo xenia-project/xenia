@@ -158,6 +158,14 @@ class MetalRenderTargetCache final : public gpu::RenderTargetCache {
   // Debug/slow-path: dump current host RT contents into EDRAM.
   void FlushEdramFromHostRenderTargets();
 
+  // Per-draw ordered blending fallback: dump a scissor region from a specific
+  // color RT into the EDRAM buffer before blending.
+  void DumpRenderTargetToEdramRect(MetalRenderTarget* render_target,
+                                   uint32_t scissor_x, uint32_t scissor_y,
+                                   uint32_t scissor_width,
+                                   uint32_t scissor_height,
+                                   MTL::CommandBuffer* command_buffer);
+
   // Per-draw ordered blending fallback: blend a scissor region from a specific
   // color RT into the EDRAM buffer.
   void BlendRenderTargetToEdramRect(MetalRenderTarget* render_target,
