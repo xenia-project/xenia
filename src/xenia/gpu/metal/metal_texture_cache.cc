@@ -15,6 +15,7 @@
 #include <cstring>
 #include <filesystem>
 #include <limits>
+#include <unordered_set>
 #include <vector>
 
 #include "third_party/stb/stb_image_write.h"
@@ -92,6 +93,12 @@
 DEFINE_bool(metal_texture_dump_png, false,
             "Dump some loaded Metal textures as PNG to scratch/gpu (debug).",
             "GPU");
+DEFINE_bool(metal_texture_load_probe, false,
+            "Read back 1x1 pixel after Metal texture load (debug).", "GPU");
+DEFINE_bool(metal_force_bc_decompress, false,
+            "Force BC1/2/3/5/DXN decompression to RGBA8/RG8 (debug).", "GPU");
+DEFINE_bool(metal_swap_probe_decode_by_format, true,
+            "Decode swap probe based on pixel format (debug).", "GPU");
 
 namespace xe {
 namespace gpu {
@@ -190,6 +197,9 @@ bool MetalTextureCache::IsDecompressionNeededForKey(TextureKey key) const {
     case xenos::TextureFormat::k_DXT2_3:
     case xenos::TextureFormat::k_DXT4_5:
     case xenos::TextureFormat::k_DXN: {
+      if (::cvars::metal_force_bc_decompress) {
+        return true;
+      }
       const FormatInfo* format_info = FormatInfo::Get(key.format);
       if (!format_info) {
         return false;
@@ -306,8 +316,9 @@ TextureCache::LoadShaderIndex MetalTextureCache::GetLoadShaderIndexForKey(
       return kLoadShaderIndex128bpb;
 
     case xenos::TextureFormat::k_8_B:
+      return kLoadShaderIndex8bpb;
     case xenos::TextureFormat::k_8_8_8_8_A:
-      return kLoadShaderIndexUnknown;
+      return kLoadShaderIndex32bpb;
 
     default:
       return kLoadShaderIndexUnknown;
@@ -394,8 +405,16 @@ MTL::PixelFormat MetalTextureCache::GetPixelFormatForKey(TextureKey key) const {
       return MTL::PixelFormatR32Float;
 
     case xenos::TextureFormat::k_8_B:
+      return MTL::PixelFormatR8Unorm;
     case xenos::TextureFormat::k_8_8_8_8_A:
-      return MTL::PixelFormatInvalid;
+      return MTL::PixelFormatRGBA8Unorm;
+
+    case xenos::TextureFormat::k_32_FLOAT:
+      return MTL::PixelFormatR32Float;
+    case xenos::TextureFormat::k_32_32_FLOAT:
+      return MTL::PixelFormatRG32Float;
+    case xenos::TextureFormat::k_32_32_32_32_FLOAT:
+      return MTL::PixelFormatRGBA32Float;
 
     default:
       return MTL::PixelFormatInvalid;
@@ -843,6 +862,123 @@ bool MetalTextureCache::TryGpuLoadTexture(Texture& texture, bool load_base,
             MTL::Region::Make2D(0, 0, upload_width, upload_height);
         mtl_texture->replaceRegion(region, level, slice, source_ptr,
                                    stored_layout->row_pitch_bytes, 0);
+      }
+    }
+  }
+
+  if (::cvars::metal_texture_load_probe) {
+    static uint32_t probe_count = 0;
+    if (probe_count < 8) {
+      ++probe_count;
+      MTL::PixelFormat format = mtl_texture->pixelFormat();
+      bool probe_supported =
+          format == MTL::PixelFormatRGBA8Unorm ||
+          format == MTL::PixelFormatRGBA8Unorm_sRGB ||
+          format == MTL::PixelFormatBGRA8Unorm ||
+          format == MTL::PixelFormatBGRA8Unorm_sRGB;
+#ifdef MTLPixelFormatBGR10A2Unorm
+      probe_supported |= format == MTL::PixelFormatBGR10A2Unorm;
+#endif
+#ifdef MTLPixelFormatRGB10A2Unorm_sRGB
+      probe_supported |= format == MTL::PixelFormatRGB10A2Unorm_sRGB;
+#endif
+#ifdef MTLPixelFormatBGR10A2Unorm_sRGB
+      probe_supported |= format == MTL::PixelFormatBGR10A2Unorm_sRGB;
+#endif
+      probe_supported |= format == MTL::PixelFormatRGB10A2Unorm;
+      if (probe_supported) {
+        uint8_t pixel[4] = {};
+        MTL::CommandQueue* command_queue =
+            command_processor_->GetMetalCommandQueue();
+        bool probe_read = false;
+        if (!command_queue) {
+          XELOGW("MetalTextureLoad probe: no command queue available");
+        } else {
+          MTL::Buffer* probe_buffer =
+              device->newBuffer(4, MTL::ResourceStorageModeShared);
+          if (!probe_buffer) {
+            XELOGW("MetalTextureLoad probe: staging buffer allocation failed");
+          } else {
+            MTL::CommandBuffer* probe_cmd = command_queue->commandBuffer();
+            if (!probe_cmd) {
+              XELOGW("MetalTextureLoad probe: command buffer creation failed");
+              probe_buffer->release();
+            } else {
+              MTL::BlitCommandEncoder* probe_blit =
+                  probe_cmd->blitCommandEncoder();
+              if (!probe_blit) {
+                XELOGW("MetalTextureLoad probe: blit encoder creation failed");
+                probe_buffer->release();
+              } else {
+                probe_blit->copyFromTexture(
+                    mtl_texture, 0, 0, MTL::Origin(0, 0, 0),
+                    MTL::Size(1, 1, 1), probe_buffer, 0, 4, 0);
+                probe_blit->endEncoding();
+                probe_cmd->commit();
+                probe_cmd->waitUntilCompleted();
+                const uint8_t* probe_bytes =
+                    static_cast<const uint8_t*>(probe_buffer->contents());
+                if (probe_bytes) {
+                  std::memcpy(pixel, probe_bytes, sizeof(pixel));
+                  probe_read = true;
+                }
+                probe_buffer->release();
+              }
+            }
+          }
+        }
+        if (probe_read) {
+          uint32_t packed = uint32_t(pixel[0]) |
+                            (uint32_t(pixel[1]) << 8) |
+                            (uint32_t(pixel[2]) << 16) |
+                            (uint32_t(pixel[3]) << 24);
+          bool is_rgb10a2 = format == MTL::PixelFormatRGB10A2Unorm;
+          bool is_bgr10a2 = false;
+#ifdef MTLPixelFormatRGB10A2Unorm_sRGB
+          if (format == MTL::PixelFormatRGB10A2Unorm_sRGB) {
+            is_rgb10a2 = true;
+          }
+#endif
+#ifdef MTLPixelFormatBGR10A2Unorm
+          if (format == MTL::PixelFormatBGR10A2Unorm) {
+            is_bgr10a2 = true;
+          }
+#endif
+#ifdef MTLPixelFormatBGR10A2Unorm_sRGB
+          if (format == MTL::PixelFormatBGR10A2Unorm_sRGB) {
+            is_bgr10a2 = true;
+          }
+#endif
+          if (is_rgb10a2 || is_bgr10a2) {
+            auto to_8bpc = [](uint32_t value) -> uint8_t {
+              return static_cast<uint8_t>((value * 255u + 511u) / 1023u);
+            };
+            uint32_t r = packed & 0x3FFu;
+            uint32_t g = (packed >> 10) & 0x3FFu;
+            uint32_t b = (packed >> 20) & 0x3FFu;
+            uint32_t a = (packed >> 30) & 0x3u;
+            if (is_bgr10a2) {
+              std::swap(r, b);
+            }
+            XELOGI(
+                "MetalTextureLoad probe: fmt={} size={}x{} packed=0x{:08X} "
+                "rgba8={:02X} {:02X} {:02X} a2={}",
+                int(format), mtl_texture->width(), mtl_texture->height(), packed,
+                to_8bpc(r), to_8bpc(g), to_8bpc(b), a);
+          } else {
+            XELOGI(
+                "MetalTextureLoad probe: fmt={} size={}x{} pixel={:02X} {:02X} "
+                "{:02X} {:02X}",
+                int(format), mtl_texture->width(), mtl_texture->height(),
+                pixel[0], pixel[1], pixel[2], pixel[3]);
+          }
+        } else {
+          XELOGI("MetalTextureLoad probe: fmt={} size={}x{} (readback failed)",
+                 int(format), mtl_texture->width(), mtl_texture->height());
+        }
+      } else {
+        XELOGI("MetalTextureLoad probe: fmt={} size={}x{} (skip readback)",
+               int(format), mtl_texture->width(), mtl_texture->height());
       }
     }
   }
@@ -1823,6 +1959,42 @@ MTL::Texture* MetalTextureCache::RequestSwapTexture(
     xenos::TextureFormat& format_out) {
   static bool logged_valid = false;
   static bool logged_invalid = false;
+  enum class SwapFailure : uint8_t {
+    kCreateTexture = 0,
+    kView = 1,
+    kLoad = 2,
+    kScaledResolve = 3,
+    kInvalidPixelFormat = 4,
+    kUnsupportedPixelFormat = 5,
+    kMissingLoadShader = 6,
+    kMissingPipeline = 7,
+  };
+  auto log_swap_failure_once = [&](SwapFailure reason,
+                                   const TextureKey& log_key,
+                                   const char* detail) {
+    static std::unordered_set<uint64_t> logged_failures;
+    uint64_t tag =
+        (uint64_t(reason) << 56) |
+        (uint64_t(log_key.format) << 48) |
+        (uint64_t(log_key.dimension) << 40) |
+        (uint64_t(log_key.scaled_resolve) << 39) |
+        (uint64_t(log_key.endianness) << 37) |
+        (uint64_t(log_key.signed_separate) << 36);
+    if (!logged_failures.insert(tag).second) {
+      return;
+    }
+    XELOGW("MetalSwap: request failed: {}", detail);
+    XELOGW(
+        "MetalSwap: base=0x{:X} mip=0x{:X} {}x{} pitch={} mip_levels={} "
+        "format={} dim={} scaled={} endian={} signed={}",
+        log_key.base_page << 12, log_key.mip_page << 12, log_key.GetWidth(),
+        log_key.GetHeight(), log_key.pitch, log_key.mip_max_level + 1,
+        static_cast<uint32_t>(log_key.format),
+        static_cast<uint32_t>(log_key.dimension),
+        log_key.scaled_resolve ? 1 : 0,
+        static_cast<uint32_t>(log_key.endianness),
+        log_key.signed_separate ? 1 : 0);
+  };
 
   const auto& regs = register_file();
   xenos::xe_gpu_texture_fetch_t fetch = regs.GetTextureFetch(0);
@@ -1842,6 +2014,8 @@ MTL::Texture* MetalTextureCache::RequestSwapTexture(
 
   auto* texture = static_cast<MetalTexture*>(FindOrCreateTexture(key));
   if (!texture) {
+    log_swap_failure_once(SwapFailure::kCreateTexture, key,
+                          "failed to create swap texture");
     return nullptr;
   }
 
@@ -1850,14 +2024,155 @@ MTL::Texture* MetalTextureCache::RequestSwapTexture(
   MTL::Texture* view = texture->GetOrCreateView(
       host_swizzle, xenos::FetchOpDimension::k2D, false);
   if (!view) {
+    log_swap_failure_once(SwapFailure::kView, key,
+                          "failed to create swap texture view");
     return nullptr;
   }
 
   if (!LoadTextureData(*texture)) {
+    bool logged_reason = false;
+    if (key.scaled_resolve && !IsScaledResolveSupportedForFormat(key)) {
+      log_swap_failure_once(SwapFailure::kScaledResolve, key,
+                            "scaled resolve not supported");
+      logged_reason = true;
+    }
+    MTL::PixelFormat pixel_format = GetPixelFormatForKey(key);
+    if (pixel_format == MTL::PixelFormatInvalid) {
+      log_swap_failure_once(SwapFailure::kInvalidPixelFormat, key,
+                            "invalid Metal pixel format");
+      logged_reason = true;
+    }
+    MTL::Device* device =
+        command_processor_ ? command_processor_->GetMetalDevice() : nullptr;
+    if (device && !SupportsPixelFormat(device, pixel_format)) {
+      log_swap_failure_once(SwapFailure::kUnsupportedPixelFormat, key,
+                            "unsupported Metal pixel format");
+      logged_reason = true;
+    }
+    TextureCache::LoadShaderIndex load_shader =
+        GetLoadShaderIndexForKey(key);
+    if (load_shader == TextureCache::kLoadShaderIndexUnknown) {
+      log_swap_failure_once(SwapFailure::kMissingLoadShader, key,
+                            "missing load shader");
+      logged_reason = true;
+    } else {
+      MTL::ComputePipelineState* load_pipeline =
+          key.scaled_resolve
+              ? load_pipelines_scaled_[static_cast<size_t>(load_shader)]
+              : load_pipelines_[static_cast<size_t>(load_shader)];
+      if (!load_pipeline) {
+        log_swap_failure_once(SwapFailure::kMissingPipeline, key,
+                              "missing load pipeline");
+        logged_reason = true;
+      }
+    }
+    if (!logged_reason) {
+      log_swap_failure_once(SwapFailure::kLoad, key,
+                            "LoadTextureData failed");
+    }
     return nullptr;
   }
 
   texture->MarkAsUsed();
+  if (::cvars::metal_texture_load_probe) {
+    static uint32_t swap_probe_count = 0;
+    if (swap_probe_count < 4) {
+      ++swap_probe_count;
+      MTL::CommandQueue* queue = command_processor_->GetMetalCommandQueue();
+      MTL::Device* device = command_processor_->GetMetalDevice();
+      if (queue && device) {
+        MTL::Buffer* probe_buffer =
+            device->newBuffer(4, MTL::ResourceStorageModeShared);
+        if (probe_buffer) {
+          MTL::CommandBuffer* probe_cmd = queue->commandBuffer();
+          if (probe_cmd) {
+            MTL::BlitCommandEncoder* probe_blit =
+                probe_cmd->blitCommandEncoder();
+            if (probe_blit) {
+              probe_blit->copyFromTexture(view, 0, 0,
+                                          MTL::Origin(0, 0, 0),
+                                          MTL::Size(1, 1, 1), probe_buffer,
+                                          0, 4, 0);
+              probe_blit->endEncoding();
+              probe_cmd->commit();
+              probe_cmd->waitUntilCompleted();
+              const uint8_t* probe_bytes =
+                  static_cast<const uint8_t*>(probe_buffer->contents());
+              if (probe_bytes) {
+                uint32_t packed = uint32_t(probe_bytes[0]) |
+                                  (uint32_t(probe_bytes[1]) << 8) |
+                                  (uint32_t(probe_bytes[2]) << 16) |
+                                  (uint32_t(probe_bytes[3]) << 24);
+                MTL::PixelFormat format = view->pixelFormat();
+                const bool decode_by_format =
+                    ::cvars::metal_swap_probe_decode_by_format;
+                const bool is_rgba8 =
+                    format == MTL::PixelFormatRGBA8Unorm ||
+                    format == MTL::PixelFormatRGBA8Unorm_sRGB;
+                const bool is_bgra8 =
+                    format == MTL::PixelFormatBGRA8Unorm ||
+                    format == MTL::PixelFormatBGRA8Unorm_sRGB;
+                bool is_rgb10a2 = format == MTL::PixelFormatRGB10A2Unorm;
+                bool is_bgr10a2 = false;
+#ifdef MTLPixelFormatRGB10A2Unorm_sRGB
+                if (format == MTL::PixelFormatRGB10A2Unorm_sRGB) {
+                  is_rgb10a2 = true;
+                }
+#endif
+#ifdef MTLPixelFormatBGR10A2Unorm
+                if (format == MTL::PixelFormatBGR10A2Unorm) {
+                  is_bgr10a2 = true;
+                }
+#endif
+#ifdef MTLPixelFormatBGR10A2Unorm_sRGB
+                if (format == MTL::PixelFormatBGR10A2Unorm_sRGB) {
+                  is_bgr10a2 = true;
+                }
+#endif
+                if (decode_by_format && (is_rgba8 || is_bgra8)) {
+                  uint8_t r = probe_bytes[0];
+                  uint8_t g = probe_bytes[1];
+                  uint8_t b = probe_bytes[2];
+                  uint8_t a = probe_bytes[3];
+                  if (is_bgra8) {
+                    std::swap(r, b);
+                  }
+                  XELOGI(
+                      "MetalSwap probe: fmt={} rgba8={:02X} {:02X} {:02X} "
+                      "{:02X}",
+                      int(format), r, g, b, a);
+                } else if (is_rgb10a2 || is_bgr10a2) {
+                  auto to_8bpc = [](uint32_t value) -> uint8_t {
+                    return static_cast<uint8_t>((value * 255u + 511u) / 1023u);
+                  };
+                  uint32_t r = packed & 0x3FFu;
+                  uint32_t g = (packed >> 10) & 0x3FFu;
+                  uint32_t b = (packed >> 20) & 0x3FFu;
+                  uint32_t a = (packed >> 30) & 0x3u;
+                  if (is_bgr10a2) {
+                    std::swap(r, b);
+                  }
+                  XELOGI(
+                      "MetalSwap probe: fmt={} packed=0x{:08X} rgba8={:02X} "
+                      "{:02X} {:02X} a2={}",
+                      int(format), packed, to_8bpc(r), to_8bpc(g),
+                      to_8bpc(b), a);
+                } else {
+                  XELOGI(
+                      "MetalSwap probe: fmt={} packed=0x{:08X} raw={:02X} "
+                      "{:02X} {:02X} {:02X}",
+                      int(format), packed, probe_bytes[0], probe_bytes[1],
+                      probe_bytes[2], probe_bytes[3]);
+                }
+              }
+              // probe_blit is autoreleased.
+            }
+          }
+          probe_buffer->release();
+        }
+      }
+    }
+  }
   key = texture->key();
   width_scaled_out =
       key.GetWidth() * (key.scaled_resolve ? draw_resolution_scale_x() : 1);
@@ -2055,6 +2370,7 @@ uint32_t MetalTextureCache::GetHostFormatSwizzle(TextureKey key) const {
     case xenos::TextureFormat::k_16_FLOAT:
     case xenos::TextureFormat::k_24_8:
     case xenos::TextureFormat::k_24_8_FLOAT:
+    case xenos::TextureFormat::k_32_FLOAT:
       return xenos::XE_GPU_TEXTURE_SWIZZLE_RRRR;
 
     case xenos::TextureFormat::k_8_8:
@@ -2062,6 +2378,7 @@ uint32_t MetalTextureCache::GetHostFormatSwizzle(TextureKey key) const {
     case xenos::TextureFormat::k_16_16_EXPAND:
     case xenos::TextureFormat::k_16_16_FLOAT:
     case xenos::TextureFormat::k_DXN:
+    case xenos::TextureFormat::k_32_32_FLOAT:
       return xenos::XE_GPU_TEXTURE_SWIZZLE_RGGG;
 
     case xenos::TextureFormat::k_5_6_5:
@@ -2070,6 +2387,7 @@ uint32_t MetalTextureCache::GetHostFormatSwizzle(TextureKey key) const {
       return xenos::XE_GPU_TEXTURE_SWIZZLE_RGBB;
 
     case xenos::TextureFormat::k_8_8_8_8:
+    case xenos::TextureFormat::k_8_8_8_8_A:
     case xenos::TextureFormat::k_2_10_10_10:
       // Stored as BGRA after endian swap; CPU path swaps to RGBA8.
       return xenos::XE_GPU_TEXTURE_SWIZZLE_RGBA;
@@ -2431,7 +2749,7 @@ std::unique_ptr<TextureCache::Texture> MetalTextureCache::CreateTexture(
             array_size);
       }
       uint32_t cube_count = std::max(1u, array_size / 6);
-      metal_texture = CreateTextureCube(key.GetWidth(), metal_format,
+      metal_texture = CreateTextureCube(width, metal_format,
                                         metal_swizzle, key.mip_max_level + 1,
                                         cube_count);
       break;
