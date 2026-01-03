@@ -74,6 +74,8 @@ class MetalCommandProcessor : public CommandProcessor {
   // Force issue a swap to push render target to presenter (for trace dumps)
   void ForceIssueSwap();
   bool HasSeenSwap() const { return saw_swap_; }
+  void SetSwapDestSwap(uint32_t dest_base, bool swap);
+  bool ConsumeSwapDestSwap(uint32_t dest_base, bool* swap_out);
 
  protected:
   bool SetupContext() override;
@@ -87,8 +89,8 @@ class MetalCommandProcessor : public CommandProcessor {
 
   // Use base class WriteRegister - don't override with empty implementation!
   // The base class stores values in register_file_->values[] which we need.
-  void OnGammaRamp256EntryTableValueWritten() override {}
-  void OnGammaRampPWLValueWritten() override {}
+  void OnGammaRamp256EntryTableValueWritten() override;
+  void OnGammaRampPWLValueWritten() override;
 
   void IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
                  uint32_t frontbuffer_height) override;
@@ -300,6 +302,7 @@ class MetalCommandProcessor : public CommandProcessor {
   uint32_t last_swap_ptr_ = 0;
   uint32_t last_swap_width_ = 0;
   uint32_t last_swap_height_ = 0;
+  std::unordered_map<uint32_t, bool> swap_dest_swaps_by_base_;
 
  public:
   MetalSharedMemory* shared_memory() const { return shared_memory_.get(); }
@@ -421,6 +424,9 @@ class MetalCommandProcessor : public CommandProcessor {
 
   // Memexport tracking for shared memory invalidation.
   std::vector<draw_util::MemExportRange> memexport_ranges_;
+
+  bool gamma_ramp_256_entry_table_up_to_date_ = false;
+  bool gamma_ramp_pwl_up_to_date_ = false;
 
   // Track memory regions written by IssueCopy (resolve) during trace playback.
 

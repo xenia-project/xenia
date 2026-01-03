@@ -20,64 +20,12 @@
 #include "xenia/gpu/metal/metal_command_processor.h"
 #include "xenia/gpu/metal/metal_graphics_system.h"
 #include "xenia/gpu/trace_dump.h"
-#include "xenia/ui/metal/metal_presenter.h"
-#include "xenia/ui/presenter.h"
 
 namespace xe {
 namespace gpu {
 namespace metal {
 
 using namespace xe::gpu::xenos;
-
-// Dummy presenter for trace dumps that captures from command processor
-class MetalTraceDumpPresenter : public ui::Presenter {
- public:
-  MetalTraceDumpPresenter(MetalGraphicsSystem* graphics_system)
-      : Presenter(FatalErrorHostGpuLossCallback),
-        graphics_system_(graphics_system) {}
-
-  ui::Surface::TypeFlags GetSupportedSurfaceTypes() const override {
-    return ui::Surface::TypeFlags(0);  // No surface needed for trace dump
-  }
-
-  bool CaptureGuestOutput(ui::RawImage& raw_image) override {
-    XELOGI("MetalTraceDumpPresenter::CaptureGuestOutput called");
-    // Use the graphics system's implementation which handles command processor
-    //    return graphics_system_->CaptureGuestOutput(raw_image);
-    return false;
-  }
-
- protected:
-  // Required virtual methods - all no-ops for trace dump
-  SurfacePaintConnectResult ConnectOrReconnectPaintingToSurfaceFromUIThread(
-      ui::Surface& new_surface, uint32_t new_surface_width,
-      uint32_t new_surface_height, bool was_paintable,
-      bool& is_vsync_implicit_out) override {
-    is_vsync_implicit_out = false;
-    return SurfacePaintConnectResult::kSuccess;  // Always succeed
-  }
-
-  void DisconnectPaintingFromSurfaceFromUIThreadImpl() override {
-    // No-op for trace dump
-  }
-
-  bool RefreshGuestOutputImpl(
-      uint32_t mailbox_index, uint32_t frontbuffer_width,
-      uint32_t frontbuffer_height,
-      std::function<bool(GuestOutputRefreshContext& context)> refresher,
-      bool& is_8bpc_out_ref) override {
-    // No-op for trace dump - we capture directly
-    is_8bpc_out_ref = false;
-    return true;  // Always report success
-  }
-
-  PaintResult PaintAndPresentImpl(bool execute_ui_drawers) override {
-    return PaintResult::kPresented;  // Always report success
-  }
-
- private:
-  MetalGraphicsSystem* graphics_system_;
-};
 
 class MetalTraceDump : public TraceDump {
  public:
@@ -178,7 +126,6 @@ class MetalTraceDump : public TraceDump {
 
  private:
   MetalGraphicsSystem* metal_graphics_system_ = nullptr;
-  std::unique_ptr<MetalTraceDumpPresenter> dummy_presenter_;
   MTL::CaptureManager* capture_manager_ = nullptr;
   bool is_capturing_ = false;
 

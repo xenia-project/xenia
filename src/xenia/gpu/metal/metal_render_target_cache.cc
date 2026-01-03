@@ -5006,15 +5006,18 @@ bool MetalRenderTargetCache::Resolve(Memory& memory, uint32_t& written_address,
       dest_local_start + resolve_info.copy_dest_extent_length;
 
   static uint32_t swap_resolve_log_count = 0;
-  bool is_swap_resolve = dest_base == 0x03044000;
-  if (swap_resolve_log_count < 8 && is_swap_resolve) {
+  command_processor_.SetSwapDestSwap(
+      dest_base, resolve_info.copy_dest_info.copy_dest_swap);
+  if (swap_resolve_log_count < 8) {
     ++swap_resolve_log_count;
     draw_util::Scissor scissor;
     draw_util::GetScissor(register_file(), scissor);
     XELOGI(
-        "MetalResolve swap dest=0x{:08X} extent=0x{:08X} scissor=({},{} {}x{})",
+        "MetalResolve dest=0x{:08X} extent=0x{:08X} scissor=({},{} {}x{}) "
+        "swap={}",
         dest_base, resolve_info.copy_dest_extent_length, scissor.offset[0],
-        scissor.offset[1], scissor.extent[0], scissor.extent[1]);
+        scissor.offset[1], scissor.extent[0], scissor.extent[1],
+        resolve_info.copy_dest_info.copy_dest_swap ? 1 : 0);
   }
 
   // For now, only apply the 8888 restriction to color resolves; depth resolves
@@ -5030,7 +5033,7 @@ bool MetalRenderTargetCache::Resolve(Memory& memory, uint32_t& written_address,
         draw_resolution_scale_x(), draw_resolution_scale_y(), copy_constants,
         group_count_x, group_count_y);
 
-    if (is_swap_resolve && swap_resolve_log_count <= 8) {
+    if (swap_resolve_log_count <= 8) {
       uint32_t dest_pitch_pixels =
           copy_constants.dest_relative.dest_coordinate_info
               .pitch_aligned_div_32
@@ -5044,15 +5047,16 @@ bool MetalRenderTargetCache::Resolve(Memory& memory, uint32_t& written_address,
       uint32_t dest_offset_y =
           copy_constants.dest_relative.dest_coordinate_info.offset_y_div_8 << 3;
       XELOGI(
-          "MetalResolve swap dest info: base=0x{:08X} extent=0x{:08X} "
+          "MetalResolve dest info: base=0x{:08X} extent=0x{:08X} "
           "pitch={} height={} offset=({}, {}) sample_select={} format={} "
-          "endian={} exp_bias={}",
+          "endian={} swap={} exp_bias={}",
           copy_constants.dest_base, resolve_info.copy_dest_extent_length,
           dest_pitch_pixels, dest_height_pixels, dest_offset_x, dest_offset_y,
           uint32_t(copy_constants.dest_relative.dest_coordinate_info
                        .copy_sample_select),
           uint32_t(resolve_info.copy_dest_info.copy_dest_format),
           uint32_t(resolve_info.copy_dest_info.copy_dest_endian),
+          resolve_info.copy_dest_info.copy_dest_swap ? 1 : 0,
           int(resolve_info.copy_dest_info.copy_dest_exp_bias));
     }
 

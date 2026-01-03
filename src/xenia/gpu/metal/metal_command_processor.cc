@@ -74,6 +74,11 @@ DEFINE_bool(metal_draw_debug_quad, false,
             "Draw a full-screen debug quad instead of guest draws (Metal "
             "backend bring-up).",
             "GPU");
+DEFINE_bool(metal_capture_frame, false,
+            "Capture Metal swap frames for readback (debug).", "GPU");
+DEFINE_bool(metal_disable_swap_dest_swap, false,
+            "Disable forcing RB swap based on resolve dest_swap (debug).",
+            "GPU");
 
 namespace {
 
@@ -602,6 +607,30 @@ void MetalCommandProcessor::ForceIssueSwap() {
   IssueSwap(0, render_target_width_, render_target_height_);
 }
 
+void MetalCommandProcessor::SetSwapDestSwap(uint32_t dest_base, bool swap) {
+  if (!dest_base) {
+    return;
+  }
+  if (swap_dest_swaps_by_base_.size() > 256) {
+    swap_dest_swaps_by_base_.clear();
+  }
+  swap_dest_swaps_by_base_[dest_base] = swap;
+}
+
+bool MetalCommandProcessor::ConsumeSwapDestSwap(uint32_t dest_base,
+                                                bool* swap_out) {
+  if (!swap_out || !dest_base) {
+    return false;
+  }
+  auto it = swap_dest_swaps_by_base_.find(dest_base);
+  if (it == swap_dest_swaps_by_base_.end()) {
+    return false;
+  }
+  *swap_out = it->second;
+  swap_dest_swaps_by_base_.erase(it);
+  return true;
+}
+
 bool MetalCommandProcessor::SetupContext() {
   XELOGI("MetalCommandProcessor::SetupContext: Starting");
   XELOGI(
@@ -611,6 +640,9 @@ bool MetalCommandProcessor::SetupContext() {
   last_swap_ptr_ = 0;
   last_swap_width_ = 0;
   last_swap_height_ = 0;
+  swap_dest_swaps_by_base_.clear();
+  gamma_ramp_256_entry_table_up_to_date_ = false;
+  gamma_ramp_pwl_up_to_date_ = false;
   if (!CommandProcessor::SetupContext()) {
     XELOGE("Failed to initialize base command processor context");
     return false;
@@ -1096,7 +1128,6 @@ void MetalCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
   if (current_command_buffer_) {
     ScheduleDrawRingRelease(current_command_buffer_);
     current_command_buffer_->commit();
-    current_command_buffer_->waitUntilCompleted();
     current_command_buffer_->release();
     current_command_buffer_ = nullptr;
     SetActiveDrawRing(nullptr);
@@ -1123,6 +1154,7 @@ void MetalCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
         frontbuffer_height ? frontbuffer_height : render_target_height_;
 
     MTL::Texture* source_texture = nullptr;
+    bool use_pwl_gamma_ramp = false;
     if (texture_cache_) {
       uint32_t swap_width = 0;
       uint32_t swap_height = 0;
@@ -1133,40 +1165,127 @@ void MetalCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr,
       if (source_texture) {
         output_width = swap_width;
         output_height = swap_height;
+        use_pwl_gamma_ramp =
+            swap_format == xenos::TextureFormat::k_2_10_10_10 ||
+            swap_format ==
+                xenos::TextureFormat::k_2_10_10_10_AS_16_16_16_16;
+        static MTL::PixelFormat last_format = MTL::PixelFormatInvalid;
+        static uint32_t last_samples = 0;
+        static uint32_t last_width = 0;
+        static uint32_t last_height = 0;
+        static int last_swap_format = -1;
+        MTL::PixelFormat src_format = source_texture->pixelFormat();
+        uint32_t src_samples = source_texture->sampleCount();
+        uint32_t src_width = uint32_t(source_texture->width());
+        uint32_t src_height = uint32_t(source_texture->height());
+        int swap_format_int = static_cast<int>(swap_format);
+        if (src_format != last_format || src_samples != last_samples ||
+            src_width != last_width || src_height != last_height ||
+            swap_format_int != last_swap_format) {
+          XELOGI(
+              "Metal IssueSwap: source fmt={} samples={} size={}x{} "
+              "swap_format={} output={}x{}",
+              int(src_format), src_samples, src_width, src_height,
+              swap_format_int, output_width, output_height);
+          last_format = src_format;
+          last_samples = src_samples;
+          last_width = src_width;
+          last_height = src_height;
+          last_swap_format = swap_format_int;
+        }
+        if (presenter) {
+          if (!gamma_ramp_256_entry_table_up_to_date_ ||
+              !gamma_ramp_pwl_up_to_date_) {
+            constexpr size_t kGammaRampTableBytes =
+                sizeof(reg::DC_LUT_30_COLOR) * 256;
+            constexpr size_t kGammaRampPwlBytes =
+                sizeof(reg::DC_LUT_PWL_DATA) * 128 * 3;
+            if (presenter->UpdateGammaRamp(
+                    gamma_ramp_256_entry_table(), kGammaRampTableBytes,
+                    gamma_ramp_pwl_rgb(), kGammaRampPwlBytes)) {
+              gamma_ramp_256_entry_table_up_to_date_ = true;
+              gamma_ramp_pwl_up_to_date_ = true;
+            } else {
+              XELOGW("Metal IssueSwap: gamma ramp upload failed");
+            }
+          }
+        }
       }
     }
 
-    // Fallback to the last real color target if no swap texture.
+    bool swap_dest_swap = false;
+    const bool has_swap_dest_swap =
+        ConsumeSwapDestSwap(frontbuffer_ptr, &swap_dest_swap);
+    if (!has_swap_dest_swap && frontbuffer_ptr) {
+      static uint32_t swap_dest_miss_count = 0;
+      if (swap_dest_miss_count < 8) {
+        ++swap_dest_miss_count;
+        XELOGI(
+            "Metal IssueSwap: no dest_swap record for swap ptr 0x{:08X}",
+            frontbuffer_ptr);
+      }
+    }
+    bool force_swap_rb = has_swap_dest_swap && swap_dest_swap;
+    if (force_swap_rb && cvars::metal_disable_swap_dest_swap) {
+      static uint32_t swap_dest_disable_log_count = 0;
+      if (swap_dest_disable_log_count < 8) {
+        ++swap_dest_disable_log_count;
+        XELOGI(
+            "Metal IssueSwap: dest_swap RB swap disabled by "
+            "metal_disable_swap_dest_swap");
+      }
+      force_swap_rb = false;
+    }
+    if (force_swap_rb) {
+      XELOGI("Metal IssueSwap: forcing RB swap due to dest_swap");
+    }
+
     if (!source_texture) {
-      source_texture = render_target_cache_->GetLastRealColorTarget(0);
-      if (!source_texture) {
-        source_texture = render_target_cache_->GetColorTarget(0);
+      static bool missing_swap_logged = false;
+      if (!missing_swap_logged) {
+        missing_swap_logged = true;
+        XELOGW(
+            "MetalCommandProcessor::IssueSwap: swap texture unavailable; "
+            "presenting inactive (black) output");
       }
-      if (!source_texture) {
-        source_texture = render_target_cache_->GetDummyColorTarget();
+      presenter->RefreshGuestOutput(
+          0, 0, 0, 0,
+          [](ui::Presenter::GuestOutputRefreshContext&) -> bool {
+            return false;
+          });
+      if (cvars::metal_capture_frame) {
+        CaptureCurrentFrame();
       }
+      return;
     }
 
     if (source_texture) {
       ui::metal::MetalPresenter* metal_presenter = presenter;
       uint32_t source_width = output_width;
       uint32_t source_height = output_height;
+      bool force_swap_rb_copy = force_swap_rb;
+      bool use_pwl_gamma_ramp_copy = use_pwl_gamma_ramp;
       presenter->RefreshGuestOutput(
           output_width, output_height, 1280, 720,  // Display aspect ratio
-          [source_texture, metal_presenter, source_width, source_height](
+          [source_texture, metal_presenter, source_width, source_height,
+           force_swap_rb_copy, use_pwl_gamma_ramp_copy](
               ui::Presenter::GuestOutputRefreshContext& context) -> bool {
             auto& metal_context =
                 static_cast<ui::metal::MetalGuestOutputRefreshContext&>(
                     context);
+            context.SetIs8bpc(!use_pwl_gamma_ramp_copy);
             return metal_presenter->CopyTextureToGuestOutput(
                 source_texture, metal_context.resource_uav_capable(),
-                source_width, source_height);
+                source_width, source_height, force_swap_rb_copy,
+                use_pwl_gamma_ramp_copy);
           });
     }
   }
 
   // Also capture internally for backwards compatibility
-  CaptureCurrentFrame();
+  if (cvars::metal_capture_frame) {
+    CaptureCurrentFrame();
+  }
 }
 
 void MetalCommandProcessor::CaptureCurrentFrame() {
@@ -3215,6 +3334,14 @@ bool MetalCommandProcessor::IssueCopy() {
   current_draw_index_ = 0;
 
   return true;
+}
+
+void MetalCommandProcessor::OnGammaRamp256EntryTableValueWritten() {
+  gamma_ramp_256_entry_table_up_to_date_ = false;
+}
+
+void MetalCommandProcessor::OnGammaRampPWLValueWritten() {
+  gamma_ramp_pwl_up_to_date_ = false;
 }
 
 void MetalCommandProcessor::WriteRegister(uint32_t index, uint32_t value) {

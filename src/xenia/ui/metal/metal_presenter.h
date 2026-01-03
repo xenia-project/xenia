@@ -11,6 +11,8 @@
 #define XENIA_UI_METAL_METAL_PRESENTER_H_
 
 #include <array>
+#include <atomic>
+#include <cstddef>
 
 #include "xenia/ui/metal/metal_provider.h"
 #include "xenia/ui/presenter.h"
@@ -82,9 +84,14 @@ class MetalPresenter : public Presenter {
   // Helper method to copy Metal texture to guest output texture
   bool CopyTextureToGuestOutput(MTL::Texture* source_texture, id dest_texture,
                                 uint32_t source_width,
-                                uint32_t source_height);
+                                uint32_t source_height, bool force_swap_rb,
+                                bool use_pwl_gamma_ramp);
 
-  // Helper method for trace dumps to populate guest output before PNG capture
+  // Upload gamma ramp data used by the present path.
+  bool UpdateGammaRamp(const void* table_data, size_t table_bytes,
+                       const void* pwl_data, size_t pwl_bytes);
+
+  // Helper method for trace dumps to populate guest output before PNG capture.
   void TryRefreshGuestOutputForTraceDump(void* command_processor);
 
  protected:
@@ -95,7 +102,7 @@ class MetalPresenter : public Presenter {
       uint32_t new_surface_height, bool was_paintable,
       bool& is_vsync_implicit_out) override;
   void DisconnectPaintingFromSurfaceFromUIThreadImpl() override;
- bool RefreshGuestOutputImpl(
+  bool RefreshGuestOutputImpl(
       uint32_t mailbox_index, uint32_t frontbuffer_width,
       uint32_t frontbuffer_height,
       std::function<bool(GuestOutputRefreshContext& context)> refresher,
@@ -106,6 +113,9 @@ class MetalPresenter : public Presenter {
   // formats. The swap surface may be 10-bit or BGRA while the guest output is
   // RGBA8 for PNG capture, so a shader conversion path is required.
   bool EnsureCopyTextureConvertPipelines();
+  bool EnsureApplyGammaPipelines();
+  bool EnsureApplyGammaDebugPipelines();
+  bool EnsureGuestOutputPaintResources(uint32_t pixel_format);
 
   MetalProvider* provider_;
   MTL::Device* device_ = nullptr;
@@ -117,10 +127,39 @@ class MetalPresenter : public Presenter {
   // Compute pipeline state used to convert/copy from swap formats to the
   // RGBA8 guest output texture.
   id copy_texture_convert_pipeline_2d_ = nullptr;  // id<MTLComputePipelineState>
-  id copy_texture_convert_pipeline_2d_array_ = nullptr;  // id<MTLComputePipelineState>
+  id copy_texture_convert_pipeline_2d_array_ =
+      nullptr;  // id<MTLComputePipelineState>
+  id apply_gamma_table_pipeline_ = nullptr;  // id<MTLComputePipelineState>
+  id apply_gamma_pwl_pipeline_ = nullptr;    // id<MTLComputePipelineState>
+  id apply_gamma_debug_gradient_pipeline_ =
+      nullptr;  // id<MTLComputePipelineState>
+  id apply_gamma_debug_copy_pipeline_ =
+      nullptr;  // id<MTLComputePipelineState>
+  id apply_gamma_debug_ramp_table_pipeline_ =
+      nullptr;  // id<MTLComputePipelineState>
+  id apply_gamma_debug_ramp_pwl_pipeline_ =
+      nullptr;  // id<MTLComputePipelineState>
+  id gamma_output_texture_ = nullptr;  // id<MTLTexture>
+  uint32_t gamma_output_width_ = 0;
+  uint32_t gamma_output_height_ = 0;
+  id gamma_ramp_buffer_ = nullptr;           // id<MTLBuffer>
+  id gamma_ramp_table_texture_ = nullptr;    // id<MTLTexture>
+  id gamma_ramp_pwl_texture_ = nullptr;      // id<MTLTexture>
+  uint32_t gamma_ramp_buffer_size_ = 0;
+  bool gamma_ramp_table_valid_ = false;
+  bool gamma_ramp_pwl_valid_ = false;
+  id guest_output_pipeline_bilinear_ = nullptr;  // id<MTLRenderPipelineState>
+  id guest_output_pipeline_bilinear_dither_ =
+      nullptr;  // id<MTLRenderPipelineState>
+  id guest_output_sampler_ = nullptr;  // id<MTLSamplerState>
+  uint32_t guest_output_pipeline_format_ = 0;
+  float surface_scale_ = 1.0f;
+  uint32_t surface_width_in_points_ = 0;
+  uint32_t surface_height_in_points_ = 0;
 
   // Guest output textures for PNG capture (mailbox system)
   std::array<id, kGuestOutputMailboxSize> guest_output_textures_;
+  std::atomic<uint32_t> last_guest_output_mailbox_index_{UINT32_MAX};
 };
 
 }  // namespace metal
