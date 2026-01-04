@@ -1016,10 +1016,6 @@ class BuildShadersCommand(Command):
             if not has_bin(spirv_opt):
                 print('ERROR: could not find spirv-opt')
                 return 1
-            spirv_remap = os.path.join(vulkan_bin_path, 'spirv-remap')
-            if not has_bin(spirv_remap):
-                print('ERROR: could not find spirv-remap')
-                return 1
             spirv_dis = os.path.join(vulkan_bin_path, 'spirv-dis')
             if not has_bin(spirv_dis):
                 print('ERROR: could not find spirv-dis')
@@ -1079,27 +1075,24 @@ class BuildShadersCommand(Command):
                        universal_newlines = True).returncode != 0:
                     print('ERROR: failed to build a SPIR-V shader')
                     return 1
+                # Optimize the shader, and then improve the compression quality
+                # for the application executable via ID canonicalization by
+                # making IDs in similar shaders more likely to be the same.
+                # Don't strip debug information such as binding and buffer
+                # structure member names, however, as it's useful for
+                # investigating issues in debuggers such as RenderDoc.
                 # spirv-opt input and output files must be different.
                 spirv_file_path = spirv_file_path_base + '.spv'
                 if subprocess.call([
                        spirv_opt,
                        '-O',
+                       '--canonicalize-ids',
                        spirv_glslang_file_path,
                        '-o', spirv_file_path,
                        ]) != 0:
                     print('ERROR: failed to optimize a SPIR-V shader')
                     return 1
                 os.remove(spirv_glslang_file_path)
-                # spirv-remap takes the output directory, but it may be the same
-                # as the one the input is stored in.
-                if subprocess.call([
-                       spirv_remap,
-                       '--do-everything',
-                       '-i', spirv_file_path,
-                       '-o', spirv_dir_path,
-                       ]) != 0:
-                    print('ERROR: failed to remap a SPIR-V shader')
-                    return 1
                 spirv_dis_file_path = spirv_file_path_base + '.txt';
                 if subprocess.call([
                        spirv_dis,
