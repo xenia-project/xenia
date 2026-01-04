@@ -10,18 +10,31 @@
                OpCapability StorageImageExtendedFormats
           %1 = OpExtInstImport "GLSL.std.450"
                OpMemoryModel Logical GLSL450
-               OpEntryPoint GLCompute %5663 "main" %gl_GlobalInvocationID
-               OpExecutionMode %5663 LocalSize 16 8 1
+               OpEntryPoint GLCompute %main "main" %gl_GlobalInvocationID
+               OpExecutionMode %main LocalSize 16 8 1
+               OpSource GLSL 460
+               OpSourceExtension "GL_EXT_control_flow_attributes"
+               OpSourceExtension "GL_EXT_samplerless_texture_functions"
+               OpSourceExtension "GL_GOOGLE_cpp_style_line_directive"
+               OpSourceExtension "GL_GOOGLE_include_directive"
+               OpName %main "main"
+               OpName %gl_GlobalInvocationID "gl_GlobalInvocationID"
+               OpName %push_const_block_xe "push_const_block_xe"
+               OpMemberName %push_const_block_xe 0 "xe_apply_gamma_size"
+               OpName %push_consts_xe "push_consts_xe"
+               OpName %xe_apply_gamma_source "xe_apply_gamma_source"
+               OpName %xe_apply_gamma_ramp "xe_apply_gamma_ramp"
+               OpName %xe_apply_gamma_dest "xe_apply_gamma_dest"
                OpDecorate %gl_GlobalInvocationID BuiltIn GlobalInvocationId
-               OpDecorate %_struct_993 Block
-               OpMemberDecorate %_struct_993 0 Offset 0
-               OpDecorate %5759 Binding 0
-               OpDecorate %5759 DescriptorSet 1
-               OpDecorate %5945 Binding 0
-               OpDecorate %5945 DescriptorSet 0
-               OpDecorate %3258 NonReadable
-               OpDecorate %3258 Binding 0
-               OpDecorate %3258 DescriptorSet 2
+               OpDecorate %push_const_block_xe Block
+               OpMemberDecorate %push_const_block_xe 0 Offset 0
+               OpDecorate %xe_apply_gamma_source Binding 0
+               OpDecorate %xe_apply_gamma_source DescriptorSet 1
+               OpDecorate %xe_apply_gamma_ramp Binding 0
+               OpDecorate %xe_apply_gamma_ramp DescriptorSet 0
+               OpDecorate %xe_apply_gamma_dest NonReadable
+               OpDecorate %xe_apply_gamma_dest Binding 0
+               OpDecorate %xe_apply_gamma_dest DescriptorSet 2
                OpDecorate %gl_WorkGroupSize BuiltIn WorkgroupSize
        %void = OpTypeVoid
        %1282 = OpTypeFunction %void
@@ -38,9 +51,9 @@
      %v3uint = OpTypeVector %uint 3
 %_ptr_Input_v3uint = OpTypePointer Input %v3uint
 %gl_GlobalInvocationID = OpVariable %_ptr_Input_v3uint Input
-%_struct_993 = OpTypeStruct %v2uint
-%_ptr_PushConstant__struct_993 = OpTypePointer PushConstant %_struct_993
-       %3305 = OpVariable %_ptr_PushConstant__struct_993 PushConstant
+%push_const_block_xe = OpTypeStruct %v2uint
+%_ptr_PushConstant_push_const_block_xe = OpTypePointer PushConstant %push_const_block_xe
+%push_consts_xe = OpVariable %_ptr_PushConstant_push_const_block_xe PushConstant
         %int = OpTypeInt 32 1
       %int_0 = OpConstant %int 0
 %_ptr_PushConstant_v2uint = OpTypePointer PushConstant %v2uint
@@ -48,7 +61,7 @@
      %v2bool = OpTypeVector %bool 2
         %150 = OpTypeImage %float 2D 0 0 0 1 Unknown
 %_ptr_UniformConstant_150 = OpTypePointer UniformConstant %150
-       %5759 = OpVariable %_ptr_UniformConstant_150 UniformConstant
+%xe_apply_gamma_source = OpVariable %_ptr_UniformConstant_150 UniformConstant
       %v2int = OpTypeVector %int 2
     %v4float = OpTypeVector %float 4
     %v3float = OpTypeVector %float 3
@@ -56,25 +69,25 @@
   %float_0_5 = OpConstant %float 0.5
         %152 = OpTypeImage %uint Buffer 0 0 0 1 Unknown
 %_ptr_UniformConstant_152 = OpTypePointer UniformConstant %152
-       %5945 = OpVariable %_ptr_UniformConstant_152 UniformConstant
+%xe_apply_gamma_ramp = OpVariable %_ptr_UniformConstant_152 UniformConstant
      %uint_3 = OpConstant %uint 3
      %v4uint = OpTypeVector %uint 4
      %uint_2 = OpConstant %uint 2
         %166 = OpTypeImage %float 2D 0 0 0 2 Rgb10A2
 %_ptr_UniformConstant_166 = OpTypePointer UniformConstant %166
-       %3258 = OpVariable %_ptr_UniformConstant_166 UniformConstant
+%xe_apply_gamma_dest = OpVariable %_ptr_UniformConstant_166 UniformConstant
     %uint_16 = OpConstant %uint 16
      %uint_8 = OpConstant %uint 8
 %gl_WorkGroupSize = OpConstantComposite %v3uint %uint_16 %uint_8 %uint_1
         %939 = OpConstantComposite %v3float %float_0_5 %float_0_5 %float_0_5
-       %5663 = OpFunction %void None %1282
+       %main = OpFunction %void None %1282
       %15110 = OpLabel
                OpSelectionMerge %21573 None
                OpSwitch %uint_0 %12914
       %12914 = OpLabel
       %13761 = OpLoad %v3uint %gl_GlobalInvocationID
       %21717 = OpVectorShuffle %v2uint %13761 %13761 0 1
-       %7760 = OpAccessChain %_ptr_PushConstant_v2uint %3305 %int_0
+       %7760 = OpAccessChain %_ptr_PushConstant_v2uint %push_consts_xe %int_0
       %13378 = OpLoad %v2uint %7760
       %23437 = OpUGreaterThanEqual %v2bool %21717 %13378
       %23076 = OpAny %bool %23437
@@ -83,14 +96,14 @@
       %21992 = OpLabel
                OpBranch %21573
       %18302 = OpLabel
-      %24004 = OpLoad %150 %5759
+      %24004 = OpLoad %150 %xe_apply_gamma_source
       %10533 = OpBitcast %v2int %21717
        %6680 = OpImageFetch %v4float %24004 %10533 Lod %int_0
       %16242 = OpVectorShuffle %v3float %6680 %6680 0 1 2
       %13907 = OpVectorTimesScalar %v3float %16242 %float_1023
       %16889 = OpFAdd %v3float %13907 %939
       %11099 = OpConvertFToU %v3uint %16889
-      %19954 = OpLoad %152 %5945
+      %19954 = OpLoad %152 %xe_apply_gamma_ramp
       %23099 = OpCompositeExtract %uint %11099 0
       %17722 = OpShiftRightLogical %uint %23099 %uint_3
       %15968 = OpIMul %uint %17722 %uint_3
@@ -106,7 +119,7 @@
       %11948 = OpFAdd %float %17705 %22854
        %6845 = OpFMul %float %11948 %float_1_52737048en05
        %6923 = OpExtInst %float %1 FClamp %6845 %float_0 %float_1
-      %14371 = OpLoad %152 %5945
+      %14371 = OpLoad %152 %xe_apply_gamma_ramp
       %12884 = OpCompositeExtract %uint %11099 1
       %17798 = OpShiftRightLogical %uint %12884 %uint_3
       %15827 = OpIMul %uint %17798 %uint_3
@@ -123,7 +136,7 @@
       %11949 = OpFAdd %float %17706 %22855
        %6846 = OpFMul %float %11949 %float_1_52737048en05
        %6924 = OpExtInst %float %1 FClamp %6846 %float_0 %float_1
-      %14372 = OpLoad %152 %5945
+      %14372 = OpLoad %152 %xe_apply_gamma_ramp
       %12885 = OpCompositeExtract %uint %11099 2
       %17799 = OpShiftRightLogical %uint %12885 %uint_3
       %15828 = OpIMul %uint %17799 %uint_3
@@ -141,7 +154,7 @@
        %7206 = OpFMul %float %11950 %float_1_52737048en05
       %22327 = OpExtInst %float %1 FClamp %7206 %float_0 %float_1
        %6470 = OpCompositeConstruct %v4float %6923 %6924 %22327 %float_1
-      %12275 = OpLoad %166 %3258
+      %12275 = OpLoad %166 %xe_apply_gamma_dest
                OpImageWrite %12275 %10533 %6470
                OpBranch %21573
       %21573 = OpLabel
@@ -155,7 +168,23 @@ const uint32_t apply_gamma_pwl_cs[] = {
     0x00000001, 0x4C534C47, 0x6474732E, 0x3035342E, 0x00000000, 0x0003000E,
     0x00000000, 0x00000001, 0x0006000F, 0x00000005, 0x0000161F, 0x6E69616D,
     0x00000000, 0x00000F48, 0x00060010, 0x0000161F, 0x00000011, 0x00000010,
-    0x00000008, 0x00000001, 0x00040047, 0x00000F48, 0x0000000B, 0x0000001C,
+    0x00000008, 0x00000001, 0x00030003, 0x00000002, 0x000001CC, 0x00090004,
+    0x455F4C47, 0x635F5458, 0x72746E6F, 0x665F6C6F, 0x5F776F6C, 0x72747461,
+    0x74756269, 0x00007365, 0x000B0004, 0x455F4C47, 0x735F5458, 0x6C706D61,
+    0x656C7265, 0x745F7373, 0x75747865, 0x665F6572, 0x74636E75, 0x736E6F69,
+    0x00000000, 0x000A0004, 0x475F4C47, 0x4C474F4F, 0x70635F45, 0x74735F70,
+    0x5F656C79, 0x656E696C, 0x7269645F, 0x69746365, 0x00006576, 0x00080004,
+    0x475F4C47, 0x4C474F4F, 0x6E695F45, 0x64756C63, 0x69645F65, 0x74636572,
+    0x00657669, 0x00040005, 0x0000161F, 0x6E69616D, 0x00000000, 0x00080005,
+    0x00000F48, 0x475F6C67, 0x61626F6C, 0x766E496C, 0x7461636F, 0x496E6F69,
+    0x00000044, 0x00070005, 0x000003E1, 0x68737570, 0x6E6F635F, 0x625F7473,
+    0x6B636F6C, 0x0065785F, 0x00080006, 0x000003E1, 0x00000000, 0x615F6578,
+    0x796C7070, 0x6D61675F, 0x735F616D, 0x00657A69, 0x00060005, 0x00000CE9,
+    0x68737570, 0x6E6F635F, 0x5F737473, 0x00006578, 0x00080005, 0x0000167F,
+    0x615F6578, 0x796C7070, 0x6D61675F, 0x735F616D, 0x6372756F, 0x00000065,
+    0x00070005, 0x00001739, 0x615F6578, 0x796C7070, 0x6D61675F, 0x725F616D,
+    0x00706D61, 0x00070005, 0x00000CBA, 0x615F6578, 0x796C7070, 0x6D61675F,
+    0x645F616D, 0x00747365, 0x00040047, 0x00000F48, 0x0000000B, 0x0000001C,
     0x00030047, 0x000003E1, 0x00000002, 0x00050048, 0x000003E1, 0x00000000,
     0x00000023, 0x00000000, 0x00040047, 0x0000167F, 0x00000021, 0x00000000,
     0x00040047, 0x0000167F, 0x00000022, 0x00000001, 0x00040047, 0x00001739,
