@@ -50,6 +50,7 @@ class IConfigVar : virtual public ICommandVar {
   virtual std::string config_value() const = 0;
   virtual void LoadConfigValue(std::shared_ptr<cpptoml::base> result) = 0;
   virtual void LoadGameConfigValue(std::shared_ptr<cpptoml::base> result) = 0;
+  virtual void ResetGameConfigValue() = 0;
   virtual void ResetConfigValueToDefault() = 0;
 };
 
@@ -95,6 +96,7 @@ class ConfigVar : public CommandVar<T>, virtual public IConfigVar {
   // one that will be stored when the global config is written next time. After
   // overriding, however, the next game config loaded may still change it.
   void OverrideConfigValue(T val);
+  void ResetGameConfigValue() override;
 
  private:
   std::string category_;
@@ -278,6 +280,13 @@ void ConfigVar<T>::OverrideConfigValue(T val) {
   this->commandline_value_.reset();
   UpdateValue();
 }
+
+template <class T>
+void ConfigVar<T>::ResetGameConfigValue() {
+  game_config_value_.reset();
+  UpdateValue();
+}
+
 template <class T>
 void ConfigVar<T>::ResetConfigValueToDefault() {
   SetConfigValue(this->default_value_);

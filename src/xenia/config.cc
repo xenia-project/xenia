@@ -104,6 +104,16 @@ void ReadGameConfig(const std::filesystem::path& file_path) {
   XELOGI("Loaded game config: {}", xe::path_to_utf8(file_path));
 }
 
+void ResetGameConfigValues() {
+  if (!cvar::ConfigVars) {
+    return;
+  }
+  for (auto& it : *cvar::ConfigVars) {
+    auto config_var = static_cast<cvar::IConfigVar*>(it.second);
+    config_var->ResetGameConfigValue();
+  }
+}
+
 void SaveConfig() {
   if (config_path.empty()) {
     return;
@@ -238,6 +248,8 @@ void SetupConfig(const std::filesystem::path& config_folder) {
 }
 
 void LoadGameConfig(const std::string_view title_id) {
+  ResetGameConfigValues();
+
   const auto game_config_folder = config_folder / "config";
   const auto game_config_path =
       game_config_folder / (std::string(title_id) + game_config_suffix);
