@@ -22,6 +22,7 @@ includedirs({
 })
 
 defines({
+  "VULKAN_HPP_NO_TO_STRING",
   "_UNICODE",
   "UNICODE",
 })
