@@ -70,6 +70,11 @@ project("xenia-gpu-d3d12-trace-viewer")
       "xenia-cpu-backend-x64",
     })
 
+  filter("architecture:ARM64")
+    links({
+      "xenia-cpu-backend-a64",
+    })
+
 group("src")
 project("xenia-gpu-d3d12-trace-dump")
   uuid("686b859c-0046-44c4-a02c-41fc3fb75698")
@@ -119,4 +124,9 @@ project("xenia-gpu-d3d12-trace-dump")
   filter("architecture:x86_64")
     links({
       "xenia-cpu-backend-x64",
+    })
+
+  filter("architecture:ARM64")
+    links({
+      "xenia-cpu-backend-a64",
     })

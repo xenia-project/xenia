@@ -67,7 +67,7 @@ std::string HostThreadContext::GetStringFromValue(HostRegister reg,
     case Arm64Register::kPc:
       return hex ? string_util::to_hex_string(pc) : std::to_string(pc);
     case Arm64Register::kPstate:
-      return hex ? string_util::to_hex_string(pstate) : std::to_string(pstate);
+      return hex ? string_util::to_hex_string(cpsr) : std::to_string(cpsr);
     case Arm64Register::kFpsr:
       return hex ? string_util::to_hex_string(fpsr) : std::to_string(fpsr);
     case Arm64Register::kFpcr:
