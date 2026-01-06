@@ -12,7 +12,7 @@ local function pkg_config_call(lib, what)
 end
 
 function pkg_config.cflags(lib)
-  if not os.istarget("linux") then
+  if not (os.istarget("linux") or os.istarget("macosx")) then
     return
   end
   buildoptions({
@@ -21,7 +21,7 @@ function pkg_config.cflags(lib)
 end
 
 function pkg_config.lflags(lib)
-  if not os.istarget("linux") then
+    if not (os.istarget("linux") or os.istarget("macosx")) then
     return
   end
   linkoptions({
