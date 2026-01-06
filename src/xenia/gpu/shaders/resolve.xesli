@@ -79,8 +79,8 @@ struct XeResolveInfo {
     uint dest_format;
     float dest_exp_bias_factor;
     bool dest_swap;
-    uint dest_row_pitch_aligned;
-    uint dest_slice_pitch_aligned;
+    uint dest_row_pitch_aligned_shr5;
+    uint dest_slice_pitch_aligned_shr4;
     uint2_xe dest_xy_offset_scaled;
     uint sample_select;
     uint dest_base;
@@ -132,10 +132,10 @@ XeResolveInfo XeResolveGetInfo(param_push_consts_xe) {
         (int(dest_info) << (32 - (16 + 6)) >> (32 - 6) << 23) +
         float_bits_to_int_xe(1.0f));
     resolve_info.dest_swap = (dest_info & (1u << 24u)) != 0u;
-    resolve_info.dest_row_pitch_aligned =
-        (dest_coordinate_info & ((1u << 10u) - 1u)) << 5u;
-    resolve_info.dest_slice_pitch_aligned =
-        ((dest_coordinate_info >> 10u) & ((1u << 10u) - 1u)) << 5u;
+    resolve_info.dest_row_pitch_aligned_shr5 =
+        dest_coordinate_info & ((1u << 10u) - 1u);
+    resolve_info.dest_slice_pitch_aligned_shr4 =
+        ((dest_coordinate_info >> 10u) & ((1u << 10u) - 1u)) << 1u;
     resolve_info.dest_xy_offset_scaled =
         (((uint_x2_xe(dest_coordinate_info) >> uint2_xe(20u, 24u)) &
           ((1u << 4u) - 1u)) <<
@@ -165,18 +165,19 @@ uint XeResolveEdramPixelStrideInts(XeResolveInfo resolve_info) {
     #ifdef XE_RESOLVE_RESOLUTION_SCALED
       address = XeTextureScaledTiledOffset(
           resolve_info.dest_is_array, uint3_xe(p, resolve_info.dest_slice),
-          resolve_info.dest_row_pitch_aligned,
-          resolve_info.dest_slice_pitch_aligned, bpp_log2,
+          resolve_info.dest_row_pitch_aligned_shr5,
+          resolve_info.dest_slice_pitch_aligned_shr4, bpp_log2,
           resolve_info.resolution_scale);
     #else
       dont_flatten_xe if (resolve_info.dest_is_array) {
-        address = uint(XeTextureTiledOffset3D(
+        address = uint(XenosTextureAddressTiled3D(
                            int3_xe(uint3_xe(p, resolve_info.dest_slice)),
-                           resolve_info.dest_row_pitch_aligned,
-                           resolve_info.dest_slice_pitch_aligned, bpp_log2));
+                           resolve_info.dest_row_pitch_aligned_shr5,
+                           resolve_info.dest_slice_pitch_aligned_shr4,
+                           bpp_log2));
       } else {
-        address = uint(XeTextureTiledOffset2D(
-            int2_xe(p), resolve_info.dest_row_pitch_aligned, bpp_log2));
+        address = uint(XenosTextureAddressTiled2D(
+            int2_xe(p), resolve_info.dest_row_pitch_aligned_shr5, bpp_log2));
       }
       address += resolve_info.dest_base;
     #endif

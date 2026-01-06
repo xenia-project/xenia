@@ -19,6 +19,7 @@
 #include "xenia/base/memory.h"
 #include "xenia/gpu/gpu_flags.h"
 #include "xenia/gpu/registers.h"
+#include "xenia/gpu/texture_address.h"
 #include "xenia/gpu/texture_cache.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/texture_util.h"
@@ -1002,16 +1003,16 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
   uint32_t copy_dest_base_adjusted = rb_copy_dest_base;
   uint32_t copy_dest_extent_start, copy_dest_extent_end;
   auto rb_copy_dest_pitch = regs.Get<reg::RB_COPY_DEST_PITCH>();
-  uint32_t copy_dest_pitch_aligned_div_32 =
-      (rb_copy_dest_pitch.copy_dest_pitch +
-       (xenos::kTextureTileWidthHeight - 1)) >>
-      xenos::kTextureTileWidthHeightLog2;
+  const uint32_t copy_dest_pitch_aligned =
+      xe::align(rb_copy_dest_pitch.copy_dest_pitch,
+                texture_address::kStoragePitchHeightAlignmentElements);
   info_out.copy_dest_coordinate_info.pitch_aligned_div_32 =
-      copy_dest_pitch_aligned_div_32;
+      copy_dest_pitch_aligned >> 5;
+  const uint32_t copy_dest_height_aligned =
+      xe::align(rb_copy_dest_pitch.copy_dest_height,
+                texture_address::kStoragePitchHeightAlignmentElements);
   info_out.copy_dest_coordinate_info.height_aligned_div_32 =
-      (rb_copy_dest_pitch.copy_dest_height +
-       (xenos::kTextureTileWidthHeight - 1)) >>
-      xenos::kTextureTileWidthHeightLog2;
+      copy_dest_height_aligned >> 5;
   const FormatInfo& dest_format_info = *FormatInfo::Get(dest_format);
   if (is_depth || dest_format_info.type == FormatType::kResolvable) {
     uint32_t bpp_log2 = xe::log2_floor(dest_format_info.bits_per_pixel >> 3);
@@ -1034,34 +1035,31 @@ bool GetResolveInfo(const RegisterFile& regs, const Memory& memory,
     if (rb_copy_dest_info.copy_dest_array) {
       // The base pointer is already adjusted to the Z / 8 (copy_dest_slice is
       // 3-bit).
-      copy_dest_base_adjusted += texture_util::GetTiledOffset3D(
+      copy_dest_base_adjusted += uint32_t(texture_address::Tiled3D(
           int32_t(dest_base_x), int32_t(dest_base_y), 0,
-          rb_copy_dest_pitch.copy_dest_pitch,
-          rb_copy_dest_pitch.copy_dest_height, bpp_log2);
+          copy_dest_pitch_aligned, copy_dest_height_aligned, bpp_log2));
       copy_dest_extent_start =
           rb_copy_dest_base +
-          texture_util::GetTiledAddressLowerBound3D(
+          uint32_t(texture_util::GetTiledAddressLowerBound3D(
               uint32_t(x0), uint32_t(y0), rb_copy_dest_info.copy_dest_slice,
-              rb_copy_dest_pitch.copy_dest_pitch,
-              rb_copy_dest_pitch.copy_dest_height, bpp_log2);
+              copy_dest_pitch_aligned, copy_dest_height_aligned, bpp_log2));
       copy_dest_extent_end =
           rb_copy_dest_base +
-          texture_util::GetTiledAddressUpperBound3D(
+          uint32_t(texture_util::GetTiledAddressUpperBound3D(
               uint32_t(x1), uint32_t(y1), rb_copy_dest_info.copy_dest_slice + 1,
-              rb_copy_dest_pitch.copy_dest_pitch,
-              rb_copy_dest_pitch.copy_dest_height, bpp_log2);
+              copy_dest_pitch_aligned, copy_dest_height_aligned, bpp_log2));
     } else {
-      copy_dest_base_adjusted += texture_util::GetTiledOffset2D(
-          int32_t(dest_base_x), int32_t(dest_base_y),
-          rb_copy_dest_pitch.copy_dest_pitch, bpp_log2);
+      copy_dest_base_adjusted +=
+          texture_address::Tiled2D(int32_t(dest_base_x), int32_t(dest_base_y),
+                                   copy_dest_pitch_aligned, bpp_log2);
       copy_dest_extent_start =
-          rb_copy_dest_base + texture_util::GetTiledAddressLowerBound2D(
-                                  uint32_t(x0), uint32_t(y0),
-                                  rb_copy_dest_pitch.copy_dest_pitch, bpp_log2);
+          rb_copy_dest_base +
+          texture_util::GetTiledAddressLowerBound2D(
+              uint32_t(x0), uint32_t(y0), copy_dest_pitch_aligned, bpp_log2);
       copy_dest_extent_end =
-          rb_copy_dest_base + texture_util::GetTiledAddressUpperBound2D(
-                                  uint32_t(x1), uint32_t(y1),
-                                  rb_copy_dest_pitch.copy_dest_pitch, bpp_log2);
+          rb_copy_dest_base +
+          texture_util::GetTiledAddressUpperBound2D(
+              uint32_t(x1), uint32_t(y1), copy_dest_pitch_aligned, bpp_log2);
     }
   } else {
     XELOGE("Tried to resolve to format {}, which is not a ColorFormat",

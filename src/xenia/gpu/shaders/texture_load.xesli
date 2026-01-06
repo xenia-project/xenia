@@ -104,22 +104,22 @@ uint XeTextureLoadGuestBlockOffset(XeTextureLoadInfo load_info,
   #ifdef XE_TEXTURE_LOAD_RESOLUTION_SCALED
     // Only resolved textures can be resolution-scaled, and resolving is only
     // possible to a tiled destination.
-    return
-        load_info.guest_offset +
-        XeTextureScaledTiledOffset(load_info.is_3d, block_index,
-                                   load_info.guest_pitch_aligned,
-                                   load_info.guest_z_stride_block_rows_aligned,
-                                   bpb_log2, load_info.resolution_scale);
+    return load_info.guest_offset +
+           XeTextureScaledTiledOffset(
+               load_info.is_3d, block_index, load_info.guest_pitch_aligned >> 5,
+               load_info.guest_z_stride_block_rows_aligned >> 4, bpb_log2,
+               load_info.resolution_scale);
   #else
     int block_offset_guest;
     dont_flatten_xe if (load_info.is_tiled) {
       dont_flatten_xe if (load_info.is_3d) {
-        block_offset_guest = XeTextureTiledOffset3D(
-            int3_xe(block_index), load_info.guest_pitch_aligned,
-            load_info.guest_z_stride_block_rows_aligned, bpb_log2);
+        block_offset_guest = XenosTextureAddressTiled3D(
+            int3_xe(block_index), load_info.guest_pitch_aligned >> 5,
+            load_info.guest_z_stride_block_rows_aligned >> 4, bpb_log2);
       } else {
-        block_offset_guest = XeTextureTiledOffset2D(
-            int2_xe(block_index.xy), load_info.guest_pitch_aligned, bpb_log2);
+        block_offset_guest = XenosTextureAddressTiled2D(
+            int2_xe(block_index.xy), load_info.guest_pitch_aligned >> 5,
+            bpb_log2);
       }
     } else {
       block_offset_guest = XeTextureGuestLinearOffset(

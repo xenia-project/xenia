@@ -13,6 +13,7 @@
 #include <algorithm>
 
 #include "xenia/base/math.h"
+#include "xenia/gpu/texture_address.h"
 #include "xenia/gpu/texture_info.h"
 #include "xenia/gpu/xenos.h"
 
@@ -22,6 +23,10 @@ namespace texture_util {
 
 // This namespace replaces texture_extent and most of texture_info for
 // simplicity.
+
+// TODO(Triang3l): Move most of the addressing calculations to
+// `texture_address.h` and clean them up based on the actual internals of the
+// tiling.
 
 // Extracts the size from the fetch constant, and also cleans up addresses and
 // mip range based on real presence of the base level and mips. Returns 6 faces
@@ -283,40 +288,37 @@ void GetTextureTotalSize(xenos::DataDimension dimension,
 // bytes_per_block_log2 is log2_floor according to how Direct3D 9 calculates it,
 // but k_32_32_32 textures are never tiled anyway likely.
 
-int32_t GetTiledOffset2D(int32_t x, int32_t y, uint32_t pitch,
-                         uint32_t bytes_per_block_log2);
-int32_t GetTiledOffset3D(int32_t x, int32_t y, int32_t z, uint32_t pitch,
-                         uint32_t height, uint32_t bytes_per_block_log2);
 // Because (0, 0, 0) within each 32x32x4-block tile is stored in memory first,
 // and the tiled address grows monotonically with Z/4, then Y/32, then X/32
 // blocks.
 inline uint32_t GetTiledAddressLowerBound2D(uint32_t left, uint32_t top,
-                                            uint32_t pitch,
+                                            uint32_t pitch_aligned,
                                             uint32_t bytes_per_block_log2) {
-  return uint32_t(
-      GetTiledOffset2D(int32_t(left & ~(xenos::kTextureTileWidthHeight - 1)),
-                       int32_t(top & ~(xenos::kTextureTileWidthHeight - 1)),
-                       pitch, bytes_per_block_log2));
+  return uint32_t(texture_address::Tiled2D(
+      int32_t(left & ~(xenos::kTextureTileWidthHeight - 1)),
+      int32_t(top & ~(xenos::kTextureTileWidthHeight - 1)), pitch_aligned,
+      bytes_per_block_log2));
 }
-inline uint32_t GetTiledAddressLowerBound3D(uint32_t left, uint32_t top,
-                                            uint32_t front, uint32_t pitch,
-                                            uint32_t height,
+inline uint64_t GetTiledAddressLowerBound3D(uint32_t left, uint32_t top,
+                                            uint32_t front,
+                                            uint32_t pitch_aligned,
+                                            uint32_t height_aligned,
                                             uint32_t bytes_per_block_log2) {
-  return uint32_t(
-      GetTiledOffset3D(int32_t(left & ~(xenos::kTextureTileWidthHeight - 1)),
-                       int32_t(top & ~(xenos::kTextureTileWidthHeight - 1)),
-                       int32_t(front & ~(xenos::kTextureTileDepth)), pitch,
-                       height, bytes_per_block_log2));
+  return uint64_t(texture_address::Tiled3D(
+      int32_t(left & ~(xenos::kTextureTileWidthHeight - 1)),
+      int32_t(top & ~(xenos::kTextureTileWidthHeight - 1)),
+      int32_t(front & ~(xenos::kTextureTileDepth)), pitch_aligned,
+      height_aligned, bytes_per_block_log2));
 }
 // Supporting the right > pitch and bottom > height (in tiles) cases also, for
 // estimation how far addresses can actually go even potentially beyond the
 // subresource stride.
 uint32_t GetTiledAddressUpperBound2D(uint32_t right, uint32_t bottom,
-                                     uint32_t pitch,
+                                     uint32_t pitch_aligned,
                                      uint32_t bytes_per_block_log2);
-uint32_t GetTiledAddressUpperBound3D(uint32_t right, uint32_t bottom,
-                                     uint32_t back, uint32_t pitch,
-                                     uint32_t height,
+uint64_t GetTiledAddressUpperBound3D(uint32_t right, uint32_t bottom,
+                                     uint32_t back, uint32_t pitch_aligned,
+                                     uint32_t height_aligned,
                                      uint32_t bytes_per_block_log2);
 
 // Returns four packed TextureSign values swizzled according to the swizzle in
