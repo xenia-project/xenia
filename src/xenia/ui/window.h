@@ -552,7 +552,7 @@ class Window {
   // especially if it's different than the desired one.
   void OnDpiChanged(UISetupEvent& e,
                     WindowDestructionReceiver& destruction_receiver);
-  void OnMonitorUpdate(MonitorUpdateEvent& e);
+  void OnMonitorUpdate(const MonitorUpdateEvent& e);
   // For calling when the platform changes something in the non-maximized,
   // non-fullscreen size of the window.
   void OnDesiredLogicalSizeUpdate(uint32_t new_desired_logical_width,

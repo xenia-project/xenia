@@ -322,7 +322,9 @@ class object_ref {
 
   void reset(T* value) noexcept { object_ref(value).swap(*this); }
 
-  inline bool operator==(const T* right) noexcept { return value_ == right; }
+  inline bool operator==(const T* right) const noexcept {
+    return value_ == right;
+  }
 
  private:
   T* value_ = nullptr;
