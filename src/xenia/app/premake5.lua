@@ -17,6 +17,7 @@ project("xenia-app")
     "xenia-hid",
     "xenia-hid-nop",
     "xenia-kernel",
+    "xenia-patcher",
     "xenia-ui",
     "xenia-ui-vulkan",
     "xenia-vfs",
