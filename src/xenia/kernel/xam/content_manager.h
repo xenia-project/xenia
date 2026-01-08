@@ -19,6 +19,7 @@
 #include "xenia/base/mutex.h"
 #include "xenia/base/string_key.h"
 #include "xenia/base/string_util.h"
+#include "xenia/vfs/devices/host_path_device.h"
 #include "xenia/xbox.h"
 
 namespace xe {
@@ -121,7 +122,7 @@ class ContentPackage {
  public:
   ContentPackage(KernelState* kernel_state, const std::string_view root_name,
                  const XCONTENT_AGGREGATE_DATA& data,
-                 const std::filesystem::path& package_path);
+                 const std::filesystem::path& package_path, bool stfs = false);
   ~ContentPackage();
 
   const XCONTENT_AGGREGATE_DATA& GetPackageContentData() const {
@@ -151,6 +152,9 @@ class ContentManager {
   bool ContentExists(const XCONTENT_AGGREGATE_DATA& data);
   X_RESULT CreateContent(const std::string_view root_name,
                          const XCONTENT_AGGREGATE_DATA& data);
+  X_RESULT MountContentToHost(const std::string_view vpath,
+                              const std::string_view root_name,
+                              XCONTENT_AGGREGATE_DATA& data);
   X_RESULT OpenContent(const std::string_view root_name,
                        const XCONTENT_AGGREGATE_DATA& data);
   X_RESULT CloseContent(const std::string_view root_name);
