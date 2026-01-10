@@ -56,6 +56,9 @@ class PosixMappedMemory : public MappedMemory {
       map_length = size_t(file_stat.st_size);
     }
 
+    // Ensure that the file is large enough.
+    ftruncate(file_descriptor, map_length);
+
     void* data =
         mmap(0, map_length, protection, MAP_SHARED, file_descriptor, offset);
     if (!data) {
