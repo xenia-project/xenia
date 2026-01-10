@@ -23,4 +23,5 @@ project("xenia-ui")
     links({
       "dwmapi",
       "dxgi",
+      "winhttp",
     })
