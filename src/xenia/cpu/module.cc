@@ -147,6 +147,15 @@ Symbol::Status Module::DefineVariable(Symbol* symbol) {
   return DefineSymbol(symbol);
 }
 
+const std::vector<uint32_t> Module::GetAddressedFunctions() {
+  std::vector<uint32_t> addresses;
+
+  for (const auto& [key, _] : map_) {
+    addresses.push_back(key);
+  }
+  return addresses;
+}
+
 void Module::ForEachFunction(std::function<void(Function*)> callback) {
   auto global_lock = global_critical_region_.Acquire();
   for (auto& symbol : list_) {
