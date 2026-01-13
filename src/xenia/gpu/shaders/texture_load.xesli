@@ -146,6 +146,9 @@ uint XeTextureLoadSourceAddress(const XeTextureLoadInfo load_info,
 // - Resolution-scaled tiled: XeniaTextureResolutionScaledGroupElements.x;
 // - Unscaled tiled: macro tile width;
 // - Linear: 256 bytes.
+// Addition is recommended instead of XOR if the bits are known to be 0 in the
+// original address, so the host GPU driver can optimize it into a constant load
+// offset if available in the host hardware shader instruction set architecture.
 uint XeTextureLoadLocalXAddressXor(const uint x,
                                    const uint bytes_per_element_log2,
                                    const bool is_tiled) {

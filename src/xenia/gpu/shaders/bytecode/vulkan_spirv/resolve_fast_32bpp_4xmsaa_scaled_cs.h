@@ -570,9 +570,9 @@
                OpBranch %11416
       %11416 = OpLabel
       %19767 = OpPhi %v4uint %22649 %13411 %10728 %11064
-       %7084 = OpAccessChain %_ptr_Uniform_v4uint %xe_resolve_dest %int_0 %20867
-               OpStore %7084 %19767
-      %13848 = OpBitwiseXor %uint %20867 %uint_1
+      %24825 = OpAccessChain %_ptr_Uniform_v4uint %xe_resolve_dest %int_0 %20867
+               OpStore %24825 %19767
+      %21685 = OpIAdd %uint %20867 %uint_1
                OpSelectionMerge %14874 None
                OpBranchConditional %22150 %10584 %14874
       %10584 = OpLabel
@@ -593,7 +593,7 @@
                OpBranch %11417
       %11417 = OpLabel
       %19768 = OpPhi %v4uint %10927 %14874 %10729 %11065
-       %8053 = OpAccessChain %_ptr_Uniform_v4uint %xe_resolve_dest %int_0 %13848
+       %8053 = OpAccessChain %_ptr_Uniform_v4uint %xe_resolve_dest %int_0 %21685
                OpStore %8053 %19768
                OpBranch %19578
       %19578 = OpLabel
@@ -1038,8 +1038,8 @@ const uint32_t resolve_fast_32bpp_4xmsaa_scaled_cs[] = {
     0x00005879, 0x000002ED, 0x000500C5, 0x00000017, 0x000029E8, 0x00005E17,
     0x00003BE7, 0x000200F9, 0x00002C98, 0x000200F8, 0x00002C98, 0x000700F5,
     0x00000017, 0x00004D37, 0x00005879, 0x00003463, 0x000029E8, 0x00002B38,
-    0x00060041, 0x00000294, 0x00001BAC, 0x00001592, 0x00000A0B, 0x00005183,
-    0x0003003E, 0x00001BAC, 0x00004D37, 0x000500C6, 0x0000000B, 0x00003618,
+    0x00060041, 0x00000294, 0x000060F9, 0x00001592, 0x00000A0B, 0x00005183,
+    0x0003003E, 0x000060F9, 0x00004D37, 0x00050080, 0x0000000B, 0x000054B5,
     0x00005183, 0x00000A0D, 0x000300F7, 0x00003A1A, 0x00000000, 0x000400FA,
     0x00005686, 0x00002958, 0x00003A1A, 0x000200F8, 0x00002958, 0x000500C7,
     0x00000017, 0x00004760, 0x000022F8, 0x000009CE, 0x000500C4, 0x00000017,
@@ -1054,7 +1054,7 @@ const uint32_t resolve_fast_32bpp_4xmsaa_scaled_cs[] = {
     0x000500C5, 0x00000017, 0x000029E9, 0x00005E18, 0x00003BE8, 0x000200F9,
     0x00002C99, 0x000200F8, 0x00002C99, 0x000700F5, 0x00000017, 0x00004D38,
     0x00002AAF, 0x00003A1A, 0x000029E9, 0x00002B39, 0x00060041, 0x00000294,
-    0x00001F75, 0x00001592, 0x00000A0B, 0x00003618, 0x0003003E, 0x00001F75,
+    0x00001F75, 0x00001592, 0x00000A0B, 0x000054B5, 0x0003003E, 0x00001F75,
     0x00004D38, 0x000200F9, 0x00004C7A, 0x000200F8, 0x00004C7A, 0x000100FD,
     0x00010038,
 };

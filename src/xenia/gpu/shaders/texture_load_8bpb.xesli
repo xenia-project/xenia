@@ -42,7 +42,7 @@ entry_inputs_end_code_begin_compute_xe
           array_buffer_load_xe(xe_texture_load_source, block_offset_guest),
           array_buffer_load_xe(
               xe_texture_load_source,
-              block_offset_guest ^
+              block_offset_guest +
                   (XeTextureLoadLocalXAddressXor(8u, 0u, load_info.is_tiled)
                        >> 3u))));
 }

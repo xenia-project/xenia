@@ -66,7 +66,7 @@ entry_inputs_end_code_begin_compute_xe
   array_buffer_store_xe(
       xe_resolve_dest, dest_address,
       XeEndianSwap64(pixels_01, resolve_info.dest_endian_128));
-  dest_address ^= XeResolveLocalXAddressXor(2u, 3u) >> 4u;
+  dest_address += XeResolveLocalXAddressXor(2u, 3u) >> 4u;
   array_buffer_store_xe(
       xe_resolve_dest, dest_address,
       XeEndianSwap64(pixels_23, resolve_info.dest_endian_128));

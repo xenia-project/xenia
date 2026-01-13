@@ -43,7 +43,7 @@ entry_inputs_end_code_begin_compute_xe
   array_buffer_store_xe(xe_texture_load_dest, block_offset_host,
                         XE_TEXTURE_LOAD_64BPB_TRANSFORM(guest_blocks));
   ++block_offset_host;
-  block_offset_guest ^=
+  block_offset_guest +=
       XeTextureLoadLocalXAddressXor(2u, 3u, load_info.is_tiled) >> 4u;
   guest_blocks = XeEndianSwap32(
       array_buffer_load_xe(xe_texture_load_source, block_offset_guest),

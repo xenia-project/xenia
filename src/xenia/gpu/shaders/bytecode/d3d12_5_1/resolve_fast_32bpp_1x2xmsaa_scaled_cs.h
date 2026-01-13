@@ -212,7 +212,7 @@ if_nz r0.z
   bfi r6.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r6.xyzw, r1.zxyw
 endif 
 store_uav_typed U0[0].xyzw, r0.xxxx, r6.yzxw
-xor r0.x, r0.x, l(1)
+iadd r0.w, r0.x, l(1)
 if_nz r0.y
   ishl r1.xyzw, r7.xyzw, l(8, 8, 8, 8)
   and r1.xyzw, r1.xyzw, l(0xff00ff00, 0xff00ff00, 0xff00ff00, 0xff00ff00)
@@ -224,17 +224,17 @@ if_nz r0.z
   ushr r1.xyzw, r7.xyzw, l(16, 16, 16, 16)
   bfi r7.xyzw, l(16, 16, 16, 16), l(16, 16, 16, 16), r7.xyzw, r1.xyzw
 endif 
-store_uav_typed U0[0].xyzw, r0.xxxx, r7.xyzw
+store_uav_typed U0[0].xyzw, r0.wwww, r7.xyzw
 ret 
 // Approximately 181 instruction slots used
 #endif
 
 const BYTE resolve_fast_32bpp_1x2xmsaa_scaled_cs[] =
 {
-     68,  88,  66,  67, 214, 242, 
-    111,  62,  89, 137,  68, 200, 
-      3,  79,  58,   4, 207, 155, 
-    223, 158,   1,   0,   0,   0, 
+     68,  88,  66,  67, 198,  17, 
+    215, 199, 120, 131, 154, 113, 
+     86, 242,  97, 183, 185, 191, 
+    137, 117,   1,   0,   0,   0, 
     208,  25,   0,   0,   5,   0, 
       0,   0,  52,   0,   0,   0, 
     144,   2,   0,   0, 160,   2, 
@@ -1241,7 +1241,7 @@ const BYTE resolve_fast_32bpp_1x2xmsaa_scaled_cs[] =
       0,   0,   6,   0,  16,   0, 
       0,   0,   0,   0, 150,  12, 
      16,   0,   6,   0,   0,   0, 
-     87,   0,   0,   7,  18,   0, 
+     30,   0,   0,   7, 130,   0, 
      16,   0,   0,   0,   0,   0, 
      10,   0,  16,   0,   0,   0, 
       0,   0,   1,  64,   0,   0, 
@@ -1303,7 +1303,7 @@ const BYTE resolve_fast_32bpp_1x2xmsaa_scaled_cs[] =
       0,   1, 164,   0,   0,   8, 
     242, 224,  33,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
-      6,   0,  16,   0,   0,   0, 
+    246,  15,  16,   0,   0,   0, 
       0,   0,  70,  14,  16,   0, 
       7,   0,   0,   0,  62,   0, 
       0,   1,  83,  84,  65,  84, 
@@ -1311,7 +1311,7 @@ const BYTE resolve_fast_32bpp_1x2xmsaa_scaled_cs[] =
       0,   0,   9,   0,   0,   0, 
       0,   0,   0,   0,   1,   0, 
       0,   0,   0,   0,   0,   0, 
-     46,   0,   0,   0,  40,   0, 
+     47,   0,   0,   0,  39,   0, 
       0,   0,   8,   0,   0,   0, 
      15,   0,   0,   0,   0,   0, 
       0,   0,   0,   0,   0,   0, 
