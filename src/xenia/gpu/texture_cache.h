@@ -380,8 +380,7 @@ class TextureCache {
     uint32_t is_tiled_3d_endian_scale;
     // Base offset in bytes, resolution-scaled.
     uint32_t guest_offset;
-    // For tiled textures - row pitch in blocks, aligned to 32, unscaled.
-    // For linear textures - row pitch in bytes.
+    // Unscaled.
     uint32_t guest_pitch_aligned;
     // For 3D textures only (ignored otherwise) - aligned to 32, unscaled.
     uint32_t guest_z_stride_block_rows_aligned;

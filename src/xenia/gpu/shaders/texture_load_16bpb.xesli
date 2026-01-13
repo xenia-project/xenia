@@ -36,16 +36,15 @@ entry_inputs_end_code_begin_compute_xe
                                  load_info.size_blocks.y, 2u) +
        load_info.host_offset) >> 4u);
   uint block_offset_guest =
-      XeTextureLoadGuestBlockOffset(load_info, block_index, 2u, 1u) >> 4u;
+      XeTextureLoadSourceAddress(load_info, block_index, 1u) >> 4u;
   uint4_xe guest_blocks = XeEndianSwap16(
       array_buffer_load_xe(xe_texture_load_source, block_offset_guest),
       load_info.endian_32);
   array_buffer_store_xe(xe_texture_load_dest, block_offset_host,
                         XE_TEXTURE_LOAD_16BPB_TRANSFORM(guest_blocks));
   ++block_offset_host;
-  block_offset_guest +=
-      XeTextureLoadRightConsecutiveBlocksOffset(load_info, block_index.x, 1u) >>
-      4u;
+  block_offset_guest ^=
+      XeTextureLoadLocalXAddressXor(8u, 1u, load_info.is_tiled) >> 4u;
   guest_blocks = XeEndianSwap16(
       array_buffer_load_xe(xe_texture_load_source, block_offset_guest),
       load_info.endian_32);

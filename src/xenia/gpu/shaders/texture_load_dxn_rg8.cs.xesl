@@ -39,7 +39,7 @@ entry_inputs_end_code_begin_compute_xe
        load_info.host_offset) >> 4u);
   uint elements_pitch_host = load_info.host_pitch >> 4u;
   uint block_offset_guest =
-      XeTextureLoadGuestBlockOffset(load_info, block_index, 16u, 4u) >> 4u;
+      XeTextureLoadSourceAddress(load_info, block_index, 4u) >> 4u;
   uint4_xe block_0 = XeEndianSwap32(
       array_buffer_load_xe(xe_texture_load_source, block_offset_guest),
       load_info.endian_32);

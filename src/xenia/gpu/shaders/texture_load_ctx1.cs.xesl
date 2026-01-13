@@ -53,7 +53,7 @@ entry_inputs_end_code_begin_compute_xe
        load_info.host_offset) >> 4u);
   uint elements_pitch_host = load_info.host_pitch >> 4u;
   uint block_offset_guest =
-      XeTextureLoadGuestBlockOffset(load_info, block_index, 8u, 3u) >> 4u;
+      XeTextureLoadSourceAddress(load_info, block_index, 3u) >> 4u;
   uint i;
   unroll_xe for (i = 0u; i < 2u; ++i) {
     if (i != 0u) {

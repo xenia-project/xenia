@@ -83,10 +83,10 @@
      %int_12 = OpConstant %int 12
       %int_3 = OpConstant %int 3
       %int_2 = OpConstant %int 2
+      %int_0 = OpConstant %int 0
 %push_const_block_xe = OpTypeStruct %uint %uint %uint %uint %uint
 %_ptr_PushConstant_push_const_block_xe = OpTypePointer PushConstant %push_const_block_xe
 %push_consts_xe = OpVariable %_ptr_PushConstant_push_const_block_xe PushConstant
-      %int_0 = OpConstant %int 0
 %_ptr_PushConstant_uint = OpTypePointer PushConstant %uint
   %uint_1023 = OpConstant %uint 1023
     %uint_10 = OpConstant %uint 10
@@ -168,7 +168,7 @@
        %8444 = OpBitwiseAnd %uint %20919 %uint_1023
       %12176 = OpShiftRightLogical %uint %20919 %uint_10
       %25038 = OpBitwiseAnd %uint %12176 %uint_1023
-      %25203 = OpShiftLeftLogical %uint %25038 %uint_1
+      %25203 = OpShiftLeftLogical %uint %25038 %int_1
       %10422 = OpCompositeConstruct %v2uint %20919 %20919
       %10385 = OpShiftRightLogical %v2uint %10422 %2275
       %23380 = OpBitwiseAnd %v2uint %10385 %2122
@@ -535,10 +535,10 @@ const uint32_t resolve_fast_64bpp_4xmsaa_cs[] = {
     0x00000A1A, 0x00000005, 0x0004002B, 0x0000000C, 0x00000A20, 0x00000007,
     0x0004002B, 0x0000000C, 0x00000A23, 0x00000008, 0x0004002B, 0x0000000C,
     0x00000A2F, 0x0000000C, 0x0004002B, 0x0000000C, 0x00000A14, 0x00000003,
-    0x0004002B, 0x0000000C, 0x00000A11, 0x00000002, 0x0007001E, 0x0000040B,
-    0x0000000B, 0x0000000B, 0x0000000B, 0x0000000B, 0x0000000B, 0x00040020,
-    0x00000688, 0x00000009, 0x0000040B, 0x0004003B, 0x00000688, 0x00000CE9,
-    0x00000009, 0x0004002B, 0x0000000C, 0x00000A0B, 0x00000000, 0x00040020,
+    0x0004002B, 0x0000000C, 0x00000A11, 0x00000002, 0x0004002B, 0x0000000C,
+    0x00000A0B, 0x00000000, 0x0007001E, 0x0000040B, 0x0000000B, 0x0000000B,
+    0x0000000B, 0x0000000B, 0x0000000B, 0x00040020, 0x00000688, 0x00000009,
+    0x0000040B, 0x0004003B, 0x00000688, 0x00000CE9, 0x00000009, 0x00040020,
     0x00000288, 0x00000009, 0x0000000B, 0x0004002B, 0x0000000B, 0x00000A44,
     0x000003FF, 0x0004002B, 0x0000000B, 0x00000A28, 0x0000000A, 0x0004002B,
     0x0000000B, 0x00000A31, 0x0000000D, 0x0004002B, 0x0000000B, 0x00000A81,
@@ -600,7 +600,7 @@ const uint32_t resolve_fast_64bpp_4xmsaa_cs[] = {
     0x00004C4F, 0x00005A4E, 0x00000A0A, 0x000500C7, 0x0000000B, 0x000020FC,
     0x000051B7, 0x00000A44, 0x000500C2, 0x0000000B, 0x00002F90, 0x000051B7,
     0x00000A28, 0x000500C7, 0x0000000B, 0x000061CE, 0x00002F90, 0x00000A44,
-    0x000500C4, 0x0000000B, 0x00006273, 0x000061CE, 0x00000A0D, 0x00050050,
+    0x000500C4, 0x0000000B, 0x00006273, 0x000061CE, 0x00000A0E, 0x00050050,
     0x00000011, 0x000028B6, 0x000051B7, 0x000051B7, 0x000500C2, 0x00000011,
     0x00002891, 0x000028B6, 0x000008E3, 0x000500C7, 0x00000011, 0x00005B54,
     0x00002891, 0x0000084A, 0x000500C4, 0x00000011, 0x00003F50, 0x00005B54,

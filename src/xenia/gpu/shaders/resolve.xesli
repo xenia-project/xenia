@@ -79,8 +79,8 @@ struct XeResolveInfo {
     uint dest_format;
     float dest_exp_bias_factor;
     bool dest_swap;
-    uint dest_row_pitch_aligned_shr5;
-    uint dest_slice_pitch_aligned_shr4;
+    uint dest_row_pitch_macro_tiles;
+    uint dest_slice_pitch_3d_macro_tiles;
     uint2_xe dest_xy_offset_scaled;
     uint sample_select;
     uint dest_base;
@@ -132,10 +132,11 @@ XeResolveInfo XeResolveGetInfo(param_push_consts_xe) {
         (int(dest_info) << (32 - (16 + 6)) >> (32 - 6) << 23) +
         float_bits_to_int_xe(1.0f));
     resolve_info.dest_swap = (dest_info & (1u << 24u)) != 0u;
-    resolve_info.dest_row_pitch_aligned_shr5 =
+    resolve_info.dest_row_pitch_macro_tiles =
         dest_coordinate_info & ((1u << 10u) - 1u);
-    resolve_info.dest_slice_pitch_aligned_shr4 =
-        ((dest_coordinate_info >> 10u) & ((1u << 10u) - 1u)) << 1u;
+    resolve_info.dest_slice_pitch_3d_macro_tiles =
+        ((dest_coordinate_info >> 10u) & ((1u << 10u) - 1u)) <<
+        (5 - XENOS_TEXTURE_MACRO_TILE_HEIGHT_3D_LOG2);
     resolve_info.dest_xy_offset_scaled =
         (((uint_x2_xe(dest_coordinate_info) >> uint2_xe(20u, 24u)) &
           ((1u << 4u) - 1u)) <<
@@ -158,41 +159,50 @@ uint XeResolveEdramPixelStrideInts(XeResolveInfo resolve_info) {
 }
 
 #ifndef XE_RESOLVE_CLEAR
-  uint XeResolveDestPixelAddress(XeResolveInfo resolve_info, uint2_xe p,
-                                 uint bpp_log2) {
-    p += resolve_info.dest_xy_offset_scaled;
+  uint XeResolveDestPixelAddress(const XeResolveInfo resolve_info,
+                                 uint2_xe host_position,
+                                 const uint bytes_per_element_log2) {
+    host_position += resolve_info.dest_xy_offset_scaled;
     uint address;
+    uint2_xe guest_position = host_position;
     #ifdef XE_RESOLVE_RESOLUTION_SCALED
-      address = XeTextureScaledTiledOffset(
-          resolve_info.dest_is_array, uint3_xe(p, resolve_info.dest_slice),
-          resolve_info.dest_row_pitch_aligned_shr5,
-          resolve_info.dest_slice_pitch_aligned_shr4, bpp_log2,
-          resolve_info.resolution_scale);
-    #else
-      dont_flatten_xe if (resolve_info.dest_is_array) {
-        address = uint(XenosTextureTiledAddress3D(
-                           int3_xe(uint3_xe(p, resolve_info.dest_slice)),
-                           resolve_info.dest_row_pitch_aligned_shr5,
-                           resolve_info.dest_slice_pitch_aligned_shr4,
-                           bpp_log2));
-      } else {
-        address = uint(XenosTextureTiledAddress2D(
-            int2_xe(p), resolve_info.dest_row_pitch_aligned_shr5, bpp_log2));
-      }
-      address += resolve_info.dest_base;
+      const XeniaTextureResolutionScaledAddressing
+          resolution_scaled_addressing =
+              XeniaTextureGetResolutionScaledAddressing(
+                  host_position.xy, resolve_info.resolution_scale,
+                  bytes_per_element_log2);
+      guest_position = resolution_scaled_addressing.guest_group_origin;
     #endif
+    dont_flatten_xe if (resolve_info.dest_is_array) {
+      address = uint(XenosTextureTiledAddress3D(
+          int3_xe(uint3_xe(guest_position, resolve_info.dest_slice)),
+          resolve_info.dest_row_pitch_macro_tiles,
+          resolve_info.dest_slice_pitch_3d_macro_tiles,
+          bytes_per_element_log2));
+    } else {
+      address = uint(XenosTextureTiledAddress2D(
+          int2_xe(guest_position), resolve_info.dest_row_pitch_macro_tiles,
+          bytes_per_element_log2));
+    }
+    #ifdef XE_RESOLVE_RESOLUTION_SCALED
+      address = address * (resolve_info.resolution_scale.x *
+                           resolve_info.resolution_scale.y) +
+                resolution_scaled_addressing.host_byte_offset_in_guest_group;
+    #endif
+    address += resolve_info.dest_base;
     return address;
   }
 
-  // Offset of the beginning of the odd R32G32/R32G32B32A32 store address from
-  // the address of the even store.
-  uint XeResolveDestRightConsecutiveBlocksOffset(uint x, uint bpp_log2,
-                                                 uint2_xe resolution_scale) {
+  // XOR to apply to the byte address to flip the bits corresponding to the
+  // given X coordinate bits the macro tile width, or with resolution scaling,
+  // within XeniaTextureResolutionScaledGroupElements.x.
+  uint XeResolveLocalXAddressXor(const uint x,
+                                 const uint bytes_per_element_log2) {
     #ifdef XE_RESOLVE_RESOLUTION_SCALED
-      return XeTextureScaledRightSubUnitOffsetInConsecutivePair(
-                 x, bpp_log2, resolution_scale);
+      return x << bytes_per_element_log2;
     #else
-      return XeTextureTiledOddConsecutiveBlocksOffset(bpp_log2);
+      return uint(XenosTextureTiledAddressXInMacroXor(int(x),
+                                                      bytes_per_element_log2));
     #endif
   }
 
