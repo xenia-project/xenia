@@ -17,7 +17,7 @@
 #define XENOS_TEXTURE_MACRO_TILE_HEIGHT_3D_LOG2 4
 #define XENOS_TEXTURE_MACRO_TILE_DEPTH_LOG2 2
 
-int XenosTextureAddressTiledCombine(const int outer_inner_bytes, const int bank,
+int XenosTextureTiledAddressCombine(const int outer_inner_bytes, const int bank,
                                     const int pipe, const int y_lsb) {
   return (y_lsb << 4) | (pipe << 6) | (bank << 11) | (outer_inner_bytes & 0xF) |
          (((outer_inner_bytes >> 4) & 0x1) << 5) |
@@ -25,7 +25,7 @@ int XenosTextureAddressTiledCombine(const int outer_inner_bytes, const int bank,
          (outer_inner_bytes >> 8 << 12);
 }
 
-int XenosTextureAddressTiled2D(const int2_xe p, const uint pitch_macro_tiles,
+int XenosTextureTiledAddress2D(const int2_xe p, const uint pitch_macro_tiles,
                                const uint bytes_per_element_log2) {
   const int outer_elements =
       ((p.y >> XENOS_TEXTURE_MACRO_TILE_HEIGHT_2D_LOG2) *
@@ -37,11 +37,11 @@ int XenosTextureAddressTiled2D(const int2_xe p, const uint pitch_macro_tiles,
       (outer_elements | inner_elements) << bytes_per_element_log2;
   const int bank = (p.y >> 4) & 0x1;
   const int pipe = ((p.x >> 3) & 0x3) ^ (((p.y >> 3) & 0x1) << 1);
-  return XenosTextureAddressTiledCombine(outer_inner_bytes, bank, pipe,
+  return XenosTextureTiledAddressCombine(outer_inner_bytes, bank, pipe,
                                          p.y & 1);
 }
 
-int XenosTextureAddressTiled3D(const int3_xe p, const uint pitch_macro_tiles,
+int XenosTextureTiledAddress3D(const int3_xe p, const uint pitch_macro_tiles,
                                const uint height_macro_tiles,
                                const uint bytes_per_element_log2) {
   const int outer_elements =
@@ -57,7 +57,7 @@ int XenosTextureAddressTiled3D(const int3_xe p, const uint pitch_macro_tiles,
       (outer_elements | inner_elements) << bytes_per_element_log2;
   const int bank = ((p.y >> 3) ^ (p.z >> 2)) & 0x1;
   const int pipe = ((p.x >> 3) & 0x3) ^ (bank << 1);
-  return XenosTextureAddressTiledCombine(outer_inner_bytes, bank, pipe,
+  return XenosTextureTiledAddressCombine(outer_inner_bytes, bank, pipe,
                                          p.y & 1);
 }
 
@@ -113,11 +113,11 @@ uint XeTextureScaledTiledOffset(bool is_3d, uint3_xe p, uint pitch_aligned_shr5,
   // Global guest linear address of the beginning of Nx1 unit in bytes.
   uint unit_guest_address;
   dont_flatten_xe if (is_3d) {
-    unit_guest_address = uint(XenosTextureAddressTiled3D(
+    unit_guest_address = uint(XenosTextureTiledAddress3D(
         int3_xe(unit_guest_origin), pitch_aligned_shr5, height_aligned_shr4,
         bpb_log2));
   } else {
-    unit_guest_address = uint(XenosTextureAddressTiled2D(
+    unit_guest_address = uint(XenosTextureTiledAddress2D(
         int2_xe(unit_guest_origin.xy), pitch_aligned_shr5, bpb_log2));
   }
   // Unit-local host XY index of the host Nx1 sub-unit.

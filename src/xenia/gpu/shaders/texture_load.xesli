@@ -113,11 +113,11 @@ uint XeTextureLoadGuestBlockOffset(XeTextureLoadInfo load_info,
     int block_offset_guest;
     dont_flatten_xe if (load_info.is_tiled) {
       dont_flatten_xe if (load_info.is_3d) {
-        block_offset_guest = XenosTextureAddressTiled3D(
+        block_offset_guest = XenosTextureTiledAddress3D(
             int3_xe(block_index), load_info.guest_pitch_aligned >> 5,
             load_info.guest_z_stride_block_rows_aligned >> 4, bpb_log2);
       } else {
-        block_offset_guest = XenosTextureAddressTiled2D(
+        block_offset_guest = XenosTextureTiledAddress2D(
             int2_xe(block_index.xy), load_info.guest_pitch_aligned >> 5,
             bpb_log2);
       }

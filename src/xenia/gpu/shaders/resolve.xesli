@@ -170,13 +170,13 @@ uint XeResolveEdramPixelStrideInts(XeResolveInfo resolve_info) {
           resolve_info.resolution_scale);
     #else
       dont_flatten_xe if (resolve_info.dest_is_array) {
-        address = uint(XenosTextureAddressTiled3D(
+        address = uint(XenosTextureTiledAddress3D(
                            int3_xe(uint3_xe(p, resolve_info.dest_slice)),
                            resolve_info.dest_row_pitch_aligned_shr5,
                            resolve_info.dest_slice_pitch_aligned_shr4,
                            bpp_log2));
       } else {
-        address = uint(XenosTextureAddressTiled2D(
+        address = uint(XenosTextureTiledAddress2D(
             int2_xe(p), resolve_info.dest_row_pitch_aligned_shr5, bpp_log2));
       }
       address += resolve_info.dest_base;
