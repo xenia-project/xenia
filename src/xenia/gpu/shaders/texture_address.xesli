@@ -12,6 +12,11 @@
 
 #include "../../ui/shaders/xesl.xesli"
 
+#define XENOS_TEXTURE_MACRO_TILE_WIDTH_LOG2 5
+#define XENOS_TEXTURE_MACRO_TILE_HEIGHT_2D_LOG2 5
+#define XENOS_TEXTURE_MACRO_TILE_HEIGHT_3D_LOG2 4
+#define XENOS_TEXTURE_MACRO_TILE_DEPTH_LOG2 2
+
 int XenosTextureAddressTiledCombine(const int outer_inner_bytes, const int bank,
                                     const int pipe, const int y_lsb) {
   return (y_lsb << 4) | (pipe << 6) | (bank << 11) | (outer_inner_bytes & 0xF) |
@@ -20,10 +25,13 @@ int XenosTextureAddressTiledCombine(const int outer_inner_bytes, const int bank,
          (outer_inner_bytes >> 8 << 12);
 }
 
-int XenosTextureAddressTiled2D(const int2_xe p, const uint pitch_aligned_shr5,
+int XenosTextureAddressTiled2D(const int2_xe p, const uint pitch_macro_tiles,
                                const uint bytes_per_element_log2) {
   const int outer_elements =
-      ((p.y >> 5) * int(pitch_aligned_shr5) + (p.x >> 5)) << 6;
+      ((p.y >> XENOS_TEXTURE_MACRO_TILE_HEIGHT_2D_LOG2) *
+           int(pitch_macro_tiles) +
+       (p.x >> XENOS_TEXTURE_MACRO_TILE_WIDTH_LOG2))
+      << 6;
   const int inner_elements = (((p.y >> 1) & 0x7) << 3) | (p.x & 0x7);
   const int outer_inner_bytes =
       (outer_elements | inner_elements) << bytes_per_element_log2;
@@ -33,13 +41,15 @@ int XenosTextureAddressTiled2D(const int2_xe p, const uint pitch_aligned_shr5,
                                          p.y & 1);
 }
 
-int XenosTextureAddressTiled3D(const int3_xe p, const uint pitch_aligned_shr5,
-                               const uint height_aligned_shr4,
+int XenosTextureAddressTiled3D(const int3_xe p, const uint pitch_macro_tiles,
+                               const uint height_macro_tiles,
                                const uint bytes_per_element_log2) {
   const int outer_elements =
-      ((((p.z >> 2) * int(height_aligned_shr4) + (p.y >> 4)) *
-        int(pitch_aligned_shr5)) +
-       (p.x >> 5))
+      ((((p.z >> XENOS_TEXTURE_MACRO_TILE_DEPTH_LOG2) *
+             int(height_macro_tiles) +
+         (p.y >> XENOS_TEXTURE_MACRO_TILE_HEIGHT_3D_LOG2)) *
+        int(pitch_macro_tiles)) +
+       (p.x >> XENOS_TEXTURE_MACRO_TILE_WIDTH_LOG2))
       << 7;
   const int inner_elements =
       ((p.z & 0x3) << 5) | (((p.y >> 1) & 0x3) << 3) | (p.x & 0x7);

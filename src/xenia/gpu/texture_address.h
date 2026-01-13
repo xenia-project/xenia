@@ -168,6 +168,15 @@ constexpr uint32_t kStorageDepthAlignmentElements =
 // offsetting - more specifically, it's limited by the page size and the macro
 // tile size, whichever is greater.
 
+constexpr unsigned int kMacroTileWidthLog2 = 5;
+constexpr uint32_t kMacroTileWidth = uint32_t(1) << kMacroTileWidthLog2;
+constexpr unsigned int kMacroTileHeight2DLog2 = 5;
+constexpr uint32_t kMacroTileHeight2D = uint32_t(1) << kMacroTileHeight2DLog2;
+constexpr unsigned int kMacroTileHeight3DLog2 = 4;
+constexpr uint32_t kMacroTileHeight3D = uint32_t(1) << kMacroTileHeight3DLog2;
+constexpr unsigned int kMacroTileDepthLog2 = 2;
+constexpr uint32_t kMacroTileDepth = uint32_t(1) << kMacroTileDepthLog2;
+
 template <typename Address>
 Address TiledCombine(const Address outer_inner_bytes, const uint32_t bank,
                      const uint32_t pipe, const uint32_t y_lsb) {
@@ -193,7 +202,10 @@ inline int32_t Tiled2D(const int32_t x, const int32_t y,
   // the actual storage dimensions.
   assert_zero(pitch_aligned & (kStoragePitchHeightAlignmentElements - 1));
   const int32_t outer_elements =
-      ((y >> 5) * int32_t(pitch_aligned >> 5) + (x >> 5)) << 6;
+      ((y >> kMacroTileHeight2DLog2) *
+           int32_t(pitch_aligned >> kMacroTileWidthLog2) +
+       (x >> kMacroTileWidthLog2))
+      << 6;
   const int32_t inner_elements = (((y >> 1) & 0b111) << 3) | (x & 0b111);
   const int32_t outer_inner_bytes = (outer_elements | inner_elements)
                                     << bytes_per_element_log2;
@@ -217,9 +229,11 @@ inline int64_t Tiled3D(const int32_t x, const int32_t y, const int32_t z,
   // The absolute of `outer_elements` is below (1024 / 4) * (2048 / 16) *
   // (16384 / 32) * 128 = 2^31.
   const int32_t outer_elements =
-      ((((z >> 2) * (height_aligned >> 4) + (y >> 4)) *
-        int32_t(pitch_aligned >> 5)) +
-       (x >> 5))
+      ((((z >> kMacroTileDepthLog2) *
+             (height_aligned >> kMacroTileHeight3DLog2) +
+         (y >> kMacroTileHeight3DLog2)) *
+        int32_t(pitch_aligned >> kMacroTileWidthLog2)) +
+       (x >> kMacroTileWidthLog2))
       << 7;
   const int32_t inner_elements =
       ((z & 0b11) << 5) | (((y >> 1) & 0b11) << 3) | (x & 0b111);
