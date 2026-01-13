@@ -194,8 +194,8 @@ uint XeResolveEdramPixelStrideInts(XeResolveInfo resolve_info) {
   }
 
   // XOR to apply to the byte address to flip the bits corresponding to the
-  // given X coordinate bits the macro tile width, or with resolution scaling,
-  // within XeniaTextureResolutionScaledGroupElements.x.
+  // given X coordinate bits within the macro tile width, or with resolution
+  // scaling, within XeniaTextureResolutionScaledGroupElements.x.
   uint XeResolveLocalXAddressXor(const uint x,
                                  const uint bytes_per_element_log2) {
     #ifdef XE_RESOLVE_RESOLUTION_SCALED
