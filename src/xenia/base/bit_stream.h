@@ -18,6 +18,7 @@ namespace xe {
 class BitStream {
  public:
   BitStream(uint8_t* buffer, size_t size_in_bits);
+  BitStream(const uint8_t* buffer, size_t size_in_bits);
   ~BitStream();
 
   const uint8_t* buffer() const { return buffer_; }
