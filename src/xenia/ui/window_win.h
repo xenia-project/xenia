@@ -19,8 +19,9 @@
 // Must be included before Windows headers for things like NOMINMAX.
 #include "xenia/base/platform_win.h"
 
+#include "xenia/ui/dxgi_include_win.h"
+
 #include <ShellScalingApi.h>
-#include <dxgi.h>
 
 namespace xe {
 namespace ui {
