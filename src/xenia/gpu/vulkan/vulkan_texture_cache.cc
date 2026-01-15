@@ -477,6 +477,16 @@ VulkanTextureCache::~VulkanTextureCache() {
   // textures before destroying VMA.
   DestroyAllTextures(true);
 
+  // Clean up scaled resolve buffers before destroying VMA
+  // The command processor should ensure all GPU operations are complete
+  // before the texture cache is destroyed
+  for (ScaledResolveBuffer& buffer : scaled_resolve_buffers_) {
+    if (buffer.buffer != VK_NULL_HANDLE) {
+      vmaDestroyBuffer(vma_allocator_, buffer.buffer, buffer.allocation);
+    }
+  }
+  scaled_resolve_buffers_.clear();
+
   if (vma_allocator_ != VK_NULL_HANDLE) {
     vmaDestroyAllocator(vma_allocator_);
   }
@@ -896,6 +906,7 @@ VkImageView VulkanTextureCache::RequestSwapTexture(
     return VK_NULL_HANDLE;
   }
   if (!LoadTextureData(*texture)) {
+    XELOGE("Failed to load texture data for swap texture");
     return VK_NULL_HANDLE;
   }
   texture->MarkAsUsed();
@@ -923,6 +934,13 @@ VkImageView VulkanTextureCache::RequestSwapTexture(
       key.GetHeight() * (key.scaled_resolve ? draw_resolution_scale_y() : 1);
   format_out = key.format;
   return texture_view;
+}
+
+bool VulkanTextureCache::IsScaledResolveSupportedForFormat(
+    TextureKey key) const {
+  // Check if the format has a valid host format pair, meaning we can handle it
+  const HostFormatPair& host_format_pair = GetHostFormatPair(key);
+  return host_format_pair.format_unsigned.format != VK_FORMAT_UNDEFINED;
 }
 
 bool VulkanTextureCache::IsSignedVersionSeparateForFormat(
@@ -1262,7 +1280,6 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     write_descriptor_set_dest.pTexelBufferView = nullptr;
   }
   // TODO(Triang3l): Use a single 512 MB shared memory binding if possible.
-  // TODO(Triang3l): Scaled resolve buffer bindings.
   // Aligning because if the data for a vector in a storage buffer is provided
   // partially, the value read may still be (0, 0, 0, 0), and small (especially
   // linear) textures won't be loaded correctly.
@@ -1280,12 +1297,69 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     if (!descriptor_set_source_base) {
       return false;
     }
-    write_descriptor_set_source_base_buffer_info.buffer =
-        vulkan_shared_memory.buffer();
-    write_descriptor_set_source_base_buffer_info.offset = texture_key.base_page
-                                                          << 12;
-    write_descriptor_set_source_base_buffer_info.range =
-        xe::align(vulkan_texture.GetGuestBaseSize(), source_length_alignment);
+    if (texture_key.scaled_resolve) {
+      // For scaled textures, read from scaled resolve buffers
+      uint32_t guest_address = texture_key.base_page << 12;
+      uint32_t guest_size = vulkan_texture.GetGuestBaseSize();
+
+      // Ensure the scaled buffer exists
+      if (EnsureScaledResolveMemoryCommitted(guest_address, guest_size)) {
+        // Make the range current
+        if (MakeScaledResolveRangeCurrent(guest_address, guest_size)) {
+          VkBuffer scaled_buffer = GetCurrentScaledResolveBuffer();
+          if (scaled_buffer != VK_NULL_HANDLE) {
+            // Calculate offset within the scaled buffer
+            uint32_t draw_resolution_scale_area =
+                draw_resolution_scale_x() * draw_resolution_scale_y();
+            uint64_t scaled_offset =
+                uint64_t(guest_address) * draw_resolution_scale_area;
+
+            uint64_t buffer_relative_offset = 0;
+            if (scaled_resolve_current_buffer_index_ <
+                scaled_resolve_buffers_.size()) {
+              const ScaledResolveBuffer& current_buffer =
+                  scaled_resolve_buffers_[scaled_resolve_current_buffer_index_];
+              buffer_relative_offset =
+                  scaled_offset - current_buffer.range_start_scaled;
+            }
+
+            write_descriptor_set_source_base_buffer_info.buffer = scaled_buffer;
+            write_descriptor_set_source_base_buffer_info.offset =
+                buffer_relative_offset;
+            write_descriptor_set_source_base_buffer_info.range =
+                xe::align(guest_size * draw_resolution_scale_area,
+                          source_length_alignment);
+
+          } else {
+            XELOGE(
+                "Scaled resolve texture load: Failed to get current scaled "
+                "buffer for texture at 0x{:08X}",
+                guest_address);
+            return false;
+          }
+        } else {
+          XELOGE(
+              "Scaled resolve texture load: Failed to make range current for "
+              "texture at 0x{:08X}",
+              guest_address);
+          return false;
+        }
+      } else {
+        XELOGE(
+            "Scaled resolve texture load: Failed to ensure scaled memory for "
+            "texture at 0x{:08X}",
+            guest_address);
+        return false;
+      }
+    } else {
+      // Regular unscaled texture - use shared memory
+      write_descriptor_set_source_base_buffer_info.buffer =
+          vulkan_shared_memory.buffer();
+      write_descriptor_set_source_base_buffer_info.offset =
+          texture_key.base_page << 12;
+      write_descriptor_set_source_base_buffer_info.range =
+          xe::align(vulkan_texture.GetGuestBaseSize(), source_length_alignment);
+    }
     VkWriteDescriptorSet& write_descriptor_set_source_base =
         write_descriptor_sets[write_descriptor_set_count++];
     write_descriptor_set_source_base.sType =
@@ -1310,6 +1384,10 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
     if (!descriptor_set_source_mips) {
       return false;
     }
+    // TODO: Implement scaled mips support similar to D3D12.
+    // Currently mips are always loaded from unscaled shared memory even when
+    // the base texture is scaled. D3D12 properly handles scaled mips in
+    // D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl.
     write_descriptor_set_source_mips_buffer_info.buffer =
         vulkan_shared_memory.buffer();
     write_descriptor_set_source_mips_buffer_info.offset = texture_key.mip_page
@@ -1695,10 +1773,7 @@ VulkanTextureCache::VulkanTextureCache(
     : TextureCache(register_file, shared_memory, draw_resolution_scale_x,
                    draw_resolution_scale_y),
       command_processor_(command_processor),
-      guest_shader_pipeline_stages_(guest_shader_pipeline_stages) {
-  // TODO(Triang3l): Support draw resolution scaling.
-  assert_true(draw_resolution_scale_x == 1 && draw_resolution_scale_y == 1);
-}
+      guest_shader_pipeline_stages_(guest_shader_pipeline_stages) {}
 
 bool VulkanTextureCache::Initialize() {
   const ui::vulkan::VulkanDevice* const vulkan_device =
@@ -2649,6 +2724,167 @@ xenos::ClampMode VulkanTextureCache::NormalizeClampMode(
                : xenos::ClampMode::kMirroredRepeat;
   }
   return clamp_mode;
+}
+
+bool VulkanTextureCache::EnsureScaledResolveMemoryCommitted(
+    uint32_t start_unscaled, uint32_t length_unscaled,
+    uint32_t length_scaled_alignment_log2) {
+  if (!IsDrawResolutionScaled()) {
+    return true;
+  }
+
+  if (length_unscaled == 0) {
+    return true;
+  }
+
+  if (start_unscaled > SharedMemory::kBufferSize ||
+      (SharedMemory::kBufferSize - start_unscaled) < length_unscaled) {
+    return false;
+  }
+
+  uint32_t draw_resolution_scale_area =
+      draw_resolution_scale_x() * draw_resolution_scale_y();
+  uint64_t start_scaled = uint64_t(start_unscaled) * draw_resolution_scale_area;
+  uint64_t length_scaled_alignment_bits =
+      (UINT64_C(1) << length_scaled_alignment_log2) - 1;
+  uint64_t length_scaled =
+      (uint64_t(length_unscaled) * draw_resolution_scale_area +
+       length_scaled_alignment_bits) &
+      ~length_scaled_alignment_bits;
+
+  // Check if any existing buffer covers this range
+
+  bool range_covered = false;
+  for (const ScaledResolveBuffer& buffer : scaled_resolve_buffers_) {
+    if (buffer.range_start_scaled <= start_scaled &&
+        (buffer.range_start_scaled + buffer.range_length_scaled) >=
+            (start_scaled + length_scaled)) {
+      // This buffer covers the requested range
+      scaled_resolve_current_range_start_scaled_ = buffer.range_start_scaled;
+      scaled_resolve_current_range_length_scaled_ = buffer.range_length_scaled;
+      range_covered = true;
+      break;
+    }
+  }
+
+  if (!range_covered) {
+    // Need to create a new buffer or extend an existing one
+    // For simplicity and to avoid fragmentation, we'll use a fixed-size buffer
+    // approach similar to D3D12 (but smaller - 256MB chunks instead of 2GB)
+    constexpr uint64_t kBufferSize = 256 * 1024 * 1024;  // 256MB per buffer
+
+    // Round up the range to cover complete buffer chunks
+    uint64_t buffer_start = (start_scaled / kBufferSize) * kBufferSize;
+    uint64_t buffer_end =
+        ((start_scaled + length_scaled + kBufferSize - 1) / kBufferSize) *
+        kBufferSize;
+    uint64_t buffer_size = buffer_end - buffer_start;
+
+    // Check again if this expanded range is covered
+    bool expanded_range_covered = false;
+    for (const ScaledResolveBuffer& buffer : scaled_resolve_buffers_) {
+      if (buffer.range_start_scaled <= buffer_start &&
+          (buffer.range_start_scaled + buffer.range_length_scaled) >=
+              buffer_end) {
+        scaled_resolve_current_range_start_scaled_ = buffer.range_start_scaled;
+        scaled_resolve_current_range_length_scaled_ =
+            buffer.range_length_scaled;
+        expanded_range_covered = true;
+        break;
+      }
+    }
+
+    if (!expanded_range_covered) {
+      // Limit the number of buffers to prevent unbounded growth
+      constexpr size_t kMaxBuffers = 32;  // Maximum 8GB total (32 * 256MB)
+      if (scaled_resolve_buffers_.size() >= kMaxBuffers) {
+        // Reuse the least recently used buffer
+        // For now, just reuse the first buffer (simple LRU would be better)
+        ScaledResolveBuffer& reused_buffer = scaled_resolve_buffers_[0];
+        reused_buffer.range_start_scaled = buffer_start;
+        reused_buffer.range_length_scaled = buffer_size;
+        scaled_resolve_current_range_start_scaled_ = buffer_start;
+        scaled_resolve_current_range_length_scaled_ = buffer_size;
+      } else {
+        ScaledResolveBuffer new_buffer;
+        new_buffer.size = buffer_size;
+
+        VkBufferCreateInfo buffer_create_info = {};
+        buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        buffer_create_info.size = new_buffer.size;
+        buffer_create_info.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        VmaAllocationCreateInfo allocation_create_info = {};
+        allocation_create_info.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+        VkResult result = vmaCreateBuffer(
+            vma_allocator_, &buffer_create_info, &allocation_create_info,
+            &new_buffer.buffer, &new_buffer.allocation, nullptr);
+
+        if (result != VK_SUCCESS) {
+          XELOGE(
+              "VulkanTextureCache: Failed to create scaled resolve buffer: {}",
+              static_cast<int>(result));
+          return false;
+        }
+
+        new_buffer.range_start_scaled = buffer_start;
+        new_buffer.range_length_scaled = buffer_size;
+
+        scaled_resolve_buffers_.push_back(new_buffer);
+        scaled_resolve_current_range_start_scaled_ = buffer_start;
+        scaled_resolve_current_range_length_scaled_ = buffer_size;
+      }
+    }
+  }
+
+  return true;
+}
+
+bool VulkanTextureCache::MakeScaledResolveRangeCurrent(
+    uint32_t start_unscaled, uint32_t length_unscaled,
+    uint32_t length_scaled_alignment_log2) {
+  if (!IsDrawResolutionScaled()) {
+    return false;
+  }
+
+  // First ensure the memory is committed (creates buffers if needed)
+  if (!EnsureScaledResolveMemoryCommitted(start_unscaled, length_unscaled,
+                                          length_scaled_alignment_log2)) {
+    return false;
+  }
+
+  uint32_t draw_resolution_scale_area =
+      draw_resolution_scale_x() * draw_resolution_scale_y();
+  uint64_t start_scaled = uint64_t(start_unscaled) * draw_resolution_scale_area;
+  uint64_t length_scaled_alignment_bits =
+      (UINT64_C(1) << length_scaled_alignment_log2) - 1;
+  uint64_t length_scaled =
+      (uint64_t(length_unscaled) * draw_resolution_scale_area +
+       length_scaled_alignment_bits) &
+      ~length_scaled_alignment_bits;
+  uint64_t end_scaled = start_scaled + length_scaled;
+
+  // Find which buffer contains this entire range (not just the start)
+  for (size_t i = 0; i < scaled_resolve_buffers_.size(); ++i) {
+    const ScaledResolveBuffer& buffer = scaled_resolve_buffers_[i];
+    if (start_scaled >= buffer.range_start_scaled &&
+        end_scaled <=
+            (buffer.range_start_scaled + buffer.range_length_scaled)) {
+      scaled_resolve_current_buffer_index_ = i;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+VkBuffer VulkanTextureCache::GetCurrentScaledResolveBuffer() const {
+  if (scaled_resolve_current_buffer_index_ >= scaled_resolve_buffers_.size()) {
+    return VK_NULL_HANDLE;
+  }
+  return scaled_resolve_buffers_[scaled_resolve_current_buffer_index_].buffer;
 }
 
 }  // namespace vulkan

@@ -765,9 +765,10 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
       fsi_color_targets_written =
           builder_->createLoad(var_main_fsi_color_written_, spv::NoPrecision);
       fsi_const_int_1 = builder_->makeIntConstant(1);
-      // TODO(Triang3l): Resolution scaling.
+      // Apply resolution scaling to EDRAM size.
       fsi_const_edram_size_dwords = builder_->makeUintConstant(
-          xenos::kEdramTileWidthSamples * xenos::kEdramTileHeightSamples *
+          xenos::kEdramTileWidthSamples * draw_resolution_scale_x_ *
+          xenos::kEdramTileHeightSamples * draw_resolution_scale_y_ *
           xenos::kEdramTileCount);
       for (uint32_t i = 0; i < 4; ++i) {
         fsi_samples_covered[i] = builder_->createBinOp(
@@ -1449,10 +1450,12 @@ void SpirvShaderTranslator::FSI_LoadEdramOffsets(spv::Id msaa_samples) {
   // Get 40 x 16 x resolution scale 32bpp half-tile or 40x16 64bpp tile index.
   // Working with 40x16-sample portions for 64bpp and for swapping for depth -
   // dividing by 40, not by 80.
-  // TODO(Triang3l): Resolution scaling.
-  uint32_t tile_width = xenos::kEdramTileWidthSamples;
+  // Apply resolution scaling to tile dimensions.
+  uint32_t tile_width =
+      xenos::kEdramTileWidthSamples * draw_resolution_scale_x_;
   spv::Id const_tile_half_width = builder_->makeUintConstant(tile_width >> 1);
-  uint32_t tile_height = xenos::kEdramTileHeightSamples;
+  uint32_t tile_height =
+      xenos::kEdramTileHeightSamples * draw_resolution_scale_y_;
   spv::Id const_tile_height = builder_->makeUintConstant(tile_height);
   spv::Id tile_half_index[2], tile_half_sample_coordinates[2];
   for (uint32_t i = 0; i < 2; ++i) {
@@ -1565,8 +1568,9 @@ spv::Id SpirvShaderTranslator::FSI_AddSampleOffset(spv::Id sample_0_address,
     return sample_0_address;
   }
   spv::Id sample_offset;
-  // TODO(Triang3l): Resolution scaling.
-  uint32_t tile_width = xenos::kEdramTileWidthSamples;
+  // Apply resolution scaling to tile width.
+  uint32_t tile_width =
+      xenos::kEdramTileWidthSamples * draw_resolution_scale_x_;
   if (sample_index == 1) {
     sample_offset = builder_->makeIntConstant(tile_width);
   } else {

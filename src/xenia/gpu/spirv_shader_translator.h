@@ -349,11 +349,15 @@ class SpirvShaderTranslator : public ShaderTranslator {
   SpirvShaderTranslator(const Features& features,
                         bool native_2x_msaa_with_attachments,
                         bool native_2x_msaa_no_attachments,
-                        bool edram_fragment_shader_interlock)
+                        bool edram_fragment_shader_interlock,
+                        uint32_t draw_resolution_scale_x = 1,
+                        uint32_t draw_resolution_scale_y = 1)
       : features_(features),
         native_2x_msaa_with_attachments_(native_2x_msaa_with_attachments),
         native_2x_msaa_no_attachments_(native_2x_msaa_no_attachments),
-        edram_fragment_shader_interlock_(edram_fragment_shader_interlock) {}
+        edram_fragment_shader_interlock_(edram_fragment_shader_interlock),
+        draw_resolution_scale_x_(draw_resolution_scale_x),
+        draw_resolution_scale_y_(draw_resolution_scale_y) {}
 
   uint64_t GetDefaultVertexShaderModification(
       uint32_t dynamic_addressable_register_count,
@@ -711,6 +715,8 @@ class SpirvShaderTranslator : public ShaderTranslator {
   Features features_;
   bool native_2x_msaa_with_attachments_;
   bool native_2x_msaa_no_attachments_;
+  uint32_t draw_resolution_scale_x_;
+  uint32_t draw_resolution_scale_y_;
 
   // For safety with different drivers (even though fragment shader interlock in
   // SPIR-V only has one control flow requirement - that both begin and end must
