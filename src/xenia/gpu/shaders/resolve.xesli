@@ -161,7 +161,7 @@ uint XeResolveEdramPixelStrideInts(XeResolveInfo resolve_info) {
 #ifndef XE_RESOLVE_CLEAR
   uint XeResolveDestPixelAddress(const XeResolveInfo resolve_info,
                                  uint2_xe host_position,
-                                 const uint bytes_per_element_log2) {
+                                 const uint bytes_per_block_log2) {
     host_position += resolve_info.dest_xy_offset_scaled;
     uint address;
     uint2_xe guest_position = host_position;
@@ -170,19 +170,18 @@ uint XeResolveEdramPixelStrideInts(XeResolveInfo resolve_info) {
           resolution_scaled_addressing =
               XeniaTextureGetResolutionScaledAddressing(
                   host_position.xy, resolve_info.resolution_scale,
-                  bytes_per_element_log2);
+                  bytes_per_block_log2);
       guest_position = resolution_scaled_addressing.guest_group_origin;
     #endif
     dont_flatten_xe if (resolve_info.dest_is_array) {
       address = uint(XenosTextureTiledAddress3D(
           int3_xe(uint3_xe(guest_position, resolve_info.dest_slice)),
           resolve_info.dest_row_pitch_macro_tiles,
-          resolve_info.dest_slice_pitch_3d_macro_tiles,
-          bytes_per_element_log2));
+          resolve_info.dest_slice_pitch_3d_macro_tiles, bytes_per_block_log2));
     } else {
       address = uint(XenosTextureTiledAddress2D(
           int2_xe(guest_position), resolve_info.dest_row_pitch_macro_tiles,
-          bytes_per_element_log2));
+          bytes_per_block_log2));
     }
     #ifdef XE_RESOLVE_RESOLUTION_SCALED
       address = address * (resolve_info.resolution_scale.x *
@@ -195,18 +194,18 @@ uint XeResolveEdramPixelStrideInts(XeResolveInfo resolve_info) {
 
   // XOR to apply to the byte address to flip the bits corresponding to the
   // given X coordinate bits within the macro tile width, or with resolution
-  // scaling, within XeniaTextureResolutionScaledGroupElements.x.
+  // scaling, within XeniaTextureResolutionScaledGroupBlocks.x.
   // Addition is recommended instead of XOR if the bits are known to be 0 in the
   // original address, so the host GPU driver can optimize it into a constant
   // store offset if available in the host hardware shader instruction set
   // architecture.
   uint XeResolveLocalXAddressXor(const uint x,
-                                 const uint bytes_per_element_log2) {
+                                 const uint bytes_per_block_log2) {
     #ifdef XE_RESOLVE_RESOLUTION_SCALED
-      return x << bytes_per_element_log2;
+      return x << bytes_per_block_log2;
     #else
       return uint(XenosTextureTiledAddressXInMacroXor(int(x),
-                                                      bytes_per_element_log2));
+                                                      bytes_per_block_log2));
     #endif
   }
 

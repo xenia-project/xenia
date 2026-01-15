@@ -26,15 +26,15 @@ int XenosTextureTiledAddressCombine(const int outer_inner_bytes, const int bank,
 }
 
 int XenosTextureTiledAddress2D(const int2_xe p, const uint pitch_macro_tiles,
-                               const uint bytes_per_element_log2) {
-  const int outer_elements =
+                               const uint bytes_per_block_log2) {
+  const int outer_blocks =
       ((p.y >> XENOS_TEXTURE_MACRO_TILE_HEIGHT_2D_LOG2) *
            int(pitch_macro_tiles) +
        (p.x >> XENOS_TEXTURE_MACRO_TILE_WIDTH_LOG2))
       << 6;
-  const int inner_elements = (((p.y >> 1) & 0x7) << 3) | (p.x & 0x7);
-  const int outer_inner_bytes =
-      (outer_elements | inner_elements) << bytes_per_element_log2;
+  const int inner_blocks = (((p.y >> 1) & 0x7) << 3) | (p.x & 0x7);
+  const int outer_inner_bytes = (outer_blocks | inner_blocks)
+                                << bytes_per_block_log2;
   const int bank = (p.y >> 4) & 0x1;
   const int pipe = ((p.x >> 3) & 0x3) ^ (((p.y >> 3) & 0x1) << 1);
   return XenosTextureTiledAddressCombine(outer_inner_bytes, bank, pipe,
@@ -43,18 +43,18 @@ int XenosTextureTiledAddress2D(const int2_xe p, const uint pitch_macro_tiles,
 
 int XenosTextureTiledAddress3D(const int3_xe p, const uint pitch_macro_tiles,
                                const uint height_macro_tiles,
-                               const uint bytes_per_element_log2) {
-  const int outer_elements =
+                               const uint bytes_per_block_log2) {
+  const int outer_blocks =
       ((((p.z >> XENOS_TEXTURE_MACRO_TILE_DEPTH_LOG2) *
              int(height_macro_tiles) +
          (p.y >> XENOS_TEXTURE_MACRO_TILE_HEIGHT_3D_LOG2)) *
         int(pitch_macro_tiles)) +
        (p.x >> XENOS_TEXTURE_MACRO_TILE_WIDTH_LOG2))
       << 7;
-  const int inner_elements =
+  const int inner_blocks =
       ((p.z & 0x3) << 5) | (((p.y >> 1) & 0x3) << 3) | (p.x & 0x7);
-  const int outer_inner_bytes =
-      (outer_elements | inner_elements) << bytes_per_element_log2;
+  const int outer_inner_bytes = (outer_blocks | inner_blocks)
+                                << bytes_per_block_log2;
   const int bank = ((p.y >> 3) ^ (p.z >> 2)) & 0x1;
   const int pipe = ((p.x >> 3) & 0x3) ^ (bank << 1);
   return XenosTextureTiledAddressCombine(outer_inner_bytes, bank, pipe,
@@ -65,49 +65,49 @@ int XenosTextureTiledAddress3D(const int3_xe p, const uint pitch_macro_tiles,
 // X coordinate bits within the width of a macro tile.
 // Note that in a tiled address, bit 7 is X[4] ^ Y[3] ^ Z[2], not X[4] alone.
 int XenosTextureTiledAddressXInMacroXor(const int x,
-                                        const uint bytes_per_element_log2) {
-  return XenosTextureTiledAddressCombine((x & 0x7) << bytes_per_element_log2,
+                                        const uint bytes_per_block_log2) {
+  return XenosTextureTiledAddressCombine((x & 0x7) << bytes_per_block_log2,
                                          0, (x >> 3) & 0x3, 0);
 }
 
-// The lowest bits of an element index within a micro tile are X[2:0].
+// The lowest bits of an block index within a micro tile are X[2:0].
 // In a tiled address, the bit 4 is always Y[0].
-// However, the bits [3:0] are the lower bits of the micro tile element index
-// times the number of bytes per element.
-// Because of this, a number of elements, that depends on the count of bytes per
-// element, along the X axis (aligned to this amount) is stored consecutively in
+// However, the bits [3:0] are the lower bits of the micro tile block index
+// times the number of bytes per block.
+// Because of this, a number of blocks, that depends on the count of bytes per
+// block, along the X axis (aligned to this amount) is stored consecutively in
 // guest memory:
-// - 1bpe: 8 elements (8 bytes - limited by address bit 3 being Y[1] for 1bpe).
-// - 2bpe: 8 elements (16 bytes - limited by address bit 4 always being Y[0]).
-// - 4bpe: 4 elements.
-// - 8bpe: 2 elements.
-// - 16bpe: 1 element.
-// This makes it possible to access multiple elements in a single row using
-// 8-byte or (for >= 2bpe) 16-byte loads and stores, and that's particularly
-// useful when transferring texture data between tiled and linear storage.
+// - 1bpe: 8 blocks (8 bytes - limited by address bit 3 being Y[1] for 1bpe).
+// - 2bpe: 8 blocks (16 bytes - limited by address bit 4 always being Y[0]).
+// - 4bpe: 4 blocks.
+// - 8bpe: 2 blocks.
+// - 16bpe: 1 block.
+// This makes it possible to access multiple blocks in a single row using 8-byte
+// or (for >= 2bpe) 16-byte loads and stores, and that's particularly useful
+// when transferring texture data between tiled and linear storage.
 
 // With resolution scaling, one scaled group of bytes in guest addresses
 // corresponds to `scale.x * scale.y` groups of the same size on the host.
 //
-// A single group contains a full rectangular region of elements. This means
-// that, for instance, if the Y[1] tiled address bit is within the group size,
-// Y[0] must be within it too, so division is enough to go from host to guest
+// A single group contains a full rectangular region of blocks. This means that,
+// for instance, if the Y[1] tiled address bit is within the group size, Y[0]
+// must be within it too, so division is enough to go from host to guest
 // coordinates for the origin of the group.
 //
 // The address of the guest group on the host is the guest tiled address of its
 // origin in guest coordinates multiplied by `scale.x * scale.y`.
 //
-// Within a guest group, the addressing of elements is controlled by the host.
-// Specifically, host groups are arranged in a guest group as block-linear
-// column-major (for storage locality along both axes), and elements in a host
+// Within a guest group, the addressing of blocks is controlled by the host.
+// Specifically, host groups are arranged in a guest group as group-linear
+// column-major (for storage locality along both axes), and blocks in a host
 // group are laid out as linear row-major (guest tiling therefore is applied
 // only to whole guest groups, not within them, for simplicity).
 //
 // Addressing with resolution scaling is not intended to allow for
-// reinterpretation of resolution-scaled data between different numbers of bits
-// per element. Rather, it's designed for simple and efficient access on the
-// host, primarily when copying between tiled and linear storage, and to reduce
-// the differences in shader logic between unscaled and scaled data.
+// reinterpretation of resolution-scaled data between different numbers of bytes
+// per block. Rather, it's designed for simple and efficient access on the host,
+// primarily when copying between tiled and linear storage, and to reduce the
+// differences in shader logic between unscaled and scaled data.
 //
 // However, the groups are still small enough to preserve most of the tiling
 // properties on a macro level, most importantly the possibility to resolve
@@ -121,32 +121,32 @@ int XenosTextureTiledAddressXInMacroXor(const int x,
 // per pixel being the only needed metadata.
 //
 // A common pattern in Xenia is copying multiple 8-byte or (for >= 2bpe) 16-byte
-// sequences of consecutive elements along the X axis in a single shader
+// sequences of consecutive blocks along the X axis in a single shader
 // invocation, by computing the tiled address once and merely flipping X bits in
 // it.
 //
 // With the resolution scaling group size being no larger than 2^7 bytes, it may
 // contain guest X bits [3:0] for <= 4bpe, [1:0] for 8bpe, and [0] for 16bpe
 // (note that though X[3] always goes to address[6], for 8bpe, X[2] is
-// address[8], so a group can't be wider than 4 elements, and similarly for X[1]
+// address[8], so a group can't be wider than 4 blocks, and similarly for X[1]
 // for 16bpe).
 //
 // Given these requirements, the group sizes are chosen as follows:
 // - 1bpe - lower 7 bits of an unscaled address are X0, X1, X2, Y1, Y0, Y2, X3:
-//   - Group width: 2^4 elements (maximum within 7 bits), or 2^4 bytes.
-//   - Group height: 2^3 elements (Y[2:0] between X[3:0]).
+//   - Group width: 2^4 blocks (maximum within 7 bits), or 2^4 bytes.
+//   - Group height: 2^3 blocks (Y[2:0] between X[3:0]).
 // - 2bpe - lower 7 bits of an unscaled address are 0, X0, X1, X2, Y0, Y1, X3:
-//   - Group width: 2^4 elements (maximum within 7 bits), or 2^5 bytes.
-//   - Group height: 2^2 elements (Y[1:0] between X[3:0]).
+//   - Group width: 2^4 blocks (maximum within 7 bits), or 2^5 bytes.
+//   - Group height: 2^2 blocks (Y[1:0] between X[3:0]).
 // - 4bpe - lower 7 bits of an unscaled address are 0, 0, X0, X1, Y0, X2, X3:
-//   - Group width: 2^4 elements (maximum within 7 bits), or 2^6 bytes.
-//   - Group height: 2^1 elements (Y[0] between X[3:0]).
+//   - Group width: 2^4 blocks (maximum within 7 bits), or 2^6 bytes.
+//   - Group height: 2^1 blocks (Y[0] between X[3:0]).
 // - 8bpe - lower 7 bits of an unscaled address are 0, 0, 0, X0, Y0, X1, X3:
-//   - Group width: 2^2 elements (X[2] is beyond 7 bits), or 2^5 bytes.
-//   - Group height: 2^1 elements (Y[0] between X[1:0]).
+//   - Group width: 2^2 blocks (X[2] is beyond 7 bits), or 2^5 bytes.
+//   - Group height: 2^1 blocks (Y[0] between X[1:0]).
 // - 16bpe - lower 7 bits of an unscaled address are 0, 0, 0, 0, Y0, X0, X3:
-//   - Group width: 2^1 elements (X[2:1] is beyond 7 bits), or 2^5 bytes.
-//   - Group height: 2^1 elements (Y[0] below X[0]).
+//   - Group width: 2^1 blocks (X[2:1] is beyond 7 bits), or 2^5 bytes.
+//   - Group height: 2^1 blocks (Y[0] below X[0]).
 //
 // 2^6 bytes copied per invocation is likely to be optimal, as that consumes 16
 // 32-bit VGPRs, out of a total of 24 (1024 / 40 rounded down to 4) available
@@ -154,19 +154,17 @@ int XenosTextureTiledAddressXInMacroXor(const int x,
 // (although the occupancy of copy shaders is likely to be limited by memory
 // accesses instead anyway).
 //
-// Note that with the given group sizes, as well as with elements in a host
-// group stored as row-major, for 1bpe, 16x1 host elements are stored
-// consecutively with resolution scaling (even though in guest tiling, only 8x1
-// elements are), so they can be accessed via one 16-byte operation rather than
-// two 8-byte ones.
+// Note that with the given group sizes, as well as with blocks in a host group
+// stored as row-major, for 1bpe, 16x1 host blocks are stored consecutively with
+// resolution scaling (even though in guest tiling, only 8x1 blocks are), so
+// they can be accessed via one 16-byte operation rather than two 8-byte ones.
 
 // Expected to be called for a compile-time constant.
-uint2_xe XeniaTextureResolutionScaledGroupElementsLog2(
-    const uint bytes_per_element_log2) {
+uint2_xe XeniaTextureResolutionScaledGroupBlocksLog2(
+    const uint bytes_per_block_log2) {
   // Based on the tiled address properties, see the comment above for details.
-  return uint2_xe(
-      bytes_per_element_log2 >= 3u ? 5u - bytes_per_element_log2 : 4u,
-      3u - min(bytes_per_element_log2, 2u));
+  return uint2_xe(bytes_per_block_log2 >= 3u ? 5u - bytes_per_block_log2 : 4u,
+                  3u - min(bytes_per_block_log2, 2u));
 }
 
 struct XeniaTextureResolutionScaledAddressing {
@@ -177,20 +175,20 @@ struct XeniaTextureResolutionScaledAddressing {
 XeniaTextureResolutionScaledAddressing
 XeniaTextureGetResolutionScaledAddressing(const uint2_xe position,
                                           const uint2_xe resolution_scale,
-                                          const uint bytes_per_element_log2) {
+                                          const uint bytes_per_block_log2) {
   XeniaTextureResolutionScaledAddressing addressing;
 
-  const uint2_xe group_elements_log2 =
-      XeniaTextureResolutionScaledGroupElementsLog2(bytes_per_element_log2);
+  const uint2_xe group_blocks_log2 =
+      XeniaTextureResolutionScaledGroupBlocksLog2(bytes_per_block_log2);
 
-  const uint2_xe host_group_id_in_texture = position >> group_elements_log2;
+  const uint2_xe host_group_id_in_texture = position >> group_blocks_log2;
   const uint2_xe guest_group_id_in_texture =
       host_group_id_in_texture / resolution_scale;
   const uint2_xe host_group_id_in_guest_group =
       host_group_id_in_texture - resolution_scale * guest_group_id_in_texture;
 
   addressing.guest_group_origin =
-      guest_group_id_in_texture << group_elements_log2;
+      guest_group_id_in_texture << group_blocks_log2;
 
   // Host groups are stored as column-major in a guest group, but this can be
   // changed freely.
@@ -198,18 +196,18 @@ XeniaTextureGetResolutionScaledAddressing(const uint2_xe position,
       host_group_id_in_guest_group.x * resolution_scale.y +
       host_group_id_in_guest_group.y;
   // Shifts are expanded rather than chained because the number of bytes per
-  // element, and thus also the group size, are expected to be compile-time
+  // block, and thus also the group size, are expected to be compile-time
   // constants, so this is expected to be combined using GPU bitfield insert
   // instructions.
   const uint group_width_bytes_log2 =
-      group_elements_log2.x + bytes_per_element_log2;
+      group_blocks_log2.x + bytes_per_block_log2;
   const uint2_xe position_in_host_group =
-      position & ((uint_x2_xe(1u) << group_elements_log2) - 1u);
+      position & ((uint_x2_xe(1u) << group_blocks_log2) - 1u);
   addressing.host_byte_offset_in_guest_group =
       (host_group_index_in_guest_group <<
-           (group_width_bytes_log2 + group_elements_log2.y)) |
+           (group_width_bytes_log2 + group_blocks_log2.y)) |
       (position_in_host_group.y << group_width_bytes_log2) |
-      (position_in_host_group.x << bytes_per_element_log2);
+      (position_in_host_group.x << bytes_per_block_log2);
 
   return addressing;
 }

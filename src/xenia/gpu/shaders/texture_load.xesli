@@ -98,14 +98,14 @@ XeTextureLoadInfo XeTextureLoadGetInfo(param_push_consts_xe) {
 
 uint XeTextureLoadSourceAddress(const XeTextureLoadInfo load_info,
                                 const uint3_xe host_position,
-                                const uint bytes_per_element_log2) {
+                                const uint bytes_per_block_log2) {
   uint address;
   uint3_xe guest_position = host_position;
 #ifdef XE_TEXTURE_LOAD_RESOLUTION_SCALED
   const XeniaTextureResolutionScaledAddressing resolution_scaled_addressing =
       XeniaTextureGetResolutionScaledAddressing(host_position.xy,
                                                 load_info.resolution_scale,
-                                                bytes_per_element_log2);
+                                                bytes_per_block_log2);
   guest_position.xy = resolution_scaled_addressing.guest_group_origin;
 #else
   dont_flatten_xe if (!load_info.is_tiled) {
@@ -114,7 +114,7 @@ uint XeTextureLoadSourceAddress(const XeTextureLoadInfo load_info,
                    (guest_position.y +
                     load_info.guest_z_stride_block_rows_aligned *
                         guest_position.z)) <<
-              bytes_per_element_log2;
+              bytes_per_block_log2;
   } else
 #endif
   {
@@ -124,12 +124,12 @@ uint XeTextureLoadSourceAddress(const XeTextureLoadInfo load_info,
           load_info.guest_pitch_aligned >> XENOS_TEXTURE_MACRO_TILE_WIDTH_LOG2,
           load_info.guest_z_stride_block_rows_aligned >>
               XENOS_TEXTURE_MACRO_TILE_HEIGHT_3D_LOG2,
-          bytes_per_element_log2));
+          bytes_per_block_log2));
     } else {
       address = uint(XenosTextureTiledAddress2D(
           int2_xe(guest_position.xy),
           load_info.guest_pitch_aligned >> XENOS_TEXTURE_MACRO_TILE_WIDTH_LOG2,
-          bytes_per_element_log2));
+          bytes_per_block_log2));
     }
   }
 #ifdef XE_TEXTURE_LOAD_RESOLUTION_SCALED
@@ -143,24 +143,24 @@ uint XeTextureLoadSourceAddress(const XeTextureLoadInfo load_info,
 
 // XOR to apply to the byte address to flip the bits corresponding to the given
 // X coordinate bits within:
-// - Resolution-scaled tiled: XeniaTextureResolutionScaledGroupElements.x;
+// - Resolution-scaled tiled: XeniaTextureResolutionScaledGroupBlocks.x;
 // - Unscaled tiled: macro tile width;
 // - Linear: 256 bytes.
 // Addition is recommended instead of XOR if the bits are known to be 0 in the
 // original address, so the host GPU driver can optimize it into a constant load
 // offset if available in the host hardware shader instruction set architecture.
 uint XeTextureLoadLocalXAddressXor(const uint x,
-                                   const uint bytes_per_element_log2,
+                                   const uint bytes_per_block_log2,
                                    const bool is_tiled) {
   uint x_address_xor;
 #ifndef XE_TEXTURE_LOAD_RESOLUTION_SCALED
   dont_flatten_xe if (is_tiled) {
     x_address_xor = uint(
-        XenosTextureTiledAddressXInMacroXor(int(x), bytes_per_element_log2));
+        XenosTextureTiledAddressXInMacroXor(int(x), bytes_per_block_log2));
   } else
 #endif
   {
-    x_address_xor = x << bytes_per_element_log2;
+    x_address_xor = x << bytes_per_block_log2;
   }
   return x_address_xor;
 }

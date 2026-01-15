@@ -37,19 +37,12 @@ namespace texture_address {
 //     must not access the data in the padding after aligning to 32x32
 //     (resulting in 1280x736) via the guest CPU memory mappings.
 
-// "Element" refers to a storage unit used in guest addressing calculations:
-// block for compressed or otherwise block-based formats, pixel for other
-// formats.
-// TODO(Triang3l): Research 32_32_32_FLOAT format ("Expand3x" in AddrLib terms)
-// texture storage. Should storage dimensions be rounded assuming that one
-// element is one component rather than the whole pixel?
-
 // Level pitch (or width for non-base mip levels), height, and depth (for 3D
 // textures - stacked 2D textures use the exact array layer count for the stride
 // at every level, and cubemaps are normally stored with a stride of 6 faces)
 // are rounded up by the hardware for the purposes of calculating strides of
 // subresources and of macro tiles within a subresource to:
-// - 32x32 (2D) or 32x32x4 (3D) elements. This is applicable to both tiled and
+// - 32x32 (2D) or 32x32x4 (3D) blocks. This is applicable to both tiled and
 //   linear textures. Note that for 3D, this is larger than a macro tile
 //   (32x16x4).
 // - Power of two, for non-base mip levels.
@@ -69,12 +62,12 @@ namespace texture_address {
 // Another scenario where the product of the aligned dimensions may not be an
 // accurate estimate (but in this case too small rather than too large) is when
 // the width exceeds the pitch.
-constexpr unsigned int kStoragePitchHeightAlignmentElementsLog2 = 5;
-constexpr uint32_t kStoragePitchHeightAlignmentElements =
-    uint32_t(1) << kStoragePitchHeightAlignmentElementsLog2;
-constexpr unsigned int kStorageDepthAlignmentElementsLog2 = 2;
-constexpr uint32_t kStorageDepthAlignmentElements =
-    uint32_t(1) << kStorageDepthAlignmentElementsLog2;
+constexpr unsigned int kStoragePitchHeightAlignmentBlocksLog2 = 5;
+constexpr uint32_t kStoragePitchHeightAlignmentBlocks =
+    uint32_t(1) << kStoragePitchHeightAlignmentBlocksLog2;
+constexpr unsigned int kStorageDepthAlignmentBlocksLog2 = 2;
+constexpr uint32_t kStorageDepthAlignmentBlocks =
+    uint32_t(1) << kStorageDepthAlignmentBlocksLog2;
 
 // 2D tiling from:
 // https://github.com/BinomialLLC/crunch/blob/36479bc697be19168daafbf15f47f3c60ccec004/inc/crn_decomp.h#L4107
@@ -105,31 +98,31 @@ constexpr uint32_t kStorageDepthAlignmentElements =
 //    [4] = `y & 1` (Y least significant bit)
 //  [3:0] = `outer_inner_bytes[3:0]` (pipe interleave lower bits)
 //
-// The "outer_inner" part is scaled by the number of bytes per element:
-// `outer_inner_bytes = outer_inner_elements << log2(bytes_per_element)`
-// where `outer_inner_elements` is a sum (or bitwise OR) of two terms:
-// - `outer_elements`: Origin of the 32x32 (2D) or 32x16x4 (3D) macro tile
-//   within the subresource.
-//   Macro tiles are treated as laid out block-linearly in the calculation of
-//   this part, with Z being the most significant term, Y in between, and X
+// The "outer_inner" part is scaled by the number of bytes per block:
+// `outer_inner_bytes = outer_inner_blocks << log2(bytes_per_block)`
+// where `outer_inner_blocks` is a sum (or bitwise OR) of two terms:
+// - `outer_blocks`: Origin of the 32x32 (2D) or 32x16x4 (3D) macro tile within
+//   the subresource.
+//   Macro tiles are treated as laid out macro-tile-linearly in the calculation
+//   of this part, with Z being the most significant term, Y in between, and X
 //   being the least significant.
 //   2D:
 //   (x[:5] + ceil(pitch / 32) * y[:5]) << 6
 //   3D:
 //   (x[:5] + ceil(pitch / 32) * (y[:4] + 2 * ceil(height / 32) * z[:2])) << 7
-// - `inner_elements`: Offset of 1x2x1 elements within a 8x16 (2D) or 8x8x4
-//   micro tile.
+// - `inner_blocks`: Offset of 1x2x1 blocks within a 8x16 (2D) or 8x8x4 micro
+//   tile.
 //   Though the LSB of Y always goes to the bit 4 of the memory address, within
 //   a micro tile, {X, Y[:1], Z} can be treated as linear in the calculation of
 //   this part, with Z being the most significant, Y in between, and X being the
 //   least significant.
 //   2D:
-//   - inner_elements[5:3] = y[3:1]
-//   - inner_elements[2:0] = x[2:0]
+//   - inner_blocks[5:3] = y[3:1]
+//   - inner_blocks[2:0] = x[2:0]
 //   3D:
-//   - inner_elements[6:5] = z[1:0]
-//   - inner_elements[4:3] = y[2:1]
-//   - inner_elements[2:0] = x[2:0]
+//   - inner_blocks[6:5] = z[1:0]
+//   - inner_blocks[4:3] = y[2:1]
+//   - inner_blocks[2:0] = x[2:0]
 //
 // However, the "outer/inner" part doesn't include the offset of the micro tile
 // within the macro tile: X[4:3], and Y[4] (2D) or Y[3] (3D). These are encoded
@@ -191,54 +184,54 @@ Address TiledCombine(const Address outer_inner_bytes, const uint32_t bank,
 }
 
 // The absolute of the return value is below 2^31 (for 16384x8192 with 16 bytes
-// per element, though it's not even clear if the hardware allows pitches
-// greater than 8192, the maximum texture size, but the pitch field in a texture
-// fetch constant is 14 bits wide).
+// per block, though it's not even clear if the hardware allows pitches greater
+// than 8192, the maximum texture size, but the pitch field in a texture fetch
+// constant is 14 bits wide).
 inline int32_t Tiled2D(const int32_t x, const int32_t y,
                        const uint32_t pitch_aligned,
-                       const unsigned int bytes_per_element_log2) {
+                       const unsigned int bytes_per_block_log2) {
   // Expecting that all the needed rounding (not only to 32x32, but also to a
   // power of two for mips) is done before the call so this function works with
   // the actual storage dimensions.
-  assert_zero(pitch_aligned & (kStoragePitchHeightAlignmentElements - 1));
-  const int32_t outer_elements =
+  assert_zero(pitch_aligned & (kStoragePitchHeightAlignmentBlocks - 1));
+  const int32_t outer_blocks =
       ((y >> kMacroTileHeight2DLog2) *
            int32_t(pitch_aligned >> kMacroTileWidthLog2) +
        (x >> kMacroTileWidthLog2))
       << 6;
-  const int32_t inner_elements = (((y >> 1) & 0b111) << 3) | (x & 0b111);
-  const int32_t outer_inner_bytes = (outer_elements | inner_elements)
-                                    << bytes_per_element_log2;
+  const int32_t inner_blocks = (((y >> 1) & 0b111) << 3) | (x & 0b111);
+  const int32_t outer_inner_bytes = (outer_blocks | inner_blocks)
+                                    << bytes_per_block_log2;
   const uint32_t bank = (y >> 4) & 0b1;
   const uint32_t pipe = ((x >> 3) & 0b11) ^ (((y >> 3) & 0b1) << 1);
   return TiledCombine(outer_inner_bytes, bank, pipe, y & 1);
 }
 
 // The absolute of the return value is below 2^39 (for 16384x2048x1024 with 16
-// bytes per element). This also means that 32 (more precisely, 27) bits is
-// always enough for the page index within a subresource.
+// bytes per block). This also means that 32 (more precisely, 27) bits is always
+// enough for the page index within a subresource.
 inline int64_t Tiled3D(const int32_t x, const int32_t y, const int32_t z,
                        const uint32_t pitch_aligned,
                        const uint32_t height_aligned,
-                       const unsigned int bytes_per_element_log2) {
+                       const unsigned int bytes_per_block_log2) {
   // Expecting that all the needed rounding (not only to 32x32x4, but also to a
   // power of two for mips) is done before the call so this function works with
   // the actual storage dimensions.
-  assert_zero(pitch_aligned & (kStoragePitchHeightAlignmentElements - 1));
-  assert_zero(height_aligned & (kStoragePitchHeightAlignmentElements - 1));
-  // The absolute of `outer_elements` is below (1024 / 4) * (2048 / 16) *
+  assert_zero(pitch_aligned & (kStoragePitchHeightAlignmentBlocks - 1));
+  assert_zero(height_aligned & (kStoragePitchHeightAlignmentBlocks - 1));
+  // The absolute of `outer_blocks` is below (1024 / 4) * (2048 / 16) *
   // (16384 / 32) * 128 = 2^31.
-  const int32_t outer_elements =
+  const int32_t outer_blocks =
       ((((z >> kMacroTileDepthLog2) *
              (height_aligned >> kMacroTileHeight3DLog2) +
          (y >> kMacroTileHeight3DLog2)) *
         int32_t(pitch_aligned >> kMacroTileWidthLog2)) +
        (x >> kMacroTileWidthLog2))
       << 7;
-  const int32_t inner_elements =
+  const int32_t inner_blocks =
       ((z & 0b11) << 5) | (((y >> 1) & 0b11) << 3) | (x & 0b111);
-  const int64_t outer_inner_bytes = int64_t(outer_elements | inner_elements)
-                                    << bytes_per_element_log2;
+  const int64_t outer_inner_bytes = int64_t(outer_blocks | inner_blocks)
+                                    << bytes_per_block_log2;
   const uint32_t bank = ((y >> 3) ^ (z >> 2)) & 0b1;
   const uint32_t pipe = ((x >> 3) & 0b11) ^ (bank << 1);
   return TiledCombine(outer_inner_bytes, bank, pipe, y & 1);
