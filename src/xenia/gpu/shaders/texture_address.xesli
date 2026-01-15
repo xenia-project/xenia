@@ -77,13 +77,13 @@ int XenosTextureTiledAddressXInMacroXor(const int x,
 // Because of this, a number of blocks, that depends on the count of bytes per
 // block, along the X axis (aligned to this amount) is stored consecutively in
 // guest memory:
-// - 1bpe: 8 blocks (8 bytes - limited by address bit 3 being Y[1] for 1bpe).
-// - 2bpe: 8 blocks (16 bytes - limited by address bit 4 always being Y[0]).
-// - 4bpe: 4 blocks.
-// - 8bpe: 2 blocks.
-// - 16bpe: 1 block.
+// - 1bpb: 8 blocks (8 bytes - limited by address bit 3 being Y[1] for 1bpb).
+// - 2bpb: 8 blocks (16 bytes - limited by address bit 4 always being Y[0]).
+// - 4bpb: 4 blocks.
+// - 8bpb: 2 blocks.
+// - 16bpb: 1 block.
 // This makes it possible to access multiple blocks in a single row using 8-byte
-// or (for >= 2bpe) 16-byte loads and stores, and that's particularly useful
+// or (for >= 2bpb) 16-byte loads and stores, and that's particularly useful
 // when transferring texture data between tiled and linear storage.
 
 // With resolution scaling, one scaled group of bytes in guest addresses
@@ -120,31 +120,31 @@ int XenosTextureTiledAddressXInMacroXor(const int x,
 // resolution-scaled data in a memory range to be done with the number of bytes
 // per pixel being the only needed metadata.
 //
-// A common pattern in Xenia is copying multiple 8-byte or (for >= 2bpe) 16-byte
+// A common pattern in Xenia is copying multiple 8-byte or (for >= 2bpb) 16-byte
 // sequences of consecutive blocks along the X axis in a single shader
 // invocation, by computing the tiled address once and merely flipping X bits in
 // it.
 //
 // With the resolution scaling group size being no larger than 2^7 bytes, it may
-// contain guest X bits [3:0] for <= 4bpe, [1:0] for 8bpe, and [0] for 16bpe
-// (note that though X[3] always goes to address[6], for 8bpe, X[2] is
+// contain guest X bits [3:0] for <= 4bpb, [1:0] for 8bpb, and [0] for 16bpb
+// (note that though X[3] always goes to address[6], for 8bpb, X[2] is
 // address[8], so a group can't be wider than 4 blocks, and similarly for X[1]
-// for 16bpe).
+// for 16bpb).
 //
 // Given these requirements, the group sizes are chosen as follows:
-// - 1bpe - lower 7 bits of an unscaled address are X0, X1, X2, Y1, Y0, Y2, X3:
+// - 1bpb - lower 7 bits of an unscaled address are X0, X1, X2, Y1, Y0, Y2, X3:
 //   - Group width: 2^4 blocks (maximum within 7 bits), or 2^4 bytes.
 //   - Group height: 2^3 blocks (Y[2:0] between X[3:0]).
-// - 2bpe - lower 7 bits of an unscaled address are 0, X0, X1, X2, Y0, Y1, X3:
+// - 2bpb - lower 7 bits of an unscaled address are 0, X0, X1, X2, Y0, Y1, X3:
 //   - Group width: 2^4 blocks (maximum within 7 bits), or 2^5 bytes.
 //   - Group height: 2^2 blocks (Y[1:0] between X[3:0]).
-// - 4bpe - lower 7 bits of an unscaled address are 0, 0, X0, X1, Y0, X2, X3:
+// - 4bpb - lower 7 bits of an unscaled address are 0, 0, X0, X1, Y0, X2, X3:
 //   - Group width: 2^4 blocks (maximum within 7 bits), or 2^6 bytes.
 //   - Group height: 2^1 blocks (Y[0] between X[3:0]).
-// - 8bpe - lower 7 bits of an unscaled address are 0, 0, 0, X0, Y0, X1, X3:
+// - 8bpb - lower 7 bits of an unscaled address are 0, 0, 0, X0, Y0, X1, X3:
 //   - Group width: 2^2 blocks (X[2] is beyond 7 bits), or 2^5 bytes.
 //   - Group height: 2^1 blocks (Y[0] between X[1:0]).
-// - 16bpe - lower 7 bits of an unscaled address are 0, 0, 0, 0, Y0, X0, X3:
+// - 16bpb - lower 7 bits of an unscaled address are 0, 0, 0, 0, Y0, X0, X3:
 //   - Group width: 2^1 blocks (X[2:1] is beyond 7 bits), or 2^5 bytes.
 //   - Group height: 2^1 blocks (Y[0] below X[0]).
 //
@@ -155,7 +155,7 @@ int XenosTextureTiledAddressXInMacroXor(const int x,
 // accesses instead anyway).
 //
 // Note that with the given group sizes, as well as with blocks in a host group
-// stored as row-major, for 1bpe, 16x1 host blocks are stored consecutively with
+// stored as row-major, for 1bpb, 16x1 host blocks are stored consecutively with
 // resolution scaling (even though in guest tiling, only 8x1 blocks are), so
 // they can be accessed via one 16-byte operation rather than two 8-byte ones.
 
