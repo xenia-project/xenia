@@ -149,16 +149,15 @@ DEFINE_bool(
     "into account for render-to-texture, for more correct shadow filtering, "
     "bloom, etc., in some cases.",
     "GPU");
-// Disabled by default because of full-screen effects that occur when game
-// shaders assume piecewise linear (4541080F), much more severe than
-// blending-related issues.
 DEFINE_bool(
-    gamma_render_target_as_srgb, false,
-    "When the host can't write piecewise linear gamma directly with correct "
-    "blending, use sRGB output on the host for conceptually correct blending "
-    "in linear color space while having slightly different precision "
-    "distribution in the render target and severely incorrect values if the "
-    "game accesses the resulting colors directly as raw data.",
+    gamma_render_target_as_unorm16, true,
+    "When the host can't write 8 bits per component pixels with piecewise "
+    "linear gamma encoding directly with correct blending, use the 16-bit "
+    "unsigned normalized format, if supported, for conceptually correct "
+    "8_8_8_8_GAMMA render target format blending in linear color space. "
+    "Greatly increases accuracy for this format, but may result in render "
+    "target copying costs if the game switches between 8_8_8_8_GAMMA and "
+    "8_8_8_8 views for the same EDRAM render target.",
     "GPU");
 DEFINE_bool(
     mrt_edram_used_range_clamp_to_min, true,
@@ -635,7 +634,6 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
   uint32_t edram_bases[1 + xenos::kMaxColorRenderTargets];
   uint32_t resource_formats[1 + xenos::kMaxColorRenderTargets];
   uint32_t rts_are_64bpp = 0;
-  uint32_t color_rts_are_gamma = 0;
   if (is_rasterization_done) {
     if (normalized_depth_control.z_enable ||
         normalized_depth_control.stencil_enable) {
@@ -663,9 +661,6 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
       bool is_64bpp = xenos::IsColorRenderTargetFormat64bpp(color_format);
       if (is_64bpp) {
         rts_are_64bpp |= uint32_t(1) << rt_bit_index;
-      }
-      if (color_format == xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
-        color_rts_are_gamma |= uint32_t(1) << i;
       }
       xenos::ColorRenderTargetFormat color_resource_format;
       if (interlock_barrier_only) {
@@ -752,7 +747,6 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
     if (!are_accumulated_render_targets_valid_) {
       std::memset(last_update_accumulated_render_targets_, 0,
                   sizeof(last_update_accumulated_render_targets_));
-      last_update_accumulated_color_targets_are_gamma_ = 0;
     }
     return true;
   }
@@ -961,26 +955,13 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
     std::memcpy(last_update_accumulated_render_targets_,
                 last_update_used_render_targets_,
                 sizeof(last_update_accumulated_render_targets_));
-    last_update_accumulated_color_targets_are_gamma_ = 0;
     are_accumulated_render_targets_valid_ = true;
   }
-  // Only update color space of render targets that actually matter here, don't
-  // disable gamma emulation (which may require ending the render pass) on the
-  // host, for example, if making a depth-only draw between color draws with a
-  // gamma target.
-  uint32_t color_rts_used_bits = depth_and_color_rts_used_bits >> 1;
-  // Ignore any render targets dropped before in this function for any reason.
-  color_rts_are_gamma &= color_rts_used_bits;
-  last_update_accumulated_color_targets_are_gamma_ =
-      (last_update_accumulated_color_targets_are_gamma_ &
-       ~color_rts_used_bits) |
-      color_rts_are_gamma;
 
   return true;
 }
 
 uint32_t RenderTargetCache::GetLastUpdateBoundRenderTargets(
-    bool distinguish_gamma_formats,
     uint32_t* depth_and_color_formats_out) const {
   if (GetPath() != Path::kHostRenderTargets) {
     if (depth_and_color_formats_out) {
@@ -1001,12 +982,7 @@ uint32_t RenderTargetCache::GetLastUpdateBoundRenderTargets(
     }
     rts_used |= uint32_t(1) << i;
     if (depth_and_color_formats_out) {
-      depth_and_color_formats_out[i] =
-          (distinguish_gamma_formats && i &&
-           (last_update_accumulated_color_targets_are_gamma_ &
-            (uint32_t(1) << (i - 1))))
-              ? uint32_t(xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA)
-              : render_target->key().resource_format;
+      depth_and_color_formats_out[i] = render_target->key().resource_format;
     }
   }
   return rts_used;

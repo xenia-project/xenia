@@ -95,8 +95,8 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
 
   // For host render targets.
 
-  bool gamma_render_target_as_srgb() const {
-    return gamma_render_target_as_srgb_;
+  bool gamma_render_target_as_unorm16() const {
+    return gamma_render_target_as_unorm16_;
   }
 
   // Using R16G16[B16A16]_SNORM, which are -1...1, not the needed -32...32.
@@ -129,6 +129,8 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
       xenos::DepthRenderTargetFormat format);
 
  protected:
+  bool IsGammaFormatHostStorageSeparate() const override;
+
   uint32_t GetMaxRenderTargetWidth() const override {
     return D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
   }
@@ -225,16 +227,13 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
 
   class D3D12RenderTarget final : public RenderTarget {
    public:
-    // descriptor_draw_srgb is only used for k_8_8_8_8 render targets when host
-    // sRGB (gamma_render_target_as_srgb) is used. descriptor_load is present
-    // when the DXGI formats are different for drawing and bit-exact loading
-    // (for NaN pattern preservation across EDRAM tile ownership transfers in
-    // floating-point formats, and to distinguish between two -1 representations
-    // in snorm formats).
+    // descriptor_load is present when the DXGI formats are different for
+    // drawing and bit-exact loading (for NaN pattern preservation across EDRAM
+    // tile ownership transfers in floating-point formats, and to distinguish
+    // between two -1 representations in snorm formats).
     D3D12RenderTarget(
         RenderTargetKey key, ID3D12Resource* resource,
         ui::d3d12::D3D12CpuDescriptorPool::Descriptor&& descriptor_draw,
-        ui::d3d12::D3D12CpuDescriptorPool::Descriptor&& descriptor_draw_srgb,
         ui::d3d12::D3D12CpuDescriptorPool::Descriptor&&
             descriptor_load_separate,
         ui::d3d12::D3D12CpuDescriptorPool::Descriptor&& descriptor_srv,
@@ -243,7 +242,6 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
         : RenderTarget(key),
           resource_(resource),
           descriptor_draw_(std::move(descriptor_draw)),
-          descriptor_draw_srgb_(std::move(descriptor_draw_srgb)),
           descriptor_load_separate_(std::move(descriptor_load_separate)),
           descriptor_srv_(std::move(descriptor_srv)),
           descriptor_srv_stencil_(std::move(descriptor_srv_stencil)),
@@ -253,10 +251,6 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
     const ui::d3d12::D3D12CpuDescriptorPool::Descriptor& descriptor_draw()
         const {
       return descriptor_draw_;
-    }
-    const ui::d3d12::D3D12CpuDescriptorPool::Descriptor& descriptor_draw_srgb()
-        const {
-      return descriptor_draw_srgb_;
     }
     const ui::d3d12::D3D12CpuDescriptorPool::Descriptor& descriptor_srv()
         const {
@@ -297,7 +291,6 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
    private:
     Microsoft::WRL::ComPtr<ID3D12Resource> resource_;
     ui::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_draw_;
-    ui::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_draw_srgb_;
     ui::d3d12::D3D12CpuDescriptorPool::Descriptor descriptor_load_separate_;
     // Texture SRV non-shader-visible descriptors, to prepare shader-visible
     // descriptors faster, by copying rather than by creating every time.
@@ -718,7 +711,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
 
   bool use_stencil_reference_output_ = false;
 
-  bool gamma_render_target_as_srgb_ = false;
+  bool gamma_render_target_as_unorm16_ = false;
 
   bool depth_float24_round_ = false;
   bool depth_float24_convert_in_pixel_shader_ = false;
@@ -753,7 +746,6 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
 
   const RenderTarget* const*
       current_command_list_render_targets_[1 + xenos::kMaxColorRenderTargets];
-  uint32_t are_current_command_list_render_targets_srgb_ = 0;
   bool are_current_command_list_render_targets_valid_ = false;
 
   // Temporary storage for descriptors used in PerformTransfersAndResolveClears

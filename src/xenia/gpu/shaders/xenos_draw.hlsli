@@ -23,7 +23,7 @@ cbuffer xe_system_cbuffer : register(b0) {
 
   uint4 xe_texture_swizzled_signs[2];
 
-  uint xe_textures_resolved;
+  uint xe_textures_resolution_scaled;
   uint2 xe_sample_count_log2;
   float xe_alpha_test_reference;
 

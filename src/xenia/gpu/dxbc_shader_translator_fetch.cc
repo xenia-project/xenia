@@ -977,16 +977,17 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         coord_src = dxbc::Src::R(system_temp_result_);
       }
       // Using system_temp_result_.w as a temporary for the flag indicating
-      // whether the texture was resolved - not involved in coordinate
+      // whether the texture is resolution-scaled - not involved in coordinate
       // calculations.
       assert_zero(used_result_nonzero_components & 0b1000);
       a_.OpAnd(dxbc::Dest::R(system_temp_result_, 0b1000),
-               LoadSystemConstant(SystemConstants::Index::kTexturesResolved,
-                                  offsetof(SystemConstants, textures_resolved),
-                                  dxbc::Src::kXXXX),
+               LoadSystemConstant(
+                   SystemConstants::Index::kTexturesResolutionScaled,
+                   offsetof(SystemConstants, textures_resolution_scaled),
+                   dxbc::Src::kXXXX),
                dxbc::Src::LU(uint32_t(1) << tfetch_index));
       a_.OpIf(true, dxbc::Src::R(system_temp_result_, dxbc::Src::kWWWW));
-      // The texture is resolved - scale the coordinates and the size.
+      // The texture is resolution-scaled - scale the coordinates and the size.
       dxbc::Src resolution_scale_src(
           dxbc::Src::LF(float(draw_resolution_scale_x_),
                         float(draw_resolution_scale_y_), 1.0f, 1.0f));
@@ -1103,12 +1104,12 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         if (normalized_components_with_scaled_offsets) {
           // Using coord_and_sampler_temp.w as a temporary for the needed
           // resolution scale inverse - sampler not loaded yet.
-          a_.OpAnd(
-              dxbc::Dest::R(coord_and_sampler_temp, 0b1000),
-              LoadSystemConstant(SystemConstants::Index::kTexturesResolved,
-                                 offsetof(SystemConstants, textures_resolved),
-                                 dxbc::Src::kXXXX),
-              dxbc::Src::LU(uint32_t(1) << tfetch_index));
+          a_.OpAnd(dxbc::Dest::R(coord_and_sampler_temp, 0b1000),
+                   LoadSystemConstant(
+                       SystemConstants::Index::kTexturesResolutionScaled,
+                       offsetof(SystemConstants, textures_resolution_scaled),
+                       dxbc::Src::kXXXX),
+                   dxbc::Src::LU(uint32_t(1) << tfetch_index));
           a_.OpIf(true, dxbc::Src::R(coord_and_sampler_temp, dxbc::Src::kWWWW));
           a_.OpAdd(
               dxbc::Dest::R(coord_and_sampler_temp,
@@ -1172,12 +1173,12 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         if (normalized_components_with_scaled_offsets) {
           // Using coord_and_sampler_temp.w as a temporary for the needed
           // resolution scale inverse - sampler not loaded yet.
-          a_.OpAnd(
-              dxbc::Dest::R(coord_and_sampler_temp, 0b1000),
-              LoadSystemConstant(SystemConstants::Index::kTexturesResolved,
-                                 offsetof(SystemConstants, textures_resolved),
-                                 dxbc::Src::kXXXX),
-              dxbc::Src::LU(uint32_t(1) << tfetch_index));
+          a_.OpAnd(dxbc::Dest::R(coord_and_sampler_temp, 0b1000),
+                   LoadSystemConstant(
+                       SystemConstants::Index::kTexturesResolutionScaled,
+                       offsetof(SystemConstants, textures_resolution_scaled),
+                       dxbc::Src::kXXXX),
+                   dxbc::Src::LU(uint32_t(1) << tfetch_index));
           a_.OpIf(true, dxbc::Src::R(coord_and_sampler_temp, dxbc::Src::kWWWW));
           a_.OpMAd(dxbc::Dest::R(coord_and_sampler_temp,
                                  normalized_components_with_scaled_offsets),
@@ -2090,56 +2091,9 @@ void DxbcShaderTranslator::ProcessTextureFetchInstruction(
         a_.OpBreak();
         a_.OpCase(dxbc::Src::LU(uint32_t(xenos::TextureSign::kGamma)));
         uint32_t gamma_temp = PushSystemTemp();
-        if (gamma_render_target_as_srgb_) {
-          // Check if the texture has sRGB rather that piecewise linear gamma.
-          // More likely that it's just a texture with PWL, put this case in the
-          // `if`, with `else` for sRGB resolved render targets.
-          a_.OpAnd(
-              dxbc::Dest::R(gamma_temp, 0b0001),
-              LoadSystemConstant(SystemConstants::Index::kTexturesResolved,
-                                 offsetof(SystemConstants, textures_resolved),
-                                 dxbc::Src::kXXXX),
-              dxbc::Src::LU(uint32_t(1) << tfetch_index));
-          a_.OpIf(false, dxbc::Src::R(gamma_temp, dxbc::Src::kXXXX));
-        }
         // Convert from piecewise linear.
-        PWLGammaToLinear(system_temp_result_, i, system_temp_result_, i, false,
-                         gamma_temp, 0, gamma_temp, 1);
-        if (gamma_render_target_as_srgb_) {
-          a_.OpElse();
-          // Convert from sRGB.
-          a_.OpMov(component_dest, component_src, true);
-          a_.OpGE(dxbc::Dest::R(gamma_temp, 0b0001),
-                  dxbc::Src::LF(RenderTargetCache::kSrgbToLinearThreshold),
-                  component_src);
-          a_.OpIf(true, dxbc::Src::R(gamma_temp, dxbc::Src::kXXXX));
-          // sRGB <= kSrgbToLinearThreshold case - linear scale.
-          a_.OpMul(component_dest, component_src,
-                   dxbc::Src::LF(1.0f /
-                                 RenderTargetCache::kSrgbToLinearDenominator1));
-          a_.OpElse();
-          // sRGB > kSrgbToLinearThreshold case.
-          // 0 and 1 must be exactly achievable - only convert when the
-          // saturated value is < 1.
-          a_.OpLT(dxbc::Dest::R(gamma_temp, 0b0001), component_src,
-                  dxbc::Src::LF(1.0f));
-          a_.OpIf(true, dxbc::Src::R(gamma_temp, dxbc::Src::kXXXX));
-          a_.OpMAd(component_dest, component_src,
-                   dxbc::Src::LF(1.0f /
-                                 RenderTargetCache::kSrgbToLinearDenominator2),
-                   dxbc::Src::LF(RenderTargetCache::kSrgbToLinearOffset /
-                                 RenderTargetCache::kSrgbToLinearDenominator2));
-          a_.OpLog(component_dest, component_src);
-          a_.OpMul(component_dest, component_src,
-                   dxbc::Src::LF(RenderTargetCache::kSrgbToLinearExponent));
-          a_.OpExp(component_dest, component_src);
-          // Close the < 1 check.
-          a_.OpEndIf();
-          // Close the sRGB <= kSrgbToLinearThreshold check.
-          a_.OpEndIf();
-          // Close the PWL or sRGB check.
-          a_.OpEndIf();
-        }
+        PWLGammaToLinear(a_, system_temp_result_, i, system_temp_result_, i,
+                         false, gamma_temp, 0, gamma_temp, 1);
         // Release gamma_temp.
         PopSystemTemp();
         a_.OpBreak();

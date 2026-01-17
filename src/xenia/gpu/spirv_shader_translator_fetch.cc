@@ -2168,7 +2168,6 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
             builder_->createBranch(&block_sign_merge);
             // Gamma.
             builder_->setBuildPoint(&block_sign_gamma_start);
-            // TODO(Triang3l): Gamma resolve target as sRGB sampling.
             spv::Id sample_result_component_gamma =
                 PWLGammaToLinear(sample_result_component_unsigned, false);
             // Get the current build point for the phi operation not to assume

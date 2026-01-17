@@ -1191,7 +1191,7 @@ void DxbcShaderTranslator::ROV_UnpackColor(
              dxbc::Src::LF(1.0f / 255.0f));
     if (i) {
       for (uint32_t j = 0; j < 3; ++j) {
-        PWLGammaToLinear(color_temp, j, color_temp, j, true, temp1,
+        PWLGammaToLinear(a_, color_temp, j, color_temp, j, true, temp1,
                          temp1_component, temp2, temp2_component);
       }
     }
@@ -1344,7 +1344,7 @@ void DxbcShaderTranslator::ROV_PackPreClampedColor(
           : xenos::ColorRenderTargetFormat::k_8_8_8_8)));
     for (uint32_t j = 0; j < 4; ++j) {
       if (i && j < 3) {
-        PreSaturatedLinearToPWLGamma(temp1, temp1_component, color_temp, j,
+        PreSaturatedLinearToPWLGamma(a_, temp1, temp1_component, color_temp, j,
                                      temp1, temp1_component, temp2,
                                      temp2_component);
         // Denormalize and add 0.5 for rounding.
@@ -1679,7 +1679,7 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
                  SystemConstants::Index::kColorExpBias,
                  offsetof(SystemConstants, color_exp_bias) + sizeof(float) * i,
                  dxbc::Src::kXXXX));
-    if (!gamma_render_target_as_srgb_) {
+    if (gamma_render_target_as_unorm8_) {
       // Convert to gamma space - this is incorrect, since it must be done after
       // blending on the Xbox 360, but this is just one of many blending issues
       // in the RTV path.
@@ -1690,8 +1690,9 @@ void DxbcShaderTranslator::CompletePixelShader_WriteToRTVs() {
       a_.OpMov(dxbc::Dest::R(system_temp_color, 0b0111),
                dxbc::Src::R(system_temp_color), true);
       for (uint32_t j = 0; j < 3; ++j) {
-        PreSaturatedLinearToPWLGamma(system_temp_color, j, system_temp_color, j,
-                                     gamma_temp, 0, gamma_temp, 1);
+        PreSaturatedLinearToPWLGamma(a_, system_temp_color, j,
+                                     system_temp_color, j, gamma_temp, 0,
+                                     gamma_temp, 1);
       }
       a_.OpEndIf();
     }

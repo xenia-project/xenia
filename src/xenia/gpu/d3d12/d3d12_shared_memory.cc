@@ -431,7 +431,7 @@ bool D3D12SharedMemory::UploadRanges(
         return false;
       }
       MakeRangeValid(upload_range_start << page_size_log2(),
-                     uint32_t(upload_buffer_size), false, false);
+                     uint32_t(upload_buffer_size), false);
       std::memcpy(
           upload_buffer_mapping,
           memory().TranslatePhysical(upload_range_start << page_size_log2()),

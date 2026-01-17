@@ -110,14 +110,15 @@ class TextureCache {
         GetValidTextureBinding(fetch_constant_index);
     return binding ? binding->swizzled_signs : kSwizzledSignsUnsigned;
   }
-  bool IsActiveTextureResolved(uint32_t fetch_constant_index) const {
+  bool IsActiveTextureResolutionScaled(uint32_t fetch_constant_index) const {
     const TextureBinding* binding =
         GetValidTextureBinding(fetch_constant_index);
     if (!binding) {
       return false;
     }
-    return (binding->texture && binding->texture->IsResolved()) ||
-           (binding->texture_signed && binding->texture_signed->IsResolved());
+    return (binding->texture && binding->texture->key().scaled_resolve) ||
+           (binding->texture_signed &&
+            binding->texture_signed->key().scaled_resolve);
   }
 
  protected:
@@ -218,18 +219,6 @@ class TextureCache {
     }
     uint64_t last_usage_time() const { return last_usage_time_; }
 
-    bool GetBaseResolved() const { return base_resolved_; }
-    void SetBaseResolved(bool base_resolved) {
-      assert_false(!base_resolved && key().scaled_resolve);
-      base_resolved_ = base_resolved;
-    }
-    bool GetMipsResolved() const { return mips_resolved_; }
-    void SetMipsResolved(bool mips_resolved) {
-      assert_false(!mips_resolved && key().scaled_resolve);
-      mips_resolved_ = mips_resolved;
-    }
-    bool IsResolved() const { return base_resolved_ || mips_resolved_; }
-
     bool base_outdated(
         const std::unique_lock<std::recursive_mutex>& global_lock) const {
       return base_outdated_;
@@ -274,13 +263,6 @@ class TextureCache {
     uint64_t last_usage_time_;
     Texture* used_previous_;
     Texture* used_next_;
-
-    // Whether the most up-to-date base / mips contain pages with data from a
-    // resolve operation (rather than from the CPU or memexport), primarily for
-    // choosing between piecewise linear gamma and sRGB when the former is
-    // emulated with the latter.
-    bool base_resolved_;
-    bool mips_resolved_;
 
     // These are to be accessed within the global critical region to synchronize
     // with shared memory.

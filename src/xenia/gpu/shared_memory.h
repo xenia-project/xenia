@@ -76,8 +76,7 @@ class SharedMemory {
   // Checks if the range has been updated, uploads new data if needed and
   // ensures the host GPU memory backing the range are resident. Returns true if
   // the range has been fully updated and is usable.
-  bool RequestRange(uint32_t start, uint32_t length,
-                    bool* any_data_resolved_out = nullptr);
+  bool RequestRange(uint32_t start, uint32_t length);
 
   // Marks the range and, if not exact_range, potentially its surroundings
   // (to up to the first GPU-written page, as an access violation exception
@@ -93,7 +92,7 @@ class SharedMemory {
   // be called, to make sure, if the GPU writes don't overwrite *everything* in
   // the pages they touch, the CPU data is properly loaded to the unmodified
   // regions in those pages.
-  void RangeWrittenByGpu(uint32_t start, uint32_t length, bool is_resolve);
+  void RangeWrittenByGpu(uint32_t start, uint32_t length);
 
  protected:
   SharedMemory(Memory& memory);
@@ -127,8 +126,7 @@ class SharedMemory {
                                                 uint32_t length_allocations);
 
   // Mark the memory range as updated and protect it.
-  void MakeRangeValid(uint32_t start, uint32_t length, bool written_by_gpu,
-                      bool written_by_gpu_resolve);
+  void MakeRangeValid(uint32_t start, uint32_t length, bool written_by_gpu);
 
   // Uploads a range of host pages - only called if host GPU sparse memory
   // allocation succeeded if needed. While uploading, MakeRangeValid must be
@@ -197,9 +195,6 @@ class SharedMemory {
     // Subset of valid pages - whether each page in the GPU buffer contains data
     // that was written on the GPU, thus should not be invalidated spuriously.
     uint64_t valid_and_gpu_written;
-    // Subset of valid_and_gpu_written - whether each page in the GPU buffer
-    // contains data written specifically by resolving from EDRAM.
-    uint64_t valid_and_gpu_resolved;
   };
   // Flags for each 64 system pages, interleaved as blocks, so bit scan can be
   // used to quickly extract ranges.

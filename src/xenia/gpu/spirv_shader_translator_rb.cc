@@ -1253,7 +1253,7 @@ void SpirvShaderTranslator::CompleteFragmentShaderInMain() {
         // Convert to gamma space - this is incorrect, since it must be done
         // after blending on the Xbox 360, but this is just one of many blending
         // issues in the host render target path.
-        // TODO(Triang3l): Gamma as sRGB check.
+        // TODO(Triang3l): Gamma as unorm8 check.
         uint_vector_temp_.clear();
         uint_vector_temp_.push_back(0);
         uint_vector_temp_.push_back(1);
