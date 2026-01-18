@@ -26,7 +26,7 @@ defines({
   "UNICODE",
 })
 
-cppdialect("C++17")
+cppdialect("C++20")
 exceptionhandling("On")
 rtti("On")
 symbols("On")
