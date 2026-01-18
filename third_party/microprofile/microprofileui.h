@@ -3252,7 +3252,7 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 
 #if MICROPROFILE_CONTEXT_SWITCH_TRACE
 				MicroProfileStringArrayAddLiteral(&Debug, "Context Switch");
-				MicroProfileStringArrayFormat(&Debug, "%9d [%7d]", S.nContextSwitchUsage, MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE / S.nContextSwitchUsage );
+				MicroProfileStringArrayFormat(&Debug, "%9d [%7d]", S.nContextSwitchUsage, S.nContextSwitchUsage ? MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE / S.nContextSwitchUsage : 0 );
 #endif
 
 				for(int i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
