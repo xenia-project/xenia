@@ -3652,9 +3652,12 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
                     dxbc::Src::R(1, dxbc::Src::kYYYY));
           } else {
             color_packed_in_r1x = true;
-            for (uint32_t i = 0; i < 3; ++i) {
-              DxbcShaderTranslator::PreSaturatedLinearToPWLGamma(a, 1, i, 1, i,
-                                                                 2, 0, 2, 1);
+            if (source_color_format ==
+                xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
+              for (uint32_t i = 0; i < 3; ++i) {
+                DxbcShaderTranslator::PreSaturatedLinearToPWLGamma(
+                    a, 1, i, 1, i, 2, 0, 2, 1);
+              }
             }
             a.OpMAd(dxbc::Dest::R(1), dxbc::Src::R(1), dxbc::Src::LF(255.0f),
                     dxbc::Src::LF(0.5f));
