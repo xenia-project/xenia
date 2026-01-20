@@ -2,31 +2,30 @@
  ******************************************************************************
  * Xenia : Xbox 360 Emulator Research Project                                 *
  ******************************************************************************
- * Copyright 2014 Ben Vanik. All rights reserved.                             *
+ * Copyright 2023 Ben Vanik. All rights reserved.                             *
  * Released under the BSD license - see LICENSE in the root for more details. *
  ******************************************************************************
  */
-
-#include "xenia/vfs/devices/stfs_container_file.h"
 
 #include <algorithm>
 #include <cmath>
 
 #include "xenia/base/math.h"
-#include "xenia/vfs/devices/stfs_container_entry.h"
+#include "xenia/vfs/devices/xcontent_container_entry.h"
+#include "xenia/vfs/devices/xcontent_container_file.h"
 
 namespace xe {
 namespace vfs {
 
-StfsContainerFile::StfsContainerFile(uint32_t file_access,
-                                     StfsContainerEntry* entry)
+XContentContainerFile::XContentContainerFile(uint32_t file_access,
+                                     XContentContainerEntry* entry)
     : File(file_access, entry), entry_(entry) {}
 
-StfsContainerFile::~StfsContainerFile() = default;
+XContentContainerFile::~XContentContainerFile() = default;
 
-void StfsContainerFile::Destroy() { delete this; }
+void XContentContainerFile::Destroy() { delete this; }
 
-X_STATUS StfsContainerFile::ReadSync(void* buffer, size_t buffer_length,
+X_STATUS XContentContainerFile::ReadSync(void* buffer, size_t buffer_length,
                                      size_t byte_offset,
                                      size_t* out_bytes_read) {
   if (byte_offset >= entry_->size()) {
