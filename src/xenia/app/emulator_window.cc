@@ -31,6 +31,7 @@
 #include "xenia/emulator.h"
 #include "xenia/gpu/command_processor.h"
 #include "xenia/gpu/graphics_system.h"
+#include "xenia/hid/input_system.h"
 #include "xenia/ui/file_picker.h"
 #include "xenia/ui/graphics_provider.h"
 #include "xenia/ui/imgui_dialog.h"
@@ -591,6 +592,15 @@ bool EmulatorWindow::Initialize() {
   }
   main_menu->AddChild(std::move(display_menu));
 
+  // HID menu.
+  auto hid_menu = MenuItem::Create(MenuItem::Type::kPopup, "&HID");
+  {
+    hid_menu->AddChild(MenuItem::Create(
+        MenuItem::Type::kString, "&Toggle controller vibration", "",
+        std::bind(&EmulatorWindow::ToggleControllerVibration, this)));
+  }
+  main_menu->AddChild(std::move(hid_menu));
+
   // Help menu.
   auto help_menu = MenuItem::Create(MenuItem::Type::kPopup, "&Help");
   {
@@ -940,6 +950,10 @@ void EmulatorWindow::ToggleDisplayConfigDialog() {
   } else {
     display_config_dialog_.reset();
   }
+}
+
+void EmulatorWindow::ToggleControllerVibration() {
+  emulator()->input_system()->ToggleVibration();
 }
 
 void EmulatorWindow::ShowCompatibility() {
