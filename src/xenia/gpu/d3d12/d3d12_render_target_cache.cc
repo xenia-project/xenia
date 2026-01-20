@@ -3621,22 +3621,21 @@ D3D12RenderTargetCache::GetOrCreateTransferPipelines(TransferShaderKey key) {
             }
             a.OpMov(dxbc::Dest::O(0), dxbc::Src::R(1));
           } else if (mode.output == TransferOutput::kDepth) {
+            // When need only depth, not stencil, skipping the red component.
             if (source_color_format ==
                 xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) {
-              for (uint32_t i = 1; i < 3; ++i) {
+              for (uint32_t i = shader_uses_stencil_reference_output ? 0 : 1;
+                   i < 3; ++i) {
                 DxbcShaderTranslator::PreSaturatedLinearToPWLGamma(
                     a, 1, i, 1, i, 2, 0, 2, 1);
               }
             }
-            // When need only depth, not stencil, skip the red component.
-            a.OpMAd(dxbc::Dest::R(
-                        1, osgn_parameter_index_sv_stencil_ref != UINT32_MAX
-                               ? 0b1111
-                               : 0b1110),
-                    dxbc::Src::R(1), dxbc::Src::LF(255.0f),
-                    dxbc::Src::LF(0.5f));
+            a.OpMAd(
+                dxbc::Dest::R(
+                    1, shader_uses_stencil_reference_output ? 0b1111 : 0b1110),
+                dxbc::Src::R(1), dxbc::Src::LF(255.0f), dxbc::Src::LF(0.5f));
             a.OpFToU(dxbc::Dest::R(1, 0b1110), dxbc::Src::R(1));
-            if (osgn_parameter_index_sv_stencil_ref != UINT32_MAX) {
+            if (shader_uses_stencil_reference_output) {
               // Write the red component to the stencil reference.
               a.OpFToU(dxbc::Dest::OStencilRef(),
                        dxbc::Src::R(1, dxbc::Src::kXXXX));
