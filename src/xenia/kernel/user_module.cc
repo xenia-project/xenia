@@ -13,6 +13,7 @@
 
 #include "xenia/base/byte_stream.h"
 #include "xenia/base/logging.h"
+#include "xenia/base/xxhash.h"
 #include "xenia/cpu/elf_module.h"
 #include "xenia/cpu/processor.h"
 #include "xenia/cpu/xex_module.h"
@@ -127,7 +128,6 @@ X_STATUS UserModule::LoadFromFile(const std::string_view path) {
       }
     }
   }
-
   return LoadXexContinue();
 }
 
@@ -403,8 +403,10 @@ void UserModule::Dump() {
       kernel_state_->emulator()->export_resolver();
   auto header = xex_header();
 
+  CalculateHash();
   // XEX header.
   sb.AppendFormat("Module {}:\n", path_);
+  sb.AppendFormat("Module hash: {:016X}\n", hash_.value_or(UINT64_MAX));
   sb.AppendFormat("    Module Flags: {:08X}\n", (uint32_t)header->module_flags);
 
   // Security header
@@ -804,5 +806,46 @@ void UserModule::Dump() {
   xe::logging::AppendLogLine(xe::LogLevel::Info, 'i', sb.to_string_view());
 }
 
+void UserModule::CalculateHash() {
+  const BaseHeap* module_heap =
+      kernel_state_->memory()->LookupHeap(xex_module()->base_address());
+
+  if (!module_heap) {
+    XELOGE("Invalid heap for xex module! Address: {:08X}",
+           xex_module()->base_address());
+    return;
+  }
+
+  const uint32_t page_size = module_heap->page_size();
+  auto security_info = xex_module()->xex_security_info();
+
+  auto find_code_section_page = [&security_info](bool from_bottom) {
+    for (uint32_t i = 0; i < security_info->page_descriptor_count; i++) {
+      const uint32_t page_index =
+          from_bottom ? i : (security_info->page_descriptor_count - 1) - i;
+      xex2_page_descriptor page_descriptor;
+      page_descriptor.value =
+          xe::byte_swap(security_info->page_descriptors[page_index].value);
+      if (page_descriptor.info != XEX_SECTION_CODE) {
+        continue;
+      }
+      return page_index;
+    }
+    return UINT32_MAX;
+  };
+
+  const uint32_t start_address =
+      xex_module()->base_address() + (find_code_section_page(true) * page_size);
+  const uint32_t end_address =
+      xex_module()->base_address() +
+      ((find_code_section_page(false) + 1) * page_size);
+
+  uint8_t* base_code_adr = memory()->TranslateVirtual(start_address);
+
+  XXH3_state_t hash_state;
+  XXH3_64bits_reset(&hash_state);
+  XXH3_64bits_update(&hash_state, base_code_adr, end_address - start_address);
+  hash_ = XXH3_64bits_digest(&hash_state);
+}
 }  // namespace kernel
 }  // namespace xe
