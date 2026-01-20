@@ -31,9 +31,9 @@
 [submodule "third_party/capstone"]
 	path = third_party/capstone
 	url = https://github.com/xenia-project/capstone.git
-[submodule "third_party/cpptoml"]
-	path = third_party/cpptoml
-	url = https://github.com/skystrife/cpptoml.git
+[submodule "third_party/tomlplusplus"]
+	path = third_party/tomlplusplus
+	url = https://github.com/marzer/tomlplusplus.git
 [submodule "third_party/cxxopts"]
 	path = third_party/cxxopts
 	url = https://github.com/jarro2783/cxxopts.git
