@@ -17,6 +17,7 @@ project("xenia-gpu-vulkan")
   })
   includedirs({
     project_root.."/third_party/Vulkan-Headers/include",
+    project_root.."/third_party/glslang",
   })
   local_platform_files()
   files({
@@ -57,6 +58,7 @@ project("xenia-gpu-vulkan-trace-viewer")
   })
   includedirs({
     project_root.."/third_party/Vulkan-Headers/include",
+    project_root.."/third_party/glslang",
   })
   files({
     "vulkan_trace_viewer_main.cc",
@@ -120,6 +122,7 @@ project("xenia-gpu-vulkan-trace-dump")
   })
   includedirs({
     project_root.."/third_party/Vulkan-Headers/include",
+    project_root.."/third_party/glslang",
   })
   files({
     "vulkan_trace_dump_main.cc",
