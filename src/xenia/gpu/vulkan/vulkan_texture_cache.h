@@ -121,7 +121,42 @@ class VulkanTextureCache final : public TextureCache {
                                  uint32_t& height_scaled_out,
                                  xenos::TextureFormat& format_out);
 
+  // Scaled resolve buffer management (for use by VulkanRenderTargetCache)
+  struct ScaledResolveBuffer {
+    VkBuffer buffer = VK_NULL_HANDLE;
+    VmaAllocation allocation = VK_NULL_HANDLE;
+    uint64_t size = 0;
+    uint64_t range_start_scaled = 0;
+    uint64_t range_length_scaled = 0;
+  };
+
+  // Public scaled resolve buffer methods for use by VulkanRenderTargetCache
+  bool EnsureScaledResolveMemoryCommittedPublic(
+      uint32_t start_unscaled, uint32_t length_unscaled,
+      uint32_t length_scaled_alignment_log2 = 0) {
+    return EnsureScaledResolveMemoryCommitted(start_unscaled, length_unscaled,
+                                              length_scaled_alignment_log2);
+  }
+
+  bool MakeScaledResolveRangeCurrent(uint32_t start_unscaled,
+                                     uint32_t length_unscaled,
+                                     uint32_t length_scaled_alignment_log2 = 0);
+
+  VkBuffer GetCurrentScaledResolveBuffer() const;
+
+  size_t GetScaledResolveCurrentBufferIndex() const {
+    return scaled_resolve_current_buffer_index_;
+  }
+
+  const ScaledResolveBuffer* GetScaledResolveBufferInfo(size_t index) const {
+    if (index < scaled_resolve_buffers_.size()) {
+      return &scaled_resolve_buffers_[index];
+    }
+    return nullptr;
+  }
+
  protected:
+  bool IsScaledResolveSupportedForFormat(TextureKey key) const override;
   bool IsSignedVersionSeparateForFormat(TextureKey key) const override;
   uint32_t GetHostFormatSwizzle(TextureKey key) const override;
 
@@ -134,6 +169,10 @@ class VulkanTextureCache final : public TextureCache {
 
   bool LoadTextureDataFromResidentMemoryImpl(Texture& texture, bool load_base,
                                              bool load_mips) override;
+
+  bool EnsureScaledResolveMemoryCommitted(
+      uint32_t start_unscaled, uint32_t length_unscaled,
+      uint32_t length_scaled_alignment_log2 = 0) override;
 
   void UpdateTextureBindingsImpl(uint32_t fetch_constant_mask) override;
 
@@ -352,6 +391,13 @@ class VulkanTextureCache final : public TextureCache {
       samplers_;
   std::pair<const SamplerParameters, Sampler>* sampler_used_first_ = nullptr;
   std::pair<const SamplerParameters, Sampler>* sampler_used_last_ = nullptr;
+
+  // Scaled resolve buffer storage
+  std::vector<ScaledResolveBuffer> scaled_resolve_buffers_;
+  // Current scaled resolve range tracking
+  uint64_t scaled_resolve_current_range_start_scaled_ = 0;
+  uint64_t scaled_resolve_current_range_length_scaled_ = 0;
+  size_t scaled_resolve_current_buffer_index_ = SIZE_MAX;
 };
 
 }  // namespace vulkan

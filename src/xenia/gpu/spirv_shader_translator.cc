@@ -1931,8 +1931,7 @@ void SpirvShaderTranslator::StartFragmentShaderBeforeMain() {
 }
 
 void SpirvShaderTranslator::StartFragmentShaderInMain() {
-  // TODO(Triang3l): Allow memory export with resolution scaling only for the
-  // center host pixel, with sample shading (for depth format conversion) only
+  // TODO(Triang3l): With sample shading (for depth format conversion) only
   // for the bottom-right sample (unlike in Direct3D, the sample mask input
   // doesn't include covered samples of the primitive that correspond to other
   // invocations, so use the sample that's the most friendly to the half-pixel
@@ -2088,7 +2087,6 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
     // see the actual hardware instructions in both OpBitwiseXor and OpFNegate
     // cases.
     spv::Id const_sign_bit = builder_->makeUintConstant(UINT32_C(1) << 31);
-    // TODO(Triang3l): Resolution scale inversion.
     // X - pixel X .0 in the magnitude, is back-facing in the sign bit.
     assert_true(input_fragment_coordinates_ != spv::NoResult);
     id_vector_temp_.clear();
@@ -2102,6 +2100,12 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
                                             input_fragment_coordinates_,
                                             id_vector_temp_),
                 spv::NoPrecision)));
+    // Apply resolution scale inversion after truncating.
+    if (draw_resolution_scale_x_ > 1) {
+      param_gen_x = builder_->createBinOp(
+          spv::OpFMul, type_float_, param_gen_x,
+          builder_->makeFloatConstant(1.0f / float(draw_resolution_scale_x_)));
+    }
     if (!modification.pixel.param_gen_point) {
       assert_true(input_front_facing_ != spv::NoResult);
       param_gen_x = builder_->createTriOp(
@@ -2137,6 +2141,12 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
                                             input_fragment_coordinates_,
                                             id_vector_temp_),
                 spv::NoPrecision)));
+    // Apply resolution scale inversion after truncating.
+    if (draw_resolution_scale_y_ > 1) {
+      param_gen_y = builder_->createBinOp(
+          spv::OpFMul, type_float_, param_gen_y,
+          builder_->makeFloatConstant(1.0f / float(draw_resolution_scale_y_)));
+    }
     if (modification.pixel.param_gen_point) {
       param_gen_y = builder_->createUnaryOp(
           spv::OpBitcast, type_float_,

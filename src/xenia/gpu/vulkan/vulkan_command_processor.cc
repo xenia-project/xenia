@@ -276,10 +276,13 @@ bool VulkanCommandProcessor::SetupContext() {
                                          << shared_memory_binding_count_log2;
 
   // Requires the transient descriptor set layouts.
-  // TODO(Triang3l): Get the actual draw resolution scale when the texture cache
-  // supports resolution scaling.
+  // Get draw resolution scale using the same method as D3D12
+  uint32_t draw_resolution_scale_x, draw_resolution_scale_y;
+  TextureCache::GetConfigDrawResolutionScale(draw_resolution_scale_x,
+                                             draw_resolution_scale_y);
   render_target_cache_ = std::make_unique<VulkanRenderTargetCache>(
-      *register_file_, *memory_, trace_writer_, 1, 1, *this);
+      *register_file_, *memory_, trace_writer_, draw_resolution_scale_x,
+      draw_resolution_scale_y, *this);
   if (!render_target_cache_->Initialize(shared_memory_binding_count)) {
     XELOGE("Failed to initialize the render target cache");
     return false;
@@ -342,10 +345,10 @@ bool VulkanCommandProcessor::SetupContext() {
   }
 
   // Requires the transient descriptor set layouts.
-  // TODO(Triang3l): Actual draw resolution scale.
-  texture_cache_ =
-      VulkanTextureCache::Create(*register_file_, *shared_memory_, 1, 1, *this,
-                                 guest_shader_pipeline_stages_);
+  // Use the same draw resolution scale as render target cache
+  texture_cache_ = VulkanTextureCache::Create(
+      *register_file_, *shared_memory_, draw_resolution_scale_x,
+      draw_resolution_scale_y, *this, guest_shader_pipeline_stages_);
   if (!texture_cache_) {
     XELOGE("Failed to initialize the texture cache");
     return false;
@@ -2437,15 +2440,19 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type,
   // life. Or even disregard the viewport bounds range in the fragment shader
   // interlocks case completely - apply the viewport and the scissor offset
   // directly to pixel address and to things like ps_param_gen.
+  uint32_t draw_resolution_scale_x = texture_cache_->draw_resolution_scale_x();
+  uint32_t draw_resolution_scale_y = texture_cache_->draw_resolution_scale_y();
   draw_util::GetHostViewportInfo(
-      regs, 1, 1, false, device_properties.maxViewportDimensions[0],
+      regs, draw_resolution_scale_x, draw_resolution_scale_y, false,
+      device_properties.maxViewportDimensions[0],
       device_properties.maxViewportDimensions[1], true,
       normalized_depth_control, false, host_render_targets_used,
       pixel_shader && pixel_shader->writes_depth(), viewport_info);
 
   // Update dynamic graphics pipeline state.
   UpdateDynamicState(viewport_info, primitive_polygonal,
-                     normalized_depth_control);
+                     normalized_depth_control, draw_resolution_scale_x,
+                     draw_resolution_scale_y);
 
   auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
 
@@ -3159,7 +3166,8 @@ void VulkanCommandProcessor::DestroyScratchBuffer() {
 
 void VulkanCommandProcessor::UpdateDynamicState(
     const draw_util::ViewportInfo& viewport_info, bool primitive_polygonal,
-    reg::RB_DEPTHCONTROL normalized_depth_control) {
+    reg::RB_DEPTHCONTROL normalized_depth_control,
+    uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y) {
 #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
   SCOPE_profile_cpu_f("gpu");
 #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
@@ -3195,6 +3203,11 @@ void VulkanCommandProcessor::UpdateDynamicState(
   // Scissor.
   draw_util::Scissor scissor;
   draw_util::GetScissor(regs, scissor);
+  // Scale the scissor to match the render target resolution scale
+  scissor.offset[0] *= draw_resolution_scale_x;
+  scissor.offset[1] *= draw_resolution_scale_y;
+  scissor.extent[0] *= draw_resolution_scale_x;
+  scissor.extent[1] *= draw_resolution_scale_y;
   VkRect2D scissor_rect;
   scissor_rect.offset.x = int32_t(scissor.offset[0]);
   scissor_rect.offset.y = int32_t(scissor.offset[1]);
