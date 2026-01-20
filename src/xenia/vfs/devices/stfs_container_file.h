@@ -10,6 +10,7 @@
 #ifndef XENIA_VFS_DEVICES_STFS_CONTAINER_FILE_H_
 #define XENIA_VFS_DEVICES_STFS_CONTAINER_FILE_H_
 
+#include "xenia/base/mutex.h"
 #include "xenia/vfs/file.h"
 
 #include "xenia/xbox.h"
@@ -35,6 +36,7 @@ class StfsContainerFile : public File {
   X_STATUS SetLength(size_t length) override { return X_STATUS_ACCESS_DENIED; }
 
  private:
+  xe::global_critical_region global_critical_region_;
   StfsContainerEntry* entry_;
 };
 
