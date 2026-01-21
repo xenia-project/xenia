@@ -43,6 +43,12 @@ flags({
   "FatalWarnings",        -- Treat warnings as errors.
 })
 
+filter("platforms:Mac")
+  removeflags({
+    "FatalWarnings"
+  })
+filter({})
+
 filter("kind:StaticLib")
   defines({
     "_LIB",
@@ -98,7 +104,20 @@ filter("platforms:Linux")
   buildoptions({
     -- "-mlzcnt",  -- (don't) Assume lzcnt is supported.
   })
-  pkg_config.all("gtk+-x11-3.0")
+
+  filter("platforms:Mac")
+  system("macosx")
+  toolset("clang")
+  buildoptions({
+    "-Wdeprecated-declarations",
+  })
+  links({
+    "stdc++",
+    "dl",
+    "pthread",
+  })
+  
+  pkg_config.all("gtk+-3.0")
   links({
     "stdc++fs",
     "dl",

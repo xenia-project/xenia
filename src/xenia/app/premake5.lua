@@ -86,6 +86,14 @@ project("xenia-app")
   filter({"architecture:x86_64", "files:../base/main_init_"..platform_suffix..".cc"})
     vectorextensions("IA32")  -- Disable AVX for main_init_win.cc so our AVX check doesn't use AVX instructions.
 
+  filter("platforms:Mac")
+    files({
+      "Info.plist",
+    })
+    links({
+      "gtk+-3.0",
+    })
+    
   filter("platforms:not Android-*")
     links({
       "xenia-app-discord",
