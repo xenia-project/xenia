@@ -54,6 +54,9 @@ setup_premake_path_override()
 def main():
   # First try the freshly-built premake.
   premake5_bin = os.path.join(premake_path, 'bin', 'release', 'premake5')
+  # If whe have a system wide premake, skip building premake
+  if has_bin('premake5'):
+    premake5_bin = 'premake5'
   if not has_bin(premake5_bin):
     # No fresh build, so fallback to checked in copy (which we may not have).
     premake5_bin = os.path.join(self_path, 'bin', 'premake5')
