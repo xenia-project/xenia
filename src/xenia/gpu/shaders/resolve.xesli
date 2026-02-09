@@ -44,18 +44,22 @@ push_const_end_xe
 #define XE_RESOLVE_PUSH_CONST_BINDING push_const_binding_xe(buffer(0))
 
 #ifndef XE_RESOLVE_CLEAR
-  #ifdef XE_RESOLVE_COPY_EDRAM_IS_UINT_VECTOR_BUFFER
-    uint_vector_buffer_declare_xe(xe_resolve_edram, set=0, binding=0, t0,
-                                  space0)
-    #define XE_RESOLVE_COPY_EDRAM_BINDING \
-        uint_vector_buffer_binding_xe(xe_resolve_edram, buffer(2))
-  #else
-    array_buffer_declare_xe(XE_RESOLVE_SOURCE_TYPE, xe_resolve_edram, set=0,
-                            binding=0, t0, space0)
-    #define XE_RESOLVE_COPY_EDRAM_BINDING                                 \
-        array_buffer_binding_xe(XE_RESOLVE_SOURCE_TYPE, xe_resolve_edram, \
-                                buffer(2))
+  #if XE_RESOLVE_COPY_EDRAM_BYTE_BUFFER_ALIGNMENT == 4
+    #define XE_RESOLVE_COPY_EDRAM_BYTE_BUFFER_DECLARE_MACRO \
+        byte_buffer_align4_declare_xe
+  #elif XE_RESOLVE_COPY_EDRAM_BYTE_BUFFER_ALIGNMENT == 8
+    #define XE_RESOLVE_COPY_EDRAM_BYTE_BUFFER_DECLARE_MACRO \
+        byte_buffer_align8_declare_xe
+  #elif XE_RESOLVE_COPY_EDRAM_BYTE_BUFFER_ALIGNMENT == 16
+    #define XE_RESOLVE_COPY_EDRAM_BYTE_BUFFER_DECLARE_MACRO \
+        byte_buffer_align16_declare_xe
   #endif
+  #ifdef XE_RESOLVE_COPY_EDRAM_BYTE_BUFFER_DECLARE_MACRO
+    XE_RESOLVE_COPY_EDRAM_BYTE_BUFFER_DECLARE_MACRO(xe_resolve_edram, set=0,
+                                                    binding=0, t0, space0)
+  #endif
+  #define XE_RESOLVE_COPY_EDRAM_BINDING \
+      byte_buffer_binding_xe(xe_resolve_edram, buffer(2))
 #endif
 
 struct XeResolveInfo {
@@ -153,8 +157,8 @@ XeResolveInfo XeResolveGetInfo(param_push_consts_xe) {
   return resolve_info;
 }
 
-uint XeResolveEdramPixelStrideInts(XeResolveInfo resolve_info) {
-  return 1u << (resolve_info.edram_format_ints_log2 +
+uint XeResolveEdramPixelStrideBytes(XeResolveInfo resolve_info) {
+  return 4u << (resolve_info.edram_format_ints_log2 +
                 uint(resolve_info.edram_msaa_samples >= kXenosMsaaSamples_4X));
 }
 
@@ -231,9 +235,9 @@ uint XeResolveEdramPixelStrideInts(XeResolveInfo resolve_info) {
 
   // Offset to the first sample to participate in averaging (or the sample to be
   // copied if not averaging).
-  uint XeResolveColorCopySourcePixelAddressIntsYHalfPixelOffsetFilling(
+  uint XeResolveColorCopySourcePixelAddressBytesYHalfPixelOffsetFilling(
       XeResolveInfo resolve_info, uint2_xe pixel_index) {
-    return XeEdramOffsetInts(
+    return XeEdramOffsetBytes(
         uint2_xe(pixel_index.x,
                  max(pixel_index.y,
                      resolve_info.half_pixel_offset_fill_source.y)) +
@@ -457,116 +461,114 @@ uint XeResolveEdramPixelStrideInts(XeResolveInfo resolve_info) {
     }
   }
 
-  #ifdef XE_RESOLVE_COPY_EDRAM_IS_UINT_VECTOR_BUFFER
+  #if XE_RESOLVE_COPY_EDRAM_BYTE_BUFFER_ALIGNMENT == 4
     void XeResolveLoad2RGBAUnswappedPixelSamplesFromRaw(
-        param_uint_vector_buffer_xe(xe_resolve_edram)
-        param_next_after_uint_vector_buffer_xe
-        uint sample_address_ints, uint pixel_stride_ints, uint format_ints_log2,
-        uint format, out_param_xe(float4_xe, pixel_0),
+        param_byte_buffer_xe(xe_resolve_edram) param_next_after_byte_buffer_xe
+        uint sample_address_bytes, uint pixel_stride_bytes,
+        uint format_ints_log2, uint format, out_param_xe(float4_xe, pixel_0),
         out_param_xe(float4_xe, pixel_1)) {
       dont_flatten_xe if (format_ints_log2 != 0u) {
         uint4_xe packed;
-        dont_flatten_xe if (pixel_stride_ints == 2u) {
-          packed = uint_vector_buffer_load4_xe(
-              xe_resolve_edram, sample_address_ints);
+        dont_flatten_xe if (pixel_stride_bytes == 8u) {
+          packed = byte_buffer_align4_load16u_xe(
+              xe_resolve_edram, sample_address_bytes);
         } else {
-          packed.xy = uint_vector_buffer_load2_xe(
-              xe_resolve_edram, sample_address_ints);
-          packed.zw = uint_vector_buffer_load2_xe(
-              xe_resolve_edram, sample_address_ints + pixel_stride_ints);
+          packed.xy = byte_buffer_align4_load8u_xe(
+              xe_resolve_edram, sample_address_bytes);
+          packed.zw = byte_buffer_align4_load8u_xe(
+              xe_resolve_edram, sample_address_bytes + pixel_stride_bytes);
         }
         XeResolveUnpack64bpp2Samples(packed, format, pixel_0, pixel_1);
       } else {
         uint2_xe packed;
-        dont_flatten_xe if (pixel_stride_ints == 1u) {
-          packed = uint_vector_buffer_load2_xe(
-              xe_resolve_edram, sample_address_ints);
+        dont_flatten_xe if (pixel_stride_bytes == 4u) {
+          packed = byte_buffer_align4_load8u_xe(
+              xe_resolve_edram, sample_address_bytes);
         } else {
-          packed.x = uint_vector_buffer_load1_xe(
-              xe_resolve_edram, sample_address_ints);
-          packed.y = uint_vector_buffer_load1_xe(
-              xe_resolve_edram, sample_address_ints + pixel_stride_ints);
+          packed.x = byte_buffer_align4_load4_xe(
+              xe_resolve_edram, sample_address_bytes);
+          packed.y = byte_buffer_align4_load4_xe(
+              xe_resolve_edram, sample_address_bytes + pixel_stride_bytes);
         }
         XeResolveUnpack32bpp2Samples(packed, format, pixel_0, pixel_1);
       }
     }
 
     void XeResolveLoad4RGBAUnswappedPixelSamplesFromRaw(
-        param_uint_vector_buffer_xe(xe_resolve_edram)
-        param_next_after_uint_vector_buffer_xe
-        uint sample_address_ints, uint pixel_stride_ints, uint format_ints_log2,
-        uint format, out_param_xe(float4_xe, pixel_0),
+        param_byte_buffer_xe(xe_resolve_edram) param_next_after_byte_buffer_xe
+        uint sample_address_bytes, uint pixel_stride_bytes,
+        uint format_ints_log2, uint format, out_param_xe(float4_xe, pixel_0),
         out_param_xe(float4_xe, pixel_1), out_param_xe(float4_xe, pixel_2),
         out_param_xe(float4_xe, pixel_3)) {
       dont_flatten_xe if (format_ints_log2 != 0u) {
         uint4_xe packed_01, packed_23;
-        dont_flatten_xe if (pixel_stride_ints == 2u) {
-          packed_01 = uint_vector_buffer_load4_xe(
-              xe_resolve_edram, sample_address_ints);
-          packed_23 = uint_vector_buffer_load4_xe(
-              xe_resolve_edram, sample_address_ints + 4u);
+        dont_flatten_xe if (pixel_stride_bytes == 8u) {
+          packed_01 = byte_buffer_align4_load16u_xe(
+              xe_resolve_edram, sample_address_bytes);
+          packed_23 = byte_buffer_align4_load16u_xe(
+              xe_resolve_edram, sample_address_bytes + 16u);
         } else {
-          packed_01.xy = uint_vector_buffer_load2_xe(
-              xe_resolve_edram, sample_address_ints);
-          packed_01.zw = uint_vector_buffer_load2_xe(
-              xe_resolve_edram, sample_address_ints + pixel_stride_ints);
-          packed_23.xy = uint_vector_buffer_load2_xe(
-              xe_resolve_edram, sample_address_ints + 2u * pixel_stride_ints);
-          packed_23.zw = uint_vector_buffer_load2_xe(
-              xe_resolve_edram, sample_address_ints + 3u * pixel_stride_ints);
+          packed_01.xy = byte_buffer_align4_load8u_xe(
+              xe_resolve_edram, sample_address_bytes);
+          packed_01.zw = byte_buffer_align4_load8u_xe(
+              xe_resolve_edram, sample_address_bytes + pixel_stride_bytes);
+          packed_23.xy = byte_buffer_align4_load8u_xe(
+              xe_resolve_edram, sample_address_bytes + 2u * pixel_stride_bytes);
+          packed_23.zw = byte_buffer_align4_load8u_xe(
+              xe_resolve_edram, sample_address_bytes + 3u * pixel_stride_bytes);
         }
         XeResolveUnpack64bpp4Samples(packed_01, packed_23, format, pixel_0,
                                      pixel_1, pixel_2, pixel_3);
       } else {
         uint4_xe packed;
-        dont_flatten_xe if (pixel_stride_ints == 1u) {
-          packed = uint_vector_buffer_load4_xe(
-              xe_resolve_edram, sample_address_ints);
+        dont_flatten_xe if (pixel_stride_bytes == 4u) {
+          packed = byte_buffer_align4_load16u_xe(
+              xe_resolve_edram, sample_address_bytes);
         } else {
-          packed.x = uint_vector_buffer_load1_xe(
-              xe_resolve_edram, sample_address_ints);
-          packed.y = uint_vector_buffer_load1_xe(
-              xe_resolve_edram, sample_address_ints + pixel_stride_ints);
-          packed.z = uint_vector_buffer_load1_xe(
-              xe_resolve_edram, sample_address_ints + 2u * pixel_stride_ints);
-          packed.w = uint_vector_buffer_load1_xe(
-              xe_resolve_edram, sample_address_ints + 3u * pixel_stride_ints);
+          packed.x = byte_buffer_align4_load4_xe(
+              xe_resolve_edram, sample_address_bytes);
+          packed.y = byte_buffer_align4_load4_xe(
+              xe_resolve_edram, sample_address_bytes + pixel_stride_bytes);
+          packed.z = byte_buffer_align4_load4_xe(
+              xe_resolve_edram, sample_address_bytes + 2u * pixel_stride_bytes);
+          packed.w = byte_buffer_align4_load4_xe(
+              xe_resolve_edram, sample_address_bytes + 3u * pixel_stride_bytes);
         }
         XeResolveUnpack32bpp4Samples(packed, format, pixel_0, pixel_1, pixel_2,
                                      pixel_3);
       }
     }
 
-    // For red/blue swapping for 64bpp, pre-add 1 to sample_address_ints.
+    // For red/blue swapping for 64bpp, pre-add 4 to sample_address_bytes.
     void XeResolveLoad8RedPixelSamplesFromRaw(
-        param_uint_vector_buffer_xe(xe_resolve_edram)
-        param_next_after_uint_vector_buffer_xe
-        uint sample_address_ints, uint pixel_stride_ints, uint format_ints_log2,
-        uint format, bool swap_32bpp, out_param_xe(float4_xe, pixels_0123),
+        param_byte_buffer_xe(xe_resolve_edram) param_next_after_byte_buffer_xe
+        uint sample_address_bytes, uint pixel_stride_bytes,
+        uint format_ints_log2, uint format, bool swap_32bpp,
+        out_param_xe(float4_xe, pixels_0123),
         out_param_xe(float4_xe, pixels_4567)) {
       uint4_xe packed_0123, packed_4567;
-      dont_flatten_xe if (pixel_stride_ints == 1u) {
-        packed_0123 = uint_vector_buffer_load4_xe(
-            xe_resolve_edram, sample_address_ints);
-        packed_4567 = uint_vector_buffer_load4_xe(
-            xe_resolve_edram, sample_address_ints + 4u);
+      dont_flatten_xe if (pixel_stride_bytes == 4u) {
+        packed_0123 = byte_buffer_align4_load16u_xe(
+            xe_resolve_edram, sample_address_bytes);
+        packed_4567 = byte_buffer_align4_load16u_xe(
+            xe_resolve_edram, sample_address_bytes + 16u);
       } else {
-        packed_0123.x = uint_vector_buffer_load1_xe(
-            xe_resolve_edram, sample_address_ints);
-        packed_0123.y = uint_vector_buffer_load1_xe(
-            xe_resolve_edram, sample_address_ints + pixel_stride_ints);
-        packed_0123.z = uint_vector_buffer_load1_xe(
-            xe_resolve_edram, sample_address_ints + 2u * pixel_stride_ints);
-        packed_0123.w = uint_vector_buffer_load1_xe(
-            xe_resolve_edram, sample_address_ints + 3u * pixel_stride_ints);
-        packed_4567.x = uint_vector_buffer_load1_xe(
-            xe_resolve_edram, sample_address_ints + 4u * pixel_stride_ints);
-        packed_4567.y = uint_vector_buffer_load1_xe(
-            xe_resolve_edram, sample_address_ints + 5u * pixel_stride_ints);
-        packed_4567.z = uint_vector_buffer_load1_xe(
-            xe_resolve_edram, sample_address_ints + 6u * pixel_stride_ints);
-        packed_4567.w = uint_vector_buffer_load1_xe(
-            xe_resolve_edram, sample_address_ints + 7u * pixel_stride_ints);
+        packed_0123.x = byte_buffer_align4_load4_xe(
+            xe_resolve_edram, sample_address_bytes);
+        packed_0123.y = byte_buffer_align4_load4_xe(
+            xe_resolve_edram, sample_address_bytes + pixel_stride_bytes);
+        packed_0123.z = byte_buffer_align4_load4_xe(
+            xe_resolve_edram, sample_address_bytes + 2u * pixel_stride_bytes);
+        packed_0123.w = byte_buffer_align4_load4_xe(
+            xe_resolve_edram, sample_address_bytes + 3u * pixel_stride_bytes);
+        packed_4567.x = byte_buffer_align4_load4_xe(
+            xe_resolve_edram, sample_address_bytes + 4u * pixel_stride_bytes);
+        packed_4567.y = byte_buffer_align4_load4_xe(
+            xe_resolve_edram, sample_address_bytes + 5u * pixel_stride_bytes);
+        packed_4567.z = byte_buffer_align4_load4_xe(
+            xe_resolve_edram, sample_address_bytes + 6u * pixel_stride_bytes);
+        packed_4567.w = byte_buffer_align4_load4_xe(
+            xe_resolve_edram, sample_address_bytes + 7u * pixel_stride_bytes);
       }
       dont_flatten_xe if (format_ints_log2 != 0u) {
         XeResolveUnpack64bpp8RedUnswappedSamples(packed_0123, packed_4567,
@@ -579,48 +581,46 @@ uint XeResolveEdramPixelStrideInts(XeResolveInfo resolve_info) {
     }
 
     void XeResolveLoad2RGBAColors(
-        param_uint_vector_buffer_xe(xe_resolve_edram)
-        param_next_after_uint_vector_buffer_xe
-        XeResolveInfo resolve_info, uint address_ints,
+        param_byte_buffer_xe(xe_resolve_edram) param_next_after_byte_buffer_xe
+        XeResolveInfo resolve_info, uint address_bytes,
         out_param_xe(float4_xe, pixel_0), out_param_xe(float4_xe, pixel_1)) {
-      uint pixel_stride_ints = XeResolveEdramPixelStrideInts(resolve_info);
+      uint pixel_stride_bytes = XeResolveEdramPixelStrideBytes(resolve_info);
       XeResolveLoad2RGBAUnswappedPixelSamplesFromRaw(
-          pass_uint_vector_buffer_xe(xe_resolve_edram)
-          pass_next_after_uint_vector_buffer_xe
-          address_ints, pixel_stride_ints, resolve_info.edram_format_ints_log2,
-          resolve_info.edram_format, pixel_0, pixel_1);
+          pass_byte_buffer_xe(xe_resolve_edram) pass_next_after_byte_buffer_xe
+          address_bytes, pixel_stride_bytes,
+          resolve_info.edram_format_ints_log2, resolve_info.edram_format,
+          pixel_0, pixel_1);
       float exp_bias = resolve_info.dest_exp_bias_factor;
       dont_flatten_xe
       if (resolve_info.sample_select >= kXenosCopySampleSelect_01) {
-        uint tile_row_stride_ints = 80u * resolve_info.resolution_scale.x;
+        uint tile_row_stride_bytes = 4u * 80u * resolve_info.resolution_scale.x;
         // TODO(Triang3l): Gamma-correct resolve for 8_8_8_8_GAMMA.
         exp_bias *= 0.5f;
         float4_xe msaa_resolve_pixel_0, msaa_resolve_pixel_1;
         XeResolveLoad2RGBAUnswappedPixelSamplesFromRaw(
-            pass_uint_vector_buffer_xe(xe_resolve_edram)
-            pass_next_after_uint_vector_buffer_xe
-            address_ints + tile_row_stride_ints, pixel_stride_ints,
+            pass_byte_buffer_xe(xe_resolve_edram) pass_next_after_byte_buffer_xe
+            address_bytes + tile_row_stride_bytes, pixel_stride_bytes,
             resolve_info.edram_format_ints_log2, resolve_info.edram_format,
             msaa_resolve_pixel_0, msaa_resolve_pixel_1);
         pixel_0 += msaa_resolve_pixel_0;
         pixel_1 += msaa_resolve_pixel_1;
         dont_flatten_xe
         if (resolve_info.sample_select >= kXenosCopySampleSelect_0123) {
-          uint sample_stride_ints = 1u << resolve_info.edram_format_ints_log2;
+          uint sample_stride_bytes = 4u << resolve_info.edram_format_ints_log2;
           exp_bias *= 0.5f;
           XeResolveLoad2RGBAUnswappedPixelSamplesFromRaw(
-              pass_uint_vector_buffer_xe(xe_resolve_edram)
-              pass_next_after_uint_vector_buffer_xe
-              address_ints + sample_stride_ints, pixel_stride_ints,
+              pass_byte_buffer_xe(xe_resolve_edram)
+              pass_next_after_byte_buffer_xe
+              address_bytes + sample_stride_bytes, pixel_stride_bytes,
               resolve_info.edram_format_ints_log2, resolve_info.edram_format,
               msaa_resolve_pixel_0, msaa_resolve_pixel_1);
           pixel_0 += msaa_resolve_pixel_0;
           pixel_1 += msaa_resolve_pixel_1;
           XeResolveLoad2RGBAUnswappedPixelSamplesFromRaw(
-              pass_uint_vector_buffer_xe(xe_resolve_edram)
-              pass_next_after_uint_vector_buffer_xe
-              address_ints + tile_row_stride_ints + sample_stride_ints,
-              pixel_stride_ints, resolve_info.edram_format_ints_log2,
+              pass_byte_buffer_xe(xe_resolve_edram)
+              pass_next_after_byte_buffer_xe
+              address_bytes + tile_row_stride_bytes + sample_stride_bytes,
+              pixel_stride_bytes, resolve_info.edram_format_ints_log2,
               resolve_info.edram_format, msaa_resolve_pixel_0,
               msaa_resolve_pixel_1);
           pixel_0 += msaa_resolve_pixel_0;
@@ -636,21 +636,20 @@ uint XeResolveEdramPixelStrideInts(XeResolveInfo resolve_info) {
     }
 
     void XeResolveLoad4RGBAColors(
-        param_uint_vector_buffer_xe(xe_resolve_edram)
-        param_next_after_uint_vector_buffer_xe
-        XeResolveInfo resolve_info, uint address_ints,
+        param_byte_buffer_xe(xe_resolve_edram) param_next_after_byte_buffer_xe
+        XeResolveInfo resolve_info, uint address_bytes,
         out_param_xe(float4_xe, pixel_0), out_param_xe(float4_xe, pixel_1),
         out_param_xe(float4_xe, pixel_2), out_param_xe(float4_xe, pixel_3)) {
-      uint pixel_stride_ints = XeResolveEdramPixelStrideInts(resolve_info);
+      uint pixel_stride_bytes = XeResolveEdramPixelStrideBytes(resolve_info);
       XeResolveLoad4RGBAUnswappedPixelSamplesFromRaw(
-          pass_uint_vector_buffer_xe(xe_resolve_edram)
-          pass_next_after_uint_vector_buffer_xe
-          address_ints, pixel_stride_ints, resolve_info.edram_format_ints_log2,
-          resolve_info.edram_format, pixel_0, pixel_1, pixel_2, pixel_3);
+          pass_byte_buffer_xe(xe_resolve_edram) pass_next_after_byte_buffer_xe
+          address_bytes, pixel_stride_bytes,
+          resolve_info.edram_format_ints_log2, resolve_info.edram_format,
+          pixel_0, pixel_1, pixel_2, pixel_3);
       float exp_bias = resolve_info.dest_exp_bias_factor;
       dont_flatten_xe
       if (resolve_info.sample_select >= kXenosCopySampleSelect_01) {
-        uint tile_row_stride_ints = 80u * resolve_info.resolution_scale.x;
+        uint tile_row_stride_bytes = 4u * 80u * resolve_info.resolution_scale.x;
         // TODO(Triang3l): Gamma-correct resolve for 8_8_8_8_GAMMA.
         exp_bias *= 0.5f;
         float4_xe msaa_resolve_pixel_0;
@@ -658,9 +657,8 @@ uint XeResolveEdramPixelStrideInts(XeResolveInfo resolve_info) {
         float4_xe msaa_resolve_pixel_2;
         float4_xe msaa_resolve_pixel_3;
         XeResolveLoad4RGBAUnswappedPixelSamplesFromRaw(
-            pass_uint_vector_buffer_xe(xe_resolve_edram)
-            pass_next_after_uint_vector_buffer_xe
-            address_ints + tile_row_stride_ints, pixel_stride_ints,
+            pass_byte_buffer_xe(xe_resolve_edram) pass_next_after_byte_buffer_xe
+            address_bytes + tile_row_stride_bytes, pixel_stride_bytes,
             resolve_info.edram_format_ints_log2, resolve_info.edram_format,
             msaa_resolve_pixel_0, msaa_resolve_pixel_1, msaa_resolve_pixel_2,
             msaa_resolve_pixel_3);
@@ -670,12 +668,12 @@ uint XeResolveEdramPixelStrideInts(XeResolveInfo resolve_info) {
         pixel_3 += msaa_resolve_pixel_3;
         dont_flatten_xe
         if (resolve_info.sample_select >= kXenosCopySampleSelect_0123) {
-          uint sample_stride_ints = 1u << resolve_info.edram_format_ints_log2;
+          uint sample_stride_bytes = 4u << resolve_info.edram_format_ints_log2;
           exp_bias *= 0.5f;
           XeResolveLoad4RGBAUnswappedPixelSamplesFromRaw(
-              pass_uint_vector_buffer_xe(xe_resolve_edram)
-              pass_next_after_uint_vector_buffer_xe
-              address_ints + sample_stride_ints, pixel_stride_ints,
+              pass_byte_buffer_xe(xe_resolve_edram)
+              pass_next_after_byte_buffer_xe
+              address_bytes + sample_stride_bytes, pixel_stride_bytes,
               resolve_info.edram_format_ints_log2, resolve_info.edram_format,
               msaa_resolve_pixel_0, msaa_resolve_pixel_1, msaa_resolve_pixel_2,
               msaa_resolve_pixel_3);
@@ -684,10 +682,10 @@ uint XeResolveEdramPixelStrideInts(XeResolveInfo resolve_info) {
           pixel_2 += msaa_resolve_pixel_2;
           pixel_3 += msaa_resolve_pixel_3;
           XeResolveLoad4RGBAUnswappedPixelSamplesFromRaw(
-              pass_uint_vector_buffer_xe(xe_resolve_edram)
-              pass_next_after_uint_vector_buffer_xe
-              address_ints + tile_row_stride_ints + sample_stride_ints,
-              pixel_stride_ints, resolve_info.edram_format_ints_log2,
+              pass_byte_buffer_xe(xe_resolve_edram)
+              pass_next_after_byte_buffer_xe
+              address_bytes + tile_row_stride_bytes + sample_stride_bytes,
+              pixel_stride_bytes, resolve_info.edram_format_ints_log2,
               resolve_info.edram_format, msaa_resolve_pixel_0,
               msaa_resolve_pixel_1, msaa_resolve_pixel_2, msaa_resolve_pixel_3);
           pixel_0 += msaa_resolve_pixel_0;
@@ -709,33 +707,30 @@ uint XeResolveEdramPixelStrideInts(XeResolveInfo resolve_info) {
     }
 
     void XeResolveLoad8RedColors(
-        param_uint_vector_buffer_xe(xe_resolve_edram)
-        param_next_after_uint_vector_buffer_xe
-        XeResolveInfo resolve_info, uint address_ints,
+        param_byte_buffer_xe(xe_resolve_edram) param_next_after_byte_buffer_xe
+        XeResolveInfo resolve_info, uint address_bytes,
         out_param_xe(float4_xe, pixels_0123),
         out_param_xe(float4_xe, pixels_4567)) {
-      uint pixel_stride_ints = XeResolveEdramPixelStrideInts(resolve_info);
-      if (resolve_info.dest_swap) {
+      uint pixel_stride_bytes = XeResolveEdramPixelStrideBytes(resolve_info);
+      if (resolve_info.dest_swap && resolve_info.edram_format_ints_log2 != 0u) {
         // Likely want to load the blue part from the right half for 64bpp.
-        address_ints += resolve_info.edram_format_ints_log2;
+        address_bytes += 4u;
       }
       XeResolveLoad8RedPixelSamplesFromRaw(
-          pass_uint_vector_buffer_xe(xe_resolve_edram)
-          pass_next_after_uint_vector_buffer_xe
-          address_ints, pixel_stride_ints, resolve_info.edram_format_ints_log2,
-          resolve_info.edram_format, resolve_info.dest_swap, pixels_0123,
-          pixels_4567);
+          pass_byte_buffer_xe(xe_resolve_edram) pass_next_after_byte_buffer_xe
+          address_bytes, pixel_stride_bytes,
+          resolve_info.edram_format_ints_log2, resolve_info.edram_format,
+          resolve_info.dest_swap, pixels_0123, pixels_4567);
       float exp_bias = resolve_info.dest_exp_bias_factor;
       dont_flatten_xe
       if (resolve_info.sample_select >= kXenosCopySampleSelect_01) {
-        uint tile_row_stride_ints = 80u * resolve_info.resolution_scale.x;
+        uint tile_row_stride_bytes = 4u * 80u * resolve_info.resolution_scale.x;
         // TODO(Triang3l): Gamma-correct resolve for 8_8_8_8_GAMMA.
         exp_bias *= 0.5f;
         float4_xe msaa_resolve_pixels_0123, msaa_resolve_pixels_4567;
         XeResolveLoad8RedPixelSamplesFromRaw(
-            pass_uint_vector_buffer_xe(xe_resolve_edram)
-            pass_next_after_uint_vector_buffer_xe
-            address_ints + tile_row_stride_ints, pixel_stride_ints,
+            pass_byte_buffer_xe(xe_resolve_edram) pass_next_after_byte_buffer_xe
+            address_bytes + tile_row_stride_bytes, pixel_stride_bytes,
             resolve_info.edram_format_ints_log2, resolve_info.edram_format,
             resolve_info.dest_swap, msaa_resolve_pixels_0123,
             msaa_resolve_pixels_4567);
@@ -743,22 +738,22 @@ uint XeResolveEdramPixelStrideInts(XeResolveInfo resolve_info) {
         pixels_4567 += msaa_resolve_pixels_4567;
         dont_flatten_xe
         if (resolve_info.sample_select >= kXenosCopySampleSelect_0123) {
-          uint sample_stride_ints = 1u << resolve_info.edram_format_ints_log2;
+          uint sample_stride_bytes = 4u << resolve_info.edram_format_ints_log2;
           exp_bias *= 0.5f;
           XeResolveLoad8RedPixelSamplesFromRaw(
-              pass_uint_vector_buffer_xe(xe_resolve_edram)
-              pass_next_after_uint_vector_buffer_xe
-              address_ints + sample_stride_ints, pixel_stride_ints,
+              pass_byte_buffer_xe(xe_resolve_edram)
+              pass_next_after_byte_buffer_xe
+              address_bytes + sample_stride_bytes, pixel_stride_bytes,
               resolve_info.edram_format_ints_log2, resolve_info.edram_format,
               resolve_info.dest_swap, msaa_resolve_pixels_0123,
               msaa_resolve_pixels_4567);
           pixels_0123 += msaa_resolve_pixels_0123;
           pixels_4567 += msaa_resolve_pixels_4567;
           XeResolveLoad8RedPixelSamplesFromRaw(
-              pass_uint_vector_buffer_xe(xe_resolve_edram)
-              pass_next_after_uint_vector_buffer_xe
-              address_ints + tile_row_stride_ints + sample_stride_ints,
-              pixel_stride_ints, resolve_info.edram_format_ints_log2,
+              pass_byte_buffer_xe(xe_resolve_edram)
+              pass_next_after_byte_buffer_xe
+              address_bytes + tile_row_stride_bytes + sample_stride_bytes,
+              pixel_stride_bytes, resolve_info.edram_format_ints_log2,
               resolve_info.edram_format, resolve_info.dest_swap,
               msaa_resolve_pixels_0123, msaa_resolve_pixels_4567);
           pixels_0123 += msaa_resolve_pixels_0123;
@@ -768,7 +763,7 @@ uint XeResolveEdramPixelStrideInts(XeResolveInfo resolve_info) {
       pixels_0123 *= exp_bias;
       pixels_4567 *= exp_bias;
     }
-  #endif  // XE_RESOLVE_COPY_EDRAM_IS_UINT_VECTOR_BUFFER
+  #endif  // XE_RESOLVE_COPY_EDRAM_BYTE_BUFFER_ALIGNMENT == 4
 
   uint4_xe XeResolveSwapRedBlue_8_8_8_8(uint4_xe pixels) {
     return (pixels & ~0xFF00FFu) | ((pixels & 0xFFu) << 16u) |

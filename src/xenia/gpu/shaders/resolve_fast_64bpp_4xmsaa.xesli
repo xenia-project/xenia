@@ -8,18 +8,17 @@
  */
 
 #include "endian.xesli"
-#define XE_RESOLVE_SOURCE_TYPE uint2_xe
+#define XE_RESOLVE_COPY_EDRAM_BYTE_BUFFER_ALIGNMENT 8
 #include "resolve.xesli"
 
-array_buffer_wo_declare_xe(uint4_xe, xe_resolve_dest, set=1, binding=0, u0,
-                           space0)
+byte_buffer_align16_wo_declare_xe(xe_resolve_dest, set=1, binding=0, u0, space0)
 #define LOCAL_SIZE_X_XE 8
 #define LOCAL_SIZE_Y_XE 8
 #define LOCAL_SIZE_Z_XE 1
 entry_bindings_begin_compute_xe
   XE_RESOLVE_PUSH_CONST_BINDING
   entry_binding_next_xe
-  array_buffer_wo_binding_xe(uint4_xe, xe_resolve_dest, buffer(1))
+  byte_buffer_wo_binding_xe(xe_resolve_dest, buffer(1))
   entry_binding_next_xe
   XE_RESOLVE_COPY_EDRAM_BINDING
 entry_bindings_end_inputs_begin_compute_xe
@@ -34,25 +33,23 @@ entry_inputs_end_code_begin_compute_xe
   if (pixel_index.x >= resolve_info.width_div_8_scaled << 3u) {
     return;
   }
-  uint source_address_int2s =
-      XeEdramOffsetInts(
-          uint2_xe(pixel_index.x,
-                   max(pixel_index.y,
-                       resolve_info.half_pixel_offset_fill_source.y)) +
-              resolve_info.edram_offset_scaled,
-          resolve_info.edram_base_tiles, true, resolve_info.edram_pitch_tiles,
-          kXenosMsaaSamples_4X, false, 1u,
-          XeResolveFirstSampleIndex(resolve_info.sample_select),
-          resolve_info.resolution_scale)
-      >> 1u;
+  uint source_address = XeEdramOffsetBytes(
+      uint2_xe(pixel_index.x,
+               max(pixel_index.y,
+                   resolve_info.half_pixel_offset_fill_source.y)) +
+          resolve_info.edram_offset_scaled,
+      resolve_info.edram_base_tiles, true, resolve_info.edram_pitch_tiles,
+      kXenosMsaaSamples_4X, false, 1u,
+      XeResolveFirstSampleIndex(resolve_info.sample_select),
+      resolve_info.resolution_scale);
   uint4_xe pixels_01, pixels_23;
-  pixels_01.xy = array_buffer_load_xe(xe_resolve_edram, source_address_int2s);
-  pixels_01.zw =
-      array_buffer_load_xe(xe_resolve_edram, source_address_int2s + 2u);
-  pixels_23.xy =
-      array_buffer_load_xe(xe_resolve_edram, source_address_int2s + 4u);
-  pixels_23.zw =
-      array_buffer_load_xe(xe_resolve_edram, source_address_int2s + 6u);
+  pixels_01.xy = byte_buffer_align8_load8_xe(xe_resolve_edram, source_address);
+  pixels_01.zw = byte_buffer_align8_load8_xe(xe_resolve_edram,
+                                             source_address + 0x10u);
+  pixels_23.xy = byte_buffer_align8_load8_xe(xe_resolve_edram,
+                                             source_address + 0x20u);
+  pixels_23.zw = byte_buffer_align8_load8_xe(xe_resolve_edram,
+                                             source_address + 0x30u);
   dont_flatten_xe
   if (pixel_index.x == 0u &&
       resolve_info.half_pixel_offset_fill_source.x != 0u) {
@@ -65,13 +62,12 @@ entry_inputs_end_code_begin_compute_xe
     pixels_01.xy = pixels_01.zw;
   }
   XeResolveSwap4PixelsRedBlue64bpp(resolve_info, pixels_01, pixels_23);
-  uint dest_address =
-      XeResolveDestPixelAddress(resolve_info, pixel_index, 3u) >> 4u;
-  array_buffer_store_xe(
+  uint dest_address = XeResolveDestPixelAddress(resolve_info, pixel_index, 3u);
+  byte_buffer_align16_store16_xe(
       xe_resolve_dest, dest_address,
       XeEndianSwap64(pixels_01, resolve_info.dest_endian_128));
-  dest_address += XeResolveLocalXAddressXor(2u, 3u) >> 4u;
-  array_buffer_store_xe(
+  dest_address += XeResolveLocalXAddressXor(2u, 3u);
+  byte_buffer_align16_store16_xe(
       xe_resolve_dest, dest_address,
       XeEndianSwap64(pixels_23, resolve_info.dest_endian_128));
 }

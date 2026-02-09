@@ -20,10 +20,10 @@
 // can't exceed 11 bits, and the modulo operator doesn't need to be performed to
 // access the data in the render targets that are located in both ends of the
 // EDRAM at the same time.
-uint XeEdramOffsetInts(uint2_xe pixel_index, uint base_tiles, bool wrap,
-                       uint pitch_tiles, uint msaa_samples, bool is_depth,
-                       uint format_ints_log2, uint pixel_sample_index,
-                       uint2_xe resolution_scale) {
+uint XeEdramOffsetBytes(uint2_xe pixel_index, uint base_tiles, bool wrap,
+                        uint pitch_tiles, uint msaa_samples, bool is_depth,
+                        uint format_ints_log2, uint pixel_sample_index,
+                        uint2_xe resolution_scale) {
   uint2_xe rt_sample_index =
       pixel_index <<
       uint2_xe(greater_than_equal_xe(
@@ -54,7 +54,7 @@ uint XeEdramOffsetInts(uint2_xe pixel_index, uint base_tiles, bool wrap,
     // EDRAM addressing is periodic (modulo the EDRAM size).
     address %= tile_size_at_32bpp.x * tile_size_at_32bpp.y * 2048u;
   }
-  return address;
+  return address << 2;
 }
 
 #endif  // XENIA_GPU_SHADERS_EDRAM_XESLI_

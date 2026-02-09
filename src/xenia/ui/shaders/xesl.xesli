@@ -281,70 +281,70 @@ float4_xe float_x4_xe(float x) { return float4_xe(x, x, x, x); }
 #endif  // SHADING_LANGUAGE_*_XE
 #ifndef entry_outputs_begin_xe
   #define entry_outputs_begin_xe
-#endif  // !entry_outputs_begin_xe
+#endif
 #ifndef entry_out_position_xe
   #define entry_out_position_xe
-#endif  // !entry_out_position_xe
+#endif
 #ifndef entry_outputs_end_stage_inputs_begin_xe
   #define entry_outputs_end_stage_inputs_begin_xe
-#endif  // !entry_outputs_end_stage_inputs_begin_xe
+#endif
 #ifndef entry_in_stage_vertex_xe
   #define entry_in_stage_vertex_xe(type, name, index, semantic) \
       entry_in_stage_xe(type, name, index, semantic)
-#endif  // !entry_in_stage_vertex_xe
+#endif
 #ifndef entry_stage_inputs_end_bindings_begin_vertex_xe
   #define entry_stage_inputs_end_bindings_begin_vertex_xe
-#endif  // !entry_stage_inputs_end_bindings_begin_vertex_xe
+#endif
 #ifndef entry_stage_inputs_end_bindings_begin_pixel_xe
   #define entry_stage_inputs_end_bindings_begin_pixel_xe
-#endif  // !entry_stage_inputs_end_bindings_begin_pixel_xe
+#endif
 #ifndef entry_bindings_begin_compute_xe
   #define entry_bindings_begin_compute_xe
-#endif  // !entry_bindings_begin_compute_xe
+#endif
 #ifndef entry_binding_next_xe
   #define entry_binding_next_xe
-#endif  // !entry_binding_next_xe
+#endif
 #ifndef entry_bindings_end_inputs_begin_xe
   #define entry_bindings_end_inputs_begin_xe
-#endif  // !entry_bindings_end_inputs_begin_xe
+#endif
 #ifndef entry_bindings_empty_end_inputs_begin_xe
   #define entry_bindings_empty_end_inputs_begin_xe
-#endif  // !entry_bindings_empty_end_inputs_begin_xe
+#endif
 #ifndef entry_bindings_end_inputs_begin_compute_xe
   #define entry_bindings_end_inputs_begin_compute_xe
-#endif  // !entry_bindings_end_inputs_begin_compute_xe
+#endif
 #ifndef entry_input_next_xe
   #define entry_input_next_xe
-#endif  // !entry_input_next_xe
+#endif
 #ifndef entry_in_stage_inputs_xe
   #define entry_in_stage_inputs_xe
-#endif  // !entry_in_stage_inputs_xe
+#endif
 #ifndef entry_in_vertex_id_xe
   #define entry_in_vertex_id_xe
-#endif  // !entry_in_vertex_id_xe
+#endif
 #ifndef entry_in_pixel_coord_xe
   #define entry_in_pixel_coord_xe
-#endif  // !entry_in_pixel_coord_xe
+#endif
 #ifndef entry_in_group_id_xe
   #define entry_in_group_id_xe
-#endif  // !entry_in_group_id_xe
+#endif
 #ifndef entry_in_local_thread_id_xe
   #define entry_in_local_thread_id_xe
-#endif  // !entry_in_local_thread_id_xe
+#endif
 #ifndef entry_in_global_thread_id_xe
   #define entry_in_global_thread_id_xe
-#endif  // !entry_in_global_thread_id_xe
+#endif
 #ifndef entry_in_local_thread_index_xe
   #define entry_in_local_thread_index_xe
-#endif  // !entry_in_local_thread_index_xe
+#endif
 #ifndef entry_code_end_xe
   #define entry_code_end_xe \
         entry_return_xe     \
       }
-#endif  // !entry_code_end_xe
+#endif
 #ifndef entry_code_end_compute_xe
   #define entry_code_end_compute_xe }
-#endif  // !entry_code_end_compute_xe
+#endif
 
 // NDC_DIRECTION_Y_XE, assuming a positive viewport height, is:
 // *  1.0 if +out_position_xe.y is towards +in_pixel_coord_xe.y,
@@ -353,7 +353,7 @@ float4_xe float_x4_xe(float x) { return float4_xe(x, x, x, x); }
   #define NDC_DIRECTION_Y_XE 1.0f
 #else
   #define NDC_DIRECTION_Y_XE -1.0f
-#endif  // SHADING_LANGUAGE_GLSL_XE
+#endif
 
 #if SHADING_LANGUAGE_GLSL_XE
   // GLSL requires just const for declaring a constant in the global scope.
@@ -461,140 +461,214 @@ float4_xe float_x4_xe(float x) { return float4_xe(x, x, x, x); }
 #endif  // SHADING_LANGUAGE_*_XE
 #ifndef const_buffer_binding_xe
   #define const_buffer_binding_xe(name, msl_buffer)
-#endif  // !const_buffer_binding_xe
+#endif
 #ifndef push_const_binding_xe
   #define push_const_binding_xe(msl_buffer)
-#endif  // !push_const_binding_xe
+#endif
 
-// Declarations of typed storage buffers and dword buffers (_declare) must be
-// outside the entry point, but their bindings (_binding) must also be specified
-// in the entry point binding declarations.
+// Byte buffers represent raw data accessible as `uint` vectors, addressed with
+// a byte offset with some alignment requirement, and implemented as storage
+// buffers on GLSL, byte address buffers on HLSL, and buffer pointers on MSL.
 //
-// An array buffer is a buffer limited to 1/2/4-component vectors of 32-bit
-// integers and floats, a typed buffer on Direct3D, but a storage buffer (as
-// opposed to a texel buffer, which has a very small minimum requirement for the
-// maximum size) on Vulkan.
+// These underlying binding types were chosen primarily because of the high
+// range limits they offer, as well as the ability for the compiler and the GPU
+// to take more optimal access paths as it's known that no type conversion would
+// be necessary.
 //
-// A UInt vector buffer is a buffer containing 32-bit values, but loading or
-// storing may be done for 2, 3 or 4 consecutive values that are still
-// 32-bit-aligned, and depending on the language and hardware support, access
-// of multiple elements may or may not be compiled into a single hardware
-// instruction instead of separate accesses of individual elements. Each index
-// value corresponds to a 32-bit element. Implementations for languages without
-// native support must use functions, not macros, for adding the component
-// offset to the index to avoid evaluating the address multiple times.
+// In Vulkan, the minimum required `maxStorageBufferRange` is 128 MB, while only
+// 65536 is required for `maxTexelBufferElements`.
+//
+// In Direct3D 11 and 12, the range limit for typed buffers is 2^27 elements
+// (`REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP`), and according to "Summary of
+// Changes in this Chapter from D3D10 to D3D11.3" in the chapter 21 "System
+// Limits on Various Resources" in the Direct3D 11.3 Functional Specification,
+// this limit also applies to structured buffers. However, the entire resource
+// (up to 2 GB - `REQ_RESOURCE_SIZE_IN_MEGABYTES_EXPRESSION_C_TERM` - in most
+// cases) must be accessible via a byte address buffer.
+//
+// Also, byte address buffers were chosen over structured buffers because 8-byte
+// and 16-byte accesses are common, and the same buffer may need to be accessed
+// with different granularities, however, in Direct3D 11, one buffer can't be
+// accessed with different structure byte strides.
+//
+// Bounds checking is not guaranteed for byte buffers (may be bound via root
+// descriptors on Direct3D 12, and on MSL they're bound as pointers).
+//
+// For 4-aligned byte buffers, loads larger than the alignment of the buffer are
+// supported, with the `u` load expecting the address to be aligned to the
+// buffer alignment, and the `a` load expecting it to be aligned to the size of
+// the loaded data.
+//
+// Declarations of byte buffers (`_declare`) must be outside the entry point,
+// but their bindings (`_binding`) must also be specified in the entry point
+// function signature. This is necessary so byte buffers can be declared and
+// used in header files and in functions declared in them, as they're
+// implemented as buffer blocks in GLSL.
+//
+// The `_impl` definitions are for internal use in this file.
+
 #if SHADING_LANGUAGE_GLSL_XE
-  // Binding declarations.
-  #define array_buffer_declare_xe(value_type, name, glsl_set, glsl_binding, \
-                                  hlsl_t, hlsl_t_space)                     \
-      layout(std430, glsl_set, glsl_binding)                                \
-      readonly buffer name##_xe_block {                                     \
-        value_type data[];                                                  \
+  #define byte_buffer_declare_xe_impl(value_type, name, glsl_set,         \
+                                      glsl_binding, hlsl_t, hlsl_t_space) \
+      layout(std430, glsl_set, glsl_binding)                              \
+      readonly buffer name##_xe_block {                                   \
+        value_type data[];                                                \
       } name;
-  #define array_buffer_wo_declare_xe(value_type, name, glsl_set, glsl_binding, \
-                                     hlsl_u, hlsl_u_space)                     \
-      layout(std430, glsl_set, glsl_binding)                                   \
-      writeonly buffer name##_xe_block {                                       \
-        value_type data[];                                                     \
+  #define byte_buffer_wo_declare_xe_impl(value_type, name, glsl_set,         \
+                                         glsl_binding, hlsl_t, hlsl_t_space) \
+      layout(std430, glsl_set, glsl_binding)                                 \
+      writeonly buffer name##_xe_block {                                     \
+        value_type data[];                                                   \
       } name;
-  #define uint_vector_buffer_declare_xe(name, glsl_set, glsl_binding, hlsl_t, \
-                                        hlsl_t_space)                         \
-      layout(std430, glsl_set, glsl_binding)                                  \
-      readonly buffer name##_xe_block {                                       \
-        uint data[];                                                          \
-      } name;                                                                 \
-      uint2_xe name##_xe_load2(uint position) {                               \
-        return uint2_xe(name.data[position], name.data[position + 1u]);       \
-      }                                                                       \
-      uint3_xe name##_xe_load3(uint position) {                               \
-        return uint3_xe(name.data[position], name.data[position + 1u],        \
-                        name.data[position + 2u]);                            \
-      }                                                                       \
-      uint4_xe name##_xe_load4(uint position) {                               \
-        return uint4_xe(name.data[position], name.data[position + 1u],        \
-                        name.data[position + 2u], name.data[position + 3u]);  \
-      }
-  // Loading and storing.
-  #define array_buffer_load_xe(name, position) ((name).data[uint(position)])
-  #define array_buffer_store_xe(name, position, value) \
-      ((name).data[uint(position)] = (value))
-  #define uint_vector_buffer_load1_xe(name, position) \
-      ((name).data[uint(position)])
-  #define uint_vector_buffer_load2_xe(name, position) \
-      name##_xe_load2(uint(position))
-  #define uint_vector_buffer_load3_xe(name, position) \
-      name##_xe_load3(uint(position))
-  #define uint_vector_buffer_load4_xe(name, position) \
-      name##_xe_load4(uint(position))
+
+  #define byte_buffer_align4_load4_xe(name, byte_address) \
+      ((name).data[uint(byte_address) >> 2])
+  #define byte_buffer_align4_load8u_xe(name, byte_address) \
+      uint2_xe((name).data[uint(byte_address) >> 2],       \
+               (name).data[(uint(byte_address) >> 2) + 1u])
+  #define byte_buffer_align4_load16u_xe(name, byte_address) \
+      uint4_xe((name).data[uint(byte_address) >> 2],        \
+               (name).data[(uint(byte_address) >> 2) + 1u], \
+               (name).data[(uint(byte_address) >> 2) + 2u], \
+               (name).data[(uint(byte_address) >> 2) + 3u])
+
+  #define byte_buffer_align8_load8_xe(name, byte_address) \
+      ((name).data[uint(byte_address) >> 3])
+
+  #define byte_buffer_align16_load16_xe(name, byte_address) \
+      ((name).data[uint(byte_address) >> 4])
+
+  #define byte_buffer_align4_store4_xe(name, byte_address, value) \
+      ((name).data[uint(byte_address) >> 2] = (value))
+  #define byte_buffer_align8_store8_xe(name, byte_address, value) \
+      ((name).data[uint(byte_address) >> 3] = (value))
+  #define byte_buffer_align16_store16_xe(name, byte_address, value) \
+      ((name).data[uint(byte_address) >> 4] = (value))
+
 #elif SHADING_LANGUAGE_HLSL_XE
-  // Binding declarations.
-  #define array_buffer_declare_xe(value_type, name, glsl_set, glsl_binding, \
-                                  hlsl_t, hlsl_t_space) \
-      Buffer<value_type> name : register(hlsl_t, hlsl_t_space);
-  #define array_buffer_wo_declare_xe(value_type, name, glsl_set, glsl_binding, \
-                                     hlsl_u, hlsl_u_space)                     \
-      RWBuffer<value_type> name : register(hlsl_u, hlsl_u_space);
-  #define uint_vector_buffer_declare_xe(name, glsl_set, glsl_binding, hlsl_t, \
-                                        hlsl_t_space)                         \
+  #define byte_buffer_declare_xe_impl(value_type, name, glsl_set,         \
+                                      glsl_binding, hlsl_t, hlsl_t_space) \
       ByteAddressBuffer name : register(hlsl_t, hlsl_t_space);
-  // Loading and storing.
-  #define array_buffer_load_xe(name, position) ((name)[uint(position)])
-  #define array_buffer_store_xe(name, position, value) \
-      ((name)[uint(position)] = (value))
-  #define uint_vector_buffer_load1_xe(name, position) \
-      ((name).Load(int(position) << 2))
-  #define uint_vector_buffer_load2_xe(name, position) \
-      ((name).Load2(int(position) << 2))
-  #define uint_vector_buffer_load3_xe(name, position) \
-      ((name).Load3(int(position) << 2))
-  #define uint_vector_buffer_load4_xe(name, position) \
-      ((name).Load4(int(position) << 2))
+  #define byte_buffer_wo_declare_xe_impl(value_type, name, glsl_set,         \
+                                         glsl_binding, hlsl_t, hlsl_t_space) \
+      RWByteAddressBuffer name : register(hlsl_t, hlsl_t_space);
+
+  #define byte_buffer_align4_load4_xe(name, byte_address) \
+      ((name).Load(uint(byte_address)))
+  #define byte_buffer_align4_load8u_xe(name, byte_address) \
+      ((name).Load2(uint(byte_address)))
+  #define byte_buffer_align4_load16u_xe(name, byte_address) \
+      ((name).Load4(uint(byte_address)))
+
+  #define byte_buffer_align8_load8_xe(name, byte_address) \
+      ((name).Load2(uint(byte_address)))
+
+  #define byte_buffer_align16_load16_xe(name, byte_address) \
+      ((name).Load4(uint(byte_address)))
+
+  #define byte_buffer_align4_store4_xe(name, byte_address, value) \
+      ((name).Store(uint(byte_address), value))
+  #define byte_buffer_align8_store8_xe(name, byte_address, value) \
+      ((name).Store2(uint(byte_address), value))
+  #define byte_buffer_align16_store16_xe(name, byte_address, value) \
+      ((name).Store4(uint(byte_address), value))
+
 #elif SHADING_LANGUAGE_MSL_XE
-  // Binding declarations.
-  #define array_buffer_binding_xe(value_type, name, msl_buffer) \
-      const device value_type* name [[msl_buffer]]
-  #define array_buffer_wo_binding_xe(value_type, name, msl_buffer) \
-      device value_type* name [[msl_buffer]]
-  #define uint_vector_buffer_binding_xe(name, msl_buffer) \
-      const device uint* name [[msl_buffer]]
-  // Loading and storing.
-  #define array_buffer_load_xe(name, position) ((name)[size_t(position)])
-  #define array_buffer_store_xe(name, position, value) \
-      ((name)[size_t(position)] = (value))
-  #define uint_vector_buffer_load1_xe(name, position) ((name)[size_t(position)])
-  #define uint_vector_buffer_load2_xe(name, position)         \
+  #define byte_buffer_binding_xe(name, msl_buffer) \
+      const device char* name [[msl_buffer]]
+  #define byte_buffer_wo_binding_xe(name, msl_buffer) \
+      device char* name [[msl_buffer]]
+
+  #define byte_buffer_align4_load4_xe(name, byte_address) \
+      (*reinterpret_cast<const device uint*>(&(name)[(byte_address)]))
+  #define byte_buffer_align4_load8u_xe(name, byte_address)    \
       uint2_xe(*reinterpret_cast<const device packed_uint2*>( \
-                   &((name)[size_t(position)])))
-  #define uint_vector_buffer_load3_xe(name, position)         \
-      uint3_xe(*reinterpret_cast<const device packed_uint3*>( \
-                   &((name)[size_t(position)])))
-  #define uint_vector_buffer_load4_xe(name, position)         \
+                    &(name)[(byte_address)]))
+  #define byte_buffer_align4_load8a_xe(name, byte_address) \
+      (*reinterpret_cast<const device uint2_xe*>(&(name)[(byte_address)]))
+  #define byte_buffer_align4_load16u_xe(name, byte_address)   \
       uint4_xe(*reinterpret_cast<const device packed_uint4*>( \
-                   &((name)[size_t(position)])))
+                    &(name)[(byte_address)]))
+  #define byte_buffer_align4_load16a_xe(name, byte_address) \
+      (*reinterpret_cast<const device uint4_xe*>(&(name)[(byte_address)]))
+
+  #define byte_buffer_align8_load8_xe(name, byte_address) \
+      (*reinterpret_cast<const device uint2_xe*>(&(name)[(byte_address)]))
+
+  #define byte_buffer_align16_load16_xe(name, byte_address) \
+      (*reinterpret_cast<const device uint4_xe*>(&(name)[(byte_address)]))
+
+  #define byte_buffer_align4_store4_xe(name, byte_address, value) \
+      (*reinterpret_cast<device uint*>(&(name)[(byte_address)]) = (value))
+  #define byte_buffer_align8_store8_xe(name, byte_address, value) \
+      (*reinterpret_cast<device uint2_xe*>(&(name)[(byte_address)]) = (value))
+  #define byte_buffer_align16_store16_xe(name, byte_address, value) \
+      (*reinterpret_cast<device uint4_xe*>(&(name)[(byte_address)]) = (value))
+
 #else
-  #error Storage buffers not defined for the target language.
+  #error Byte buffers not defined for the target language.
 #endif  // SHADING_LANGUAGE_*_XE
-#ifndef array_buffer_declare_xe
-  #define array_buffer_declare_xe(value_type, name, glsl_set, glsl_binding, \
+
+#ifndef byte_buffer_declare_xe_impl
+  #define byte_buffer_declare_xe_impl(value_type, name, glsl_set, \
+                                      glsl_binding, hlsl_t, hlsl_t_space)
+#endif
+#ifndef byte_buffer_binding_xe
+  #define byte_buffer_binding_xe(name, msl_buffer)
+#endif
+#ifndef byte_buffer_wo_declare_xe_impl
+  #define byte_buffer_wo_declare_xe_impl(value_type, name, glsl_set, \
+                                         glsl_binding, hlsl_t, hlsl_t_space)
+#endif
+#ifndef byte_buffer_wo_binding_xe
+  #define byte_buffer_wo_binding_xe(name, msl_buffer)
+#endif
+
+#ifndef byte_buffer_align4_declare_xe
+  #define byte_buffer_align4_declare_xe(name, glsl_set, glsl_binding, hlsl_t, \
+                                        hlsl_t_space)                         \
+      byte_buffer_declare_xe_impl(uint, name, glsl_set, glsl_binding, hlsl_t, \
+                                  hlsl_t_space)
+#endif
+#ifndef byte_buffer_align4_wo_declare_xe
+  #define byte_buffer_align4_wo_declare_xe(name, glsl_set, glsl_binding,     \
+                                           hlsl_t, hlsl_t_space)             \
+      byte_buffer_wo_declare_xe_impl(uint, name, glsl_set, glsl_binding,     \
+                                     hlsl_t, hlsl_t_space)
+#endif
+
+#ifndef byte_buffer_align8_declare_xe
+  #define byte_buffer_align8_declare_xe(name, glsl_set, glsl_binding, hlsl_t, \
+                                        hlsl_t_space)                         \
+      byte_buffer_declare_xe_impl(uint2_xe, name, glsl_set, glsl_binding,     \
                                   hlsl_t, hlsl_t_space)
-#endif  // !array_buffer_declare_xe
-#ifndef array_buffer_wo_declare_xe
-  #define array_buffer_wo_declare_xe(value_type, name, glsl_set, glsl_binding, \
-                                     hlsl_u, hlsl_u_space)
-#endif  // !array_buffer_wo_declare_xe
-#ifndef array_buffer_binding_xe
-  #define array_buffer_binding_xe(value_type, name, msl_buffer)
-#endif  // !array_buffer_binding_xe
-#ifndef array_buffer_wo_binding_xe
-  #define array_buffer_wo_binding_xe(value_type, name, msl_buffer)
-#endif  // !array_buffer_wo_binding_xe
-#ifndef uint_vector_buffer_declare_xe
-  #define uint_vector_buffer_declare_xe(name, glsl_set, glsl_binding, hlsl_t, \
-                                        hlsl_t_space)
-#endif  // !uint_vector_buffer_declare_xe
-#ifndef uint_vector_buffer_binding_xe
-  #define uint_vector_buffer_binding_xe(name, msl_buffer)
-#endif  // !uint_vector_buffer_binding_xe
+#endif
+#ifndef byte_buffer_align8_wo_declare_xe
+  #define byte_buffer_align8_wo_declare_xe(name, glsl_set, glsl_binding,     \
+                                           hlsl_t, hlsl_t_space)             \
+      byte_buffer_wo_declare_xe_impl(uint2_xe, name, glsl_set, glsl_binding, \
+                                     hlsl_t, hlsl_t_space)
+#endif
+
+#ifndef byte_buffer_align16_declare_xe
+  #define byte_buffer_align16_declare_xe(name, glsl_set, glsl_binding, hlsl_t, \
+                                         hlsl_t_space)                         \
+      byte_buffer_declare_xe_impl(uint4_xe, name, glsl_set, glsl_binding,      \
+                                  hlsl_t, hlsl_t_space)
+#endif
+#ifndef byte_buffer_align16_wo_declare_xe
+  #define byte_buffer_align16_wo_declare_xe(name, glsl_set, glsl_binding,     \
+                                            hlsl_t, hlsl_t_space)             \
+      byte_buffer_wo_declare_xe_impl(uint4_xe, name, glsl_set, glsl_binding, \
+                                     hlsl_t, hlsl_t_space)
+#endif
+
+#ifndef byte_buffer_align4_load8a_xe
+  #define byte_buffer_align4_load8a_xe byte_buffer_align4_load8u_xe
+#endif
+#ifndef byte_buffer_align4_load16a_xe
+  #define byte_buffer_align4_load16a_xe byte_buffer_align4_load16u_xe
+#endif
 
 // Buffer, texture, sampler and image bindings must be in the entry point
 // bindings declaration.
@@ -741,7 +815,7 @@ float4_xe float_x4_xe(float x) { return float4_xe(x, x, x, x); }
 #if !COMBINED_TEXTURE_SAMPLER_XE
   #ifndef sampler_2d_xe
     #define sampler_2d_xe texture_2d_xe
-  #endif  // !sampler_2d_xe
+  #endif
   #ifndef sampler_xe
     #define sampler_xe(sampler_type, name, glsl_set, glsl_binding, hlsl_t,   \
                        hlsl_t_space, hlsl_s, hlsl_s_space, msl_texture,      \
@@ -751,32 +825,32 @@ float4_xe float_x4_xe(float x) { return float4_xe(x, x, x, x); }
         entry_binding_next_xe                                                \
         sampler_state_xe(name##_xe_sampler, glsl_set, glsl_binding, hlsl_s, \
                          hlsl_s_space, msl_sampler)
-  #endif  // !sampler_xe
+  #endif
   #ifndef sample_comb_lod_2d_xe
     #define sample_comb_lod_2d_xe(texture_sampler_name, position, lod)         \
         sample_sep_lod_2d_xe(texture_sampler_name,                             \
                              texture_sampler_name##_xe_sampler, position, lod)
-  #endif  // !sample_comb_lod_2d_xe
+  #endif
   #ifndef gather_comb_2d_r_xe
     #define gather_comb_2d_r_xe(texture_sampler_name, position) \
         gather_sep_2d_r_xe(texture_sampler_name,                \
                            texture_sampler_name##_xe_sampler, position)
-  #endif  // !gather_comb_2d_r_xe
+  #endif
   #ifndef gather_comb_2d_g_xe
     #define gather_comb_2d_g_xe(texture_sampler_name, position) \
         gather_sep_2d_g_xe(texture_sampler_name,                \
                            texture_sampler_name##_xe_sampler, position)
-  #endif  // !gather_comb_2d_g_xe
+  #endif
   #ifndef gather_comb_2d_b_xe
     #define gather_comb_2d_b_xe(texture_sampler_name, position) \
         gather_sep_2d_b_xe(texture_sampler_name,                \
                            texture_sampler_name##_xe_sampler, position)
-  #endif  // !gather_comb_2d_b_xe
+  #endif
   #ifndef gather_comb_2d_a_xe
     #define gather_comb_2d_a_xe(texture_sampler_name, position) \
         gather_sep_2d_a_xe(texture_sampler_name,                \
                            texture_sampler_name##_xe_sampler, position)
-  #endif  // !gather_comb_2d_a_xe
+  #endif
 #endif  // !COMBINED_TEXTURE_SAMPLER_XE
 
 // Passing bindings to functions, and also output and input / output parameters.
@@ -795,55 +869,59 @@ float4_xe float_x4_xe(float x) { return float4_xe(x, x, x, x); }
   #define param_next_after_const_buffer_xe ,
   #define param_push_consts_xe constant push_const_struct_xe& push_consts_xe
   #define param_next_after_push_consts_xe ,
-  #define param_uint_vector_buffer_xe(name) const device uint* name
-  #define param_next_after_uint_vector_buffer_xe ,
+  #define param_byte_buffer_xe(name) const device char* name
+  #define param_byte_buffer_wo_xe(name) device char* name
+  #define param_next_after_byte_buffer_xe ,
   // Call arguments.
   #define pass_const_buffer_xe(name) (name)
   #define pass_next_after_const_buffer_xe ,
   #define pass_push_consts_xe push_consts_xe
   #define pass_next_after_push_consts_xe ,
-  #define pass_uint_vector_buffer_xe(name) (name)
-  #define pass_next_after_uint_vector_buffer_xe ,
+  #define pass_byte_buffer_xe(name) (name)
+  #define pass_next_after_byte_buffer_xe ,
 #endif  // SHADING_LANGUAGE_*_XE
 
 // Prototype parameters.
 #ifndef param_const_buffer_xe
   #define param_const_buffer_xe(name)
-#endif  // !param_const_buffer_xe
+#endif
 #ifndef param_next_after_const_buffer_xe
   #define param_next_after_const_buffer_xe
-#endif  // !param_next_after_const_buffer_xe
+#endif
 #ifndef param_push_consts_xe
   #define param_push_consts_xe
-#endif  // !param_push_consts_xe
+#endif
 #ifndef param_next_after_push_consts_xe
   #define param_next_after_push_consts_xe
-#endif  // !param_next_after_push_consts_xe
-#ifndef param_uint_vector_buffer_xe
-  #define param_uint_vector_buffer_xe(name)
-#endif  // !param_uint_vector_buffer_xe
-#ifndef param_next_after_uint_vector_buffer_xe
-  #define param_next_after_uint_vector_buffer_xe
-#endif  // !param_next_after_uint_vector_buffer_xe
+#endif
+#ifndef param_byte_buffer_xe
+  #define param_byte_buffer_xe(name)
+#endif
+#ifndef param_byte_buffer_wo_xe
+  #define param_byte_buffer_wo_xe(name)
+#endif
+#ifndef param_next_after_byte_buffer_xe
+  #define param_next_after_byte_buffer_xe
+#endif
 // Call arguments.
 #ifndef pass_const_buffer_xe
   #define pass_const_buffer_xe(name)
-#endif  // !pass_const_buffer_xe
+#endif
 #ifndef pass_next_after_const_buffer_xe
   #define pass_next_after_const_buffer_xe
-#endif  // !pass_next_after_const_buffer_xe
+#endif
 #ifndef pass_push_consts_xe
   #define pass_push_consts_xe
-#endif  // !pass_push_consts_xe
+#endif
 #ifndef pass_next_after_push_consts_xe
   #define pass_next_after_push_consts_xe
-#endif  // !pass_next_after_push_consts_xe
-#ifndef pass_uint_vector_buffer_xe
-  #define pass_uint_vector_buffer_xe(name)
-#endif  // !pass_uint_vector_buffer_xe
-#ifndef pass_next_after_uint_vector_buffer_xe
-  #define pass_next_after_uint_vector_buffer_xe
-#endif  // !pass_next_after_uint_vector_buffer_xe
+#endif
+#ifndef pass_byte_buffer_xe
+  #define pass_byte_buffer_xe(name)
+#endif
+#ifndef pass_next_after_byte_buffer_xe
+  #define pass_next_after_byte_buffer_xe
+#endif
 
 // Attributes.
 
@@ -860,16 +938,16 @@ float4_xe float_x4_xe(float x) { return float4_xe(x, x, x, x); }
 #endif  // SHADING_LANGUAGE_*_XE
 #ifndef unroll_xe
   #define unroll_xe
-#endif  // !unroll_xe
+#endif
 #ifndef dont_unroll
   #define dont_unroll
-#endif  // !dont_unroll
+#endif
 #ifndef flatten_xe
   #define flatten_xe
-#endif  // !flatten_xe
+#endif
 #ifndef dont_flatten_xe
   #define dont_flatten_xe
-#endif  // !dont_flatten_xe
+#endif
 
 // Function aliases.
 

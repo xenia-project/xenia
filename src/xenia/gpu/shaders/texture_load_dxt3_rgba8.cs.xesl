@@ -10,19 +10,7 @@
 #include "pixel_formats.xesli"
 #include "texture_load.xesli"
 
-array_buffer_wo_declare_xe(uint4_xe, xe_texture_load_dest, set=0, binding=0, u0,
-                           space0)
-array_buffer_declare_xe(uint4_xe, xe_texture_load_source, set=1, binding=0, t0,
-                        space0)
-entry_bindings_begin_compute_xe
-  XE_TEXTURE_LOAD_PUSH_CONST_BINDING
-  entry_binding_next_xe
-  array_buffer_wo_binding_xe(uint4_xe, xe_texture_load_dest, buffer(1))
-  entry_binding_next_xe
-  array_buffer_binding_xe(uint4_xe, xe_texture_load_source, buffer(2))
-entry_bindings_end_inputs_begin_compute_xe
-  entry_in_global_thread_id_xe
-entry_inputs_end_code_begin_compute_xe
+XE_TEXTURE_LOAD_ENTRY(16)
 {
   // 1 thread = 2 DXT3 blocks to 8x4 R8G8B8A8 texels.
   XeTextureLoadInfo load_info = XeTextureLoadGetInfo(pass_push_consts_xe);
@@ -32,49 +20,49 @@ entry_inputs_end_code_begin_compute_xe
     return;
   }
   uint3_xe texel_index_host = block_index << uint3_xe(2u, 2u, 0u);
-  uint block_offset_host = uint(
-      (XeTextureHostLinearOffset(int3_xe(texel_index_host),
-                                 load_info.host_pitch, load_info.height_texels,
-                                 4u) +
-       load_info.host_offset) >> 4u);
-  uint elements_pitch_host = load_info.host_pitch >> 4u;
+  uint block_offset_host =
+      load_info.host_offset +
+      uint(XeTextureHostLinearOffset(int3_xe(texel_index_host),
+                                     load_info.host_pitch,
+                                     load_info.height_texels, 4u));
   uint block_offset_guest =
-      XeTextureLoadSourceAddress(load_info, block_index, 4u) >> 4u;
+      XeTextureLoadSourceAddress(load_info, block_index, 4u);
   uint i;
   unroll_xe for (i = 0u; i < 2u; ++i) {
     if (i != 0u) {
-      ++block_offset_host;
-      // Odd block = even block + 32 guest bytes when tiled.
-      block_offset_guest += load_info.is_tiled ? 2u : 1u;
+      block_offset_host += 16u;
+      block_offset_guest += XeTextureLoadLocalXAddressXor(1u, 4u,
+                                                          load_info.is_tiled);
     }
     uint4_xe block = XeEndianSwap32(
-        array_buffer_load_xe(xe_texture_load_source, block_offset_guest),
+        byte_buffer_align16_load16_xe(xe_texture_load_source,
+                                      block_offset_guest),
         load_info.endian_32);
     uint2_xe bgr_end_8in10 = XeDXTColorEndpointsToBGR8In10(block.z);
     // Sort the color indices so they can be used as weights for the second
     // endpoint.
     uint bgr_weights = XeDXTHighColorWeights(block.w);
-    array_buffer_store_xe(
+    byte_buffer_align16_store16_xe(
         xe_texture_load_dest, block_offset_host,
         XeDXTOpaqueRowToRGB8(bgr_end_8in10, bgr_weights) +
             ((block.xxxx >> uint4_xe(0u, 4u, 8u, 12u)) & 0xFu) * 0x11000000u);
     dont_flatten_xe if (texel_index_host.y + 1u < load_info.height_texels) {
-      array_buffer_store_xe(
-          xe_texture_load_dest, block_offset_host + elements_pitch_host,
+      byte_buffer_align16_store16_xe(
+          xe_texture_load_dest, block_offset_host + load_info.host_pitch,
           XeDXTOpaqueRowToRGB8(bgr_end_8in10, bgr_weights >> 8u) +
               ((block.xxxx >> uint4_xe(16u, 20u, 24u, 28u)) & 0xFu) *
               0x11000000u);
       dont_flatten_xe if (texel_index_host.y + 2u < load_info.height_texels) {
-        array_buffer_store_xe(
-            xe_texture_load_dest, block_offset_host + 2u * elements_pitch_host,
+        byte_buffer_align16_store16_xe(
+            xe_texture_load_dest, block_offset_host + 2u * load_info.host_pitch,
             XeDXTOpaqueRowToRGB8(bgr_end_8in10, bgr_weights >> 16u) +
                 ((block.yyyy >> uint4_xe(0u, 4u, 8u, 12u)) & 0xFu) *
                 0x11000000u);
         dont_flatten_xe
         if (texel_index_host.y + 3u < load_info.height_texels) {
-          array_buffer_store_xe(
+          byte_buffer_align16_store16_xe(
               xe_texture_load_dest,
-              block_offset_host + 3u * elements_pitch_host,
+              block_offset_host + 3u * load_info.host_pitch,
               XeDXTOpaqueRowToRGB8(bgr_end_8in10, bgr_weights >> 24u) +
                   ((block.yyyy >> uint4_xe(16u, 20u, 24u, 28u)) & 0xFu) *
                   0x11000000u);

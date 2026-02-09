@@ -9,19 +9,7 @@
 
 #include "texture_load.xesli"
 
-array_buffer_wo_declare_xe(uint4_xe, xe_texture_load_dest, set=0, binding=0, u0,
-                           space0)
-array_buffer_declare_xe(uint4_xe, xe_texture_load_source, set=1, binding=0, t0,
-                        space0)
-entry_bindings_begin_compute_xe
-  XE_TEXTURE_LOAD_PUSH_CONST_BINDING
-  entry_binding_next_xe
-  array_buffer_wo_binding_xe(uint4_xe, xe_texture_load_dest, buffer(1))
-  entry_binding_next_xe
-  array_buffer_binding_xe(uint4_xe, xe_texture_load_source, buffer(2))
-entry_bindings_end_inputs_begin_compute_xe
-  entry_in_global_thread_id_xe
-entry_inputs_end_code_begin_compute_xe
+XE_TEXTURE_LOAD_ENTRY(16)
 {
   // 1 thread = 2 blocks.
   XeTextureLoadInfo load_info = XeTextureLoadGetInfo(pass_push_consts_xe);
@@ -30,24 +18,24 @@ entry_inputs_end_code_begin_compute_xe
   if (any(greater_than_equal_xe(block_index.xy, load_info.size_blocks.xy))) {
     return;
   }
-  uint block_offset_host = uint(
-      (XeTextureHostLinearOffset(int3_xe(block_index), load_info.host_pitch,
-                                 load_info.size_blocks.y, 16u) +
-       load_info.host_offset) >> 4u);
+  uint block_offset_host =
+      load_info.host_offset +
+      uint(XeTextureHostLinearOffset(int3_xe(block_index), load_info.host_pitch,
+                                     load_info.size_blocks.y, 16u));
   uint block_offset_guest =
-      XeTextureLoadSourceAddress(load_info, block_index, 4u) >> 4u;
-  array_buffer_store_xe(
+      XeTextureLoadSourceAddress(load_info, block_index, 4u);
+  byte_buffer_align16_store16_xe(
       xe_texture_load_dest, block_offset_host,
-      XeEndianSwap32(array_buffer_load_xe(xe_texture_load_source,
-                                          block_offset_guest),
+      XeEndianSwap32(byte_buffer_align16_load16_xe(xe_texture_load_source,
+                                                   block_offset_guest),
                      load_info.endian_32));
-  ++block_offset_host;
+  block_offset_host += 16u;
   block_offset_guest +=
-      XeTextureLoadLocalXAddressXor(1u, 4u, load_info.is_tiled) >> 4u;
-  array_buffer_store_xe(
+      XeTextureLoadLocalXAddressXor(1u, 4u, load_info.is_tiled);
+  byte_buffer_align16_store16_xe(
       xe_texture_load_dest, block_offset_host,
-      XeEndianSwap32(array_buffer_load_xe(xe_texture_load_source,
-                                          block_offset_guest),
+      XeEndianSwap32(byte_buffer_align16_load16_xe(xe_texture_load_source,
+                                                   block_offset_guest),
                      load_info.endian_32));
 }
 entry_code_end_compute_xe

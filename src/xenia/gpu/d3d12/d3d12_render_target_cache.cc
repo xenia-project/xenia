@@ -274,6 +274,7 @@ bool D3D12RenderTargetCache::Initialize() {
     return false;
   }
   edram_buffer_->SetName(L"EDRAM Buffer");
+  edram_buffer_gpu_address_ = edram_buffer_->GetGPUVirtualAddress();
   edram_buffer_modification_status_ =
       EdramBufferModificationStatus::kUnmodified;
 
@@ -364,31 +365,15 @@ bool D3D12RenderTargetCache::Initialize() {
   resolve_copy_root_parameters[0].ShaderVisibility =
       D3D12_SHADER_VISIBILITY_ALL;
   // Parameter 1 is the destination (shared memory).
-  D3D12_DESCRIPTOR_RANGE resolve_copy_dest_range;
-  resolve_copy_dest_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-  resolve_copy_dest_range.NumDescriptors = 1;
-  resolve_copy_dest_range.BaseShaderRegister = 0;
-  resolve_copy_dest_range.RegisterSpace = 0;
-  resolve_copy_dest_range.OffsetInDescriptorsFromTableStart = 0;
-  resolve_copy_root_parameters[1].ParameterType =
-      D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-  resolve_copy_root_parameters[1].DescriptorTable.NumDescriptorRanges = 1;
-  resolve_copy_root_parameters[1].DescriptorTable.pDescriptorRanges =
-      &resolve_copy_dest_range;
+  resolve_copy_root_parameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
+  resolve_copy_root_parameters[1].Descriptor.ShaderRegister = 0;
+  resolve_copy_root_parameters[1].Descriptor.RegisterSpace = 0;
   resolve_copy_root_parameters[1].ShaderVisibility =
       D3D12_SHADER_VISIBILITY_ALL;
   // Parameter 2 is the source (EDRAM).
-  D3D12_DESCRIPTOR_RANGE resolve_copy_source_range;
-  resolve_copy_source_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-  resolve_copy_source_range.NumDescriptors = 1;
-  resolve_copy_source_range.BaseShaderRegister = 0;
-  resolve_copy_source_range.RegisterSpace = 0;
-  resolve_copy_source_range.OffsetInDescriptorsFromTableStart = 0;
-  resolve_copy_root_parameters[2].ParameterType =
-      D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-  resolve_copy_root_parameters[2].DescriptorTable.NumDescriptorRanges = 1;
-  resolve_copy_root_parameters[2].DescriptorTable.pDescriptorRanges =
-      &resolve_copy_source_range;
+  resolve_copy_root_parameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+  resolve_copy_root_parameters[2].Descriptor.ShaderRegister = 0;
+  resolve_copy_root_parameters[2].Descriptor.RegisterSpace = 0;
   resolve_copy_root_parameters[2].ShaderVisibility =
       D3D12_SHADER_VISIBILITY_ALL;
   D3D12_ROOT_SIGNATURE_DESC resolve_copy_root_signature_desc;
@@ -583,20 +568,11 @@ bool D3D12RenderTargetCache::Initialize() {
         &host_depth_store_root_source_range;
     host_depth_store_root_source.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     // Destination.
-    D3D12_DESCRIPTOR_RANGE host_depth_store_root_dest_range;
-    host_depth_store_root_dest_range.RangeType =
-        D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-    host_depth_store_root_dest_range.NumDescriptors = 1;
-    host_depth_store_root_dest_range.BaseShaderRegister = 0;
-    host_depth_store_root_dest_range.RegisterSpace = 0;
-    host_depth_store_root_dest_range.OffsetInDescriptorsFromTableStart = 0;
     D3D12_ROOT_PARAMETER& host_depth_store_root_dest =
         host_depth_store_root_parameters[kHostDepthStoreRootParameterDest];
-    host_depth_store_root_dest.ParameterType =
-        D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    host_depth_store_root_dest.DescriptorTable.NumDescriptorRanges = 1;
-    host_depth_store_root_dest.DescriptorTable.pDescriptorRanges =
-        &host_depth_store_root_dest_range;
+    host_depth_store_root_dest.ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
+    host_depth_store_root_dest.Descriptor.ShaderRegister = 0;
+    host_depth_store_root_dest.Descriptor.RegisterSpace = 0;
     host_depth_store_root_dest.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     // Root signature.
     D3D12_ROOT_SIGNATURE_DESC host_depth_store_root_desc;
@@ -1048,18 +1024,10 @@ bool D3D12RenderTargetCache::Initialize() {
     resolve_rov_clear_root_parameters[0].ShaderVisibility =
         D3D12_SHADER_VISIBILITY_ALL;
     // Parameter 1 is the destination (EDRAM).
-    D3D12_DESCRIPTOR_RANGE resolve_rov_clear_dest_range;
-    resolve_rov_clear_dest_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-    resolve_rov_clear_dest_range.NumDescriptors = 1;
-    resolve_rov_clear_dest_range.BaseShaderRegister = 0;
-    resolve_rov_clear_dest_range.RegisterSpace = 0;
-    resolve_rov_clear_dest_range.OffsetInDescriptorsFromTableStart = 0;
     resolve_rov_clear_root_parameters[1].ParameterType =
-        D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    resolve_rov_clear_root_parameters[1].DescriptorTable.NumDescriptorRanges =
-        1;
-    resolve_rov_clear_root_parameters[1].DescriptorTable.pDescriptorRanges =
-        &resolve_rov_clear_dest_range;
+        D3D12_ROOT_PARAMETER_TYPE_UAV;
+    resolve_rov_clear_root_parameters[1].Descriptor.ShaderRegister = 0;
+    resolve_rov_clear_root_parameters[1].Descriptor.RegisterSpace = 0;
     resolve_rov_clear_root_parameters[1].ShaderVisibility =
         D3D12_SHADER_VISIBILITY_ALL;
     D3D12_ROOT_SIGNATURE_DESC resolve_rov_clear_root_signature_desc;
@@ -1407,95 +1375,52 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
                                        resolve_info.copy_dest_extent_length);
       }
       if (copy_dest_committed) {
-        // Write the descriptors and transition the resources.
-        // Full shared memory without resolution scaling, range of the scaled
-        // resolve buffer with scaling because only at least 128 * 2^20 R32
-        // elements must be addressable
-        // (D3D12_REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP).
-        ui::d3d12::util::DescriptorCpuGpuHandlePair descriptor_dest;
-        ui::d3d12::util::DescriptorCpuGpuHandlePair descriptor_source;
-        ui::d3d12::util::DescriptorCpuGpuHandlePair descriptors[2];
-        if (command_processor_.RequestOneUseSingleViewDescriptors(
-                bindless_resources_used_ ? uint32_t(draw_resolution_scaled) : 2,
-                descriptors)) {
-          if (bindless_resources_used_) {
-            if (draw_resolution_scaled) {
-              descriptor_dest = descriptors[0];
-            } else {
-              descriptor_dest =
-                  command_processor_
-                      .GetSharedMemoryUintPow2BindlessUAVHandlePair(
-                          copy_shader_info.dest_bpe_log2);
-            }
-            if (copy_shader_info.source_is_raw) {
-              descriptor_source =
-                  command_processor_.GetSystemBindlessViewHandlePair(
-                      D3D12CommandProcessor::SystemBindlessView::kEdramRawSRV);
-            } else {
-              descriptor_source =
-                  command_processor_.GetEdramUintPow2BindlessSRVHandlePair(
-                      copy_shader_info.source_bpe_log2);
-            }
-          } else {
-            descriptor_dest = descriptors[0];
-            if (!draw_resolution_scaled) {
-              shared_memory.WriteUintPow2UAVDescriptor(
-                  descriptor_dest.first, copy_shader_info.dest_bpe_log2);
-            }
-            descriptor_source = descriptors[1];
-            if (copy_shader_info.source_is_raw) {
-              WriteEdramRawSRVDescriptor(descriptor_source.first);
-            } else {
-              WriteEdramUintPow2SRVDescriptor(descriptor_source.first,
-                                              copy_shader_info.source_bpe_log2);
-            }
-          }
-          if (draw_resolution_scaled) {
-            texture_cache.CreateCurrentScaledResolveRangeUintPow2UAV(
-                descriptor_dest.first, copy_shader_info.dest_bpe_log2);
-            texture_cache.TransitionCurrentScaledResolveRange(
-                D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-          } else {
-            shared_memory.UseForWriting();
-          }
-          TransitionEdramBuffer(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        command_list.D3DSetComputeRootSignature(resolve_copy_root_signature_);
 
-          // Submit the resolve.
-          command_list.D3DSetComputeRootSignature(resolve_copy_root_signature_);
-          command_list.D3DSetComputeRootDescriptorTable(
-              2, descriptor_source.second);
-          command_list.D3DSetComputeRootDescriptorTable(1,
-                                                        descriptor_dest.second);
-          if (draw_resolution_scaled) {
-            command_list.D3DSetComputeRoot32BitConstants(
-                0,
-                sizeof(copy_shader_constants.dest_relative) / sizeof(uint32_t),
-                &copy_shader_constants.dest_relative, 0);
-          } else {
-            command_list.D3DSetComputeRoot32BitConstants(
-                0, sizeof(copy_shader_constants) / sizeof(uint32_t),
-                &copy_shader_constants, 0);
-          }
-          command_processor_.SetExternalPipeline(
-              resolve_copy_pipelines_[size_t(copy_shader)]);
-          command_processor_.SubmitBarriers();
-          command_list.D3DDispatch(copy_group_count_x, copy_group_count_y, 1);
+        // Source.
+        TransitionEdramBuffer(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        command_list.D3DSetComputeRootShaderResourceView(
+            2, edram_buffer_gpu_address_);
 
-          // Order the resolve with other work using the destination as a UAV.
-          if (draw_resolution_scaled) {
-            texture_cache.MarkCurrentScaledResolveRangeUAVWritesCommitNeeded();
-          } else {
-            shared_memory.MarkUAVWritesCommitNeeded();
-          }
+        // Destination and constants.
+        if (draw_resolution_scaled) {
+          texture_cache.TransitionCurrentScaledResolveRange(
+              D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+          command_list.D3DSetComputeRootUnorderedAccessView(
+              1, texture_cache.GetCurrentScaledResolveRangeGPUAddress());
 
-          // Invalidate textures and mark the range as scaled if needed.
-          texture_cache.MarkRangeAsResolved(
-              resolve_info.copy_dest_extent_start,
-              resolve_info.copy_dest_extent_length);
-          written_address_out = resolve_info.copy_dest_extent_start;
-          written_length_out = resolve_info.copy_dest_extent_length;
-          copied = true;
+          command_list.D3DSetComputeRoot32BitConstants(
+              0, sizeof(copy_shader_constants.dest_relative) / sizeof(uint32_t),
+              &copy_shader_constants.dest_relative, 0);
+        } else {
+          shared_memory.UseForWriting();
+          command_list.D3DSetComputeRootUnorderedAccessView(
+              1, shared_memory.GetGPUAddress());
+
+          command_list.D3DSetComputeRoot32BitConstants(
+              0, sizeof(copy_shader_constants) / sizeof(uint32_t),
+              &copy_shader_constants, 0);
         }
+
+        // Dispatch the resolve.
+        command_processor_.SetExternalPipeline(
+            resolve_copy_pipelines_[size_t(copy_shader)]);
+        command_processor_.SubmitBarriers();
+        command_list.D3DDispatch(copy_group_count_x, copy_group_count_y, 1);
+
+        // Order the resolve with other work using the destination as a UAV.
+        if (draw_resolution_scaled) {
+          texture_cache.MarkCurrentScaledResolveRangeUAVWritesCommitNeeded();
+        } else {
+          shared_memory.MarkUAVWritesCommitNeeded();
+        }
+
+        // Invalidate textures and mark the range as scaled if needed.
+        texture_cache.MarkRangeAsResolved(resolve_info.copy_dest_extent_start,
+                                          resolve_info.copy_dest_extent_length);
+        written_address_out = resolve_info.copy_dest_extent_start;
+        written_length_out = resolve_info.copy_dest_extent_length;
+        copied = true;
       } else {
         XELOGE(
             "D3D12RenderTargetCache: Failed to obtain the resolve destination "
@@ -1532,76 +1457,57 @@ bool D3D12RenderTargetCache::Resolve(const Memory& memory,
         cleared = true;
       } break;
       case Path::kPixelShaderInterlock: {
-        ui::d3d12::util::DescriptorCpuGpuHandlePair descriptor_edram;
-        bool descriptor_edram_obtained;
-        if (bindless_resources_used_) {
-          descriptor_edram = command_processor_.GetSystemBindlessViewHandlePair(
-              D3D12CommandProcessor::SystemBindlessView ::
-                  kEdramR32G32B32A32UintUAV);
-          descriptor_edram_obtained = true;
-        } else {
-          descriptor_edram_obtained =
-              command_processor_.RequestOneUseSingleViewDescriptors(
-                  1, &descriptor_edram);
-          if (descriptor_edram_obtained) {
-            WriteEdramUintPow2UAVDescriptor(descriptor_edram.first, 4);
-          }
+        TransitionEdramBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        // Should be safe to only commit once (if was UAV / ROV previously - if
+        // there was nothing to copy, only to clear, for some reason, for
+        // instance), overlap of the depth and the color ranges is highly
+        // unlikely.
+        CommitEdramBufferUAVWrites();
+        command_list.D3DSetComputeRootSignature(
+            resolve_rov_clear_root_signature_);
+        command_list.D3DSetComputeRootUnorderedAccessView(
+            1, edram_buffer_gpu_address_);
+        std::pair<uint32_t, uint32_t> clear_group_count =
+            resolve_info.GetClearShaderGroupCount(draw_resolution_scale_x(),
+                                                  draw_resolution_scale_y());
+        assert_true(clear_group_count.first && clear_group_count.second);
+        if (clear_depth) {
+          draw_util::ResolveClearShaderConstants depth_clear_constants;
+          resolve_info.GetDepthClearShaderConstants(depth_clear_constants);
+          command_list.D3DSetComputeRoot32BitConstants(
+              0, sizeof(depth_clear_constants) / sizeof(uint32_t),
+              &depth_clear_constants, 0);
+          command_processor_.SetExternalPipeline(
+              resolve_rov_clear_32bpp_pipeline_);
+          command_processor_.SubmitBarriers();
+          command_list.D3DDispatch(clear_group_count.first,
+                                   clear_group_count.second, 1);
         }
-        if (descriptor_edram_obtained) {
-          TransitionEdramBuffer(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-          // Should be safe to only commit once (if was UAV / ROV previously -
-          // if there was nothing to copy, only to clear, for some reason, for
-          // instance), overlap of the depth and the color ranges is highly
-          // unlikely.
-          CommitEdramBufferUAVWrites();
-          command_list.D3DSetComputeRootSignature(
-              resolve_rov_clear_root_signature_);
-          command_list.D3DSetComputeRootDescriptorTable(
-              1, descriptor_edram.second);
-          std::pair<uint32_t, uint32_t> clear_group_count =
-              resolve_info.GetClearShaderGroupCount(draw_resolution_scale_x(),
-                                                    draw_resolution_scale_y());
-          assert_true(clear_group_count.first && clear_group_count.second);
+        if (clear_color) {
+          draw_util::ResolveClearShaderConstants color_clear_constants;
+          resolve_info.GetColorClearShaderConstants(color_clear_constants);
           if (clear_depth) {
-            draw_util::ResolveClearShaderConstants depth_clear_constants;
-            resolve_info.GetDepthClearShaderConstants(depth_clear_constants);
+            // Non-RT-specific constants have already been set.
             command_list.D3DSetComputeRoot32BitConstants(
-                0, sizeof(depth_clear_constants) / sizeof(uint32_t),
-                &depth_clear_constants, 0);
-            command_processor_.SetExternalPipeline(
-                resolve_rov_clear_32bpp_pipeline_);
-            command_processor_.SubmitBarriers();
-            command_list.D3DDispatch(clear_group_count.first,
-                                     clear_group_count.second, 1);
+                0, sizeof(color_clear_constants.rt_specific) / sizeof(uint32_t),
+                &color_clear_constants.rt_specific,
+                offsetof(draw_util::ResolveClearShaderConstants, rt_specific) /
+                    sizeof(uint32_t));
+          } else {
+            command_list.D3DSetComputeRoot32BitConstants(
+                0, sizeof(color_clear_constants) / sizeof(uint32_t),
+                &color_clear_constants, 0);
           }
-          if (clear_color) {
-            draw_util::ResolveClearShaderConstants color_clear_constants;
-            resolve_info.GetColorClearShaderConstants(color_clear_constants);
-            if (clear_depth) {
-              // Non-RT-specific constants have already been set.
-              command_list.D3DSetComputeRoot32BitConstants(
-                  0,
-                  sizeof(color_clear_constants.rt_specific) / sizeof(uint32_t),
-                  &color_clear_constants.rt_specific,
-                  offsetof(draw_util::ResolveClearShaderConstants,
-                           rt_specific) /
-                      sizeof(uint32_t));
-            } else {
-              command_list.D3DSetComputeRoot32BitConstants(
-                  0, sizeof(color_clear_constants) / sizeof(uint32_t),
-                  &color_clear_constants, 0);
-            }
-            command_processor_.SetExternalPipeline(
-                resolve_info.color_edram_info.format_is_64bpp
-                    ? resolve_rov_clear_64bpp_pipeline_
-                    : resolve_rov_clear_32bpp_pipeline_);
-            command_processor_.SubmitBarriers();
-            command_list.D3DDispatch(clear_group_count.first,
-                                     clear_group_count.second, 1);
-          }
-          MarkEdramBufferModified();
-          cleared = true;
+          command_processor_.SetExternalPipeline(
+              resolve_info.color_edram_info.format_is_64bpp
+                  ? resolve_rov_clear_64bpp_pipeline_
+                  : resolve_rov_clear_32bpp_pipeline_);
+          command_processor_.SubmitBarriers();
+          command_list.D3DDispatch(clear_group_count.first,
+                                   clear_group_count.second, 1);
         }
+        MarkEdramBufferModified();
+        cleared = true;
       } break;
       default:
         assert_unhandled_case(GetPath());
@@ -4548,38 +4454,19 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
         continue;
       }
       if (!host_depth_store_set_up) {
-        // Bindings.
-        // 0 - source.
-        // 1 - EDRAM if bindful.
+        // Source descriptor.
         ui::d3d12::util::DescriptorCpuGpuHandlePair
-            host_depth_store_descriptors[2];
+            host_depth_store_descriptor_source;
         if (!command_processor_.RequestOneUseSingleViewDescriptors(
-                1 + uint32_t(!bindless_resources_used_),
-                host_depth_store_descriptors)) {
+                1, &host_depth_store_descriptor_source)) {
           continue;
         }
         command_list.D3DSetComputeRootSignature(
             host_depth_store_root_signature_);
-        // Destination (EDRAM uint4 buffer).
-        if (bindless_resources_used_) {
-          command_list.D3DSetComputeRootDescriptorTable(
-              kHostDepthStoreRootParameterDest,
-              command_processor_.GetEdramUintPow2BindlessUAVHandlePair(4)
-                  .second);
-        } else {
-          const ui::d3d12::util::DescriptorCpuGpuHandlePair&
-              host_depth_store_descriptor_dest =
-                  host_depth_store_descriptors[1];
-          WriteEdramUintPow2UAVDescriptor(
-              host_depth_store_descriptor_dest.first, 4);
-          command_list.D3DSetComputeRootDescriptorTable(
-              kHostDepthStoreRootParameterDest,
-              host_depth_store_descriptor_dest.second);
-        }
+        // Destination (EDRAM buffer).
+        command_list.D3DSetComputeRootUnorderedAccessView(
+            kHostDepthStoreRootParameterDest, edram_buffer_gpu_address_);
         // Depth source texture.
-        const ui::d3d12::util::DescriptorCpuGpuHandlePair&
-            host_depth_store_descriptor_source =
-                host_depth_store_descriptors[0];
         device->CopyDescriptorsSimple(
             1, host_depth_store_descriptor_source.first,
             dest_d3d12_rt.descriptor_srv().GetHandle(),

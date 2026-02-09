@@ -49,6 +49,21 @@ push_const_begin_xe(b0, space0)
   uint xe_texture_load_height_texels;
 push_const_end_xe
 
+#define XE_TEXTURE_LOAD_ENTRY(source_byte_buffer_alignment)                 \
+  byte_buffer_align16_wo_declare_xe(xe_texture_load_dest, set=0, binding=0, \
+                                    u0, space0)                             \
+  byte_buffer_align##source_byte_buffer_alignment##_declare_xe(             \
+      xe_texture_load_source, set=1, binding=0, t0, space0)                 \
+  entry_bindings_begin_compute_xe                                           \
+    XE_TEXTURE_LOAD_PUSH_CONST_BINDING                                      \
+    entry_binding_next_xe                                                   \
+    byte_buffer_wo_binding_xe(xe_texture_load_dest, buffer(1))              \
+    entry_binding_next_xe                                                   \
+    byte_buffer_binding_xe(xe_texture_load_source, buffer(2))               \
+  entry_bindings_end_inputs_begin_compute_xe                                \
+    entry_in_global_thread_id_xe                                            \
+  entry_inputs_end_code_begin_compute_xe
+
 #define XE_TEXTURE_LOAD_PUSH_CONST_BINDING push_const_binding_xe(buffer(0))
 
 struct XeTextureLoadInfo {

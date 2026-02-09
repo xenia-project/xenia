@@ -237,60 +237,6 @@ void D3D12SharedMemory::WriteRawUAVDescriptor(
       D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
-void D3D12SharedMemory::WriteUintPow2SRVDescriptor(
-    D3D12_CPU_DESCRIPTOR_HANDLE handle, uint32_t element_size_bytes_pow2) {
-  BufferDescriptorIndex descriptor_index;
-  switch (element_size_bytes_pow2) {
-    case 2:
-      descriptor_index = BufferDescriptorIndex::kR32UintSRV;
-      break;
-    case 3:
-      descriptor_index = BufferDescriptorIndex::kR32G32UintSRV;
-      break;
-    case 4:
-      descriptor_index = BufferDescriptorIndex::kR32G32B32A32UintSRV;
-      break;
-    default:
-      assert_unhandled_case(element_size_bytes_pow2);
-      return;
-  }
-  const ui::d3d12::D3D12Provider& provider =
-      command_processor_.GetD3D12Provider();
-  ID3D12Device* device = provider.GetDevice();
-  device->CopyDescriptorsSimple(
-      1, handle,
-      provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
-                                    uint32_t(descriptor_index)),
-      D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-}
-
-void D3D12SharedMemory::WriteUintPow2UAVDescriptor(
-    D3D12_CPU_DESCRIPTOR_HANDLE handle, uint32_t element_size_bytes_pow2) {
-  BufferDescriptorIndex descriptor_index;
-  switch (element_size_bytes_pow2) {
-    case 2:
-      descriptor_index = BufferDescriptorIndex::kR32UintUAV;
-      break;
-    case 3:
-      descriptor_index = BufferDescriptorIndex::kR32G32UintUAV;
-      break;
-    case 4:
-      descriptor_index = BufferDescriptorIndex::kR32G32B32A32UintUAV;
-      break;
-    default:
-      assert_unhandled_case(element_size_bytes_pow2);
-      return;
-  }
-  const ui::d3d12::D3D12Provider& provider =
-      command_processor_.GetD3D12Provider();
-  ID3D12Device* device = provider.GetDevice();
-  device->CopyDescriptorsSimple(
-      1, handle,
-      provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
-                                    uint32_t(descriptor_index)),
-      D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-}
-
 bool D3D12SharedMemory::InitializeTraceSubmitDownloads() {
   ResetTraceDownload();
   PrepareForTraceDownload();

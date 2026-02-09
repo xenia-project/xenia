@@ -140,13 +140,9 @@ class D3D12TextureCache final : public TextureCache {
   bool MakeScaledResolveRangeCurrent(uint32_t start_unscaled,
                                      uint32_t length_unscaled,
                                      uint32_t length_scaled_alignment_log2 = 0);
-  // These functions create a view of the range specified in the last successful
-  // MakeScaledResolveRangeCurrent call because that function must be called
-  // before this.
-  void CreateCurrentScaledResolveRangeUintPow2SRV(
-      D3D12_CPU_DESCRIPTOR_HANDLE handle, uint32_t element_size_bytes_pow2);
-  void CreateCurrentScaledResolveRangeUintPow2UAV(
-      D3D12_CPU_DESCRIPTOR_HANDLE handle, uint32_t element_size_bytes_pow2);
+  // Returns the GPU address of the range specified in the last successful
+  // MakeScaledResolveRangeCurrent call.
+  D3D12_GPU_VIRTUAL_ADDRESS GetCurrentScaledResolveRangeGPUAddress() const;
   void TransitionCurrentScaledResolveRange(D3D12_RESOURCE_STATES new_state);
   void MarkCurrentScaledResolveRangeUAVWritesCommitNeeded() {
     assert_true(IsDrawResolutionScaled());

@@ -8,18 +8,17 @@
  */
 
 #include "endian.xesli"
-#define XE_RESOLVE_SOURCE_TYPE uint4_xe
+#define XE_RESOLVE_COPY_EDRAM_BYTE_BUFFER_ALIGNMENT 16
 #include "resolve.xesli"
 
-array_buffer_wo_declare_xe(uint4_xe, xe_resolve_dest, set=1, binding=0, u0,
-                           space0)
+byte_buffer_align16_wo_declare_xe(xe_resolve_dest, set=1, binding=0, u0, space0)
 #define LOCAL_SIZE_X_XE 8
 #define LOCAL_SIZE_Y_XE 8
 #define LOCAL_SIZE_Z_XE 1
 entry_bindings_begin_compute_xe
   XE_RESOLVE_PUSH_CONST_BINDING
   entry_binding_next_xe
-  array_buffer_wo_binding_xe(uint4_xe, xe_resolve_dest, buffer(1))
+  byte_buffer_wo_binding_xe(xe_resolve_dest, buffer(1))
   entry_binding_next_xe
   XE_RESOLVE_COPY_EDRAM_BINDING
 entry_bindings_end_inputs_begin_compute_xe
@@ -34,38 +33,36 @@ entry_inputs_end_code_begin_compute_xe
     return;
   }
   uint2_xe pixel_index = in_global_thread_id_xe.xy << uint2_xe(3u, 0u);
-  uint source_address_int4s =
-      XeEdramOffsetInts(
-          uint2_xe(pixel_index.x,
-                   max(pixel_index.y,
-                       resolve_info.half_pixel_offset_fill_source.y)) +
-              resolve_info.edram_offset_scaled,
-          resolve_info.edram_base_tiles, true, resolve_info.edram_pitch_tiles,
-          kXenosMsaaSamples_4X, resolve_info.edram_is_depth, 0u,
-          XeResolveFirstSampleIndex(resolve_info.sample_select),
-          resolve_info.resolution_scale)
-      >> 2u;
+  uint source_address = XeEdramOffsetBytes(
+      uint2_xe(pixel_index.x,
+               max(pixel_index.y,
+                   resolve_info.half_pixel_offset_fill_source.y)) +
+          resolve_info.edram_offset_scaled,
+      resolve_info.edram_base_tiles, true, resolve_info.edram_pitch_tiles,
+      kXenosMsaaSamples_4X, resolve_info.edram_is_depth, 0u,
+      XeResolveFirstSampleIndex(resolve_info.sample_select),
+      resolve_info.resolution_scale);
   uint4_xe pixels_0123, pixels_4567;
   dont_flatten_xe
   if (resolve_info.sample_select != kXenosCopySampleSelect_2 &&
       resolve_info.sample_select != kXenosCopySampleSelect_3) {
-    pixels_0123.xy = array_buffer_load_xe(
-        xe_resolve_edram, source_address_int4s).xz;
-    pixels_0123.zw = array_buffer_load_xe(
-        xe_resolve_edram, source_address_int4s + 1u).xz;
-    pixels_4567.xy = array_buffer_load_xe(
-        xe_resolve_edram, source_address_int4s + 2u).xz;
-    pixels_4567.zw = array_buffer_load_xe(
-        xe_resolve_edram, source_address_int4s + 3u).xz;
+    pixels_0123.xy = byte_buffer_align16_load16_xe(xe_resolve_edram,
+                                                   source_address).xz;
+    pixels_0123.zw = byte_buffer_align16_load16_xe(xe_resolve_edram,
+                                                   source_address + 0x10u).xz;
+    pixels_4567.xy = byte_buffer_align16_load16_xe(xe_resolve_edram,
+                                                   source_address + 0x20u).xz;
+    pixels_4567.zw = byte_buffer_align16_load16_xe(xe_resolve_edram,
+                                                   source_address + 0x30u).xz;
   } else {
-    pixels_0123.xy = array_buffer_load_xe(
-        xe_resolve_edram, source_address_int4s).yw;
-    pixels_0123.zw = array_buffer_load_xe(
-        xe_resolve_edram, source_address_int4s + 1u).yw;
-    pixels_4567.xy = array_buffer_load_xe(
-        xe_resolve_edram, source_address_int4s + 2u).yw;
-    pixels_4567.zw = array_buffer_load_xe(
-        xe_resolve_edram, source_address_int4s + 3u).yw;
+    pixels_0123.xy = byte_buffer_align16_load16_xe(xe_resolve_edram,
+                                                   source_address).yw;
+    pixels_0123.zw = byte_buffer_align16_load16_xe(xe_resolve_edram,
+                                                   source_address + 0x10u).yw;
+    pixels_4567.xy = byte_buffer_align16_load16_xe(xe_resolve_edram,
+                                                   source_address + 0x20u).yw;
+    pixels_4567.zw = byte_buffer_align16_load16_xe(xe_resolve_edram,
+                                                   source_address + 0x30u).yw;
   }
   dont_flatten_xe
   if (pixel_index.x == 0u &&
@@ -79,13 +76,12 @@ entry_inputs_end_code_begin_compute_xe
     pixels_0123.x = pixels_0123.y;
   }
   XeResolveSwap8PixelsRedBlue32bpp(resolve_info, pixels_0123, pixels_4567);
-  uint dest_address =
-      XeResolveDestPixelAddress(resolve_info, pixel_index, 2u) >> 4u;
-  array_buffer_store_xe(
+  uint dest_address = XeResolveDestPixelAddress(resolve_info, pixel_index, 2u);
+  byte_buffer_align16_store16_xe(
       xe_resolve_dest, dest_address,
       XeEndianSwap32(pixels_0123, resolve_info.dest_endian_128));
-  dest_address += XeResolveLocalXAddressXor(4u, 2u) >> 4u;
-  array_buffer_store_xe(
+  dest_address += XeResolveLocalXAddressXor(4u, 2u);
+  byte_buffer_align16_store16_xe(
       xe_resolve_dest, dest_address,
       XeEndianSwap32(pixels_4567, resolve_info.dest_endian_128));
 }

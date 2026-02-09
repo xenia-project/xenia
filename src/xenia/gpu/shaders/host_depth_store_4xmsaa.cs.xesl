@@ -10,15 +10,15 @@
 #include "edram.xesli"
 #include "host_depth_store.xesli"
 
-array_buffer_wo_declare_xe(uint4_xe, xe_host_depth_store_dest, set=0, binding=0,
-                           u0, space0)
+byte_buffer_align16_wo_declare_xe(xe_host_depth_store_dest, set=0, binding=0,
+                                  u0, space0)
 #define LOCAL_SIZE_X_XE 8
 #define LOCAL_SIZE_Y_XE 8
 #define LOCAL_SIZE_Z_XE 1
 entry_bindings_begin_compute_xe
   XE_HOST_DEPTH_STORE_PUSH_CONSTANTS_BINDING
   entry_binding_next_xe
-  array_buffer_wo_binding_xe(uint4_xe, xe_host_depth_store_dest, buffer(1))
+  byte_buffer_wo_binding_xe(xe_host_depth_store_dest, buffer(1))
   entry_binding_next_xe
   texture_xe(texture_2d_ms_xe, xe_host_depth_store_source, set=1, binding=0,
              t0, space0, texture(0))
@@ -40,18 +40,17 @@ entry_inputs_end_code_begin_compute_xe
   int2_xe pixel_index = int2_xe(
       XeHostDepthStoreRectUnscaledOrigin(rect_constant) * resolution_scale +
       uint2_xe(in_global_thread_id_xe.x << 2u, in_global_thread_id_xe.y >> 1u));
-  // For simplicity, passing samples directly, not pixels, to XeEdramOffsetInts.
-  uint edram_address_int4s =
-      XeEdramOffsetInts(
-          (uint2_xe(pixel_index) << 1u) | (in_global_thread_id_xe.xy & 1u),
-          0u, false, XeHostDepthStoreRTPitchTiles(rt_constant),
-          kXenosMsaaSamples_1X, false, 0u, 0u, resolution_scale)
-      >> 2u;
+  // For simplicity, passing samples directly, not pixels, to
+  // XeEdramOffsetBytes.
+  uint edram_address = XeEdramOffsetBytes(
+      (uint2_xe(pixel_index) << 1u) | (in_global_thread_id_xe.xy & 1u), 0u,
+      false, XeHostDepthStoreRTPitchTiles(rt_constant), kXenosMsaaSamples_1X,
+      false, 0u, 0u, resolution_scale);
   // Render target horizontal sample in bit 0, vertical sample in bit 1.
   int source_sample_left = int((in_global_thread_id_xe.y & 1u) << 1u);
   int source_sample_right = source_sample_left + 1;
-  array_buffer_store_xe(
-      xe_host_depth_store_dest, edram_address_int4s,
+  byte_buffer_align16_store16_xe(
+      xe_host_depth_store_dest, edram_address,
       float_bits_to_uint_xe(float4_xe(
           texel_fetch_2d_ms_xe(xe_host_depth_store_source, pixel_index,
                                source_sample_left).r,
@@ -63,8 +62,8 @@ entry_inputs_end_code_begin_compute_xe
           texel_fetch_2d_ms_xe(xe_host_depth_store_source,
                                pixel_index + int2_xe(1, 0),
                                source_sample_right).r)));
-  array_buffer_store_xe(
-      xe_host_depth_store_dest, edram_address_int4s + 1u,
+  byte_buffer_align16_store16_xe(
+      xe_host_depth_store_dest, edram_address + 16u,
       float_bits_to_uint_xe(float4_xe(
           texel_fetch_2d_ms_xe(xe_host_depth_store_source,
                                pixel_index + int2_xe(2, 0),

@@ -9,18 +9,17 @@
 
 #include "endian.xesli"
 #include "pixel_formats.xesli"
-#define XE_RESOLVE_COPY_EDRAM_IS_UINT_VECTOR_BUFFER
+#define XE_RESOLVE_COPY_EDRAM_BYTE_BUFFER_ALIGNMENT 4
 #include "resolve.xesli"
 
-array_buffer_wo_declare_xe(uint2_xe, xe_resolve_dest, set=1, binding=0, u0,
-                           space0)
+byte_buffer_align8_wo_declare_xe(xe_resolve_dest, set=1, binding=0, u0, space0)
 #define LOCAL_SIZE_X_XE 8
 #define LOCAL_SIZE_Y_XE 8
 #define LOCAL_SIZE_Z_XE 1
 entry_bindings_begin_compute_xe
   XE_RESOLVE_PUSH_CONST_BINDING
   entry_binding_next_xe
-  array_buffer_wo_binding_xe(uint2_xe, xe_resolve_dest, buffer(1))
+  byte_buffer_wo_binding_xe(xe_resolve_dest, buffer(1))
   entry_binding_next_xe
   XE_RESOLVE_COPY_EDRAM_BINDING
 entry_bindings_end_inputs_begin_compute_xe
@@ -37,10 +36,9 @@ entry_inputs_end_code_begin_compute_xe
   uint2_xe pixel_index = in_global_thread_id_xe.xy << uint2_xe(3u, 0u);
   float4_xe pixels_0123, pixels_4567;
   XeResolveLoad8RedColors(
-      pass_uint_vector_buffer_xe(xe_resolve_edram)
-      pass_next_after_uint_vector_buffer_xe
+      pass_byte_buffer_xe(xe_resolve_edram) pass_next_after_byte_buffer_xe
       resolve_info,
-      XeResolveColorCopySourcePixelAddressIntsYHalfPixelOffsetFilling(
+      XeResolveColorCopySourcePixelAddressBytesYHalfPixelOffsetFilling(
           resolve_info, pixel_index),
       pixels_0123, pixels_4567);
   dont_flatten_xe
@@ -56,9 +54,8 @@ entry_inputs_end_code_begin_compute_xe
   }
   // Convert to R8.
   // TODO(Triang3l): Investigate formats 8_A and 8_B.
-  array_buffer_store_xe(
-      xe_resolve_dest,
-      XeResolveDestPixelAddress(resolve_info, pixel_index, 0u) >> 3u,
+  byte_buffer_align8_store8_xe(
+      xe_resolve_dest, XeResolveDestPixelAddress(resolve_info, pixel_index, 0u),
       uint2_xe(XePackR8G8B8A8UNorm(pixels_0123),
                XePackR8G8B8A8UNorm(pixels_4567)));
 }

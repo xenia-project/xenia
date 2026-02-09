@@ -445,20 +445,6 @@ enum class ResolveCopyShaderIndex {
 struct ResolveCopyShaderInfo {
   // Debug name of the pipeline state object with this shader.
   const char* debug_name;
-  // Whether the EDRAM source needs be bound as a raw buffer (ByteAddressBuffer
-  // in Direct3D) since it can load different numbers of 32-bit values at once
-  // on some hardware. If the host API doesn't support raw buffers, a typed
-  // buffer with source_bpe_log2-byte elements needs to be used instead.
-  bool source_is_raw;
-  // Log2 of bytes per element of the type of the EDRAM buffer bound to the
-  // shader (at least 2).
-  uint32_t source_bpe_log2;
-  // Log2 of bytes per element of the type of the destination buffer bound to
-  // the shader (at least 2 because of the 128 megatexel minimum requirement on
-  // Direct3D 10+ - D3D12_REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP - that
-  // prevents binding the entire shared memory buffer with smaller element
-  // sizes).
-  uint32_t dest_bpe_log2;
   // Log2 of number of pixels in a single thread group along X and Y. 64 threads
   // per group preferred (GCN lane count).
   uint32_t group_size_x_log2, group_size_y_log2;

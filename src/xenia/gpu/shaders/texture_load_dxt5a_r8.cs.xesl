@@ -10,19 +10,7 @@
 #include "pixel_formats.xesli"
 #include "texture_load.xesli"
 
-array_buffer_wo_declare_xe(uint4_xe, xe_texture_load_dest, set=0, binding=0, u0,
-                           space0)
-array_buffer_declare_xe(uint4_xe, xe_texture_load_source, set=1, binding=0, t0,
-                        space0)
-entry_bindings_begin_compute_xe
-  XE_TEXTURE_LOAD_PUSH_CONST_BINDING
-  entry_binding_next_xe
-  array_buffer_wo_binding_xe(uint4_xe, xe_texture_load_dest, buffer(1))
-  entry_binding_next_xe
-  array_buffer_binding_xe(uint4_xe, xe_texture_load_source, buffer(2))
-entry_bindings_end_inputs_begin_compute_xe
-  entry_in_global_thread_id_xe
-entry_inputs_end_code_begin_compute_xe
+XE_TEXTURE_LOAD_ENTRY(16)
 {
   // 1 thread = 4 DXT5A blocks to 16x4 R8 texels.
   XeTextureLoadInfo load_info = XeTextureLoadGetInfo(pass_push_consts_xe);
@@ -32,21 +20,20 @@ entry_inputs_end_code_begin_compute_xe
     return;
   }
   uint3_xe texel_index_host = block_index << uint3_xe(2u, 2u, 0u);
-  uint block_offset_host = uint(
-      (XeTextureHostLinearOffset(int3_xe(texel_index_host),
-                                 load_info.host_pitch, load_info.height_texels,
-                                 1u) +
-       load_info.host_offset) >> 4u);
-  uint elements_pitch_host = load_info.host_pitch >> 4u;
+  uint block_offset_host =
+      load_info.host_offset +
+      uint(XeTextureHostLinearOffset(int3_xe(texel_index_host),
+                                     load_info.host_pitch,
+                                     load_info.height_texels, 1u));
   uint block_offset_guest =
-      XeTextureLoadSourceAddress(load_info, block_index, 3u) >> 4u;
+      XeTextureLoadSourceAddress(load_info, block_index, 3u);
   uint4_xe blocks_01 = XeEndianSwap32(
-      array_buffer_load_xe(xe_texture_load_source, block_offset_guest),
+      byte_buffer_align16_load16_xe(xe_texture_load_source, block_offset_guest),
       load_info.endian_32);
-  // Odd 2 blocks = even 2 blocks + 32 bytes when tiled.
-  block_offset_guest += load_info.is_tiled ? 2u : 1u;
+  block_offset_guest += XeTextureLoadLocalXAddressXor(2u, 3u,
+                                                      load_info.is_tiled);
   uint4_xe blocks_23 = XeEndianSwap32(
-      array_buffer_load_xe(xe_texture_load_source, block_offset_guest),
+      byte_buffer_align16_load16_xe(xe_texture_load_source, block_offset_guest),
       load_info.endian_32);
   uint4_xe end_01 = (blocks_01.xxzz >> uint4_xe(0u, 8u, 0u, 8u)) & 0xFFu;
   uint4_xe end_23 = (blocks_23.xxzz >> uint4_xe(0u, 8u, 0u, 8u)) & 0xFFu;
@@ -57,38 +44,38 @@ entry_inputs_end_code_begin_compute_xe
                      XeDXT5HighAlphaWeights(end_01.zw, weights.y),
                      XeDXT5HighAlphaWeights(end_23.xy, weights.z),
                      XeDXT5HighAlphaWeights(end_23.zw, weights.w));
-  array_buffer_store_xe(
+  byte_buffer_align16_store16_xe(
       xe_texture_load_dest, block_offset_host,
       uint4_xe(XeDXT5RowToA8(end_01.xy, weights.x),
                XeDXT5RowToA8(end_01.zw, weights.y),
                XeDXT5RowToA8(end_23.xy, weights.z),
                XeDXT5RowToA8(end_23.zw, weights.w)));
   dont_flatten_xe if (++texel_index_host.y < load_info.height_texels) {
-    block_offset_host += elements_pitch_host;
+    block_offset_host += load_info.host_pitch;
     weights >>= 12u;
-    array_buffer_store_xe(
+    byte_buffer_align16_store16_xe(
         xe_texture_load_dest, block_offset_host,
         uint4_xe(XeDXT5RowToA8(end_01.xy, weights.x),
                  XeDXT5RowToA8(end_01.zw, weights.y),
                  XeDXT5RowToA8(end_23.xy, weights.z),
                  XeDXT5RowToA8(end_23.zw, weights.w)));
     dont_flatten_xe if (++texel_index_host.y < load_info.height_texels) {
-      block_offset_host += elements_pitch_host;
+      block_offset_host += load_info.host_pitch;
       weights = uint4_xe(blocks_01.yw, blocks_23.yw) >> 8u;
       weights = uint4_xe(XeDXT5HighAlphaWeights(end_01.xy, weights.x),
                          XeDXT5HighAlphaWeights(end_01.zw, weights.y),
                          XeDXT5HighAlphaWeights(end_23.xy, weights.z),
                          XeDXT5HighAlphaWeights(end_23.zw, weights.w));
-      array_buffer_store_xe(
+      byte_buffer_align16_store16_xe(
           xe_texture_load_dest, block_offset_host,
           uint4_xe(XeDXT5RowToA8(end_01.xy, weights.x),
                    XeDXT5RowToA8(end_01.zw, weights.y),
                    XeDXT5RowToA8(end_23.xy, weights.z),
                    XeDXT5RowToA8(end_23.zw, weights.w)));
       dont_flatten_xe if (++texel_index_host.y < load_info.height_texels) {
-        block_offset_host += elements_pitch_host;
+        block_offset_host += load_info.host_pitch;
         weights >>= 12u;
-        array_buffer_store_xe(
+        byte_buffer_align16_store16_xe(
             xe_texture_load_dest, block_offset_host,
             uint4_xe(XeDXT5RowToA8(end_01.xy, weights.x),
                      XeDXT5RowToA8(end_01.zw, weights.y),
