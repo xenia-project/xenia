@@ -611,7 +611,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
 
     // May be different for different sources.
     kDumpRootParameterColorPitches = kDumpRootParameterSource + 1,
-    // Only changed between 32bpp and 64bpp.
+    // Not changed.
     kDumpRootParameterColorEdram,
 
     kDumpRootParameterColorCount,

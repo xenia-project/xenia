@@ -820,12 +820,6 @@ bool D3D12RenderTargetCache::Initialize() {
     dump_root_stencil_range.BaseShaderRegister = 1;
     dump_root_stencil_range.RegisterSpace = 0;
     dump_root_stencil_range.OffsetInDescriptorsFromTableStart = 0;
-    D3D12_DESCRIPTOR_RANGE dump_root_edram_range;
-    dump_root_edram_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-    dump_root_edram_range.NumDescriptors = 1;
-    dump_root_edram_range.BaseShaderRegister = 0;
-    dump_root_edram_range.RegisterSpace = 0;
-    dump_root_edram_range.OffsetInDescriptorsFromTableStart = 0;
     D3D12_ROOT_PARAMETER
     dump_root_color_parameters[kDumpRootParameterColorCount];
     D3D12_ROOT_PARAMETER
@@ -878,11 +872,9 @@ bool D3D12RenderTargetCache::Initialize() {
       D3D12_ROOT_PARAMETER& dump_root_edram =
           i ? dump_root_depth_parameters[kDumpRootParameterDepthEdram]
             : dump_root_color_parameters[kDumpRootParameterColorEdram];
-      dump_root_edram.ParameterType =
-          D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-      dump_root_edram.DescriptorTable.NumDescriptorRanges = 1;
-      dump_root_edram.DescriptorTable.pDescriptorRanges =
-          &dump_root_edram_range;
+      dump_root_edram.ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
+      dump_root_edram.Descriptor.ShaderRegister = 0;
+      dump_root_edram.Descriptor.RegisterSpace = 0;
       dump_root_edram.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     }
     D3D12_ROOT_SIGNATURE_DESC dump_root_desc;
@@ -5629,7 +5621,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
   // Bindings.
   // - Texture2D/Texture2DMS<float4/uint4> xe_edram_dump_source : t0
   // - Optionally, Texture2D/Texture2DMS<uint2> xe_edram_dump_stencil : t1
-  // - RWBuffer<uint/uint2> xe_edram : u0
+  // - RWByteAddressBuffer xe_edram : u0
   // - Constant buffers
   uint32_t rdef_binding_count = 1 + key.is_depth + 1 + kDumpCbufferCount;
   // Names.
@@ -5702,13 +5694,10 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
     dxbc::RdefInputBind& rdef_binding_edram =
         rdef_bindings[rdef_binding_index++];
     rdef_binding_edram.name_ptr = rdef_xe_edram_name_ptr;
-    rdef_binding_edram.type = dxbc::RdefInputType::kUAVRWTyped;
-    rdef_binding_edram.return_type = dxbc::ResourceReturnType::kUInt;
+    rdef_binding_edram.type = dxbc::RdefInputType::kUAVRWByteAddress;
+    rdef_binding_edram.return_type = dxbc::ResourceReturnType::kMixed;
     rdef_binding_edram.dimension = dxbc::RdefDimension::kUAVBuffer;
-    rdef_binding_edram.sample_count = UINT32_MAX;
     rdef_binding_edram.bind_count = 1;
-    rdef_binding_edram.flags =
-        format_is_64bpp ? dxbc::kRdefInputFlags2Component : 0;
     // xe_edram_dump_offsets
     dxbc::RdefInputBind& rdef_binding_offsets =
         rdef_bindings[rdef_binding_index++];
@@ -5833,10 +5822,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
         dxbc::Src::T(dxbc::Src::Dcl, 1, 1, 1));
   }
   // EDRAM buffer.
-  a.OpDclUnorderedAccessViewTyped(
-      dxbc::ResourceDimension::kBuffer, 0,
-      dxbc::ResourceReturnTypeX4Token(dxbc::ResourceReturnType::kUInt),
-      dxbc::Src::U(dxbc::Src::Dcl, 0, 0, 0));
+  a.OpDclUnorderedAccessViewRaw(0, dxbc::Src::U(dxbc::Src::Dcl, 0, 0, 0));
   a.OpDclInput(dxbc::Dest::VThreadID(0b0011));
   // r0 - addressing before the load, then addressing and conversion scratch
   // r1 - addressing scratch before the load, then data
@@ -5969,6 +5955,9 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
     a.OpIAdd(dxbc::Dest::R(0, 0b0100), dxbc::Src::R(0, dxbc::Src::kZZZZ),
              dxbc::Src::R(1, dxbc::Src::kXXXX));
   }
+  // Convert the destination address from samples to bytes.
+  a.OpIShL(dxbc::Dest::R(0, 0b0100), dxbc::Src::R(0, dxbc::Src::kZZZZ),
+           dxbc::Src::LU(format_is_64bpp ? 3 : 2));
 
   // Extract the source texture base tile index to r1.x.
   // r0.x = X sample position within the tile
@@ -6252,9 +6241,8 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(
   }
 
   // Write the sample to the destination address stored in r0.z.
-  a.OpStoreUAVTyped(
-      dxbc::Dest::U(0, 0), dxbc::Src::R(0, dxbc::Src::kZZZZ), 1,
-      dxbc::Src::R(1, format_is_64bpp ? 0b0100 : dxbc::Src::kXXXX));
+  a.OpStoreRaw(dxbc::Dest::U(0, 0, format_is_64bpp ? 0b0011 : 0b0001),
+               dxbc::Src::R(0, dxbc::Src::kZZZZ), dxbc::Src::R(1));
 
   a.OpRet();
 
@@ -6397,29 +6385,8 @@ void D3D12RenderTargetCache::DumpRenderTargets(uint32_t dump_base,
     pipeline_key.is_depth = rt_key.is_depth;
     dump_invocations_.emplace_back(rectangle, pipeline_key);
   }
-  // 32bpp and 64bpp.
-  size_t edram_uav_indices[2] = {SIZE_MAX, SIZE_MAX};
-  const ui::d3d12::D3D12Provider& provider =
-      command_processor_.GetD3D12Provider();
-  if (!bindless_resources_used_) {
-    if (any_sources_32bpp_64bpp[0]) {
-      edram_uav_indices[0] = current_temporary_descriptors_cpu_.size();
-      current_temporary_descriptors_cpu_.push_back(
-          provider.OffsetViewDescriptor(
-              edram_buffer_descriptor_heap_start_,
-              uint32_t(EdramBufferDescriptorIndex::kR32UintUAV)));
-    }
-    if (any_sources_32bpp_64bpp[1]) {
-      edram_uav_indices[1] = current_temporary_descriptors_cpu_.size();
-      current_temporary_descriptors_cpu_.push_back(
-          provider.OffsetViewDescriptor(
-              edram_buffer_descriptor_heap_start_,
-              uint32_t(EdramBufferDescriptorIndex::kR32G32UintUAV)));
-    }
-  }
 
   // Copy source descriptors to a shader-visible heap.
-  ID3D12Device* device = provider.GetDevice();
   uint32_t descriptor_count =
       uint32_t(current_temporary_descriptors_cpu_.size());
   current_temporary_descriptors_gpu_.resize(descriptor_count);
@@ -6427,6 +6394,7 @@ void D3D12RenderTargetCache::DumpRenderTargets(uint32_t dump_base,
           descriptor_count, current_temporary_descriptors_gpu_.data())) {
     return;
   }
+  ID3D12Device* device = command_processor_.GetD3D12Provider().GetDevice();
   for (uint32_t i = 0; i < descriptor_count; ++i) {
     device->CopyDescriptorsSimple(1,
                                   current_temporary_descriptors_gpu_[i].first,
@@ -6441,6 +6409,8 @@ void D3D12RenderTargetCache::DumpRenderTargets(uint32_t dump_base,
   DeferredCommandList& command_list =
       command_processor_.GetDeferredCommandList();
   ID3D12RootSignature* last_root_signature = nullptr;
+  // `root_parameters_set` doesn't include the EDRAM buffer, which is never
+  // changed.
   uint32_t root_parameters_set = 0;
   uint32_t last_descriptor_index_source = UINT32_MAX;
   uint32_t last_descriptor_index_stencil = UINT32_MAX;
@@ -6465,35 +6435,10 @@ void D3D12RenderTargetCache::DumpRenderTargets(uint32_t dump_base,
       last_root_signature = root_signature;
       command_list.D3DSetComputeRootSignature(root_signature);
       root_parameters_set = 0;
-    }
-
-    DumpRootParameter root_parameter_edram = pipeline_key.is_depth
-                                                 ? kDumpRootParameterDepthEdram
-                                                 : kDumpRootParameterColorEdram;
-    uint32_t root_parameter_edram_bit = uint32_t(1) << root_parameter_edram;
-    bool format_is_64bpp = rt_key.Is64bpp();
-    if (last_edram_uav_is_64bpp != format_is_64bpp) {
-      last_edram_uav_is_64bpp = format_is_64bpp;
-      root_parameters_set &= ~root_parameter_edram_bit;
-    }
-    if (!(root_parameters_set & root_parameter_edram_bit)) {
-      D3D12_GPU_DESCRIPTOR_HANDLE descriptor_handle_edram;
-      if (bindless_resources_used_) {
-        descriptor_handle_edram = command_processor_
-                                      .GetEdramUintPow2BindlessUAVHandlePair(
-                                          2 + uint32_t(last_edram_uav_is_64bpp))
-                                      .second;
-      } else {
-        assert_true(edram_uav_indices[size_t(last_edram_uav_is_64bpp)] !=
-                    SIZE_MAX);
-        descriptor_handle_edram =
-            current_temporary_descriptors_gpu_[edram_uav_indices[size_t(
-                                                   last_edram_uav_is_64bpp)]]
-                .second;
-      }
-      command_list.D3DSetComputeRootDescriptorTable(root_parameter_edram,
-                                                    descriptor_handle_edram);
-      root_parameters_set |= root_parameter_edram_bit;
+      command_list.D3DSetComputeRootUnorderedAccessView(
+          pipeline_key.is_depth ? kDumpRootParameterDepthEdram
+                                : kDumpRootParameterColorEdram,
+          edram_buffer_gpu_address_);
     }
 
     DumpRootParameter root_parameter_pitches =
@@ -6554,6 +6499,7 @@ void D3D12RenderTargetCache::DumpRenderTargets(uint32_t dump_base,
         uint32_t(1) << kDumpRootParameterOffsets;
     DumpOffsets offsets;
     offsets.source_base_tiles = rt_key.base_tiles;
+    bool format_is_64bpp = rt_key.Is64bpp();
     ResolveCopyDumpRectangle::Dispatch
         dispatches[ResolveCopyDumpRectangle::kMaxDispatches];
     uint32_t dispatch_count =
