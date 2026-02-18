@@ -111,47 +111,11 @@ bool D3D12SharedMemory::Initialize() {
       provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
                                     uint32_t(BufferDescriptorIndex::kRawSRV)),
       buffer_, kBufferSize);
-  ui::d3d12::util::CreateBufferTypedSRV(
-      device,
-      provider.OffsetViewDescriptor(
-          buffer_descriptor_heap_start_,
-          uint32_t(BufferDescriptorIndex::kR32UintSRV)),
-      buffer_, DXGI_FORMAT_R32_UINT, kBufferSize >> 2);
-  ui::d3d12::util::CreateBufferTypedSRV(
-      device,
-      provider.OffsetViewDescriptor(
-          buffer_descriptor_heap_start_,
-          uint32_t(BufferDescriptorIndex::kR32G32UintSRV)),
-      buffer_, DXGI_FORMAT_R32G32_UINT, kBufferSize >> 3);
-  ui::d3d12::util::CreateBufferTypedSRV(
-      device,
-      provider.OffsetViewDescriptor(
-          buffer_descriptor_heap_start_,
-          uint32_t(BufferDescriptorIndex::kR32G32B32A32UintSRV)),
-      buffer_, DXGI_FORMAT_R32G32B32A32_UINT, kBufferSize >> 4);
   ui::d3d12::util::CreateBufferRawUAV(
       device,
       provider.OffsetViewDescriptor(buffer_descriptor_heap_start_,
                                     uint32_t(BufferDescriptorIndex::kRawUAV)),
       buffer_, kBufferSize);
-  ui::d3d12::util::CreateBufferTypedUAV(
-      device,
-      provider.OffsetViewDescriptor(
-          buffer_descriptor_heap_start_,
-          uint32_t(BufferDescriptorIndex::kR32UintUAV)),
-      buffer_, DXGI_FORMAT_R32_UINT, kBufferSize >> 2);
-  ui::d3d12::util::CreateBufferTypedUAV(
-      device,
-      provider.OffsetViewDescriptor(
-          buffer_descriptor_heap_start_,
-          uint32_t(BufferDescriptorIndex::kR32G32UintUAV)),
-      buffer_, DXGI_FORMAT_R32G32_UINT, kBufferSize >> 3);
-  ui::d3d12::util::CreateBufferTypedUAV(
-      device,
-      provider.OffsetViewDescriptor(
-          buffer_descriptor_heap_start_,
-          uint32_t(BufferDescriptorIndex::kR32G32B32A32UintUAV)),
-      buffer_, DXGI_FORMAT_R32G32B32A32_UINT, kBufferSize >> 4);
 
   upload_buffer_pool_ = std::make_unique<ui::d3d12::D3D12UploadBufferPool>(
       provider, xe::align(ui::d3d12::D3D12UploadBufferPool::kDefaultPageSize,

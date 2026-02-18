@@ -104,13 +104,7 @@ class D3D12SharedMemory : public SharedMemory {
   // rather than creation).
   enum class BufferDescriptorIndex : uint32_t {
     kRawSRV,
-    kR32UintSRV,
-    kR32G32UintSRV,
-    kR32G32B32A32UintSRV,
     kRawUAV,
-    kR32UintUAV,
-    kR32G32UintUAV,
-    kR32G32B32A32UintUAV,
 
     kCount,
   };
