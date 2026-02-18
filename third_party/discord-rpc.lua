@@ -30,7 +30,7 @@ project("discord-rpc")
     files({
       "discord-rpc/src/discord_register_osx.m"
     })
-  filter("platforms:Windows")
+  filter("platforms:Windows-*")
     files({
       "discord-rpc/src/connection_win.cpp",
       "discord-rpc/src/discord_register_win.cpp"
