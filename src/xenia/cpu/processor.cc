@@ -337,6 +337,31 @@ bool Processor::Execute(ThreadState* thread_state, uint32_t address) {
 
   auto context = thread_state->context();
 
+  // Validate critical PPCContext pointers before executing guest code.
+  // The global_mutex pointer is particularly susceptible to corruption from
+  // guest code writing beyond array bounds (e.g., VMX register array overflow).
+  // Detecting corruption here helps identify the source before crashes occur.
+  auto& expected_global_mutex = xe::global_critical_region::mutex();
+  if (context->global_mutex != &expected_global_mutex) {
+    uintptr_t corrupt_ptr = reinterpret_cast<uintptr_t>(context->global_mutex);
+    XELOGE(
+        "PPCContext global_mutex pointer corrupted (expected {:p}, got {:p} / "
+        "0x{:X}). This indicates guest code is writing beyond allocated "
+        "boundaries. Common causes: VMX register overflow, stack corruption, or "
+        "invalid memory access in translated code. Thread ID: {}",
+        static_cast<void*>(&expected_global_mutex), context->global_mutex,
+        corrupt_ptr, thread_state->thread_id());
+    
+    // Log additional context for debugging
+    XELOGE("  Function address: 0x{:08X}", address);
+    XELOGE("  Stack pointer (r1): 0x{:08X}", context->r[1]);
+    
+    assert_always(
+        "PPCContext corruption detected - cannot continue safely. Check for "
+        "guest code buffer overflows or emulator bugs in array bound checks.");
+    return false;
+  }
+
   // Pad out stack a bit, as some games seem to overwrite the caller by about
   // 16 to 32b.
   context->r[1] -= 64 + 112;
@@ -348,6 +373,23 @@ bool Processor::Execute(ThreadState* thread_state, uint32_t address) {
 
   // Execute the function.
   auto result = function->Call(thread_state, uint32_t(context->lr));
+
+  // Validate context integrity after execution to detect corruption during
+  // the function call. This helps narrow down which guest functions cause
+  // memory corruption.
+  if (context->global_mutex != &expected_global_mutex) {
+    uintptr_t corrupt_ptr = reinterpret_cast<uintptr_t>(context->global_mutex);
+    XELOGE(
+        "PPCContext global_mutex corrupted DURING function execution at "
+        "0x{:08X}. Pointer changed from {:p} to {:p} / 0x{:X}. This "
+        "indicates the executed function wrote beyond its allocated memory.",
+        address, static_cast<void*>(&expected_global_mutex),
+        context->global_mutex, corrupt_ptr);
+    assert_always(
+        "Memory corruption detected during function execution. The executed "
+        "guest code has a buffer overflow or invalid memory write.");
+    return false;
+  }
 
   context->lr = previous_lr;
   context->r[1] += 64 + 112;

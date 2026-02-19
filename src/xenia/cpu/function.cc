@@ -44,6 +44,22 @@ bool BuiltinFunction::Call(ThreadState* thread_state, uint32_t return_address) {
   }
 
   assert_not_null(handler_);
+  
+  // Detect corrupted builtin argument pointers before calling the handler.
+  // A very low non-null address (< 0x10000) is almost certainly invalid and
+  // indicates memory corruption, likely from guest code buffer overflow.
+  // This check helps identify the problem before it causes a crash in the
+  // mutex operations within builtin handlers.
+  if (arg0_ && reinterpret_cast<uintptr_t>(arg0_) < 0x10000) {
+    XELOGE(
+        "BuiltinFunction '{}' detected corrupted arg0 pointer: {:p}. "
+        "This likely indicates memory corruption from guest code. "
+        "The emulation cannot continue safely.",
+        name(), arg0_);
+    assert_always("BuiltinFunction arg0 corrupted - guest code memory corruption detected");
+    return false;
+  }
+  
   handler_(thread_state->context(), arg0_, arg1_);
 
   if (original_thread_state != thread_state) {
@@ -129,7 +145,39 @@ bool GuestFunction::Call(ThreadState* thread_state, uint32_t return_address) {
     ThreadState::Bind(thread_state);
   }
 
+  // Validate PPCContext critical pointers before executing guest code.
+  // This detects corruption that may have occurred from a previous function.
+  auto ctx = thread_state->context();
+  auto& expected_global_mutex = xe::global_critical_region::mutex();
+  if (ctx->global_mutex != &expected_global_mutex) {
+    uintptr_t corrupt_ptr = reinterpret_cast<uintptr_t>(ctx->global_mutex);
+    XELOGE(
+        "GuestFunction '{}' at 0x{:08X} called with corrupted PPCContext. "
+        "global_mutex pointer is {:p} / 0x{:X} (expected {:p}). "
+        "Corruption likely occurred in a previous function call.",
+        name(), address(), ctx->global_mutex, corrupt_ptr,
+        static_cast<void*>(&expected_global_mutex));
+    assert_always(
+        "PPCContext already corrupted before function execution. Previous "
+        "guest function likely has buffer overflow.");
+    return false;
+  }
+
   bool result = CallImpl(thread_state, return_address);
+
+  // Validate context after execution to catch corruption during this function.
+  if (ctx->global_mutex != &expected_global_mutex) {
+    uintptr_t corrupt_ptr = reinterpret_cast<uintptr_t>(ctx->global_mutex);
+    XELOGE(
+        "GuestFunction '{}' at 0x{:08X} CORRUPTED PPCContext during "
+        "execution. global_mutex changed to {:p} / 0x{:X}. "
+        "This function has a buffer overflow or invalid memory write.",
+        name(), address(), ctx->global_mutex, corrupt_ptr);
+    assert_always(
+        "Memory corruption detected in guest function execution. "
+        "The function has a buffer overflow bug.");
+    return false;
+  }
 
   if (original_thread_state != thread_state) {
     ThreadState::Bind(original_thread_state);
