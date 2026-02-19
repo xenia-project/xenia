@@ -372,6 +372,29 @@ X_STATUS Emulator::LaunchStfsContainer(const std::filesystem::path& path) {
   return CompleteLaunch(path, module_path);
 }
 
+X_STATUS Emulator::InstallContentPackage(const std::filesystem::path& path) {
+  std::unique_ptr<vfs::StfsContainerDevice> device =
+      std::make_unique<vfs::StfsContainerDevice>("", path);
+  if (!device->Initialize()) {
+    XELOGE("Failed to initialize device");
+    return X_STATUS_INVALID_PARAMETER;
+  }
+
+  std::filesystem::path installation_path =
+      content_root() / fmt::format("{:08X}", device->title_id()) /
+      fmt::format("{:08X}", device->content_type()) / path.filename();
+
+  if (std::filesystem::exists(installation_path)) {
+    // TODO(Gliniak): Popup
+    // Do you want to overwrite already existing data?
+  } else {
+    std::filesystem::create_directories(installation_path);
+  }
+
+  vfs::VirtualFileSystem::ExtractFiles(device.get(), installation_path);
+  return X_STATUS_SUCCESS;
+}
+
 void Emulator::Pause() {
   if (paused_) {
     return;
