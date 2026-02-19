@@ -2130,9 +2130,10 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                        (SpirvShaderTranslator::kSpirvMagicToolId << 16) | 1,
                        nullptr);
   spv::Id ext_inst_glsl_std_450 = builder.import("GLSL.std.450");
-  builder.addCapability(spv::CapabilityShader);
-  builder.setMemoryModel(spv::AddressingModelLogical, spv::MemoryModelGLSL450);
-  builder.setSource(spv::SourceLanguageUnknown, 0);
+  builder.addCapability(spv::Capability::Shader);
+  builder.setMemoryModel(spv::AddressingModel::Logical,
+                         spv::MemoryModel::GLSL450);
+  builder.setSource(spv::SourceLanguage::Unknown, 0);
 
   spv::Id type_void = builder.makeVoidType();
   spv::Id type_bool = builder.makeBoolType();
@@ -2231,28 +2232,28 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                                        dest_color_component_count)
               : type_fragment_data_component;
       output_fragment_data = builder.createVariable(
-          spv::NoPrecision, spv::StorageClassOutput, type_fragment_data,
+          spv::NoPrecision, spv::StorageClass::Output, type_fragment_data,
           "xe_transfer_fragment_data");
-      builder.addDecoration(output_fragment_data, spv::DecorationLocation,
+      builder.addDecoration(output_fragment_data, spv::Decoration::Location,
                             key.dest_color_rt_index);
       main_interface.push_back(output_fragment_data);
       break;
     case TransferOutput::kDepth:
       output_fragment_depth =
-          builder.createVariable(spv::NoPrecision, spv::StorageClassOutput,
+          builder.createVariable(spv::NoPrecision, spv::StorageClass::Output,
                                  type_float, "gl_FragDepth");
-      builder.addDecoration(output_fragment_depth, spv::DecorationBuiltIn,
-                            spv::BuiltInFragDepth);
+      builder.addDecorationId(output_fragment_depth, spv::Decoration::BuiltIn,
+                              static_cast<spv::Id>(spv::BuiltIn::FragDepth));
       main_interface.push_back(output_fragment_depth);
       if (shader_uses_stencil_reference_output) {
         builder.addExtension("SPV_EXT_shader_stencil_export");
-        builder.addCapability(spv::CapabilityStencilExportEXT);
+        builder.addCapability(spv::Capability::StencilExportEXT);
         output_fragment_stencil_ref =
-            builder.createVariable(spv::NoPrecision, spv::StorageClassOutput,
+            builder.createVariable(spv::NoPrecision, spv::StorageClass::Output,
                                    type_int, "gl_FragStencilRefARB");
-        builder.addDecoration(output_fragment_stencil_ref,
-                              spv::DecorationBuiltIn,
-                              spv::BuiltInFragStencilRefEXT);
+        builder.addDecorationId(
+            output_fragment_stencil_ref, spv::Decoration::BuiltIn,
+            static_cast<spv::Id>(spv::BuiltIn::FragStencilRefEXT));
         main_interface.push_back(output_fragment_stencil_ref);
       }
       break;
@@ -2270,16 +2271,16 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
   if (pipeline_layout_info.used_descriptor_sets &
       kTransferUsedDescriptorSetColorTextureBit) {
     source_color_texture = builder.createVariable(
-        spv::NoPrecision, spv::StorageClassUniformConstant,
-        builder.makeImageType(source_color_component_type, spv::Dim2D, false,
-                              false, source_is_multisampled, 1,
-                              spv::ImageFormatUnknown),
+        spv::NoPrecision, spv::StorageClass::UniformConstant,
+        builder.makeImageType(source_color_component_type, spv::Dim::Dim2D,
+                              false, false, source_is_multisampled, 1,
+                              spv::ImageFormat::Unknown),
         "xe_transfer_color");
     builder.addDecoration(
-        source_color_texture, spv::DecorationDescriptorSet,
+        source_color_texture, spv::Decoration::DescriptorSet,
         xe::bit_count(pipeline_layout_info.used_descriptor_sets &
                       (kTransferUsedDescriptorSetColorTextureBit - 1)));
-    builder.addDecoration(source_color_texture, spv::DecorationBinding, 0);
+    builder.addDecoration(source_color_texture, spv::Decoration::Binding, 0);
   }
   // Depth / stencil source.
   spv::Id source_depth_texture = spv::NoResult;
@@ -2294,27 +2295,29 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
     // https://github.com/microsoft/DirectXShaderCompiler/issues/1107
     if (mode.output != TransferOutput::kStencilBit) {
       source_depth_texture = builder.createVariable(
-          spv::NoPrecision, spv::StorageClassUniformConstant,
-          builder.makeImageType(type_float, spv::Dim2D, false, false,
+          spv::NoPrecision, spv::StorageClass::UniformConstant,
+          builder.makeImageType(type_float, spv::Dim::Dim2D, false, false,
                                 source_is_multisampled, 1,
-                                spv::ImageFormatUnknown),
+                                spv::ImageFormat::Unknown),
           "xe_transfer_depth");
-      builder.addDecoration(source_depth_texture, spv::DecorationDescriptorSet,
+      builder.addDecoration(source_depth_texture,
+                            spv::Decoration::DescriptorSet,
                             source_depth_stencil_descriptor_set);
-      builder.addDecoration(source_depth_texture, spv::DecorationBinding, 0);
+      builder.addDecoration(source_depth_texture, spv::Decoration::Binding, 0);
     }
     if (mode.output != TransferOutput::kDepth ||
         shader_uses_stencil_reference_output) {
       source_stencil_texture = builder.createVariable(
-          spv::NoPrecision, spv::StorageClassUniformConstant,
-          builder.makeImageType(type_uint, spv::Dim2D, false, false,
+          spv::NoPrecision, spv::StorageClass::UniformConstant,
+          builder.makeImageType(type_uint, spv::Dim::Dim2D, false, false,
                                 source_is_multisampled, 1,
-                                spv::ImageFormatUnknown),
+                                spv::ImageFormat::Unknown),
           "xe_transfer_stencil");
       builder.addDecoration(source_stencil_texture,
-                            spv::DecorationDescriptorSet,
+                            spv::Decoration::DescriptorSet,
                             source_depth_stencil_descriptor_set);
-      builder.addDecoration(source_stencil_texture, spv::DecorationBinding, 1);
+      builder.addDecoration(source_stencil_texture, spv::Decoration::Binding,
+                            1);
     }
   }
   // Host depth source buffer.
@@ -2324,29 +2327,30 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
     id_vector_temp.clear();
     id_vector_temp.push_back(builder.makeRuntimeArray(type_uint));
     // Storage buffers have std430 packing, no padding to 4-component vectors.
-    builder.addDecoration(id_vector_temp.back(), spv::DecorationArrayStride,
+    builder.addDecoration(id_vector_temp.back(), spv::Decoration::ArrayStride,
                           sizeof(uint32_t));
     spv::Id type_host_depth_source_buffer =
         builder.makeStructType(id_vector_temp, "XeTransferHostDepthBuffer");
     builder.addMemberName(type_host_depth_source_buffer, 0, "host_depth");
     builder.addMemberDecoration(type_host_depth_source_buffer, 0,
-                                spv::DecorationNonWritable);
+                                spv::Decoration::NonWritable);
     builder.addMemberDecoration(type_host_depth_source_buffer, 0,
-                                spv::DecorationOffset, 0);
+                                spv::Decoration::Offset, 0);
     // Block since SPIR-V 1.3, but since SPIR-V 1.0 is generated, it's
     // BufferBlock.
     builder.addDecoration(type_host_depth_source_buffer,
-                          spv::DecorationBufferBlock);
+                          spv::Decoration::BufferBlock);
     // StorageBuffer since SPIR-V 1.3, but since SPIR-V 1.0 is generated, it's
     // Uniform.
     host_depth_source_buffer = builder.createVariable(
-        spv::NoPrecision, spv::StorageClassUniform,
+        spv::NoPrecision, spv::StorageClass::Uniform,
         type_host_depth_source_buffer, "xe_transfer_host_depth_buffer");
     builder.addDecoration(
-        host_depth_source_buffer, spv::DecorationDescriptorSet,
+        host_depth_source_buffer, spv::Decoration::DescriptorSet,
         xe::bit_count(pipeline_layout_info.used_descriptor_sets &
                       (kTransferUsedDescriptorSetHostDepthBufferBit - 1)));
-    builder.addDecoration(host_depth_source_buffer, spv::DecorationBinding, 0);
+    builder.addDecoration(host_depth_source_buffer, spv::Decoration::Binding,
+                          0);
   }
   // Host depth source texture (the depth / stencil descriptor set is reused,
   // but stencil is not needed).
@@ -2354,18 +2358,19 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
   if (pipeline_layout_info.used_descriptor_sets &
       kTransferUsedDescriptorSetHostDepthStencilTexturesBit) {
     host_depth_source_texture = builder.createVariable(
-        spv::NoPrecision, spv::StorageClassUniformConstant,
+        spv::NoPrecision, spv::StorageClass::UniformConstant,
         builder.makeImageType(
-            type_float, spv::Dim2D, false, false,
+            type_float, spv::Dim::Dim2D, false, false,
             key.host_depth_source_msaa_samples != xenos::MsaaSamples::k1X, 1,
-            spv::ImageFormatUnknown),
+            spv::ImageFormat::Unknown),
         "xe_transfer_host_depth");
     builder.addDecoration(
-        host_depth_source_texture, spv::DecorationDescriptorSet,
+        host_depth_source_texture, spv::Decoration::DescriptorSet,
         xe::bit_count(
             pipeline_layout_info.used_descriptor_sets &
             (kTransferUsedDescriptorSetHostDepthStencilTexturesBit - 1)));
-    builder.addDecoration(host_depth_source_texture, spv::DecorationBinding, 0);
+    builder.addDecoration(host_depth_source_texture, spv::Decoration::Binding,
+                          0);
   }
   // Push constants.
   id_vector_temp.clear();
@@ -2399,7 +2404,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                             "host_depth_address");
       builder.addMemberDecoration(
           type_push_constants, push_constants_member_host_depth_address,
-          spv::DecorationOffset,
+          spv::Decoration::Offset,
           sizeof(uint32_t) *
               xe::bit_count(
                   pipeline_layout_info.used_push_constant_dwords &
@@ -2412,7 +2417,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                             "address");
       builder.addMemberDecoration(
           type_push_constants, push_constants_member_address,
-          spv::DecorationOffset,
+          spv::Decoration::Offset,
           sizeof(uint32_t) *
               xe::bit_count(pipeline_layout_info.used_push_constant_dwords &
                             (kTransferUsedPushConstantDwordAddressBit - 1)));
@@ -2424,41 +2429,41 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                             push_constants_member_stencil_mask, "stencil_mask");
       builder.addMemberDecoration(
           type_push_constants, push_constants_member_stencil_mask,
-          spv::DecorationOffset,
+          spv::Decoration::Offset,
           sizeof(uint32_t) *
               xe::bit_count(
                   pipeline_layout_info.used_push_constant_dwords &
                   (kTransferUsedPushConstantDwordStencilMaskBit - 1)));
     }
-    builder.addDecoration(type_push_constants, spv::DecorationBlock);
+    builder.addDecoration(type_push_constants, spv::Decoration::Block);
     push_constants = builder.createVariable(
-        spv::NoPrecision, spv::StorageClassPushConstant, type_push_constants,
+        spv::NoPrecision, spv::StorageClass::PushConstant, type_push_constants,
         "xe_transfer_push_constants");
   }
 
   // Coordinate inputs.
   spv::Id input_fragment_coord = builder.createVariable(
-      spv::NoPrecision, spv::StorageClassInput, type_float4, "gl_FragCoord");
-  builder.addDecoration(input_fragment_coord, spv::DecorationBuiltIn,
-                        spv::BuiltInFragCoord);
+      spv::NoPrecision, spv::StorageClass::Input, type_float4, "gl_FragCoord");
+  builder.addDecorationId(input_fragment_coord, spv::Decoration::BuiltIn,
+                          static_cast<spv::Id>(spv::BuiltIn::FragCoord));
   main_interface.push_back(input_fragment_coord);
   spv::Id input_sample_id = spv::NoResult;
   spv::Id spec_const_sample_id = spv::NoResult;
   if (key.dest_msaa_samples != xenos::MsaaSamples::k1X) {
     if (device_properties.sampleRateShading) {
       // One draw for all samples.
-      builder.addCapability(spv::CapabilitySampleRateShading);
+      builder.addCapability(spv::Capability::SampleRateShading);
       input_sample_id = builder.createVariable(
-          spv::NoPrecision, spv::StorageClassInput, type_int, "gl_SampleID");
-      builder.addDecoration(input_sample_id, spv::DecorationFlat);
-      builder.addDecoration(input_sample_id, spv::DecorationBuiltIn,
-                            spv::BuiltInSampleId);
+          spv::NoPrecision, spv::StorageClass::Input, type_int, "gl_SampleID");
+      builder.addDecoration(input_sample_id, spv::Decoration::Flat);
+      builder.addDecorationId(input_sample_id, spv::Decoration::BuiltIn,
+                              static_cast<spv::Id>(spv::BuiltIn::SampleId));
       main_interface.push_back(input_sample_id);
     } else {
       // One sample per draw, with different sample masks.
       spec_const_sample_id = builder.makeUintConstant(0, true);
       builder.addName(spec_const_sample_id, "xe_transfer_sample_id");
-      builder.addDecoration(spec_const_sample_id, spv::DecorationSpecId, 0);
+      builder.addDecoration(spec_const_sample_id, spv::Decoration::SpecId, 0);
     }
   }
 
@@ -2466,9 +2471,9 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
   std::vector<spv::Id> main_param_types;
   std::vector<std::vector<spv::Decoration>> main_precisions;
   spv::Block* main_entry;
-  spv::Function* main_function =
-      builder.makeFunctionEntry(spv::NoPrecision, type_void, "main",
-                                main_param_types, main_precisions, &main_entry);
+  spv::Function* main_function = builder.makeFunctionEntry(
+      spv::NoPrecision, type_void, "main", spv::LinkageType::Max,
+      main_param_types, main_precisions, &main_entry);
 
   // Working with unsigned numbers for simplicity now, bitcasting to signed will
   // be done at texture fetch.
@@ -2490,7 +2495,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
   uint_vector_temp.push_back(0);
   uint_vector_temp.push_back(1);
   spv::Id dest_pixel_coord = builder.createUnaryOp(
-      spv::OpConvertFToU, type_uint2,
+      spv::Op::OpConvertFToU, type_uint2,
       builder.createRvalueSwizzle(
           spv::NoPrecision, type_float2,
           builder.createLoad(input_fragment_coord, spv::NoPrecision),
@@ -2502,35 +2507,35 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
       (uint32_t(dest_is_64bpp) +
        uint32_t(key.dest_msaa_samples >= xenos::MsaaSamples::k4X)));
   spv::Id dest_tile_index_x = builder.createBinOp(
-      spv::OpUDiv, type_uint, dest_pixel_x, const_dest_tile_width_pixels);
+      spv::Op::OpUDiv, type_uint, dest_pixel_x, const_dest_tile_width_pixels);
   spv::Id dest_tile_pixel_x = builder.createBinOp(
-      spv::OpUMod, type_uint, dest_pixel_x, const_dest_tile_width_pixels);
+      spv::Op::OpUMod, type_uint, dest_pixel_x, const_dest_tile_width_pixels);
   spv::Id dest_pixel_y =
       builder.createCompositeExtract(dest_pixel_coord, type_uint, 1);
   spv::Id const_dest_tile_height_pixels = builder.makeUintConstant(
       tile_height_samples >>
       uint32_t(key.dest_msaa_samples >= xenos::MsaaSamples::k2X));
   spv::Id dest_tile_index_y = builder.createBinOp(
-      spv::OpUDiv, type_uint, dest_pixel_y, const_dest_tile_height_pixels);
+      spv::Op::OpUDiv, type_uint, dest_pixel_y, const_dest_tile_height_pixels);
   spv::Id dest_tile_pixel_y = builder.createBinOp(
-      spv::OpUMod, type_uint, dest_pixel_y, const_dest_tile_height_pixels);
+      spv::Op::OpUMod, type_uint, dest_pixel_y, const_dest_tile_height_pixels);
 
   assert_true(push_constants_member_address != UINT32_MAX);
   id_vector_temp.clear();
   id_vector_temp.push_back(
       builder.makeIntConstant(int32_t(push_constants_member_address)));
   spv::Id address_constant = builder.createLoad(
-      builder.createAccessChain(spv::StorageClassPushConstant, push_constants,
+      builder.createAccessChain(spv::StorageClass::PushConstant, push_constants,
                                 id_vector_temp),
       spv::NoPrecision);
 
   // Calculate the 32bpp tile index from its X and Y parts.
   spv::Id dest_tile_index = builder.createBinOp(
-      spv::OpIAdd, type_uint,
+      spv::Op::OpIAdd, type_uint,
       builder.createBinOp(
-          spv::OpIMul, type_uint,
+          spv::Op::OpIMul, type_uint,
           builder.createTriOp(
-              spv::OpBitFieldUExtract, type_uint, address_constant,
+              spv::Op::OpBitFieldUExtract, type_uint, address_constant,
               builder.makeUintConstant(0),
               builder.makeUintConstant(xenos::kEdramPitchTilesBits)),
           dest_tile_index_y),
@@ -2542,7 +2547,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
     if (device_properties.sampleRateShading) {
       assert_true(input_sample_id != spv::NoResult);
       dest_sample_id = builder.createUnaryOp(
-          spv::OpBitcast, type_uint,
+          spv::Op::OpBitcast, type_uint,
           builder.createLoad(input_sample_id, spv::NoPrecision));
     } else {
       assert_true(spec_const_sample_id != spv::NoResult);
@@ -2578,12 +2583,13 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         // D p0,0 s1,1 = S p1,0 s0,1 | S p1,0 s1,1
         // Thus destination horizontal sample -> source horizontal pixel,
         // vertical samples are 1:1.
-        source_sample_id =
-            builder.createBinOp(spv::OpBitwiseAnd, type_uint, dest_sample_id,
-                                builder.makeUintConstant(1 << 1));
+        source_sample_id = builder.createBinOp(
+            spv::Op::OpBitwiseAnd, type_uint, dest_sample_id,
+            builder.makeUintConstant(1 << 1));
         source_tile_pixel_x = builder.createQuadOp(
-            spv::OpBitFieldInsert, type_uint, dest_sample_id, dest_tile_pixel_x,
-            builder.makeUintConstant(1), builder.makeUintConstant(31));
+            spv::Op::OpBitFieldInsert, type_uint, dest_sample_id,
+            dest_tile_pixel_x, builder.makeUintConstant(1),
+            builder.makeUintConstant(31));
       } else if (key.dest_msaa_samples == xenos::MsaaSamples::k2X) {
         // 32bpp -> 64bpp, 4x -> 2x.
         // 1 destination horizontal pixel = 2 source horizontal samples.
@@ -2595,14 +2601,14 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         // 4x) should become samples 01, sample 0 or 3 should become samples 23.
         if (msaa_2x_attachments_supported_) {
           source_sample_id = builder.createBinOp(
-              spv::OpShiftLeftLogical, type_uint,
-              builder.createBinOp(spv::OpBitwiseXor, type_uint, dest_sample_id,
-                                  builder.makeUintConstant(1)),
+              spv::Op::OpShiftLeftLogical, type_uint,
+              builder.createBinOp(spv::Op::OpBitwiseXor, type_uint,
+                                  dest_sample_id, builder.makeUintConstant(1)),
               builder.makeUintConstant(1));
         } else {
-          source_sample_id =
-              builder.createBinOp(spv::OpBitwiseAnd, type_uint, dest_sample_id,
-                                  builder.makeUintConstant(1 << 1));
+          source_sample_id = builder.createBinOp(
+              spv::Op::OpBitwiseAnd, type_uint, dest_sample_id,
+              builder.makeUintConstant(1 << 1));
         }
       } else {
         // 32bpp -> 64bpp, 4x -> 1x.
@@ -2612,11 +2618,11 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         // Horizontal pixel index can be reused. Vertical pixel 1 should
         // become sample 2.
         source_sample_id = builder.createQuadOp(
-            spv::OpBitFieldInsert, type_uint, builder.makeUintConstant(0),
+            spv::Op::OpBitFieldInsert, type_uint, builder.makeUintConstant(0),
             dest_tile_pixel_y, builder.makeUintConstant(1),
             builder.makeUintConstant(1));
         source_tile_pixel_y =
-            builder.createBinOp(spv::OpShiftRightLogical, type_uint,
+            builder.createBinOp(spv::Op::OpShiftRightLogical, type_uint,
                                 dest_tile_pixel_y, builder.makeUintConstant(1));
       }
     } else {
@@ -2627,8 +2633,8 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         // The X part.
         // 1 destination horizontal sample = 2 source horizontal pixels.
         source_tile_pixel_x = builder.createQuadOp(
-            spv::OpBitFieldInsert, type_uint,
-            builder.createBinOp(spv::OpShiftLeftLogical, type_uint,
+            spv::Op::OpBitFieldInsert, type_uint,
+            builder.createBinOp(spv::Op::OpShiftLeftLogical, type_uint,
                                 dest_tile_pixel_x, builder.makeUintConstant(2)),
             dest_sample_id, builder.makeUintConstant(1),
             builder.makeUintConstant(1));
@@ -2638,7 +2644,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         // The X part.
         // 1 destination horizontal pixel = 2 source horizontal pixels.
         source_tile_pixel_x =
-            builder.createBinOp(spv::OpShiftLeftLogical, type_uint,
+            builder.createBinOp(spv::Op::OpShiftLeftLogical, type_uint,
                                 dest_tile_pixel_x, builder.makeUintConstant(1));
         // Y is handled by common code.
       }
@@ -2657,12 +2663,13 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         // Vertical pixel and sample (second bit) addressing is the same.
         // However, 1 horizontal destination pixel = 1 horizontal source sample.
         source_sample_id = builder.createQuadOp(
-            spv::OpBitFieldInsert, type_uint, dest_sample_id, dest_tile_pixel_x,
-            builder.makeUintConstant(0), builder.makeUintConstant(1));
+            spv::Op::OpBitFieldInsert, type_uint, dest_sample_id,
+            dest_tile_pixel_x, builder.makeUintConstant(0),
+            builder.makeUintConstant(1));
         // 2 destination horizontal samples = 1 source horizontal sample, thus
         // 2 destination horizontal pixels = 1 source horizontal pixel.
         source_tile_pixel_x =
-            builder.createBinOp(spv::OpShiftRightLogical, type_uint,
+            builder.createBinOp(spv::Op::OpShiftRightLogical, type_uint,
                                 dest_tile_pixel_x, builder.makeUintConstant(1));
       } else {
         // 64bpp -> 32bpp, 1x/2x -> 4x.
@@ -2673,7 +2680,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
       }
       // Half from the destination horizontal sample index.
       source_color_half =
-          builder.createBinOp(spv::OpBitwiseAnd, type_uint, dest_sample_id,
+          builder.createBinOp(spv::Op::OpBitwiseAnd, type_uint, dest_sample_id,
                               builder.makeUintConstant(1));
     } else {
       // 64bpp -> 32bpp, -> 1x/2x.
@@ -2683,7 +2690,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         // (Destination horizontal pixel >> 1) & 1 = source horizontal sample
         // (first bit).
         source_sample_id = builder.createTriOp(
-            spv::OpBitFieldUExtract, type_uint, dest_tile_pixel_x,
+            spv::Op::OpBitFieldUExtract, type_uint, dest_tile_pixel_x,
             builder.makeUintConstant(1), builder.makeUintConstant(1));
         if (key.dest_msaa_samples == xenos::MsaaSamples::k2X) {
           // 64bpp -> 32bpp, 4x -> 2x.
@@ -2692,14 +2699,14 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           // (second bit).
           if (msaa_2x_attachments_supported_) {
             source_sample_id = builder.createQuadOp(
-                spv::OpBitFieldInsert, type_uint, source_sample_id,
-                builder.createBinOp(spv::OpBitwiseXor, type_uint,
+                spv::Op::OpBitFieldInsert, type_uint, source_sample_id,
+                builder.createBinOp(spv::Op::OpBitwiseXor, type_uint,
                                     dest_sample_id,
                                     builder.makeUintConstant(1)),
                 builder.makeUintConstant(1), builder.makeUintConstant(1));
           } else {
             source_sample_id = builder.createQuadOp(
-                spv::OpBitFieldInsert, type_uint, dest_sample_id,
+                spv::Op::OpBitFieldInsert, type_uint, dest_sample_id,
                 source_sample_id, builder.makeUintConstant(0),
                 builder.makeUintConstant(1));
           }
@@ -2707,31 +2714,31 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           // 64bpp -> 32bpp, 4x -> 1x.
           // 1 destination vertical pixel = 1 source vertical sample.
           source_sample_id = builder.createQuadOp(
-              spv::OpBitFieldInsert, type_uint, source_sample_id,
+              spv::Op::OpBitFieldInsert, type_uint, source_sample_id,
               source_tile_pixel_y, builder.makeUintConstant(1),
               builder.makeUintConstant(1));
           source_tile_pixel_y = builder.createBinOp(
-              spv::OpShiftRightLogical, type_uint, dest_tile_pixel_y,
+              spv::Op::OpShiftRightLogical, type_uint, dest_tile_pixel_y,
               builder.makeUintConstant(1));
         }
         // 2 destination horizontal pixels = 1 source horizontal sample.
         // 4 destination horizontal pixels = 1 source horizontal pixel.
         source_tile_pixel_x =
-            builder.createBinOp(spv::OpShiftRightLogical, type_uint,
+            builder.createBinOp(spv::Op::OpShiftRightLogical, type_uint,
                                 dest_tile_pixel_x, builder.makeUintConstant(2));
       } else {
         // 64bpp -> 32bpp, 1x/2x -> 1x/2x.
         // The X part.
         // 2 destination horizontal pixels = 1 destination source pixel.
         source_tile_pixel_x =
-            builder.createBinOp(spv::OpShiftRightLogical, type_uint,
+            builder.createBinOp(spv::Op::OpShiftRightLogical, type_uint,
                                 dest_tile_pixel_x, builder.makeUintConstant(1));
         // Y is handled by common code.
       }
       // Half from the destination horizontal pixel index.
       source_color_half =
-          builder.createBinOp(spv::OpBitwiseAnd, type_uint, dest_tile_pixel_x,
-                              builder.makeUintConstant(1));
+          builder.createBinOp(spv::Op::OpBitwiseAnd, type_uint,
+                              dest_tile_pixel_x, builder.makeUintConstant(1));
     }
     assert_true(source_color_half != spv::NoResult);
   } else {
@@ -2746,35 +2753,35 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           // sample bit.
           if (msaa_2x_attachments_supported_) {
             source_sample_id = builder.createQuadOp(
-                spv::OpBitFieldInsert, type_uint, dest_tile_pixel_x,
-                builder.createBinOp(spv::OpBitwiseXor, type_uint,
+                spv::Op::OpBitFieldInsert, type_uint, dest_tile_pixel_x,
+                builder.createBinOp(spv::Op::OpBitwiseXor, type_uint,
                                     dest_sample_id,
                                     builder.makeUintConstant(1)),
                 builder.makeUintConstant(1), builder.makeUintConstant(31));
           } else {
             source_sample_id = builder.createQuadOp(
-                spv::OpBitFieldInsert, type_uint, dest_sample_id,
+                spv::Op::OpBitFieldInsert, type_uint, dest_sample_id,
                 dest_tile_pixel_x, builder.makeUintConstant(0),
                 builder.makeUintConstant(1));
           }
           source_tile_pixel_x = builder.createBinOp(
-              spv::OpShiftRightLogical, type_uint, dest_tile_pixel_x,
+              spv::Op::OpShiftRightLogical, type_uint, dest_tile_pixel_x,
               builder.makeUintConstant(1));
         } else {
           // Same BPP, 4x -> 1x.
           // Pixels to samples.
           source_sample_id = builder.createQuadOp(
-              spv::OpBitFieldInsert, type_uint,
-              builder.createBinOp(spv::OpBitwiseAnd, type_uint,
+              spv::Op::OpBitFieldInsert, type_uint,
+              builder.createBinOp(spv::Op::OpBitwiseAnd, type_uint,
                                   dest_tile_pixel_x,
                                   builder.makeUintConstant(1)),
               dest_tile_pixel_y, builder.makeUintConstant(1),
               builder.makeUintConstant(1));
           source_tile_pixel_x = builder.createBinOp(
-              spv::OpShiftRightLogical, type_uint, dest_tile_pixel_x,
+              spv::Op::OpShiftRightLogical, type_uint, dest_tile_pixel_x,
               builder.makeUintConstant(1));
           source_tile_pixel_y = builder.createBinOp(
-              spv::OpShiftRightLogical, type_uint, dest_tile_pixel_y,
+              spv::Op::OpShiftRightLogical, type_uint, dest_tile_pixel_y,
               builder.makeUintConstant(1));
         }
       } else {
@@ -2783,7 +2790,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         if (key.dest_msaa_samples >= xenos::MsaaSamples::k4X) {
           // Horizontal samples to pixels.
           source_tile_pixel_x = builder.createQuadOp(
-              spv::OpBitFieldInsert, type_uint, dest_sample_id,
+              spv::Op::OpBitFieldInsert, type_uint, dest_sample_id,
               dest_tile_pixel_x, builder.makeUintConstant(1),
               builder.makeUintConstant(31));
         }
@@ -2801,15 +2808,15 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         // Vertical samples (second bit) of 4x destination to vertical sample
         // (1, 0 for native 2x, or 0, 3 for 2x as 4x) of 2x source.
         source_sample_id =
-            builder.createBinOp(spv::OpShiftRightLogical, type_uint,
+            builder.createBinOp(spv::Op::OpShiftRightLogical, type_uint,
                                 dest_sample_id, builder.makeUintConstant(1));
         if (msaa_2x_attachments_supported_) {
-          source_sample_id = builder.createBinOp(spv::OpBitwiseXor, type_uint,
-                                                 source_sample_id,
+          source_sample_id = builder.createBinOp(spv::Op::OpBitwiseXor,
+                                                 type_uint, source_sample_id,
                                                  builder.makeUintConstant(1));
         } else {
           source_sample_id = builder.createQuadOp(
-              spv::OpBitFieldInsert, type_uint, source_sample_id,
+              spv::Op::OpBitFieldInsert, type_uint, source_sample_id,
               source_sample_id, builder.makeUintConstant(1),
               builder.makeUintConstant(1));
         }
@@ -2817,8 +2824,8 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         // 1x -> 4x.
         // Vertical samples (second bit) to Y pixels.
         source_tile_pixel_y = builder.createQuadOp(
-            spv::OpBitFieldInsert, type_uint,
-            builder.createBinOp(spv::OpShiftRightLogical, type_uint,
+            spv::Op::OpBitFieldInsert, type_uint,
+            builder.createBinOp(spv::Op::OpShiftRightLogical, type_uint,
                                 dest_sample_id, builder.makeUintConstant(1)),
             dest_tile_pixel_y, builder.makeUintConstant(1),
             builder.makeUintConstant(31));
@@ -2830,20 +2837,20 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         // Vertical pixels of 2x destination to vertical samples (1, 0 for
         // native 2x, or 0, 3 for 2x as 4x) of 1x source.
         source_sample_id =
-            builder.createBinOp(spv::OpBitwiseAnd, type_uint, dest_tile_pixel_y,
-                                builder.makeUintConstant(1));
+            builder.createBinOp(spv::Op::OpBitwiseAnd, type_uint,
+                                dest_tile_pixel_y, builder.makeUintConstant(1));
         if (msaa_2x_attachments_supported_) {
-          source_sample_id = builder.createBinOp(spv::OpBitwiseXor, type_uint,
-                                                 source_sample_id,
+          source_sample_id = builder.createBinOp(spv::Op::OpBitwiseXor,
+                                                 type_uint, source_sample_id,
                                                  builder.makeUintConstant(1));
         } else {
           source_sample_id = builder.createQuadOp(
-              spv::OpBitFieldInsert, type_uint, source_sample_id,
+              spv::Op::OpBitFieldInsert, type_uint, source_sample_id,
               source_sample_id, builder.makeUintConstant(1),
               builder.makeUintConstant(1));
         }
         source_tile_pixel_y =
-            builder.createBinOp(spv::OpShiftRightLogical, type_uint,
+            builder.createBinOp(spv::Op::OpShiftRightLogical, type_uint,
                                 dest_tile_pixel_y, builder.makeUintConstant(1));
       } else {
         // 1x -> 2x.
@@ -2852,15 +2859,15 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         // source.
         if (msaa_2x_attachments_supported_) {
           source_tile_pixel_y = builder.createQuadOp(
-              spv::OpBitFieldInsert, type_uint,
-              builder.createBinOp(spv::OpBitwiseXor, type_uint, dest_sample_id,
-                                  builder.makeUintConstant(1)),
+              spv::Op::OpBitFieldInsert, type_uint,
+              builder.createBinOp(spv::Op::OpBitwiseXor, type_uint,
+                                  dest_sample_id, builder.makeUintConstant(1)),
               dest_tile_pixel_y, builder.makeUintConstant(1),
               builder.makeUintConstant(31));
         } else {
           source_tile_pixel_y = builder.createQuadOp(
-              spv::OpBitFieldInsert, type_uint,
-              builder.createBinOp(spv::OpShiftRightLogical, type_uint,
+              spv::Op::OpBitFieldInsert, type_uint,
+              builder.createBinOp(spv::Op::OpShiftRightLogical, type_uint,
                                   dest_sample_id, builder.makeUintConstant(1)),
               dest_tile_pixel_y, builder.makeUintConstant(1),
               builder.makeUintConstant(31));
@@ -2879,15 +2886,15 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
     uint32_t source_32bpp_tile_half_pixels =
         tile_width_samples >> (1 + source_pixel_width_dwords_log2);
     source_tile_pixel_x = builder.createUnaryOp(
-        spv::OpBitcast, type_uint,
+        spv::Op::OpBitcast, type_uint,
         builder.createBinOp(
-            spv::OpIAdd, type_int,
-            builder.createUnaryOp(spv::OpBitcast, type_int,
+            spv::Op::OpIAdd, type_int,
+            builder.createUnaryOp(spv::Op::OpBitcast, type_int,
                                   source_tile_pixel_x),
             builder.createTriOp(
-                spv::OpSelect, type_int,
+                spv::Op::OpSelect, type_int,
                 builder.createBinOp(
-                    spv::OpULessThan, builder.makeBoolType(),
+                    spv::Op::OpULessThan, builder.makeBoolType(),
                     source_tile_pixel_x,
                     builder.makeUintConstant(source_32bpp_tile_half_pixels)),
                 builder.makeIntConstant(int32_t(source_32bpp_tile_half_pixels)),
@@ -2900,15 +2907,16 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
   // EDRAM addressing wrapping, and xenos::kEdramTileCount must be added to it,
   // but `& (xenos::kEdramTileCount - 1)` handles that regardless of the sign.
   spv::Id source_tile_index = builder.createBinOp(
-      spv::OpBitwiseAnd, type_uint,
+      spv::Op::OpBitwiseAnd, type_uint,
       builder.createUnaryOp(
-          spv::OpBitcast, type_uint,
+          spv::Op::OpBitcast, type_uint,
           builder.createBinOp(
-              spv::OpIAdd, type_int,
-              builder.createUnaryOp(spv::OpBitcast, type_int, dest_tile_index),
+              spv::Op::OpIAdd, type_int,
+              builder.createUnaryOp(spv::Op::OpBitcast, type_int,
+                                    dest_tile_index),
               builder.createTriOp(
-                  spv::OpBitFieldSExtract, type_int,
-                  builder.createUnaryOp(spv::OpBitcast, type_int,
+                  spv::Op::OpBitFieldSExtract, type_int,
+                  builder.createUnaryOp(spv::Op::OpBitcast, type_int,
                                         address_constant),
                   builder.makeUintConstant(xenos::kEdramPitchTilesBits * 2),
                   builder.makeUintConstant(xenos::kEdramBaseTilesBits + 1)))),
@@ -2916,30 +2924,30 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
   // Split the source 32bpp tile index into X and Y tile index within the source
   // image.
   spv::Id source_pitch_tiles = builder.createTriOp(
-      spv::OpBitFieldUExtract, type_uint, address_constant,
+      spv::Op::OpBitFieldUExtract, type_uint, address_constant,
       builder.makeUintConstant(xenos::kEdramPitchTilesBits),
       builder.makeUintConstant(xenos::kEdramPitchTilesBits));
   spv::Id source_tile_index_y = builder.createBinOp(
-      spv::OpUDiv, type_uint, source_tile_index, source_pitch_tiles);
+      spv::Op::OpUDiv, type_uint, source_tile_index, source_pitch_tiles);
   spv::Id source_tile_index_x = builder.createBinOp(
-      spv::OpUMod, type_uint, source_tile_index, source_pitch_tiles);
+      spv::Op::OpUMod, type_uint, source_tile_index, source_pitch_tiles);
   // Finally calculate the source texture coordinates.
   spv::Id source_pixel_x_int = builder.createUnaryOp(
-      spv::OpBitcast, type_int,
+      spv::Op::OpBitcast, type_int,
       builder.createBinOp(
-          spv::OpIAdd, type_uint,
+          spv::Op::OpIAdd, type_uint,
           builder.createBinOp(
-              spv::OpIMul, type_uint,
+              spv::Op::OpIMul, type_uint,
               builder.makeUintConstant(tile_width_samples >>
                                        source_pixel_width_dwords_log2),
               source_tile_index_x),
           source_tile_pixel_x));
   spv::Id source_pixel_y_int = builder.createUnaryOp(
-      spv::OpBitcast, type_int,
+      spv::Op::OpBitcast, type_int,
       builder.createBinOp(
-          spv::OpIAdd, type_uint,
+          spv::Op::OpIAdd, type_uint,
           builder.createBinOp(
-              spv::OpIMul, type_uint,
+              spv::Op::OpIMul, type_uint,
               builder.makeUintConstant(
                   tile_height_samples >>
                   uint32_t(key.source_msaa_samples >= xenos::MsaaSamples::k2X)),
@@ -2958,7 +2966,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
   spv::Id source_sample_ids_int[2] = {};
   if (key.source_msaa_samples != xenos::MsaaSamples::k1X) {
     source_sample_ids_int[0] =
-        builder.createUnaryOp(spv::OpBitcast, type_int, source_sample_id);
+        builder.createUnaryOp(spv::Op::OpBitcast, type_int, source_sample_id);
   } else {
     source_texture_parameters.lod = builder.makeIntConstant(0);
   }
@@ -2968,12 +2976,12 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
     if (key.source_msaa_samples >= xenos::MsaaSamples::k4X) {
       source_coordinates[1] = source_coordinates[0];
       source_sample_ids_int[1] = builder.createBinOp(
-          spv::OpBitwiseOr, type_int, source_sample_ids_int[0],
+          spv::Op::OpBitwiseOr, type_int, source_sample_ids_int[0],
           builder.makeIntConstant(1));
     } else {
       id_vector_temp.clear();
-      id_vector_temp.push_back(builder.createBinOp(spv::OpBitwiseOr, type_int,
-                                                   source_pixel_x_int,
+      id_vector_temp.push_back(builder.createBinOp(spv::Op::OpBitwiseOr,
+                                                   type_int, source_pixel_x_int,
                                                    builder.makeIntConstant(1)));
       id_vector_temp.push_back(source_pixel_y_int);
       source_coordinates[1] =
@@ -2993,7 +3001,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
       source_texture_parameters.sample = source_sample_ids_int[i];
       spv::Id source_color_vec4 = builder.createTextureCall(
           spv::NoPrecision, source_color_vec4_type, false, true, false, false,
-          false, source_texture_parameters, spv::ImageOperandsMaskNone);
+          false, source_texture_parameters, spv::ImageOperandsMask::MaskNone);
       uint32_t source_color_components_remaining =
           source_color_texture_component_mask;
       uint32_t source_color_component_index;
@@ -3018,7 +3026,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
       source_depth_float[i] = builder.createCompositeExtract(
           builder.createTextureCall(
               spv::NoPrecision, type_float4, false, true, false, false, false,
-              source_texture_parameters, spv::ImageOperandsMaskNone),
+              source_texture_parameters, spv::ImageOperandsMask::MaskNone),
           type_float, 0);
     }
   }
@@ -3032,7 +3040,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
       source_stencil[i] = builder.createCompositeExtract(
           builder.createTextureCall(
               spv::NoPrecision, type_uint4, false, true, false, false, false,
-              source_texture_parameters, spv::ImageOperandsMaskNone),
+              source_texture_parameters, spv::ImageOperandsMask::MaskNone),
           type_uint, 0);
     }
   }
@@ -3043,18 +3051,18 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         source_color_format_component_count >> 1;
     assert_true(source_color_half != spv::NoResult);
     spv::Id source_color_is_second_half =
-        builder.createBinOp(spv::OpINotEqual, type_bool, source_color_half,
+        builder.createBinOp(spv::Op::OpINotEqual, type_bool, source_color_half,
                             builder.makeUintConstant(0));
     if (mode.output == TransferOutput::kStencilBit) {
       source_color[0][0] = builder.createTriOp(
-          spv::OpSelect, source_color_component_type,
+          spv::Op::OpSelect, source_color_component_type,
           source_color_is_second_half,
           source_color[0][source_color_half_component_count],
           source_color[0][0]);
     } else {
       for (uint32_t i = 0; i < source_color_half_component_count; ++i) {
         source_color[0][i] = builder.createTriOp(
-            spv::OpSelect, source_color_component_type,
+            spv::Op::OpSelect, source_color_component_type,
             source_color_is_second_half,
             source_color[0][source_color_half_component_count + i],
             source_color[0][i]);
@@ -3067,7 +3075,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
     // For the depth -> depth case, write the stencil directly to the output.
     assert_true(mode.output == TransferOutput::kDepth);
     builder.createStore(
-        builder.createUnaryOp(spv::OpBitcast, type_int, source_stencil[0]),
+        builder.createUnaryOp(spv::Op::OpBitcast, type_int, source_stencil[0]),
         output_fragment_stencil_ref);
   }
 
@@ -3087,20 +3095,20 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           spv::Id component_width = builder.makeUintConstant(8);
           for (uint32_t i = 0; i < 2; ++i) {
             packed[i] = builder.createUnaryOp(
-                spv::OpConvertFToU, type_uint,
+                spv::Op::OpConvertFToU, type_uint,
                 builder.createBinOp(
-                    spv::OpFAdd, type_float,
-                    builder.createBinOp(spv::OpFMul, type_float,
+                    spv::Op::OpFAdd, type_float,
+                    builder.createBinOp(spv::Op::OpFMul, type_float,
                                         source_color[i][0], unorm_scale),
                     unorm_round_offset));
             for (uint32_t j = 1; j < 4; ++j) {
               packed[i] = builder.createQuadOp(
-                  spv::OpBitFieldInsert, type_uint, packed[i],
+                  spv::Op::OpBitFieldInsert, type_uint, packed[i],
                   builder.createUnaryOp(
-                      spv::OpConvertFToU, type_uint,
+                      spv::Op::OpConvertFToU, type_uint,
                       builder.createBinOp(
-                          spv::OpFAdd, type_float,
-                          builder.createBinOp(spv::OpFMul, type_float,
+                          spv::Op::OpFAdd, type_float,
+                          builder.createBinOp(spv::Op::OpFMul, type_float,
                                               source_color[i][j], unorm_scale),
                           unorm_round_offset)),
                   builder.makeUintConstant(8 * j), component_width);
@@ -3116,21 +3124,21 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           spv::Id width_a = builder.makeUintConstant(2);
           for (uint32_t i = 0; i < 2; ++i) {
             packed[i] = builder.createUnaryOp(
-                spv::OpConvertFToU, type_uint,
+                spv::Op::OpConvertFToU, type_uint,
                 builder.createBinOp(
-                    spv::OpFAdd, type_float,
-                    builder.createBinOp(spv::OpFMul, type_float,
+                    spv::Op::OpFAdd, type_float,
+                    builder.createBinOp(spv::Op::OpFMul, type_float,
                                         source_color[i][0], unorm_scale_rgb),
                     unorm_round_offset));
             for (uint32_t j = 1; j < 4; ++j) {
               packed[i] = builder.createQuadOp(
-                  spv::OpBitFieldInsert, type_uint, packed[i],
+                  spv::Op::OpBitFieldInsert, type_uint, packed[i],
                   builder.createUnaryOp(
-                      spv::OpConvertFToU, type_uint,
+                      spv::Op::OpConvertFToU, type_uint,
                       builder.createBinOp(
-                          spv::OpFAdd, type_float,
+                          spv::Op::OpFAdd, type_float,
                           builder.createBinOp(
-                              spv::OpFMul, type_float, source_color[i][j],
+                              spv::Op::OpFMul, type_float, source_color[i][j],
                               j == 3 ? unorm_scale_a : unorm_scale_rgb),
                           unorm_round_offset)),
                   builder.makeUintConstant(10 * j),
@@ -3155,7 +3163,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                 builder, source_color[i][0], ext_inst_glsl_std_450);
             for (uint32_t j = 1; j < 3; ++j) {
               packed[i] = builder.createQuadOp(
-                  spv::OpBitFieldInsert, type_uint, packed[i],
+                  spv::Op::OpBitFieldInsert, type_uint, packed[i],
                   SpirvShaderTranslator::UnclampedFloat32To7e3(
                       builder, source_color[i][j], ext_inst_glsl_std_450),
                   builder.makeUintConstant(10 * j), width_rgb);
@@ -3165,12 +3173,12 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                 type_float, ext_inst_glsl_std_450, GLSLstd450NClamp,
                 source_color[i][3], float_0, float_1);
             packed[i] = builder.createQuadOp(
-                spv::OpBitFieldInsert, type_uint, packed[i],
+                spv::Op::OpBitFieldInsert, type_uint, packed[i],
                 builder.createUnaryOp(
-                    spv::OpConvertFToU, type_uint,
+                    spv::Op::OpConvertFToU, type_uint,
                     builder.createBinOp(
-                        spv::OpFAdd, type_float,
-                        builder.createBinOp(spv::OpFMul, type_float,
+                        spv::Op::OpFAdd, type_float,
+                        builder.createBinOp(spv::Op::OpFMul, type_float,
                                             alpha_saturated, unorm_scale_a),
                         unorm_round_offset)),
                 offset_a, width_a);
@@ -3191,7 +3199,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             spv::Id color_16_in_32[2];
             for (uint32_t i = 0; i < 2; ++i) {
               color_16_in_32[i] = builder.createQuadOp(
-                  spv::OpBitFieldInsert, type_uint, source_color[i][0],
+                  spv::Op::OpBitFieldInsert, type_uint, source_color[i][0],
                   source_color[i][1], component_offset_width,
                   component_offset_width);
             }
@@ -3219,7 +3227,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             spv::Id color_16_in_32[2];
             for (uint32_t i = 0; i < 2; ++i) {
               color_16_in_32[i] = builder.createQuadOp(
-                  spv::OpBitFieldInsert, type_uint, source_color[0][i << 1],
+                  spv::Op::OpBitFieldInsert, type_uint, source_color[0][i << 1],
                   source_color[0][(i << 1) + 1], component_offset_width,
                   component_offset_width);
             }
@@ -3245,8 +3253,8 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           for (uint32_t i = 0; i < 2; ++i) {
             packed[i] = source_color[i][0];
             if (!source_color_is_uint) {
-              packed[i] =
-                  builder.createUnaryOp(spv::OpBitcast, type_uint, packed[i]);
+              packed[i] = builder.createUnaryOp(spv::Op::OpBitcast, type_uint,
+                                                packed[i]);
             }
           }
         } break;
@@ -3254,8 +3262,8 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           for (uint32_t i = 0; i < 2; ++i) {
             packed[i] = source_color[0][i];
             if (!source_color_is_uint) {
-              packed[i] =
-                  builder.createUnaryOp(spv::OpBitcast, type_uint, packed[i]);
+              packed[i] = builder.createUnaryOp(spv::Op::OpBitcast, type_uint,
+                                                packed[i]);
             }
           }
         } break;
@@ -3273,11 +3281,11 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             // correct conversion, adding +0.5 and rounding towards zero results
             // in red instead of black in the 4D5307E6 clear shader.
             depth24 = builder.createUnaryOp(
-                spv::OpConvertFToU, type_uint,
+                spv::Op::OpConvertFToU, type_uint,
                 builder.createUnaryBuiltinCall(
                     type_float, ext_inst_glsl_std_450, GLSLstd450RoundEven,
                     builder.createBinOp(
-                        spv::OpFMul, type_float, source_depth_float[i],
+                        spv::Op::OpFMul, type_float, source_depth_float[i],
                         builder.makeFloatConstant(float(0xFFFFFF)))));
           } break;
           case xenos::DepthRenderTargetFormat::kD24FS8: {
@@ -3287,7 +3295,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           } break;
         }
         // Merge depth and stencil.
-        packed[i] = builder.createQuadOp(spv::OpBitFieldInsert, type_uint,
+        packed[i] = builder.createQuadOp(spv::Op::OpBitFieldInsert, type_uint,
                                          source_stencil[i], depth24,
                                          depth_offset, depth_width);
       }
@@ -3308,7 +3316,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         if (!dest_color_is_uint) {
           for (spv::Id& float32 : id_vector_temp) {
             float32 =
-                builder.createUnaryOp(spv::OpBitcast, type_float, float32);
+                builder.createUnaryOp(spv::Op::OpBitcast, type_float, float32);
           }
         }
         builder.createStore(builder.createCompositeConstruct(type_fragment_data,
@@ -3320,7 +3328,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         id_vector_temp.clear();
         for (uint32_t i = 0; i < 4; ++i) {
           id_vector_temp.push_back(builder.createTriOp(
-              spv::OpBitFieldUExtract, type_uint, packed[i >> 1],
+              spv::Op::OpBitFieldUExtract, type_uint, packed[i >> 1],
               (i & 1) ? const_uint_16 : const_uint_0, const_uint_16));
         }
         // TODO(Triang3l): Handle the case when that's not true (no multisampled
@@ -3370,12 +3378,12 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               if (output_fragment_stencil_ref != spv::NoResult) {
                 builder.createStore(
                     builder.createUnaryOp(
-                        spv::OpBitcast, type_int,
+                        spv::Op::OpBitcast, type_int,
                         builder.createUnaryOp(
-                            spv::OpConvertFToU, type_uint,
+                            spv::Op::OpConvertFToU, type_uint,
                             builder.createBinOp(
-                                spv::OpFAdd, type_float,
-                                builder.createBinOp(spv::OpFMul, type_float,
+                                spv::Op::OpFAdd, type_float,
+                                builder.createBinOp(spv::Op::OpFMul, type_float,
                                                     source_color[0][0],
                                                     unorm_scale),
                                 unorm_round_offset))),
@@ -3383,24 +3391,24 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               }
             }
             packed = builder.createUnaryOp(
-                spv::OpConvertFToU, type_uint,
+                spv::Op::OpConvertFToU, type_uint,
                 builder.createBinOp(
-                    spv::OpFAdd, type_float,
+                    spv::Op::OpFAdd, type_float,
                     builder.createBinOp(
-                        spv::OpFMul, type_float,
+                        spv::Op::OpFMul, type_float,
                         source_color[0][packed_component_offset], unorm_scale),
                     unorm_round_offset));
             if (mode.output != TransferOutput::kStencilBit) {
               spv::Id component_width = builder.makeUintConstant(8);
               for (uint32_t i = 1; i < 4 - packed_component_offset; ++i) {
                 packed = builder.createQuadOp(
-                    spv::OpBitFieldInsert, type_uint, packed,
+                    spv::Op::OpBitFieldInsert, type_uint, packed,
                     builder.createUnaryOp(
-                        spv::OpConvertFToU, type_uint,
+                        spv::Op::OpConvertFToU, type_uint,
                         builder.createBinOp(
-                            spv::OpFAdd, type_float,
+                            spv::Op::OpFAdd, type_float,
                             builder.createBinOp(
-                                spv::OpFMul, type_float,
+                                spv::Op::OpFMul, type_float,
                                 source_color[0][packed_component_offset + i],
                                 unorm_scale),
                             unorm_round_offset)),
@@ -3427,10 +3435,10 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             spv::Id unorm_round_offset = builder.makeFloatConstant(0.5f);
             spv::Id unorm_scale_rgb = builder.makeFloatConstant(1023.0f);
             packed = builder.createUnaryOp(
-                spv::OpConvertFToU, type_uint,
+                spv::Op::OpConvertFToU, type_uint,
                 builder.createBinOp(
-                    spv::OpFAdd, type_float,
-                    builder.createBinOp(spv::OpFMul, type_float,
+                    spv::Op::OpFAdd, type_float,
+                    builder.createBinOp(spv::Op::OpFMul, type_float,
                                         source_color[0][0], unorm_scale_rgb),
                     unorm_round_offset));
             if (mode.output != TransferOutput::kStencilBit) {
@@ -3439,13 +3447,13 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               spv::Id width_a = builder.makeUintConstant(2);
               for (uint32_t i = 1; i < 4; ++i) {
                 packed = builder.createQuadOp(
-                    spv::OpBitFieldInsert, type_uint, packed,
+                    spv::Op::OpBitFieldInsert, type_uint, packed,
                     builder.createUnaryOp(
-                        spv::OpConvertFToU, type_uint,
+                        spv::Op::OpConvertFToU, type_uint,
                         builder.createBinOp(
-                            spv::OpFAdd, type_float,
+                            spv::Op::OpFAdd, type_float,
                             builder.createBinOp(
-                                spv::OpFMul, type_float, source_color[0][i],
+                                spv::Op::OpFMul, type_float, source_color[0][i],
                                 i == 3 ? unorm_scale_a : unorm_scale_rgb),
                             unorm_round_offset)),
                     builder.makeUintConstant(10 * i),
@@ -3478,7 +3486,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               spv::Id width_rgb = builder.makeUintConstant(10);
               for (uint32_t i = 1; i < 3; ++i) {
                 packed = builder.createQuadOp(
-                    spv::OpBitFieldInsert, type_uint, packed,
+                    spv::Op::OpBitFieldInsert, type_uint, packed,
                     SpirvShaderTranslator::UnclampedFloat32To7e3(
                         builder, source_color[0][i], ext_inst_glsl_std_450),
                     builder.makeUintConstant(10 * i), width_rgb);
@@ -3489,12 +3497,12 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                   source_color[0][3], builder.makeFloatConstant(0.0f),
                   builder.makeFloatConstant(1.0f));
               packed = builder.createQuadOp(
-                  spv::OpBitFieldInsert, type_uint, packed,
+                  spv::Op::OpBitFieldInsert, type_uint, packed,
                   builder.createUnaryOp(
-                      spv::OpConvertFToU, type_uint,
+                      spv::Op::OpConvertFToU, type_uint,
                       builder.createBinOp(
-                          spv::OpFAdd, type_float,
-                          builder.createBinOp(spv::OpFMul, type_float,
+                          spv::Op::OpFAdd, type_float,
+                          builder.createBinOp(spv::Op::OpFMul, type_float,
                                               alpha_saturated,
                                               builder.makeFloatConstant(3.0f)),
                           builder.makeFloatConstant(0.5f))),
@@ -3529,8 +3537,9 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             if (mode.output != TransferOutput::kStencilBit) {
               spv::Id component_offset_width = builder.makeUintConstant(16);
               packed = builder.createQuadOp(
-                  spv::OpBitFieldInsert, type_uint, packed, source_color[0][1],
-                  component_offset_width, component_offset_width);
+                  spv::Op::OpBitFieldInsert, type_uint, packed,
+                  source_color[0][1], component_offset_width,
+                  component_offset_width);
             }
           }
         } break;
@@ -3540,7 +3549,8 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         case xenos::ColorRenderTargetFormat::k_32_32_FLOAT: {
           packed = source_color[0][0];
           if (!source_color_is_uint) {
-            packed = builder.createUnaryOp(spv::OpBitcast, type_uint, packed);
+            packed =
+                builder.createUnaryOp(spv::Op::OpBitcast, type_uint, packed);
           }
         } break;
       }
@@ -3555,11 +3565,11 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             // conversion, adding +0.5 and rounding towards zero results in red
             // instead of black in the 4D5307E6 clear shader.
             packed = builder.createUnaryOp(
-                spv::OpConvertFToU, type_uint,
+                spv::Op::OpConvertFToU, type_uint,
                 builder.createUnaryBuiltinCall(
                     type_float, ext_inst_glsl_std_450, GLSLstd450RoundEven,
                     builder.createBinOp(
-                        spv::OpFMul, type_float, source_depth_float[0],
+                        spv::Op::OpFMul, type_float, source_depth_float[0],
                         builder.makeFloatConstant(float(0xFFFFFF)))));
           } break;
           case xenos::DepthRenderTargetFormat::kD24FS8: {
@@ -3573,7 +3583,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
         } else {
           // Merge depth and stencil.
           packed = builder.createQuadOp(
-              spv::OpBitFieldInsert, type_uint, source_stencil[0], packed,
+              spv::Op::OpBitFieldInsert, type_uint, source_stencil[0], packed,
               builder.makeUintConstant(8), builder.makeUintConstant(24));
         }
       }
@@ -3591,11 +3601,11 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               id_vector_temp.clear();
               for (uint32_t i = 0; i < 4; ++i) {
                 id_vector_temp.push_back(builder.createBinOp(
-                    spv::OpFMul, type_float,
+                    spv::Op::OpFMul, type_float,
                     builder.createUnaryOp(
-                        spv::OpConvertUToF, type_float,
+                        spv::Op::OpConvertUToF, type_float,
                         builder.createTriOp(
-                            spv::OpBitFieldUExtract, type_uint, packed,
+                            spv::Op::OpBitFieldUExtract, type_uint, packed,
                             builder.makeUintConstant(8 * i), component_width)),
                     unorm_scale));
               }
@@ -3613,11 +3623,11 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               id_vector_temp.clear();
               for (uint32_t i = 0; i < 4; ++i) {
                 id_vector_temp.push_back(builder.createBinOp(
-                    spv::OpFMul, type_float,
+                    spv::Op::OpFMul, type_float,
                     builder.createUnaryOp(
-                        spv::OpConvertUToF, type_float,
-                        builder.createTriOp(spv::OpBitFieldUExtract, type_uint,
-                                            packed,
+                        spv::Op::OpConvertUToF, type_float,
+                        builder.createTriOp(spv::Op::OpBitFieldUExtract,
+                                            type_uint, packed,
                                             builder.makeUintConstant(10 * i),
                                             i == 3 ? width_a : width_rgb)),
                     i == 3 ? unorm_scale_a : unorm_scale_rgb));
@@ -3638,11 +3648,12 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               }
               // Alpha.
               id_vector_temp.push_back(builder.createBinOp(
-                  spv::OpFMul, type_float,
+                  spv::Op::OpFMul, type_float,
                   builder.createUnaryOp(
-                      spv::OpConvertUToF, type_float,
-                      builder.createTriOp(spv::OpBitFieldUExtract, type_uint,
-                                          packed, builder.makeUintConstant(30),
+                      spv::Op::OpConvertUToF, type_float,
+                      builder.createTriOp(spv::Op::OpBitFieldUExtract,
+                                          type_uint, packed,
+                                          builder.makeUintConstant(30),
                                           builder.makeUintConstant(2))),
                   builder.makeFloatConstant(1.0f / 3.0f)));
               builder.createStore(builder.createCompositeConstruct(
@@ -3662,7 +3673,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               id_vector_temp.clear();
               for (uint32_t i = 0; i < 2; ++i) {
                 id_vector_temp.push_back(builder.createTriOp(
-                    spv::OpBitFieldUExtract, type_uint, packed,
+                    spv::Op::OpBitFieldUExtract, type_uint, packed,
                     i ? component_offset_width : builder.makeUintConstant(0),
                     component_offset_width));
               }
@@ -3679,8 +3690,8 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               // multisampled integer framebuffer attachment support in Xenia.
               spv::Id float32 = packed;
               if (!dest_color_is_uint) {
-                float32 =
-                    builder.createUnaryOp(spv::OpBitcast, type_float, float32);
+                float32 = builder.createUnaryOp(spv::Op::OpBitcast, type_float,
+                                                float32);
               }
               builder.createStore(float32, output_fragment_data);
             } break;
@@ -3696,7 +3707,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           if (!packed_only_depth) {
             // Extract the depth bits.
             guest_depth24 =
-                builder.createBinOp(spv::OpShiftRightLogical, type_uint,
+                builder.createBinOp(spv::Op::OpShiftRightLogical, type_uint,
                                     guest_depth24, builder.makeUintConstant(8));
           }
           // Load the host float32 depth, check if, when converted to the guest
@@ -3722,37 +3733,37 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                   // 4x) to second sample bit.
                   if (msaa_2x_attachments_supported_) {
                     host_depth_source_sample_id = builder.createQuadOp(
-                        spv::OpBitFieldInsert, type_uint, dest_tile_pixel_x,
-                        builder.createBinOp(spv::OpBitwiseXor, type_uint,
+                        spv::Op::OpBitFieldInsert, type_uint, dest_tile_pixel_x,
+                        builder.createBinOp(spv::Op::OpBitwiseXor, type_uint,
                                             dest_sample_id,
                                             builder.makeUintConstant(1)),
                         builder.makeUintConstant(1),
                         builder.makeUintConstant(31));
                   } else {
                     host_depth_source_sample_id = builder.createQuadOp(
-                        spv::OpBitFieldInsert, type_uint, dest_sample_id,
+                        spv::Op::OpBitFieldInsert, type_uint, dest_sample_id,
                         dest_tile_pixel_x, builder.makeUintConstant(0),
                         builder.makeUintConstant(1));
                   }
                   host_depth_source_tile_pixel_x = builder.createBinOp(
-                      spv::OpShiftRightLogical, type_uint, dest_tile_pixel_x,
-                      builder.makeUintConstant(1));
+                      spv::Op::OpShiftRightLogical, type_uint,
+                      dest_tile_pixel_x, builder.makeUintConstant(1));
                 } else {
                   // 4x -> 1x.
                   // Pixels to samples.
                   host_depth_source_sample_id = builder.createQuadOp(
-                      spv::OpBitFieldInsert, type_uint,
-                      builder.createBinOp(spv::OpBitwiseAnd, type_uint,
+                      spv::Op::OpBitFieldInsert, type_uint,
+                      builder.createBinOp(spv::Op::OpBitwiseAnd, type_uint,
                                           dest_tile_pixel_x,
                                           builder.makeUintConstant(1)),
                       dest_tile_pixel_y, builder.makeUintConstant(1),
                       builder.makeUintConstant(1));
                   host_depth_source_tile_pixel_x = builder.createBinOp(
-                      spv::OpShiftRightLogical, type_uint, dest_tile_pixel_x,
-                      builder.makeUintConstant(1));
+                      spv::Op::OpShiftRightLogical, type_uint,
+                      dest_tile_pixel_x, builder.makeUintConstant(1));
                   host_depth_source_tile_pixel_y = builder.createBinOp(
-                      spv::OpShiftRightLogical, type_uint, dest_tile_pixel_y,
-                      builder.makeUintConstant(1));
+                      spv::Op::OpShiftRightLogical, type_uint,
+                      dest_tile_pixel_y, builder.makeUintConstant(1));
                 }
               } else {
                 // 1x/2x -> 1x/2x/4x (as long as they're different).
@@ -3760,7 +3771,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                 if (key.dest_msaa_samples >= xenos::MsaaSamples::k4X) {
                   // Horizontal samples to pixels.
                   host_depth_source_tile_pixel_x = builder.createQuadOp(
-                      spv::OpBitFieldInsert, type_uint, dest_sample_id,
+                      spv::Op::OpBitFieldInsert, type_uint, dest_sample_id,
                       dest_tile_pixel_x, builder.makeUintConstant(1),
                       builder.makeUintConstant(31));
                 }
@@ -3777,28 +3788,28 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                     // vertical sample (1, 0 for native 2x, or 0, 3 for 2x as
                     // 4x) of 2x source.
                     host_depth_source_sample_id = builder.createBinOp(
-                        spv::OpShiftRightLogical, type_uint, dest_sample_id,
+                        spv::Op::OpShiftRightLogical, type_uint, dest_sample_id,
                         builder.makeUintConstant(1));
                     if (msaa_2x_attachments_supported_) {
                       host_depth_source_sample_id =
-                          builder.createBinOp(spv::OpBitwiseXor, type_uint,
+                          builder.createBinOp(spv::Op::OpBitwiseXor, type_uint,
                                               host_depth_source_sample_id,
                                               builder.makeUintConstant(1));
                     } else {
-                      host_depth_source_sample_id =
-                          builder.createQuadOp(spv::OpBitFieldInsert, type_uint,
-                                               host_depth_source_sample_id,
-                                               host_depth_source_sample_id,
-                                               builder.makeUintConstant(1),
-                                               builder.makeUintConstant(1));
+                      host_depth_source_sample_id = builder.createQuadOp(
+                          spv::Op::OpBitFieldInsert, type_uint,
+                          host_depth_source_sample_id,
+                          host_depth_source_sample_id,
+                          builder.makeUintConstant(1),
+                          builder.makeUintConstant(1));
                     }
                   } else {
                     // 1x -> 4x.
                     // Vertical samples (second bit) to Y pixels.
                     host_depth_source_tile_pixel_y = builder.createQuadOp(
-                        spv::OpBitFieldInsert, type_uint,
-                        builder.createBinOp(spv::OpShiftRightLogical, type_uint,
-                                            dest_sample_id,
+                        spv::Op::OpBitFieldInsert, type_uint,
+                        builder.createBinOp(spv::Op::OpShiftRightLogical,
+                                            type_uint, dest_sample_id,
                                             builder.makeUintConstant(1)),
                         dest_tile_pixel_y, builder.makeUintConstant(1),
                         builder.makeUintConstant(31));
@@ -3811,24 +3822,24 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                     // Vertical pixels of 2x destination to vertical samples (1,
                     // 0 for native 2x, or 0, 3 for 2x as 4x) of 1x source.
                     host_depth_source_sample_id = builder.createBinOp(
-                        spv::OpBitwiseAnd, type_uint, dest_tile_pixel_y,
+                        spv::Op::OpBitwiseAnd, type_uint, dest_tile_pixel_y,
                         builder.makeUintConstant(1));
                     if (msaa_2x_attachments_supported_) {
                       host_depth_source_sample_id =
-                          builder.createBinOp(spv::OpBitwiseXor, type_uint,
+                          builder.createBinOp(spv::Op::OpBitwiseXor, type_uint,
                                               host_depth_source_sample_id,
                                               builder.makeUintConstant(1));
                     } else {
-                      host_depth_source_sample_id =
-                          builder.createQuadOp(spv::OpBitFieldInsert, type_uint,
-                                               host_depth_source_sample_id,
-                                               host_depth_source_sample_id,
-                                               builder.makeUintConstant(1),
-                                               builder.makeUintConstant(1));
+                      host_depth_source_sample_id = builder.createQuadOp(
+                          spv::Op::OpBitFieldInsert, type_uint,
+                          host_depth_source_sample_id,
+                          host_depth_source_sample_id,
+                          builder.makeUintConstant(1),
+                          builder.makeUintConstant(1));
                     }
                     host_depth_source_tile_pixel_y = builder.createBinOp(
-                        spv::OpShiftRightLogical, type_uint, dest_tile_pixel_y,
-                        builder.makeUintConstant(1));
+                        spv::Op::OpShiftRightLogical, type_uint,
+                        dest_tile_pixel_y, builder.makeUintConstant(1));
                   } else {
                     // 1x -> 2x.
                     // Vertical samples (1/0 in the first bit for native 2x or
@@ -3836,16 +3847,16 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                     // vertical pixels of 1x source.
                     if (msaa_2x_attachments_supported_) {
                       host_depth_source_tile_pixel_y = builder.createQuadOp(
-                          spv::OpBitFieldInsert, type_uint,
-                          builder.createBinOp(spv::OpBitwiseXor, type_uint,
+                          spv::Op::OpBitFieldInsert, type_uint,
+                          builder.createBinOp(spv::Op::OpBitwiseXor, type_uint,
                                               dest_sample_id,
                                               builder.makeUintConstant(1)),
                           dest_tile_pixel_y, builder.makeUintConstant(1),
                           builder.makeUintConstant(31));
                     } else {
                       host_depth_source_tile_pixel_y = builder.createQuadOp(
-                          spv::OpBitFieldInsert, type_uint,
-                          builder.createBinOp(spv::OpShiftRightLogical,
+                          spv::Op::OpBitFieldInsert, type_uint,
+                          builder.createBinOp(spv::Op::OpShiftRightLogical,
                                               type_uint, dest_sample_id,
                                               builder.makeUintConstant(1)),
                           dest_tile_pixel_y, builder.makeUintConstant(1),
@@ -3860,7 +3871,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             id_vector_temp.push_back(builder.makeIntConstant(
                 int32_t(push_constants_member_host_depth_address)));
             spv::Id host_depth_address_constant = builder.createLoad(
-                builder.createAccessChain(spv::StorageClassPushConstant,
+                builder.createAccessChain(spv::StorageClass::PushConstant,
                                           push_constants, id_vector_temp),
                 spv::NoPrecision);
             // Transform the destination tile index into the host depth source.
@@ -3870,16 +3881,16 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             // `& (xenos::kEdramTileCount - 1)` handles that regardless of the
             // sign.
             spv::Id host_depth_source_tile_index = builder.createBinOp(
-                spv::OpBitwiseAnd, type_uint,
+                spv::Op::OpBitwiseAnd, type_uint,
                 builder.createUnaryOp(
-                    spv::OpBitcast, type_uint,
+                    spv::Op::OpBitcast, type_uint,
                     builder.createBinOp(
-                        spv::OpIAdd, type_int,
-                        builder.createUnaryOp(spv::OpBitcast, type_int,
+                        spv::Op::OpIAdd, type_int,
+                        builder.createUnaryOp(spv::Op::OpBitcast, type_int,
                                               dest_tile_index),
                         builder.createTriOp(
-                            spv::OpBitFieldSExtract, type_int,
-                            builder.createUnaryOp(spv::OpBitcast, type_int,
+                            spv::Op::OpBitFieldSExtract, type_int,
+                            builder.createUnaryOp(spv::Op::OpBitcast, type_int,
                                                   host_depth_address_constant),
                             builder.makeUintConstant(
                                 xenos::kEdramPitchTilesBits * 2),
@@ -3889,21 +3900,22 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             // Split the host depth source tile index into X and Y tile index
             // within the source image.
             spv::Id host_depth_source_pitch_tiles = builder.createTriOp(
-                spv::OpBitFieldUExtract, type_uint, host_depth_address_constant,
+                spv::Op::OpBitFieldUExtract, type_uint,
+                host_depth_address_constant,
                 builder.makeUintConstant(xenos::kEdramPitchTilesBits),
                 builder.makeUintConstant(xenos::kEdramPitchTilesBits));
             spv::Id host_depth_source_tile_index_y = builder.createBinOp(
-                spv::OpUDiv, type_uint, host_depth_source_tile_index,
+                spv::Op::OpUDiv, type_uint, host_depth_source_tile_index,
                 host_depth_source_pitch_tiles);
             spv::Id host_depth_source_tile_index_x = builder.createBinOp(
-                spv::OpUMod, type_uint, host_depth_source_tile_index,
+                spv::Op::OpUMod, type_uint, host_depth_source_tile_index,
                 host_depth_source_pitch_tiles);
             // Finally calculate the host depth source texture coordinates.
             spv::Id host_depth_source_pixel_x_int = builder.createUnaryOp(
-                spv::OpBitcast, type_int,
+                spv::Op::OpBitcast, type_int,
                 builder.createBinOp(
-                    spv::OpIAdd, type_uint,
-                    builder.createBinOp(spv::OpIMul, type_uint,
+                    spv::Op::OpIAdd, type_uint,
+                    builder.createBinOp(spv::Op::OpIMul, type_uint,
                                         builder.makeUintConstant(
                                             tile_width_samples >>
                                             uint32_t(key.source_msaa_samples >=
@@ -3911,10 +3923,10 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                                         host_depth_source_tile_index_x),
                     host_depth_source_tile_pixel_x));
             spv::Id host_depth_source_pixel_y_int = builder.createUnaryOp(
-                spv::OpBitcast, type_int,
+                spv::Op::OpBitcast, type_int,
                 builder.createBinOp(
-                    spv::OpIAdd, type_uint,
-                    builder.createBinOp(spv::OpIMul, type_uint,
+                    spv::Op::OpIAdd, type_uint,
+                    builder.createBinOp(spv::Op::OpIMul, type_uint,
                                         builder.makeUintConstant(
                                             tile_height_samples >>
                                             uint32_t(key.source_msaa_samples >=
@@ -3933,7 +3945,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                 builder.createCompositeConstruct(type_int2, id_vector_temp);
             if (key.host_depth_source_msaa_samples != xenos::MsaaSamples::k1X) {
               host_depth_source_texture_parameters.sample =
-                  builder.createUnaryOp(spv::OpBitcast, type_int,
+                  builder.createUnaryOp(spv::Op::OpBitcast, type_int,
                                         host_depth_source_sample_id);
             } else {
               host_depth_source_texture_parameters.lod =
@@ -3943,7 +3955,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                 builder.createTextureCall(spv::NoPrecision, type_float4, false,
                                           true, false, false, false,
                                           host_depth_source_texture_parameters,
-                                          spv::ImageOperandsMaskNone),
+                                          spv::ImageOperandsMask::MaskNone),
                 type_float, 0);
           } else if (host_depth_source_buffer != spv::NoResult) {
             // Get the address in the EDRAM scratch buffer and load from there.
@@ -3960,19 +3972,19 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               if (key.dest_msaa_samples >= xenos::MsaaSamples::k4X) {
                 // Horizontal sample index in bit 0.
                 dest_tile_sample_x = builder.createQuadOp(
-                    spv::OpBitFieldInsert, type_uint, dest_sample_id,
+                    spv::Op::OpBitFieldInsert, type_uint, dest_sample_id,
                     dest_tile_pixel_x, builder.makeUintConstant(1),
                     builder.makeUintConstant(31));
               }
               // Vertical sample index as 1 or 0 in bit 0 for true 2x or as 0
               // or 1 in bit 1 for 4x or for 2x emulated as 4x.
               dest_tile_sample_y = builder.createQuadOp(
-                  spv::OpBitFieldInsert, type_uint,
+                  spv::Op::OpBitFieldInsert, type_uint,
                   builder.createBinOp(
                       (key.dest_msaa_samples == xenos::MsaaSamples::k2X &&
                        msaa_2x_attachments_supported_)
-                          ? spv::OpBitwiseXor
-                          : spv::OpShiftRightLogical,
+                          ? spv::Op::OpBitwiseXor
+                          : spv::Op::OpShiftRightLogical,
                       type_uint, dest_sample_id, builder.makeUintConstant(1)),
                   dest_tile_pixel_y, builder.makeUintConstant(1),
                   builder.makeUintConstant(31));
@@ -3981,16 +3993,16 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             // The tile index doesn't need to be wrapped, as the host depth is
             // written to the beginning of the buffer, without the base offset.
             spv::Id host_depth_offset = builder.createBinOp(
-                spv::OpIAdd, type_uint,
+                spv::Op::OpIAdd, type_uint,
                 builder.createBinOp(
-                    spv::OpIMul, type_uint,
+                    spv::Op::OpIMul, type_uint,
                     builder.makeUintConstant(tile_width_samples *
                                              tile_height_samples),
                     dest_tile_index),
                 builder.createBinOp(
-                    spv::OpIAdd, type_uint,
+                    spv::Op::OpIAdd, type_uint,
                     builder.createBinOp(
-                        spv::OpIMul, type_uint,
+                        spv::Op::OpIMul, type_uint,
                         builder.makeUintConstant(tile_width_samples),
                         dest_tile_sample_y),
                     dest_tile_sample_x));
@@ -3998,13 +4010,13 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             // The only SSBO structure member.
             id_vector_temp.push_back(builder.makeIntConstant(0));
             id_vector_temp.push_back(builder.createUnaryOp(
-                spv::OpBitcast, type_int, host_depth_offset));
+                spv::Op::OpBitcast, type_int, host_depth_offset));
             // StorageBuffer since SPIR-V 1.3, but since SPIR-V 1.0 is
             // generated, it's Uniform.
             host_depth32 = builder.createUnaryOp(
-                spv::OpBitcast, type_float,
+                spv::Op::OpBitcast, type_float,
                 builder.createLoad(
-                    builder.createAccessChain(spv::StorageClassUniform,
+                    builder.createAccessChain(spv::StorageClass::Uniform,
                                               host_depth_source_buffer,
                                               id_vector_temp),
                     spv::NoPrecision));
@@ -4022,11 +4034,11 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
                 // correct conversion, adding +0.5 and rounding towards zero
                 // results in red instead of black in the 4D5307E6 clear shader.
                 host_depth24 = builder.createUnaryOp(
-                    spv::OpConvertFToU, type_uint,
+                    spv::Op::OpConvertFToU, type_uint,
                     builder.createUnaryBuiltinCall(
                         type_float, ext_inst_glsl_std_450, GLSLstd450RoundEven,
                         builder.createBinOp(
-                            spv::OpFMul, type_float, host_depth32,
+                            spv::Op::OpFMul, type_float, host_depth32,
                             builder.makeFloatConstant(float(0xFFFFFF)))));
               } break;
               case xenos::DepthRenderTargetFormat::kD24FS8: {
@@ -4040,7 +4052,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             // assuming that the conversion doesn't branch).
             depth24_to_depth32_header = builder.getBuildPoint();
             spv::Id host_depth_outdated = builder.createBinOp(
-                spv::OpINotEqual, type_bool, guest_depth24, host_depth24);
+                spv::Op::OpINotEqual, type_bool, guest_depth24, host_depth24);
             spv::Block& depth24_to_depth32_convert_entry =
                 builder.makeNewBlock();
             {
@@ -4049,7 +4061,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               depth24_to_depth32_merge = &depth24_to_depth32_merge_block;
             }
             builder.createSelectionMerge(depth24_to_depth32_merge,
-                                         spv::SelectionControlMaskNone);
+                                         spv::SelectionControlMask::MaskNone);
             builder.createConditionalBranch(host_depth_outdated,
                                             &depth24_to_depth32_convert_entry,
                                             depth24_to_depth32_merge);
@@ -4067,12 +4079,12 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               // with default SSE rounding) - values starting from 0x800000
               // become bigger by 1; then accurately bias the result's exponent.
               guest_depth32 = builder.createBinOp(
-                  spv::OpFMul, type_float,
+                  spv::Op::OpFMul, type_float,
                   builder.createUnaryOp(
-                      spv::OpConvertUToF, type_float,
+                      spv::Op::OpConvertUToF, type_float,
                       builder.createBinOp(
-                          spv::OpIAdd, type_uint, guest_depth24,
-                          builder.createBinOp(spv::OpShiftRightLogical,
+                          spv::Op::OpIAdd, type_uint, guest_depth24,
+                          builder.createBinOp(spv::Op::OpShiftRightLogical,
                                               type_uint, guest_depth24,
                                               builder.makeUintConstant(23)))),
                   builder.makeFloatConstant(1.0f / float(1 << 24)));
@@ -4089,7 +4101,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             assert_not_null(depth24_to_depth32_merge);
             spv::Id depth24_to_depth32_result_block_id =
                 builder.getBuildPoint()->getId();
-            builder.createBranch(depth24_to_depth32_merge);
+            builder.createBranch(true, depth24_to_depth32_merge);
             builder.setBuildPoint(depth24_to_depth32_merge);
             id_vector_temp.clear();
             id_vector_temp.push_back(guest_depth32);
@@ -4097,7 +4109,7 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
             id_vector_temp.push_back(host_depth32);
             id_vector_temp.push_back(depth24_to_depth32_header->getId());
             fragment_depth32 =
-                builder.createOp(spv::OpPhi, type_float, id_vector_temp);
+                builder.createOp(spv::Op::OpPhi, type_float, id_vector_temp);
           }
           builder.createStore(fragment_depth32, output_fragment_depth);
           // Unpack the stencil into the stencil reference output if needed and
@@ -4106,8 +4118,9 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
               output_fragment_stencil_ref != spv::NoResult) {
             builder.createStore(
                 builder.createUnaryOp(
-                    spv::OpBitcast, type_int,
-                    builder.createBinOp(spv::OpBitwiseAnd, type_uint, packed,
+                    spv::Op::OpBitcast, type_int,
+                    builder.createBinOp(spv::Op::OpBitwiseAnd, type_uint,
+                                        packed,
                                         builder.makeUintConstant(UINT8_MAX))),
                 output_fragment_stencil_ref);
           }
@@ -4121,17 +4134,17 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
           id_vector_temp.push_back(builder.makeIntConstant(
               int32_t(push_constants_member_stencil_mask)));
           spv::Id stencil_mask_constant = builder.createLoad(
-              builder.createAccessChain(spv::StorageClassPushConstant,
+              builder.createAccessChain(spv::StorageClass::PushConstant,
                                         push_constants, id_vector_temp),
               spv::NoPrecision);
           SpirvBuilder::IfBuilder stencil_kill_if(
               builder.createBinOp(
-                  spv::OpIEqual, type_bool,
-                  builder.createBinOp(spv::OpBitwiseAnd, type_uint, packed,
+                  spv::Op::OpIEqual, type_bool,
+                  builder.createBinOp(spv::Op::OpBitwiseAnd, type_uint, packed,
                                       stencil_mask_constant),
                   builder.makeUintConstant(0)),
-              spv::SelectionControlMaskNone, builder);
-          builder.createNoResultOp(spv::OpKill);
+              spv::SelectionControlMask::MaskNone, builder);
+          builder.createNoResultOp(spv::Op::OpKill);
           // OpKill terminates the block.
           stencil_kill_if.makeEndIf(false);
         }
@@ -4141,16 +4154,16 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(
 
   // End the main function and make it the entry point.
   builder.leaveFunction();
-  builder.addExecutionMode(main_function, spv::ExecutionModeOriginUpperLeft);
+  builder.addExecutionMode(main_function, spv::ExecutionMode::OriginUpperLeft);
   if (output_fragment_depth != spv::NoResult) {
-    builder.addExecutionMode(main_function, spv::ExecutionModeDepthReplacing);
+    builder.addExecutionMode(main_function, spv::ExecutionMode::DepthReplacing);
   }
   if (output_fragment_stencil_ref != spv::NoResult) {
     builder.addExecutionMode(main_function,
-                             spv::ExecutionModeStencilRefReplacingEXT);
+                             spv::ExecutionMode::StencilRefReplacingEXT);
   }
-  spv::Instruction* entry_point =
-      builder.addEntryPoint(spv::ExecutionModelFragment, main_function, "main");
+  spv::Instruction* entry_point = builder.addEntryPoint(
+      spv::ExecutionModel::Fragment, main_function, "main");
   for (spv::Id interface_id : main_interface) {
     entry_point->addIdOperand(interface_id);
   }
@@ -5387,9 +5400,10 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
                        (SpirvShaderTranslator::kSpirvMagicToolId << 16) | 1,
                        nullptr);
   spv::Id ext_inst_glsl_std_450 = builder.import("GLSL.std.450");
-  builder.addCapability(spv::CapabilityShader);
-  builder.setMemoryModel(spv::AddressingModelLogical, spv::MemoryModelGLSL450);
-  builder.setSource(spv::SourceLanguageUnknown, 0);
+  builder.addCapability(spv::Capability::Shader);
+  builder.setMemoryModel(spv::AddressingModel::Logical,
+                         spv::MemoryModel::GLSL450);
+  builder.setSource(spv::SourceLanguage::Unknown, 0);
 
   spv::Id type_void = builder.makeVoidType();
   spv::Id type_int = builder.makeIntType(32);
@@ -5407,22 +5421,22 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
   id_vector_temp.push_back(
       builder.makeRuntimeArray(format_is_64bpp ? type_uint2 : type_uint));
   // Storage buffers have std430 packing, no padding to 4-component vectors.
-  builder.addDecoration(id_vector_temp.back(), spv::DecorationArrayStride,
+  builder.addDecoration(id_vector_temp.back(), spv::Decoration::ArrayStride,
                         sizeof(uint32_t) << uint32_t(format_is_64bpp));
   spv::Id type_edram = builder.makeStructType(id_vector_temp, "XeEdram");
   builder.addMemberName(type_edram, 0, "edram");
-  builder.addMemberDecoration(type_edram, 0, spv::DecorationNonReadable);
-  builder.addMemberDecoration(type_edram, 0, spv::DecorationOffset, 0);
+  builder.addMemberDecoration(type_edram, 0, spv::Decoration::NonReadable);
+  builder.addMemberDecoration(type_edram, 0, spv::Decoration::Offset, 0);
   // Block since SPIR-V 1.3, but since SPIR-V 1.0 is generated, it's
   // BufferBlock.
-  builder.addDecoration(type_edram, spv::DecorationBufferBlock);
+  builder.addDecoration(type_edram, spv::Decoration::BufferBlock);
   // StorageBuffer since SPIR-V 1.3, but since SPIR-V 1.0 is generated, it's
   // Uniform.
   spv::Id edram_buffer = builder.createVariable(
-      spv::NoPrecision, spv::StorageClassUniform, type_edram, "xe_edram");
-  builder.addDecoration(edram_buffer, spv::DecorationDescriptorSet,
+      spv::NoPrecision, spv::StorageClass::Uniform, type_edram, "xe_edram");
+  builder.addDecoration(edram_buffer, spv::Decoration::DescriptorSet,
                         kDumpDescriptorSetEdram);
-  builder.addDecoration(edram_buffer, spv::DecorationBinding, 0);
+  builder.addDecoration(edram_buffer, spv::Decoration::Binding, 0);
   // Color or depth source.
   bool source_is_multisampled = key.msaa_samples != xenos::MsaaSamples::k1X;
   bool source_is_uint;
@@ -5434,25 +5448,27 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
   }
   spv::Id source_component_type = source_is_uint ? type_uint : type_float;
   spv::Id source_texture = builder.createVariable(
-      spv::NoPrecision, spv::StorageClassUniformConstant,
-      builder.makeImageType(source_component_type, spv::Dim2D, false, false,
-                            source_is_multisampled, 1, spv::ImageFormatUnknown),
+      spv::NoPrecision, spv::StorageClass::UniformConstant,
+      builder.makeImageType(source_component_type, spv::Dim::Dim2D, false,
+                            false, source_is_multisampled, 1,
+                            spv::ImageFormat::Unknown),
       "xe_edram_dump_source");
-  builder.addDecoration(source_texture, spv::DecorationDescriptorSet,
+  builder.addDecoration(source_texture, spv::Decoration::DescriptorSet,
                         kDumpDescriptorSetSource);
-  builder.addDecoration(source_texture, spv::DecorationBinding, 0);
+  builder.addDecoration(source_texture, spv::Decoration::Binding, 0);
   // Stencil source.
   spv::Id source_stencil_texture = spv::NoResult;
   if (key.is_depth) {
     source_stencil_texture = builder.createVariable(
-        spv::NoPrecision, spv::StorageClassUniformConstant,
-        builder.makeImageType(type_uint, spv::Dim2D, false, false,
+        spv::NoPrecision, spv::StorageClass::UniformConstant,
+        builder.makeImageType(type_uint, spv::Dim::Dim2D, false, false,
                               source_is_multisampled, 1,
-                              spv::ImageFormatUnknown),
+                              spv::ImageFormat::Unknown),
         "xe_edram_dump_stencil");
-    builder.addDecoration(source_stencil_texture, spv::DecorationDescriptorSet,
+    builder.addDecoration(source_stencil_texture,
+                          spv::Decoration::DescriptorSet,
                           kDumpDescriptorSetSource);
-    builder.addDecoration(source_stencil_texture, spv::DecorationBinding, 1);
+    builder.addDecoration(source_stencil_texture, spv::Decoration::Binding, 1);
   }
   // Push constants.
   id_vector_temp.clear();
@@ -5465,32 +5481,33 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
   builder.addMemberName(type_push_constants, kDumpPushConstantPitches,
                         "pitches");
   builder.addMemberDecoration(type_push_constants, kDumpPushConstantPitches,
-                              spv::DecorationOffset,
+                              spv::Decoration::Offset,
                               int(sizeof(uint32_t) * kDumpPushConstantPitches));
   builder.addMemberName(type_push_constants, kDumpPushConstantOffsets,
                         "offsets");
   builder.addMemberDecoration(type_push_constants, kDumpPushConstantOffsets,
-                              spv::DecorationOffset,
+                              spv::Decoration::Offset,
                               int(sizeof(uint32_t) * kDumpPushConstantOffsets));
-  builder.addDecoration(type_push_constants, spv::DecorationBlock);
+  builder.addDecoration(type_push_constants, spv::Decoration::Block);
   spv::Id push_constants = builder.createVariable(
-      spv::NoPrecision, spv::StorageClassPushConstant, type_push_constants,
+      spv::NoPrecision, spv::StorageClass::PushConstant, type_push_constants,
       "xe_edram_dump_push_constants");
 
   // gl_GlobalInvocationID input.
   spv::Id input_global_invocation_id =
-      builder.createVariable(spv::NoPrecision, spv::StorageClassInput,
+      builder.createVariable(spv::NoPrecision, spv::StorageClass::Input,
                              type_uint3, "gl_GlobalInvocationID");
-  builder.addDecoration(input_global_invocation_id, spv::DecorationBuiltIn,
-                        spv::BuiltInGlobalInvocationId);
+  builder.addDecorationId(
+      input_global_invocation_id, spv::Decoration::BuiltIn,
+      static_cast<spv::Id>(spv::BuiltIn::GlobalInvocationId));
 
   // Begin the main function.
   std::vector<spv::Id> main_param_types;
   std::vector<std::vector<spv::Decoration>> main_precisions;
   spv::Block* main_entry;
-  spv::Function* main_function =
-      builder.makeFunctionEntry(spv::NoPrecision, type_void, "main",
-                                main_param_types, main_precisions, &main_entry);
+  spv::Function* main_function = builder.makeFunctionEntry(
+      spv::NoPrecision, type_void, "main", spv::LinkageType::Max,
+      main_param_types, main_precisions, &main_entry);
 
   // For now, as the exact addressing in 64bpp render targets relatively to
   // 32bpp is unknown, treating 64bpp tiles as storing 40x16 samples rather than
@@ -5513,34 +5530,34 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
       draw_resolution_scale_x();
   spv::Id const_tile_width = builder.makeUintConstant(tile_width);
   spv::Id rectangle_tile_index_x = builder.createBinOp(
-      spv::OpUDiv, type_uint, rectangle_sample_x, const_tile_width);
+      spv::Op::OpUDiv, type_uint, rectangle_sample_x, const_tile_width);
   spv::Id tile_sample_x = builder.createBinOp(
-      spv::OpUMod, type_uint, rectangle_sample_x, const_tile_width);
+      spv::Op::OpUMod, type_uint, rectangle_sample_x, const_tile_width);
   spv::Id rectangle_sample_y =
       builder.createCompositeExtract(global_invocation_id, type_uint, 1);
   uint32_t tile_height =
       xenos::kEdramTileHeightSamples * draw_resolution_scale_y();
   spv::Id const_tile_height = builder.makeUintConstant(tile_height);
   spv::Id rectangle_tile_index_y = builder.createBinOp(
-      spv::OpUDiv, type_uint, rectangle_sample_y, const_tile_height);
+      spv::Op::OpUDiv, type_uint, rectangle_sample_y, const_tile_height);
   spv::Id tile_sample_y = builder.createBinOp(
-      spv::OpUMod, type_uint, rectangle_sample_y, const_tile_height);
+      spv::Op::OpUMod, type_uint, rectangle_sample_y, const_tile_height);
 
   // Get the tile index in the EDRAM relative to the dump rectangle base tile.
   id_vector_temp.clear();
   id_vector_temp.push_back(builder.makeIntConstant(kDumpPushConstantPitches));
   spv::Id pitches_constant = builder.createLoad(
-      builder.createAccessChain(spv::StorageClassPushConstant, push_constants,
+      builder.createAccessChain(spv::StorageClass::PushConstant, push_constants,
                                 id_vector_temp),
       spv::NoPrecision);
   spv::Id const_uint_0 = builder.makeUintConstant(0);
   spv::Id const_edram_pitch_tiles_bits =
       builder.makeUintConstant(xenos::kEdramPitchTilesBits);
   spv::Id rectangle_tile_index = builder.createBinOp(
-      spv::OpIAdd, type_uint,
+      spv::Op::OpIAdd, type_uint,
       builder.createBinOp(
-          spv::OpIMul, type_uint,
-          builder.createTriOp(spv::OpBitFieldUExtract, type_uint,
+          spv::Op::OpIMul, type_uint,
+          builder.createTriOp(spv::Op::OpBitFieldUExtract, type_uint,
                               pitches_constant, const_uint_0,
                               const_edram_pitch_tiles_bits),
           rectangle_tile_index_y),
@@ -5551,29 +5568,30 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
   id_vector_temp.clear();
   id_vector_temp.push_back(builder.makeIntConstant(kDumpPushConstantOffsets));
   spv::Id offsets_constant = builder.createLoad(
-      builder.createAccessChain(spv::StorageClassPushConstant, push_constants,
+      builder.createAccessChain(spv::StorageClass::PushConstant, push_constants,
                                 id_vector_temp),
       spv::NoPrecision);
   spv::Id const_edram_base_tiles_bits_plus_1 =
       builder.makeUintConstant(xenos::kEdramBaseTilesBits + 1);
   spv::Id edram_tile_index_non_wrapped = builder.createBinOp(
-      spv::OpIAdd, type_uint,
-      builder.createTriOp(spv::OpBitFieldUExtract, type_uint, offsets_constant,
-                          const_uint_0, const_edram_base_tiles_bits_plus_1),
+      spv::Op::OpIAdd, type_uint,
+      builder.createTriOp(spv::Op::OpBitFieldUExtract, type_uint,
+                          offsets_constant, const_uint_0,
+                          const_edram_base_tiles_bits_plus_1),
       rectangle_tile_index);
 
   // Combine the tile sample index and the tile index, wrapping the tile
   // addressing, into the EDRAM sample index.
   spv::Id edram_sample_address = builder.createBinOp(
-      spv::OpIAdd, type_uint,
+      spv::Op::OpIAdd, type_uint,
       builder.createBinOp(
-          spv::OpIMul, type_uint,
+          spv::Op::OpIMul, type_uint,
           builder.makeUintConstant(tile_width * tile_height),
           builder.createBinOp(
-              spv::OpBitwiseAnd, type_uint, edram_tile_index_non_wrapped,
+              spv::Op::OpBitwiseAnd, type_uint, edram_tile_index_non_wrapped,
               builder.makeUintConstant(xenos::kEdramTileCount - 1))),
-      builder.createBinOp(spv::OpIAdd, type_uint,
-                          builder.createBinOp(spv::OpIMul, type_uint,
+      builder.createBinOp(spv::Op::OpIAdd, type_uint,
+                          builder.createBinOp(spv::Op::OpIMul, type_uint,
                                               const_tile_width, tile_sample_y),
                           tile_sample_x));
   if (key.is_depth) {
@@ -5581,15 +5599,15 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
     // get the final address of the sample in the EDRAM.
     uint32_t tile_width_half = tile_width >> 1;
     edram_sample_address = builder.createUnaryOp(
-        spv::OpBitcast, type_uint,
+        spv::Op::OpBitcast, type_uint,
         builder.createBinOp(
-            spv::OpIAdd, type_int,
-            builder.createUnaryOp(spv::OpBitcast, type_int,
+            spv::Op::OpIAdd, type_int,
+            builder.createUnaryOp(spv::Op::OpBitcast, type_int,
                                   edram_sample_address),
             builder.createTriOp(
-                spv::OpSelect, type_int,
-                builder.createBinOp(spv::OpULessThan, builder.makeBoolType(),
-                                    tile_sample_x,
+                spv::Op::OpSelect, type_int,
+                builder.createBinOp(spv::Op::OpULessThan,
+                                    builder.makeBoolType(), tile_sample_x,
                                     builder.makeUintConstant(tile_width_half)),
                 builder.makeIntConstant(int32_t(tile_width_half)),
                 builder.makeIntConstant(-int32_t(tile_width_half)))));
@@ -5597,28 +5615,28 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
 
   // Get the linear tile index within the source texture.
   spv::Id source_tile_index = builder.createBinOp(
-      spv::OpISub, type_uint, edram_tile_index_non_wrapped,
+      spv::Op::OpISub, type_uint, edram_tile_index_non_wrapped,
       builder.createTriOp(
-          spv::OpBitFieldUExtract, type_uint, offsets_constant,
+          spv::Op::OpBitFieldUExtract, type_uint, offsets_constant,
           const_edram_base_tiles_bits_plus_1,
           builder.makeUintConstant(xenos::kEdramBaseTilesBits)));
   // Split the linear tile index in the source texture into X and Y in tiles.
   spv::Id source_pitch_tiles = builder.createTriOp(
-      spv::OpBitFieldUExtract, type_uint, pitches_constant,
+      spv::Op::OpBitFieldUExtract, type_uint, pitches_constant,
       const_edram_pitch_tiles_bits, const_edram_pitch_tiles_bits);
   spv::Id source_tile_index_y = builder.createBinOp(
-      spv::OpUDiv, type_uint, source_tile_index, source_pitch_tiles);
+      spv::Op::OpUDiv, type_uint, source_tile_index, source_pitch_tiles);
   spv::Id source_tile_index_x = builder.createBinOp(
-      spv::OpUMod, type_uint, source_tile_index, source_pitch_tiles);
+      spv::Op::OpUMod, type_uint, source_tile_index, source_pitch_tiles);
   // Combine the source tile offset and the sample index within the tile.
   spv::Id source_sample_x = builder.createBinOp(
-      spv::OpIAdd, type_uint,
-      builder.createBinOp(spv::OpIMul, type_uint, const_tile_width,
+      spv::Op::OpIAdd, type_uint,
+      builder.createBinOp(spv::Op::OpIMul, type_uint, const_tile_width,
                           source_tile_index_x),
       tile_sample_x);
   spv::Id source_sample_y = builder.createBinOp(
-      spv::OpIAdd, type_uint,
-      builder.createBinOp(spv::OpIMul, type_uint, const_tile_height,
+      spv::Op::OpIAdd, type_uint,
+      builder.createBinOp(spv::Op::OpIMul, type_uint, const_tile_height,
                           source_tile_index_y),
       tile_sample_y);
   // Get the source pixel coordinate and the sample index within the pixel.
@@ -5626,27 +5644,28 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
   spv::Id source_sample_id = spv::NoResult;
   if (source_is_multisampled) {
     spv::Id const_uint_1 = builder.makeUintConstant(1);
-    source_pixel_y = builder.createBinOp(spv::OpShiftRightLogical, type_uint,
-                                         source_sample_y, const_uint_1);
+    source_pixel_y = builder.createBinOp(
+        spv::Op::OpShiftRightLogical, type_uint, source_sample_y, const_uint_1);
     if (key.msaa_samples >= xenos::MsaaSamples::k4X) {
-      source_pixel_x = builder.createBinOp(spv::OpShiftRightLogical, type_uint,
-                                           source_sample_x, const_uint_1);
+      source_pixel_x =
+          builder.createBinOp(spv::Op::OpShiftRightLogical, type_uint,
+                              source_sample_x, const_uint_1);
       // 4x MSAA source texture sample index - bit 0 for horizontal, bit 1 for
       // vertical.
       source_sample_id = builder.createQuadOp(
-          spv::OpBitFieldInsert, type_uint,
-          builder.createBinOp(spv::OpBitwiseAnd, type_uint, source_sample_x,
+          spv::Op::OpBitFieldInsert, type_uint,
+          builder.createBinOp(spv::Op::OpBitwiseAnd, type_uint, source_sample_x,
                               const_uint_1),
           source_sample_y, const_uint_1, const_uint_1);
     } else {
       // 2x MSAA source texture sample index - convert from the guest to
       // the Vulkan standard sample locations.
       source_sample_id = builder.createTriOp(
-          spv::OpSelect, type_uint,
+          spv::Op::OpSelect, type_uint,
           builder.createBinOp(
-              spv::OpINotEqual, builder.makeBoolType(),
-              builder.createBinOp(spv::OpBitwiseAnd, type_uint, source_sample_y,
-                                  const_uint_1),
+              spv::Op::OpINotEqual, builder.makeBoolType(),
+              builder.createBinOp(spv::Op::OpBitwiseAnd, type_uint,
+                                  source_sample_y, const_uint_1),
               const_uint_0),
           builder.makeUintConstant(draw_util::GetD3D10SampleIndexForGuest2xMSAA(
               1, msaa_2x_attachments_supported_)),
@@ -5662,21 +5681,21 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
       builder.createLoad(source_texture, spv::NoPrecision);
   id_vector_temp.clear();
   id_vector_temp.push_back(
-      builder.createUnaryOp(spv::OpBitcast, type_int, source_pixel_x));
+      builder.createUnaryOp(spv::Op::OpBitcast, type_int, source_pixel_x));
   id_vector_temp.push_back(
-      builder.createUnaryOp(spv::OpBitcast, type_int, source_pixel_y));
+      builder.createUnaryOp(spv::Op::OpBitcast, type_int, source_pixel_y));
   source_texture_parameters.coords =
       builder.createCompositeConstruct(type_int2, id_vector_temp);
   if (source_is_multisampled) {
     source_texture_parameters.sample =
-        builder.createUnaryOp(spv::OpBitcast, type_int, source_sample_id);
+        builder.createUnaryOp(spv::Op::OpBitcast, type_int, source_sample_id);
   } else {
     source_texture_parameters.lod = builder.makeIntConstant(0);
   }
   spv::Id source_vec4 = builder.createTextureCall(
       spv::NoPrecision, builder.makeVectorType(source_component_type, 4), false,
       true, false, false, false, source_texture_parameters,
-      spv::ImageOperandsMaskNone);
+      spv::ImageOperandsMask::MaskNone);
   if (key.is_depth) {
     source_texture_parameters.sampler =
         builder.createLoad(source_stencil_texture, spv::NoPrecision);
@@ -5684,7 +5703,7 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
         builder.createTextureCall(
             spv::NoPrecision, builder.makeVectorType(type_uint, 4), false, true,
             false, false, false, source_texture_parameters,
-            spv::ImageOperandsMaskNone),
+            spv::ImageOperandsMask::MaskNone),
         type_uint, 0);
     spv::Id source_depth32 =
         builder.createCompositeExtract(source_vec4, type_float, 0);
@@ -5694,11 +5713,11 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
         // conversion, adding +0.5 and rounding towards zero results in red
         // instead of black in the 4D5307E6 clear shader.
         packed[0] = builder.createUnaryOp(
-            spv::OpConvertFToU, type_uint,
+            spv::Op::OpConvertFToU, type_uint,
             builder.createUnaryBuiltinCall(
                 type_float, ext_inst_glsl_std_450, GLSLstd450RoundEven,
                 builder.createBinOp(
-                    spv::OpFMul, type_float, source_depth32,
+                    spv::Op::OpFMul, type_float, source_depth32,
                     builder.makeFloatConstant(float(0xFFFFFF)))));
       } break;
       case xenos::DepthRenderTargetFormat::kD24FS8: {
@@ -5708,7 +5727,7 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
       } break;
     }
     packed[0] = builder.createQuadOp(
-        spv::OpBitFieldInsert, type_uint, source_stencil, packed[0],
+        spv::Op::OpBitFieldInsert, type_uint, source_stencil, packed[0],
         builder.makeUintConstant(8), builder.makeUintConstant(24));
   } else {
     switch (key.GetColorFormat()) {
@@ -5717,23 +5736,23 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
         spv::Id unorm_round_offset = builder.makeFloatConstant(0.5f);
         spv::Id unorm_scale = builder.makeFloatConstant(255.0f);
         packed[0] = builder.createUnaryOp(
-            spv::OpConvertFToU, type_uint,
+            spv::Op::OpConvertFToU, type_uint,
             builder.createBinOp(
-                spv::OpFAdd, type_float,
+                spv::Op::OpFAdd, type_float,
                 builder.createBinOp(
-                    spv::OpFMul, type_float,
+                    spv::Op::OpFMul, type_float,
                     builder.createCompositeExtract(source_vec4, type_float, 0),
                     unorm_scale),
                 unorm_round_offset));
         spv::Id component_width = builder.makeUintConstant(8);
         for (uint32_t i = 1; i < 4; ++i) {
           packed[0] = builder.createQuadOp(
-              spv::OpBitFieldInsert, type_uint, packed[0],
+              spv::Op::OpBitFieldInsert, type_uint, packed[0],
               builder.createUnaryOp(
-                  spv::OpConvertFToU, type_uint,
+                  spv::Op::OpConvertFToU, type_uint,
                   builder.createBinOp(
-                      spv::OpFAdd, type_float,
-                      builder.createBinOp(spv::OpFMul, type_float,
+                      spv::Op::OpFAdd, type_float,
+                      builder.createBinOp(spv::Op::OpFMul, type_float,
                                           builder.createCompositeExtract(
                                               source_vec4, type_float, i),
                                           unorm_scale),
@@ -5746,11 +5765,11 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
         spv::Id unorm_round_offset = builder.makeFloatConstant(0.5f);
         spv::Id unorm_scale_rgb = builder.makeFloatConstant(1023.0f);
         packed[0] = builder.createUnaryOp(
-            spv::OpConvertFToU, type_uint,
+            spv::Op::OpConvertFToU, type_uint,
             builder.createBinOp(
-                spv::OpFAdd, type_float,
+                spv::Op::OpFAdd, type_float,
                 builder.createBinOp(
-                    spv::OpFMul, type_float,
+                    spv::Op::OpFMul, type_float,
                     builder.createCompositeExtract(source_vec4, type_float, 0),
                     unorm_scale_rgb),
                 unorm_round_offset));
@@ -5759,13 +5778,13 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
         spv::Id width_a = builder.makeUintConstant(2);
         for (uint32_t i = 1; i < 4; ++i) {
           packed[0] = builder.createQuadOp(
-              spv::OpBitFieldInsert, type_uint, packed[0],
+              spv::Op::OpBitFieldInsert, type_uint, packed[0],
               builder.createUnaryOp(
-                  spv::OpConvertFToU, type_uint,
+                  spv::Op::OpConvertFToU, type_uint,
                   builder.createBinOp(
-                      spv::OpFAdd, type_float,
+                      spv::Op::OpFAdd, type_float,
                       builder.createBinOp(
-                          spv::OpFMul, type_float,
+                          spv::Op::OpFMul, type_float,
                           builder.createCompositeExtract(source_vec4,
                                                          type_float, i),
                           i == 3 ? unorm_scale_a : unorm_scale_rgb),
@@ -5783,7 +5802,7 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
         spv::Id width_rgb = builder.makeUintConstant(10);
         for (uint32_t i = 1; i < 3; ++i) {
           packed[0] = builder.createQuadOp(
-              spv::OpBitFieldInsert, type_uint, packed[0],
+              spv::Op::OpBitFieldInsert, type_uint, packed[0],
               SpirvShaderTranslator::UnclampedFloat32To7e3(
                   builder,
                   builder.createCompositeExtract(source_vec4, type_float, i),
@@ -5796,12 +5815,12 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
             builder.createCompositeExtract(source_vec4, type_float, 3),
             builder.makeFloatConstant(0.0f), builder.makeFloatConstant(1.0f));
         packed[0] = builder.createQuadOp(
-            spv::OpBitFieldInsert, type_uint, packed[0],
+            spv::Op::OpBitFieldInsert, type_uint, packed[0],
             builder.createUnaryOp(
-                spv::OpConvertFToU, type_uint,
+                spv::Op::OpConvertFToU, type_uint,
                 builder.createBinOp(
-                    spv::OpFAdd, type_float,
-                    builder.createBinOp(spv::OpFMul, type_float,
+                    spv::Op::OpFAdd, type_float,
+                    builder.createBinOp(spv::Op::OpFMul, type_float,
                                         alpha_saturated,
                                         builder.makeFloatConstant(3.0f)),
                     builder.makeFloatConstant(0.5f))),
@@ -5821,7 +5840,7 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
         spv::Id component_offset_width = builder.makeUintConstant(16);
         for (uint32_t i = 0; i <= uint32_t(format_is_64bpp); ++i) {
           packed[i] = builder.createQuadOp(
-              spv::OpBitFieldInsert, type_uint,
+              spv::Op::OpBitFieldInsert, type_uint,
               builder.createCompositeExtract(source_vec4, type_uint, 2 * i),
               builder.createCompositeExtract(source_vec4, type_uint, 2 * i + 1),
               component_offset_width, component_offset_width);
@@ -5836,8 +5855,8 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
           packed_ref = builder.createCompositeExtract(source_vec4,
                                                       source_component_type, i);
           if (!source_is_uint) {
-            packed_ref =
-                builder.createUnaryOp(spv::OpBitcast, type_uint, packed_ref);
+            packed_ref = builder.createUnaryOp(spv::Op::OpBitcast, type_uint,
+                                               packed_ref);
           }
         }
       } break;
@@ -5855,20 +5874,20 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
   id_vector_temp.clear();
   // The only SSBO structure member.
   id_vector_temp.push_back(builder.makeIntConstant(0));
-  id_vector_temp.push_back(
-      builder.createUnaryOp(spv::OpBitcast, type_int, edram_sample_address));
+  id_vector_temp.push_back(builder.createUnaryOp(spv::Op::OpBitcast, type_int,
+                                                 edram_sample_address));
   // StorageBuffer since SPIR-V 1.3, but since SPIR-V 1.0 is generated, it's
   // Uniform.
   builder.createStore(store_value,
-                      builder.createAccessChain(spv::StorageClassUniform,
+                      builder.createAccessChain(spv::StorageClass::Uniform,
                                                 edram_buffer, id_vector_temp));
 
   // End the main function and make it the entry point.
   builder.leaveFunction();
-  builder.addExecutionMode(main_function, spv::ExecutionModeLocalSize,
+  builder.addExecutionMode(main_function, spv::ExecutionMode::LocalSize,
                            kDumpSamplesPerGroupX, kDumpSamplesPerGroupY, 1);
   spv::Instruction* entry_point = builder.addEntryPoint(
-      spv::ExecutionModelGLCompute, main_function, "main");
+      spv::ExecutionModel::GLCompute, main_function, "main");
   // Bindings only need to be added to the entry point's interface starting with
   // SPIR-V 1.4 - emitting 1.0 here, so only inputs / outputs.
   entry_point->addIdOperand(input_global_invocation_id);

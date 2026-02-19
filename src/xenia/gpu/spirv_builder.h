@@ -48,13 +48,16 @@ class SpirvBuilder : public spv::Builder {
   spv::Id createTriBuiltinCall(spv::Id result_type, spv::Id builtins,
                                int entry_point, spv::Id operand1,
                                spv::Id operand2, spv::Id operand3);
+  spv::Id createAccessChain(spv::StorageClass storage_class, spv::Id base,
+                            const std::vector<spv::Id>& offsets);
 
   // Helper to use for building nested control flow with if-then-else with
   // additions over SpvBuilder::If.
   class IfBuilder {
    public:
-    IfBuilder(spv::Id condition, unsigned int control, SpirvBuilder& builder,
-              unsigned int thenWeight = 0, unsigned int elseWeight = 0);
+    IfBuilder(spv::Id condition, spv::SelectionControlMask control,
+              SpirvBuilder& builder, unsigned int thenWeight = 0,
+              unsigned int elseWeight = 0);
 
     ~IfBuilder() {
 #ifndef NDEBUG
@@ -84,7 +87,7 @@ class SpirvBuilder : public spv::Builder {
 
     SpirvBuilder& builder;
     spv::Id condition;
-    unsigned int control;
+    spv::SelectionControlMask control;
     unsigned int thenWeight;
     unsigned int elseWeight;
 
@@ -107,7 +110,7 @@ class SpirvBuilder : public spv::Builder {
   // block) compared to makeSwitch.
   class SwitchBuilder {
    public:
-    SwitchBuilder(spv::Id selector, unsigned int selection_control,
+    SwitchBuilder(spv::Id selector, spv::SelectionControlMask selection_control,
                   SpirvBuilder& builder);
     ~SwitchBuilder() { assert_true(current_branch_ == Branch::kMerge); }
 
@@ -132,7 +135,7 @@ class SpirvBuilder : public spv::Builder {
 
     SpirvBuilder& builder_;
     spv::Id selector_;
-    unsigned int selection_control_;
+    spv::SelectionControlMask selection_control_;
 
     spv::Function& function_;
 

@@ -39,7 +39,7 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
   std::optional<SpirvBuilder::IfBuilder> if_memexport_allowed;
   if (main_memexport_allowed_ != spv::NoResult) {
     if_memexport_allowed.emplace(main_memexport_allowed_,
-                                 spv::SelectionControlDontFlattenMask,
+                                 spv::SelectionControlMask::DontFlatten,
                                  *builder_);
   }
 
@@ -51,16 +51,16 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
   if (var_main_kill_pixel_ != spv::NoResult) {
     if_pixel_not_killed.emplace(
         builder_->createUnaryOp(
-            spv::OpLogicalNot, type_bool_,
+            spv::Op::OpLogicalNot, type_bool_,
             builder_->createLoad(var_main_kill_pixel_, spv::NoPrecision)),
-        spv::SelectionControlDontFlattenMask, *builder_);
+        spv::SelectionControlMask::DontFlatten, *builder_);
   }
 
   // Check if the address with the correct sign and exponent was written, and
   // that the index doesn't overflow the mantissa bits.
   // all((eA_vector >> uvec4(30, 23, 23, 23)) == uvec4(0x1, 0x96, 0x96, 0x96))
   spv::Id eA_vector = builder_->createUnaryOp(
-      spv::OpBitcast, type_uint4_,
+      spv::Op::OpBitcast, type_uint4_,
       builder_->createLoad(var_main_memexport_address_, spv::NoPrecision));
   id_vector_temp_.clear();
   id_vector_temp_.push_back(builder_->makeUintConstant(30));
@@ -78,13 +78,13 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
       builder_->makeCompositeConstant(type_uint4_, id_vector_temp_);
   SpirvBuilder::IfBuilder if_address_valid(
       builder_->createUnaryOp(
-          spv::OpAll, type_bool_,
+          spv::Op::OpAll, type_bool_,
           builder_->createBinOp(
-              spv::OpIEqual, type_bool4_,
-              builder_->createBinOp(spv::OpShiftRightLogical, type_uint4_,
+              spv::Op::OpIEqual, type_bool4_,
+              builder_->createBinOp(spv::Op::OpShiftRightLogical, type_uint4_,
                                     eA_vector, address_validation_shift),
               address_validation_value)),
-      spv::SelectionControlDontFlattenMask, *builder_, 2, 1);
+      spv::SelectionControlMask::DontFlatten, *builder_, 2, 1);
 
   using EMIdArray = std::array<spv::Id, ucode::kMaxMemExportElementCount>;
 
@@ -108,8 +108,8 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
   spv::Id format_info =
       builder_->createCompositeExtract(eA_vector, type_uint_, 2);
   spv::Id swap_red_blue = builder_->createBinOp(
-      spv::OpINotEqual, type_bool_,
-      builder_->createBinOp(spv::OpBitwiseAnd, type_uint_, format_info,
+      spv::Op::OpINotEqual, type_bool_,
+      builder_->createBinOp(spv::Op::OpBitwiseAnd, type_uint_, format_info,
                             builder_->makeUintConstant(uint32_t(1) << 19)),
       const_uint_0_);
   EMIdArray eM_swapped;
@@ -120,7 +120,7 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
   uint_vector_temp_.push_back(3);
   for_each_eM([&](uint32_t eM_index) {
     eM_swapped[eM_index] = builder_->createTriOp(
-        spv::OpSelect, type_float4_, swap_red_blue,
+        spv::Op::OpSelect, type_float4_, swap_red_blue,
         builder_->createRvalueSwizzle(spv::NoPrecision, type_float4_,
                                       eM_original[eM_index], uint_vector_temp_),
         eM_original[eM_index]);
@@ -128,13 +128,13 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
 
   // Extract the numeric format.
   spv::Id is_signed = builder_->createBinOp(
-      spv::OpINotEqual, type_bool_,
-      builder_->createBinOp(spv::OpBitwiseAnd, type_uint_, format_info,
+      spv::Op::OpINotEqual, type_bool_,
+      builder_->createBinOp(spv::Op::OpBitwiseAnd, type_uint_, format_info,
                             builder_->makeUintConstant(uint32_t(1) << 16)),
       const_uint_0_);
   spv::Id is_norm = builder_->createBinOp(
-      spv::OpIEqual, type_bool_,
-      builder_->createBinOp(spv::OpBitwiseAnd, type_uint_, format_info,
+      spv::Op::OpIEqual, type_bool_,
+      builder_->createBinOp(spv::Op::OpBitwiseAnd, type_uint_, format_info,
                             builder_->makeUintConstant(uint32_t(1) << 17)),
       const_uint_0_);
 
@@ -147,8 +147,8 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
       unsigned int component_count =
           builder_->getNumComponents(element_unflushed);
       eM_flushed[eM_index] = builder_->createTriOp(
-          spv::OpSelect, type_float_vectors_[component_count - 1],
-          builder_->createUnaryOp(spv::OpIsNan,
+          spv::Op::OpSelect, type_float_vectors_[component_count - 1],
+          builder_->createUnaryOp(spv::Op::OpIsNan,
                                   type_bool_vectors_[component_count - 1],
                                   element_unflushed),
           const_float_vectors_0_[component_count - 1], element_unflushed);
@@ -225,12 +225,12 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
 
     // Convert to integers.
     SpirvBuilder::IfBuilder if_signed(
-        is_signed, spv::SelectionControlDontFlattenMask, *builder_);
+        is_signed, spv::SelectionControlMask::DontFlatten, *builder_);
     EMIdArray eM_signed;
     {
       // Signed.
       SpirvBuilder::IfBuilder if_norm(
-          is_norm, spv::SelectionControlDontFlattenMask, *builder_);
+          is_norm, spv::SelectionControlMask::DontFlatten, *builder_);
       EMIdArray eM_norm;
       {
         // Signed normalized.
@@ -247,7 +247,7 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
                 : id_vector_temp_.front();
         for_each_eM([&](uint32_t eM_index) {
           eM_norm[eM_index] = builder_->createNoContractionBinOp(
-              spv::OpFMul, type_float_vectors_[component_count - 1],
+              spv::Op::OpFMul, type_float_vectors_[component_count - 1],
               builder_->createTriBuiltinCall(
                   type_float_vectors_[component_count - 1],
                   ext_inst_glsl_std_450_, GLSLstd450FClamp,
@@ -267,16 +267,17 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
       // according to the Direct3D format conversion rules.
       for_each_eM([&](uint32_t eM_index) {
         eM_signed[eM_index] = builder_->createUnaryOp(
-            spv::OpBitcast, type_uint_vectors_[component_count - 1],
+            spv::Op::OpBitcast, type_uint_vectors_[component_count - 1],
             builder_->createUnaryOp(
-                spv::OpConvertFToS, type_int_vectors_[component_count - 1],
+                spv::Op::OpConvertFToS, type_int_vectors_[component_count - 1],
                 builder_->createNoContractionBinOp(
-                    spv::OpFAdd, type_float_vectors_[component_count - 1],
+                    spv::Op::OpFAdd, type_float_vectors_[component_count - 1],
                     eM_signed[eM_index],
                     builder_->createTriOp(
-                        spv::OpSelect, type_float_vectors_[component_count - 1],
+                        spv::Op::OpSelect,
+                        type_float_vectors_[component_count - 1],
                         builder_->createBinOp(
-                            spv::OpFOrdLessThan,
+                            spv::Op::OpFOrdLessThan,
                             type_bool_vectors_[component_count - 1],
                             eM_signed[eM_index],
                             const_float_vectors_0_[component_count - 1]),
@@ -288,7 +289,7 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
     EMIdArray eM_unsigned;
     {
       SpirvBuilder::IfBuilder if_norm(
-          is_norm, spv::SelectionControlDontFlattenMask, *builder_);
+          is_norm, spv::SelectionControlMask::DontFlatten, *builder_);
       EMIdArray eM_norm;
       {
         // Unsigned normalized.
@@ -305,7 +306,7 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
                 : id_vector_temp_.front();
         for_each_eM([&](uint32_t eM_index) {
           eM_norm[eM_index] = builder_->createNoContractionBinOp(
-              spv::OpFMul, type_float_vectors_[component_count - 1],
+              spv::Op::OpFMul, type_float_vectors_[component_count - 1],
               builder_->createTriBuiltinCall(
                   type_float_vectors_[component_count - 1],
                   ext_inst_glsl_std_450_, GLSLstd450FClamp,
@@ -325,9 +326,9 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
       // the Direct3D format conversion rules.
       for_each_eM([&](uint32_t eM_index) {
         eM_unsigned[eM_index] = builder_->createUnaryOp(
-            spv::OpConvertFToU, type_uint_vectors_[component_count - 1],
+            spv::Op::OpConvertFToU, type_uint_vectors_[component_count - 1],
             builder_->createNoContractionBinOp(
-                spv::OpFAdd, type_float_vectors_[component_count - 1],
+                spv::Op::OpFAdd, type_float_vectors_[component_count - 1],
                 eM_unsigned[eM_index],
                 const_float_vectors_0_5[component_count - 1]));
       });
@@ -350,7 +351,7 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
       for (unsigned int component_index = 1; component_index < component_count;
            ++component_index) {
         eM_packed[eM_index] = builder_->createQuadOp(
-            spv::OpBitFieldInsert, type_uint_, eM_packed[eM_index],
+            spv::Op::OpBitFieldInsert, type_uint_, eM_packed[eM_index],
             builder_->createCompositeExtract(element_unpacked, type_uint_,
                                              component_index),
             builder_->makeUintConstant(offsets[component_index]),
@@ -367,10 +368,10 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
   };
 
   SpirvBuilder::SwitchBuilder format_switch(
-      builder_->createTriOp(spv::OpBitFieldUExtract, type_uint_, format_info,
-                            builder_->makeUintConstant(8),
+      builder_->createTriOp(spv::Op::OpBitFieldUExtract, type_uint_,
+                            format_info, builder_->makeUintConstant(8),
                             builder_->makeUintConstant(6)),
-      spv::SelectionControlDontFlattenMask, *builder_);
+      spv::SelectionControlMask::DontFlatten, *builder_);
 
   struct FormatCase {
     EMIdArray eM_packed;
@@ -473,12 +474,12 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
 
     // Convert to integers.
     SpirvBuilder::IfBuilder if_signed(
-        is_signed, spv::SelectionControlDontFlattenMask, *builder_);
+        is_signed, spv::SelectionControlMask::DontFlatten, *builder_);
     EMIdArray fixed16_signed;
     {
       // Signed.
       SpirvBuilder::IfBuilder if_norm(
-          is_norm, spv::SelectionControlDontFlattenMask, *builder_);
+          is_norm, spv::SelectionControlMask::DontFlatten, *builder_);
       EMIdArray fixed16_norm;
       {
         // Signed normalized.
@@ -489,7 +490,7 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
             builder_->makeCompositeConstant(type_float4_, id_vector_temp_);
         for_each_eM([&](uint32_t eM_index) {
           fixed16_norm[eM_index] = builder_->createNoContractionBinOp(
-              spv::OpFMul, type_float4_,
+              spv::Op::OpFMul, type_float4_,
               builder_->createTriBuiltinCall(
                   type_float4_, ext_inst_glsl_std_450_, GLSLstd450FClamp,
                   fixed16_flushed[eM_index], const_float_vectors_minus_1[3],
@@ -507,16 +508,16 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
       // according to the Direct3D format conversion rules.
       for_each_eM([&](uint32_t eM_index) {
         fixed16_signed[eM_index] = builder_->createUnaryOp(
-            spv::OpBitcast, type_uint4_,
+            spv::Op::OpBitcast, type_uint4_,
             builder_->createUnaryOp(
-                spv::OpConvertFToS, type_int4_,
+                spv::Op::OpConvertFToS, type_int4_,
                 builder_->createNoContractionBinOp(
-                    spv::OpFAdd, type_float4_, fixed16_signed[eM_index],
+                    spv::Op::OpFAdd, type_float4_, fixed16_signed[eM_index],
                     builder_->createTriOp(
-                        spv::OpSelect, type_float4_,
-                        builder_->createBinOp(spv::OpFOrdLessThan, type_bool4_,
-                                              fixed16_signed[eM_index],
-                                              const_float4_0_),
+                        spv::Op::OpSelect, type_float4_,
+                        builder_->createBinOp(
+                            spv::Op::OpFOrdLessThan, type_bool4_,
+                            fixed16_signed[eM_index], const_float4_0_),
                         const_float_vectors_minus_0_5[3],
                         const_float_vectors_0_5[3]))));
       });
@@ -526,7 +527,7 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
     {
       // Unsigned.
       SpirvBuilder::IfBuilder if_norm(
-          is_norm, spv::SelectionControlDontFlattenMask, *builder_);
+          is_norm, spv::SelectionControlMask::DontFlatten, *builder_);
       EMIdArray fixed16_norm;
       {
         // Unsigned normalized.
@@ -537,7 +538,7 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
             builder_->makeCompositeConstant(type_float4_, id_vector_temp_);
         for_each_eM([&](uint32_t eM_index) {
           fixed16_norm[eM_index] = builder_->createNoContractionBinOp(
-              spv::OpFMul, type_float4_,
+              spv::Op::OpFMul, type_float4_,
               builder_->createTriBuiltinCall(
                   type_float4_, ext_inst_glsl_std_450_, GLSLstd450FClamp,
                   fixed16_flushed[eM_index], const_float4_0_, const_float4_1_),
@@ -554,8 +555,8 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
       // the Direct3D format conversion rules.
       for_each_eM([&](uint32_t eM_index) {
         fixed16_unsigned[eM_index] = builder_->createUnaryOp(
-            spv::OpConvertFToU, type_uint4_,
-            builder_->createNoContractionBinOp(spv::OpFAdd, type_float4_,
+            spv::Op::OpConvertFToU, type_uint4_,
+            builder_->createNoContractionBinOp(spv::Op::OpFAdd, type_float4_,
                                                fixed16_unsigned[eM_index],
                                                const_float_vectors_0_5[3]));
       });
@@ -576,7 +577,7 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
       for (uint32_t component_index = 0; component_index < 2;
            ++component_index) {
         id_vector_temp_.push_back(builder_->createQuadOp(
-            spv::OpBitFieldInsert, type_uint_,
+            spv::Op::OpBitFieldInsert, type_uint_,
             builder_->createCompositeExtract(fixed16_element_unpacked,
                                              type_uint_, 2 * component_index),
             builder_->createCompositeExtract(
@@ -678,7 +679,7 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
     EMIdArray format_packed_32_float;
     for_each_eM([&](uint32_t eM_index) {
       format_packed_32_float[eM_index] = builder_->createUnaryOp(
-          spv::OpBitcast, type_uint4_, eM_swapped[eM_index]);
+          spv::Op::OpBitcast, type_uint4_, eM_swapped[eM_index]);
     });
     add_format_case(format_packed_32_float, 2);
   }
@@ -690,7 +691,7 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
     EMIdArray format_packed_32_32_float;
     for_each_eM([&](uint32_t eM_index) {
       format_packed_32_32_float[eM_index] = builder_->createUnaryOp(
-          spv::OpBitcast, type_uint4_, eM_swapped[eM_index]);
+          spv::Op::OpBitcast, type_uint4_, eM_swapped[eM_index]);
     });
     add_format_case(format_packed_32_32_float, 3);
   }
@@ -702,7 +703,7 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
     EMIdArray format_packed_32_32_32_32_float;
     for_each_eM([&](uint32_t eM_index) {
       format_packed_32_32_32_32_float[eM_index] = builder_->createUnaryOp(
-          spv::OpBitcast, type_uint4_, eM_swapped[eM_index]);
+          spv::Op::OpBitcast, type_uint4_, eM_swapped[eM_index]);
     });
     add_format_case(format_packed_32_32_32_32_float, 4);
   }
@@ -714,7 +715,7 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
   EMIdArray eM_packed;
   for_each_eM([&](uint32_t eM_index) {
     auto eM_packed_phi = std::make_unique<spv::Instruction>(
-        builder_->getUniqueId(), type_uint4_, spv::OpPhi);
+        builder_->getUniqueId(), type_uint4_, spv::Op::OpPhi);
     // Default case for an invalid format.
     eM_packed_phi->addIdOperand(const_uint4_0_);
     eM_packed_phi->addIdOperand(format_switch.getDefaultPhiParent());
@@ -728,7 +729,7 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
   spv::Id element_bytes_log2;
   {
     auto element_bytes_log2_phi = std::make_unique<spv::Instruction>(
-        builder_->getUniqueId(), type_uint_, spv::OpPhi);
+        builder_->getUniqueId(), type_uint_, spv::Op::OpPhi);
     // Default case for an invalid format (doesn't enter any element size
     // conditional, skipped).
     element_bytes_log2_phi->addIdOperand(builder_->makeUintConstant(5));
@@ -744,16 +745,16 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
   }
 
   // Endian-swap.
-  spv::Id endian =
-      builder_->createTriOp(spv::OpBitFieldUExtract, type_uint_, format_info,
-                            const_uint_0_, builder_->makeUintConstant(3));
+  spv::Id endian = builder_->createTriOp(spv::Op::OpBitFieldUExtract,
+                                         type_uint_, format_info, const_uint_0_,
+                                         builder_->makeUintConstant(3));
   for_each_eM([&](uint32_t eM_index) {
     eM_packed[eM_index] = EndianSwap128Uint4(eM_packed[eM_index], endian);
   });
 
   // Load the index of eM0 in the stream.
   spv::Id eM0_index = builder_->createTriOp(
-      spv::OpBitFieldUExtract, type_uint_,
+      spv::Op::OpBitFieldUExtract, type_uint_,
       builder_->createCompositeExtract(eA_vector, type_uint_, 1), const_uint_0_,
       builder_->makeUintConstant(23));
 
@@ -763,23 +764,23 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
   // bits, so it's safe to use 32-bit signed subtraction and clamping to get the
   // remaining eM# count.
   spv::Id eM_indices_to_store = builder_->createTriOp(
-      spv::OpBitFieldUExtract, type_uint_,
+      spv::Op::OpBitFieldUExtract, type_uint_,
       builder_->createLoad(var_main_memexport_data_written_, spv::NoPrecision),
       const_uint_0_,
       builder_->createUnaryOp(
-          spv::OpBitcast, type_uint_,
+          spv::Op::OpBitcast, type_uint_,
           builder_->createTriBuiltinCall(
               type_int_, ext_inst_glsl_std_450_, GLSLstd450SClamp,
               builder_->createBinOp(
-                  spv::OpISub, type_int_,
+                  spv::Op::OpISub, type_int_,
                   builder_->createUnaryOp(
-                      spv::OpBitcast, type_int_,
-                      builder_->createTriOp(spv::OpBitFieldUExtract, type_uint_,
-                                            builder_->createCompositeExtract(
-                                                eA_vector, type_uint_, 3),
-                                            const_uint_0_,
-                                            builder_->makeUintConstant(23))),
-                  builder_->createUnaryOp(spv::OpBitcast, type_int_,
+                      spv::Op::OpBitcast, type_int_,
+                      builder_->createTriOp(
+                          spv::Op::OpBitFieldUExtract, type_uint_,
+                          builder_->createCompositeExtract(eA_vector,
+                                                           type_uint_, 3),
+                          const_uint_0_, builder_->makeUintConstant(23))),
+                  builder_->createUnaryOp(spv::Op::OpBitcast, type_int_,
                                           eM0_index)),
               const_int_0_,
               builder_->makeIntConstant(ucode::kMaxMemExportElementCount))));
@@ -789,12 +790,12 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
   // bytes and drop the upper bits.
   spv::Id const_uint_2 = builder_->makeUintConstant(2);
   spv::Id eM0_address_bytes = builder_->createBinOp(
-      spv::OpIAdd, type_uint_,
+      spv::Op::OpIAdd, type_uint_,
       builder_->createBinOp(
-          spv::OpShiftLeftLogical, type_uint_,
+          spv::Op::OpShiftLeftLogical, type_uint_,
           builder_->createCompositeExtract(eA_vector, type_uint_, 0),
           const_uint_2),
-      builder_->createBinOp(spv::OpShiftLeftLogical, type_uint_, eM0_index,
+      builder_->createBinOp(spv::Op::OpShiftLeftLogical, type_uint_, eM0_index,
                             element_bytes_log2));
 
   // Store based on the element size.
@@ -802,40 +803,40 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
     for_each_eM([&](uint32_t eM_index) {
       SpirvBuilder::IfBuilder if_eM_needed(
           builder_->createBinOp(
-              spv::OpINotEqual, type_bool_,
-              builder_->createBinOp(spv::OpBitwiseAnd, type_uint_,
+              spv::Op::OpINotEqual, type_bool_,
+              builder_->createBinOp(spv::Op::OpBitwiseAnd, type_uint_,
                                     eM_indices_to_store,
                                     builder_->makeUintConstant(1u << eM_index)),
               const_uint_0_),
-          spv::SelectionControlDontFlattenMask, *builder_, 2, 1);
+          spv::SelectionControlMask::DontFlatten, *builder_, 2, 1);
       fn(eM_index);
       if_eM_needed.makeEndIf();
     });
   };
   SpirvBuilder::SwitchBuilder element_size_switch(
-      element_bytes_log2, spv::SelectionControlDontFlattenMask, *builder_);
+      element_bytes_log2, spv::SelectionControlMask::DontFlatten, *builder_);
   element_size_switch.makeBeginCase(0);
   {
     store_needed_eM([&](uint32_t eM_index) {
       spv::Id element_address_bytes =
           eM_index != 0 ? builder_->createBinOp(
-                              spv::OpIAdd, type_uint_, eM0_address_bytes,
+                              spv::Op::OpIAdd, type_uint_, eM0_address_bytes,
                               builder_->makeUintConstant(eM_index))
                         : eM0_address_bytes;
       // replace_shift = 8 * (element_address_bytes & 3)
       spv::Id replace_shift = builder_->createQuadOp(
-          spv::OpBitFieldInsert, type_uint_, const_uint_0_,
+          spv::Op::OpBitFieldInsert, type_uint_, const_uint_0_,
           element_address_bytes, builder_->makeUintConstant(3), const_uint_2);
       StoreUint32ToSharedMemory(
-          builder_->createBinOp(spv::OpShiftLeftLogical, type_uint_,
+          builder_->createBinOp(spv::Op::OpShiftLeftLogical, type_uint_,
                                 builder_->createCompositeExtract(
                                     eM_packed[eM_index], type_uint_, 0),
                                 replace_shift),
           builder_->createUnaryOp(
-              spv::OpBitcast, type_int_,
-              builder_->createBinOp(spv::OpShiftRightLogical, type_uint_,
+              spv::Op::OpBitcast, type_int_,
+              builder_->createBinOp(spv::Op::OpShiftRightLogical, type_uint_,
                                     element_address_bytes, const_uint_2)),
-          builder_->createBinOp(spv::OpShiftLeftLogical, type_uint_,
+          builder_->createBinOp(spv::Op::OpShiftLeftLogical, type_uint_,
                                 builder_->makeUintConstant(0xFFu),
                                 replace_shift));
     });
@@ -843,57 +844,61 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
   element_size_switch.makeBeginCase(1);
   {
     spv::Id const_uint_1 = builder_->makeUintConstant(1);
-    spv::Id eM0_address_words = builder_->createBinOp(
-        spv::OpShiftRightLogical, type_uint_, eM0_address_bytes, const_uint_1);
+    spv::Id eM0_address_words =
+        builder_->createBinOp(spv::Op::OpShiftRightLogical, type_uint_,
+                              eM0_address_bytes, const_uint_1);
     store_needed_eM([&](uint32_t eM_index) {
       spv::Id element_address_words =
           eM_index != 0 ? builder_->createBinOp(
-                              spv::OpIAdd, type_uint_, eM0_address_words,
+                              spv::Op::OpIAdd, type_uint_, eM0_address_words,
                               builder_->makeUintConstant(eM_index))
                         : eM0_address_words;
       // replace_shift = 16 * (element_address_words & 1)
       spv::Id replace_shift = builder_->createQuadOp(
-          spv::OpBitFieldInsert, type_uint_, const_uint_0_,
+          spv::Op::OpBitFieldInsert, type_uint_, const_uint_0_,
           element_address_words, builder_->makeUintConstant(4), const_uint_1);
       StoreUint32ToSharedMemory(
-          builder_->createBinOp(spv::OpShiftLeftLogical, type_uint_,
+          builder_->createBinOp(spv::Op::OpShiftLeftLogical, type_uint_,
                                 builder_->createCompositeExtract(
                                     eM_packed[eM_index], type_uint_, 0),
                                 replace_shift),
           builder_->createUnaryOp(
-              spv::OpBitcast, type_int_,
-              builder_->createBinOp(spv::OpShiftRightLogical, type_uint_,
+              spv::Op::OpBitcast, type_int_,
+              builder_->createBinOp(spv::Op::OpShiftRightLogical, type_uint_,
                                     element_address_words, const_uint_1)),
-          builder_->createBinOp(spv::OpShiftLeftLogical, type_uint_,
+          builder_->createBinOp(spv::Op::OpShiftLeftLogical, type_uint_,
                                 builder_->makeUintConstant(0xFFFFu),
                                 replace_shift));
     });
   }
   element_size_switch.makeBeginCase(2);
   {
-    spv::Id eM0_address_dwords = builder_->createBinOp(
-        spv::OpShiftRightLogical, type_uint_, eM0_address_bytes, const_uint_2);
+    spv::Id eM0_address_dwords =
+        builder_->createBinOp(spv::Op::OpShiftRightLogical, type_uint_,
+                              eM0_address_bytes, const_uint_2);
     store_needed_eM([&](uint32_t eM_index) {
       StoreUint32ToSharedMemory(
           builder_->createCompositeExtract(eM_packed[eM_index], type_uint_, 0),
           builder_->createUnaryOp(
-              spv::OpBitcast, type_int_,
-              eM_index != 0 ? builder_->createBinOp(
-                                  spv::OpIAdd, type_uint_, eM0_address_dwords,
-                                  builder_->makeUintConstant(eM_index))
-                            : eM0_address_dwords));
+              spv::Op::OpBitcast, type_int_,
+              eM_index != 0
+                  ? builder_->createBinOp(spv::Op::OpIAdd, type_uint_,
+                                          eM0_address_dwords,
+                                          builder_->makeUintConstant(eM_index))
+                  : eM0_address_dwords));
     });
   }
   element_size_switch.makeBeginCase(3);
   {
-    spv::Id eM0_address_dwords = builder_->createBinOp(
-        spv::OpShiftRightLogical, type_uint_, eM0_address_bytes, const_uint_2);
+    spv::Id eM0_address_dwords =
+        builder_->createBinOp(spv::Op::OpShiftRightLogical, type_uint_,
+                              eM0_address_bytes, const_uint_2);
     store_needed_eM([&](uint32_t eM_index) {
       spv::Id element_value = eM_packed[eM_index];
       spv::Id element_address_dwords_int = builder_->createUnaryOp(
-          spv::OpBitcast, type_int_,
+          spv::Op::OpBitcast, type_int_,
           eM_index != 0 ? builder_->createBinOp(
-                              spv::OpIAdd, type_uint_, eM0_address_dwords,
+                              spv::Op::OpIAdd, type_uint_, eM0_address_dwords,
                               builder_->makeUintConstant(2 * eM_index))
                         : eM0_address_dwords);
       StoreUint32ToSharedMemory(
@@ -901,21 +906,22 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
           element_address_dwords_int);
       StoreUint32ToSharedMemory(
           builder_->createCompositeExtract(element_value, type_uint_, 1),
-          builder_->createBinOp(spv::OpIAdd, type_int_,
+          builder_->createBinOp(spv::Op::OpIAdd, type_int_,
                                 element_address_dwords_int,
                                 builder_->makeIntConstant(1)));
     });
   }
   element_size_switch.makeBeginCase(4);
   {
-    spv::Id eM0_address_dwords = builder_->createBinOp(
-        spv::OpShiftRightLogical, type_uint_, eM0_address_bytes, const_uint_2);
+    spv::Id eM0_address_dwords =
+        builder_->createBinOp(spv::Op::OpShiftRightLogical, type_uint_,
+                              eM0_address_bytes, const_uint_2);
     store_needed_eM([&](uint32_t eM_index) {
       spv::Id element_value = eM_packed[eM_index];
       spv::Id element_address_dwords_int = builder_->createUnaryOp(
-          spv::OpBitcast, type_int_,
+          spv::Op::OpBitcast, type_int_,
           eM_index != 0 ? builder_->createBinOp(
-                              spv::OpIAdd, type_uint_, eM0_address_dwords,
+                              spv::Op::OpIAdd, type_uint_, eM0_address_dwords,
                               builder_->makeUintConstant(4 * eM_index))
                         : eM0_address_dwords);
       StoreUint32ToSharedMemory(
@@ -926,7 +932,7 @@ void SpirvShaderTranslator::ExportToMemory(uint8_t export_eM) {
         StoreUint32ToSharedMemory(
             builder_->createCompositeExtract(element_value, type_uint_,
                                              element_dword_index),
-            builder_->createBinOp(spv::OpIAdd, type_int_,
+            builder_->createBinOp(spv::Op::OpIAdd, type_int_,
                                   element_address_dwords_int,
                                   builder_->makeIntConstant(
                                       static_cast<int>(element_dword_index))));
