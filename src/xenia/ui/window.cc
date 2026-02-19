@@ -486,7 +486,7 @@ void Window::OnDpiChanged(UISetupEvent& e,
   }
 }
 
-void Window::OnMonitorUpdate(MonitorUpdateEvent& e) {
+void Window::OnMonitorUpdate(const MonitorUpdateEvent& e) {
   if (presenter_surface_) {
     presenter_->OnSurfaceMonitorUpdateFromUIThread(
         e.old_monitor_potentially_disconnected());
