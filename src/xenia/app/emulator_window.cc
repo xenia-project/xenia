@@ -18,6 +18,7 @@
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "third_party/imgui/imgui.h"
+#include "third_party/stb/stb_image_write.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/clock.h"
 #include "xenia/base/cvar.h"
@@ -589,6 +590,9 @@ bool EmulatorWindow::Initialize() {
         MenuItem::Create(MenuItem::Type::kString, "&Fullscreen", "F11",
                          std::bind(&EmulatorWindow::ToggleFullscreen, this)));
   }
+  display_menu->AddChild(
+      MenuItem::Create(MenuItem::Type::kString, "&Take Screenshot", "F12",
+                       std::bind(&EmulatorWindow::TakeScreenshot, this)));
   main_menu->AddChild(std::move(display_menu));
 
   // Help menu.
@@ -760,6 +764,11 @@ void EmulatorWindow::OnKeyDown(ui::KeyEvent& e) {
     case ui::VirtualKey::kF11: {
       ToggleFullscreen();
     } break;
+
+    case ui::VirtualKey::kF12: {
+      TakeScreenshot();
+    } break;
+
     case ui::VirtualKey::kEscape: {
       // Allow users to escape fullscreen (but not enter it).
       if (!window_->IsFullscreen()) {
@@ -931,6 +940,68 @@ void EmulatorWindow::SetFullscreen(bool fullscreen) {
 
 void EmulatorWindow::ToggleFullscreen() {
   SetFullscreen(!window_->IsFullscreen());
+}
+
+void EmulatorWindow::TakeScreenshot() {
+  xe::ui::RawImage image;
+  if (!GetGraphicsSystemPresenter()->CaptureGuestOutput(image) ||
+      GetGraphicsSystemPresenter() == nullptr) {
+    XELOGE("Failed to capture guest output for screenshot");
+    return;
+  }
+  ExportScreenshot(image);
+}
+
+// Exports a screenshot
+void EmulatorWindow::ExportScreenshot(const xe::ui::RawImage& image) {
+  // Get local system time as a string
+  std::time_t t = std::time(nullptr);
+  std::tm tm = *std::localtime(&t);
+  std::stringstream ss;
+  ss << std::put_time(&tm, "%Y-%m-%d %H-%M-%S");
+  std::string datetime = ss.str();
+
+  auto title = emulator()->title_name() != ""
+                   ? emulator()->title_name()
+                   : std::to_string(emulator()->title_id());
+
+  // Screenshots folder for this title
+  auto screenshot_path =
+      xe::filesystem::GetUserFolder().append("Xenia\\Screenshots\\" + title);
+
+  if (!std::filesystem::exists(screenshot_path)) {
+    std::filesystem::create_directories(screenshot_path);
+  }
+
+  SaveImage(std::filesystem::path(screenshot_path.string() + "\\Screenshot - " +
+                                  title + " " + datetime + ".png"),
+            image);
+
+  xe::ui::ImGuiDialog::ShowMessageBox(
+      imgui_drawer_.get(), "Screenshot Saved",
+      fmt::format("Screenshot saved to {}", screenshot_path.string()));
+}
+
+// Converts a RawImage into a PNG file
+void EmulatorWindow::SaveImage(const std::filesystem::path& path,
+                               const xe::ui::RawImage& image) {
+  auto file = std::ofstream(path, std::ios::binary);
+  if (!file.is_open()) {
+    XELOGE("Failed to open file for writing: {}", path.string());
+    return;
+  }
+
+  auto result = stbi_write_png_to_func(
+      [](void* context, void* data, int size) {
+        auto file = reinterpret_cast<std::ofstream*>(context);
+        file->write(reinterpret_cast<const char*>(data), size);
+      },
+      &file, image.width, image.height, 4, image.data.data(),
+      (int)image.stride);
+  if (result == 0) {
+    XELOGE("Failed to write PNG to file: {}", path.string());
+    return;
+  }
 }
 
 void EmulatorWindow::ToggleDisplayConfigDialog() {
