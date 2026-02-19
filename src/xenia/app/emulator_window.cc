@@ -811,7 +811,11 @@ void EmulatorWindow::FileDrop(const std::filesystem::path& filename) {
   }
   auto result = emulator_->LaunchPath(filename);
   if (XFAILED(result)) {
-    // TODO: Display a message box.
+    xe::ui::ImGuiDialog::ShowMessageBox(
+        imgui_drawer_.get(), "Error: Failed to Launch",
+        fmt::format("Failed to launch target {}",
+                    xe::path_to_utf8(filename.filename()) +
+                        "; file format is unrecognized or corrupted."));
     XELOGE("Failed to launch target: {:08X}", result);
   }
 }
@@ -843,7 +847,11 @@ void EmulatorWindow::FileOpen() {
     auto abs_path = std::filesystem::absolute(path);
     auto result = emulator_->LaunchPath(abs_path);
     if (XFAILED(result)) {
-      // TODO: Display a message box.
+      xe::ui::ImGuiDialog::ShowMessageBox(
+          imgui_drawer_.get(), "Error: Failed to Launch",
+          fmt::format("Failed to launch target {}",
+                      xe::path_to_utf8(abs_path.filename()) +
+                          "; file format is unrecognized or corrupted."));
       XELOGE("Failed to launch target: {:08X}", result);
     }
   }
