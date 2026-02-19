@@ -71,7 +71,7 @@ X_RESULT xeXamDispatchDialog(T* dialog,
                              uint32_t overlapped) {
   auto pre = []() {
     // Broadcast XN_SYS_UI = true
-    kernel_state()->BroadcastNotification(0x9, true);
+    kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, true);
   };
   auto run = [dialog, close_callback]() -> X_RESULT {
     X_RESULT result;
@@ -95,7 +95,7 @@ X_RESULT xeXamDispatchDialog(T* dialog,
   auto post = []() {
     xe::threading::Sleep(std::chrono::milliseconds(100));
     // Broadcast XN_SYS_UI = false
-    kernel_state()->BroadcastNotification(0x9, false);
+    kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, false);
   };
   if (!overlapped) {
     pre();
@@ -114,7 +114,7 @@ X_RESULT xeXamDispatchDialogEx(
     uint32_t overlapped) {
   auto pre = []() {
     // Broadcast XN_SYS_UI = true
-    kernel_state()->BroadcastNotification(0x9, true);
+    kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, true);
   };
   auto run = [dialog, close_callback](uint32_t& extended_error,
                                       uint32_t& length) -> X_RESULT {
@@ -139,7 +139,7 @@ X_RESULT xeXamDispatchDialogEx(
   auto post = []() {
     xe::threading::Sleep(std::chrono::milliseconds(100));
     // Broadcast XN_SYS_UI = false
-    kernel_state()->BroadcastNotification(0x9, false);
+    kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, false);
   };
   if (!overlapped) {
     pre();
@@ -158,12 +158,12 @@ X_RESULT xeXamDispatchHeadless(std::function<X_RESULT()> run_callback,
                                uint32_t overlapped) {
   auto pre = []() {
     // Broadcast XN_SYS_UI = true
-    kernel_state()->BroadcastNotification(0x9, true);
+    kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, true);
   };
   auto post = []() {
     xe::threading::Sleep(std::chrono::milliseconds(100));
     // Broadcast XN_SYS_UI = false
-    kernel_state()->BroadcastNotification(0x9, false);
+    kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, false);
   };
   if (!overlapped) {
     pre();
@@ -182,12 +182,12 @@ X_RESULT xeXamDispatchHeadlessEx(
     uint32_t overlapped) {
   auto pre = []() {
     // Broadcast XN_SYS_UI = true
-    kernel_state()->BroadcastNotification(0x9, true);
+    kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, true);
   };
   auto post = []() {
     xe::threading::Sleep(std::chrono::milliseconds(100));
     // Broadcast XN_SYS_UI = false
-    kernel_state()->BroadcastNotification(0x9, false);
+    kernel_state()->BroadcastNotification(kXNotificationIDSystemUI, false);
   };
   if (!overlapped) {
     pre();
