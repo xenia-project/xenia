@@ -40,6 +40,9 @@
 #if !XE_PLATFORM_ANDROID
 #include "xenia/hid/sdl/sdl_hid.h"
 #endif  // !XE_PLATFORM_ANDROID
+#if !XE_PLATFORM_WIN32
+#include "xenia/hid/keyboard/keyboard_hid.h"
+#endif
 #if XE_PLATFORM_WIN32
 #include "xenia/hid/winkey/winkey_hid.h"
 #include "xenia/hid/xinput/xinput_hid.h"
@@ -132,6 +135,13 @@ std::vector<std::unique_ptr<hid::InputDriver>> HidDemoApp::CreateInputDrivers(
       drivers.emplace_back(std::move(driver));
     }
 #endif  // !XE_PLATFORM_ANDROID
+#if !XE_PLATFORM_WIN32
+  } else if (cvars::hid.compare("keyboard") == 0) {
+    auto driver = xe::hid::keyboard::Create(window, kZOrderHidInput);
+    if (driver && XSUCCEEDED(driver->Setup())) {
+      drivers.emplace_back(std::move(driver));
+    }
+#endif
 #if XE_PLATFORM_WIN32
   } else if (cvars::hid.compare("winkey") == 0) {
     auto driver = xe::hid::winkey::Create(window, kZOrderHidInput);
@@ -151,6 +161,12 @@ std::vector<std::unique_ptr<hid::InputDriver>> HidDemoApp::CreateInputDrivers(
       drivers.emplace_back(std::move(sdl_driver));
     }
 #endif  // !XE_PLATFORM_ANDROID
+#if !XE_PLATFORM_WIN32
+    auto keyboard_driver = xe::hid::keyboard::Create(window, kZOrderHidInput);
+    if (keyboard_driver && XSUCCEEDED(keyboard_driver->Setup())) {
+      drivers.emplace_back(std::move(keyboard_driver));
+    }
+#endif
 #if XE_PLATFORM_WIN32
     auto xinput_driver = xe::hid::xinput::Create(window, kZOrderHidInput);
     if (xinput_driver && XSUCCEEDED(xinput_driver->Setup())) {
