@@ -16,6 +16,7 @@
 #include <optional>
 #include <vector>
 
+#include "third_party/imgui/imgui.h"
 #include "xenia/ui/immediate_drawer.h"
 #include "xenia/ui/presenter.h"
 #include "xenia/ui/window.h"
@@ -66,6 +67,12 @@ class ImGuiDrawer : public WindowInputListener, public UIDrawer {
 
  private:
   void Initialize();
+  void InitializeFonts();
+  void LoadCustomFont(ImGuiIO& io, ImFontConfig& font_config,
+                      const float font_size);
+  void LoadSystemFont(ImGuiIO& io, ImFontConfig& font_config,
+                      const float font_size);
+  void LoadJapaneseFont(ImGuiIO& io, const float font_size);
 
   void SetupFontTexture();
 
