@@ -212,6 +212,7 @@ void GraphicsSystem::WriteRegister(uint32_t addr, uint32_t value) {
       command_processor_->UpdateWritePointer(value);
       break;
     case 0x1844:  // AVIVO_D1GRPH_PRIMARY_SURFACE_ADDRESS
+      return;
       break;
     default:
       XELOGW("Unknown GPU register {:04X} write: {:08X}", r, value);
