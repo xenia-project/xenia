@@ -102,7 +102,6 @@ filter("platforms:Linux")
   links({
     "stdc++fs",
     "dl",
-    "lz4",
     "pthread",
     "rt",
   })
@@ -251,6 +250,7 @@ workspace("xenia")
   include("third_party/fmt.lua")
   include("third_party/glslang-spirv.lua")
   include("third_party/imgui.lua")
+  include("third_party/lz4.lua")
   include("third_party/mspack.lua")
   include("third_party/snappy.lua")
   include("third_party/xxhash.lua")

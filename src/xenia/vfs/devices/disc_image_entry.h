@@ -37,7 +37,7 @@ class DiscImageEntry : public Entry {
 
   X_STATUS Open(uint32_t desired_access, File** out_file) override;
 
-  bool can_map() const override { return true; }
+  bool can_map() const override { return mmap_ != nullptr; }
   std::unique_ptr<MappedMemory> OpenMapped(MappedMemory::Mode mode,
                                            size_t offset,
                                            size_t length) override;

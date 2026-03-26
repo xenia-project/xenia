@@ -10,11 +10,13 @@
 #ifndef XENIA_VFS_DEVICES_DISC_IMAGE_DEVICE_H_
 #define XENIA_VFS_DEVICES_DISC_IMAGE_DEVICE_H_
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
 #include "xenia/base/mapped_memory.h"
 #include "xenia/vfs/device.h"
+#include "xenia/vfs/devices/cci_disc_image_reader.h"
 
 namespace xe {
 namespace vfs {
@@ -36,9 +38,12 @@ class DiscImageDevice : public Device {
   uint32_t component_name_max_length() const override { return 255; }
 
   uint32_t total_allocation_units() const override {
-    return uint32_t(mmap_->size() / sectors_per_allocation_unit() /
+    return uint32_t(ImageSize() / sectors_per_allocation_unit() /
                     bytes_per_sector());
   }
+
+  bool ReadDiscImageBytes(uint64_t offset, void* buffer, size_t length);
+  uint64_t ImageSize() const;
   uint32_t available_allocation_units() const override { return 0; }
   uint32_t sectors_per_allocation_unit() const override { return 1; }
   uint32_t bytes_per_sector() const override { return 0x200; }
@@ -56,9 +61,10 @@ class DiscImageDevice : public Device {
   std::filesystem::path host_path_;
   std::unique_ptr<Entry> root_entry_;
   std::unique_ptr<MappedMemory> mmap_;
+  std::unique_ptr<CciDiscImageReader> cci_;
 
   typedef struct {
-    uint8_t* ptr;
+    DiscImageDevice* device;
     size_t size;         // Size (bytes) of total image.
     size_t game_offset;  // Offset (bytes) of game partition.
     size_t root_sector;  // Offset (sector) of root.

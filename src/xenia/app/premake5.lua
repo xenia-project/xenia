@@ -31,6 +31,7 @@ project("xenia-app")
     "imgui",
     "libavcodec",
     "libavutil",
+    "lz4",
     "mspack",
     "snappy",
     "xxhash",

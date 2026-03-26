@@ -1,0 +1,15 @@
+group("third_party")
+project("lz4")
+  uuid("c8f3a2e1-9b0d-4e5f-8a7c-1d2e3f4a5b6c")
+  kind("StaticLib")
+  language("C")
+  defines({
+    "_LIB",
+  })
+  includedirs({
+    "lz4",
+  })
+  files({
+    "lz4/lz4.c",
+    "lz4/lz4.h",
+  })

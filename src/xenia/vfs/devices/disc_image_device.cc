@@ -9,9 +9,13 @@
 
 #include "xenia/vfs/devices/disc_image_device.h"
 
+#include <cstring>
+#include <vector>
+
 #include "xenia/base/literals.h"
 #include "xenia/base/logging.h"
 #include "xenia/base/math.h"
+#include "xenia/base/memory.h"
 #include "xenia/vfs/devices/disc_image_entry.h"
 
 namespace xe {
@@ -27,23 +31,68 @@ DiscImageDevice::DiscImageDevice(const std::string_view mount_path,
 
 DiscImageDevice::~DiscImageDevice() = default;
 
+uint64_t DiscImageDevice::ImageSize() const {
+  if (mmap_) {
+    return mmap_->size();
+  }
+  if (cci_) {
+    return cci_->logical_size();
+  }
+  return 0;
+}
+
+bool DiscImageDevice::ReadDiscImageBytes(uint64_t offset, void* buffer,
+                                         size_t length) {
+  if (!length) {
+    return true;
+  }
+  if (mmap_) {
+    if (offset + length > mmap_->size()) {
+      return false;
+    }
+    std::memcpy(buffer, mmap_->data() + offset, length);
+    return true;
+  }
+  if (cci_) {
+    return cci_->ReadLogical(offset, buffer, length);
+  }
+  return false;
+}
+
 bool DiscImageDevice::Initialize() {
-  mmap_ = MappedMemory::Open(host_path_, MappedMemory::Mode::kRead);
-  if (!mmap_) {
-    XELOGE("Disc image could not be mapped");
-    return false;
+  if (CciDiscImageReader::IsCciExtension(
+          xe::path_to_utf8(host_path_.extension()))) {
+    cci_ = std::make_unique<CciDiscImageReader>();
+    const auto slices = CciDiscImageReader::CollectSlices(host_path_);
+    if (!cci_->Open(slices)) {
+      XELOGE("CCI disc image could not be opened");
+      return false;
+    }
+  } else {
+    mmap_ = MappedMemory::Open(host_path_, MappedMemory::Mode::kRead);
+    if (!mmap_) {
+      XELOGE("Disc image could not be mapped");
+      return false;
+    }
   }
 
-  ParseState state = {0};
-  state.ptr = mmap_->data();
-  state.size = mmap_->size();
+  ParseState state = {};
+  state.device = this;
+  state.size = static_cast<size_t>(ImageSize());
   auto result = Verify(&state);
   if (result != Error::kSuccess) {
     XELOGE("Failed to verify disc image header: {}", result);
     return false;
   }
 
-  result = ReadAllEntries(&state, state.ptr + state.root_offset);
+  std::vector<uint8_t> root_buffer(state.root_size);
+  if (!ReadDiscImageBytes(state.root_offset, root_buffer.data(),
+                          state.root_size)) {
+    XELOGE("Failed to read GDFX root directory");
+    return false;
+  }
+
+  result = ReadAllEntries(&state, root_buffer.data());
   if (result != Error::kSuccess) {
     XELOGE("Failed to read all GDFX entries: {}", result);
     return false;
@@ -84,10 +133,15 @@ DiscImageDevice::Error DiscImageDevice::Verify(ParseState* state) {
   }
 
   // Read sector 32 to get FS state.
-  if (state->size < state->game_offset + (32 * kXESectorSize)) {
+  if (state->size < state->game_offset + (32 * kXESectorSize) + 28) {
     return Error::kErrorReadError;
   }
-  uint8_t* fs_ptr = state->ptr + state->game_offset + (32 * kXESectorSize);
+  uint8_t sector32[kXESectorSize];
+  if (!ReadDiscImageBytes(state->game_offset + (32 * kXESectorSize), sector32,
+                          sizeof(sector32))) {
+    return Error::kErrorReadError;
+  }
+  uint8_t* fs_ptr = sector32;
   state->root_sector = xe::load<uint32_t>(fs_ptr + 20);
   state->root_size = xe::load<uint32_t>(fs_ptr + 24);
   state->root_offset =
@@ -100,17 +154,21 @@ DiscImageDevice::Error DiscImageDevice::Verify(ParseState* state) {
 }
 
 bool DiscImageDevice::VerifyMagic(ParseState* state, size_t offset) {
-  if (offset >= state->size) {
+  if (offset + 20 > state->size) {
     return false;
   }
 
-  // Simple check to see if the given offset contains the magic value.
-  return std::memcmp(state->ptr + offset, "MICROSOFT*XBOX*MEDIA", 20) == 0;
+  uint8_t tmp[20];
+  if (!ReadDiscImageBytes(offset, tmp, sizeof(tmp))) {
+    return false;
+  }
+  return std::memcmp(tmp, "MICROSOFT*XBOX*MEDIA", 20) == 0;
 }
 
 DiscImageDevice::Error DiscImageDevice::ReadAllEntries(
     ParseState* state, const uint8_t* root_buffer) {
-  auto root_entry = new DiscImageEntry(this, nullptr, "", mmap_.get());
+  MappedMemory* mmap_for_entries = mmap_ ? mmap_.get() : nullptr;
+  auto root_entry = new DiscImageEntry(this, nullptr, "", mmap_for_entries);
   root_entry->attributes_ = kFileAttributeDirectory;
   root_entry_ = std::unique_ptr<Entry>(root_entry);
 
@@ -140,7 +198,7 @@ bool DiscImageDevice::ReadEntry(ParseState* state, const uint8_t* buffer,
 
   auto name = std::string(name_buffer, name_length);
 
-  auto entry = DiscImageEntry::Create(this, parent, name, mmap_.get());
+  auto entry = DiscImageEntry::Create(this, parent, name, mmap_ ? mmap_.get() : nullptr);
   entry->attributes_ = attributes | kFileAttributeReadOnly;
   entry->size_ = length;
   entry->allocation_size_ = xe::round_up(length, bytes_per_sector());
@@ -156,14 +214,16 @@ bool DiscImageDevice::ReadEntry(ParseState* state, const uint8_t* buffer,
     entry->data_size_ = 0;
     if (length) {
       // Not a leaf - read in children.
-      if (state->size < state->game_offset + (sector * kXESectorSize)) {
+      const size_t folder_off = state->game_offset + (sector * kXESectorSize);
+      if (state->size < folder_off + length) {
         // Out of bounds read.
         return false;
       }
-      // Read child list.
-      uint8_t* folder_ptr =
-          state->ptr + state->game_offset + (sector * kXESectorSize);
-      if (!ReadEntry(state, folder_ptr, 0, entry.get())) {
+      std::vector<uint8_t> folder_buf(length);
+      if (!ReadDiscImageBytes(folder_off, folder_buf.data(), length)) {
+        return false;
+      }
+      if (!ReadEntry(state, folder_buf.data(), 0, entry.get())) {
         return false;
       }
     }

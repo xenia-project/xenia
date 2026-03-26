@@ -825,8 +825,9 @@ void EmulatorWindow::FileOpen() {
   file_picker->set_multi_selection(false);
   file_picker->set_title("Select Content Package");
   file_picker->set_extensions({
-      {"Supported Files", "*.iso;*.xex;*.*"},
+      {"Supported Files", "*.iso;*.cci;*.xex;*.*"},
       {"Disc Image (*.iso)", "*.iso"},
+      {"Compressed Disc Image (*.cci)", "*.cci"},
       {"Xbox Executable (*.xex)", "*.xex"},
       //{"Content Package (*.xcp)", "*.xcp" },
       {"All Files (*.*)", "*.*"},

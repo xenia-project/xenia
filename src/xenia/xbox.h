@@ -63,6 +63,7 @@ typedef uint32_t X_STATUS;
 #define X_STATUS_MUTANT_NOT_OWNED                       ((X_STATUS)0xC0000046L)
 #define X_STATUS_PROCEDURE_NOT_FOUND                    ((X_STATUS)0xC000007AL)
 #define X_STATUS_INSUFFICIENT_RESOURCES                 ((X_STATUS)0xC000009AL)
+#define X_STATUS_IO_DEVICE_ERROR                        ((X_STATUS)0xC0000186L)
 #define X_STATUS_MEMORY_NOT_ALLOCATED                   ((X_STATUS)0xC00000A0L)
 #define X_STATUS_FILE_IS_A_DIRECTORY                    ((X_STATUS)0xC00000BAL)
 #define X_STATUS_NOT_SUPPORTED                          ((X_STATUS)0xC00000BBL)

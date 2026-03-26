@@ -7,6 +7,7 @@ project("xenia-vfs")
   kind("StaticLib")
   language("C++")
   links({
+    "lz4",
     "xenia-base",
   })
   defines({
@@ -20,6 +21,7 @@ project("xenia-vfs-dump")
   language("C++")
   links({
     "fmt",
+    "lz4",
     "xenia-base",
     "xenia-vfs",
   })
