@@ -35,6 +35,7 @@
 #include "xenia/ui/graphics_provider.h"
 #include "xenia/ui/imgui_dialog.h"
 #include "xenia/ui/imgui_drawer.h"
+#include "xenia/ui/i18n.h"
 #include "xenia/ui/immediate_drawer.h"
 #include "xenia/ui/presenter.h"
 #include "xenia/ui/ui_event.h"
@@ -130,6 +131,8 @@ namespace app {
 using xe::ui::FileDropEvent;
 using xe::ui::KeyEvent;
 using xe::ui::MenuItem;
+using xe::ui::TextId;
+using xe::ui::T;
 using xe::ui::UIEvent;
 
 const std::string kBaseTitle = "Xenia";
@@ -261,7 +264,7 @@ void EmulatorWindow::DisplayConfigDialog::OnDraw(ImGuiIO& io) {
   // through it.
   ImGui::SetNextWindowBgAlpha(0.6f);
   bool dialog_open = true;
-  if (!ImGui::Begin("Post-processing", &dialog_open,
+  if (!ImGui::Begin(T(TextId::kPostProcessing), &dialog_open,
                     ImGuiWindowFlags_NoCollapse |
                         ImGuiWindowFlags_AlwaysAutoResize |
                         ImGuiWindowFlags_HorizontalScrollbar)) {
@@ -272,27 +275,25 @@ void EmulatorWindow::DisplayConfigDialog::OnDraw(ImGuiIO& io) {
   // have one frame with an empty window.
 
   // Prevent user confusion which has been reported multiple times.
-  ImGui::TextUnformatted("All effects can be used on GPUs of any brand.");
+  ImGui::TextUnformatted(T(TextId::kAllEffectsAnyGpu));
   ImGui::Spacing();
 
   gpu::CommandProcessor* command_processor =
       graphics_system->command_processor();
   if (command_processor) {
     if (ImGui::TreeNodeEx(
-            "Anti-aliasing",
+            T(TextId::kAntiAliasing),
             ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_DefaultOpen)) {
       gpu::CommandProcessor::SwapPostEffect current_swap_post_effect =
           command_processor->GetDesiredSwapPostEffect();
       int new_swap_post_effect_index = int(current_swap_post_effect);
-      ImGui::RadioButton("None", &new_swap_post_effect_index,
+      ImGui::RadioButton(T(TextId::kNone), &new_swap_post_effect_index,
                          int(gpu::CommandProcessor::SwapPostEffect::kNone));
       ImGui::RadioButton(
-          "NVIDIA Fast Approximate Anti-Aliasing 3.11 (FXAA), normal quality",
-          &new_swap_post_effect_index,
+          T(TextId::kFxaaNormal), &new_swap_post_effect_index,
           int(gpu::CommandProcessor::SwapPostEffect::kFxaa));
       ImGui::RadioButton(
-          "NVIDIA Fast Approximate Anti-Aliasing 3.11 (FXAA), extreme quality",
-          &new_swap_post_effect_index,
+          T(TextId::kFxaaExtreme), &new_swap_post_effect_index,
           int(gpu::CommandProcessor::SwapPostEffect::kFxaaExtreme));
       gpu::CommandProcessor::SwapPostEffect new_swap_post_effect =
           gpu::CommandProcessor::SwapPostEffect(new_swap_post_effect_index);
@@ -320,19 +321,18 @@ void EmulatorWindow::DisplayConfigDialog::OnDraw(ImGuiIO& io) {
         current_presenter_config;
 
     if (ImGui::TreeNodeEx(
-            "Resampling and sharpening",
+            T(TextId::kResamplingAndSharpening),
             ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_DefaultOpen)) {
       // Filtering effect.
       int new_effect_index = int(new_presenter_config.GetEffect());
       ImGui::RadioButton(
-          "None / bilinear", &new_effect_index,
+          T(TextId::kNoneBilinear), &new_effect_index,
           int(ui::Presenter::GuestOutputPaintConfig::Effect::kBilinear));
       ImGui::RadioButton(
-          "AMD FidelityFX Contrast Adaptive Sharpening (CAS)",
-          &new_effect_index,
+          T(TextId::kCas), &new_effect_index,
           int(ui::Presenter::GuestOutputPaintConfig::Effect::kCas));
       ImGui::RadioButton(
-          "AMD FidelityFX Super Resolution 1.0 (FSR)", &new_effect_index,
+          T(TextId::kFsr), &new_effect_index,
           int(ui::Presenter::GuestOutputPaintConfig::Effect::kFsr));
       new_presenter_config.SetEffect(
           ui::Presenter::GuestOutputPaintConfig::Effect(new_effect_index));
@@ -344,26 +344,13 @@ void EmulatorWindow::DisplayConfigDialog::OnDraw(ImGuiIO& io) {
       const char* effect_description = nullptr;
       switch (new_presenter_config.GetEffect()) {
         case ui::Presenter::GuestOutputPaintConfig::Effect::kBilinear:
-          effect_description =
-              "Simple bilinear filtering is done if resampling is needed.\n"
-              "Otherwise, only anti-aliasing is done if enabled, or displaying "
-              "as is.";
+          effect_description = T(TextId::kBilinearDescription);
           break;
         case ui::Presenter::GuestOutputPaintConfig::Effect::kCas:
-          effect_description =
-              "Sharpening and resampling to up to 2x2 to improve the fidelity "
-              "of details.\n"
-              "For scaling by more than 2x2, bilinear stretching is done "
-              "afterwards.";
+          effect_description = T(TextId::kCasDescription);
           break;
         case ui::Presenter::GuestOutputPaintConfig::Effect::kFsr:
-          effect_description =
-              "High-quality edge-preserving upscaling to arbitrary target "
-              "resolutions.\n"
-              "For scaling by more than 2x2, multiple upsampling passes are "
-              "done.\n"
-              "If not upscaling, Contrast Adaptive Sharpening (CAS) is used "
-              "instead.";
+          effect_description = T(TextId::kFsrDescription);
           break;
       }
       if (effect_description) {
@@ -379,7 +366,7 @@ void EmulatorWindow::DisplayConfigDialog::OnDraw(ImGuiIO& io) {
         }
 
         ImGui::TextUnformatted(
-            "FXAA is highly recommended when using CAS or FSR.");
+            T(TextId::kFxaaRecommended));
 
         ImGui::Spacing();
 
@@ -398,9 +385,9 @@ void EmulatorWindow::DisplayConfigDialog::OnDraw(ImGuiIO& io) {
           float fsr_sharpness_reduction =
               new_presenter_config.GetFsrSharpnessReduction();
           ImGui::TextUnformatted(
-              "FSR sharpness reduction when upscaling (lower is sharper):");
+              T(TextId::kFsrSharpnessReduction));
           const auto label =
-              fmt::format("{:.3f} stops", fsr_sharpness_reduction);
+              fmt::format(T(TextId::kStops), fsr_sharpness_reduction);
           // Power 2.0 scaling as the reduction is in stops, used in exp2.
           fsr_sharpness_reduction = sqrt(2.f * fsr_sharpness_reduction);
           ImGui::SliderFloat(
@@ -411,7 +398,7 @@ void EmulatorWindow::DisplayConfigDialog::OnDraw(ImGuiIO& io) {
           fsr_sharpness_reduction =
               .5f * fsr_sharpness_reduction * fsr_sharpness_reduction;
           ImGui::SameLine();
-          if (ImGui::Button("Reset##ResetFSRSharpnessReduction")) {
+          if (ImGui::Button(T(TextId::kResetFsrSharpnessReduction))) {
             fsr_sharpness_reduction = ui::Presenter::GuestOutputPaintConfig ::
                 kFsrSharpnessReductionDefault;
           }
@@ -424,16 +411,15 @@ void EmulatorWindow::DisplayConfigDialog::OnDraw(ImGuiIO& io) {
         ImGui::TextUnformatted(
             new_presenter_config.GetEffect() ==
                     ui::Presenter::GuestOutputPaintConfig::Effect::kFsr
-                ? "CAS additional sharpness when not upscaling (higher is "
-                  "sharper):"
-                : "CAS additional sharpness (higher is sharper):");
+                ? T(TextId::kCasAdditionalSharpnessFsr)
+                : T(TextId::kCasAdditionalSharpness));
         ImGui::SliderFloat(
             "##CASAdditionalSharpness", &cas_additional_sharpness,
             ui::Presenter::GuestOutputPaintConfig::kCasAdditionalSharpnessMin,
             ui::Presenter::GuestOutputPaintConfig::kCasAdditionalSharpnessMax,
             "%.3f");
         ImGui::SameLine();
-        if (ImGui::Button("Reset##ResetCASAdditionalSharpness")) {
+        if (ImGui::Button(T(TextId::kResetCasAdditionalSharpness))) {
           cas_additional_sharpness = ui::Presenter::GuestOutputPaintConfig ::
               kCasAdditionalSharpnessDefault;
         }
@@ -451,12 +437,11 @@ void EmulatorWindow::DisplayConfigDialog::OnDraw(ImGuiIO& io) {
       ImGui::TreePop();
     }
 
-    if (ImGui::TreeNodeEx("Dithering", ImGuiTreeNodeFlags_Framed |
+    if (ImGui::TreeNodeEx(T(TextId::kDithering), ImGuiTreeNodeFlags_Framed |
                                            ImGuiTreeNodeFlags_DefaultOpen)) {
       bool dither = current_presenter_config.GetDither();
       ImGui::Checkbox(
-          "Dither the final output to 8bpc to make gradients smoother",
-          &dither);
+          T(TextId::kDitherFinalOutput), &dither);
       new_presenter_config.SetDither(dither);
 
       ImGui::TreePop();
@@ -506,114 +491,114 @@ bool EmulatorWindow::Initialize() {
   // Main menu.
   // FIXME: This code is really messy.
   auto main_menu = MenuItem::Create(MenuItem::Type::kNormal);
-  auto file_menu = MenuItem::Create(MenuItem::Type::kPopup, "&File");
+  auto file_menu = MenuItem::Create(MenuItem::Type::kPopup, T(TextId::kMenuFile));
   {
     file_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, "&Open...", "Ctrl+O",
+        MenuItem::Create(MenuItem::Type::kString, T(TextId::kMenuOpen), "Ctrl+O",
                          std::bind(&EmulatorWindow::FileOpen, this)));
 #ifdef DEBUG
     file_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, "Close",
+        MenuItem::Create(MenuItem::Type::kString, T(TextId::kMenuClose),
                          std::bind(&EmulatorWindow::FileClose, this)));
 #endif  // #ifdef DEBUG
     file_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
     file_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, "Show content directory...",
+        MenuItem::Type::kString, T(TextId::kMenuShowContentDirectory),
         std::bind(&EmulatorWindow::ShowContentDirectory, this)));
     file_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
     file_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, "E&xit", "Alt+F4",
+        MenuItem::Create(MenuItem::Type::kString, T(TextId::kMenuExit), "Alt+F4",
                          [this]() { window_->RequestClose(); }));
   }
   main_menu->AddChild(std::move(file_menu));
 
   // CPU menu.
-  auto cpu_menu = MenuItem::Create(MenuItem::Type::kPopup, "&CPU");
+  auto cpu_menu = MenuItem::Create(MenuItem::Type::kPopup, T(TextId::kMenuCpu));
   {
     cpu_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, "&Reset Time Scalar", "Numpad *",
+        MenuItem::Type::kString, T(TextId::kMenuResetTimeScalar), "Numpad *",
         std::bind(&EmulatorWindow::CpuTimeScalarReset, this)));
     cpu_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, "Time Scalar /= 2", "Numpad -",
+        MenuItem::Type::kString, T(TextId::kMenuTimeScalarHalf), "Numpad -",
         std::bind(&EmulatorWindow::CpuTimeScalarSetHalf, this)));
     cpu_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, "Time Scalar *= 2", "Numpad +",
+        MenuItem::Type::kString, T(TextId::kMenuTimeScalarDouble), "Numpad +",
         std::bind(&EmulatorWindow::CpuTimeScalarSetDouble, this)));
   }
   cpu_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
   {
     cpu_menu->AddChild(MenuItem::Create(MenuItem::Type::kString,
-                                        "Toggle Profiler &Display", "F3",
+                                        T(TextId::kMenuToggleProfilerDisplay), "F3",
                                         []() { Profiler::ToggleDisplay(); }));
     cpu_menu->AddChild(MenuItem::Create(MenuItem::Type::kString,
-                                        "&Pause/Resume Profiler", "`",
+                                        T(TextId::kMenuPauseResumeProfiler), "`",
                                         []() { Profiler::TogglePause(); }));
   }
   cpu_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
   {
     cpu_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, "&Break and Show Guest Debugger",
+        MenuItem::Type::kString, T(TextId::kMenuBreakAndShowGuestDebugger),
         "Pause/Break", std::bind(&EmulatorWindow::CpuBreakIntoDebugger, this)));
     cpu_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, "&Break into Host Debugger",
+        MenuItem::Type::kString, T(TextId::kMenuBreakIntoHostDebugger),
         "Ctrl+Pause/Break",
         std::bind(&EmulatorWindow::CpuBreakIntoHostDebugger, this)));
   }
   main_menu->AddChild(std::move(cpu_menu));
 
   // GPU menu.
-  auto gpu_menu = MenuItem::Create(MenuItem::Type::kPopup, "&GPU");
+  auto gpu_menu = MenuItem::Create(MenuItem::Type::kPopup, T(TextId::kMenuGpu));
   {
     gpu_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, "&Trace Frame", "F4",
+        MenuItem::Create(MenuItem::Type::kString, T(TextId::kMenuTraceFrame), "F4",
                          std::bind(&EmulatorWindow::GpuTraceFrame, this)));
   }
   gpu_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
   {
     gpu_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, "&Clear Runtime Caches", "F5",
+        MenuItem::Create(MenuItem::Type::kString, T(TextId::kMenuClearRuntimeCaches), "F5",
                          std::bind(&EmulatorWindow::GpuClearCaches, this)));
   }
   main_menu->AddChild(std::move(gpu_menu));
 
   // Display menu.
-  auto display_menu = MenuItem::Create(MenuItem::Type::kPopup, "&Display");
+  auto display_menu = MenuItem::Create(MenuItem::Type::kPopup, T(TextId::kMenuDisplay));
   {
     display_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, "&Post-processing settings", "F6",
+        MenuItem::Type::kString, T(TextId::kMenuPostProcessingSettings), "F6",
         std::bind(&EmulatorWindow::ToggleDisplayConfigDialog, this)));
   }
   display_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
   {
     display_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, "&Fullscreen", "F11",
+        MenuItem::Create(MenuItem::Type::kString, T(TextId::kMenuFullscreen), "F11",
                          std::bind(&EmulatorWindow::ToggleFullscreen, this)));
   }
   main_menu->AddChild(std::move(display_menu));
 
   // Help menu.
-  auto help_menu = MenuItem::Create(MenuItem::Type::kPopup, "&Help");
+  auto help_menu = MenuItem::Create(MenuItem::Type::kPopup, T(TextId::kMenuHelp));
   {
     help_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, "FA&Q...", "F1",
+        MenuItem::Create(MenuItem::Type::kString, T(TextId::kMenuFaq), "F1",
                          std::bind(&EmulatorWindow::ShowFAQ, this)));
     help_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
     help_menu->AddChild(
-        MenuItem::Create(MenuItem::Type::kString, "Game &compatibility...",
+        MenuItem::Create(MenuItem::Type::kString, T(TextId::kMenuGameCompatibility),
                          std::bind(&EmulatorWindow::ShowCompatibility, this)));
     help_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
     help_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, "Build commit on GitHub...", "F2",
+        MenuItem::Type::kString, T(TextId::kMenuBuildCommit), "F2",
         std::bind(&EmulatorWindow::ShowBuildCommit, this)));
     help_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, "Recent changes on GitHub...", [this]() {
+        MenuItem::Type::kString, T(TextId::kMenuRecentChanges), [this]() {
           LaunchWebBrowser(
               "https://github.com/xenia-project/xenia/compare/" XE_BUILD_COMMIT
               "..." XE_BUILD_BRANCH);
         }));
     help_menu->AddChild(MenuItem::Create(MenuItem::Type::kSeparator));
     help_menu->AddChild(MenuItem::Create(
-        MenuItem::Type::kString, "&About...",
+        MenuItem::Type::kString, T(TextId::kMenuAbout),
         [this]() { LaunchWebBrowser("https://xenia.jp/about/"); }));
   }
   main_menu->AddChild(std::move(help_menu));
@@ -823,13 +808,13 @@ void EmulatorWindow::FileOpen() {
   file_picker->set_mode(ui::FilePicker::Mode::kOpen);
   file_picker->set_type(ui::FilePicker::Type::kFile);
   file_picker->set_multi_selection(false);
-  file_picker->set_title("Select Content Package");
+  file_picker->set_title(T(TextId::kSelectContentPackage));
   file_picker->set_extensions({
-      {"Supported Files", "*.iso;*.xex;*.*"},
-      {"Disc Image (*.iso)", "*.iso"},
-      {"Xbox Executable (*.xex)", "*.xex"},
+      {T(TextId::kSupportedFiles), "*.iso;*.xex;*.*"},
+      {T(TextId::kDiscImage), "*.iso"},
+      {T(TextId::kXboxExecutable), "*.xex"},
       //{"Content Package (*.xcp)", "*.xcp" },
-      {"All Files (*.*)", "*.*"},
+      {T(TextId::kAllFiles), "*.*"},
   });
   if (file_picker->Show(window_.get())) {
     auto selected_files = file_picker->selected_files();
@@ -893,10 +878,9 @@ void EmulatorWindow::CpuTimeScalarSetDouble() {
 
 void EmulatorWindow::CpuBreakIntoDebugger() {
   if (!cvars::debug) {
-    xe::ui::ImGuiDialog::ShowMessageBox(imgui_drawer_.get(), "Xenia Debugger",
-                                        "Xenia must be launched with the "
-                                        "--debug flag in order to enable "
-                                        "debugging.");
+    xe::ui::ImGuiDialog::ShowMessageBox(imgui_drawer_.get(),
+                                        T(TextId::kXeniaDebugger),
+                                        T(TextId::kDebugFlagRequired));
     return;
   }
   auto processor = emulator()->processor();
