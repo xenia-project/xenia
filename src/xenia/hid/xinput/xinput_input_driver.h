@@ -37,6 +37,9 @@ class XInputInputDriver final : public InputDriver {
   void* XInputGetKeystroke_;
   void* XInputSetState_;
   void* XInputEnable_;
+  // Bitmask tracking which user_indices have a real controller (not a phantom
+  // wireless adapter ghost). Bit N set = user_index N has a verified device.
+  uint32_t connected_user_mask_;
 };
 
 }  // namespace xinput

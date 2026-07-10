@@ -29,7 +29,8 @@ XInputInputDriver::XInputInputDriver(xe::ui::Window* window,
       XInputGetState_(nullptr),
       XInputGetKeystroke_(nullptr),
       XInputSetState_(nullptr),
-      XInputEnable_(nullptr) {}
+      XInputEnable_(nullptr),
+      connected_user_mask_(0) {}
 
 XInputInputDriver::~XInputInputDriver() {
   if (module_) {
@@ -82,13 +83,55 @@ X_STATUS XInputInputDriver::Setup() {
   return X_STATUS_SUCCESS;
 }
 
+// Verifies that a connected XInput slot is a real controller, not a phantom
+// device (e.g. the wireless receiver reporting a ghost slot).
+//
+// The Xbox 360 wireless adapter causes XInputGetCapabilities to return
+// success on slots where no controller is physically connected. These
+// phantom slots return XInputGetState with packet_number 0 and all-zero
+// gamepad data. This helper filters them out.
+static bool IsRealController(const decltype(&XInputGetState) xigs,
+                             uint32_t user_index) {
+  XINPUT_STATE test_state;
+  DWORD result = xigs(user_index, &test_state);
+  if (result != ERROR_SUCCESS) {
+    return false;
+  }
+  // Phantom slots return packet 0 + all zeros.
+  // Real controllers have packet_number > 0 or non-zero gamepad data
+  // even when idle (controller presence is detectable).
+  if (test_state.dwPacketNumber == 0) {
+    // Packet 0 with all-zero gamepad = phantom.
+    if (test_state.Gamepad.wButtons == 0 &&
+        test_state.Gamepad.bLeftTrigger == 0 &&
+        test_state.Gamepad.bRightTrigger == 0 &&
+        test_state.Gamepad.sThumbLX == 0 &&
+        test_state.Gamepad.sThumbLY == 0 &&
+        test_state.Gamepad.sThumbRX == 0 &&
+        test_state.Gamepad.sThumbRY == 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
 X_RESULT XInputInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
                                             X_INPUT_CAPABILITIES* out_caps) {
   XINPUT_CAPABILITIES native_caps;
   auto xigc = (decltype(&XInputGetCapabilities))XInputGetCapabilities_;
   DWORD result = xigc(user_index, flags, &native_caps);
   if (result) {
+    // Remove from connected mask on disconnect.
+    connected_user_mask_ &= ~(1u << user_index);
     return result;
+  }
+
+  // Filter phantom slots from wireless adapters.
+  // A slot that claims to be connected but has no real state is a ghost.
+  auto xigs = (decltype(&XInputGetState))XInputGetState_;
+  if (!IsRealController(xigs, user_index)) {
+    connected_user_mask_ &= ~(1u << user_index);
+    return X_ERROR_DEVICE_NOT_CONNECTED;
   }
 
   out_caps->type = native_caps.Type;
@@ -105,11 +148,17 @@ X_RESULT XInputInputDriver::GetCapabilities(uint32_t user_index, uint32_t flags,
   out_caps->vibration.right_motor_speed =
       native_caps.Vibration.wRightMotorSpeed;
 
+  connected_user_mask_ |= (1u << user_index);
   return result;
 }
 
 X_RESULT XInputInputDriver::GetState(uint32_t user_index,
                                      X_INPUT_STATE* out_state) {
+  // Skip phantom slots that slipped through (belt-and-suspenders).
+  if (!(connected_user_mask_ & (1u << user_index))) {
+    return X_ERROR_DEVICE_NOT_CONNECTED;
+  }
+
   XINPUT_STATE native_state;
   auto xigs = (decltype(&XInputGetState))XInputGetState_;
   DWORD result = xigs(user_index, &native_state);
@@ -154,6 +203,11 @@ X_RESULT XInputInputDriver::GetKeystroke(uint32_t user_index, uint32_t flags,
   // If any user (0xFF) is polled this bug does not occur but GetCapabilities
   // would fail so we need to skip it.
   if (user_index != 0xFF) {
+    // Check whether we believe this slot has a real controller.
+    if (!(connected_user_mask_ & (1u << user_index))) {
+      return X_ERROR_DEVICE_NOT_CONNECTED;
+    }
+
     XINPUT_CAPABILITIES caps;
     auto xigc = (decltype(&XInputGetCapabilities))XInputGetCapabilities_;
     result = xigc(user_index, 0, &caps);
