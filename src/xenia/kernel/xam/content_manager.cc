@@ -10,6 +10,7 @@
 #include "xenia/kernel/xam/content_manager.h"
 
 #include <string>
+#include <system_error>
 
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/filesystem.h"
@@ -237,7 +238,12 @@ X_RESULT ContentManager::DeleteContent(const XCONTENT_AGGREGATE_DATA& data) {
   }
 
   auto package_path = ResolvePackagePath(data);
-  if (std::filesystem::remove_all(package_path) > 0) {
+  std::error_code ec;
+  auto removed = std::filesystem::remove_all(package_path, ec);
+  if (ec) {
+    return X_ERROR_ACCESS_DENIED;
+  }
+  if (removed > 0) {
     return X_ERROR_SUCCESS;
   } else {
     return X_ERROR_FILE_NOT_FOUND;
