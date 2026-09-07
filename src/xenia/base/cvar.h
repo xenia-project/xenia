@@ -16,7 +16,22 @@
 #include <vector>
 
 #include "third_party/cpptoml/include/cpptoml.h"
+// cxxopts (as vendored, an old pre-3.2 version) negates
+// std::numeric_limits<T>::min() directly, which is signed integer overflow
+// for the minimum value of a signed type. This is flagged as a hard error by
+// -Werror=integer-overflow on newer Clang/GCC. The vendored copy can't be
+// patched in place (it's a pinned git submodule), so the warning is
+// suppressed locally at the only inclusion site instead. Fixed upstream in
+// cxxopts 3.2 ("Fix incorrect integer overflow checks"); this guard can be
+// dropped if the vendored version is ever bumped past that.
+#if defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winteger-overflow"
+#endif  // defined(__clang__) || defined(__GNUC__)
 #include "third_party/cxxopts/include/cxxopts.hpp"
+#if defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif  // defined(__clang__) || defined(__GNUC__)
 #include "third_party/fmt/include/fmt/format.h"
 #include "xenia/base/assert.h"
 #include "xenia/base/filesystem.h"
