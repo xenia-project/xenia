@@ -418,9 +418,23 @@ X64ThunkEmitter::X64ThunkEmitter(X64Backend* backend, XbyakAllocator* allocator)
 X64ThunkEmitter::~X64ThunkEmitter() {}
 
 HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
+  // This is invoked via a plain C++ function pointer call (see
+  // X64Function::CallImpl / HostToGuestThunk's typedef, which carries no
+  // calling-convention attribute), so the incoming argument registers
+  // follow the *host's native* ABI - Microsoft x64 on Windows (rcx/rdx/r8),
+  // System V AMD64 everywhere else, including Linux (rdi/rsi/rdx). Using
+  // the wrong set here reads whatever garbage happens to be sitting in
+  // rcx/r8 on non-Windows hosts instead of the real arguments, since the
+  // caller never populated those registers - it populated rdi/rsi/rdx.
+#if XE_PLATFORM_WIN32
   // rcx = target
   // rdx = arg0 (context)
   // r8 = arg1 (guest return address)
+#else
+  // rdi = target
+  // rsi = arg0 (context)
+  // rdx = arg1 (guest return address)
+#endif  // XE_PLATFORM_WIN32
 
   struct _code_offsets {
     size_t prolog;
@@ -435,9 +449,15 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   code_offsets.prolog = getSize();
 
   // rsp + 0 = return address
+#if XE_PLATFORM_WIN32
   mov(qword[rsp + 8 * 3], r8);
   mov(qword[rsp + 8 * 2], rdx);
   mov(qword[rsp + 8 * 1], rcx);
+#else
+  mov(qword[rsp + 8 * 3], rdx);
+  mov(qword[rsp + 8 * 2], rsi);
+  mov(qword[rsp + 8 * 1], rdi);
+#endif  // XE_PLATFORM_WIN32
   sub(rsp, stack_size);
 
   code_offsets.prolog_stack_alloc = getSize();
@@ -446,9 +466,15 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   // Save nonvolatile registers.
   EmitSaveNonvolatileRegs();
 
+#if XE_PLATFORM_WIN32
   mov(rax, rcx);
   mov(rsi, rdx);  // context
   mov(rcx, r8);   // return address
+#else
+  mov(rax, rdi);
+  mov(rsi, rsi);  // context (already in rsi - kept for symmetry/clarity)
+  mov(rcx, rdx);  // return address
+#endif  // XE_PLATFORM_WIN32
   call(rax);
 
   EmitLoadNonvolatileRegs();
@@ -456,9 +482,15 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
   code_offsets.epilog = getSize();
 
   add(rsp, stack_size);
+#if XE_PLATFORM_WIN32
   mov(rcx, qword[rsp + 8 * 1]);
   mov(rdx, qword[rsp + 8 * 2]);
   mov(r8, qword[rsp + 8 * 3]);
+#else
+  mov(rdi, qword[rsp + 8 * 1]);
+  mov(rsi, qword[rsp + 8 * 2]);
+  mov(rdx, qword[rsp + 8 * 3]);
+#endif  // XE_PLATFORM_WIN32
   ret();
 
   code_offsets.tail = getSize();
@@ -561,8 +593,18 @@ ResolveFunctionThunk X64ThunkEmitter::EmitResolveFunctionThunk() {
   // Save volatile registers
   EmitSaveVolatileRegs();
 
+  // ResolveFunction(void* raw_context, uint64_t target_address) is a plain
+  // C++ function called via a raw pointer, so - same issue as
+  // EmitHostToGuestThunk above - its argument registers follow the host's
+  // native ABI, not this hand-written code's own rcx/rdx convention used
+  // elsewhere between xbyak-emitted thunks.
+#if XE_PLATFORM_WIN32
   mov(rcx, rsi);  // context
-  mov(rdx, rbx);
+  mov(rdx, rbx);  // target address
+#else
+  mov(rdi, rsi);  // context
+  mov(rsi, rbx);  // target address
+#endif  // XE_PLATFORM_WIN32
   mov(rax, reinterpret_cast<uint64_t>(&ResolveFunction));
   call(rax);
 
