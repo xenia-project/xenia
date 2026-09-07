@@ -13,6 +13,9 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <cstddef>
+#include <fstream>
+#include <sstream>
+#include <string>
 
 #include "xenia/base/math.h"
 #include "xenia/base/platform.h"
@@ -79,6 +82,22 @@ uint32_t ToPosixProtectFlags(PageAccess access) {
   }
 }
 
+PageAccess ToXeniaProtectFlags(const char* protection) {
+  if (protection[0] == 'r' && protection[1] == 'w' && protection[2] == 'x') {
+    return PageAccess::kExecuteReadWrite;
+  }
+  if (protection[0] == 'r' && protection[1] == '-' && protection[2] == 'x') {
+    return PageAccess::kExecuteReadOnly;
+  }
+  if (protection[0] == 'r' && protection[1] == 'w' && protection[2] == '-') {
+    return PageAccess::kReadWrite;
+  }
+  if (protection[0] == 'r' && protection[1] == '-' && protection[2] == '-') {
+    return PageAccess::kReadOnly;
+  }
+  return PageAccess::kNoAccess;
+}
+
 bool IsWritableExecutableMemorySupported() { return true; }
 
 void* AllocFixed(void* base_address, size_t length,
@@ -101,14 +120,61 @@ bool DeallocFixed(void* base_address, size_t length,
 
 bool Protect(void* base_address, size_t length, PageAccess access,
              PageAccess* out_old_access) {
-  // Linux does not have a syscall to query memory permissions.
-  assert_null(out_old_access);
+  if (out_old_access) {
+    size_t length_copy = length;
+    QueryProtect(base_address, length_copy, *out_old_access);
+  }
 
   uint32_t prot = ToPosixProtectFlags(access);
   return mprotect(base_address, length, prot) == 0;
 }
 
 bool QueryProtect(void* base_address, size_t& length, PageAccess& access_out) {
+  // Linux does not have a syscall to query memory permissions directly, but
+  // the current mapping's protection bits can be read from /proc/self/maps
+  // (works on any Linux-kernel-based OS, including Android).
+  std::ifstream memory_maps;
+  memory_maps.open("/proc/self/maps", std::ios_base::in);
+  std::string maps_entry_string;
+
+  while (std::getline(memory_maps, maps_entry_string)) {
+    std::stringstream entry_stream(maps_entry_string);
+    uintptr_t map_region_begin, map_region_end;
+    char separator;
+    char protection[5];  // 4 chars (e.g., "r-xp") + null terminator
+
+    entry_stream >> std::hex >> map_region_begin >> separator >>
+        map_region_end >> protection;
+
+    if (map_region_begin <= reinterpret_cast<uintptr_t>(base_address) &&
+        map_region_end > reinterpret_cast<uintptr_t>(base_address)) {
+      length = map_region_end - reinterpret_cast<uintptr_t>(base_address);
+
+      access_out = ToXeniaProtectFlags(protection);
+
+      // Look at the next consecutive mappings with the same protection, to
+      // report the full length of the contiguous region actually queried.
+      while (std::getline(memory_maps, maps_entry_string)) {
+        std::stringstream next_entry_stream(maps_entry_string);
+        uintptr_t next_map_region_begin, next_map_region_end;
+        char next_protection[5];  // 4 chars (e.g., "r-xp") + null terminator
+
+        next_entry_stream >> std::hex >> next_map_region_begin >> separator >>
+            next_map_region_end >> next_protection;
+        if (map_region_end == next_map_region_begin &&
+            access_out == ToXeniaProtectFlags(next_protection)) {
+          map_region_end = next_map_region_end;
+          length =
+              next_map_region_end - reinterpret_cast<uintptr_t>(base_address);
+          continue;
+        }
+        break;
+      }
+
+      return true;
+    }
+  }
+
   return false;
 }
 
