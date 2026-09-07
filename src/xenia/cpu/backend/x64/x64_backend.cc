@@ -479,6 +479,13 @@ HostToGuestThunk X64ThunkEmitter::EmitHostToGuestThunk() {
 }
 
 GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
+  // This is called from CallExtern (JIT-emitted code, so the incoming
+  // arguments are always in rcx/rdx/r8/r9 by internal convention there),
+  // but it then calls into a real host C++ function pointer
+  // (BuiltinFunction::handler() or a kernel export's Trampoline) - so, same
+  // issue as the other host<->guest thunks, that final call must use the
+  // *host's native* ABI: Microsoft x64 (rcx/rdx/r8/r9) on Windows, System V
+  // AMD64 (rdi/rsi/rdx/rcx) everywhere else, including Linux.
   // rcx = target function
   // rdx = arg0
   // r8  = arg1
@@ -505,9 +512,23 @@ GuestToHostThunk X64ThunkEmitter::EmitGuestToHostThunk() {
   // Save off volatile registers.
   EmitSaveVolatileRegs();
 
+#if XE_PLATFORM_WIN32
   mov(rax, rcx);              // function
   mov(rcx, GetContextReg());  // context
   call(rax);
+#else
+  // Must be translated to System-V ABI:
+  // rdi = target function
+  // rsi = arg0
+  // rdx = arg1
+  // rcx = arg2
+  mov(rax, rcx);              // function
+  mov(rdi, GetContextReg());  // context
+  mov(rsi, rdx);              // arg0
+  mov(rdx, r8);               // arg1
+  mov(rcx, r9);               // arg2
+  call(rax);
+#endif  // XE_PLATFORM_WIN32
 
   EmitLoadVolatileRegs();
 
