@@ -222,6 +222,24 @@ static void ExceptionHandlerCallback(int signal_number, siginfo_t* signal_info,
       return;
     }
   }
+
+  // No installed handler processed the exception (this is expected for
+  // genuine guest crashes whose faulting PC falls outside the JIT code
+  // cache - see Emulator::ExceptionCallback - as well as for any other
+  // unrecognized fault). Without SA_NODEFER, this signal is currently
+  // blocked for this thread, and returning from this handler without
+  // fixing up the machine context would make the kernel simply re-execute
+  // the same faulting instruction, immediately re-raising the exact same
+  // signal - forever, silently, with no crash and no progress, instead of
+  // the process terminating the way it would if Xenia's handler had never
+  // been installed. Restore the original disposition and re-raise so the
+  // pending signal is delivered with that disposition (typically default:
+  // terminate with a core dump) as soon as this handler returns.
+  const struct sigaction* original_handler =
+      signal_number == SIGILL ? &original_sigill_handler_
+                              : &original_sigsegv_handler_;
+  sigaction(signal_number, original_handler, nullptr);
+  raise(signal_number);
 }
 
 void ExceptionHandler::Install(Handler fn, void* data) {
