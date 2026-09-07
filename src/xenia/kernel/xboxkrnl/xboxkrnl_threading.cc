@@ -635,6 +635,36 @@ dword_result_t NtReleaseSemaphore_entry(dword_t sem_handle,
 DECLARE_XBOXKRNL_EXPORT2(NtReleaseSemaphore, kThreading, kImplemented,
                          kHighFrequency);
 
+// https://www.nirsoft.net/kernel_struct/vista/API/KeInitializeMutant.html
+void KeInitializeMutant_entry(pointer_t<X_KMUTANT> mutant_ptr,
+                              dword_t initial_owner) {
+  mutant_ptr.Zero();
+  mutant_ptr->header.type = 2;  // MutantObject
+  // signal_state follows mutex semantics (0 = owned/non-signaled), the
+  // inverse of the InitialOwner flag - see XMutant::InitializeNative.
+  mutant_ptr->header.signal_state = initial_owner ? 0 : 1;
+  auto mutant = XObject::GetNativeObject<XMutant>(kernel_state(), mutant_ptr,
+                                                  2 /* MutantObject */);
+  if (!mutant) {
+    assert_always();
+    return;
+  }
+}
+DECLARE_XBOXKRNL_EXPORT1(KeInitializeMutant, kThreading, kImplemented);
+
+dword_result_t KeReleaseMutant_entry(pointer_t<X_KMUTANT> mutant_ptr,
+                                     dword_t priority_increment,
+                                     dword_t abandon, dword_t wait) {
+  auto mutant = XObject::GetNativeObject<XMutant>(kernel_state(), mutant_ptr);
+  if (!mutant) {
+    assert_always();
+    return X_STATUS_INVALID_HANDLE;
+  }
+
+  return mutant->ReleaseMutant(priority_increment, !!abandon, !!wait);
+}
+DECLARE_XBOXKRNL_EXPORT1(KeReleaseMutant, kThreading, kImplemented);
+
 dword_result_t NtCreateMutant_entry(
     lpdword_t handle_out, pointer_t<X_OBJECT_ATTRIBUTES> obj_attributes,
     dword_t initial_owner) {

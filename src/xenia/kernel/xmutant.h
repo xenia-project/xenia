@@ -18,6 +18,15 @@ namespace xe {
 namespace kernel {
 class XThread;
 
+// https://www.nirsoft.net/kernel_struct/vista/KMUTANT.html
+// Only the dispatcher header is modeled - nothing in Xenia reads the real
+// KMUTANT's MutantListEntry/OwnerThread/Abandoned fields directly, ownership
+// is tracked host-side by XMutant instead (same approach as X_KEVENT).
+struct X_KMUTANT {
+  X_DISPATCH_HEADER header;
+};
+static_assert_size(X_KMUTANT, 0x10);
+
 class XMutant : public XObject {
  public:
   static const XObject::Type kObjectType = XObject::Type::Mutant;
