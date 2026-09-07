@@ -34,8 +34,16 @@ void XMutant::Initialize(bool initial_owner) {
 void XMutant::InitializeNative(void* native_ptr, X_DISPATCH_HEADER* header) {
   assert_false(mutant_);
 
-  // Haven't seen this yet, but it's possible.
-  assert_always();
+  // KMUTANT's signal_state follows normal mutex semantics: 0 means owned
+  // (non-signaled), 1 means free (signaled) - the inverse of KeInitializeMutant's
+  // InitialOwner flag, which the caller already folded into signal_state
+  // before this object was created (see KeInitializeMutant_entry).
+  bool initial_owner = !header->signal_state;
+  mutant_ = xe::threading::Mutant::Create(initial_owner);
+  assert_not_null(mutant_);
+  if (initial_owner) {
+    owning_thread_ = XThread::GetCurrentThread();
+  }
 }
 
 X_STATUS XMutant::ReleaseMutant(uint32_t priority_increment, bool abandon,
