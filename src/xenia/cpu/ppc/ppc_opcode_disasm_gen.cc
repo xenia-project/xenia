@@ -249,6 +249,7 @@ void PrintDisasm_cntlzdx(const PPCDecodeData& d, StringBuffer* str) {
   // cntlzd [RA], [RS]
   size_t str_start = str->length();
   str->Append("cntlzd");
+  if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
   str->AppendFormat("r{}", d.X.RA());
   str->Append(", ");
@@ -1422,9 +1423,9 @@ void PrintDisasm_lvx128(const PPCDecodeData& d, StringBuffer* str) {
   str->AppendFormat("r{}", d.VX128_1.RB());
 }
 void PrintDisasm_lvxl(const PPCDecodeData& d, StringBuffer* str) {
-  // lvslx [VD], [RA0], [RB]
+  // lvxl [VD], [RA0], [RB]
   size_t str_start = str->length();
-  str->Append("lvslx");
+  str->Append("lvxl");
   PadStringBuffer(str, str_start, kNamePad);
   str->AppendFormat("vr{}", d.X.VD());
   str->Append(", ");
@@ -1583,7 +1584,7 @@ void PrintDisasm_mffsx(const PPCDecodeData& d, StringBuffer* str) {
   str->Append("mffs");
   if (d.X.Rc()) str->Append('.');
   PadStringBuffer(str, str_start, kNamePad);
-  str->AppendFormat("r{}", d.X.RD());
+  str->AppendFormat("fr{}", d.X.RD());
 }
 void PrintDisasm_mfmsr(const PPCDecodeData& d, StringBuffer* str) {
   // mfmsr [RD]
